@@ -11,6 +11,7 @@ import SearchScreen from '../screens/SearchScreen';
 import MessagingScreen from '../screens/MessagingScreen';
 import PropertyDetailsScreen from '../screens/PropertyDetailsScreen';
 import BookingScreen from '../screens/BookingScreen';
+import MyBookingsScreen from '../screens/MyBookingsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 
@@ -57,11 +58,11 @@ const TabNavigator = () => {
         component={MessagingScreen}
         options={{ tabBarLabel: 'Messagerie' }}
       />
-      <Tab.Screen 
-        name="BookingsTab" 
-        component={BookingScreen}
-        options={{ tabBarLabel: 'Réservations' }}
-      />
+          <Tab.Screen
+            name="BookingsTab"
+            component={MyBookingsScreen}
+            options={{ tabBarLabel: 'Réservations' }}
+          />
       <Tab.Screen 
         name="FavoritesTab" 
         component={FavoritesScreen}

@@ -14,6 +14,7 @@ import { RootStackParamList } from '../types';
 import { useProperties } from '../hooks/useProperties';
 import { Property } from '../types';
 import PropertyImageCarousel from '../components/PropertyImageCarousel';
+import BookingModal from '../components/BookingModal';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -23,6 +24,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const { getPropertyById } = useProperties();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showBookingModal, setShowBookingModal] = useState(false);
 
   useEffect(() => {
     const loadProperty = async () => {
@@ -50,11 +52,7 @@ const PropertyDetailsScreen: React.FC = () => {
   };
 
   const handleBookNow = () => {
-    Alert.alert(
-      'Réservation',
-      'Fonctionnalité de réservation en cours de développement',
-      [{ text: 'OK' }]
-    );
+    setShowBookingModal(true);
   };
 
   const handleContactHost = () => {
@@ -82,7 +80,8 @@ const PropertyDetailsScreen: React.FC = () => {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollView}>
       {/* Galerie d'images */}
       <View style={styles.imageContainer}>
         <PropertyImageCarousel
@@ -183,7 +182,17 @@ const PropertyDetailsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Modal de réservation */}
+      {property && (
+        <BookingModal
+          visible={showBookingModal}
+          onClose={() => setShowBookingModal(false)}
+          property={property}
+        />
+      )}
+    </View>
   );
 };
 
@@ -191,6 +200,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  scrollView: {
+    flex: 1,
   },
   centerContainer: {
     flex: 1,
