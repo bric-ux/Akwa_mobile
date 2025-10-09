@@ -1,23 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-
-interface Destination {
-  id: string;
-  name: string;
-  image: string;
-  propertiesCount: number;
-}
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { CityStats } from '../hooks/useCities';
 
 interface PopularDestinationsProps {
-  destinations: Destination[];
-  onDestinationPress?: (destination: Destination) => void;
+  destinations: CityStats[];
+  onDestinationPress?: (destination: CityStats) => void;
+  loading?: boolean;
 }
 
 export const PopularDestinations: React.FC<PopularDestinationsProps> = ({
   destinations,
   onDestinationPress,
+  loading = false,
 }) => {
-  const renderDestinationCard = (destination: Destination) => (
+  const renderDestinationCard = (destination: CityStats) => (
     <TouchableOpacity
       key={destination.id}
       style={styles.destinationCard}
@@ -42,13 +38,20 @@ export const PopularDestinations: React.FC<PopularDestinationsProps> = ({
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>Destinations populaires</Text>
       
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {destinations.map(renderDestinationCard)}
-      </ScrollView>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#2E7D32" />
+          <Text style={styles.loadingText}>Chargement des destinations...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {destinations.map(renderDestinationCard)}
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -104,5 +107,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#fff',
     opacity: 0.9,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  loadingText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: '#666',
   },
 });

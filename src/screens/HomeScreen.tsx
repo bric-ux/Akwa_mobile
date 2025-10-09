@@ -10,9 +10,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useProperties } from '../hooks/useProperties';
-import { Property, SearchFilters } from '../types';
+import { useCities } from '../hooks/useCities';
+import { Property } from '../types';
 import PropertyCard from '../components/PropertyCard';
-import { SearchBar, FiltersModal } from '../components/SearchBar';
 import { Header } from '../components/Header';
 import { HeroSection } from '../components/HeroSection';
 import { PopularDestinations } from '../components/PopularDestinations';
@@ -22,36 +22,8 @@ const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { properties, loading, error, fetchProperties } = useProperties();
-  const [showFilters, setShowFilters] = useState(false);
-  const [searchFilters, setSearchFilters] = useState<SearchFilters>({});
+  const { cities, loading: citiesLoading, error: citiesError } = useCities();
 
-  // Données mockées pour les destinations populaires
-  const popularDestinations = [
-    {
-      id: '1',
-      name: 'Abidjan',
-      image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      propertiesCount: 45,
-    },
-    {
-      id: '2',
-      name: 'Yamoussoukro',
-      image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      propertiesCount: 23,
-    },
-    {
-      id: '3',
-      name: 'Grand-Bassam',
-      image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      propertiesCount: 18,
-    },
-    {
-      id: '4',
-      name: 'San-Pédro',
-      image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      propertiesCount: 12,
-    },
-  ];
 
   // Données pour le carrousel d'images
   const carouselImages = [
@@ -98,10 +70,6 @@ const HomeScreen: React.FC = () => {
     fetchProperties();
   }, []);
 
-  const handleSearch = (filters: SearchFilters) => {
-    setSearchFilters(filters);
-    fetchProperties(filters);
-  };
 
   const handlePropertyPress = (property: Property) => {
     navigation.navigate('PropertyDetails', { propertyId: property.id });
@@ -151,17 +119,23 @@ const HomeScreen: React.FC = () => {
         onNotificationPress={handleNotificationPress}
       />
       
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        bounces={false}
+        overScrollMode="never"
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        contentOffset={{ x: 0, y: 0 }}
+        scrollEventThrottle={16}
+      >
         <HeroSection onSearchPress={handleSearchPress} />
 
-        <SearchBar
-          onSearch={handleSearch}
-          onFiltersPress={() => setShowFilters(true)}
-        />
-
         <PopularDestinations
-          destinations={popularDestinations}
+          destinations={cities}
           onDestinationPress={handleDestinationPress}
+          loading={citiesLoading}
         />
 
         <ImageCarousel
@@ -184,12 +158,6 @@ const HomeScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      <FiltersModal
-        visible={showFilters}
-        onClose={() => setShowFilters(false)}
-        onApply={handleSearch}
-        initialFilters={searchFilters}
-      />
     </View>
   );
 };
@@ -198,6 +166,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+    marginTop: 0,
+    paddingTop: 0,
+    marginBottom: 0,
+    paddingBottom: 0,
   },
   centerContainer: {
     flex: 1,
@@ -207,6 +179,24 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    marginTop: 0,
+    paddingTop: 0,
+    marginBottom: 0,
+    paddingBottom: 0,
+    marginLeft: 0,
+    paddingLeft: 0,
+    marginRight: 0,
+    paddingRight: 0,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+    paddingTop: 0,
+    marginTop: 0,
+    flexGrow: 1,
+    paddingLeft: 0,
+    paddingRight: 0,
+    marginLeft: 0,
+    marginRight: 0,
   },
   section: {
     marginVertical: 20,

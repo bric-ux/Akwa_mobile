@@ -43,7 +43,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    height: height * 0.4,
+    height: height * 0.35,
+    marginTop: 0,
+    paddingTop: 0,
+    marginBottom: 0,
+    paddingBottom: 0,
+    marginLeft: 0,
+    paddingLeft: 0,
+    marginRight: 0,
+    paddingRight: 0,
   },
   backgroundImage: {
     flex: 1,

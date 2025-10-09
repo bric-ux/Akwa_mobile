@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../screens/HomeScreen';
 import AuthScreen from '../screens/AuthScreen';
 import SearchScreen from '../screens/SearchScreen';
+import MessagingScreen from '../screens/MessagingScreen';
 import PropertyDetailsScreen from '../screens/PropertyDetailsScreen';
 import BookingScreen from '../screens/BookingScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -29,7 +30,7 @@ const TabNavigator = () => {
           if (route.name === 'HomeTab') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'SearchTab') {
-            iconName = focused ? 'search' : 'search-outline';
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           } else if (route.name === 'BookingsTab') {
             iconName = focused ? 'calendar' : 'calendar-outline';
           } else if (route.name === 'ProfileTab') {
@@ -52,8 +53,8 @@ const TabNavigator = () => {
       />
       <Tab.Screen 
         name="SearchTab" 
-        component={SearchScreen}
-        options={{ tabBarLabel: 'Recherche' }}
+        component={MessagingScreen}
+        options={{ tabBarLabel: 'Messagerie' }}
       />
       <Tab.Screen 
         name="BookingsTab" 
