@@ -15,8 +15,8 @@ import PropertyCard from '../components/PropertyCard';
 import { SearchBar, FiltersModal } from '../components/SearchBar';
 import { Header } from '../components/Header';
 import { HeroSection } from '../components/HeroSection';
-import { RecommendedProperties } from '../components/RecommendedProperties';
 import { PopularDestinations } from '../components/PopularDestinations';
+import ImageCarousel from '../components/ImageCarousel';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -53,6 +53,46 @@ const HomeScreen: React.FC = () => {
     },
   ];
 
+  // Données pour le carrousel d'images
+  const carouselImages = [
+    {
+      id: '1',
+      source: require('../../assets/images/pont.jpg'),
+      title: 'Le Pont Félix Houphouët-Boigny',
+      description: 'Symbole architectural d\'Abidjan',
+    },
+    {
+      id: '2',
+      source: require('../../assets/images/plages-assinie.jpg'),
+      title: 'Plages d\'Assinie',
+      description: 'Paradis tropical de la Côte d\'Ivoire',
+    },
+    {
+      id: '3',
+      source: require('../../assets/images/elephants.jpg'),
+      title: 'Parc National de la Comoé',
+      description: 'Découvrez la faune sauvage',
+    },
+    {
+      id: '4',
+      source: require('../../assets/images/culture.jpg'),
+      title: 'Culture Ivoirienne',
+      description: 'Traditions et patrimoine vivant',
+    },
+    {
+      id: '5',
+      source: require('../../assets/images/abidjan.jpg'),
+      title: 'Abidjan la Perle des Lagunes',
+      description: 'Métropole moderne et dynamique',
+    },
+    {
+      id: '6',
+      source: require('../../assets/images/basilique-yamoussoukro.jpg'),
+      title: 'Basilique Notre-Dame de la Paix',
+      description: 'Joyau architectural de Yamoussoukro',
+    },
+  ];
+
   useEffect(() => {
     // Charger les propriétés au montage du composant
     fetchProperties();
@@ -83,9 +123,6 @@ const HomeScreen: React.FC = () => {
     navigation.navigate('Search', { destination: destination.name });
   };
 
-  const handleViewAllProperties = () => {
-    navigation.navigate('Search');
-  };
 
   const renderPropertyCard = ({ item }: { item: Property }) => (
     <PropertyCard property={item} onPress={handlePropertyPress} />
@@ -127,10 +164,12 @@ const HomeScreen: React.FC = () => {
           onDestinationPress={handleDestinationPress}
         />
 
-        <RecommendedProperties
-          properties={properties.slice(0, 5)}
-          onPropertyPress={handlePropertyPress}
-          onViewAllPress={handleViewAllProperties}
+        <ImageCarousel
+          images={carouselImages}
+          onImagePress={(image) => {
+            // Optionnel : navigation vers une page de détails de l'image
+            console.log('Image sélectionnée:', image.title);
+          }}
         />
 
         <View style={styles.section}>
