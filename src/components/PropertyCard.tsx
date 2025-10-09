@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Property } from '../types';
+import PropertyImageCarousel from './PropertyImageCarousel';
 
 interface PropertyCardProps {
   property: Property;
@@ -32,12 +33,12 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
     >
       {variant === 'list' ? (
         <View style={styles.listLayout}>
-          <Image
-            source={{ 
-              uri: property.images[0] || 'https://via.placeholder.com/300x200' 
+          <PropertyImageCarousel
+            images={property.images || []}
+            height={120}
+            onImagePress={(imageIndex) => {
+              console.log('Image sélectionnée:', imageIndex);
             }}
-            style={styles.listImage}
-            resizeMode="cover"
           />
           <View style={styles.listContent}>
             <View style={styles.listHeader}>
@@ -76,12 +77,12 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
         </View>
       ) : (
         <>
-          <Image
-            source={{ 
-              uri: property.images[0] || 'https://via.placeholder.com/300x200' 
+          <PropertyImageCarousel
+            images={property.images || []}
+            height={200}
+            onImagePress={(imageIndex) => {
+              console.log('Image sélectionnée:', imageIndex);
             }}
-            style={styles.image}
-            resizeMode="cover"
           />
           
           <View style={styles.priceContainer}>

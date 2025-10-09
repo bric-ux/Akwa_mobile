@@ -13,6 +13,7 @@ import { RouteProp, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import { useProperties } from '../hooks/useProperties';
 import { Property } from '../types';
+import PropertyImageCarousel from '../components/PropertyImageCarousel';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -22,7 +23,6 @@ const PropertyDetailsScreen: React.FC = () => {
   const { getPropertyById } = useProperties();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     const loadProperty = async () => {
@@ -81,34 +81,18 @@ const PropertyDetailsScreen: React.FC = () => {
     );
   }
 
-  const screenWidth = Dimensions.get('window').width;
-
   return (
     <ScrollView style={styles.container}>
       {/* Galerie d'images */}
       <View style={styles.imageContainer}>
-        <Image
-          source={{ 
-            uri: property.images[currentImageIndex] || 'https://via.placeholder.com/400x300' 
+        <PropertyImageCarousel
+          images={property.images || []}
+          height={300}
+          onImagePress={(imageIndex) => {
+            console.log('Image sélectionnée:', imageIndex);
+            // Optionnel : ouvrir une vue plein écran des images
           }}
-          style={[styles.mainImage, { width: screenWidth, height: 300 }]}
-          resizeMode="cover"
         />
-        
-        {property.images && property.images.length > 1 && (
-          <View style={styles.imageIndicators}>
-            {property.images.map((_, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.indicator,
-                  index === currentImageIndex && styles.activeIndicator,
-                ]}
-                onPress={() => setCurrentImageIndex(index)}
-              />
-            ))}
-          </View>
-        )}
       </View>
 
       {/* Informations principales */}
