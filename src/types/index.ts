@@ -1,0 +1,99 @@
+// Types principaux pour l'application AkwaHome
+
+export interface User {
+  id: string;
+  email: string;
+  user_metadata?: {
+    first_name?: string;
+    last_name?: string;
+  };
+}
+
+export interface Property {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string;
+  price_per_night: number;
+  images: string[];
+  rating?: number;
+  reviews_count?: number;
+  amenities?: Amenity[];
+  host_id: string;
+  created_at: string;
+  updated_at: string;
+  city_id?: string;
+  cities?: {
+    id: string;
+    name: string;
+    region: string;
+  };
+  max_guests?: number;
+  property_type?: string;
+  cleaning_fee?: number;
+  service_fee?: number;
+  is_hidden?: boolean;
+  auto_booking?: boolean;
+}
+
+export interface Amenity {
+  id: string;
+  name: string;
+  icon: string | null;
+  category: string;
+  created_at: string;
+}
+
+export interface Booking {
+  id: string;
+  property_id: string;
+  user_id: string;
+  check_in: string;
+  check_out: string;
+  guests: number;
+  total_price: number;
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SearchFilters {
+  city?: string;
+  guests?: number;
+  priceMin?: number;
+  priceMax?: number;
+  propertyType?: string;
+  checkIn?: string;
+  checkOut?: string;
+}
+
+export interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, userData: any) => Promise<void>;
+  signOut: () => Promise<void>;
+}
+
+// Types pour la navigation
+export type RootStackParamList = {
+  Home: undefined;
+  Search: undefined;
+  PropertyDetails: { propertyId: string };
+  Booking: { propertyId: string };
+  Auth: undefined;
+  BecomeHost: undefined;
+  HostDashboard: undefined;
+  AddProperty: undefined;
+  MyBookings: undefined;
+  Profile: undefined;
+  Messaging: undefined;
+  Admin: undefined;
+};
+
+export type TabParamList = {
+  HomeTab: undefined;
+  SearchTab: undefined;
+  BookingsTab: undefined;
+  ProfileTab: undefined;
+};
