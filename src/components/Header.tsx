@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 interface HeaderProps {
@@ -12,36 +13,41 @@ export const Header: React.FC<HeaderProps> = ({
   onNotificationPress 
 }) => {
   return (
-    <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <Image 
-          source={require('../../assets/images/akwa-home-logo-transparent.png')} 
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.logoText}>AkwaHome</Text>
-      </View>
-      
-      <View style={styles.actionsContainer}>
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={onNotificationPress}
-        >
-          <Ionicons name="notifications-outline" size={24} color="#333" />
-        </TouchableOpacity>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../../assets/images/akwa-home-logo-transparent.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.logoText}>AkwaHome</Text>
+        </View>
         
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={onProfilePress}
-        >
-          <Ionicons name="person-outline" size={24} color="#333" />
-        </TouchableOpacity>
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={onNotificationPress}
+          >
+            <Ionicons name="notifications-outline" size={24} color="#333" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={onProfilePress}
+          >
+            <Ionicons name="person-outline" size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    backgroundColor: '#fff',
+  },
   container: {
     flexDirection: 'row',
     justifyContent: 'space-between',
