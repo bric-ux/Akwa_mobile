@@ -100,6 +100,14 @@ const AppNavigator = () => {
           }}
         />
         <Stack.Screen 
+          name="Search" 
+          component={SearchScreen}
+          options={{ 
+            title: 'Rechercher',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen 
           name="PropertyDetails" 
           component={PropertyDetailsScreen}
           options={{ title: 'Détails de la propriété' }}

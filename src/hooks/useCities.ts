@@ -80,17 +80,18 @@ export const useCities = () => {
   // Fonction pour obtenir l'image de la ville
   const getCityImage = (cityName: string): string => {
     const cityImages: { [key: string]: string } = {
-      'Abidjan': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      'Yamoussoukro': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      'Grand-Bassam': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      'San-Pédro': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      'Bouaké': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      'Korhogo': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      'Man': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-      'Gagnoa': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
+      'Abidjan': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
+      'Yamoussoukro': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
+      'Grand-Bassam': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
+      'San-Pédro': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
+      'Bouaké': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
+      'Korhogo': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
+      'Man': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
+      'Gagnoa': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
+      'Cocody': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
     };
     
-    return cityImages[cityName] || 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400';
+    return cityImages[cityName] || 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop';
   };
 
   return {

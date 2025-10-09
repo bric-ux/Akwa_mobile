@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { CityStats } from '../hooks/useCities';
 
 interface PopularDestinationsProps {
@@ -13,17 +13,33 @@ export const PopularDestinations: React.FC<PopularDestinationsProps> = ({
   onDestinationPress,
   loading = false,
 }) => {
-  const renderDestinationCard = (destination: CityStats) => (
+
+  const getCityColor = (cityName: string): string => {
+    const colors = [
+      '#2E7D32', // Vert
+      '#1976D2', // Bleu
+      '#D32F2F', // Rouge
+      '#7B1FA2', // Violet
+      '#F57C00', // Orange
+      '#388E3C', // Vert foncé
+      '#5D4037', // Marron
+      '#455A64', // Gris bleu
+    ];
+    
+    const index = cityName.length % colors.length;
+    return colors[index];
+  };
+
+  const renderDestinationCard = (destination: CityStats) => {
+    return (
     <TouchableOpacity
       key={destination.id}
       style={styles.destinationCard}
       onPress={() => onDestinationPress?.(destination)}
     >
-      <Image
-        source={{ uri: destination.image }}
-        style={styles.destinationImage}
-        resizeMode="cover"
-      />
+      <View style={[styles.fallbackImage, { backgroundColor: getCityColor(destination.name) }]}>
+        <Text style={styles.fallbackText}>{destination.name.charAt(0)}</Text>
+      </View>
       
       <View style={styles.destinationOverlay}>
         <Text style={styles.destinationName}>{destination.name}</Text>
@@ -32,7 +48,8 @@ export const PopularDestinations: React.FC<PopularDestinationsProps> = ({
         </Text>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -76,6 +93,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginRight: 15,
     overflow: 'hidden',
+    backgroundColor: '#2E7D32',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -85,17 +103,27 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  destinationImage: {
+  fallbackImage: {
     width: '100%',
     height: '100%',
+    backgroundColor: '#2E7D32',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fallbackText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   destinationOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     padding: 12,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
   },
   destinationName: {
     fontSize: 16,

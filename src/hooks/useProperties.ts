@@ -74,6 +74,20 @@ export const useProperties = () => {
 
       // Appliquer les filtres côté serveur
       if (filters?.city) {
+        // D'abord vérifier si la ville existe
+        const { data: cityExists } = await supabase
+          .from('cities')
+          .select('id, name')
+          .eq('name', filters.city)
+          .single();
+        
+        if (!cityExists) {
+          console.log(`⚠️ Ville "${filters.city}" non trouvée dans la base de données`);
+          setProperties([]);
+          setLoading(false);
+          return;
+        }
+        
         query = query
           .select(`
             *,
@@ -97,6 +111,20 @@ export const useProperties = () => {
       if (filters?.propertyType && ['apartment', 'house', 'villa', 'eco_lodge', 'other'].includes(filters.propertyType)) {
         query = query.eq('property_type', filters.propertyType as any);
       }
+
+      // Filtres pour les équipements (recherche dans les amenities)
+      if (filters?.wifi) {
+        query = query.contains('amenities', ['WiFi gratuit']);
+      }
+      if (filters?.parking) {
+        query = query.contains('amenities', ['Parking gratuit']);
+      }
+      if (filters?.pool) {
+        query = query.contains('amenities', ['Piscine']);
+      }
+      if (filters?.airConditioning) {
+        query = query.contains('amenities', ['Climatisation']);
+      }
       
       // Optimisation : limiter les résultats et trier par pertinence
       const { data, error } = await query
@@ -109,14 +137,19 @@ export const useProperties = () => {
 
       // Transformer les données avec les équipements
       const transformedProperties = await Promise.all(
-        (data || []).map(async (property) => ({
-          ...property,
-          images: property.images || [],
-          price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000, // Prix entre 10k et 60k FCFA
-          rating: Math.random() * 2 + 3, // Note aléatoire entre 3 et 5 pour la démo
-          reviews_count: Math.floor(Math.random() * 50) + 5, // Nombre d'avis aléatoire
-          amenities: await mapAmenities(property.amenities)
-        }))
+        (data || []).map(async (property) => {
+          const mappedAmenities = await mapAmenities(property.amenities);
+          console.log(`🏠 ${property.title} - Équipements:`, property.amenities, '→ Mappés:', mappedAmenities);
+          
+          return {
+            ...property,
+            images: property.images || [],
+            price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000, // Prix entre 10k et 60k FCFA
+            rating: Math.random() * 2 + 3, // Note aléatoire entre 3 et 5 pour la démo
+            reviews_count: Math.floor(Math.random() * 50) + 5, // Nombre d'avis aléatoire
+            amenities: mappedAmenities
+          };
+        })
       );
 
       console.log('🎯 Propriétés transformées:', transformedProperties.length);

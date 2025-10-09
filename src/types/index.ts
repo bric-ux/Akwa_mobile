@@ -60,11 +60,18 @@ export interface Booking {
 export interface SearchFilters {
   city?: string;
   guests?: number;
+  adults?: number;
+  children?: number;
+  babies?: number;
   priceMin?: number;
   priceMax?: number;
-  propertyType?: string;
+  propertyType?: 'apartment' | 'house' | 'villa' | 'eco_lodge' | 'other';
   checkIn?: string;
   checkOut?: string;
+  wifi?: boolean;
+  parking?: boolean;
+  pool?: boolean;
+  airConditioning?: boolean;
 }
 
 export interface AuthContextType {
@@ -78,7 +85,7 @@ export interface AuthContextType {
 // Types pour la navigation
 export type RootStackParamList = {
   Home: undefined;
-  Search: undefined;
+  Search: { destination?: string } | undefined;
   PropertyDetails: { propertyId: string };
   Booking: { propertyId: string };
   Auth: undefined;
