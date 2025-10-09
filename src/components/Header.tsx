@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../services/AuthContext';
 
 interface HeaderProps {
   onProfilePress?: () => void;
@@ -12,6 +13,7 @@ export const Header: React.FC<HeaderProps> = ({
   onProfilePress, 
   onNotificationPress 
 }) => {
+  const { user } = useAuth();
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -36,7 +38,24 @@ export const Header: React.FC<HeaderProps> = ({
             style={styles.actionButton}
             onPress={onProfilePress}
           >
-            <Ionicons name="person-outline" size={24} color="#333" />
+            {user ? (
+              <Image
+                source={{ 
+                  uri: user?.user_metadata?.avatar_url || 
+                       user?.user_metadata?.picture ||
+                       `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                         (user?.user_metadata?.first_name || 'U') + 
+                         (user?.user_metadata?.last_name ? ' ' + user.user_metadata.last_name : '')
+                       )}&background=2E7D32&color=FFFFFF&size=32`
+                }}
+                style={styles.profileAvatar}
+                onError={() => {
+                  console.log('Erreur de chargement de l\'avatar dans le header');
+                }}
+              />
+            ) : (
+              <Ionicons name="person-outline" size={24} color="#333" />
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -79,5 +98,12 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 8,
     marginLeft: 10,
+  },
+  profileAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#2E7D32',
   },
 });

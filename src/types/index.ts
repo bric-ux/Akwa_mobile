@@ -102,5 +102,5 @@ export type TabParamList = {
   HomeTab: undefined;
   SearchTab: undefined;
   BookingsTab: undefined;
-  ProfileTab: undefined;
+  FavoritesTab: undefined;
 };

@@ -25,7 +25,7 @@ interface AutoCompleteSearchProps {
   initialValue?: string;
 }
 
-export const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
+const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
   placeholder = "Rechercher par ville...",
   onSearch,
   onSuggestionSelect,
@@ -201,6 +201,7 @@ export const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       )}
     </TouchableOpacity>
   );
+  };
 
   return (
     <View style={styles.container}>

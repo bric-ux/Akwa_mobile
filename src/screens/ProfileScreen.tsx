@@ -1,46 +1,164 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useAuth } from '../services/AuthContext';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Image,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../services/supabase';
 
 const ProfileScreen: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const navigation = useNavigation();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleSignOut = async () => {
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
     try {
-      await signOut();
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
     } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+      console.error('Erreur lors du chargement du profil:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Profil</Text>
-        {user ? (
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>
-              {user.user_metadata?.first_name || user.email?.split('@')[0] || 'Utilisateur'}
-            </Text>
-            <Text style={styles.userEmail}>{user.email}</Text>
-          </View>
-        ) : (
-          <Text style={styles.notLoggedIn}>Non connecté</Text>
-        )}
-      </View>
+  const handleLogout = () => {
+    Alert.alert(
+      'Déconnexion',
+      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Déconnexion',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supabase.auth.signOut();
+              navigation.navigate('Auth');
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de se déconnecter');
+            }
+          },
+        },
+      ]
+    );
+  };
 
-      <View style={styles.content}>
-        {user ? (
-          <TouchableOpacity style={styles.button} onPress={handleSignOut}>
-            <Text style={styles.buttonText}>Se déconnecter</Text>
-          </TouchableOpacity>
-        ) : (
-          <Text style={styles.loginPrompt}>
-            Connectez-vous pour accéder à votre profil
+  const menuItems = [
+    {
+      id: 'edit',
+      title: 'Modifier le profil',
+      icon: 'person-outline',
+      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
+    },
+    {
+      id: 'bookings',
+      title: 'Mes réservations',
+      icon: 'calendar-outline',
+      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
+    },
+    {
+      id: 'host',
+      title: 'Devenir hôte',
+      icon: 'home-outline',
+      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
+    },
+    {
+      id: 'help',
+      title: 'Aide et support',
+      icon: 'help-circle-outline',
+      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
+    },
+    {
+      id: 'settings',
+      title: 'Paramètres',
+      icon: 'settings-outline',
+      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
+    },
+  ];
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <Text style={styles.loadingText}>Chargement du profil...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.avatarContainer}>
+            <Image
+              source={{ 
+                uri: user?.user_metadata?.avatar_url || 
+                     user?.user_metadata?.picture ||
+                     `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                       (user?.user_metadata?.first_name || 'U') + 
+                       (user?.user_metadata?.last_name ? ' ' + user.user_metadata.last_name : '')
+                     )}&background=2E7D32&color=FFFFFF&size=100`
+              }}
+              style={styles.avatar}
+              onError={() => {
+                // En cas d'erreur, utiliser l'avatar par défaut
+                console.log('Erreur de chargement de l\'avatar');
+              }}
+            />
+          </View>
+          <Text style={styles.userName}>
+            {user?.user_metadata?.first_name || 'Utilisateur'} {user?.user_metadata?.last_name || ''}
           </Text>
-        )}
-      </View>
-    </View>
+          <Text style={styles.userEmail}>{user?.email}</Text>
+        </View>
+
+        {/* Menu Items */}
+        <View style={styles.menuContainer}>
+          {menuItems.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.menuItem}
+              onPress={item.onPress}
+            >
+              <View style={styles.menuItemLeft}>
+                <Ionicons name={item.icon as any} size={24} color="#333" />
+                <Text style={styles.menuItemText}>{item.title}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Logout Button */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={24} color="#e74c3c" />
+          <Text style={styles.logoutText}>Se déconnecter</Text>
+        </TouchableOpacity>
+
+        {/* App Info */}
+        <View style={styles.appInfo}>
+          <Text style={styles.appVersion}>AkwaHome v1.0.0</Text>
+          <Text style={styles.appDescription}>
+            Votre plateforme de réservation d'hébergements en Côte d'Ivoire
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -49,57 +167,104 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+  },
   header: {
     backgroundColor: '#fff',
-    padding: 20,
+    alignItems: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 20,
+  avatarContainer: {
+    marginBottom: 15,
   },
-  userInfo: {
-    marginBottom: 10,
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#2E7D32',
   },
   userName: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#2c3e50',
+    color: '#333',
     marginBottom: 5,
   },
   userEmail: {
     fontSize: 16,
-    color: '#6c757d',
+    color: '#666',
   },
-  notLoggedIn: {
-    fontSize: 16,
-    color: '#6c757d',
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  button: {
-    backgroundColor: '#dc3545',
+  menuContainer: {
+    backgroundColor: '#fff',
+    marginTop: 20,
+    marginHorizontal: 20,
     borderRadius: 12,
-    padding: 15,
+    overflow: 'hidden',
+  },
+  menuItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 200,
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  loginPrompt: {
+  menuItemText: {
     fontSize: 16,
-    color: '#6c757d',
+    color: '#333',
+    marginLeft: 15,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 20,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e74c3c',
+  },
+  logoutText: {
+    fontSize: 16,
+    color: '#e74c3c',
+    fontWeight: '500',
+    marginLeft: 10,
+  },
+  appInfo: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+  },
+  appVersion: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
+  },
+  appDescription: {
+    fontSize: 12,
+    color: '#999',
     textAlign: 'center',
+    lineHeight: 18,
   },
 });
 

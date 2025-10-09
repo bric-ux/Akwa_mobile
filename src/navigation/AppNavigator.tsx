@@ -12,6 +12,7 @@ import MessagingScreen from '../screens/MessagingScreen';
 import PropertyDetailsScreen from '../screens/PropertyDetailsScreen';
 import BookingScreen from '../screens/BookingScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import FavoritesScreen from '../screens/FavoritesScreen';
 
 // Types
 import { RootStackParamList, TabParamList } from '../types';
@@ -33,8 +34,8 @@ const TabNavigator = () => {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           } else if (route.name === 'BookingsTab') {
             iconName = focused ? 'calendar' : 'calendar-outline';
-          } else if (route.name === 'ProfileTab') {
-            iconName = focused ? 'person' : 'person-outline';
+          } else if (route.name === 'FavoritesTab') {
+            iconName = focused ? 'heart' : 'heart-outline';
           } else {
             iconName = 'home-outline';
           }
@@ -62,9 +63,9 @@ const TabNavigator = () => {
         options={{ tabBarLabel: 'Réservations' }}
       />
       <Tab.Screen 
-        name="ProfileTab" 
-        component={ProfileScreen}
-        options={{ tabBarLabel: 'Profil' }}
+        name="FavoritesTab" 
+        component={FavoritesScreen}
+        options={{ tabBarLabel: 'Favoris' }}
       />
     </Tab.Navigator>
   );
@@ -118,6 +119,14 @@ const AppNavigator = () => {
           options={{ title: 'Réservation' }}
         />
         <Stack.Screen 
+          name="Profile" 
+          component={ProfileScreen}
+          options={{ 
+            title: 'Profil',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen 
           name="BecomeHost" 
           component={AuthScreen} // Placeholder
           options={{ title: 'Devenir hôte' }}
@@ -136,11 +145,6 @@ const AppNavigator = () => {
           name="MyBookings" 
           component={AuthScreen} // Placeholder
           options={{ title: 'Mes réservations' }}
-        />
-        <Stack.Screen 
-          name="Profile" 
-          component={ProfileScreen}
-          options={{ title: 'Profil' }}
         />
         <Stack.Screen 
           name="Messaging" 

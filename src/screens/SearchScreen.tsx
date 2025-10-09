@@ -17,12 +17,12 @@ import { useProperties } from '../hooks/useProperties';
 import { Property, SearchFilters, RootStackParamList } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import FiltersModal from '../components/FiltersModal';
-import SearchSuggestions from '../components/SearchSuggestions';
-import SearchResultsHeader from '../components/SearchResultsHeader';
-import QuickFilters from '../components/QuickFilters';
-import AutoCompleteSearch from '../components/AutoCompleteSearch';
-import DateGuestsSelector from '../components/DateGuestsSelector';
-import SearchButton from '../components/SearchButton';
+import { SearchSuggestions } from '../components/SearchSuggestions';
+import { SearchResultsHeader } from '../components/SearchResultsHeader';
+import { QuickFilters } from '../components/QuickFilters';
+import { AutoCompleteSearch } from '../components/AutoCompleteSearch';
+import { DateGuestsSelector } from '../components/DateGuestsSelector';
+import { SearchButton } from '../components/SearchButton';
 
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 

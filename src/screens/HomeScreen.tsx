@@ -16,7 +16,7 @@ import PropertyCard from '../components/PropertyCard';
 import { Header } from '../components/Header';
 import { HeroSection } from '../components/HeroSection';
 import { PopularDestinations } from '../components/PopularDestinations';
-import ImageCarousel from '../components/ImageCarousel';
+import { ImageCarousel } from '../components/ImageCarousel';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -80,7 +80,11 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleProfilePress = () => {
-    navigation.navigate('Profile');
+    if (user) {
+      navigation.navigate('Profile');
+    } else {
+      navigation.navigate('Auth');
+    }
   };
 
   const handleNotificationPress = () => {
