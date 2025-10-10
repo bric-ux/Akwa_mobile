@@ -112,6 +112,43 @@ export const useAdmin = () => {
         if (profileError) {
           console.error('Error updating profile:', profileError);
         }
+
+        // Envoyer email de confirmation d'approbation
+        try {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'host_application_approved',
+              to: application.email,
+              data: {
+                hostName: application.full_name,
+                propertyTitle: application.title,
+                propertyType: application.property_type,
+                location: application.location
+              }
+            }
+          });
+        } catch (emailError) {
+          console.error('Error sending approval email:', emailError);
+        }
+      }
+
+      // Si refusé, envoyer email de refus
+      if (status === 'rejected' && application) {
+        try {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'host_application_rejected',
+              to: application.email,
+              data: {
+                hostName: application.full_name,
+                propertyTitle: application.title,
+                adminNotes: adminNotes || 'Aucune raison spécifiée'
+              }
+            }
+          });
+        } catch (emailError) {
+          console.error('Error sending rejection email:', emailError);
+        }
       }
 
       return { success: true, data };
@@ -300,6 +337,33 @@ export const useAdmin = () => {
     }
   };
 
+  const getIdentityDocument = async (userId: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('identity_documents')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching identity document:', error);
+        setError('Erreur lors du chargement du document d\'identité');
+        return null;
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      setError('Erreur lors du chargement du document d\'identité');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getDashboardStats = async (): Promise<DashboardStats> => {
     setLoading(true);
     setError(null);
@@ -415,6 +479,7 @@ export const useAdmin = () => {
     deleteProperty,
     getAllUsers,
     updateUserRole,
+    getIdentityDocument,
     getDashboardStats,
     loading,
     error,
