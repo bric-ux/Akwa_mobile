@@ -13,6 +13,7 @@ import PropertyDetailsScreen from '../screens/PropertyDetailsScreen';
 import BookingScreen from '../screens/BookingScreen';
 import MyBookingsScreen from '../screens/MyBookingsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 
@@ -125,6 +126,14 @@ const AppNavigator = () => {
           component={ProfileScreen}
           options={{ 
             title: 'Profil',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen 
+          name="EditProfile" 
+          component={EditProfileScreen}
+          options={{ 
+            title: 'Modifier le profil',
             headerShown: false 
           }}
         />

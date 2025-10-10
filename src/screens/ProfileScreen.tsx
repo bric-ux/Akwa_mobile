@@ -10,29 +10,36 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { profile, loading, error, refreshProfile } = useUserProfile();
 
-  useEffect(() => {
-    loadUserProfile();
-  }, []);
+  // Rafraîchir le profil quand l'écran devient actif
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshProfile();
+    }, [refreshProfile])
+  );
 
-  const loadUserProfile = async () => {
-    try {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    } catch (error) {
-      console.error('Erreur lors du chargement du profil:', error);
-    } finally {
-      setLoading(false);
+  // Rediriger vers l'authentification si erreur d'authentification
+  React.useEffect(() => {
+    if (error && (error.includes('Session expirée') || error.includes('connecté'))) {
+      Alert.alert(
+        'Session expirée',
+        'Votre session a expiré. Veuillez vous reconnecter.',
+        [
+          {
+            text: 'Se connecter',
+            onPress: () => navigation.navigate('Auth'),
+          },
+        ]
+      );
     }
-  };
+  }, [error, navigation]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -64,7 +71,7 @@ const ProfileScreen: React.FC = () => {
       id: 'edit',
       title: 'Modifier le profil',
       icon: 'person-outline',
-      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
+      onPress: () => navigation.navigate('EditProfile'),
     },
     {
       id: 'bookings',
@@ -110,11 +117,10 @@ const ProfileScreen: React.FC = () => {
           <View style={styles.avatarContainer}>
             <Image
               source={{ 
-                uri: user?.user_metadata?.avatar_url || 
-                     user?.user_metadata?.picture ||
+                uri: profile?.avatar_url || 
                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                       (user?.user_metadata?.first_name || 'U') + 
-                       (user?.user_metadata?.last_name ? ' ' + user.user_metadata.last_name : '')
+                       (profile?.first_name || 'U') + 
+                       (profile?.last_name ? ' ' + profile.last_name : '')
                      )}&background=2E7D32&color=FFFFFF&size=100`
               }}
               style={styles.avatar}
@@ -125,9 +131,9 @@ const ProfileScreen: React.FC = () => {
             />
           </View>
           <Text style={styles.userName}>
-            {user?.user_metadata?.first_name || 'Utilisateur'} {user?.user_metadata?.last_name || ''}
+            {profile?.first_name || 'Utilisateur'} {profile?.last_name || ''}
           </Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
+          <Text style={styles.userEmail}>{profile?.email}</Text>
         </View>
 
         {/* Menu Items */}

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../services/AuthContext';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 interface HeaderProps {
   onProfilePress?: () => void;
@@ -14,6 +15,15 @@ export const Header: React.FC<HeaderProps> = ({
   onNotificationPress 
 }) => {
   const { user } = useAuth();
+  const { profile, refreshProfile } = useUserProfile();
+
+  // Rafraîchir le profil quand l'utilisateur change
+  useEffect(() => {
+    if (user) {
+      refreshProfile();
+    }
+  }, [user, refreshProfile]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -41,12 +51,11 @@ export const Header: React.FC<HeaderProps> = ({
             {user ? (
               <Image
                 source={{ 
-                  uri: user?.user_metadata?.avatar_url || 
-                       user?.user_metadata?.picture ||
+                  uri: profile?.avatar_url || 
                        `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                         (user?.user_metadata?.first_name || 'U') + 
-                         (user?.user_metadata?.last_name ? ' ' + user.user_metadata.last_name : '')
-                       )}&background=2E7D32&color=FFFFFF&size=32`
+                         (profile?.first_name || 'U') + 
+                         (profile?.last_name ? ' ' + profile.last_name : '')
+                       )}&background=2E7D32&color=FFFFFF&size=40`
                 }}
                 style={styles.profileAvatar}
                 onError={() => {

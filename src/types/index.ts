@@ -98,6 +98,7 @@ export type RootStackParamList = {
   AddProperty: undefined;
   MyBookings: undefined;
   Profile: undefined;
+  EditProfile: undefined;
   Messaging: undefined;
   Admin: undefined;
   SupabaseTest: undefined;
