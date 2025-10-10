@@ -16,6 +16,13 @@ import ProfileScreen from '../screens/ProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
+import BecomeHostScreen from '../screens/BecomeHostScreen';
+import MyPropertiesScreen from '../screens/MyPropertiesScreen';
+import HostDashboardScreen from '../screens/HostDashboardScreen';
+import AdminDashboardScreen from '../screens/AdminDashboardScreen';
+import AdminApplicationsScreen from '../screens/AdminApplicationsScreen';
+import AdminPropertiesScreen from '../screens/AdminPropertiesScreen';
+import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 
 // Types
 import { RootStackParamList, TabParamList } from '../types';
@@ -137,21 +144,30 @@ const AppNavigator = () => {
             headerShown: false 
           }}
         />
-        <Stack.Screen 
-          name="BecomeHost" 
-          component={AuthScreen} // Placeholder
-          options={{ title: 'Devenir hôte' }}
-        />
-        <Stack.Screen 
-          name="HostDashboard" 
-          component={AuthScreen} // Placeholder
-          options={{ title: 'Tableau de bord hôte' }}
-        />
-        <Stack.Screen 
-          name="AddProperty" 
-          component={AuthScreen} // Placeholder
-          options={{ title: 'Ajouter une propriété' }}
-        />
+            <Stack.Screen 
+              name="BecomeHost" 
+              component={BecomeHostScreen}
+              options={{ 
+                title: 'Devenir hôte',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="HostDashboard" 
+              component={HostDashboardScreen}
+              options={{ 
+                title: 'Tableau de bord hôte',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="MyProperties" 
+              component={MyPropertiesScreen}
+              options={{ 
+                title: 'Mes propriétés',
+                headerShown: false 
+              }}
+            />
         <Stack.Screen 
           name="MyBookings" 
           component={MyBookingsScreen}
@@ -165,11 +181,30 @@ const AppNavigator = () => {
           component={AuthScreen} // Placeholder
           options={{ title: 'Messages' }}
         />
-        <Stack.Screen 
-          name="Admin" 
-          component={AuthScreen} // Placeholder
-          options={{ title: 'Administration' }}
-        />
+            <Stack.Screen 
+              name="Admin" 
+              component={AdminDashboardScreen}
+              options={{ 
+                title: 'Administration',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="AdminApplications" 
+              component={AdminApplicationsScreen}
+              options={{ 
+                title: 'Candidatures d\'hôtes',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="PropertyCalendar" 
+              component={PropertyCalendarScreen}
+              options={{ 
+                title: 'Calendrier de disponibilité',
+                headerShown: false 
+              }}
+            />
         <Stack.Screen 
           name="SupabaseTest" 
           component={SupabaseTestScreen}

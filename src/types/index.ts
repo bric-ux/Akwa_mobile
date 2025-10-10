@@ -95,12 +95,16 @@ export type RootStackParamList = {
   Auth: { returnTo?: string; returnParams?: any } | undefined;
   BecomeHost: undefined;
   HostDashboard: undefined;
+  MyProperties: undefined;
   AddProperty: undefined;
   MyBookings: undefined;
   Profile: undefined;
   EditProfile: undefined;
   Messaging: undefined;
   Admin: undefined;
+  AdminApplications: undefined;
+  AdminProperties: undefined;
+  PropertyCalendar: { propertyId: string };
   SupabaseTest: undefined;
 };
 

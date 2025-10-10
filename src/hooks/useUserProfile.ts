@@ -9,6 +9,8 @@ export interface UserProfile {
   phone?: string;
   avatar_url?: string;
   bio?: string;
+  role?: string;
+  is_host?: boolean;
 }
 
 // Cache global et système de listeners pour la synchronisation
@@ -58,14 +60,44 @@ export const useUserProfile = () => {
         return;
       }
       
+      // Récupérer le profil depuis la table profiles pour avoir le rôle
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, is_host, first_name, last_name, phone, avatar_url, bio')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Erreur lors de la récupération du profil:', profileError);
+        // Utiliser les données de user_metadata en fallback
+        const userProfile: UserProfile = {
+          id: user.id,
+          email: user.email || '',
+          first_name: user.user_metadata?.first_name || '',
+          last_name: user.user_metadata?.last_name || '',
+          phone: user.user_metadata?.phone || '',
+          avatar_url: user.user_metadata?.avatar_url || '',
+          bio: user.user_metadata?.bio || '',
+          role: 'user', // Rôle par défaut
+          is_host: false,
+        };
+        
+        globalProfileCache = userProfile;
+        notifyProfileListeners();
+        setProfile(userProfile);
+        return;
+      }
+
       const userProfile: UserProfile = {
         id: user.id,
         email: user.email || '',
-        first_name: user.user_metadata?.first_name || '',
-        last_name: user.user_metadata?.last_name || '',
-        phone: user.user_metadata?.phone || '',
-        avatar_url: user.user_metadata?.avatar_url || '',
-        bio: user.user_metadata?.bio || '',
+        first_name: profileData?.first_name || user.user_metadata?.first_name || '',
+        last_name: profileData?.last_name || user.user_metadata?.last_name || '',
+        phone: profileData?.phone || user.user_metadata?.phone || '',
+        avatar_url: profileData?.avatar_url || user.user_metadata?.avatar_url || '',
+        bio: profileData?.bio || user.user_metadata?.bio || '',
+        role: profileData?.role || 'user',
+        is_host: profileData?.is_host || false,
       };
       
       // Mettre à jour le cache global et notifier tous les listeners

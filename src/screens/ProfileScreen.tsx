@@ -66,7 +66,8 @@ const ProfileScreen: React.FC = () => {
     );
   };
 
-  const menuItems = [
+  // Créer les éléments de menu de base
+  const baseMenuItems = [
     {
       id: 'edit',
       title: 'Modifier le profil',
@@ -83,7 +84,19 @@ const ProfileScreen: React.FC = () => {
       id: 'host',
       title: 'Devenir hôte',
       icon: 'home-outline',
-      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
+      onPress: () => navigation.navigate('BecomeHost'),
+    },
+    {
+      id: 'hostDashboard',
+      title: 'Tableau de bord hôte',
+      icon: 'grid-outline',
+      onPress: () => navigation.navigate('HostDashboard'),
+    },
+    {
+      id: 'myProperties',
+      title: 'Mes propriétés',
+      icon: 'business-outline',
+      onPress: () => navigation.navigate('MyProperties'),
     },
     {
       id: 'help',
@@ -98,6 +111,19 @@ const ProfileScreen: React.FC = () => {
       onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
     },
   ];
+
+  // Ajouter l'option Administration seulement si l'utilisateur est admin
+  const menuItems = profile?.role === 'admin' 
+    ? [
+        ...baseMenuItems,
+        {
+          id: 'admin',
+          title: 'Administration',
+          icon: 'shield-outline',
+          onPress: () => navigation.navigate('Admin'),
+        },
+      ]
+    : baseMenuItems;
 
   if (loading) {
     return (
