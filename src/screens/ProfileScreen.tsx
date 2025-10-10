@@ -46,7 +46,10 @@ const ProfileScreen: React.FC = () => {
           onPress: async () => {
             try {
               await supabase.auth.signOut();
-              navigation.navigate('Auth');
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Home' }],
+              });
             } catch (error) {
               Alert.alert('Erreur', 'Impossible de se déconnecter');
             }

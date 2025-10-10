@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -65,7 +66,7 @@ const AuthScreen: React.FC = () => {
             onPress: () => {
               // Retourner à la page d'origine si spécifiée
               if (returnTo && returnParams) {
-                navigation.navigate(returnTo as any, returnParams);
+                navigation.replace(returnTo as any, returnParams);
               } else {
                 navigation.reset({
                   index: 0,
@@ -99,7 +100,7 @@ const AuthScreen: React.FC = () => {
               onPress: () => {
                 // Retourner à la page d'origine si spécifiée
                 if (returnTo && returnParams) {
-                  navigation.navigate(returnTo as any, returnParams);
+                  navigation.replace(returnTo as any, returnParams);
                 } else {
                   navigation.reset({
                     index: 0,
@@ -136,7 +137,20 @@ const AuthScreen: React.FC = () => {
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           {/* Header */}
           <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => navigation.navigate('Home')}
+            >
+              <Ionicons name="arrow-back" size={24} color="#2E7D32" />
+              <Text style={styles.backButtonText}>Retour</Text>
+            </TouchableOpacity>
+            
             <View style={styles.logoContainer}>
+              <Image 
+                source={require('../../assets/images/akwa-home-logo-transparent.png')} 
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
               <Text style={styles.logoText}>AkwaHome</Text>
               <Text style={styles.logoSubtext}>Votre maison en Côte d'Ivoire</Text>
             </View>
@@ -280,9 +294,40 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     paddingVertical: 40,
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 0,
+    top: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  backButtonText: {
+    marginLeft: 5,
+    fontSize: 16,
+    color: '#2E7D32',
+    fontWeight: '500',
   },
   logoContainer: {
     alignItems: 'center',
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
+    marginBottom: 15,
   },
   logoText: {
     fontSize: 32,
