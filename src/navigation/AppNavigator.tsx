@@ -22,6 +22,7 @@ import HostDashboardScreen from '../screens/HostDashboardScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AdminApplicationsScreen from '../screens/AdminApplicationsScreen';
 import AdminPropertiesScreen from '../screens/AdminPropertiesScreen';
+import AdminUsersScreen from '../screens/AdminUsersScreen';
 import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 
 // Types
@@ -194,6 +195,22 @@ const AppNavigator = () => {
               component={AdminApplicationsScreen}
               options={{ 
                 title: 'Candidatures d\'hôtes',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="AdminProperties" 
+              component={AdminPropertiesScreen}
+              options={{ 
+                title: 'Gestion des propriétés',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="AdminUsers" 
+              component={AdminUsersScreen}
+              options={{ 
+                title: 'Gestion des utilisateurs',
                 headerShown: false 
               }}
             />

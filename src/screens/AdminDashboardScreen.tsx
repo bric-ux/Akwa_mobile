@@ -116,12 +116,12 @@ const AdminDashboardScreen: React.FC = () => {
   };
 
   const handleNavigateToUsers = () => {
-    Alert.alert('Info', 'Fonctionnalité de gestion des utilisateurs en cours de développement');
+    navigation.navigate('AdminUsers');
   };
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centerContainer}>
           <Ionicons name="person-circle-outline" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>Non connecté</Text>
@@ -142,7 +142,7 @@ const AdminDashboardScreen: React.FC = () => {
   // Vérifier que l'utilisateur est admin
   if (profile?.role !== 'admin') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centerContainer}>
           <Ionicons name="shield-outline" size={64} color="#e74c3c" />
           <Text style={styles.emptyTitle}>Accès refusé</Text>
@@ -172,7 +172,7 @@ const AdminDashboardScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
