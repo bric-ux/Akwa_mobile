@@ -30,7 +30,7 @@ const HomeScreen: React.FC = () => {
     {
       id: '1',
       source: require('../../assets/images/pont.jpg'),
-      title: 'Le Pont Félix Houphouët-Boigny',
+      title: 'Le Pont ADO',
       description: 'Symbole architectural d\'Abidjan',
     },
     {

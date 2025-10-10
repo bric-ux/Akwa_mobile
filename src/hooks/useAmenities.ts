@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
+import { getAmenityIcon } from '../utils/amenityIcons';
 
 export const useAmenities = () => {
   const [amenities, setAmenities] = useState<Amenity[]>([]);
@@ -21,7 +22,12 @@ export const useAmenities = () => {
         }
 
         if (data) {
-          setAmenities(data);
+          // Ajouter les icônes appropriées à chaque équipement
+          const amenitiesWithIcons = data.map(amenity => ({
+            ...amenity,
+            icon: getAmenityIcon(amenity.name)
+          }));
+          setAmenities(amenitiesWithIcons);
         }
       } catch (err) {
         console.error('Erreur lors du chargement des équipements:', err);

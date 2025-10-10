@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Property, SearchFilters, Amenity } from '../types';
+import { getAmenityIcon } from '../utils/amenityIcons';
 
 export const useProperties = () => {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -29,7 +30,7 @@ export const useProperties = () => {
           return amenity ? {
             id: amenity.id,
             name: amenity.name,
-            icon: amenity.icon || '🏠'
+            icon: getAmenityIcon(amenity.name)
           } : null;
         })
         .filter(Boolean) as { id: string; name: string; icon: string }[];
