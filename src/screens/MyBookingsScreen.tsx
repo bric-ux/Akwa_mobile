@@ -8,26 +8,41 @@ import {
   Image,
   Alert,
   RefreshControl,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useBookings, Booking } from '../hooks/useBookings';
+import { useAuth } from '../services/AuthContext';
+import BookingCard from '../components/BookingCard';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { getUserBookings, cancelBooking, loading } = useBookings();
+  const { user } = useAuth();
+  const { getUserBookings, cancelBooking, loading, error } = useBookings();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    loadBookings();
-  }, []);
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed'>('all');
 
   const loadBookings = async () => {
-    const userBookings = await getUserBookings();
-    setBookings(userBookings);
+    try {
+      const userBookings = await getUserBookings();
+      setBookings(userBookings);
+    } catch (err) {
+      console.error('Erreur lors du chargement des réservations:', err);
+    }
   };
+
+  // Charger les réservations quand l'écran devient actif
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        loadBookings();
+      }
+    }, [user])
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -35,22 +50,47 @@ const MyBookingsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleCancelBooking = (bookingId: string, propertyTitle: string) => {
+  const handleCancelBooking = (booking: Booking) => {
+    // Vérifier si la réservation peut être annulée
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkOutDate = new Date(booking.check_out_date);
+    checkOutDate.setHours(0, 0, 0, 0);
+
+    if (booking.status === 'completed') {
+      Alert.alert('Impossible d\'annuler', 'Cette réservation est terminée et ne peut plus être annulée.');
+      return;
+    }
+
+    if (booking.status === 'cancelled') {
+      Alert.alert('Réservation annulée', 'Cette réservation est déjà annulée.');
+      return;
+    }
+
+    if (checkOutDate < today) {
+      Alert.alert('Impossible d\'annuler', 'Cette réservation concerne des dates passées et ne peut plus être annulée.');
+      return;
+    }
+
     Alert.alert(
       'Annuler la réservation',
-      `Êtes-vous sûr de vouloir annuler votre réservation pour "${propertyTitle}" ?`,
+      `Êtes-vous sûr de vouloir annuler votre réservation pour "${booking.properties?.title}" ?`,
       [
         { text: 'Non', style: 'cancel' },
         {
           text: 'Oui, annuler',
           style: 'destructive',
           onPress: async () => {
-            const result = await cancelBooking(bookingId);
-            if (result.success) {
-              Alert.alert('Succès', 'Réservation annulée avec succès');
-              loadBookings();
-            } else {
-              Alert.alert('Erreur', 'Impossible d\'annuler la réservation');
+            try {
+              const result = await cancelBooking(booking.id);
+              if (result.success) {
+                Alert.alert('Succès', 'Réservation annulée avec succès');
+                loadBookings(); // Recharger la liste
+              } else {
+                Alert.alert('Erreur', result.error || 'Impossible d\'annuler la réservation');
+              }
+            } catch (err) {
+              Alert.alert('Erreur', 'Une erreur est survenue');
             }
           },
         },
@@ -58,125 +98,91 @@ const MyBookingsScreen: React.FC = () => {
     );
   };
 
-  const handleBookingPress = (booking: Booking) => {
-    navigation.navigate('PropertyDetails', { propertyId: booking.property_id });
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return '#2E7D32';
-      case 'pending':
-        return '#e67e22';
-      case 'cancelled':
-        return '#dc3545';
-      case 'completed':
-        return '#6c757d';
-      default:
-        return '#6c757d';
-    }
+  const handleViewProperty = (propertyId: string) => {
+    navigation.navigate('PropertyDetails', { propertyId });
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'confirmed':
-        return 'Confirmée';
+      case 'all':
+        return 'Toutes';
       case 'pending':
         return 'En attente';
-      case 'cancelled':
-        return 'Annulée';
+      case 'confirmed':
+        return 'Confirmées';
       case 'completed':
-        return 'Terminée';
+        return 'Terminées';
+      case 'cancelled':
+        return 'Annulées';
       default:
-        return status;
+        return 'Inconnu';
     }
   };
 
-  const renderBookingItem = ({ item }: { item: Booking }) => (
+  const filteredBookings = bookings.filter(booking => {
+    if (selectedFilter === 'all') return true;
+    return booking.status === selectedFilter;
+  });
+
+  const renderBookingItem = ({ item: booking }: { item: Booking }) => (
+    <BookingCard
+      booking={booking}
+      onViewProperty={handleViewProperty}
+      onCancelBooking={handleCancelBooking}
+    />
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="calendar-outline" size={64} color="#ccc" />
+      <Text style={styles.emptyTitle}>Aucune réservation</Text>
+      <Text style={styles.emptySubtitle}>
+        {selectedFilter === 'all' 
+          ? 'Vous n\'avez pas encore de réservations'
+          : `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()}`
+        }
+      </Text>
+      <TouchableOpacity
+        style={styles.exploreButton}
+        onPress={() => navigation.navigate('Home')}
+      >
+        <Text style={styles.exploreButtonText}>Explorer les propriétés</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderFilterButton = (filter: typeof selectedFilter, label: string) => (
     <TouchableOpacity
-      style={styles.bookingCard}
-      onPress={() => handleBookingPress(item)}
-      activeOpacity={0.8}
+      style={[
+        styles.filterButton,
+        selectedFilter === filter && styles.filterButtonActive
+      ]}
+      onPress={() => setSelectedFilter(filter)}
     >
-      <Image
-        source={{
-          uri: item.properties?.images?.[0] || 'https://via.placeholder.com/300x200',
-        }}
-        style={styles.bookingImage}
-        resizeMode="cover"
-      />
-      
-      <View style={styles.bookingContent}>
-        <View style={styles.bookingHeader}>
-          <Text style={styles.propertyTitle} numberOfLines={1}>
-            {item.properties?.title || 'Propriété'}
-          </Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-            <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.propertyLocation} numberOfLines={1}>
-          📍 {item.properties?.cities?.name || 'Localisation inconnue'}
-        </Text>
-
-        <View style={styles.bookingDetails}>
-          <View style={styles.detailRow}>
-            <Ionicons name="calendar-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>
-              {formatDate(item.check_in_date)} - {formatDate(item.check_out_date)}
-            </Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Ionicons name="people-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>
-              {item.guests_count} voyageur{item.guests_count > 1 ? 's' : ''}
-            </Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Ionicons name="cash-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>
-              {formatPrice(item.total_price)}
-            </Text>
-          </View>
-        </View>
-
-        {item.status === 'pending' && (
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => handleCancelBooking(item.id, item.properties?.title || 'cette propriété')}
-          >
-            <Text style={styles.cancelButtonText}>Annuler</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <Text style={[
+        styles.filterButtonText,
+        selectedFilter === filter && styles.filterButtonTextActive
+      ]}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 
-  if (loading && bookings.length === 0) {
+  if (!user) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>Chargement de vos réservations...</Text>
+          <Ionicons name="person-outline" size={64} color="#ccc" />
+          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Text style={styles.emptySubtitle}>
+            Vous devez être connecté pour voir vos réservations
+          </Text>
+          <TouchableOpacity
+            style={styles.exploreButton}
+            onPress={() => navigation.navigate('Auth')}
+          >
+            <Text style={styles.exploreButtonText}>Se connecter</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -185,30 +191,41 @@ const MyBookingsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Mes Réservations</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Mes réservations</Text>
+        <View style={styles.placeholder} />
       </View>
 
-      {bookings.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="calendar-outline" size={80} color="#ccc" />
-          <Text style={styles.emptyTitle}>Aucune réservation</Text>
-          <Text style={styles.emptySubtitle}>
-            Vous n'avez pas encore de réservations. Explorez nos propriétés pour commencer !
-          </Text>
-          <TouchableOpacity
-            style={styles.exploreButton}
-            onPress={() => navigation.navigate('Home')}
-          >
-            <Text style={styles.exploreButtonText}>Explorer les propriétés</Text>
-          </TouchableOpacity>
+      {/* Filtres */}
+      <View style={styles.filtersContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.filtersContent}>
+            {renderFilterButton('all', 'Toutes')}
+            {renderFilterButton('pending', 'En attente')}
+            {renderFilterButton('confirmed', 'Confirmées')}
+            {renderFilterButton('completed', 'Terminées')}
+            {renderFilterButton('cancelled', 'Annulées')}
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* Liste des réservations */}
+      {loading && !refreshing ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+          <Text style={styles.loadingText}>Chargement des réservations...</Text>
         </View>
       ) : (
         <FlatList
-          data={bookings}
+          data={filteredBookings}
           renderItem={renderBookingItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContainer}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -217,7 +234,15 @@ const MyBookingsScreen: React.FC = () => {
               tintColor="#2E7D32"
             />
           }
+          ListEmptyComponent={renderEmptyState}
+          showsVerticalScrollIndicator={false}
         />
+      )}
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -228,130 +253,113 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
-  loadingText: {
-    fontSize: 16,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  placeholder: {
+    width: 40,
+  },
+  filtersContainer: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  filtersContent: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 10,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  filterButtonActive: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  filterButtonText: {
+    fontSize: 14,
     color: '#666',
+    fontWeight: '500',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+  },
+  listContainer: {
+    padding: 20,
+    flexGrow: 1,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 20,
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 24,
   },
   exploreButton: {
     backgroundColor: '#2E7D32',
-    paddingHorizontal: 30,
+    paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   exploreButtonText: {
-    color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
-  },
-  listContent: {
-    padding: 20,
-  },
-  bookingCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 15,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  bookingImage: {
-    width: '100%',
-    height: 200,
-  },
-  bookingContent: {
-    padding: 15,
-  },
-  bookingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  propertyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-    marginRight: 10,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
-  propertyLocation: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
-  },
-  bookingDetails: {
-    gap: 8,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  detailText: {
-    fontSize: 14,
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
     color: '#666',
   },
-  cancelButton: {
-    marginTop: 15,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#dc3545',
-    borderRadius: 6,
-    alignSelf: 'flex-start',
+  errorContainer: {
+    backgroundColor: '#e74c3c',
+    padding: 16,
+    margin: 20,
+    borderRadius: 8,
   },
-  cancelButtonText: {
+  errorText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });
 

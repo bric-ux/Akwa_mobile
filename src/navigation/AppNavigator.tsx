@@ -154,8 +154,11 @@ const AppNavigator = () => {
         />
         <Stack.Screen 
           name="MyBookings" 
-          component={AuthScreen} // Placeholder
-          options={{ title: 'Mes réservations' }}
+          component={MyBookingsScreen}
+          options={{ 
+            title: 'Mes réservations',
+            headerShown: false 
+          }}
         />
         <Stack.Screen 
           name="Messaging" 

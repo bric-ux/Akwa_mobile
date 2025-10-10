@@ -77,7 +77,7 @@ const ProfileScreen: React.FC = () => {
       id: 'bookings',
       title: 'Mes réservations',
       icon: 'calendar-outline',
-      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
+      onPress: () => navigation.navigate('MyBookings'),
     },
     {
       id: 'host',

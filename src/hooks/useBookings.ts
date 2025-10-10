@@ -202,7 +202,10 @@ export const useBookings = () => {
         return [];
       }
 
-      return bookings as Booking[];
+      // Mettre à jour automatiquement le statut des réservations passées
+      const updatedBookings = await updateBookingStatuses(bookings as Booking[]);
+
+      return updatedBookings;
     } catch (err) {
       console.error('Unexpected error:', err);
       setError('Une erreur inattendue est survenue');
@@ -210,6 +213,60 @@ export const useBookings = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateBookingStatuses = async (bookings: Booking[]) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Commencer à minuit pour la comparaison
+
+    const bookingsToUpdate: string[] = [];
+
+    // Identifier les réservations qui doivent être marquées comme terminées
+    bookings.forEach(booking => {
+      const checkOutDate = new Date(booking.check_out_date);
+      checkOutDate.setHours(0, 0, 0, 0);
+
+      // Si la date de checkout est passée et que le statut n'est pas déjà terminé ou annulé
+      if (checkOutDate < today && 
+          booking.status !== 'completed' && 
+          booking.status !== 'cancelled') {
+        bookingsToUpdate.push(booking.id);
+      }
+    });
+
+    // Mettre à jour les réservations en base de données
+    if (bookingsToUpdate.length > 0) {
+      try {
+        const { error } = await supabase
+          .from('bookings')
+          .update({ 
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          })
+          .in('id', bookingsToUpdate);
+
+        if (error) {
+          console.error('Error updating booking statuses:', error);
+        } else {
+          console.log(`Mise à jour de ${bookingsToUpdate.length} réservations comme terminées`);
+        }
+      } catch (err) {
+        console.error('Error updating booking statuses:', err);
+      }
+    }
+
+    // Retourner les réservations avec les statuts mis à jour
+    return bookings.map(booking => {
+      const checkOutDate = new Date(booking.check_out_date);
+      checkOutDate.setHours(0, 0, 0, 0);
+
+      if (checkOutDate < today && 
+          booking.status !== 'completed' && 
+          booking.status !== 'cancelled') {
+        return { ...booking, status: 'completed' as const };
+      }
+      return booking;
+    });
   };
 
   const cancelBooking = async (bookingId: string) => {
@@ -222,9 +279,49 @@ export const useBookings = () => {
     setError(null);
 
     try {
+      // Vérifier d'abord le statut de la réservation
+      const { data: booking, error: fetchError } = await supabase
+        .from('bookings')
+        .select('status, check_out_date')
+        .eq('id', bookingId)
+        .eq('guest_id', user.id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching booking:', fetchError);
+        setError('Erreur lors de la récupération de la réservation');
+        return { success: false };
+      }
+
+      // Vérifier si la réservation peut être annulée
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const checkOutDate = new Date(booking.check_out_date);
+      checkOutDate.setHours(0, 0, 0, 0);
+
+      if (booking.status === 'completed') {
+        setError('Impossible d\'annuler une réservation terminée');
+        return { success: false, error: 'Impossible d\'annuler une réservation terminée' };
+      }
+
+      if (booking.status === 'cancelled') {
+        setError('Cette réservation est déjà annulée');
+        return { success: false, error: 'Cette réservation est déjà annulée' };
+      }
+
+      if (checkOutDate < today) {
+        setError('Impossible d\'annuler une réservation dont les dates sont passées');
+        return { success: false, error: 'Impossible d\'annuler une réservation dont les dates sont passées' };
+      }
+
+      // Procéder à l'annulation
       const { error } = await supabase
         .from('bookings')
-        .update({ status: 'cancelled' })
+        .update({ 
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
         .eq('id', bookingId)
         .eq('guest_id', user.id);
 
