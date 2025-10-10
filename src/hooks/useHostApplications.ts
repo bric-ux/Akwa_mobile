@@ -23,6 +23,9 @@ export interface HostApplicationData {
   hostGuide?: string;
   cleaningFee?: number;
   taxes?: number;
+  discountEnabled?: boolean;
+  discountMinNights?: number;
+  discountPercentage?: number;
 }
 
 export interface HostApplication {
@@ -107,6 +110,9 @@ export const useHostApplications = () => {
           host_guide: applicationData.hostGuide || null,
           cleaning_fee: applicationData.cleaningFee || 0,
           taxes: applicationData.taxes || 0,
+          discount_enabled: applicationData.discountEnabled || false,
+          discount_min_nights: applicationData.discountMinNights || null,
+          discount_percentage: applicationData.discountPercentage || null,
         })
         .select()
         .single();

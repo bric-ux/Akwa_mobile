@@ -51,6 +51,11 @@ interface FormData {
   autoBooking: 'auto' | 'request';
   cancellationPolicy: 'flexible' | 'moderate' | 'strict';
   
+  // Réductions (pour aperçu seulement, pas envoyées dans la candidature)
+  discountEnabled: boolean;
+  discountMinNights: string;
+  discountPercentage: string;
+  
   // Conditions
   agreeTerms: boolean;
 }
@@ -82,6 +87,9 @@ const BecomeHostScreen: React.FC = () => {
     minimumNights: '1',
     autoBooking: 'request',
     cancellationPolicy: 'flexible',
+    discountEnabled: false,
+    discountMinNights: '',
+    discountPercentage: '',
     agreeTerms: false,
   });
   
@@ -226,7 +234,7 @@ const BecomeHostScreen: React.FC = () => {
         taxes: parseInt(formData.taxes) || 0,
         discountEnabled: formData.discountEnabled,
         discountMinNights: parseInt(formData.discountMinNights) || null,
-        discountPercentage: parseInt(formData.discountPercentage) || null,
+        discountPercentage: parseFloat(formData.discountPercentage) || null,
       });
 
       if (result.success) {
@@ -559,7 +567,7 @@ const BecomeHostScreen: React.FC = () => {
         />
       </View>
 
-      {/* Section Réductions */}
+      {/* Section Réductions (pour aperçu seulement) */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Réductions pour séjours longs</Text>
         
