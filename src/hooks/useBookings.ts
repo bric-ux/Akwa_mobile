@@ -219,10 +219,9 @@ export const useBookings = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Commencer à minuit pour la comparaison
 
-    const bookingsToUpdate: string[] = [];
-
-    // Identifier les réservations qui doivent être marquées comme terminées
-    bookings.forEach(booking => {
+    // Retourner les réservations avec les statuts mis à jour côté client uniquement
+    // Évite les erreurs de contraintes de la base de données
+    return bookings.map(booking => {
       const checkOutDate = new Date(booking.check_out_date);
       checkOutDate.setHours(0, 0, 0, 0);
 
@@ -230,39 +229,7 @@ export const useBookings = () => {
       if (checkOutDate < today && 
           booking.status !== 'completed' && 
           booking.status !== 'cancelled') {
-        bookingsToUpdate.push(booking.id);
-      }
-    });
-
-    // Mettre à jour les réservations en base de données
-    if (bookingsToUpdate.length > 0) {
-      try {
-        const { error } = await supabase
-          .from('bookings')
-          .update({ 
-            status: 'completed',
-            updated_at: new Date().toISOString()
-          })
-          .in('id', bookingsToUpdate);
-
-        if (error) {
-          console.error('Error updating booking statuses:', error);
-        } else {
-          console.log(`Mise à jour de ${bookingsToUpdate.length} réservations comme terminées`);
-        }
-      } catch (err) {
-        console.error('Error updating booking statuses:', err);
-      }
-    }
-
-    // Retourner les réservations avec les statuts mis à jour
-    return bookings.map(booking => {
-      const checkOutDate = new Date(booking.check_out_date);
-      checkOutDate.setHours(0, 0, 0, 0);
-
-      if (checkOutDate < today && 
-          booking.status !== 'completed' && 
-          booking.status !== 'cancelled') {
+        console.log(`Réservation ${booking.id} marquée comme terminée côté client`);
         return { ...booking, status: 'completed' as const };
       }
       return booking;
@@ -318,9 +285,7 @@ export const useBookings = () => {
       const { error } = await supabase
         .from('bookings')
         .update({ 
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          status: 'cancelled'
         })
         .eq('id', bookingId)
         .eq('guest_id', user.id);
