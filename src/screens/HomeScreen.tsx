@@ -8,7 +8,7 @@ import {
   Alert,
   TouchableOpacity,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useProperties } from '../hooks/useProperties';
 import { useCities } from '../hooks/useCities';
@@ -23,7 +23,7 @@ import ImageCarousel from '../components/ImageCarousel';
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { properties, loading, error, fetchProperties } = useProperties();
+  const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
   const { cities, loading: citiesLoading, error: citiesError } = useCities();
   const { requireAuthForProfile } = useAuthRedirect();
 
@@ -72,6 +72,14 @@ const HomeScreen: React.FC = () => {
     // Charger les propriétés au montage du composant
     fetchProperties();
   }, []);
+
+  // Rafraîchir les données quand l'écran devient actif
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 HomeScreen devient actif - Rafraîchissement des propriétés');
+      refreshProperties();
+    }, []) // Supprimer refreshProperties des dépendances pour éviter la boucle
+  );
 
 
   const handlePropertyPress = (property: Property) => {
@@ -148,13 +156,24 @@ const HomeScreen: React.FC = () => {
             />
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Toutes les propriétés</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Nos propriétés disponibles</Text>
+                <Text style={styles.propertyCount}>
+                  {properties.length} propriété{properties.length > 1 ? 's' : ''} trouvée{properties.length > 1 ? 's' : ''}
+                </Text>
+              </View>
             </View>
           </>
         )}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Aucune propriété disponible</Text>
+            <Text style={styles.emptyTitle}>Aucune propriété disponible</Text>
+            <Text style={styles.emptySubtitle}>
+              Les propriétés masquées ou inactives ne sont pas affichées ici.
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              Revenez plus tard pour découvrir de nouvelles propriétés !
+            </Text>
           </View>
         )}
       />
@@ -202,21 +221,38 @@ const styles = StyleSheet.create({
   section: {
     marginVertical: 20,
   },
+  sectionHeader: {
+    marginHorizontal: 20,
+    marginBottom: 15,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginHorizontal: 20,
-    marginBottom: 15,
+    marginBottom: 5,
+  },
+  propertyCount: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
   },
   emptyContainer: {
     padding: 40,
     alignItems: 'center',
   },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
     textAlign: 'center',
+    marginBottom: 10,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#6c757d',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 5,
   },
   propertiesGrid: {
     paddingHorizontal: 20,

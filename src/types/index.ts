@@ -105,6 +105,7 @@ export type RootStackParamList = {
   AdminApplications: undefined;
   AdminProperties: undefined;
   AdminUsers: undefined;
+  EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
   SupabaseTest: undefined;
 };

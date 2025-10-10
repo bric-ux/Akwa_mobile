@@ -23,6 +23,7 @@ import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AdminApplicationsScreen from '../screens/AdminApplicationsScreen';
 import AdminPropertiesScreen from '../screens/AdminPropertiesScreen';
 import AdminUsersScreen from '../screens/AdminUsersScreen';
+import EditPropertyScreen from '../screens/EditPropertyScreen';
 import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 
 // Types
@@ -211,6 +212,14 @@ const AppNavigator = () => {
               component={AdminUsersScreen}
               options={{ 
                 title: 'Gestion des utilisateurs',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="EditProperty" 
+              component={EditPropertyScreen}
+              options={{ 
+                title: 'Modifier la propriété',
                 headerShown: false 
               }}
             />

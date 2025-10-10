@@ -59,7 +59,7 @@ export const useProperties = () => {
         return;
       }
 
-      // Query properties with cities
+      // Query properties with cities - seulement les propriétés actives et non masquées
       let query = supabase
         .from('properties')
         .select(`
@@ -136,6 +136,14 @@ export const useProperties = () => {
         throw error;
       }
 
+      // Log pour déboguer les propriétés retournées
+      console.log('🔍 Propriétés retournées par la requête:', data?.length || 0);
+      if (data && data.length > 0) {
+        data.forEach((prop, index) => {
+          console.log(`   ${index + 1}. ${prop.title} - Active: ${prop.is_active}, Masquée: ${prop.is_hidden}`);
+        });
+      }
+
       // Transformer les données avec les équipements
       const transformedProperties = await Promise.all(
         (data || []).map(async (property) => {
@@ -198,8 +206,7 @@ export const useProperties = () => {
           )
         `)
         .eq('id', id)
-        .eq('is_active', true)
-        .maybeSingle(); // Utiliser maybeSingle() au lieu de single()
+        .maybeSingle(); // Utiliser maybeSingle() au lieu de single() - Permettre les propriétés masquées/inactives
 
       if (error) {
         console.error('❌ Erreur Supabase:', error);
@@ -208,10 +215,10 @@ export const useProperties = () => {
 
       if (!data) {
         console.log('❌ Aucune propriété trouvée avec cet ID:', id);
-        throw new Error('Propriété non trouvée ou inactive');
+        throw new Error('Propriété non trouvée');
       }
 
-      console.log('✅ Propriété trouvée:', data.title);
+      console.log('✅ Propriété trouvée:', data.title, '- Active:', data.is_active, '- Masquée:', data.is_hidden);
 
       // Transformer les données avec les équipements
       const transformedData = {
@@ -243,12 +250,120 @@ export const useProperties = () => {
     }
   }, [mapAmenities]);
 
+  // Fonction pour forcer un rafraîchissement complet (ignore le cache)
+  const refreshProperties = useCallback(async (filters?: SearchFilters) => {
+    console.log('🔄 Rafraîchissement forcé des propriétés (cache ignoré)');
+    
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Créer une clé de cache basée sur les filtres
+      const cacheKey = JSON.stringify(filters || {});
+      
+      // Supprimer l'entrée du cache pour forcer une nouvelle requête
+      setCache(prevCache => {
+        const newCache = new Map(prevCache);
+        newCache.delete(cacheKey);
+        return newCache;
+      });
+
+      // Query properties with cities - seulement les propriétés actives et non masquées
+      let query = supabase
+        .from('properties')
+        .select(`
+          *,
+          cities:city_id (
+            id,
+            name,
+            region
+          )
+        `)
+        .eq('is_active', true)
+        .eq('is_hidden', false);
+
+      // Appliquer les filtres côté serveur
+      if (filters?.city) {
+        // D'abord vérifier si la ville existe
+        const { data: cityExists } = await supabase
+          .from('cities')
+          .select('id, name')
+          .eq('name', filters.city)
+          .single();
+        
+        if (!cityExists) {
+          console.log(`⚠️ Ville "${filters.city}" non trouvée dans la base de données`);
+          setProperties([]);
+          setLoading(false);
+          return;
+        }
+        
+        query = query
+          .select(`
+            *,
+            cities!inner(id, name, region, country)
+          `)
+          .eq('city_id', cityExists.id);
+      }
+
+      // Appliquer les filtres d'équipements
+      if (filters?.wifi) {
+        query = query.contains('amenities', ['WiFi gratuit']);
+      }
+      if (filters?.parking) {
+        query = query.contains('amenities', ['Parking gratuit']);
+      }
+      if (filters?.pool) {
+        query = query.contains('amenities', ['Piscine']);
+      }
+      if (filters?.airConditioning) {
+        query = query.contains('amenities', ['Climatisation']);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Erreur lors du chargement des propriétés:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data?.length || 0} propriété(s) chargée(s) (rafraîchissement forcé)`);
+
+      // Transformer les données avec les équipements
+      const transformedData = await Promise.all(
+        (data || []).map(async (property) => ({
+          ...property,
+          images: property.images || [],
+          price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000,
+          rating: Math.random() * 2 + 3,
+          reviews_count: Math.floor(Math.random() * 50) + 5,
+          amenities: await mapAmenities(property.amenities)
+        }))
+      );
+
+      // Mettre à jour le cache avec les nouvelles données
+      setCache(prevCache => {
+        const newCache = new Map(prevCache);
+        newCache.set(cacheKey, transformedData);
+        return newCache;
+      });
+
+      setProperties(transformedData);
+    } catch (err) {
+      console.error('❌ Erreur lors du rafraîchissement:', err);
+      setError(err instanceof Error ? err.message : 'Erreur inconnue');
+    } finally {
+      setLoading(false);
+    }
+  }, [mapAmenities]); // Supprimer fetchProperties des dépendances
+
   return {
     properties,
     loading,
     error,
     fetchProperties,
     getPropertyById,
+    refreshProperties, // Nouvelle fonction pour rafraîchissement forcé
     refetch: () => {
       setLoading(true);
       setProperties([]);

@@ -104,14 +104,14 @@ const MyPropertiesScreen: React.FC = () => {
     );
   };
 
+  const handleEditProperty = (propertyId: string) => {
+    navigation.navigate('EditProperty', { propertyId });
+  };
+
   const handleViewProperty = (propertyId: string) => {
     navigation.navigate('PropertyDetails', { propertyId });
   };
 
-  const handleEditProperty = (propertyId: string) => {
-    // TODO: Implémenter l'édition de propriété
-    Alert.alert('Info', 'Fonctionnalité d\'édition en cours de développement');
-  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR', {
