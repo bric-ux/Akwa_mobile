@@ -6,11 +6,13 @@ import {
   ScrollView,
   FlatList,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useProperties } from '../hooks/useProperties';
 import { useCities } from '../hooks/useCities';
+import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import { Property } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import { Header } from '../components/Header';
@@ -23,6 +25,7 @@ const HomeScreen: React.FC = () => {
   const { user } = useAuth();
   const { properties, loading, error, fetchProperties } = useProperties();
   const { cities, loading: citiesLoading, error: citiesError } = useCities();
+  const { requireAuthForProfile } = useAuthRedirect();
 
 
   // Données pour le carrousel d'images
@@ -80,11 +83,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleProfilePress = () => {
-    if (user) {
-      navigation.navigate('Profile');
-    } else {
-      navigation.navigate('Auth');
-    }
+    requireAuthForProfile();
   };
 
   const handleNotificationPress = () => {
@@ -97,7 +96,7 @@ const HomeScreen: React.FC = () => {
 
 
   const renderPropertyCard = ({ item }: { item: Property }) => (
-    <PropertyCard property={item} onPress={handlePropertyPress} />
+    <PropertyCard property={item} onPress={handlePropertyPress} variant="list" />
   );
 
   if (loading) {

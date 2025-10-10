@@ -8,7 +8,19 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  // Options de débogage pour React Native
+  global: {
+    headers: {
+      'X-Client-Info': 'akwa-home-mobile',
+    },
+  },
+  // Configuration pour React Native
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
 });
 
 // Types pour la base de données

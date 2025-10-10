@@ -9,10 +9,13 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import { useProperties } from '../hooks/useProperties';
 import { useAuth } from '../services/AuthContext';
+import { useFavorites } from '../hooks/useFavorites';
+import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import { Property } from '../types';
 import PropertyImageCarousel from '../components/PropertyImageCarousel';
 import BookingModal from '../components/BookingModal';
@@ -25,26 +28,64 @@ const PropertyDetailsScreen: React.FC = () => {
   const { propertyId } = route.params;
   const { getPropertyById } = useProperties();
   const { user } = useAuth();
+  const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
+  const { requireAuthForFavorites } = useAuthRedirect();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
 
   useEffect(() => {
     const loadProperty = async () => {
       try {
         setLoading(true);
+        console.log('🔍 Chargement de la propriété avec ID:', propertyId);
+        
+        // Vérifier que l'ID est valide
+        if (!propertyId) {
+          throw new Error('ID de propriété manquant');
+        }
+        
         const propertyData = await getPropertyById(propertyId);
         setProperty(propertyData);
-      } catch (error) {
-        console.error('Erreur lors du chargement de la propriété:', error);
-        Alert.alert('Erreur', 'Impossible de charger les détails de la propriété');
+        
+        // Vérifier si la propriété est en favoris
+        if (user && propertyData) {
+          const favorited = isFavoriteSync(propertyData.id);
+          setIsFavorited(favorited);
+        }
+      } catch (error: any) {
+        console.error('❌ Erreur lors du chargement de la propriété:', error);
+        
+        // Messages d'erreur plus spécifiques
+        let errorMessage = 'Impossible de charger les détails de la propriété';
+        
+        if (error.message?.includes('réseau') || error.message?.includes('network')) {
+          errorMessage = 'Erreur de connexion réseau. Vérifiez votre connexion internet.';
+        } else if (error.message?.includes('authentification') || error.message?.includes('auth')) {
+          errorMessage = 'Erreur d\'authentification. Veuillez vous reconnecter.';
+        } else if (error.message?.includes('non trouvée')) {
+          errorMessage = 'Cette propriété n\'existe pas ou n\'est plus disponible.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        Alert.alert('Erreur', errorMessage);
       } finally {
         setLoading(false);
       }
     };
 
     loadProperty();
-  }, [propertyId, getPropertyById]);
+  }, [propertyId]); // Supprimer les autres dépendances pour éviter la boucle
+
+  // useEffect séparé pour gérer les favoris
+  useEffect(() => {
+    if (property) {
+      // Utiliser la fonction synchrone pour une réponse immédiate
+      setIsFavorited(isFavoriteSync(property.id));
+    }
+  }, [property, isFavoriteSync]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -52,6 +93,19 @@ const PropertyDetailsScreen: React.FC = () => {
       currency: 'XOF',
       minimumFractionDigits: 0,
     }).format(price);
+  };
+
+  const handleFavoritePress = async () => {
+    if (!property) return;
+
+    requireAuthForFavorites(async () => {
+      try {
+        const newFavoriteState = await toggleFavorite(property.id);
+        setIsFavorited(newFavoriteState);
+      } catch (error: any) {
+        Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
+      }
+    });
   };
 
   const handleBookNow = () => {
@@ -107,7 +161,20 @@ const PropertyDetailsScreen: React.FC = () => {
 
       {/* Informations principales */}
       <View style={styles.content}>
-        <Text style={styles.title}>{property.title}</Text>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>{property.title}</Text>
+          <TouchableOpacity
+            style={styles.favoriteButton}
+            onPress={handleFavoritePress}
+            disabled={favoriteLoading}
+          >
+            <Ionicons
+              name={isFavorited ? 'heart' : 'heart-outline'}
+              size={24}
+              color={isFavorited ? '#e74c3c' : '#666'}
+            />
+          </TouchableOpacity>
+        </View>
         
         <View style={styles.locationContainer}>
           <Text style={styles.location}>
@@ -262,6 +329,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 10,
+    flex: 1,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  favoriteButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fa',
+    marginLeft: 10,
   },
   locationContainer: {
     marginBottom: 10,

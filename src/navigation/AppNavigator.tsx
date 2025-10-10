@@ -14,6 +14,7 @@ import BookingScreen from '../screens/BookingScreen';
 import MyBookingsScreen from '../screens/MyBookingsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
+import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 
 // Types
 import { RootStackParamList, TabParamList } from '../types';
@@ -156,6 +157,11 @@ const AppNavigator = () => {
           name="Admin" 
           component={AuthScreen} // Placeholder
           options={{ title: 'Administration' }}
+        />
+        <Stack.Screen 
+          name="SupabaseTest" 
+          component={SupabaseTestScreen}
+          options={{ title: 'Test Supabase' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

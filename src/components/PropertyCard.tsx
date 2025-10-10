@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   Image,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
+import { useFavorites } from '../hooks/useFavorites';
+import { useAuthRedirect } from '../hooks/useAuthRedirect';
 
 interface PropertyCardProps {
   property: Property;
@@ -15,6 +19,32 @@ interface PropertyCardProps {
 }
 
 const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant = 'grid' }) => {
+  const { requireAuthForFavorites } = useAuthRedirect();
+  const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
+  const [isFavorited, setIsFavorited] = useState(false);
+
+  useEffect(() => {
+    // Mettre à jour l'état local quand le cache global change
+    setIsFavorited(isFavoriteSync(property.id));
+  }, [property.id, isFavoriteSync]);
+
+  const handleFavoritePress = async (e: any) => {
+    e.stopPropagation();
+    
+    requireAuthForFavorites(async () => {
+      try {
+        await toggleFavorite(property.id);
+        // L'état sera mis à jour automatiquement via le système de cache global
+      } catch (error: any) {
+        Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
+      }
+    });
+  };
+
+  const handlePropertyPress = () => {
+    onPress(property);
+  };
+
   const formatPrice = (price: number | undefined) => {
     if (!price) return 'Prix sur demande';
     return new Intl.NumberFormat('fr-FR', {
@@ -27,18 +57,31 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
   return (
     <TouchableOpacity
       style={[styles.container, variant === 'list' && styles.listContainer]}
-      onPress={() => onPress(property)}
+      onPress={handlePropertyPress}
       activeOpacity={0.8}
     >
       {variant === 'list' ? (
         <View style={styles.listLayout}>
-          <Image
-            source={{ 
-              uri: property.images[0] || 'https://via.placeholder.com/300x200' 
-            }}
-            style={styles.listImage}
-            resizeMode="cover"
-          />
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ 
+                uri: property.images[0] || 'https://via.placeholder.com/300x200' 
+              }}
+              style={styles.listImage}
+              resizeMode="cover"
+            />
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={handleFavoritePress}
+              disabled={favoriteLoading}
+            >
+              <Ionicons
+                name={isFavorited ? 'heart' : 'heart-outline'}
+                size={20}
+                color={isFavorited ? '#e74c3c' : '#fff'}
+              />
+            </TouchableOpacity>
+          </View>
           <View style={styles.listContent}>
             <View style={styles.listHeader}>
               <Text style={styles.title} numberOfLines={1}>
@@ -83,13 +126,26 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
         </View>
       ) : (
         <>
-          <Image
-            source={{
-              uri: property.images[0] || 'https://via.placeholder.com/300x200'
-            }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+          <View style={styles.imageContainer}>
+            <Image
+              source={{
+                uri: property.images[0] || 'https://via.placeholder.com/300x200'
+              }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={handleFavoritePress}
+              disabled={favoriteLoading}
+            >
+              <Ionicons
+                name={isFavorited ? 'heart' : 'heart-outline'}
+                size={20}
+                color={isFavorited ? '#e74c3c' : '#fff'}
+              />
+            </TouchableOpacity>
+          </View>
           
           <View style={styles.priceContainer}>
             <Text style={styles.price}>
@@ -163,9 +219,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 120,
   },
+  imageContainer: {
+    position: 'relative',
+  },
   listImage: {
     width: 120,
     height: '100%',
+  },
+  favoriteButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listContent: {
     flex: 1,

@@ -60,22 +60,19 @@ const AuthScreen: React.FC = () => {
 
         if (error) throw error;
 
-        Alert.alert('Succès', 'Connexion réussie !', [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Retourner à la page d'origine si spécifiée
-              if (returnTo && returnParams) {
-                navigation.replace(returnTo as any, returnParams);
-              } else {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                });
-              }
-            }
+        // Redirection automatique après connexion réussie
+        if (returnTo && returnTo !== 'Auth') {
+          if (returnParams) {
+            navigation.replace(returnTo as any, returnParams);
+          } else {
+            navigation.replace(returnTo as any);
           }
-        ]);
+        } else {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Home' }],
+          });
+        }
       } else {
         // Inscription
         const { data, error } = await supabase.auth.signUp({

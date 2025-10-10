@@ -100,6 +100,7 @@ export type RootStackParamList = {
   Profile: undefined;
   Messaging: undefined;
   Admin: undefined;
+  SupabaseTest: undefined;
 };
 
 export type TabParamList = {

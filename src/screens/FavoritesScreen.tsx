@@ -5,79 +5,45 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Property } from '../types';
-import { supabase } from '../services/supabase';
+import { useFavorites } from '../hooks/useFavorites';
+import { useAuth } from '../services/AuthContext';
+import PropertyCard from '../components/PropertyCard';
 
 const FavoritesScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { user } = useAuth();
+  const { getFavorites, removeFavorite, loading } = useFavorites();
   const [favorites, setFavorites] = useState<Property[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadFavorites();
-  }, []);
 
   const loadFavorites = async () => {
     try {
-      setLoading(true);
-      
-      // Pour l'instant, on simule des favoris
-      // Dans une vraie app, on récupérerait depuis la base de données
-      const mockFavorites: Property[] = [
-        {
-          id: '1',
-          title: 'Villa avec piscine à Cocody',
-          description: 'Magnifique villa avec piscine privée',
-          price_per_night: 45000,
-          images: ['https://via.placeholder.com/400x300'],
-          rating: 4.8,
-          reviews_count: 12,
-          max_guests: 6,
-          bedrooms: 3,
-          bathrooms: 2,
-          amenities: [
-            { id: '1', name: 'WiFi gratuit', icon: 'wifi' },
-            { id: '2', name: 'Piscine', icon: 'water' },
-            { id: '3', name: 'Parking gratuit', icon: 'car' },
-          ],
-          cities: { id: '1', name: 'Cocody', region: 'Lagunes' },
-          location: 'Cocody, Abidjan',
-        },
-        {
-          id: '2',
-          title: 'Appartement moderne à Grand-Bassam',
-          description: 'Appartement moderne face à la mer',
-          price_per_night: 25000,
-          images: ['https://via.placeholder.com/400x300'],
-          rating: 4.5,
-          reviews_count: 8,
-          max_guests: 4,
-          bedrooms: 2,
-          bathrooms: 1,
-          amenities: [
-            { id: '1', name: 'WiFi gratuit', icon: 'wifi' },
-            { id: '2', name: 'Climatisation', icon: 'snow' },
-          ],
-          cities: { id: '2', name: 'Grand-Bassam', region: 'Sud-Comoé' },
-          location: 'Grand-Bassam',
-        },
-      ];
-      
-      setFavorites(mockFavorites);
+      const favoritesData = await getFavorites();
+      setFavorites(favoritesData);
     } catch (error) {
       console.error('Erreur lors du chargement des favoris:', error);
-    } finally {
-      setLoading(false);
+      Alert.alert('Erreur', 'Impossible de charger vos favoris');
     }
   };
 
-  const removeFromFavorites = (propertyId: string) => {
+  // Recharger les favoris quand l'écran devient actif
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        loadFavorites();
+      } else {
+        setFavorites([]);
+      }
+    }, [user])
+  );
+
+  const removeFromFavorites = async (propertyId: string) => {
     Alert.alert(
       'Supprimer des favoris',
       'Êtes-vous sûr de vouloir supprimer cette propriété de vos favoris ?',
@@ -86,21 +52,17 @@ const FavoritesScreen: React.FC = () => {
         {
           text: 'Supprimer',
           style: 'destructive',
-          onPress: () => {
-            setFavorites(prev => prev.filter(fav => fav.id !== propertyId));
+          onPress: async () => {
+            try {
+              await removeFavorite(propertyId);
+              setFavorites(prev => prev.filter(fav => fav.id !== propertyId));
+            } catch (error: any) {
+              Alert.alert('Erreur', error.message || 'Impossible de supprimer des favoris');
+            }
           },
         },
       ]
     );
-  };
-
-  const formatPrice = (price: number | undefined) => {
-    if (!price) return 'Prix sur demande';
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
   };
 
   const handlePropertyPress = (property: Property) => {
@@ -108,60 +70,26 @@ const FavoritesScreen: React.FC = () => {
   };
 
   const renderFavoriteItem = ({ item }: { item: Property }) => (
-    <TouchableOpacity
-      style={styles.favoriteItem}
-      onPress={() => handlePropertyPress(item)}
-      activeOpacity={0.8}
-    >
-      <Image
-        source={{ uri: item.images[0] || 'https://via.placeholder.com/300x200' }}
-        style={styles.favoriteImage}
-        resizeMode="cover"
-      />
-      
-      <View style={styles.favoriteContent}>
-        <View style={styles.favoriteHeader}>
-          <Text style={styles.favoriteTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <TouchableOpacity
-            style={styles.removeButton}
-            onPress={() => removeFromFavorites(item.id)}
-          >
-            <Ionicons name="heart" size={20} color="#e74c3c" />
-          </TouchableOpacity>
-        </View>
-        
-        <Text style={styles.favoriteLocation} numberOfLines={1}>
-          📍 {item.cities?.name || item.location}
-        </Text>
-        
-        <View style={styles.favoriteDetails}>
-          <Text style={styles.favoriteRating}>
-            ⭐ {item.rating?.toFixed(1) || '0.0'} ({item.reviews_count || 0} avis)
-          </Text>
-          <Text style={styles.favoriteGuests}>
-            👥 {item.max_guests || 0} voyageur{item.max_guests && item.max_guests > 1 ? 's' : ''}
-          </Text>
-        </View>
-        
-        <View style={styles.favoriteFooter}>
-          <Text style={styles.favoritePrice}>
-            {formatPrice(item.price_per_night)}/nuit
-          </Text>
-          {item.amenities && item.amenities.length > 0 && (
-            <View style={styles.amenitiesContainer}>
-              {item.amenities.slice(0, 2).map((amenity, index) => (
-                <Text key={index} style={styles.amenity}>
-                  {amenity.icon} {amenity.name}
-                </Text>
-              ))}
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
+    <PropertyCard
+      property={item}
+      onPress={handlePropertyPress}
+      variant="list"
+    />
   );
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <Ionicons name="person-outline" size={80} color="#ccc" />
+          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Text style={styles.emptySubtitle}>
+            Connectez-vous pour voir vos propriétés favorites
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading) {
     return (
