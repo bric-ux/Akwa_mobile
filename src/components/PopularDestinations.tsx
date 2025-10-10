@@ -60,7 +60,7 @@ export const PopularDestinations: React.FC<PopularDestinationsProps> = ({
           <ActivityIndicator size="small" color="#2E7D32" />
           <Text style={styles.loadingText}>Chargement des destinations...</Text>
         </View>
-      ) : (
+      ) : destinations.length > 0 ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -68,6 +68,11 @@ export const PopularDestinations: React.FC<PopularDestinationsProps> = ({
         >
           {destinations.map(renderDestinationCard)}
         </ScrollView>
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Aucune destination populaire disponible</Text>
+          <Text style={styles.emptySubtext}>Les destinations apparaîtront quand des propriétés seront ajoutées</Text>
+        </View>
       )}
     </View>
   );
@@ -146,5 +151,22 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontSize: 14,
     color: '#666',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
 });

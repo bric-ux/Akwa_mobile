@@ -24,7 +24,7 @@ const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
-  const { cities, loading: citiesLoading, error: citiesError } = useCities();
+  const { cities, loading: citiesLoading, error: citiesError, getPopularDestinations } = useCities();
   const { requireAuthForProfile } = useAuthRedirect();
 
   // Affichage vertical uniquement
@@ -76,12 +76,17 @@ const HomeScreen: React.FC = () => {
   }, []);
 
 
-  // Rafraîchir les données quand l'écran devient actif
+  // Rafraîchir les données quand l'écran devient actif (une seule fois)
   useFocusEffect(
     React.useCallback(() => {
       console.log('🔄 HomeScreen devient actif - Rafraîchissement des propriétés');
-      refreshProperties();
-    }, []) // Supprimer refreshProperties des dépendances pour éviter la boucle
+      // Utiliser fetchProperties avec un délai pour éviter la boucle
+      const timeoutId = setTimeout(() => {
+        fetchProperties();
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }, []) // Tableau vide pour éviter les re-renders
   );
 
 
@@ -144,7 +149,7 @@ const HomeScreen: React.FC = () => {
             <HeroSection onSearchPress={handleSearchPress} />
 
             <PopularDestinations
-              destinations={cities}
+              destinations={getPopularDestinations(8)}
               onDestinationPress={handleDestinationPress}
               loading={citiesLoading}
             />
