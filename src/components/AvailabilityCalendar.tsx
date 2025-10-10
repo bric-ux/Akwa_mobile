@@ -78,6 +78,7 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
 
   const isPastDate = (date: Date) => {
     const today = new Date();
+    // Réinitialiser les heures pour comparer seulement les dates
     today.setHours(0, 0, 0, 0);
     const compareDate = new Date(date);
     compareDate.setHours(0, 0, 0, 0);
@@ -92,8 +93,8 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
       setTempCheckIn(date);
       setTempCheckOut(null);
     } else if (tempCheckIn && !tempCheckOut) {
-      // Sélection de la date de fin
-      if (date > tempCheckIn) {
+      // Sélection de la date de fin - permettre le même jour
+      if (date >= tempCheckIn) {
         setTempCheckOut(date);
       } else {
         setTempCheckIn(date);
@@ -103,7 +104,9 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   };
 
   const handleConfirm = () => {
-    onDateSelect(tempCheckIn, tempCheckOut);
+    // Si pas de date de départ, utiliser la date d'arrivée + 1 jour
+    const checkOut = tempCheckOut || (tempCheckIn ? new Date(tempCheckIn.getTime() + 24 * 60 * 60 * 1000) : null);
+    onDateSelect(tempCheckIn, checkOut);
     onClose();
   };
 
@@ -240,8 +243,8 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
         
         <TouchableOpacity 
           onPress={handleConfirm} 
-          style={[styles.confirmButton, (!tempCheckIn || !tempCheckOut) && styles.confirmButtonDisabled]}
-          disabled={!tempCheckIn || !tempCheckOut}
+          style={[styles.confirmButton, !tempCheckIn && styles.confirmButtonDisabled]}
+          disabled={!tempCheckIn}
         >
           <Text style={styles.confirmButtonText}>Confirmer</Text>
         </TouchableOpacity>

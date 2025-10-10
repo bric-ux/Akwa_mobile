@@ -20,7 +20,7 @@ export interface BookingData {
 export interface Booking {
   id: string;
   property_id: string;
-  user_id: string;
+  guest_id: string;
   check_in_date: string;
   check_out_date: string;
   guests_count: number;
@@ -30,6 +30,14 @@ export interface Booking {
   total_price: number;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   message_to_host?: string;
+  special_requests?: string;
+  cancellation_penalty?: number;
+  cancelled_by?: string;
+  cancellation_reason?: string;
+  discount_applied?: boolean;
+  discount_amount?: number;
+  original_total?: number;
+  cancelled_at?: string;
   created_at: string;
   updated_at: string;
   properties?: {
@@ -69,7 +77,7 @@ export const useBookings = () => {
       if (propertyError) {
         console.error('Property fetch error:', propertyError);
         setError('Erreur lors de la récupération des informations de la propriété');
-        return { success: false };
+        return { success: false, error: 'Erreur lors de la récupération des informations de la propriété' };
       }
 
       // Vérification de la disponibilité des dates
@@ -82,7 +90,7 @@ export const useBookings = () => {
       if (checkError) {
         console.error('Availability check error:', checkError);
         setError('Erreur lors de la vérification de la disponibilité');
-        return { success: false };
+        return { success: false, error: 'Erreur lors de la vérification de la disponibilité' };
       }
 
       // Vérifier les conflits de dates
@@ -101,7 +109,7 @@ export const useBookings = () => {
 
       if (hasConflict) {
         setError('Ces dates ne sont pas disponibles');
-        return { success: false };
+        return { success: false, error: 'Ces dates ne sont pas disponibles' };
       }
 
       // Vérifier le nombre minimum de nuits
@@ -112,13 +120,13 @@ export const useBookings = () => {
 
       if (nights < (propertyData.minimum_nights || 1)) {
         setError(`Cette propriété nécessite un minimum de ${propertyData.minimum_nights || 1} nuit(s)`);
-        return { success: false };
+        return { success: false, error: `Cette propriété nécessite un minimum de ${propertyData.minimum_nights || 1} nuit(s)` };
       }
 
       // Vérifier le nombre maximum de voyageurs
       if (bookingData.guestsCount > (propertyData.max_guests || 10)) {
         setError(`Le nombre maximum de voyageurs est ${propertyData.max_guests || 10}`);
-        return { success: false };
+        return { success: false, error: `Le nombre maximum de voyageurs est ${propertyData.max_guests || 10}` };
       }
 
       // Créer la réservation
@@ -126,7 +134,7 @@ export const useBookings = () => {
         .from('bookings')
         .insert({
           property_id: bookingData.propertyId,
-          user_id: user.id,
+          guest_id: user.id,
           check_in_date: bookingData.checkInDate,
           check_out_date: bookingData.checkOutDate,
           guests_count: bookingData.guestsCount,
@@ -135,6 +143,10 @@ export const useBookings = () => {
           infants_count: bookingData.infantsCount || 0,
           total_price: bookingData.totalPrice,
           message_to_host: bookingData.messageToHost,
+          special_requests: bookingData.messageToHost,
+          discount_applied: bookingData.discountApplied || false,
+          discount_amount: bookingData.discountAmount || 0,
+          original_total: bookingData.originalTotal || bookingData.totalPrice,
           status: propertyData.auto_booking ? 'confirmed' : 'pending',
         })
         .select()
@@ -143,14 +155,14 @@ export const useBookings = () => {
       if (bookingError) {
         console.error('Booking creation error:', bookingError);
         setError('Erreur lors de la création de la réservation');
-        return { success: false };
+        return { success: false, error: `Erreur lors de la création de la réservation: ${bookingError.message}` };
       }
 
       return { success: true, booking };
     } catch (err) {
       console.error('Unexpected error:', err);
       setError('Une erreur inattendue est survenue');
-      return { success: false };
+      return { success: false, error: `Une erreur inattendue est survenue: ${err}` };
     } finally {
       setLoading(false);
     }
@@ -181,7 +193,7 @@ export const useBookings = () => {
             )
           )
         `)
-        .eq('user_id', user.id)
+        .eq('guest_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -214,7 +226,7 @@ export const useBookings = () => {
         .from('bookings')
         .update({ status: 'cancelled' })
         .eq('id', bookingId)
-        .eq('user_id', user.id);
+        .eq('guest_id', user.id);
 
       if (error) {
         console.error('Error cancelling booking:', error);

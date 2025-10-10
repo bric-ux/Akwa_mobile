@@ -79,6 +79,13 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
     };
   };
 
+  const formatDateForAPI = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const handleSubmit = async () => {
     if (!user) {
       Alert.alert('Erreur', 'Vous devez être connecté pour faire une réservation');
@@ -113,8 +120,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
     
     const result = await createBooking({
       propertyId: property.id,
-      checkInDate: checkIn.toISOString().split('T')[0],
-      checkOutDate: checkOut.toISOString().split('T')[0],
+      checkInDate: formatDateForAPI(checkIn),
+      checkOutDate: formatDateForAPI(checkOut),
       guestsCount: totalGuests,
       adultsCount: adults,
       childrenCount: children,
@@ -132,8 +139,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
           userEmail: user.email || '',
           userName: `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Utilisateur',
           propertyTitle: property.title,
-          checkInDate: checkIn.toISOString().split('T')[0],
-          checkOutDate: checkOut.toISOString().split('T')[0],
+          checkInDate: formatDateForAPI(checkIn),
+          checkOutDate: formatDateForAPI(checkOut),
           totalPrice: finalTotal,
           isAutoBooking,
           guestsCount: totalGuests,
@@ -158,8 +165,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
               hostName: `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim() || 'Hôte',
               guestName: `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur',
               propertyTitle: property.title,
-              checkInDate: checkIn.toISOString().split('T')[0],
-              checkOutDate: checkOut.toISOString().split('T')[0],
+              checkInDate: formatDateForAPI(checkIn),
+              checkOutDate: formatDateForAPI(checkOut),
               totalPrice: finalTotal,
               guestsCount: totalGuests,
               message: message.trim() || undefined
@@ -186,7 +193,11 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       setInfants(0);
       setMessage('');
     } else {
-      Alert.alert('Erreur', 'Une erreur est survenue lors de l\'envoi de votre réservation. Veuillez réessayer.');
+      console.error('Erreur de réservation:', result.error || 'Erreur inconnue');
+      Alert.alert(
+        'Erreur', 
+        result.error || 'Une erreur est survenue lors de l\'envoi de votre réservation. Veuillez réessayer.'
+      );
     }
   };
 
