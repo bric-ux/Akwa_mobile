@@ -61,15 +61,30 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
       activeOpacity={0.8}
     >
       {variant === 'list' ? (
-        <View style={styles.listLayout}>
+        <View style={styles.cardLayout}>
+          {/* Image avec prix en overlay */}
           <View style={styles.imageContainer}>
             <Image
               source={{ 
                 uri: property.images[0] || 'https://via.placeholder.com/300x200' 
               }}
-              style={styles.listImage}
+              style={styles.cardImage}
               resizeMode="cover"
             />
+            
+            {/* Prix en overlay */}
+            <View style={styles.priceOverlay}>
+              <Text style={styles.priceText}>
+                {formatPrice(property.price_per_night)}/nuit
+              </Text>
+              {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
+                <Text style={styles.discountOverlay}>
+                  -{property.discount_percentage}% pour {property.discount_min_nights}+ nuits
+                </Text>
+              )}
+            </View>
+            
+            {/* Bouton favori */}
             <TouchableOpacity
               style={styles.favoriteButton}
               onPress={handleFavoritePress}
@@ -82,46 +97,35 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
               />
             </TouchableOpacity>
           </View>
-          <View style={styles.listContent}>
-            <View style={styles.listHeader}>
-              <Text style={styles.title} numberOfLines={1}>
-                {property.title}
-              </Text>
-              <View style={styles.priceSection}>
-                <Text style={styles.price}>
-                  {formatPrice(property.price_per_night)}/nuit
-                </Text>
-                {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
-                  <Text style={styles.discountBadge}>
-                    -{property.discount_percentage}% pour {property.discount_min_nights}+ nuits
-                  </Text>
-                )}
-              </View>
-            </View>
+          
+          {/* Contenu de la carte */}
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {property.title}
+            </Text>
             
-            <Text style={styles.location} numberOfLines={1}>
+            <Text style={styles.cardLocation} numberOfLines={1}>
               📍 {property.cities?.name || property.location}
             </Text>
             
-            <View style={styles.listFooter}>
-              <Text style={styles.rating}>
-                ⭐ {(property.rating || 0).toFixed(1)} ({property.reviews_count || 0} avis)
-              </Text>
-              {property.amenities && property.amenities.length > 0 && (
-                <View style={styles.amenitiesContainer}>
-                  {property.amenities.slice(0, 3).map((amenity, index) => (
-                    <Text key={index} style={styles.amenity}>
-                      {amenity.icon} {amenity.name}
-                    </Text>
-                  ))}
-                  {property.amenities.length > 3 && (
-                    <Text style={styles.amenity}>
-                      +{property.amenities.length - 3}
-                    </Text>
-                  )}
-                </View>
-              )}
-            </View>
+            <Text style={styles.cardRating}>
+              ⭐ {(property.rating || 0).toFixed(1)} ({property.reviews_count || 0} avis)
+            </Text>
+            
+            {property.amenities && property.amenities.length > 0 && (
+              <View style={styles.cardAmenities}>
+                {property.amenities.slice(0, 3).map((amenity, index) => (
+                  <Text key={index} style={styles.amenityTag}>
+                    {amenity.name}
+                  </Text>
+                ))}
+                {property.amenities.length > 3 && (
+                  <Text style={styles.moreAmenities}>
+                    +{property.amenities.length - 3} autres
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
         </View>
       ) : (
@@ -159,7 +163,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
           </View>
 
           <View style={styles.content}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={styles.title} numberOfLines={2}>
               {property.title}
             </Text>
             
@@ -167,20 +171,40 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
               📍 {property.cities?.name || property.location}
             </Text>
             
+            {/* Description courte */}
+            {property.description && (
+              <Text style={styles.gridDescription} numberOfLines={2}>
+                {property.description}
+              </Text>
+            )}
+            
+            {/* Capacité compacte */}
+            <View style={styles.gridCapacityContainer}>
+              <Text style={styles.gridCapacity}>
+                👥 {property.max_guests || 'N/A'}
+              </Text>
+              <Text style={styles.gridCapacity}>
+                🛏️ {property.bedrooms || 'N/A'}
+              </Text>
+              <Text style={styles.gridCapacity}>
+                💧 {property.bathrooms || 'N/A'}
+              </Text>
+            </View>
+            
             <Text style={styles.rating}>
               ⭐ {(property.rating || 0).toFixed(1)} ({property.reviews_count || 0} avis)
             </Text>
             
             {property.amenities && property.amenities.length > 0 && (
               <View style={styles.amenitiesContainer}>
-                {property.amenities.slice(0, 3).map((amenity, index) => (
+                {property.amenities.slice(0, 2).map((amenity, index) => (
                   <Text key={index} style={styles.amenity}>
                     {amenity.name}
                   </Text>
                 ))}
-                {property.amenities.length > 3 && (
+                {property.amenities.length > 2 && (
                   <Text style={styles.moreAmenities}>
-                    +{property.amenities.length - 3} autres
+                    +{property.amenities.length - 2} autres
                   </Text>
                 )}
               </View>
@@ -208,28 +232,88 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   listContainer: {
-    marginHorizontal: 0,
-    marginBottom: 10,
+    marginHorizontal: 20,
+    marginBottom: 15,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
-  image: {
+  // Nouveaux styles pour le design en cartes
+  cardLayout: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  cardImage: {
     width: '100%',
     height: 200,
   },
-  listLayout: {
+  priceOverlay: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  priceText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  discountOverlay: {
+    color: '#fff',
+    fontSize: 10,
+    backgroundColor: '#ff6b35',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  cardContent: {
+    padding: 16,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 6,
+  },
+  cardLocation: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 6,
+  },
+  cardRating: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+  },
+  cardAmenities: {
     flexDirection: 'row',
-    height: 120,
+    flexWrap: 'wrap',
+    gap: 6,
   },
-  imageContainer: {
-    position: 'relative',
-  },
-  listImage: {
-    width: 120,
-    height: '100%',
+  amenityTag: {
+    fontSize: 12,
+    color: '#2E7D32',
+    backgroundColor: '#f0f8f0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#c8e6c9',
   },
   favoriteButton: {
     position: 'absolute',
     top: 8,
-    right: 8,
+    left: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     borderRadius: 20,
     width: 36,
@@ -239,7 +323,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     flex: 1,
-    padding: 12,
+    padding: 15,
     justifyContent: 'space-between',
   },
   listHeader: {
@@ -257,24 +341,29 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
   },
   price: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   content: {
     padding: 12,
   },
   title: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#2c3e50',
     marginBottom: 4,
+    flex: 1,
+    marginRight: 10,
   },
   location: {
     fontSize: 14,
@@ -312,6 +401,12 @@ const styles = StyleSheet.create({
   priceSection: {
     alignItems: 'flex-end',
   },
+  listPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    textAlign: 'right',
+  },
   discountBadge: {
     fontSize: 10,
     color: '#e67e22',
@@ -331,6 +426,44 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginTop: 4,
     fontWeight: '600',
+  },
+  // Nouveaux styles pour les détails
+  description: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  capacityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  capacity: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginLeft: 4,
+    marginRight: 12,
+  },
+  bedIcon: {
+    marginLeft: 8,
+  },
+  // Styles pour le variant grid
+  gridDescription: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 16,
+    marginBottom: 6,
+  },
+  gridCapacityContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  gridCapacity: {
+    fontSize: 11,
+    color: '#6c757d',
   },
 });
 

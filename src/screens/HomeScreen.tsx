@@ -27,6 +27,8 @@ const HomeScreen: React.FC = () => {
   const { cities, loading: citiesLoading, error: citiesError } = useCities();
   const { requireAuthForProfile } = useAuthRedirect();
 
+  // Affichage vertical uniquement
+
 
   // Données pour le carrousel d'images
   const carouselImages = [
@@ -73,6 +75,7 @@ const HomeScreen: React.FC = () => {
     fetchProperties();
   }, []);
 
+
   // Rafraîchir les données quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
@@ -101,7 +104,6 @@ const HomeScreen: React.FC = () => {
   const handleDestinationPress = (destination: any) => {
     navigation.navigate('Search', { destination: destination.name });
   };
-
 
   const renderPropertyCard = ({ item }: { item: Property }) => (
     <PropertyCard property={item} onPress={handlePropertyPress} variant="list" />
