@@ -17,13 +17,14 @@ import { Property } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import { Header } from '../components/Header';
 import { HeroSection } from '../components/HeroSection';
+import { PopularDestinations } from '../components/PopularDestinations';
 import ImageCarousel from '../components/ImageCarousel';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
-  const { cities, loading: citiesLoading, error: citiesError } = useCities();
+  const { cities, loading: citiesLoading, error: citiesError, getPopularDestinations } = useCities();
   const { requireAuthForProfile } = useAuthRedirect();
 
   // Affichage vertical uniquement
@@ -105,6 +106,10 @@ const HomeScreen: React.FC = () => {
     Alert.alert('Notifications', 'Fonctionnalité à venir');
   };
 
+  const handleDestinationPress = (destination: any) => {
+    navigation.navigate('Search', { destination: destination.name });
+  };
+
   const renderPropertyCard = ({ item }: { item: Property }) => (
     <PropertyCard property={item} onPress={handlePropertyPress} variant="list" />
   );
@@ -142,6 +147,12 @@ const HomeScreen: React.FC = () => {
         ListHeaderComponent={() => (
           <>
             <HeroSection onSearchPress={handleSearchPress} />
+
+            <PopularDestinations
+              destinations={getPopularDestinations(8)}
+              onDestinationPress={handleDestinationPress}
+              loading={citiesLoading}
+            />
 
             <ImageCarousel
               images={carouselImages}

@@ -33,7 +33,7 @@ export const useCities = () => {
         throw citiesError;
       }
 
-      // Récupérer les statistiques des villes avec le nombre de propriétés
+      // Récupérer les statistiques des villes avec le nombre de propriétés ACTIVES et VISIBLES
       const { data: propertiesData, error: queryError } = await supabase
         .from('properties')
         .select(`
@@ -44,6 +44,8 @@ export const useCities = () => {
             country
           )
         `)
+        .eq('is_active', true)
+        .eq('is_hidden', false)
         .not('cities', 'is', null);
 
       if (queryError) {
