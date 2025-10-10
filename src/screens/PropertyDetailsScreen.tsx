@@ -9,9 +9,10 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import { useProperties } from '../hooks/useProperties';
+import { useAuth } from '../services/AuthContext';
 import { Property } from '../types';
 import PropertyImageCarousel from '../components/PropertyImageCarousel';
 import BookingModal from '../components/BookingModal';
@@ -20,8 +21,10 @@ type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>
 
 const PropertyDetailsScreen: React.FC = () => {
   const route = useRoute<PropertyDetailsRouteProp>();
+  const navigation = useNavigation();
   const { propertyId } = route.params;
   const { getPropertyById } = useProperties();
+  const { user } = useAuth();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -52,7 +55,15 @@ const PropertyDetailsScreen: React.FC = () => {
   };
 
   const handleBookNow = () => {
-    setShowBookingModal(true);
+    if (!user) {
+      // Rediriger vers la page de connexion avec un paramètre de retour
+      navigation.navigate('Auth', { 
+        returnTo: 'PropertyDetails', 
+        returnParams: { propertyId } 
+      });
+    } else {
+      setShowBookingModal(true);
+    }
   };
 
   const handleContactHost = () => {
@@ -111,10 +122,19 @@ const PropertyDetailsScreen: React.FC = () => {
         </View>
 
         <View style={styles.priceContainer}>
-          <Text style={styles.price}>
-            {formatPrice(property.price_per_night)}
-          </Text>
-          <Text style={styles.priceUnit}>/nuit</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>
+              {formatPrice(property.price_per_night)}
+            </Text>
+            <Text style={styles.priceUnit}>/nuit</Text>
+          </View>
+          {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
+            <View style={styles.discountContainer}>
+              <Text style={styles.discountText}>
+                🎉 Réduction de {property.discount_percentage}% pour {property.discount_min_nights}+ nuits
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Description */}
@@ -258,9 +278,24 @@ const styles = StyleSheet.create({
     color: '#6c757d',
   },
   priceContainer: {
+    marginBottom: 20,
+  },
+  priceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 20,
+  },
+  discountContainer: {
+    marginTop: 8,
+    backgroundColor: '#e8f5e8',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  discountText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
   },
   price: {
     fontSize: 28,

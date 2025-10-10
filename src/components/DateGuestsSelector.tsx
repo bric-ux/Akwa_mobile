@@ -132,6 +132,15 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
     return today.toDateString() === currentDate.toDateString();
   };
 
+  const isPastDate = (day: number) => {
+    const today = new Date();
+    const currentDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    // Réinitialiser les heures pour comparer seulement les dates
+    today.setHours(0, 0, 0, 0);
+    currentDate.setHours(0, 0, 0, 0);
+    return currentDate < today;
+  };
+
   const isSelected = (day: number) => {
     const dateStr = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toISOString().split('T')[0];
     return dateStr === tempCheckIn || dateStr === tempCheckOut;
@@ -144,6 +153,11 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   };
 
   const handleDateSelect = (day: number) => {
+    // Empêcher la sélection de dates passées
+    if (isPastDate(day)) {
+      return;
+    }
+
     const selectedDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toISOString().split('T')[0];
     
     if (calendarMode === 'checkIn') {
@@ -186,6 +200,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
       const isSelectedDay = isSelected(day);
       const isTodayDay = isToday(day);
       const isInRangeDay = isInRange(day);
+      const isPastDay = isPastDate(day);
       
       days.push(
         <TouchableOpacity
@@ -195,14 +210,17 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
             isTodayDay && styles.todayDay,
             isSelectedDay && styles.selectedDay,
             isInRangeDay && styles.rangeDay,
+            isPastDay && styles.pastDay,
           ]}
           onPress={() => handleDateSelect(day)}
+          disabled={isPastDay}
         >
           <Text style={[
             styles.dayText,
             isTodayDay && styles.todayText,
             isSelectedDay && styles.selectedText,
             isInRangeDay && styles.rangeText,
+            isPastDay && styles.pastText,
           ]}>
             {day}
           </Text>
@@ -529,6 +547,12 @@ const styles = StyleSheet.create({
   },
   rangeText: {
     color: '#2E7D32',
+  },
+  pastDay: {
+    backgroundColor: '#f5f5f5',
+  },
+  pastText: {
+    color: '#ccc',
   },
   modalContainer: {
     flex: 1,

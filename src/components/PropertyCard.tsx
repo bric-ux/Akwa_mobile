@@ -44,9 +44,16 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
               <Text style={styles.title} numberOfLines={1}>
                 {property.title}
               </Text>
-              <Text style={styles.price}>
-                {formatPrice(property.price_per_night)}/nuit
-              </Text>
+              <View style={styles.priceSection}>
+                <Text style={styles.price}>
+                  {formatPrice(property.price_per_night)}/nuit
+                </Text>
+                {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
+                  <Text style={styles.discountBadge}>
+                    -{property.discount_percentage}% pour {property.discount_min_nights}+ nuits
+                  </Text>
+                )}
+              </View>
             </View>
             
             <Text style={styles.location} numberOfLines={1}>
@@ -88,6 +95,11 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             <Text style={styles.price}>
               {formatPrice(property.price_per_night)}/nuit
             </Text>
+            {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
+              <Text style={styles.discountBadgeOverlay}>
+                -{property.discount_percentage}% pour {property.discount_min_nights}+ nuits
+              </Text>
+            )}
           </View>
 
           <View style={styles.content}>
@@ -226,6 +238,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     flex: 1,
+  },
+  priceSection: {
+    alignItems: 'flex-end',
+  },
+  discountBadge: {
+    fontSize: 10,
+    color: '#e67e22',
+    backgroundColor: '#fff3e0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  discountBadgeOverlay: {
+    fontSize: 10,
+    color: '#fff',
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+    fontWeight: '600',
   },
 });
 

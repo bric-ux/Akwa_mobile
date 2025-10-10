@@ -140,6 +140,11 @@ export const useProperties = () => {
         (data || []).map(async (property) => {
           const mappedAmenities = await mapAmenities(property.amenities);
           console.log(`🏠 ${property.title} - Équipements:`, property.amenities, '→ Mappés:', mappedAmenities);
+          console.log(`💰 ${property.title} - Réductions:`, {
+            discount_enabled: property.discount_enabled,
+            discount_min_nights: property.discount_min_nights,
+            discount_percentage: property.discount_percentage
+          });
           
           return {
             ...property,

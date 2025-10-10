@@ -12,11 +12,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
+
+type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
 const AuthScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute<AuthScreenRouteProp>();
+  const { returnTo, returnParams } = route.params || {};
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -58,10 +63,15 @@ const AuthScreen: React.FC = () => {
           {
             text: 'OK',
             onPress: () => {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Home' }],
-              });
+              // Retourner à la page d'origine si spécifiée
+              if (returnTo && returnParams) {
+                navigation.navigate(returnTo as any, returnParams);
+              } else {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+              }
             }
           }
         ]);
@@ -87,10 +97,15 @@ const AuthScreen: React.FC = () => {
             {
               text: 'OK',
               onPress: () => {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                });
+                // Retourner à la page d'origine si spécifiée
+                if (returnTo && returnParams) {
+                  navigation.navigate(returnTo as any, returnParams);
+                } else {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'Home' }],
+                  });
+                }
               }
             }
           ]

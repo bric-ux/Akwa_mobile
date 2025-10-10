@@ -34,6 +34,10 @@ export interface Property {
   service_fee?: number;
   is_hidden?: boolean;
   auto_booking?: boolean;
+  minimum_nights?: number;
+  discount_enabled?: boolean;
+  discount_min_nights?: number;
+  discount_percentage?: number;
 }
 
 export interface Amenity {
@@ -88,7 +92,7 @@ export type RootStackParamList = {
   Search: { destination?: string } | undefined;
   PropertyDetails: { propertyId: string };
   Booking: { propertyId: string };
-  Auth: undefined;
+  Auth: { returnTo?: string; returnParams?: any } | undefined;
   BecomeHost: undefined;
   HostDashboard: undefined;
   AddProperty: undefined;

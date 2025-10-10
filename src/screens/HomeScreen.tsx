@@ -123,45 +123,42 @@ const HomeScreen: React.FC = () => {
         onNotificationPress={handleNotificationPress}
       />
       
-      <ScrollView 
-        style={styles.content} 
+      <FlatList
+        style={styles.content}
+        data={properties}
+        renderItem={renderPropertyCard}
+        keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        bounces={false}
-        overScrollMode="never"
-        contentInsetAdjustmentBehavior="never"
-        automaticallyAdjustContentInsets={false}
-        contentOffset={{ x: 0, y: 0 }}
-        scrollEventThrottle={16}
-      >
-        <HeroSection onSearchPress={handleSearchPress} />
+        ListHeaderComponent={() => (
+          <>
+            <HeroSection onSearchPress={handleSearchPress} />
 
-        <PopularDestinations
-          destinations={cities}
-          onDestinationPress={handleDestinationPress}
-          loading={citiesLoading}
-        />
+            <PopularDestinations
+              destinations={cities}
+              onDestinationPress={handleDestinationPress}
+              loading={citiesLoading}
+            />
 
-        <ImageCarousel
-          images={carouselImages}
-          onImagePress={(image) => {
-            // Optionnel : navigation vers une page de détails de l'image
-            console.log('Image sélectionnée:', image.title);
-          }}
-        />
+            <ImageCarousel
+              images={carouselImages}
+              onImagePress={(image) => {
+                // Optionnel : navigation vers une page de détails de l'image
+                console.log('Image sélectionnée:', image.title);
+              }}
+            />
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Toutes les propriétés</Text>
-          <FlatList
-            data={properties}
-            renderItem={renderPropertyCard}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={true}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.propertiesGrid}
-          />
-        </View>
-      </ScrollView>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Toutes les propriétés</Text>
+            </View>
+          </>
+        )}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Aucune propriété disponible</Text>
+          </View>
+        )}
+      />
 
     </View>
   );
@@ -212,6 +209,15 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     marginHorizontal: 20,
     marginBottom: 15,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
   propertiesGrid: {
     paddingHorizontal: 20,

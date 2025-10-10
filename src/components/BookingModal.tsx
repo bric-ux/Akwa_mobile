@@ -15,6 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Property } from '../types';
 import { useBookings } from '../hooks/useBookings';
 import { useAuth } from '../services/AuthContext';
+import { usePricing, calculateFinalPrice } from '../hooks/usePricing';
+import { useEmailService } from '../hooks/useEmailService';
+import { supabase } from '../services/supabase';
+import AvailabilityCalendar from './AvailabilityCalendar';
 
 interface BookingModalProps {
   visible: boolean;
@@ -25,43 +29,53 @@ interface BookingModalProps {
 const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property }) => {
   const { user } = useAuth();
   const { createBooking, loading } = useBookings();
+  const { sendBookingConfirmation, sendBookingRequestToHost } = useEmailService();
   
-  const [checkIn, setCheckIn] = useState<string>('');
-  const [checkOut, setCheckOut] = useState<string>('');
+  const [checkIn, setCheckIn] = useState<Date | null>(null);
+  const [checkOut, setCheckOut] = useState<Date | null>(null);
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [infants, setInfants] = useState(0);
   const [message, setMessage] = useState('');
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const totalGuests = adults + children + infants;
 
   const calculateNights = () => {
     if (!checkIn || !checkOut) return 0;
-    const checkInDate = new Date(checkIn);
-    const checkOutDate = new Date(checkOut);
-    const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+    const diffTime = checkOut.getTime() - checkIn.getTime();
     return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   };
 
   const calculateTotal = () => {
     const nights = calculateNights();
     const basePrice = property.price_per_night || 0;
-    const subtotal = basePrice * nights;
     
-    // Frais de nettoyage (5% du prix de base)
-    const cleaningFee = Math.round(basePrice * 0.05);
+    // Configuration de réduction - utiliser les vrais noms de colonnes de la base de données
+    const discountConfig = {
+      enabled: property.discount_enabled || false,
+      minNights: property.discount_min_nights || null,
+      percentage: property.discount_percentage || null
+    };
     
-    // Frais de service (3% du prix de base)
-    const serviceFee = Math.round(basePrice * 0.03);
+    console.log('🔍 Calcul des prix:', {
+      basePrice,
+      nights,
+      discountConfig,
+      property: {
+        discount_enabled: property.discount_enabled,
+        discount_min_nights: property.discount_min_nights,
+        discount_percentage: property.discount_percentage
+      }
+    });
     
-    const total = subtotal + cleaningFee + serviceFee;
+    const pricing = calculateFinalPrice(basePrice, nights, discountConfig);
+    
+    console.log('💰 Résultat du calcul:', pricing);
     
     return {
       nights,
-      subtotal,
-      cleaningFee,
-      serviceFee,
-      total
+      ...pricing
     };
   };
 
@@ -95,22 +109,66 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       return;
     }
 
-    const { total } = calculateTotal();
+    const { finalTotal } = calculateTotal();
     
     const result = await createBooking({
       propertyId: property.id,
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
+      checkInDate: checkIn.toISOString().split('T')[0],
+      checkOutDate: checkOut.toISOString().split('T')[0],
       guestsCount: totalGuests,
       adultsCount: adults,
       childrenCount: children,
       infantsCount: infants,
-      totalPrice: total,
+      totalPrice: finalTotal,
       messageToHost: message.trim() || undefined,
     });
 
     if (result.success) {
       const isAutoBooking = property.auto_booking === true;
+      
+      // Envoyer l'email de confirmation au voyageur
+      try {
+        await sendBookingConfirmation({
+          userEmail: user.email || '',
+          userName: `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Utilisateur',
+          propertyTitle: property.title,
+          checkInDate: checkIn.toISOString().split('T')[0],
+          checkOutDate: checkOut.toISOString().split('T')[0],
+          totalPrice: finalTotal,
+          isAutoBooking,
+          guestsCount: totalGuests,
+          message: message.trim() || undefined
+        });
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi de l\'email au voyageur:', error);
+      }
+
+      // Envoyer l'email à l'hôte (si ce n'est pas une réservation automatique)
+      if (!isAutoBooking) {
+        try {
+          // Récupérer les informations de l'hôte
+          const { data: hostData, error: hostError } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email')
+            .eq('user_id', property.host_id)
+            .single();
+
+          if (!hostError && hostData?.email) {
+            await sendBookingRequestToHost(hostData.email, {
+              hostName: `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim() || 'Hôte',
+              guestName: `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur',
+              propertyTitle: property.title,
+              checkInDate: checkIn.toISOString().split('T')[0],
+              checkOutDate: checkOut.toISOString().split('T')[0],
+              totalPrice: finalTotal,
+              guestsCount: totalGuests,
+              message: message.trim() || undefined
+            });
+          }
+        } catch (error) {
+          console.error('Erreur lors de l\'envoi de l\'email à l\'hôte:', error);
+        }
+      }
       
       Alert.alert(
         isAutoBooking ? 'Réservation confirmée !' : 'Demande envoyée !',
@@ -121,8 +179,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       );
       
       // Réinitialiser le formulaire
-      setCheckIn('');
-      setCheckOut('');
+      setCheckIn(null);
+      setCheckOut(null);
       setAdults(1);
       setChildren(0);
       setInfants(0);
@@ -140,7 +198,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
     }).format(price);
   };
 
-  const { nights, subtotal, cleaningFee, serviceFee, total } = calculateTotal();
+  const { nights, pricing, fees, finalTotal } = calculateTotal();
 
   return (
     <Modal
@@ -173,26 +231,24 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
           {/* Sélection des dates */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Dates de séjour</Text>
-            <View style={styles.dateRow}>
-              <View style={styles.dateInput}>
+            <TouchableOpacity 
+              style={styles.dateSelector}
+              onPress={() => setShowCalendar(true)}
+            >
+              <View style={styles.dateItem}>
                 <Text style={styles.dateLabel}>Arrivée</Text>
-                <TextInput
-                  style={styles.dateTextInput}
-                  placeholder="YYYY-MM-DD"
-                  value={checkIn}
-                  onChangeText={setCheckIn}
-                />
+                <Text style={styles.dateValue}>
+                  {checkIn ? checkIn.toLocaleDateString('fr-FR') : 'Sélectionner'}
+                </Text>
               </View>
-              <View style={styles.dateInput}>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+              <View style={styles.dateItem}>
                 <Text style={styles.dateLabel}>Départ</Text>
-                <TextInput
-                  style={styles.dateTextInput}
-                  placeholder="YYYY-MM-DD"
-                  value={checkOut}
-                  onChangeText={setCheckOut}
-                />
+                <Text style={styles.dateValue}>
+                  {checkOut ? checkOut.toLocaleDateString('fr-FR') : 'Sélectionner'}
+                </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Nombre de voyageurs */}
@@ -278,22 +334,31 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                 <Text style={styles.priceLabel}>
                   {formatPrice(property.price_per_night || 0)} × {nights} nuit{nights > 1 ? 's' : ''}
                 </Text>
-                <Text style={styles.priceValue}>{formatPrice(subtotal)}</Text>
+                <Text style={styles.priceValue}>{formatPrice(pricing.originalTotal)}</Text>
               </View>
+              
+              {pricing.discountApplied && (
+                <View style={styles.priceRow}>
+                  <Text style={styles.discountLabel}>
+                    Réduction ({property.discount_percentage}% pour {property.discount_min_nights}+ nuits)
+                  </Text>
+                  <Text style={styles.discountValue}>-{formatPrice(pricing.discountAmount)}</Text>
+                </View>
+              )}
               
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>Frais de nettoyage</Text>
-                <Text style={styles.priceValue}>{formatPrice(cleaningFee)}</Text>
+                <Text style={styles.priceValue}>{formatPrice(fees.cleaningFee)}</Text>
               </View>
               
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>Frais de service</Text>
-                <Text style={styles.priceValue}>{formatPrice(serviceFee)}</Text>
+                <Text style={styles.priceValue}>{formatPrice(fees.serviceFee)}</Text>
               </View>
               
               <View style={[styles.priceRow, styles.totalRow]}>
                 <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatPrice(total)}</Text>
+                <Text style={styles.totalValue}>{formatPrice(finalTotal)}</Text>
               </View>
             </View>
           </View>
@@ -316,6 +381,27 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+
+      {/* Calendrier de disponibilité */}
+      {showCalendar && (
+        <Modal
+          visible={showCalendar}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowCalendar(false)}
+        >
+          <AvailabilityCalendar
+            propertyId={property.id}
+            selectedCheckIn={checkIn}
+            selectedCheckOut={checkOut}
+            onDateSelect={(checkInDate, checkOutDate) => {
+              setCheckIn(checkInDate);
+              setCheckOut(checkOutDate);
+            }}
+            onClose={() => setShowCalendar(false)}
+          />
+        </Modal>
+      )}
     </Modal>
   );
 };
@@ -384,11 +470,16 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 15,
   },
-  dateRow: {
+  dateSelector: {
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
-  dateInput: {
+  dateItem: {
     flex: 1,
   },
   dateLabel: {
@@ -396,13 +487,10 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 5,
   },
-  dateTextInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
+  dateValue: {
     fontSize: 16,
-    backgroundColor: '#f8f9fa',
+    color: '#333',
+    fontWeight: '500',
   },
   guestRow: {
     flexDirection: 'row',
@@ -461,6 +549,16 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: 14,
     color: '#333',
+  },
+  discountLabel: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  discountValue: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: 'bold',
   },
   totalRow: {
     borderTopWidth: 1,
