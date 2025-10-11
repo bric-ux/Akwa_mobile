@@ -48,6 +48,47 @@ export interface Amenity {
   created_at: string;
 }
 
+export interface Conversation {
+  id: string;
+  property_id: string;
+  guest_id: string;
+  host_id: string;
+  created_at: string;
+  updated_at: string;
+  last_message?: Message;
+  unread_count?: number;
+  property?: {
+    title: string;
+    images: string[];
+  };
+  host_profile?: {
+    first_name: string;
+    last_name: string;
+    avatar_url: string;
+  };
+  guest_profile?: {
+    first_name: string;
+    last_name: string;
+    avatar_url: string;
+  };
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  message: string;
+  created_at: string;
+  sender_name?: string;
+  message_type?: 'text' | 'image' | 'file' | 'system';
+  file_url?: string;
+  file_name?: string;
+  file_size?: number;
+  read_at?: string;
+  is_edited?: boolean;
+  edited_at?: string;
+}
+
 export interface Booking {
   id: string;
   property_id: string;
@@ -78,6 +119,38 @@ export interface SearchFilters {
   airConditioning?: boolean;
 }
 
+// Types de navigation
+export type RootStackParamList = {
+  Home: undefined;
+  Auth: undefined;
+  Search: { destination?: string };
+  PropertyDetails: { propertyId: string };
+  Booking: { propertyId: string };
+  Profile: undefined;
+  EditProfile: undefined;
+  BecomeHost: undefined;
+  MyHostApplications: undefined;
+  MyProperties: undefined;
+  HostDashboard: undefined;
+  AdminDashboard: undefined;
+  AdminApplications: undefined;
+  AdminProperties: undefined;
+  AdminUsers: undefined;
+  EditProperty: { propertyId: string };
+  PropertyCalendar: { propertyId: string };
+  MyBookings: undefined;
+  Favorites: undefined;
+  Messaging: undefined;
+};
+
+export type TabParamList = {
+  HomeTab: undefined;
+  SearchTab: undefined;
+  MessagingTab: { conversationId?: string };
+  BookingsTab: undefined;
+  FavoritesTab: undefined;
+};
+
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -94,6 +167,7 @@ export type RootStackParamList = {
   Booking: { propertyId: string };
   Auth: { returnTo?: string; returnParams?: any } | undefined;
   BecomeHost: undefined;
+  MyHostApplications: undefined;
   HostDashboard: undefined;
   MyProperties: undefined;
   AddProperty: undefined;

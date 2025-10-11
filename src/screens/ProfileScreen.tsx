@@ -87,6 +87,12 @@ const ProfileScreen: React.FC = () => {
       onPress: () => navigation.navigate('BecomeHost'),
     },
     {
+      id: 'hostApplications',
+      title: 'Mes candidatures',
+      icon: 'document-text-outline',
+      onPress: () => navigation.navigate('MyHostApplications'),
+    },
+    {
       id: 'hostDashboard',
       title: 'Tableau de bord hôte',
       icon: 'grid-outline',

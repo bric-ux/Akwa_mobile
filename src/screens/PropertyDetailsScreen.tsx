@@ -19,6 +19,7 @@ import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import { Property } from '../types';
 import PropertyImageCarousel from '../components/PropertyImageCarousel';
 import BookingModal from '../components/BookingModal';
+import ContactHostButton from '../components/ContactHostButton';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -120,13 +121,6 @@ const PropertyDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleContactHost = () => {
-    Alert.alert(
-      'Contacter l\'hôte',
-      'Fonctionnalité de messagerie en cours de développement',
-      [{ text: 'OK' }]
-    );
-  };
 
   if (loading) {
     return (
@@ -264,9 +258,12 @@ const PropertyDetailsScreen: React.FC = () => {
             <Text style={styles.bookButtonText}>Réserver maintenant</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.contactButton} onPress={handleContactHost}>
-            <Text style={styles.contactButtonText}>Contacter l'hôte</Text>
-          </TouchableOpacity>
+          <ContactHostButton
+            property={property}
+            variant="outline"
+            size="medium"
+            style={styles.contactButton}
+          />
         </View>
       </View>
       </ScrollView>
@@ -455,6 +452,7 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
   },
   actionButtons: {
+    flexDirection: 'row',
     marginTop: 20,
     gap: 15,
   },
@@ -463,6 +461,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 15,
     alignItems: 'center',
+    flex: 1,
   },
   bookButtonText: {
     color: '#fff',
@@ -470,17 +469,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   contactButton: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 15,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e67e22',
-  },
-  contactButtonText: {
-    color: '#e67e22',
-    fontSize: 16,
-    fontWeight: 'bold',
+    flex: 1,
   },
   loadingText: {
     fontSize: 18,

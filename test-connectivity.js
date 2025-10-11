@@ -107,3 +107,4 @@ async function testConnectivity() {
 
 // Exécuter le test
 testConnectivity();
+

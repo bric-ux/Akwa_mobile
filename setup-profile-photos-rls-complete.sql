@@ -56,3 +56,4 @@ SELECT name, bucket_id, created_at, updated_at, metadata
 FROM storage.objects 
 WHERE bucket_id = 'profile-photos'
 ORDER BY created_at DESC;
+

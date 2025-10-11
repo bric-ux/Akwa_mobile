@@ -120,3 +120,4 @@ if (profile?.role !== 'admin') {
 - ❌ Ne voient pas l'option "Administration"
 - ❌ Reçoivent un message "Accès refusé" s'ils tentent d'accéder directement
 - ✅ Conservent l'accès à toutes les autres fonctionnalités normales
+

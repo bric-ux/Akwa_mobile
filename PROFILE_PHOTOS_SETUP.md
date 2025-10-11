@@ -60,3 +60,4 @@ Après avoir exécuté le script SQL, l'upload des photos de profil devrait fonc
 
 ## Alternative temporaire
 Si les politiques RLS ne peuvent pas être configurées immédiatement, l'application utilise actuellement l'URI locale de l'image, qui est stockée dans les métadonnées utilisateur de Supabase Auth.
+

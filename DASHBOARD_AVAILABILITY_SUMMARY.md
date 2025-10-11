@@ -159,3 +159,4 @@ const isDateUnavailable = (date: Date) => {
 - 🧳 **Voyageurs** : Voient les vraies disponibilités lors de la réservation
 - 🔧 **Développeurs** : Code maintenable et bien structuré
 - 📊 **Administrateurs** : Statistiques précises et système robuste
+

@@ -179,3 +179,4 @@ async function testPropertyVisibilityChanges() {
 
 // Exécuter le test
 testPropertyVisibilityChanges();
+

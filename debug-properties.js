@@ -75,3 +75,4 @@ async function checkProperties() {
 
 // Exécuter le diagnostic
 checkProperties();
+

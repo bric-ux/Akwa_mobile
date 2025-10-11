@@ -153,3 +153,4 @@ WiFi ✓ | Parking | Piscine ✓ | Climatisation
 - 🎯 **Plus intuitif** : Interface claire et feedback immédiat
 - 📊 **Plus informatif** : Compteurs et indicateurs de statut
 - 🔄 **Plus flexible** : Personnalisation selon les besoins utilisateur
+

@@ -137,3 +137,4 @@ async function checkPropertiesVisibility() {
 
 // Exécuter la vérification
 checkPropertiesVisibility();
+

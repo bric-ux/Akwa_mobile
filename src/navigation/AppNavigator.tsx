@@ -17,6 +17,7 @@ import EditProfileScreen from '../screens/EditProfileScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 import BecomeHostScreen from '../screens/BecomeHostScreen';
+import MyHostApplicationsScreen from '../screens/MyHostApplicationsScreen';
 import MyPropertiesScreen from '../screens/MyPropertiesScreen';
 import HostDashboardScreen from '../screens/HostDashboardScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
@@ -43,6 +44,8 @@ const TabNavigator = () => {
           if (route.name === 'HomeTab') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'SearchTab') {
+            iconName = focused ? 'search' : 'search-outline';
+          } else if (route.name === 'MessagingTab') {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           } else if (route.name === 'BookingsTab') {
             iconName = focused ? 'calendar' : 'calendar-outline';
@@ -66,8 +69,13 @@ const TabNavigator = () => {
       />
       <Tab.Screen 
         name="SearchTab" 
+        component={SearchScreen}
+        options={{ tabBarLabel: 'Recherche' }}
+      />
+      <Tab.Screen 
+        name="MessagingTab" 
         component={MessagingScreen}
-        options={{ tabBarLabel: 'Messagerie' }}
+        options={{ tabBarLabel: 'Messages' }}
       />
           <Tab.Screen
             name="BookingsTab"
@@ -151,6 +159,14 @@ const AppNavigator = () => {
               component={BecomeHostScreen}
               options={{ 
                 title: 'Devenir hôte',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="MyHostApplications" 
+              component={MyHostApplicationsScreen}
+              options={{ 
+                title: 'Mes candidatures',
                 headerShown: false 
               }}
             />

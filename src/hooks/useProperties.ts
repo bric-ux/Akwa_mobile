@@ -42,9 +42,9 @@ export const useProperties = () => {
 
   useEffect(() => {
     fetchProperties();
-  }, []);
+  }, []); // Garder un tableau vide pour le chargement initial
 
-  const fetchProperties = async (filters?: SearchFilters) => {
+  const fetchProperties = useCallback(async (filters?: SearchFilters) => {
     try {
       setLoading(true);
       setError(null);
@@ -75,15 +75,35 @@ export const useProperties = () => {
 
       // Appliquer les filtres côté serveur
       if (filters?.city) {
-        // D'abord vérifier si la ville existe
+        const searchTerm = filters.city.trim();
+        
+        // D'abord, chercher dans les villes
         const { data: cityExists } = await supabase
           .from('cities')
           .select('id, name')
-          .eq('name', filters.city)
+          .ilike('name', searchTerm)
           .single();
         
-        if (!cityExists) {
-          console.log(`⚠️ Ville "${filters.city}" non trouvée dans la base de données`);
+        // Si pas trouvé dans les villes, chercher dans les quartiers
+        let cityId = cityExists?.id;
+        
+        if (!cityId) {
+          const { data: neighborhoodExists } = await supabase
+            .from('neighborhoods')
+            .select('city_id, name, commune')
+            .ilike('name', searchTerm)
+            .single();
+          
+          if (neighborhoodExists) {
+            cityId = neighborhoodExists.city_id;
+            console.log(`✅ Quartier trouvé: "${neighborhoodExists.name}" (${neighborhoodExists.commune}) pour la recherche "${searchTerm}"`);
+          }
+        } else {
+          console.log(`✅ Ville trouvée: "${cityExists.name}" pour la recherche "${searchTerm}"`);
+        }
+        
+        if (!cityId) {
+          console.log(`⚠️ Aucune ville ou quartier trouvé pour "${searchTerm}"`);
           setProperties([]);
           setLoading(false);
           return;
@@ -92,9 +112,9 @@ export const useProperties = () => {
         query = query
           .select(`
             *,
-            cities!inner(id, name, region, country)
+            cities!inner(id, name, region)
           `)
-          .eq('cities.name', filters.city);
+          .eq('cities.id', cityId);
       }
 
       if (filters?.guests) {
@@ -179,7 +199,7 @@ export const useProperties = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [mapAmenities]); // Supprimer cache des dépendances pour éviter la boucle
 
   const getPropertyById = useCallback(async (id: string) => {
     try {
@@ -284,15 +304,35 @@ export const useProperties = () => {
 
       // Appliquer les filtres côté serveur
       if (filters?.city) {
-        // D'abord vérifier si la ville existe
+        const searchTerm = filters.city.trim();
+        
+        // D'abord, chercher dans les villes
         const { data: cityExists } = await supabase
           .from('cities')
           .select('id, name')
-          .eq('name', filters.city)
+          .ilike('name', searchTerm)
           .single();
         
-        if (!cityExists) {
-          console.log(`⚠️ Ville "${filters.city}" non trouvée dans la base de données`);
+        // Si pas trouvé dans les villes, chercher dans les quartiers
+        let cityId = cityExists?.id;
+        
+        if (!cityId) {
+          const { data: neighborhoodExists } = await supabase
+            .from('neighborhoods')
+            .select('city_id, name, commune')
+            .ilike('name', searchTerm)
+            .single();
+          
+          if (neighborhoodExists) {
+            cityId = neighborhoodExists.city_id;
+            console.log(`✅ Quartier trouvé: "${neighborhoodExists.name}" (${neighborhoodExists.commune}) pour la recherche "${searchTerm}"`);
+          }
+        } else {
+          console.log(`✅ Ville trouvée: "${cityExists.name}" pour la recherche "${searchTerm}"`);
+        }
+        
+        if (!cityId) {
+          console.log(`⚠️ Aucune ville ou quartier trouvé pour "${searchTerm}"`);
           setProperties([]);
           setLoading(false);
           return;
@@ -301,9 +341,9 @@ export const useProperties = () => {
         query = query
           .select(`
             *,
-            cities!inner(id, name, region, country)
+            cities!inner(id, name, region)
           `)
-          .eq('city_id', cityExists.id);
+          .eq('city_id', cityId);
       }
 
       // Appliquer les filtres d'équipements

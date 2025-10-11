@@ -99,3 +99,4 @@ FROM bookings b;
 
 -- Note: Ces fonctions sont optionnelles et complètent la logique côté client.
 -- La logique principale reste dans le hook useBookings pour une meilleure performance.
+

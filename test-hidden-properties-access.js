@@ -149,3 +149,4 @@ async function testHiddenPropertiesAccess() {
 
 // Exécuter le test
 testHiddenPropertiesAccess();
+

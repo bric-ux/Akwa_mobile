@@ -124,3 +124,4 @@ async function testAvailabilitySystem() {
 
 // Exécuter le test
 testAvailabilitySystem();
+

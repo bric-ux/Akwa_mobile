@@ -129,3 +129,4 @@ async function testPropertiesHook() {
 
 // Exécuter le test
 testPropertiesHook();
+

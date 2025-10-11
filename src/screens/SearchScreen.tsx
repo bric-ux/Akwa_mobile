@@ -253,7 +253,7 @@ const SearchScreen: React.FC = () => {
 
       {/* Barre de recherche avec autocomplétion */}
       <AutoCompleteSearch
-        placeholder="Rechercher par ville..."
+        placeholder="Rechercher ville ou quartier..."
         onSearch={handleSearch}
         onSuggestionSelect={handleSuggestionSelect}
         initialValue={searchQuery}
@@ -317,13 +317,16 @@ const SearchScreen: React.FC = () => {
               </Text>
               <Text style={styles.noResultsSubtitle}>
                 {searchQuery ? 
-                  `Essayez une autre ville ou ajustez vos filtres.` : 
+                  `Essayez une autre ville, quartier ou ajustez vos filtres.` : 
                   'Commencez par rechercher une ville ou un quartier.'
                 }
               </Text>
               <View style={styles.suggestionsContainer}>
-                <Text style={styles.suggestionsTitle}>Villes disponibles :</Text>
-                <Text style={styles.suggestionsText}>Cocody, Grand-Bassam, Divo, Anyama, Agboville...</Text>
+                <Text style={styles.suggestionsTitle}>Villes et quartiers disponibles :</Text>
+                <Text style={styles.suggestionsText}>
+                  Villes: Abidjan, Yamoussoukro, Grand-Bassam{'\n'}
+                  Quartiers: Cocody, Deux Plateaux, Riviera, Marcory...
+                </Text>
               </View>
               <TouchableOpacity
                 style={styles.clearFiltersButton}

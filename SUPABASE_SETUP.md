@@ -82,3 +82,4 @@ npm run ios
 ### Erreur de chargement des données
 - Vérifiez que les tables existent dans Supabase
 - Vérifiez les permissions RLS (Row Level Security)
+

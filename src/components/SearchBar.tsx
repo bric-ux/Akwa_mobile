@@ -276,3 +276,4 @@ const styles = StyleSheet.create({
 });
 
 export { SearchBar, FiltersModal };
+

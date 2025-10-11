@@ -34,3 +34,4 @@ FOR DELETE USING (
 
 -- Note: Les fichiers seront organisés par utilisateur dans des dossiers
 -- Format: profile-photos/{user_id}/{filename}
+

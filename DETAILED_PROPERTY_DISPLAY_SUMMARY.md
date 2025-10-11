@@ -170,3 +170,4 @@ bedIcon: {
 - 📱 **Plus adaptatif** : Optimisé pour mobile avec détails complets
 - ⚡ **Plus rapide** : Moins de navigation nécessaire pour décider
 - 🎯 **Plus complet** : Tous les détails importants affichés
+

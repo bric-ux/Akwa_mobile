@@ -159,3 +159,4 @@ async function testHostApplicationsManagement() {
 
 // Exécuter le test
 testHostApplicationsManagement();
+

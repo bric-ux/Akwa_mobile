@@ -231,3 +231,4 @@ pending → rejected (refus direct)
 - 📊 **Statistiques** : Vue d'ensemble en temps réel
 - 🔒 **Sécurité** : Accès contrôlé et données protégées
 - 🚀 **Performance** : Interface optimisée et responsive
+

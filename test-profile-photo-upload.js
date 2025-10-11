@@ -140,3 +140,4 @@ async function testProfilePhotoUpload() {
 
 // Exécuter le test
 testProfilePhotoUpload();
+

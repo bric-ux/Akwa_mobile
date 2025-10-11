@@ -13,7 +13,7 @@ import { supabase } from '../services/supabase';
 interface SearchSuggestion {
   id: string;
   text: string;
-  type: 'city' | 'property' | 'recent';
+  type: 'city' | 'neighborhood' | 'property' | 'recent';
   icon: string;
   subtitle?: string;
 }
@@ -26,7 +26,7 @@ interface AutoCompleteSearchProps {
 }
 
 const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
-  placeholder = "Rechercher par ville...",
+  placeholder = "Rechercher ville ou quartier...",
   onSearch,
   onSuggestionSelect,
   initialValue = '',
@@ -76,7 +76,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       // Recherche dans les villes de la base de données
       const { data: cities, error } = await supabase
         .from('cities')
-        .select('id, name')
+        .select('id, name, region')
         .ilike('name', `%${searchQuery}%`)
         .limit(5);
 
@@ -87,7 +87,26 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
             text: city.name,
             type: 'city',
             icon: 'location-outline',
-            subtitle: 'Ville',
+            subtitle: `${city.region} • Ville`,
+          });
+        });
+      }
+
+      // Recherche dans les quartiers
+      const { data: neighborhoods, error: neighborhoodsError } = await supabase
+        .from('neighborhoods')
+        .select('id, name, commune')
+        .ilike('name', `%${searchQuery}%`)
+        .limit(5);
+
+      if (!neighborhoodsError && neighborhoods) {
+        neighborhoods.forEach((neighborhood) => {
+          suggestions.push({
+            id: `neighborhood_${neighborhood.id}`,
+            text: neighborhood.name,
+            type: 'neighborhood',
+            icon: 'home-outline',
+            subtitle: `${neighborhood.commune} • Quartier`,
           });
         });
       }
@@ -180,7 +199,12 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       <Ionicons 
         name={item.icon as any} 
         size={20} 
-        color={item.type === 'recent' ? '#666' : item.type === 'city' ? '#2E7D32' : '#e67e22'} 
+        color={
+          item.type === 'recent' ? '#666' : 
+          item.type === 'city' ? '#007bff' : 
+          item.type === 'neighborhood' ? '#28a745' : 
+          '#e67e22'
+        } 
         style={styles.suggestionIcon}
       />
       <View style={styles.suggestionContent}>
