@@ -14,6 +14,7 @@ import BookingScreen from '../screens/BookingScreen';
 import MyBookingsScreen from '../screens/MyBookingsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
+import HostProfileScreen from '../screens/HostProfileScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 import BecomeHostScreen from '../screens/BecomeHostScreen';
@@ -155,6 +156,14 @@ const AppNavigator = () => {
           name="Booking" 
           component={BookingScreen}
           options={{ title: 'Réservation' }}
+        />
+        <Stack.Screen 
+          name="HostProfile" 
+          component={HostProfileScreen}
+          options={{ 
+            title: 'Profil de l\'hôte',
+            headerShown: false 
+          }}
         />
         <Stack.Screen 
           name="EditProfile" 

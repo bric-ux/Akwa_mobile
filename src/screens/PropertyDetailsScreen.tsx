@@ -16,6 +16,7 @@ import { useProperties } from '../hooks/useProperties';
 import { useAuth } from '../services/AuthContext';
 import { useFavorites } from '../hooks/useFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
+import { useHostProfile } from '../hooks/useHostProfile';
 import { Property } from '../types';
 import PropertyImageCarousel from '../components/PropertyImageCarousel';
 import BookingModal from '../components/BookingModal';
@@ -31,6 +32,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const { user } = useAuth();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { requireAuthForFavorites } = useAuthRedirect();
+  const { hostProfile, getHostProfile } = useHostProfile();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -49,6 +51,12 @@ const PropertyDetailsScreen: React.FC = () => {
         
         const propertyData = await getPropertyById(propertyId);
         setProperty(propertyData);
+        
+        // Charger le profil de l'hôte
+        if (propertyData && propertyData.host_id) {
+          console.log('🔄 Chargement du profil de l\'hôte:', propertyData.host_id);
+          await getHostProfile(propertyData.host_id);
+        }
         
         // Vérifier si la propriété est en favoris
         if (user && propertyData) {
@@ -251,6 +259,52 @@ const PropertyDetailsScreen: React.FC = () => {
             </View>
           </View>
         </View>
+
+        {/* Section Hôte */}
+        {property && property.host_id && (() => {
+          console.log('🏠 Affichage section hôte pour property:', property.id, 'host_id:', property.host_id, 'hostProfile:', hostProfile);
+          return true;
+        })() && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Votre hôte</Text>
+            <TouchableOpacity
+              style={styles.hostCard}
+              onPress={() => navigation.navigate('HostProfile', { hostId: property.host_id })}
+              activeOpacity={0.7}
+            >
+              <View style={styles.hostInfo}>
+                <View style={styles.hostAvatarContainer}>
+                  {hostProfile?.avatar_url ? (
+                    <Image
+                      source={{ uri: hostProfile.avatar_url }}
+                      style={styles.hostAvatar}
+                    />
+                  ) : (
+                    <View style={styles.hostAvatarPlaceholder}>
+                      <Ionicons name="person" size={24} color="#666" />
+                    </View>
+                  )}
+                </View>
+                
+                <View style={styles.hostDetails}>
+                  <Text style={styles.hostName}>
+                    {hostProfile ? `${hostProfile.first_name} ${hostProfile.last_name}` : 'Chargement...'}
+                  </Text>
+                  <Text style={styles.hostTitle}>Hôte sur AkwaHome</Text>
+                  {hostProfile?.bio && (
+                    <Text style={styles.hostBio} numberOfLines={2}>
+                      {hostProfile.bio}
+                    </Text>
+                  )}
+                </View>
+                
+                <View style={styles.hostAction}>
+                  <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Boutons d'action */}
         <View style={styles.actionButtons}>
@@ -478,6 +532,64 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 18,
     color: '#dc3545',
+  },
+  hostCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  hostInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  hostAvatarContainer: {
+    marginRight: 12,
+  },
+  hostAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#2E7D32',
+  },
+  hostAvatarPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#2E7D32',
+  },
+  hostDetails: {
+    flex: 1,
+  },
+  hostName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  hostTitle: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  hostBio: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 18,
+  },
+  hostAction: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

@@ -126,6 +126,7 @@ export type RootStackParamList = {
   Search: { destination?: string };
   PropertyDetails: { propertyId: string };
   Booking: { propertyId: string };
+  HostProfile: { hostId: string };
   EditProfile: undefined;
   BecomeHost: undefined;
   MyHostApplications: undefined;
