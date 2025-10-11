@@ -59,19 +59,79 @@ export const useMessaging = () => {
       if (error) {
         console.error('❌ [useMessaging] Erreur requête complète, utilisation des données simples:', error);
         // Utiliser les données simples si la requête complète échoue
-        const conversationsWithProfiles = simpleData?.map(conv => ({
-          ...conv,
-          property: null,
-          host_profile: null,
-          guest_profile: null
-        })) || [];
+        const conversationsWithProfiles = await Promise.all(
+          (simpleData || []).map(async (conv) => {
+            try {
+              const { data: lastMessageData, error: lastMessageError } = await supabase
+                .from('conversation_messages')
+                .select('*')
+                .eq('conversation_id', conv.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+              if (lastMessageError && lastMessageError.code !== 'PGRST116') {
+                console.error('❌ [useMessaging] Erreur lors du chargement du dernier message (simple):', lastMessageError);
+              }
+
+              return {
+                ...conv,
+                property: null,
+                host_profile: null,
+                guest_profile: null,
+                last_message: lastMessageData || null
+              };
+            } catch (err) {
+              console.error('❌ [useMessaging] Erreur lors du chargement du dernier message (simple) pour la conversation:', conv.id, err);
+              return {
+                ...conv,
+                property: null,
+                host_profile: null,
+                guest_profile: null,
+                last_message: null
+              };
+            }
+          })
+        );
         setConversations(conversationsWithProfiles);
         return;
       }
 
       console.log('✅ [useMessaging] Conversations chargées:', data?.length || 0);
       console.log('📋 [useMessaging] Détails des conversations:', data);
-      setConversations(data || []);
+      
+      // Charger les derniers messages pour chaque conversation
+      const conversationsWithLastMessages = await Promise.all(
+        (data || []).map(async (conversation) => {
+          try {
+            const { data: lastMessageData, error: lastMessageError } = await supabase
+              .from('conversation_messages')
+              .select('*')
+              .eq('conversation_id', conversation.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+
+            if (lastMessageError && lastMessageError.code !== 'PGRST116') {
+              console.error('❌ [useMessaging] Erreur lors du chargement du dernier message:', lastMessageError);
+            }
+
+            return {
+              ...conversation,
+              last_message: lastMessageData || null
+            };
+          } catch (err) {
+            console.error('❌ [useMessaging] Erreur lors du chargement du dernier message pour la conversation:', conversation.id, err);
+            return {
+              ...conversation,
+              last_message: null
+            };
+          }
+        })
+      );
+
+      console.log('✅ [useMessaging] Conversations avec derniers messages:', conversationsWithLastMessages);
+      setConversations(conversationsWithLastMessages);
     } catch (err) {
       console.error('❌ [useMessaging] Erreur lors du chargement des conversations:', err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
