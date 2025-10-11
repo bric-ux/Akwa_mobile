@@ -186,7 +186,7 @@ const MessagingScreen: React.FC = () => {
           <Ionicons name="search" size={24} color="#007AFF" />
         </TouchableOpacity>
       </View>
-      
+
       <ConversationList
         conversations={conversations}
         onSelectConversation={handleSelectConversation}

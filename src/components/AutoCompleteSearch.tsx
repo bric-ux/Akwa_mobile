@@ -47,6 +47,13 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
     setRecentSearches(['Abidjan', 'Yamoussoukro', 'Grand-Bassam', 'San-Pédro']);
   }, []);
 
+  // Synchroniser avec la valeur initiale du parent (seulement au montage)
+  useEffect(() => {
+    if (initialValue && initialValue !== query) {
+      setQuery(initialValue);
+    }
+  }, [initialValue]);
+
   // Recherche d'autocomplétion
   useEffect(() => {
     if (query.length > 1 && !isSuggestionSelected) {
@@ -151,10 +158,10 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
     console.log('✅ Traitement du clic pour:', suggestion.text, 'ID:', suggestion.id);
     lastProcessedId.current = suggestion.id;
     
-    // Marquer qu'une suggestion a été sélectionnée
+    // Marquer qu'une suggestion a été sélectionnée AVANT de modifier le query
     setIsSuggestionSelected(true);
     
-    // Actions immédiates
+    // Actions immédiates et définitives
     setQuery(suggestion.text);
     setShowSuggestions(false);
     setSuggestions([]); // Vider les suggestions immédiatement
@@ -170,13 +177,14 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
     // Lancer la recherche immédiatement
     onSearch?.(suggestion.text);
     
-    // Callback pour notifier la sélection
+    // Callback pour notifier la sélection (le parent va mettre à jour initialValue)
     onSuggestionSelect?.(suggestion);
     
-    // Réinitialiser après un délai
+    // NE PAS réinitialiser isSuggestionSelected pour éviter les re-déclenchements
+    // Garder les suggestions fermées définitivement
     setTimeout(() => {
       lastProcessedId.current = null;
-      console.log('🔄 ID réinitialisé');
+      console.log('🔄 ID réinitialisé, suggestions fermées définitivement');
     }, 1000);
   };
 
@@ -255,12 +263,17 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
             setQuery(text);
             // Réinitialiser l'état de sélection quand l'utilisateur tape
             setIsSuggestionSelected(false);
+            // Si l'utilisateur efface tout, fermer les suggestions
+            if (text.length === 0) {
+              setShowSuggestions(false);
+              setSuggestions([]);
+            }
           }}
           onSubmitEditing={handleSearch}
           returnKeyType="search"
           onFocus={() => {
-            setIsSuggestionSelected(false);
-            if (query.length > 1) {
+            // Réinitialiser seulement si l'utilisateur tape du nouveau texte
+            if (query.length > 1 && !isSuggestionSelected) {
               setShowSuggestions(true);
             }
           }}

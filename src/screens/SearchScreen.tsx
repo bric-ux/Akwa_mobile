@@ -20,7 +20,6 @@ import PropertyCard from '../components/PropertyCard';
 import FiltersModal from '../components/FiltersModal';
 import SearchSuggestions from '../components/SearchSuggestions';
 import SearchResultsHeader from '../components/SearchResultsHeader';
-import QuickFilters from '../components/QuickFilters';
 import AutoCompleteSearch from '../components/AutoCompleteSearch';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import SearchButton from '../components/SearchButton';
@@ -39,6 +38,7 @@ const SearchScreen: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('popular');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   
   // États pour les dates et voyageurs
   const [checkIn, setCheckIn] = useState<string>();
@@ -47,15 +47,6 @@ const SearchScreen: React.FC = () => {
   const [children, setChildren] = useState(0);
   const [babies, setBabies] = useState(0);
 
-  // Filtres rapides
-  const quickFilters = useMemo(() => [
-    { id: 'wifi', label: 'WiFi', icon: 'wifi', active: filters.wifi || false },
-    { id: 'parking', label: 'Parking', icon: 'car', active: filters.parking || false },
-    { id: 'pool', label: 'Piscine', icon: 'water', active: filters.pool || false },
-    { id: 'airConditioning', label: 'Climatisation', icon: 'snow', active: filters.airConditioning || false },
-    { id: 'under_20000', label: 'Moins de 20k', icon: 'cash', active: filters.priceMax === 20000 },
-    { id: 'over_50000', label: 'Plus de 50k', icon: 'diamond', active: filters.priceMin === 50000 },
-  ], [filters]);
 
   useEffect(() => {
     if (searchQuery) {
@@ -120,11 +111,6 @@ const SearchScreen: React.FC = () => {
     setFilters(newFilters);
   };
 
-  const handleSearchButtonPress = () => {
-    if (searchQuery.trim()) {
-      handleSearch(searchQuery);
-    }
-  };
 
   const handlePropertyPress = (property: Property) => {
     navigation.navigate('PropertyDetails', { propertyId: property.id });
@@ -145,42 +131,6 @@ const SearchScreen: React.FC = () => {
     fetchProperties(searchFilters);
   };
 
-  const handleQuickFilterToggle = (filterId: string) => {
-    let newFilters = { ...filters };
-
-    switch (filterId) {
-      case 'wifi':
-        newFilters.wifi = !filters.wifi;
-        break;
-      case 'parking':
-        newFilters.parking = !filters.parking;
-        break;
-      case 'pool':
-        newFilters.pool = !filters.pool;
-        break;
-      case 'airConditioning':
-        newFilters.airConditioning = !filters.airConditioning;
-        break;
-      case 'under_20000':
-        newFilters.priceMax = filters.priceMax === 20000 ? undefined : 20000;
-        break;
-      case 'over_50000':
-        newFilters.priceMin = filters.priceMin === 50000 ? undefined : 50000;
-        break;
-    }
-
-    setFilters(newFilters);
-    fetchProperties({ 
-      ...newFilters, 
-      city: searchQuery,
-      checkIn,
-      checkOut,
-      adults,
-      children,
-      babies,
-      guests: adults + children + babies
-    });
-  };
 
   const handleClearAllFilters = () => {
     const clearedFilters = {};
@@ -196,6 +146,33 @@ const SearchScreen: React.FC = () => {
       babies,
       guests: adults + children + babies
     });
+  };
+
+  const handleScroll = (event: any) => {
+    // Ne plus gérer le collapse automatique au scroll
+    // Le header se contrôle uniquement par le bouton recherche
+  };
+
+  const handleHeaderPress = () => {
+    // Toggle du header : si replié → déplier, si déplié → replier
+    setIsHeaderCollapsed(!isHeaderCollapsed);
+  };
+
+  const handleSearchButtonPress = () => {
+    // Vérifier que la ville est remplie
+    if (!searchQuery.trim()) {
+      Alert.alert(
+        'Ville requise',
+        'Veuillez saisir une ville ou un quartier pour effectuer la recherche.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    // Lancer la recherche
+    handleSearch(searchQuery);
+    // Replier le header après recherche
+    setIsHeaderCollapsed(true);
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
@@ -247,57 +224,74 @@ const SearchScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header avec bouton retour */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Rechercher</Text>
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setShowFilters(true)}
-        >
-          <Ionicons name="options" size={24} color="#2E7D32" />
-          {getActiveFiltersCount() > 0 && (
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* Header collapsible */}
+      <TouchableOpacity 
+        style={[styles.collapsibleHeader, isHeaderCollapsed && styles.collapsibleHeaderCollapsed]}
+        onPress={handleHeaderPress}
+        activeOpacity={0.8}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Rechercher</Text>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setShowFilters(true)}
+          >
+            <Ionicons name="options" size={24} color="#2E7D32" />
+            {getActiveFiltersCount() > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
 
-      {/* Barre de recherche avec autocomplétion */}
-      <AutoCompleteSearch
-        placeholder="Rechercher ville ou quartier..."
-        onSearch={handleSearch}
-        onSuggestionSelect={handleSuggestionSelect}
-        initialValue={searchQuery}
-      />
+        {/* Contenu du header - visible seulement quand pas réduit */}
+        {!isHeaderCollapsed && (
+          <View style={styles.headerContent}>
+            {/* Barre de recherche avec autocomplétion */}
+            <AutoCompleteSearch
+              placeholder="Rechercher ville ou quartier..."
+              onSearch={handleSearch}
+              onSuggestionSelect={handleSuggestionSelect}
+              initialValue={searchQuery}
+            />
 
-      {/* Sélecteur de dates et voyageurs */}
-      <DateGuestsSelector
-        checkIn={checkIn}
-        checkOut={checkOut}
-        adults={adults}
-        children={children}
-        babies={babies}
-        onDateGuestsChange={handleDateGuestsChange}
-      />
+            {/* Sélecteur de dates et voyageurs */}
+            <DateGuestsSelector
+              checkIn={checkIn}
+              checkOut={checkOut}
+              adults={adults}
+              children={children}
+              babies={babies}
+              onDateGuestsChange={handleDateGuestsChange}
+            />
 
-      {/* Bouton de recherche */}
-      <SearchButton
-        onPress={handleSearchButtonPress}
-        disabled={!searchQuery.trim()}
-        loading={isSearching}
-      />
+            {/* Bouton de recherche */}
+            <SearchButton
+              onPress={handleSearchButtonPress}
+              disabled={isSearching}
+              loading={isSearching}
+            />
+          </View>
+        )}
 
-      {/* Filtres rapides */}
-      <QuickFilters
-        filters={quickFilters}
-        onFilterToggle={handleQuickFilterToggle}
-      />
+        {/* Indicateur de réduction */}
+        {isHeaderCollapsed && (
+          <View style={styles.collapsedIndicator}>
+            <Text style={styles.collapsedText}>
+              {searchQuery ? `Recherche: ${searchQuery}` : 'Rechercher un hébergement'}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#666" />
+          </View>
+        )}
+      </TouchableOpacity>
+
 
       {/* Bouton pour effacer les filtres */}
       {getActiveFiltersCount() > 0 && (
@@ -331,56 +325,55 @@ const SearchScreen: React.FC = () => {
             <Text style={styles.retryButtonText}>Réessayer</Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.content}>
-          <SearchResultsHeader
-            resultsCount={sortedProperties.length}
-            onSortPress={handleSortChange}
-            currentSort={sortBy}
-            onViewToggle={() => {}}
-            isGridView={false}
-          />
-          
-          {sortedProperties.length === 0 ? (
-            <View style={styles.noResultsContainer}>
-              <Ionicons name="search" size={64} color="#ccc" />
-              <Text style={styles.noResultsTitle}>
-                {searchQuery ? `Aucun hébergement trouvé à ${searchQuery}` : 'Aucun résultat trouvé'}
-              </Text>
-              <Text style={styles.noResultsSubtitle}>
-                {searchQuery ? 
-                  `Essayez une autre ville, quartier ou ajustez vos filtres.` : 
-                  'Commencez par rechercher une ville ou un quartier.'
-                }
-              </Text>
-              <View style={styles.suggestionsContainer}>
-                <Text style={styles.suggestionsTitle}>Villes et quartiers disponibles :</Text>
-                <Text style={styles.suggestionsText}>
-                  Villes: Abidjan, Yamoussoukro, Grand-Bassam{'\n'}
-                  Quartiers: Cocody, Deux Plateaux, Riviera, Marcory...
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.clearFiltersButton}
-                onPress={() => {
-                  setFilters({});
-                  setSearchQuery('');
-                  fetchProperties({});
-                }}
-              >
-                <Text style={styles.clearFiltersButtonText}>Effacer les filtres</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <FlatList
-              data={sortedProperties}
-              renderItem={renderPropertyCard}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.propertiesList}
-            />
-          )}
+      ) : sortedProperties.length === 0 ? (
+        <View style={styles.noResultsContainer}>
+          <Ionicons name="search" size={64} color="#ccc" />
+          <Text style={styles.noResultsTitle}>
+            {searchQuery ? `Aucun hébergement trouvé à ${searchQuery}` : 'Aucun résultat trouvé'}
+          </Text>
+          <Text style={styles.noResultsSubtitle}>
+            {searchQuery ? 
+              `Essayez une autre ville, quartier ou ajustez vos filtres.` : 
+              'Commencez par rechercher une ville ou un quartier.'
+            }
+          </Text>
+          <View style={styles.suggestionsContainer}>
+            <Text style={styles.suggestionsTitle}>Villes et quartiers disponibles :</Text>
+            <Text style={styles.suggestionsText}>
+              Villes: Abidjan, Yamoussoukro, Grand-Bassam{'\n'}
+              Quartiers: Cocody, Deux Plateaux, Riviera, Marcory...
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.clearFiltersButton}
+            onPress={() => {
+              setFilters({});
+              setSearchQuery('');
+              fetchProperties({});
+            }}
+          >
+            <Text style={styles.clearFiltersButtonText}>Effacer les filtres</Text>
+          </TouchableOpacity>
         </View>
+      ) : (
+        <FlatList
+          data={sortedProperties}
+          renderItem={renderPropertyCard}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.propertiesList}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          ListHeaderComponent={
+            <SearchResultsHeader
+              resultsCount={sortedProperties.length}
+              onSortPress={handleSortChange}
+              currentSort={sortBy}
+              onViewToggle={() => {}}
+              isGridView={false}
+            />
+          }
+        />
       )}
 
       <FiltersModal
@@ -407,6 +400,45 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  collapsibleHeader: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  collapsibleHeaderCollapsed: {
+    paddingVertical: 8,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+  },
+  headerContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+  },
+  collapsedIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  collapsedText: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
   },
   backButton: {
     padding: 5,
@@ -523,6 +555,7 @@ const styles = StyleSheet.create({
   propertiesList: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+    paddingTop: 10,
   },
   // Styles pour le bouton effacer les filtres
   clearFiltersContainer: {
