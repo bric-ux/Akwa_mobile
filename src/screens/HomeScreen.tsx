@@ -93,7 +93,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleSearchPress = () => {
-    navigation.navigate('Search');
+    (navigation as any).navigate('Search');
   };
 
 
@@ -102,7 +102,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleDestinationPress = (destination: any) => {
-    navigation.navigate('Search', { destination: destination.name });
+    (navigation as any).navigate('Search', { destination: destination.name });
   };
 
   const renderPropertyCard = ({ item }: { item: Property }) => (
