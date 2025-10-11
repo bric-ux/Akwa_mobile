@@ -90,16 +90,10 @@ const ProfileScreen: React.FC = () => {
   // Éléments de menu communs
   const commonMenuItems = [
     {
-      id: 'help',
-      title: 'Aide et support',
-      icon: 'help-circle-outline',
-      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
-    },
-    {
       id: 'settings',
       title: 'Paramètres',
       icon: 'settings-outline',
-      onPress: () => Alert.alert('Info', 'Fonctionnalité en cours de développement'),
+      onPress: () => navigation.navigate('Settings' as never),
     },
   ];
 

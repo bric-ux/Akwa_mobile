@@ -1,15 +1,12 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 
 interface HeaderProps {
-  onNotificationPress?: () => void;
+  // Props supprimées - plus de cloche
 }
 
-export const Header: React.FC<HeaderProps> = ({ 
-  onNotificationPress 
-}) => {
+export const Header: React.FC<HeaderProps> = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -21,15 +18,6 @@ export const Header: React.FC<HeaderProps> = ({
             resizeMode="contain"
           />
           <Text style={styles.logoText}>AkwaHome</Text>
-        </View>
-        
-        <View style={styles.actionsContainer}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={onNotificationPress}
-          >
-            <Ionicons name="notifications-outline" size={24} color="#333" />
-          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -63,13 +51,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2E7D32',
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionButton: {
-    padding: 8,
     marginLeft: 10,
   },
 });
