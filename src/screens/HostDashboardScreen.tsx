@@ -175,6 +175,67 @@ const HostDashboardScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Actions rapides */}
+        <Text style={styles.sectionTitle}>Actions rapides</Text>
+        
+        <View style={styles.quickActionsContainer}>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('MyProperties')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="business-outline" size={24} color="#2E7D32" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Mes propriétés</Text>
+              <Text style={styles.quickActionDescription}>Gérer vos propriétés et calendriers</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('HostBookings')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="calendar-outline" size={24} color="#e67e22" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Réservations reçues</Text>
+              <Text style={styles.quickActionDescription}>Gérer les demandes de réservation</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('MyHostApplications')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="document-text-outline" size={24} color="#9b59b6" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Mes candidatures</Text>
+              <Text style={styles.quickActionDescription}>Suivre vos candidatures hôte</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('BecomeHost')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="add-circle-outline" size={24} color="#3498db" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Ajouter une propriété</Text>
+              <Text style={styles.quickActionDescription}>Créer une nouvelle annonce</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
+        </View>
+
         {/* Statistiques principales */}
         <Text style={styles.sectionTitle}>Statistiques générales</Text>
         
@@ -192,6 +253,7 @@ const HostDashboardScreen: React.FC = () => {
             value={stats.totalBookings}
             icon="calendar-outline"
             color="#3498db"
+            onPress={() => navigation.navigate('HostBookings')}
           />
           
           <StatCard
@@ -221,39 +283,6 @@ const HostDashboardScreen: React.FC = () => {
             icon="star-outline"
             color="#9b59b6"
           />
-        </View>
-
-        {/* Actions rapides */}
-        <Text style={styles.sectionTitle}>Actions rapides</Text>
-        
-        <View style={styles.quickActionsContainer}>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate('MyProperties')}
-          >
-            <View style={styles.quickActionIcon}>
-              <Ionicons name="business-outline" size={24} color="#2E7D32" />
-            </View>
-            <View style={styles.quickActionContent}>
-              <Text style={styles.quickActionTitle}>Mes propriétés</Text>
-              <Text style={styles.quickActionDescription}>Gérer vos propriétés et calendriers</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate('BecomeHost')}
-          >
-            <View style={styles.quickActionIcon}>
-              <Ionicons name="add-circle-outline" size={24} color="#3498db" />
-            </View>
-            <View style={styles.quickActionContent}>
-              <Text style={styles.quickActionTitle}>Ajouter une propriété</Text>
-              <Text style={styles.quickActionDescription}>Créer une nouvelle annonce</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </TouchableOpacity>
         </View>
 
         {/* Message d'encouragement */}

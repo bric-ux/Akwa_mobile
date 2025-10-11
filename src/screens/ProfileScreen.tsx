@@ -71,33 +71,13 @@ const ProfileScreen: React.FC = () => {
     },
   ];
 
-  // Éléments de menu pour les hôtes
-  const hostMenuItems = [
-    {
-      id: 'hostDashboard',
-      title: 'Tableau de bord hôte',
-      icon: 'grid-outline',
-      onPress: () => navigation.navigate('HostDashboard'),
-    },
-    {
-      id: 'hostBookings',
-      title: 'Réservations reçues',
-      icon: 'calendar-outline',
-      onPress: () => navigation.navigate('HostBookings'),
-    },
-    {
-      id: 'myProperties',
-      title: 'Mes propriétés',
-      icon: 'business-outline',
-      onPress: () => navigation.navigate('MyProperties'),
-    },
-    {
-      id: 'hostApplications',
-      title: 'Mes candidatures',
-      icon: 'document-text-outline',
-      onPress: () => navigation.navigate('MyHostApplications'),
-    },
-  ];
+  // Élément pour le tableau de bord hôte (contient toutes les options hôtes)
+  const hostDashboardItem = {
+    id: 'hostDashboard',
+    title: 'Tableau de bord hôte',
+    icon: 'grid-outline',
+    onPress: () => navigation.navigate('HostDashboard'),
+  };
 
   // Élément pour devenir hôte (si pas encore hôte)
   const becomeHostItem = {
@@ -126,9 +106,9 @@ const ProfileScreen: React.FC = () => {
   // Construire la liste des éléments de menu selon le profil
   let menuItems = [...baseMenuItems];
 
-  // Ajouter les éléments hôte si l'utilisateur est hôte
+  // Ajouter l'élément hôte si l'utilisateur est hôte
   if (profile?.is_host) {
-    menuItems = [...menuItems, ...hostMenuItems];
+    menuItems.push(hostDashboardItem);
   } else {
     // Ajouter "Devenir hôte" si pas encore hôte
     menuItems.push(becomeHostItem);
