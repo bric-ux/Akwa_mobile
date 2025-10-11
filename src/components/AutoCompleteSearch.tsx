@@ -36,6 +36,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isSuggestionSelected, setIsSuggestionSelected] = useState(false);
   const isProcessingRef = useRef(false);
   const lastProcessedId = useRef<string | null>(null);
 
@@ -47,13 +48,13 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
 
   // Recherche d'autocomplétion
   useEffect(() => {
-    if (query.length > 1) {
+    if (query.length > 1 && !isSuggestionSelected) {
       searchSuggestions(query);
-    } else {
+    } else if (query.length <= 1) {
       setSuggestions([]);
       setShowSuggestions(false);
     }
-  }, [query]);
+  }, [query, isSuggestionSelected]);
 
   const searchSuggestions = async (searchQuery: string) => {
     setLoading(true);
@@ -149,19 +150,24 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
     console.log('✅ Traitement du clic pour:', suggestion.text, 'ID:', suggestion.id);
     lastProcessedId.current = suggestion.id;
     
+    // Marquer qu'une suggestion a été sélectionnée
+    setIsSuggestionSelected(true);
+    
     // Actions immédiates
     setQuery(suggestion.text);
     setShowSuggestions(false);
+    setSuggestions([]); // Vider les suggestions immédiatement
     
     // Ajouter à l'historique
     if (!recentSearches.includes(suggestion.text)) {
       setRecentSearches(prev => [suggestion.text, ...prev.slice(0, 4)]);
     }
     
-    // Callback avec délai pour éviter les conflits
-    setTimeout(() => {
-      onSuggestionSelect?.(suggestion);
-    }, 50);
+    // Lancer la recherche immédiatement
+    onSearch?.(suggestion.text);
+    
+    // Callback pour notifier la sélection
+    onSuggestionSelect?.(suggestion);
     
     // Réinitialiser après un délai
     setTimeout(() => {
@@ -180,6 +186,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
   const clearSearch = () => {
     setQuery('');
     setShowSuggestions(false);
+    setIsSuggestionSelected(false);
     onSearch('');
   };
 
@@ -235,10 +242,15 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
           style={styles.input}
           placeholder={placeholder}
           value={query}
-          onChangeText={setQuery}
+          onChangeText={(text) => {
+            setQuery(text);
+            // Réinitialiser l'état de sélection quand l'utilisateur tape
+            setIsSuggestionSelected(false);
+          }}
           onSubmitEditing={handleSearch}
           returnKeyType="search"
           onFocus={() => {
+            setIsSuggestionSelected(false);
             if (query.length > 1) {
               setShowSuggestions(true);
             }
