@@ -182,6 +182,22 @@ const SearchScreen: React.FC = () => {
     });
   };
 
+  const handleClearAllFilters = () => {
+    const clearedFilters = {};
+    setFilters(clearedFilters);
+    setSearchQuery(''); // Effacer aussi la ville de recherche
+    fetchProperties({ 
+      ...clearedFilters, 
+      city: '', // Pas de ville
+      checkIn,
+      checkOut,
+      adults,
+      children,
+      babies,
+      guests: adults + children + babies
+    });
+  };
+
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
     setCheckIn(dates.checkIn);
     setCheckOut(dates.checkOut);
@@ -282,6 +298,21 @@ const SearchScreen: React.FC = () => {
         filters={quickFilters}
         onFilterToggle={handleQuickFilterToggle}
       />
+
+      {/* Bouton pour effacer les filtres */}
+      {getActiveFiltersCount() > 0 && (
+        <View style={styles.clearFiltersContainer}>
+          <TouchableOpacity
+            style={styles.clearFiltersButton}
+            onPress={handleClearAllFilters}
+          >
+            <Ionicons name="close-circle" size={16} color="#e74c3c" />
+            <Text style={styles.clearFiltersButtonText}>
+              Effacer la recherche ({getActiveFiltersCount()})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Résultats */}
       {loading ? (
@@ -492,6 +523,31 @@ const styles = StyleSheet.create({
   propertiesList: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+  // Styles pour le bouton effacer les filtres
+  clearFiltersContainer: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  clearFiltersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff5f5',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fed7d7',
+  },
+  clearFiltersButtonText: {
+    color: '#e74c3c',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
 });
 

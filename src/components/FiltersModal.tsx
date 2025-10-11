@@ -144,17 +144,6 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
             </View>
           </View>
 
-          {/* Nombre de voyageurs */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Nombre de voyageurs</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre de voyageurs"
-              value={filters.guests?.toString() || ''}
-              onChangeText={(text) => setFilters({ ...filters, guests: parseInt(text) || undefined })}
-              keyboardType="numeric"
-            />
-          </View>
 
           {/* Équipements */}
           <View style={styles.section}>
