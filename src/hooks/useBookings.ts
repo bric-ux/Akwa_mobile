@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useEmailService } from './useEmailService';
 
 export interface BookingData {
   propertyId: string;
@@ -56,6 +57,7 @@ export const useBookings = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { sendBookingRequest, sendBookingRequestSent } = useEmailService();
 
   const createBooking = async (bookingData: BookingData) => {
     if (!user) {
@@ -156,6 +158,60 @@ export const useBookings = () => {
         console.error('Booking creation error:', bookingError);
         setError('Erreur lors de la création de la réservation');
         return { success: false, error: `Erreur lors de la création de la réservation: ${bookingError.message}` };
+      }
+
+      // Envoyer les emails après création de la réservation
+      try {
+        // Récupérer les informations de l'hôte et du voyageur
+        const { data: propertyInfo, error: propertyInfoError } = await supabase
+          .from('properties')
+          .select(`
+            title,
+            host_id,
+            profiles!properties_host_id_fkey(
+              first_name,
+              last_name,
+              email
+            )
+          `)
+          .eq('id', bookingData.propertyId)
+          .single();
+
+        if (propertyInfoError) {
+          console.error('❌ [useBookings] Erreur récupération infos propriété:', propertyInfoError);
+        } else {
+          const hostProfile = propertyInfo.profiles;
+          const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
+          
+          // Email de notification à l'hôte
+          await sendBookingRequest(
+            hostProfile.email,
+            `${hostProfile.first_name} ${hostProfile.last_name}`,
+            guestName,
+            propertyInfo.title,
+            bookingData.checkInDate,
+            bookingData.checkOutDate,
+            bookingData.guestsCount,
+            bookingData.totalPrice,
+            bookingData.messageToHost
+          );
+
+          // Email de confirmation au voyageur
+          await sendBookingRequestSent(
+            user.email || '',
+            guestName,
+            propertyInfo.title,
+            bookingData.checkInDate,
+            bookingData.checkOutDate,
+            bookingData.guestsCount,
+            bookingData.totalPrice
+          );
+
+          console.log('✅ [useBookings] Emails de réservation envoyés');
+        }
+      } catch (emailError) {
+        console.error('❌ [useBookings] Erreur envoi email:', emailError);
+        // Ne pas faire échouer la réservation si l'email échoue
       }
 
       return { success: true, booking };

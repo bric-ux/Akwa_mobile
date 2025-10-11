@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useHostApplications } from '../hooks/useHostApplications';
+import { useEmailService } from '../hooks/useEmailService';
 import { useAmenities } from '../hooks/useAmenities';
 import LocationSearchInput from '../components/LocationSearchInput';
 import { LocationResult } from '../hooks/useLocationSearch';
@@ -64,6 +65,7 @@ const BecomeHostScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { submitApplication, loading } = useHostApplications();
+  const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();
   const { amenities, loading: amenitiesLoading } = useAmenities();
   
   const [formData, setFormData] = useState<FormData>({
@@ -238,6 +240,36 @@ const BecomeHostScreen: React.FC = () => {
       });
 
       if (result.success) {
+        // Envoyer l'email de confirmation à l'hôte
+        try {
+          await sendHostApplicationSubmitted(
+            formData.hostEmail,
+            formData.hostFullName,
+            formData.title,
+            formData.propertyType,
+            formData.location
+          );
+          console.log('✅ Email de confirmation envoyé à l\'hôte');
+        } catch (emailError) {
+          console.error('❌ Erreur envoi email hôte:', emailError);
+        }
+
+        // Envoyer l'email de notification à l'admin
+        try {
+          await sendHostApplicationReceived(
+            'admin@akwahome.com', // Email admin
+            formData.hostFullName,
+            formData.hostEmail,
+            formData.title,
+            formData.propertyType,
+            formData.location,
+            parseInt(formData.price)
+          );
+          console.log('✅ Email de notification envoyé à l\'admin');
+        } catch (emailError) {
+          console.error('❌ Erreur envoi email admin:', emailError);
+        }
+
         Alert.alert(
           'Candidature soumise !',
           'Votre candidature a été soumise avec succès. Vous recevrez un email de confirmation.',

@@ -69,18 +69,10 @@ const ProfileScreen: React.FC = () => {
       icon: 'calendar-outline',
       onPress: () => navigation.navigate('MyBookings'),
     },
-    {
-      id: 'host',
-      title: 'Devenir hôte',
-      icon: 'home-outline',
-      onPress: () => navigation.navigate('BecomeHost'),
-    },
-    {
-      id: 'hostApplications',
-      title: 'Mes candidatures',
-      icon: 'document-text-outline',
-      onPress: () => navigation.navigate('MyHostApplications'),
-    },
+  ];
+
+  // Éléments de menu pour les hôtes
+  const hostMenuItems = [
     {
       id: 'hostDashboard',
       title: 'Tableau de bord hôte',
@@ -88,11 +80,35 @@ const ProfileScreen: React.FC = () => {
       onPress: () => navigation.navigate('HostDashboard'),
     },
     {
+      id: 'hostBookings',
+      title: 'Réservations reçues',
+      icon: 'calendar-outline',
+      onPress: () => navigation.navigate('HostBookings'),
+    },
+    {
       id: 'myProperties',
       title: 'Mes propriétés',
       icon: 'business-outline',
       onPress: () => navigation.navigate('MyProperties'),
     },
+    {
+      id: 'hostApplications',
+      title: 'Mes candidatures',
+      icon: 'document-text-outline',
+      onPress: () => navigation.navigate('MyHostApplications'),
+    },
+  ];
+
+  // Élément pour devenir hôte (si pas encore hôte)
+  const becomeHostItem = {
+    id: 'host',
+    title: 'Devenir hôte',
+    icon: 'home-outline',
+    onPress: () => navigation.navigate('BecomeHost'),
+  };
+
+  // Éléments de menu communs
+  const commonMenuItems = [
     {
       id: 'help',
       title: 'Aide et support',
@@ -107,18 +123,40 @@ const ProfileScreen: React.FC = () => {
     },
   ];
 
+  // Construire la liste des éléments de menu selon le profil
+  let menuItems = [...baseMenuItems];
+
+  // Ajouter les éléments hôte si l'utilisateur est hôte
+  if (profile?.is_host) {
+    menuItems = [...menuItems, ...hostMenuItems];
+  } else {
+    // Ajouter "Devenir hôte" si pas encore hôte
+    menuItems.push(becomeHostItem);
+  }
+
+  // Ajouter les éléments communs
+  menuItems = [...menuItems, ...commonMenuItems];
+
   // Ajouter l'option Administration seulement si l'utilisateur est admin
-  const menuItems = profile?.role === 'admin' 
-    ? [
-        ...baseMenuItems,
-        {
-          id: 'admin',
-          title: 'Administration',
-          icon: 'shield-outline',
-          onPress: () => navigation.navigate('Admin'),
-        },
-      ]
-    : baseMenuItems;
+  if (profile?.role === 'admin') {
+    menuItems.push({
+      id: 'admin',
+      title: 'Administration',
+      icon: 'shield-outline',
+      onPress: () => navigation.navigate('AdminDashboard'),
+    });
+  }
+
+  // Ajouter l'option de déconnexion
+  menuItems.push({
+    id: 'logout',
+    title: 'Se déconnecter',
+    icon: 'log-out-outline',
+    onPress: handleLogout,
+  });
+
+  // Utiliser la liste construite dynamiquement
+  const finalMenuItems = menuItems;
 
   // Si l'utilisateur n'est pas connecté, rediriger vers la connexion
   useFocusEffect(
