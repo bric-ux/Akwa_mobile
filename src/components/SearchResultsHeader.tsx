@@ -18,7 +18,7 @@ interface SortOption {
 
 interface SearchResultsHeaderProps {
   resultsCount: number;
-  onSortPress: () => void;
+  onSortPress: (sort: string) => void;
   currentSort: string;
   onViewToggle: () => void;
   isGridView: boolean;
@@ -46,8 +46,13 @@ export const SearchResultsHeader: React.FC<SearchResultsHeaderProps> = ({
     return option ? option.label : 'Trier';
   };
 
+  const getSortIcon = (key: string): string => {
+    const option = sortOptions.find(opt => opt.key === key);
+    return option ? option.icon : 'swap-vertical';
+  };
+
   const handleSortSelect = (option: SortOption) => {
-    onSortPress();
+    onSortPress(option.key);
     setShowSortModal(false);
   };
 
@@ -62,8 +67,9 @@ export const SearchResultsHeader: React.FC<SearchResultsHeaderProps> = ({
             style={styles.sortButton}
             onPress={() => setShowSortModal(true)}
           >
-            <Ionicons name="swap-vertical" size={16} color="#666" />
+            <Ionicons name={getSortIcon(currentSort) as any} size={16} color="#e67e22" />
             <Text style={styles.sortText}>{getSortLabel(currentSort)}</Text>
+            <Ionicons name="chevron-down" size={14} color="#666" />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -156,11 +162,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   sortText: {
     fontSize: 14,
-    color: '#666',
-    marginLeft: 4,
+    color: '#333',
+    marginLeft: 6,
+    marginRight: 4,
+    fontWeight: '500',
   },
   viewToggleButton: {
     padding: 5,

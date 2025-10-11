@@ -21,6 +21,12 @@ const notifyProfileListeners = () => {
   globalProfileListeners.forEach(listener => listener());
 };
 
+// Fonction pour nettoyer le cache global (utile lors de la déconnexion)
+export const clearProfileCache = () => {
+  globalProfileCache = null;
+  notifyProfileListeners();
+};
+
 export const useUserProfile = () => {
   const [profile, setProfile] = useState<UserProfile | null>(globalProfileCache);
   const [loading, setLoading] = useState(true);
@@ -51,12 +57,18 @@ export const useUserProfile = () => {
       if (userError) {
         console.error('Erreur d\'authentification dans useUserProfile:', userError);
         setError('Session expirée. Veuillez vous reconnecter.');
+        // Nettoyer le cache global en cas d'erreur d'authentification
+        globalProfileCache = null;
+        notifyProfileListeners();
         return;
       }
       
       if (!user) {
         console.log('Aucun utilisateur connecté dans useUserProfile');
         setError('Vous devez être connecté pour voir votre profil.');
+        // Nettoyer le cache global quand aucun utilisateur
+        globalProfileCache = null;
+        notifyProfileListeners();
         return;
       }
       

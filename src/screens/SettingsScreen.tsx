@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from '../hooks/useEmailService';
+import { clearProfileCache } from '../hooks/useUserProfile';
 import { supabase } from '../services/supabase';
 
 const SettingsScreen: React.FC = () => {
@@ -102,21 +103,32 @@ const SettingsScreen: React.FC = () => {
   };
 
   const handleDeleteAccount = async () => {
-    if (deleteConfirmation.toLowerCase() !== 'supprimer') {
+    if (deleteConfirmation !== 'SUPPRIMER') {
       Alert.alert('Erreur', 'Veuillez taper "SUPPRIMER" pour confirmer');
       return;
     }
 
     setLoading(true);
     try {
-      // Supprimer le compte utilisateur
-      const { error } = await supabase.auth.admin.deleteUser(user?.id || '');
-      
-      if (error) {
-        console.error('Erreur suppression compte:', error);
-        Alert.alert('Erreur', 'Impossible de supprimer le compte');
+      if (!user) return;
+
+      // Utiliser la fonction sécurisée pour supprimer complètement le compte
+      // (même fonction que le site web)
+      const { error: deleteError } = await supabase.rpc('delete_user_account_safely', {
+        user_id_to_delete: user.id
+      });
+
+      if (deleteError) {
+        console.error('Erreur suppression compte:', deleteError);
+        Alert.alert('Erreur', 'Impossible de supprimer le compte. Veuillez réessayer.');
         return;
       }
+
+      // Nettoyer le cache du profil
+      clearProfileCache();
+      
+      // Déconnecter l'utilisateur
+      await signOut();
 
       Alert.alert(
         'Compte supprimé',
@@ -125,7 +137,6 @@ const SettingsScreen: React.FC = () => {
           {
             text: 'OK',
             onPress: () => {
-              signOut();
               navigation.navigate('Home' as never);
             }
           }

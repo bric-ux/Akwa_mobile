@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useProperties } from '../hooks/useProperties';
+import { usePropertySorting, SortOption } from '../hooks/usePropertySorting';
 import { Property, SearchFilters, RootStackParamList } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import FiltersModal from '../components/FiltersModal';
@@ -30,11 +31,12 @@ const SearchScreen: React.FC = () => {
   const route = useRoute<SearchScreenRouteProp>();
   const navigation = useNavigation();
   const { properties, loading, error, fetchProperties } = useProperties();
+  const sortedProperties = usePropertySorting(properties, sortBy);
   
   const [searchQuery, setSearchQuery] = useState(route.params?.destination || '');
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState('popular');
+  const [sortBy, setSortBy] = useState<SortOption>('popular');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   
@@ -205,9 +207,8 @@ const SearchScreen: React.FC = () => {
     });
   };
 
-  const handleSortChange = () => {
-    // Logique de tri sera implémentée
-    Alert.alert('Tri', 'Fonctionnalité de tri en cours de développement');
+  const handleSortChange = (newSort: SortOption) => {
+    setSortBy(newSort);
   };
 
   const getActiveFiltersCount = (): number => {
@@ -302,14 +303,14 @@ const SearchScreen: React.FC = () => {
       ) : (
         <View style={styles.content}>
           <SearchResultsHeader
-            resultsCount={properties.length}
+            resultsCount={sortedProperties.length}
             onSortPress={handleSortChange}
             currentSort={sortBy}
             onViewToggle={() => {}}
             isGridView={false}
           />
           
-          {properties.length === 0 ? (
+          {sortedProperties.length === 0 ? (
             <View style={styles.noResultsContainer}>
               <Ionicons name="search" size={64} color="#ccc" />
               <Text style={styles.noResultsTitle}>
@@ -341,7 +342,7 @@ const SearchScreen: React.FC = () => {
             </View>
           ) : (
             <FlatList
-              data={properties}
+              data={sortedProperties}
               renderItem={renderPropertyCard}
               keyExtractor={(item) => item.id}
               showsVerticalScrollIndicator={false}

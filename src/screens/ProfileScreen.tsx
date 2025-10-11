@@ -121,28 +121,20 @@ const ProfileScreen: React.FC = () => {
     });
   }
 
-  // Ajouter l'option de déconnexion
-  menuItems.push({
-    id: 'logout',
-    title: 'Se déconnecter',
-    icon: 'log-out-outline',
-    onPress: handleLogout,
-  });
 
   // Utiliser la liste construite dynamiquement
   const finalMenuItems = menuItems;
 
-  // Si l'utilisateur n'est pas connecté, rediriger vers la connexion
-  useFocusEffect(
-    React.useCallback(() => {
-      if (!user) {
-        navigation.navigate('Auth');
-      }
-    }, [user, navigation])
-  );
 
-  // Si l'utilisateur n'est pas connecté, afficher un indicateur de chargement
-  if (!user) {
+  // Rediriger vers l'authentification si l'utilisateur n'est pas connecté ou s'il y a une erreur d'authentification
+  useEffect(() => {
+    if (!user || error?.includes('Session expirée') || error?.includes('Auth session missing')) {
+      navigation.navigate('Auth');
+    }
+  }, [user, error, navigation]);
+
+  // Si l'utilisateur n'est pas connecté ou s'il y a une erreur d'authentification, afficher un indicateur de chargement
+  if (!user || error?.includes('Session expirée') || error?.includes('Auth session missing')) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
