@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Conversation, Message } from '../types';
+import { useEmailService } from './useEmailService';
 
 export const useMessaging = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -8,6 +9,7 @@ export const useMessaging = () => {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { sendNewMessage } = useEmailService();
 
   // Charger les conversations de l'utilisateur
   const loadConversations = useCallback(async (userId: string) => {
@@ -227,6 +229,42 @@ export const useMessaging = () => {
           last_message: message.trim()
         })
         .eq('id', conversationId);
+
+      // Envoyer email de notification au destinataire
+      try {
+        // Récupérer les détails de la conversation pour l'email
+        const { data: conversationData } = await supabase
+          .from('conversations')
+          .select(`
+            *,
+            property:properties(title),
+            host_profile:profiles!conversations_host_id_fkey(first_name, last_name, email),
+            guest_profile:profiles!conversations_guest_id_fkey(first_name, last_name, email)
+          `)
+          .eq('id', conversationId)
+          .single();
+
+        if (conversationData) {
+          // Déterminer qui est le destinataire
+          const isHost = senderId === conversationData.host_id;
+          const recipientProfile = isHost ? conversationData.guest_profile : conversationData.host_profile;
+          const senderProfile = isHost ? conversationData.host_profile : conversationData.guest_profile;
+
+          if (recipientProfile?.email) {
+            await sendNewMessage(
+              recipientProfile.email,
+              `${recipientProfile.first_name} ${recipientProfile.last_name}`,
+              `${senderProfile?.first_name} ${senderProfile?.last_name}`,
+              conversationData.property?.title || 'Propriété',
+              message.trim()
+            );
+            console.log('✅ [useMessaging] Email de notification envoyé à:', recipientProfile.email);
+          }
+        }
+      } catch (emailError) {
+        console.error('❌ [useMessaging] Erreur envoi email notification:', emailError);
+        // Ne pas faire échouer l'envoi du message si l'email échoue
+      }
 
       return newMessage;
     } catch (err) {

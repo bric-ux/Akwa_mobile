@@ -16,6 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
+import { useAuth } from '../services/AuthContext';
+import PasswordValidation from '../components/PasswordValidation';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
@@ -23,6 +25,8 @@ const AuthScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<AuthScreenRouteProp>();
   const { returnTo, returnParams } = route.params || {};
+  const { signIn, signUp } = useAuth();
+
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,20 +36,48 @@ const AuthScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Fonction de validation du mot de passe
+  const validatePassword = (password: string) => {
+    const rules = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /\d/.test(password),
+      special: /[@$!%*?&]/.test(password)
+    };
+    
+    return {
+      isValid: Object.values(rules).every(Boolean),
+      rules
+    };
+  };
+
   const handleAuth = async () => {
     if (!email || !password) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
       return;
     }
 
-    if (!isLogin && password !== confirmPassword) {
-      Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
-      return;
-    }
+    if (!isLogin) {
+      // Validation du mot de passe pour l'inscription
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.isValid) {
+        Alert.alert(
+          'Mot de passe invalide',
+          'Le mot de passe doit contenir au moins 8 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&)'
+        );
+        return;
+      }
 
-    if (!isLogin && (!firstName || !lastName)) {
-      Alert.alert('Erreur', 'Veuillez remplir votre nom et prénom');
-      return;
+      if (password !== confirmPassword) {
+        Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
+        return;
+      }
+
+      if (!firstName || !lastName) {
+        Alert.alert('Erreur', 'Veuillez remplir votre nom et prénom');
+        return;
+      }
     }
 
     setLoading(true);
@@ -53,12 +85,7 @@ const AuthScreen: React.FC = () => {
     try {
       if (isLogin) {
         // Connexion
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error) throw error;
+        await signIn(email, password);
 
         // Redirection automatique après connexion réussie
         if (returnTo && returnTo !== 'Auth') {
@@ -75,22 +102,39 @@ const AuthScreen: React.FC = () => {
         }
       } else {
         // Inscription
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              first_name: firstName,
-              last_name: lastName,
-            },
-          },
+        await signUp(email, password, {
+          first_name: firstName,
+          last_name: lastName,
         });
 
-        if (error) throw error;
+        // Créer automatiquement le profil dans la table profiles
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .insert({
+                user_id: user.id,
+                first_name: firstName,
+                last_name: lastName,
+                email: email,
+                role: 'user',
+                is_host: false,
+              });
+
+            if (profileError) {
+              console.error('Erreur création profil:', profileError);
+            } else {
+              console.log('✅ Profil créé automatiquement');
+            }
+          }
+        } catch (profileError) {
+          console.error('Erreur création profil:', profileError);
+        }
 
         Alert.alert(
           'Inscription réussie',
-          'Veuillez vérifier votre email pour confirmer votre compte.',
+          'Votre compte a été créé avec succès !',
           [
             {
               text: 'OK',
@@ -224,6 +268,11 @@ const AuthScreen: React.FC = () => {
                 />
               </TouchableOpacity>
             </View>
+            
+            {/* Validation du mot de passe - seulement pour l'inscription */}
+            {!isLogin && (
+              <PasswordValidation password={password} />
+            )}
 
             {!isLogin && (
               <View style={styles.inputContainer}>

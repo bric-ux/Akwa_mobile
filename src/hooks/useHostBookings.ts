@@ -164,11 +164,25 @@ export const useHostBookings = () => {
 
       // Envoyer les emails selon le statut
       try {
+        // Vérifier que les données nécessaires existent
+        if (!bookingData.guest_profile?.email) {
+          console.warn('⚠️ [useHostBookings] Email invité manquant, emails non envoyés');
+          return { success: true };
+        }
+
+        if (!user.email) {
+          console.warn('⚠️ [useHostBookings] Email hôte manquant, emails non envoyés');
+          return { success: true };
+        }
+
+        const guestName = `${bookingData.guest_profile.first_name || ''} ${bookingData.guest_profile.last_name || ''}`.trim();
+        const hostName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim();
+
         if (status === 'confirmed') {
           // Email de confirmation au voyageur
           await sendBookingResponse(
             bookingData.guest_profile.email,
-            `${bookingData.guest_profile.first_name} ${bookingData.guest_profile.last_name}`,
+            guestName,
             bookingData.properties.title,
             bookingData.check_in_date,
             bookingData.check_out_date,
@@ -179,9 +193,9 @@ export const useHostBookings = () => {
 
           // Email de confirmation à l'hôte
           await sendBookingConfirmedHost(
-            user.email || '',
-            `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`,
-            `${bookingData.guest_profile.first_name} ${bookingData.guest_profile.last_name}`,
+            user.email,
+            hostName,
+            guestName,
             bookingData.properties.title,
             bookingData.check_in_date,
             bookingData.check_out_date,
@@ -194,7 +208,7 @@ export const useHostBookings = () => {
           // Email d'annulation au voyageur
           await sendBookingResponse(
             bookingData.guest_profile.email,
-            `${bookingData.guest_profile.first_name} ${bookingData.guest_profile.last_name}`,
+            guestName,
             bookingData.properties.title,
             bookingData.check_in_date,
             bookingData.check_out_date,
@@ -205,9 +219,9 @@ export const useHostBookings = () => {
 
           // Email d'annulation à l'hôte
           await sendBookingCancelledHost(
-            user.email || '',
-            `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`,
-            `${bookingData.guest_profile.first_name} ${bookingData.guest_profile.last_name}`,
+            user.email,
+            hostName,
+            guestName,
             bookingData.properties.title,
             bookingData.check_in_date,
             bookingData.check_out_date,

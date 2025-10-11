@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signUp = async (email: string, password: string, userData: any) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -85,6 +85,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       },
     });
     if (error) throw error;
+
+    // Envoyer email de bienvenue si l'inscription réussit
+    if (data.user) {
+      console.log('🔄 Tentative d\'envoi d\'email de bienvenue...');
+      console.log('📧 Email destinataire:', email);
+      console.log('👤 Prénom:', userData.first_name || 'Utilisateur');
+      
+      try {
+        const emailResult = await supabase.functions.invoke('send-email', {
+          body: {
+            type: 'welcome',
+            to: email,
+            data: {
+              firstName: userData.first_name || 'Utilisateur'
+            }
+          }
+        });
+        
+        console.log('✅ Email de bienvenue envoyé avec succès');
+        console.log('📧 ID email:', emailResult.data?.id);
+        console.log('📧 Réponse complète:', emailResult);
+      } catch (emailError) {
+        console.error('❌ Erreur envoi email de bienvenue:');
+        console.error('❌ Type:', typeof emailError);
+        console.error('❌ Message:', emailError.message);
+        console.error('❌ Détails:', emailError);
+        // Ne pas faire échouer l'inscription si l'email échoue
+      }
+    } else {
+      console.warn('⚠️ Aucun utilisateur créé, email de bienvenue non envoyé');
+    }
   };
 
   const signOut = async () => {

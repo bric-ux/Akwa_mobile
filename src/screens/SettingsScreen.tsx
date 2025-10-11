@@ -77,23 +77,23 @@ const SettingsScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      // Envoyer l'email de réinitialisation via notre service
-      const result = await sendPasswordReset(
-        user.email,
-        `https://akwahome.com/reset-password?token=PLACEHOLDER`, // URL de réinitialisation
-        user.user_metadata?.first_name
-      );
+      // Utiliser la fonction native de Supabase qui gère l'envoi d'email et le token
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: 'https://akwahome.com/reset-password.html', // URL de votre page de réinitialisation
+      });
 
-      if (result.success) {
-        Alert.alert(
-          'Email envoyé',
-          'Un email de réinitialisation a été envoyé à votre adresse email.',
-          [{ text: 'OK' }]
-        );
-        setShowResetModal(false);
-      } else {
+      if (error) {
+        console.error('Erreur Supabase:', error);
         Alert.alert('Erreur', 'Impossible d\'envoyer l\'email de réinitialisation');
+        return;
       }
+
+      Alert.alert(
+        'Email envoyé',
+        'Un email de réinitialisation a été envoyé à votre adresse email. Vérifiez votre boîte de réception.',
+        [{ text: 'OK' }]
+      );
+      setShowResetModal(false);
     } catch (error) {
       console.error('Erreur réinitialisation mot de passe:', error);
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'envoi de l\'email');
