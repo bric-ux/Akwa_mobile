@@ -291,6 +291,23 @@ const PropertyDetailsScreen: React.FC = () => {
                     {hostProfile ? `${hostProfile.first_name} ${hostProfile.last_name}` : 'Chargement...'}
                   </Text>
                   <Text style={styles.hostTitle}>Hôte sur AkwaHome</Text>
+                  
+                  {/* Statistiques rapides */}
+                  {hostProfile && (hostProfile.total_properties || hostProfile.average_rating) && (
+                    <View style={styles.hostStats}>
+                      {hostProfile.total_properties && (
+                        <Text style={styles.hostStat}>
+                          {hostProfile.total_properties} propriété{hostProfile.total_properties > 1 ? 's' : ''}
+                        </Text>
+                      )}
+                      {hostProfile.average_rating && (
+                        <Text style={styles.hostStat}>
+                          ⭐ {hostProfile.average_rating}/5
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                  
                   {hostProfile?.bio && (
                     <Text style={styles.hostBio} numberOfLines={2}>
                       {hostProfile.bio}
@@ -590,6 +607,20 @@ const styles = StyleSheet.create({
   hostAction: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  hostStats: {
+    flexDirection: 'row',
+    marginTop: 4,
+    gap: 12,
+  },
+  hostStat: {
+    fontSize: 12,
+    color: '#2E7D32',
+    backgroundColor: '#E8F5E8',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    fontWeight: '500',
   },
 });
 

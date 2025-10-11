@@ -10,6 +10,15 @@ export interface HostProfile {
   phone?: string;
   email: string;
   created_at: string;
+  properties?: {
+    id: string;
+    title: string;
+    rating?: number;
+    review_count?: number;
+  }[];
+  total_reviews?: number;
+  average_rating?: number;
+  total_properties?: number;
 }
 
 export const useHostProfile = () => {
@@ -85,8 +94,60 @@ export const useHostProfile = () => {
       }
 
       console.log('✅ [useHostProfile] Profil chargé:', data);
-      setHostProfile(data);
-      return data;
+      
+      // Récupérer les propriétés de l'hôte séparément
+      console.log('🔍 [useHostProfile] Récupération des propriétés pour hostId:', hostId);
+      
+      // D'abord, vérifier la structure de la table properties
+      const { data: propertiesStructure, error: structureError } = await supabase
+        .from('properties')
+        .select('*')
+        .limit(1);
+      
+      if (structureError) {
+        console.error('❌ [useHostProfile] Erreur structure properties:', structureError);
+      } else {
+        console.log('🔍 [useHostProfile] Colonnes properties disponibles:', Object.keys(propertiesStructure[0] || {}));
+      }
+      
+      const { data: properties, error: propertiesError } = await supabase
+        .from('properties')
+        .select('id, title, rating, review_count, host_id')
+        .eq('host_id', hostId)
+        .eq('is_active', true);
+      
+      if (propertiesError) {
+        console.error('❌ [useHostProfile] Erreur lors du chargement des propriétés:', propertiesError);
+        console.log('🔍 [useHostProfile] Détails de l\'erreur:', propertiesError);
+      } else {
+        console.log('✅ [useHostProfile] Propriétés chargées:', properties?.length || 0);
+        console.log('🔍 [useHostProfile] Détails des propriétés:', properties);
+      }
+      
+      // Calculer les statistiques des propriétés
+      const propertiesList = properties || [];
+      const totalProperties = propertiesList.length;
+      const totalReviews = propertiesList.reduce((sum, prop) => sum + (prop.review_count || 0), 0);
+      const averageRating = propertiesList.length > 0 
+        ? propertiesList.reduce((sum, prop) => sum + (prop.rating || 0), 0) / propertiesList.length 
+        : 0;
+
+      const enrichedProfile = {
+        ...data,
+        properties: propertiesList,
+        total_reviews: totalReviews,
+        average_rating: Math.round(averageRating * 10) / 10, // Arrondir à 1 décimale
+        total_properties: totalProperties
+      };
+
+      console.log('📊 [useHostProfile] Statistiques calculées:', {
+        totalProperties,
+        totalReviews,
+        averageRating: enrichedProfile.average_rating
+      });
+
+      setHostProfile(enrichedProfile);
+      return enrichedProfile;
     } catch (err) {
       console.error('❌ [useHostProfile] Erreur lors du chargement du profil hôte:', err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');

@@ -204,6 +204,12 @@ const EditProfileScreen: React.FC = () => {
     try {
       setSaving(true);
       
+      // Récupérer l'utilisateur connecté
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Utilisateur non connecté');
+      }
+      
       let avatarUrl = avatarUri;
       
       // Si une nouvelle image a été sélectionnée, essayer de l'uploader
@@ -227,6 +233,97 @@ const EditProfileScreen: React.FC = () => {
       });
 
       if (error) throw error;
+
+      // Vérifier et mettre à jour la table profiles
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingProfile) {
+        // Mettre à jour le profil existant
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            phone: formData.phone,
+            bio: formData.bio,
+            avatar_url: avatarUrl,
+          })
+          .eq('user_id', user.id);
+
+        if (profileError) {
+          console.error('Erreur lors de la mise à jour du profil:', profileError);
+        }
+      } else {
+        // Créer un nouveau profil
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: user.id,
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            phone: formData.phone,
+            bio: formData.bio,
+            avatar_url: avatarUrl,
+            role: 'user',
+            is_host: false,
+          });
+
+        if (profileError) {
+          console.error('Erreur lors de la création du profil:', profileError);
+        }
+      }
+
+      // Vérifier et mettre à jour la table host_public_info si l'utilisateur est hôte
+      const { data: existingHostInfo } = await supabase
+        .from('host_public_info')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingHostInfo) {
+        // Mettre à jour les infos hôte existantes
+        const { error: hostInfoError } = await supabase
+          .from('host_public_info')
+          .update({
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            bio: formData.bio,
+            avatar_url: avatarUrl,
+          })
+          .eq('user_id', user.id);
+
+        if (hostInfoError) {
+          console.error('Erreur lors de la mise à jour des infos hôte:', hostInfoError);
+        }
+      } else {
+        // Vérifier si l'utilisateur est hôte avant de créer l'entrée
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('is_host')
+          .eq('user_id', user.id)
+          .single();
+
+        if (profileData?.is_host) {
+          // Créer les infos hôte
+          const { error: hostInfoError } = await supabase
+            .from('host_public_info')
+            .insert({
+              user_id: user.id,
+              first_name: formData.first_name,
+              last_name: formData.last_name,
+              bio: formData.bio,
+              avatar_url: avatarUrl,
+            });
+
+          if (hostInfoError) {
+            console.error('Erreur lors de la création des infos hôte:', hostInfoError);
+          }
+        }
+      }
 
       // Mettre à jour le cache global avec les nouvelles données
       const updatedProfile: UserProfile = {
