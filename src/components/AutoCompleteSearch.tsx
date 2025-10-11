@@ -39,6 +39,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
   const [isSuggestionSelected, setIsSuggestionSelected] = useState(false);
   const isProcessingRef = useRef(false);
   const lastProcessedId = useRef<string | null>(null);
+  const textInputRef = useRef<TextInput>(null);
 
   // Charger les recherches récentes
   useEffect(() => {
@@ -163,6 +164,9 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       setRecentSearches(prev => [suggestion.text, ...prev.slice(0, 4)]);
     }
     
+    // Fermer le clavier
+    textInputRef.current?.blur();
+    
     // Lancer la recherche immédiatement
     onSearch?.(suggestion.text);
     
@@ -179,6 +183,8 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
   const handleSearch = () => {
     if (query.trim()) {
       setShowSuggestions(false);
+      // Fermer le clavier
+      textInputRef.current?.blur();
       onSearch(query.trim());
     }
   };
@@ -187,6 +193,8 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
     setQuery('');
     setShowSuggestions(false);
     setIsSuggestionSelected(false);
+    // Fermer le clavier
+    textInputRef.current?.blur();
     onSearch('');
   };
 
@@ -239,6 +247,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
         <TextInput
+          ref={textInputRef}
           style={styles.input}
           placeholder={placeholder}
           value={query}
