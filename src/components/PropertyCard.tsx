@@ -23,6 +23,17 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const [isFavorited, setIsFavorited] = useState(false);
 
+  // Debug pour la propriété "haut standing"
+  if (property.title && property.title.toLowerCase().includes('haut standing')) {
+    console.log('🏠 PropertyCard - Debug propriété haut standing:', {
+      title: property.title,
+      rating: property.rating,
+      review_count: property.review_count,
+      reviews_count: property.reviews_count,
+      propertyKeys: Object.keys(property)
+    });
+  }
+
   useEffect(() => {
     // Mettre à jour l'état local quand le cache global change
     setIsFavorited(isFavoriteSync(property.id));
@@ -109,7 +120,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             </Text>
             
             <Text style={styles.cardRating}>
-              ⭐ {(property.rating || 0).toFixed(1)} ({property.reviews_count || 0} avis)
+              ⭐ {(property.rating || 0).toFixed(1)} ({property.review_count || 0} avis)
             </Text>
             
             {property.amenities && property.amenities.length > 0 && (
@@ -192,7 +203,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             </View>
             
             <Text style={styles.rating}>
-              ⭐ {(property.rating || 0).toFixed(1)} ({property.reviews_count || 0} avis)
+              ⭐ {(property.rating || 0).toFixed(1)} ({property.review_count || 0} avis)
             </Text>
             
             {property.amenities && property.amenities.length > 0 && (

@@ -17,7 +17,7 @@ export interface Property {
   price_per_night: number;
   images: string[];
   rating?: number;
-  reviews_count?: number;
+  review_count?: number;
   amenities?: Amenity[];
   host_id: string;
   created_at: string;
@@ -38,6 +38,15 @@ export interface Property {
   discount_enabled?: boolean;
   discount_min_nights?: number;
   discount_percentage?: number;
+  reviews?: {
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    reviewer_id: string;
+    profiles?: {
+      first_name: string;
+    };
+  }[];
 }
 
 export interface Amenity {

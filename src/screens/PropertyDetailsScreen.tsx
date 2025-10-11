@@ -21,6 +21,7 @@ import { Property } from '../types';
 import PropertyImageCarousel from '../components/PropertyImageCarousel';
 import BookingModal from '../components/BookingModal';
 import ContactHostButton from '../components/ContactHostButton';
+import { supabase } from '../services/supabase';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -37,6 +38,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [reviewersProfiles, setReviewersProfiles] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
     const loadProperty = async () => {
@@ -56,6 +58,11 @@ const PropertyDetailsScreen: React.FC = () => {
         if (propertyData && propertyData.host_id) {
           console.log('🔄 Chargement du profil de l\'hôte:', propertyData.host_id);
           await getHostProfile(propertyData.host_id);
+        }
+
+        // Charger les profils des reviewers
+        if (propertyData.reviews && propertyData.reviews.length > 0) {
+          await loadReviewersProfiles(propertyData.reviews);
         }
         
         // Vérifier si la propriété est en favoris
@@ -87,6 +94,44 @@ const PropertyDetailsScreen: React.FC = () => {
 
     loadProperty();
   }, [propertyId]); // Supprimer les autres dépendances pour éviter la boucle
+
+  // Fonction pour charger les profils des reviewers
+  const loadReviewersProfiles = async (reviews: any[]) => {
+    try {
+      console.log('🔍 Reviews reçues:', reviews);
+      const reviewerIds = reviews.map(review => review.reviewer_id).filter(Boolean);
+      console.log('🔍 Reviewer IDs extraits:', reviewerIds);
+      
+      if (reviewerIds.length === 0) {
+        console.log('⚠️ Aucun reviewer_id trouvé');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, first_name')
+        .in('user_id', reviewerIds);
+
+      if (error) {
+        console.error('❌ Erreur lors du chargement des profils reviewers:', error);
+        return;
+      }
+
+      console.log('🔍 Données profiles récupérées:', data);
+
+      // Créer un mapping reviewer_id -> first_name
+      const profilesMap: {[key: string]: string} = {};
+      data?.forEach(profile => {
+        console.log('🔍 Profile:', profile.user_id, '->', profile.first_name);
+        profilesMap[profile.user_id] = profile.first_name || 'Anonyme';
+      });
+
+      setReviewersProfiles(profilesMap);
+      console.log('✅ Profils reviewers chargés:', profilesMap);
+    } catch (error) {
+      console.error('❌ Erreur lors du chargement des profils reviewers:', error);
+    }
+  };
 
   // useEffect séparé pour gérer les favoris
   useEffect(() => {
@@ -186,7 +231,7 @@ const PropertyDetailsScreen: React.FC = () => {
 
         <View style={styles.ratingContainer}>
           <Text style={styles.rating}>
-            ⭐ {property.rating?.toFixed(1)} ({property.reviews_count} avis)
+            ⭐ {property.rating?.toFixed(1)} ({property.review_count} avis)
           </Text>
         </View>
 
@@ -211,6 +256,62 @@ const PropertyDetailsScreen: React.FC = () => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>À propos de ce logement</Text>
             <Text style={styles.description}>{property.description}</Text>
+          </View>
+        )}
+
+        {/* Avis et commentaires */}
+        {property.reviews && property.reviews.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Avis des voyageurs</Text>
+            {property.reviews.map((review, index) => {
+              const reviewerName = reviewersProfiles[review.reviewer_id] || 'Anonyme';
+              console.log('🔍 Affichage avis:', {
+                reviewer_id: review.reviewer_id,
+                reviewerName,
+                profilesMap: reviewersProfiles
+              });
+              
+              return (
+                <View key={index} style={styles.reviewItem}>
+                  <View style={styles.reviewHeader}>
+                    <View style={styles.reviewUserInfo}>
+                      <View style={styles.reviewUserAvatar}>
+                        <Text style={styles.reviewUserInitial}>
+                          {reviewerName.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.reviewUserDetails}>
+                        <Text style={styles.reviewUserName}>
+                          {reviewerName}
+                        </Text>
+                      <View style={styles.reviewStars}>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Text key={star} style={[
+                            styles.reviewStar,
+                            star <= review.rating ? styles.reviewStarFilled : styles.reviewStarEmpty
+                          ]}>
+                            ⭐
+                          </Text>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                  <Text style={styles.reviewDate}>
+                    {new Date(review.created_at).toLocaleDateString('fr-FR', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+                {review.comment && (
+                  <Text style={styles.reviewComment}>
+                    "{review.comment}"
+                  </Text>
+                )}
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -621,6 +722,83 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 12,
     fontWeight: '500',
+  },
+  // Styles pour les avis
+  reviewItem: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  reviewUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  reviewUserAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2E7D32',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  reviewUserInitial: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  reviewUserDetails: {
+    flex: 1,
+  },
+  reviewUserName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  reviewStars: {
+    flexDirection: 'row',
+  },
+  reviewStar: {
+    fontSize: 14,
+    marginRight: 2,
+  },
+  reviewStarFilled: {
+    color: '#ffc107',
+  },
+  reviewStarEmpty: {
+    color: '#e9ecef',
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginLeft: 8,
+  },
+  reviewComment: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    fontStyle: 'italic',
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2E7D32',
   },
 });
 

@@ -8,6 +8,19 @@ export const usePropertySorting = (properties: Property[], sortBy: SortOption) =
     if (!properties || properties.length === 0) return [];
 
     const sorted = [...properties];
+    
+    // Debug: afficher les données de tri
+    console.log('🔍 Tri des propriétés:', {
+      sortBy,
+      count: sorted.length,
+      sample: sorted.slice(0, 2).map(p => ({
+        title: p.title,
+        price: p.price_per_night,
+        rating: p.rating,
+        review_count: p.review_count,
+        created_at: p.created_at
+      }))
+    });
 
     switch (sortBy) {
       case 'price_asc':

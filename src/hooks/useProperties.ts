@@ -68,6 +68,10 @@ export const useProperties = () => {
             id,
             name,
             region
+          ),
+          reviews!property_id (
+            rating,
+            created_at
           )
         `)
         .eq('is_active', true)
@@ -175,12 +179,43 @@ export const useProperties = () => {
             discount_percentage: property.discount_percentage
           });
           
+          // Calculer la vraie moyenne des avis et le nombre d'avis
+          const reviews = property.reviews || [];
+          const reviewCount = reviews.length;
+          const averageRating = reviewCount > 0 
+            ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount 
+            : 0;
+
+          // Si on a des avis calculés en base, les utiliser en priorité
+          const finalRating = property.rating && property.review_count ? property.rating : averageRating;
+          const finalReviewCount = property.review_count || reviewCount;
+
+          // Debug pour la propriété "haut standing"
+          if (property.title && property.title.toLowerCase().includes('haut standing')) {
+            console.log('🏠 Debug propriété haut standing:', {
+              title: property.title,
+              propertyId: property.id,
+              propertyRating: property.rating,
+              propertyReviewCount: property.review_count,
+              reviews: reviews,
+              reviewCount: reviewCount,
+              averageRating: averageRating,
+              finalRating: finalRating,
+              finalReviewCount: finalReviewCount,
+              calculatedRating: Math.round(finalRating * 100) / 100,
+              rawPropertyKeys: Object.keys(property),
+              hasReviewsProperty: 'reviews' in property,
+              reviewsType: typeof property.reviews,
+              reviewsIsArray: Array.isArray(property.reviews)
+            });
+          }
+
           return {
             ...property,
             images: property.images || [],
             price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000, // Prix entre 10k et 60k FCFA
-            rating: Math.random() * 2 + 3, // Note aléatoire entre 3 et 5 pour la démo
-            reviews_count: Math.floor(Math.random() * 50) + 5, // Nombre d'avis aléatoire
+            rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
+            review_count: finalReviewCount, // Nombre d'avis final
             amenities: mappedAmenities
           };
         })
@@ -223,6 +258,12 @@ export const useProperties = () => {
             id,
             name,
             region
+          ),
+          reviews!property_id (
+            rating,
+            comment,
+            created_at,
+            reviewer_id
           )
         `)
         .eq('id', id)
@@ -240,13 +281,24 @@ export const useProperties = () => {
 
       console.log('✅ Propriété trouvée:', data.title, '- Active:', data.is_active, '- Masquée:', data.is_hidden);
 
+      // Calculer la vraie moyenne des avis et le nombre d'avis
+      const reviews = data.reviews || [];
+      const averageRating = reviews.length > 0 
+        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
+        : 0;
+      const reviewCount = reviews.length;
+
+      // Si on a des avis calculés en base, les utiliser en priorité
+      const finalRating = data.rating && data.review_count ? data.rating : averageRating;
+      const finalReviewCount = data.review_count || reviewCount;
+
       // Transformer les données avec les équipements
       const transformedData = {
         ...data,
         images: data.images || [],
         price_per_night: data.price_per_night || Math.floor(Math.random() * 50000) + 10000,
-        rating: Math.random() * 2 + 3,
-        reviews_count: Math.floor(Math.random() * 50) + 5,
+        rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
+        review_count: finalReviewCount, // Nombre d'avis final
         amenities: await mapAmenities(data.amenities)
       };
 
@@ -297,6 +349,10 @@ export const useProperties = () => {
             id,
             name,
             region
+          ),
+          reviews!property_id (
+            rating,
+            created_at
           )
         `)
         .eq('is_active', true)
@@ -371,14 +427,27 @@ export const useProperties = () => {
 
       // Transformer les données avec les équipements
       const transformedData = await Promise.all(
-        (data || []).map(async (property) => ({
-          ...property,
-          images: property.images || [],
-          price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000,
-          rating: Math.random() * 2 + 3,
-          reviews_count: Math.floor(Math.random() * 50) + 5,
-          amenities: await mapAmenities(property.amenities)
-        }))
+        (data || []).map(async (property) => {
+          // Calculer la vraie moyenne des avis et le nombre d'avis
+          const reviews = property.reviews || [];
+          const reviewCount = reviews.length;
+          const averageRating = reviewCount > 0 
+            ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount 
+            : 0;
+
+          // Si on a des avis calculés en base, les utiliser en priorité
+          const finalRating = property.rating && property.review_count ? property.rating : averageRating;
+          const finalReviewCount = property.review_count || reviewCount;
+
+          return {
+            ...property,
+            images: property.images || [],
+            price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000,
+            rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
+            review_count: finalReviewCount, // Nombre d'avis final
+            amenities: await mapAmenities(property.amenities)
+          };
+        })
       );
 
       // Mettre à jour le cache avec les nouvelles données
