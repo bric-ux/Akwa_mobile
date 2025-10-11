@@ -11,10 +11,28 @@ export const useMessaging = () => {
 
   // Charger les conversations de l'utilisateur
   const loadConversations = useCallback(async (userId: string) => {
+    console.log('🔄 [useMessaging] Chargement des conversations pour:', userId);
     setLoading(true);
     setError(null);
     
     try {
+      // D'abord, testons une requête simple
+      console.log('🔄 [useMessaging] Test requête simple...');
+      const { data: simpleData, error: simpleError } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`guest_id.eq.${userId},host_id.eq.${userId}`)
+        .order('updated_at', { ascending: false });
+
+      if (simpleError) {
+        console.error('❌ [useMessaging] Erreur requête simple:', simpleError);
+        throw simpleError;
+      }
+
+      console.log('✅ [useMessaging] Requête simple réussie:', simpleData?.length || 0, 'conversations');
+
+      // Ensuite, testons la requête complète
+      console.log('🔄 [useMessaging] Test requête complète...');
       const { data, error } = await supabase
         .from('conversations')
         .select(`
@@ -39,12 +57,23 @@ export const useMessaging = () => {
         .order('updated_at', { ascending: false });
 
       if (error) {
-        throw error;
+        console.error('❌ [useMessaging] Erreur requête complète, utilisation des données simples:', error);
+        // Utiliser les données simples si la requête complète échoue
+        const conversationsWithProfiles = simpleData?.map(conv => ({
+          ...conv,
+          property: null,
+          host_profile: null,
+          guest_profile: null
+        })) || [];
+        setConversations(conversationsWithProfiles);
+        return;
       }
 
+      console.log('✅ [useMessaging] Conversations chargées:', data?.length || 0);
+      console.log('📋 [useMessaging] Détails des conversations:', data);
       setConversations(data || []);
     } catch (err) {
-      console.error('Erreur lors du chargement des conversations:', err);
+      console.error('❌ [useMessaging] Erreur lors du chargement des conversations:', err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
     } finally {
       setLoading(false);
@@ -211,6 +240,8 @@ export const useMessaging = () => {
 
   // Configuration du temps réel
   const setupRealtimeSubscription = useCallback((userId: string) => {
+    console.log('🔔 Configuration du temps réel pour l\'utilisateur:', userId);
+    
     const channel = supabase
       .channel('messaging-updates')
       .on(
@@ -218,15 +249,23 @@ export const useMessaging = () => {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'conversation_messages',
-          filter: `conversation_id=in.(${conversations.map(c => c.id).join(',')})`
+          table: 'conversation_messages'
         },
-        (payload) => {
-          console.log('Nouveau message reçu:', payload);
+        async (payload) => {
+          console.log('📨 Nouveau message reçu:', payload);
           const newMessage = payload.new as Message;
           
+          // Vérifier si le message appartient à une conversation de l'utilisateur
+          const isRelevantMessage = await checkIfMessageIsRelevant(newMessage, userId);
+          if (!isRelevantMessage) return;
+          
           // Ajouter le message à la liste locale
-          setMessages(prev => [...prev, newMessage]);
+          setMessages(prev => {
+            // Éviter les doublons
+            const exists = prev.some(msg => msg.id === newMessage.id);
+            if (exists) return prev;
+            return [...prev, newMessage];
+          });
           
           // Mettre à jour la conversation dans la liste
           setConversations(prev => 
@@ -247,7 +286,7 @@ export const useMessaging = () => {
           filter: `or(guest_id.eq.${userId},host_id.eq.${userId})`
         },
         (payload) => {
-          console.log('Conversation mise à jour:', payload);
+          console.log('💬 Conversation mise à jour:', payload);
           const updatedConversation = payload.new as Conversation;
           
           setConversations(prev => 
@@ -259,12 +298,31 @@ export const useMessaging = () => {
           );
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Statut de la souscription:', status);
+      });
 
     return () => {
+      console.log('🔌 Nettoyage de la souscription temps réel');
       supabase.removeChannel(channel);
     };
-  }, [conversations]);
+  }, []);
+
+  // Vérifier si un message est pertinent pour l'utilisateur
+  const checkIfMessageIsRelevant = async (message: Message, userId: string) => {
+    try {
+      const { data: conversation } = await supabase
+        .from('conversations')
+        .select('guest_id, host_id')
+        .eq('id', message.conversation_id)
+        .single();
+      
+      return conversation && (conversation.guest_id === userId || conversation.host_id === userId);
+    } catch (error) {
+      console.error('Erreur lors de la vérification du message:', error);
+      return false;
+    }
+  };
 
   return {
     conversations,

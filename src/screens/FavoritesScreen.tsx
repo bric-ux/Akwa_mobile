@@ -81,11 +81,17 @@ const FavoritesScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Ionicons name="person-outline" size={80} color="#ccc" />
+          <Ionicons name="heart-outline" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>Connexion requise</Text>
           <Text style={styles.emptySubtitle}>
-            Connectez-vous pour voir vos propriétés favorites
+            Vous devez être connecté pour voir vos favoris
           </Text>
+          <TouchableOpacity
+            style={styles.exploreButton}
+            onPress={() => navigation.navigate('Auth')}
+          >
+            <Text style={styles.exploreButtonText}>Se connecter</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -263,6 +269,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginLeft: 6,
     marginBottom: 4,
+  },
+  exploreButton: {
+    backgroundColor: '#2E7D32',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  exploreButtonText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '600',
   },
 });
 

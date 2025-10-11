@@ -7,6 +7,7 @@ import {
   Image,
   FlatList,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Conversation } from '../types';
@@ -16,13 +17,17 @@ interface ConversationListProps {
   onSelectConversation: (conversation: Conversation) => void;
   loading?: boolean;
   currentUserId?: string;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 const ConversationList: React.FC<ConversationListProps> = ({
   conversations,
   onSelectConversation,
   loading = false,
-  currentUserId
+  currentUserId,
+  onRefresh,
+  refreshing = false
 }) => {
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -66,6 +71,24 @@ const ConversationList: React.FC<ConversationListProps> = ({
     return otherUser?.avatar_url;
   };
 
+  const formatLastMessage = (conversation: Conversation) => {
+    if (!conversation.last_message?.message) {
+      return 'Aucun message';
+    }
+    
+    const message = conversation.last_message.message;
+    // Tronquer le message s'il est trop long
+    if (message.length > 50) {
+      return message.substring(0, 50) + '...';
+    }
+    return message;
+  };
+
+  const isLastMessageFromCurrentUser = (conversation: Conversation) => {
+    if (!conversation.last_message || !currentUserId) return false;
+    return conversation.last_message.sender_id === currentUserId;
+  };
+
   const renderConversation = ({ item }: { item: Conversation }) => (
     <TouchableOpacity
       style={styles.conversationItem}
@@ -106,15 +129,20 @@ const ConversationList: React.FC<ConversationListProps> = ({
           {item.property?.title || 'Propriété'}
         </Text>
         
-        <Text 
-          style={[
-            styles.lastMessage,
-            item.unread_count && item.unread_count > 0 && styles.unreadMessage
-          ]} 
-          numberOfLines={2}
-        >
-          {item.last_message?.message || 'Aucun message'}
-        </Text>
+        <View style={styles.lastMessageContainer}>
+          {isLastMessageFromCurrentUser(item) && (
+            <Text style={styles.youLabel}>Vous: </Text>
+          )}
+          <Text 
+            style={[
+              styles.lastMessage,
+              item.unread_count && item.unread_count > 0 && styles.unreadMessage
+            ]} 
+            numberOfLines={2}
+          >
+            {formatLastMessage(item)}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.conversationActions}>
@@ -150,6 +178,18 @@ const ConversationList: React.FC<ConversationListProps> = ({
       ListEmptyComponent={renderEmptyState}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.listContainer}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#007AFF']}
+            tintColor="#007AFF"
+            title="Actualisation..."
+            titleColor="#666"
+          />
+        ) : undefined
+      }
     />
   );
 };
@@ -225,14 +265,26 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 4,
   },
+  lastMessageContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+  },
+  youLabel: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
+    marginRight: 4,
+  },
   lastMessage: {
     fontSize: 14,
     color: '#666',
     lineHeight: 18,
+    flex: 1,
   },
   unreadMessage: {
     color: '#000',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   conversationActions: {
     justifyContent: 'center',

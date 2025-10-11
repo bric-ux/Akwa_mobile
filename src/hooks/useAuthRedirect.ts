@@ -35,9 +35,9 @@ export const useAuthRedirect = () => {
   const requireAuthForProfile = () => {
     requireAuth(
       () => {
-        navigation.navigate('Profile');
+        (navigation as any).navigate('Home', { screen: 'ProfileTab' });
       },
-      'Profile'
+      'Profil'
     );
   };
 

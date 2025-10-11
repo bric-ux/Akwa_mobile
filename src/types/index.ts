@@ -126,7 +126,6 @@ export type RootStackParamList = {
   Search: { destination?: string };
   PropertyDetails: { propertyId: string };
   Booking: { propertyId: string };
-  Profile: undefined;
   EditProfile: undefined;
   BecomeHost: undefined;
   MyHostApplications: undefined;
@@ -141,14 +140,15 @@ export type RootStackParamList = {
   MyBookings: undefined;
   Favorites: undefined;
   Messaging: undefined;
+  MessagingDebug: undefined;
 };
 
 export type TabParamList = {
   HomeTab: undefined;
-  SearchTab: undefined;
   MessagingTab: { conversationId?: string };
   BookingsTab: undefined;
   FavoritesTab: undefined;
+  ProfileTab: undefined;
 };
 
 export interface AuthContextType {
@@ -172,8 +172,6 @@ export type RootStackParamList = {
   MyProperties: undefined;
   AddProperty: undefined;
   MyBookings: undefined;
-  Profile: undefined;
-  EditProfile: undefined;
   Messaging: undefined;
   Admin: undefined;
   AdminApplications: undefined;

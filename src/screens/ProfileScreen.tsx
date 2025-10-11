@@ -13,33 +13,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { useAuth } from '../services/AuthContext';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { user } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
 
-  // Rafraîchir le profil quand l'écran devient actif
+  // Rafraîchir le profil quand l'écran devient actif (seulement si connecté)
   useFocusEffect(
     React.useCallback(() => {
-      refreshProfile();
-    }, [refreshProfile])
+      if (user) {
+        refreshProfile();
+      }
+    }, [refreshProfile, user])
   );
 
-  // Rediriger vers l'authentification si erreur d'authentification
-  React.useEffect(() => {
-    if (error && (error.includes('Session expirée') || error.includes('connecté'))) {
-      Alert.alert(
-        'Session expirée',
-        'Votre session a expiré. Veuillez vous reconnecter.',
-        [
-          {
-            text: 'Se connecter',
-            onPress: () => navigation.navigate('Auth'),
-          },
-        ]
-      );
-    }
-  }, [error, navigation]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -130,6 +119,26 @@ const ProfileScreen: React.FC = () => {
         },
       ]
     : baseMenuItems;
+
+  // Si l'utilisateur n'est pas connecté, rediriger vers la connexion
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!user) {
+        navigation.navigate('Auth');
+      }
+    }, [user, navigation])
+  );
+
+  // Si l'utilisateur n'est pas connecté, afficher un indicateur de chargement
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <Text style={styles.loadingText}>Redirection vers la connexion...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading) {
     return (

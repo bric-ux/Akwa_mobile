@@ -12,7 +12,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useProperties } from '../hooks/useProperties';
 import { useCities } from '../hooks/useCities';
-import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import { Property } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import { Header } from '../components/Header';
@@ -25,7 +24,6 @@ const HomeScreen: React.FC = () => {
   const { user } = useAuth();
   const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
   const { cities, loading: citiesLoading, error: citiesError, getPopularDestinations } = useCities();
-  const { requireAuthForProfile } = useAuthRedirect();
 
   // Affichage vertical uniquement
 
@@ -98,9 +96,6 @@ const HomeScreen: React.FC = () => {
     navigation.navigate('Search');
   };
 
-  const handleProfilePress = () => {
-    requireAuthForProfile();
-  };
 
   const handleNotificationPress = () => {
     Alert.alert('Notifications', 'Fonctionnalité à venir');
@@ -133,7 +128,6 @@ const HomeScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <Header 
-        onProfilePress={handleProfilePress}
         onNotificationPress={handleNotificationPress}
       />
       

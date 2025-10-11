@@ -26,6 +26,7 @@ import AdminPropertiesScreen from '../screens/AdminPropertiesScreen';
 import AdminUsersScreen from '../screens/AdminUsersScreen';
 import EditPropertyScreen from '../screens/EditPropertyScreen';
 import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
+import MessagingDebugScreen from '../screens/MessagingDebugScreen';
 
 // Types
 import { RootStackParamList, TabParamList } from '../types';
@@ -42,8 +43,6 @@ const TabNavigator = () => {
           let iconName: keyof typeof Ionicons.glyphMap;
 
           if (route.name === 'HomeTab') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'SearchTab') {
             iconName = focused ? 'search' : 'search-outline';
           } else if (route.name === 'MessagingTab') {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
@@ -51,8 +50,10 @@ const TabNavigator = () => {
             iconName = focused ? 'calendar' : 'calendar-outline';
           } else if (route.name === 'FavoritesTab') {
             iconName = focused ? 'heart' : 'heart-outline';
+          } else if (route.name === 'ProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
           } else {
-            iconName = 'home-outline';
+            iconName = 'search-outline';
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -65,27 +66,27 @@ const TabNavigator = () => {
       <Tab.Screen 
         name="HomeTab" 
         component={HomeScreen}
-        options={{ tabBarLabel: 'Accueil' }}
-      />
-      <Tab.Screen 
-        name="SearchTab" 
-        component={SearchScreen}
-        options={{ tabBarLabel: 'Recherche' }}
+        options={{ tabBarLabel: 'Explorer' }}
       />
       <Tab.Screen 
         name="MessagingTab" 
         component={MessagingScreen}
         options={{ tabBarLabel: 'Messages' }}
       />
-          <Tab.Screen
-            name="BookingsTab"
-            component={MyBookingsScreen}
-            options={{ tabBarLabel: 'Réservations' }}
-          />
+      <Tab.Screen
+        name="BookingsTab"
+        component={MyBookingsScreen}
+        options={{ tabBarLabel: 'Réservations' }}
+      />
       <Tab.Screen 
         name="FavoritesTab" 
         component={FavoritesScreen}
         options={{ tabBarLabel: 'Favoris' }}
+      />
+      <Tab.Screen 
+        name="ProfileTab" 
+        component={ProfileScreen}
+        options={{ tabBarLabel: 'Profil' }}
       />
     </Tab.Navigator>
   );
@@ -104,6 +105,23 @@ const AppNavigator = () => {
           headerTintColor: '#fff',
           headerTitleStyle: {
             fontWeight: 'bold',
+          },
+          // Animation de retour de gauche vers la droite (comme iOS)
+          gestureDirection: 'horizontal',
+          gestureEnabled: true,
+          cardStyleInterpolator: ({ current, layouts }) => {
+            return {
+              cardStyle: {
+                transform: [
+                  {
+                    translateX: current.progress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-layouts.screen.width, 0],
+                    }),
+                  },
+                ],
+              },
+            };
           },
         }}
       >
@@ -137,14 +155,6 @@ const AppNavigator = () => {
           name="Booking" 
           component={BookingScreen}
           options={{ title: 'Réservation' }}
-        />
-        <Stack.Screen 
-          name="Profile" 
-          component={ProfileScreen}
-          options={{ 
-            title: 'Profil',
-            headerShown: false 
-          }}
         />
         <Stack.Screen 
           name="EditProfile" 
@@ -251,6 +261,11 @@ const AppNavigator = () => {
           name="SupabaseTest" 
           component={SupabaseTestScreen}
           options={{ title: 'Test Supabase' }}
+        />
+        <Stack.Screen 
+          name="MessagingDebug" 
+          component={MessagingDebugScreen}
+          options={{ title: 'Debug Messagerie' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

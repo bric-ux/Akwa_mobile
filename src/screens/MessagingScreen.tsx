@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -47,6 +48,7 @@ const MessagingScreen: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [showConversations, setShowConversations] = useState(true);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -54,6 +56,7 @@ const MessagingScreen: React.FC = () => {
   // Charger les conversations au montage
   useEffect(() => {
     if (user) {
+      console.log('📱 [MessagingScreen] Chargement des conversations pour l\'utilisateur:', user.id);
       loadConversations(user.id);
     }
   }, [user, loadConversations]);
@@ -72,11 +75,12 @@ const MessagingScreen: React.FC = () => {
 
   // Configuration du temps réel
   useEffect(() => {
-    if (user && conversations.length > 0) {
+    if (user) {
+      console.log('🔔 Configuration du temps réel pour l\'utilisateur:', user.id);
       const cleanup = setupRealtimeSubscription(user.id);
       return cleanup;
     }
-  }, [user, conversations, setupRealtimeSubscription]);
+  }, [user, setupRealtimeSubscription]);
 
   // Charger les messages quand une conversation est sélectionnée
   useEffect(() => {
@@ -118,16 +122,50 @@ const MessagingScreen: React.FC = () => {
     setShowConversations(true);
   };
 
+  const handleRefresh = async () => {
+    if (!user) return;
+    
+    setRefreshing(true);
+    try {
+      await loadConversations(user.id);
+    } catch (error) {
+      console.error('Erreur lors de l\'actualisation:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const getOtherUserName = (conversation: Conversation) => {
     if (user?.id === conversation.guest_id) {
       return conversation.host_profile 
         ? `${conversation.host_profile.first_name} ${conversation.host_profile.last_name}`.trim()
         : 'Hôte';
     }
-    return conversation.guest_profile 
+    return conversation.guest_profile
       ? `${conversation.guest_profile.first_name} ${conversation.guest_profile.last_name}`.trim()
       : 'Invité';
   };
+
+  // Si l'utilisateur n'est pas connecté, afficher le bouton de connexion
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
+          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Text style={styles.emptySubtitle}>
+            Vous devez être connecté pour accéder aux messages
+          </Text>
+          <TouchableOpacity
+            style={styles.exploreButton}
+            onPress={() => navigation.navigate('Auth')}
+          >
+            <Text style={styles.exploreButtonText}>Se connecter</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const renderMessage = ({ item }: { item: Message }) => (
     <MessageBubble
@@ -154,6 +192,8 @@ const MessagingScreen: React.FC = () => {
         onSelectConversation={handleSelectConversation}
         loading={loading}
         currentUserId={user?.id}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
       />
     </View>
   );
@@ -203,6 +243,16 @@ const MessagingScreen: React.FC = () => {
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={['#007AFF']}
+              tintColor="#007AFF"
+              title="Actualisation..."
+              titleColor="#666"
+            />
+          }
         />
 
         {/* Zone de saisie */}
@@ -392,6 +442,36 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  exploreButton: {
+    backgroundColor: '#2E7D32',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  exploreButtonText: {
+    fontSize: 16,
+    color: '#fff',
     fontWeight: '600',
   },
 });
