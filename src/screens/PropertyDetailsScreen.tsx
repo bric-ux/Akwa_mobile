@@ -62,7 +62,10 @@ const PropertyDetailsScreen: React.FC = () => {
 
         // Charger les profils des reviewers
         if (propertyData.reviews && propertyData.reviews.length > 0) {
+          console.log('🔄 Chargement des profils reviewers...');
           await loadReviewersProfiles(propertyData.reviews);
+        } else {
+          console.log('⚠️ Aucun avis trouvé pour cette propriété');
         }
         
         // Vérifier si la propriété est en favoris

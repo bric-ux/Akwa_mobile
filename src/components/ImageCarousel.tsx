@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -54,9 +54,20 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
     goToSlide(prevIndex);
   };
 
+  // Défilement automatique toutes les 2 secondes
+  useEffect(() => {
+    if (images.length <= 1) return; // Pas de défilement s'il n'y a qu'une image
+
+    const interval = setInterval(() => {
+      goToNext();
+    }, 2000); // 2 secondes
+
+    return () => clearInterval(interval);
+  }, [currentIndex, images.length]);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Découvrez la Côte d'Ivoire</Text>
+      <Text style={styles.sectionTitle}>Trésors de la Côte d'Ivoire</Text>
       
       <View style={styles.carouselContainer}>
         <ScrollView

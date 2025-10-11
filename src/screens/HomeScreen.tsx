@@ -28,43 +28,43 @@ const HomeScreen: React.FC = () => {
   // Affichage vertical uniquement
 
 
-  // Données pour le carrousel d'images
+  // Données pour le carrousel d'images - Monuments et singularités de la Côte d'Ivoire
   const carouselImages = [
     {
       id: '1',
       source: require('../../assets/images/pont.jpg'),
-      title: 'Le Pont ADO',
-      description: 'Symbole architectural d\'Abidjan',
+      title: 'Le Pont Félix Houphouët-Boigny',
+      description: 'Pont emblématique d\'Abidjan, symbole de modernité',
     },
     {
       id: '2',
-      source: require('../../assets/images/plages-assinie.jpg'),
-      title: 'Plages d\'Assinie',
-      description: 'Paradis tropical de la Côte d\'Ivoire',
+      source: require('../../assets/images/basilique-yamoussoukro.jpg'),
+      title: 'Basilique Notre-Dame de la Paix',
+      description: 'Plus grande basilique au monde, chef-d\'œuvre de Yamoussoukro',
     },
     {
       id: '3',
       source: require('../../assets/images/elephants.jpg'),
       title: 'Parc National de la Comoé',
-      description: 'Découvrez la faune sauvage',
+      description: 'Réserve de biosphère UNESCO, sanctuaire de la faune africaine',
     },
     {
       id: '4',
       source: require('../../assets/images/culture.jpg'),
-      title: 'Culture Ivoirienne',
-      description: 'Traditions et patrimoine vivant',
+      title: 'Masques Baoulé',
+      description: 'Patrimoine culturel immatériel de l\'UNESCO',
     },
     {
       id: '5',
       source: require('../../assets/images/abidjan.jpg'),
-      title: 'Abidjan la Perle des Lagunes',
-      description: 'Métropole moderne et dynamique',
+      title: 'Cathédrale Saint-Paul d\'Abidjan',
+      description: 'Architecture moderne unique, symbole de la foi',
     },
     {
       id: '6',
-      source: require('../../assets/images/basilique-yamoussoukro.jpg'),
-      title: 'Basilique Notre-Dame de la Paix',
-      description: 'Joyau architectural de Yamoussoukro',
+      source: require('../../assets/images/plages-assinie.jpg'),
+      title: 'Côte d\'Assinie',
+      description: 'Plages paradisiaques et villages de pêcheurs traditionnels',
     },
   ];
 
@@ -109,6 +109,35 @@ const HomeScreen: React.FC = () => {
     <PropertyCard property={item} onPress={handlePropertyPress} variant="list" />
   );
 
+  const renderListHeader = () => (
+    <>
+      <HeroSection onSearchPress={handleSearchPress} />
+
+      <PopularDestinations
+        destinations={getPopularDestinations(8)}
+        onDestinationPress={handleDestinationPress}
+        loading={citiesLoading}
+      />
+
+      <ImageCarousel
+        images={carouselImages}
+        onImagePress={(image) => {
+          // Optionnel : navigation vers une page de détails de l'image
+          console.log('Image sélectionnée:', image.title);
+        }}
+      />
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Nos propriétés disponibles</Text>
+          <Text style={styles.propertyCount}>
+            {properties.length} propriété{properties.length > 1 ? 's' : ''} trouvée{properties.length > 1 ? 's' : ''}
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -138,34 +167,7 @@ const HomeScreen: React.FC = () => {
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        ListHeaderComponent={() => (
-          <>
-            <HeroSection onSearchPress={handleSearchPress} />
-
-            <PopularDestinations
-              destinations={getPopularDestinations(8)}
-              onDestinationPress={handleDestinationPress}
-              loading={citiesLoading}
-            />
-
-            <ImageCarousel
-              images={carouselImages}
-              onImagePress={(image) => {
-                // Optionnel : navigation vers une page de détails de l'image
-                console.log('Image sélectionnée:', image.title);
-              }}
-            />
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Nos propriétés disponibles</Text>
-                <Text style={styles.propertyCount}>
-                  {properties.length} propriété{properties.length > 1 ? 's' : ''} trouvée{properties.length > 1 ? 's' : ''}
-                </Text>
-              </View>
-            </View>
-          </>
-        )}
+        ListHeaderComponent={renderListHeader}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>Aucune propriété disponible</Text>
