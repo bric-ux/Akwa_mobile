@@ -98,11 +98,6 @@ const HomeScreen: React.FC = () => {
     (navigation as any).navigate('Search');
   };
 
-
-  const handleNotificationPress = () => {
-    Alert.alert('Notifications', 'Fonctionnalité à venir');
-  };
-
   const handleDestinationPress = (destination: any) => {
     (navigation as any).navigate('Search', { destination: destination.name });
   };
@@ -159,9 +154,7 @@ const HomeScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <Header 
-          onNotificationPress={handleNotificationPress}
-        />
+        <Header />
         <InfoBanner />
         
         <FlatList

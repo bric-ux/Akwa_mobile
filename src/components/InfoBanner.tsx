@@ -33,7 +33,6 @@ export const InfoBanner: React.FC = () => {
             },
           ]}
         >
-          {/* Premier passage */}
           <View style={styles.contentRow}>
             <View style={styles.iconTextContainer}>
               <Ionicons name="sparkles" size={14} color="#F97316" />
@@ -63,7 +62,6 @@ export const InfoBanner: React.FC = () => {
             </Text>
           </View>
 
-          {/* Deuxième passage (pour l'effet de continuité) */}
           <View style={styles.contentRow}>
             <View style={styles.iconTextContainer}>
               <Ionicons name="sparkles" size={14} color="#F97316" />
