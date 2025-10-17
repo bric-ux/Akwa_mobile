@@ -28,3 +28,4 @@ function testSimpleReviewFix() {
 
 // Exécuter le test
 testSimpleReviewFix();
+

@@ -31,3 +31,4 @@ GRANT EXECUTE ON FUNCTION public.delete_user_account_safely(uuid) TO authenticat
 
 -- Commenter la fonction
 COMMENT ON FUNCTION public.delete_user_account_safely(uuid) IS 'Fonction sécurisée pour supprimer complètement un compte utilisateur et toutes ses données associées';
+

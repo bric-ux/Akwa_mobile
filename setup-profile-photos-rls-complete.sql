@@ -57,3 +57,4 @@ FROM storage.objects
 WHERE bucket_id = 'profile-photos'
 ORDER BY created_at DESC;
 
+

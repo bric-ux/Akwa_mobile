@@ -31,3 +31,4 @@ function testPropertyCardFieldFix() {
 
 // Exécuter le test
 testPropertyCardFieldFix();
+

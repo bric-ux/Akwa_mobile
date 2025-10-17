@@ -91,3 +91,4 @@ export const getAmenityIconWithFallback = (amenityName: string, fallbackIcon?: s
   return getAmenityIcon(amenityName) || fallbackIcon || '🏠';
 };
 
+

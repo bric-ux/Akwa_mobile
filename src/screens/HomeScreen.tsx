@@ -16,6 +16,7 @@ import { Property } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import { Header } from '../components/Header';
 import { HeroSection } from '../components/HeroSection';
+import { InfoBanner } from '../components/InfoBanner';
 import { PopularDestinations } from '../components/PopularDestinations';
 import ImageCarousel from '../components/ImageCarousel';
 
@@ -159,6 +160,7 @@ const HomeScreen: React.FC = () => {
       <Header 
         onNotificationPress={handleNotificationPress}
       />
+      <InfoBanner />
       
       <FlatList
         style={styles.content}

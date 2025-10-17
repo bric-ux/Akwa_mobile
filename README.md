@@ -146,3 +146,4 @@ npx eas build --platform ios
 
 **Note** : Cette application est une migration de votre PWA vers React Native pour une expérience mobile native optimale ! 🚀
 
+

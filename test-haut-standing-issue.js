@@ -31,3 +31,4 @@ function testHautStandingIssue() {
 
 // Exécuter le test
 testHautStandingIssue();
+

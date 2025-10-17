@@ -39,3 +39,4 @@ function testCityValidation() {
 
 // Exécuter le test
 testCityValidation();
+

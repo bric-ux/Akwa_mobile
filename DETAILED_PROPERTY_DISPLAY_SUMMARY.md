@@ -171,3 +171,4 @@ bedIcon: {
 - ⚡ **Plus rapide** : Moins de navigation nécessaire pour décider
 - 🎯 **Plus complet** : Tous les détails importants affichés
 
+

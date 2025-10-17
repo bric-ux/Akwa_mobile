@@ -70,3 +70,4 @@ async function testReviewsDisplay() {
 
 // Exécuter le test
 testReviewsDisplay();
+

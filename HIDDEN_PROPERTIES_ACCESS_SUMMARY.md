@@ -134,3 +134,4 @@ const { data, error } = await supabase
 - ✏️ **Modification complète** : Tous les paramètres modifiables
 - 🚀 **Workflow optimisé** : Gestion simplifiée pour les hôtes
 
+

@@ -154,3 +154,4 @@ WiFi ✓ | Parking | Piscine ✓ | Climatisation
 - 📊 **Plus informatif** : Compteurs et indicateurs de statut
 - 🔄 **Plus flexible** : Personnalisation selon les besoins utilisateur
 
+

@@ -19,10 +19,16 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
         <View style={styles.overlay}>
           <View style={styles.content}>
             <Text style={styles.title}>
-              Découvrez la Côte d'Ivoire
+              Trouvez votre
+            </Text>
+            <Text style={styles.titleGradient}>
+              séjour parfait
             </Text>
             <Text style={styles.subtitle}>
-              Trouvez votre hébergement idéal dans les plus belles villes du pays
+              Découvrez des logements uniques en Côte d'Ivoire
+            </Text>
+            <Text style={styles.tagline}>
+              Ici c'est chez vous !
             </Text>
             
             <TouchableOpacity 
@@ -43,7 +49,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    height: height * 0.35,
+    height: height * 0.4, // Augmenté pour plus d'impact
     marginTop: 0,
     paddingTop: 0,
     marginBottom: 0,
@@ -59,7 +65,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Overlay plus léger comme sur le site
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -68,21 +74,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 0,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  titleGradient: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#F97316', // orange-primary pour l'effet gradient
+    textAlign: 'center',
+    marginBottom: 16,
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#fff',
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.9)', // white/90
     textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: 22,
+    marginBottom: 8,
+    lineHeight: 24,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  tagline: {
+    fontSize: 16,
+    color: '#F97316', // orange-primary
+    textAlign: 'center',
+    marginBottom: 32,
+    fontWeight: '600',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
@@ -90,18 +116,18 @@ const styles = StyleSheet.create({
   searchButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#22C55E', // green-primary comme sur le site
     paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderRadius: 25,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
   },
   searchButtonText: {
     color: '#fff',

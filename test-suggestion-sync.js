@@ -48,3 +48,4 @@ function testSuggestionSync() {
 
 // Exécuter le test
 testSuggestionSync();
+

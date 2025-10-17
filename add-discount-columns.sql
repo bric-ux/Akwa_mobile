@@ -18,3 +18,4 @@ FROM information_schema.columns
 WHERE table_name = 'properties' 
 AND column_name LIKE 'discount_%'
 ORDER BY column_name;
+

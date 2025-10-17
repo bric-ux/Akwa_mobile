@@ -50,3 +50,4 @@ async function testDeleteAccountFunction() {
 
 // Exécuter le test
 testDeleteAccountFunction();
+

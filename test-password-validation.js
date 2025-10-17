@@ -26,3 +26,4 @@ console.log('- Prévention de soumission si invalide');
 console.log('- Cohérence avec le site web');
 
 console.log('\n✅ Prêt pour les tests !');
+

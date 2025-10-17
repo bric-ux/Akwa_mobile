@@ -160,3 +160,4 @@ function testPropertySortingLogic() {
 
 // Exécuter les tests
 testPropertySortingLogic();
+

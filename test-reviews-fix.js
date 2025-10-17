@@ -18,3 +18,4 @@ console.log('- Date formatée en français');
 console.log('- Commentaire dans un encadré stylé');
 
 console.log('\n✅ Prêt pour les tests !');
+

@@ -91,3 +91,4 @@ $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION cleanup_deleted_accounts() IS 'Fonction pour nettoyer les comptes supprimés depuis plus de 30 jours';
 COMMENT ON FUNCTION cancel_account_deletion(UUID) IS 'Fonction pour annuler la suppression d''un compte';
 COMMENT ON FUNCTION is_account_marked_for_deletion(UUID) IS 'Fonction pour vérifier si un compte est marqué pour suppression';
+

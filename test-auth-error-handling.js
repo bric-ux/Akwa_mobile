@@ -74,3 +74,4 @@ function testAuthErrorHandling() {
 
 // Exécuter le test
 testAuthErrorHandling();
+

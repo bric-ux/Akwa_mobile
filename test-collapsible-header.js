@@ -58,3 +58,4 @@ function testCollapsibleHeader() {
 
 // Exécuter le test
 testCollapsibleHeader();
+

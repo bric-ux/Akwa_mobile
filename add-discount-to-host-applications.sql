@@ -108,3 +108,4 @@ FROM information_schema.columns
 WHERE table_name = 'host_applications' 
 AND column_name LIKE 'discount_%'
 ORDER BY column_name;
+

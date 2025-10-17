@@ -93,3 +93,4 @@ type EmailType =
 - ✅ Email de reset password (à implémenter)
 - ❌ Emails de messages (à implémenter)
 - ❌ Emails de changement de statut (à implémenter)
+

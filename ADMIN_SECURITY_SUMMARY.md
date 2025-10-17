@@ -121,3 +121,4 @@ if (profile?.role !== 'admin') {
 - ❌ Reçoivent un message "Accès refusé" s'ils tentent d'accéder directement
 - ✅ Conservent l'accès à toutes les autres fonctionnalités normales
 
+

@@ -232,3 +232,4 @@ pending → rejected (refus direct)
 - 🔒 **Sécurité** : Accès contrôlé et données protégées
 - 🚀 **Performance** : Interface optimisée et responsive
 
+

@@ -40,3 +40,4 @@ function testScrollSuggestionFix() {
 
 // Exécuter le test
 testScrollSuggestionFix();
+

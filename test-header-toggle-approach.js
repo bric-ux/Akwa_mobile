@@ -44,3 +44,4 @@ function testHeaderToggleApproach() {
 
 // Exécuter le test
 testHeaderToggleApproach();
+

@@ -49,3 +49,4 @@ console.log('4. Création profil dans table profiles');
 console.log('5. Redirection vers l\'app');
 
 console.log('\n✅ Correction terminée !');
+

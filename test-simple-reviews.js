@@ -17,3 +17,4 @@ console.log('- Vérifiez que les profils existent dans la table profiles');
 console.log('- Vérifiez que la relation reviewer_id -> user_id fonctionne');
 
 console.log('\n✅ Prêt pour le debug !');
+

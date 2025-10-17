@@ -83,3 +83,4 @@ npm run ios
 - Vérifiez que les tables existent dans Supabase
 - Vérifiez les permissions RLS (Row Level Security)
 
+

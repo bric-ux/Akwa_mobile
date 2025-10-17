@@ -41,3 +41,4 @@ console.log('- Même gestion d\'erreurs');
 console.log('- Même logique de déclenchement');
 
 console.log('\n✅ Implémentation terminée !');
+

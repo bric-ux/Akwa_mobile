@@ -53,3 +53,4 @@ redirectTo: 'https://akwahome.com/reset-password.html'
 - ✅ Loading states
 - ✅ Redirection vers l'app mobile
 - ✅ Design cohérent avec votre marque
+

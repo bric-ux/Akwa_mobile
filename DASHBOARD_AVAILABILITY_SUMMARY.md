@@ -160,3 +160,4 @@ const isDateUnavailable = (date: Date) => {
 - 🔧 **Développeurs** : Code maintenable et bien structuré
 - 📊 **Administrateurs** : Statistiques précises et système robuste
 
+

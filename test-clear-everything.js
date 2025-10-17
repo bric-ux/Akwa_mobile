@@ -48,3 +48,4 @@ function testClearEverything() {
 
 // Exécuter le test
 testClearEverything();
+

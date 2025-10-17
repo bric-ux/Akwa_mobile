@@ -37,3 +37,4 @@ function testSortingColumns() {
 
 // Exécuter le test
 testSortingColumns();
+

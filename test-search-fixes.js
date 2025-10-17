@@ -47,3 +47,4 @@ function testSearchFixes() {
 
 // Exécuter le test
 testSearchFixes();
+

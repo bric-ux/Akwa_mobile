@@ -32,3 +32,4 @@ function testPropertyReviewsRelation() {
 
 // Exécuter le test
 testPropertyReviewsRelation();
+

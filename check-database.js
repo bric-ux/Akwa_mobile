@@ -153,3 +153,4 @@ async function checkDatabase() {
 // Exécuter la vérification
 checkDatabase();
 
+

@@ -15,3 +15,4 @@ console.log('Avant: Header -> FlatList(ListHeaderComponent: HeroSection + conten
 console.log('Après: Header -> HeroSection (fixe) -> FlatList(ListHeaderComponent: contenu)');
 
 console.log('\n✅ Prêt pour les tests !');
+

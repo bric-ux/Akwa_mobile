@@ -22,3 +22,4 @@ console.log('- Icône de recherche + texte + flèche');
 console.log('- Style compact et moderne');
 
 console.log('\n✅ Prêt pour les tests !');
+

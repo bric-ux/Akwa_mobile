@@ -57,3 +57,4 @@ function testClearFiltersButton() {
 
 // Exécuter le test
 testClearFiltersButton();
+

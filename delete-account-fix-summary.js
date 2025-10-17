@@ -46,3 +46,4 @@ console.log('1. Exécuter le script SQL: add-delete-account-function.sql');
 console.log('2. Tester la suppression de compte dans l\'app mobile');
 console.log('3. Vérifier que la confirmation "SUPPRIMER" est requise');
 console.log('4. Confirmer que la suppression est complète et sécurisée');
+

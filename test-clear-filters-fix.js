@@ -52,3 +52,4 @@ function testClearFiltersFix() {
 
 // Exécuter le test
 testClearFiltersFix();
+
