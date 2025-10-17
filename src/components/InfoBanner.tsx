@@ -104,6 +104,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(249, 115, 22, 0.2)', // orange-primary/20
     overflow: 'hidden',
+    marginTop: 0, // Supprimer la marge en haut
   },
   banner: {
     height: 40,

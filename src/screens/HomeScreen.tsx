@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../services/AuthContext';
 import { useProperties } from '../hooks/useProperties';
 import { useCities } from '../hooks/useCities';
@@ -156,38 +157,43 @@ const HomeScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <Header 
-        onNotificationPress={handleNotificationPress}
-      />
-      <InfoBanner />
-      
-      <FlatList
-        style={styles.content}
-        data={properties}
-        renderItem={renderPropertyCard}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        ListHeaderComponent={renderListHeader}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>Aucune propriété disponible</Text>
-            <Text style={styles.emptySubtitle}>
-              Les propriétés masquées ou inactives ne sont pas affichées ici.
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              Revenez plus tard pour découvrir de nouvelles propriétés !
-            </Text>
-          </View>
-        )}
-      />
-
-    </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <Header 
+          onNotificationPress={handleNotificationPress}
+        />
+        <InfoBanner />
+        
+        <FlatList
+          style={styles.content}
+          data={properties}
+          renderItem={renderPropertyCard}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          ListHeaderComponent={renderListHeader}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyTitle}>Aucune propriété disponible</Text>
+              <Text style={styles.emptySubtitle}>
+                Les propriétés masquées ou inactives ne sont pas affichées ici.
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                Revenez plus tard pour découvrir de nouvelles propriétés !
+              </Text>
+            </View>
+          )}
+        />
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
