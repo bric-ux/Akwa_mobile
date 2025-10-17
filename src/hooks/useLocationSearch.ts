@@ -6,7 +6,7 @@ import { useNeighborhoods } from './useNeighborhoods';
 export interface LocationResult {
   id: string;
   name: string;
-  type: 'city' | 'neighborhood';
+  type: 'city' | 'neighborhood' | 'commune';
   region?: string;
   commune?: string;
   city_id?: string;
@@ -120,6 +120,32 @@ export const useLocationSearch = () => {
         }
       });
 
+      // Recherche intelligente dans les communes avec score
+      const communeMap = new Map<string, { score: number; neighborhood: any }>();
+      
+      neighborhoods.forEach(neighborhood => {
+        const communeScore = calculateRelevanceScore({ name: neighborhood.commune }, query, 'commune');
+        if (communeScore > 0) {
+          const communeName = neighborhood.commune;
+          // Garder le meilleur score pour chaque commune
+          if (!communeMap.has(communeName) || communeMap.get(communeName)!.score < communeScore) {
+            communeMap.set(communeName, { score: communeScore, neighborhood });
+          }
+        }
+      });
+
+      // Ajouter les communes uniques avec leur meilleur score
+      communeMap.forEach(({ score, neighborhood }) => {
+        results.push({
+          id: `commune_${neighborhood.id}`,
+          name: neighborhood.commune,
+          type: 'commune' as const,
+          commune: neighborhood.commune,
+          city_id: neighborhood.city_id,
+          score
+        });
+      });
+
       // Trier par score décroissant, puis par type, puis par nom
       results.sort((a, b) => {
         // D'abord par score
@@ -127,9 +153,10 @@ export const useLocationSearch = () => {
           return b.score - a.score;
         }
         
-        // Puis par type (villes d'abord)
+        // Puis par type (villes d'abord, puis communes, puis quartiers)
         if (a.type !== b.type) {
-          return a.type === 'city' ? -1 : 1;
+          const typeOrder = { city: 0, commune: 1, neighborhood: 2 };
+          return typeOrder[a.type] - typeOrder[b.type];
         }
         
         // Enfin par nom alphabétique

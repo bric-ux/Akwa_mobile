@@ -13,7 +13,7 @@ import { supabase } from '../services/supabase';
 interface SearchSuggestion {
   id: string;
   text: string;
-  type: 'city' | 'neighborhood' | 'property' | 'recent';
+  type: 'city' | 'neighborhood' | 'commune' | 'property' | 'recent';
   icon: string;
   subtitle?: string;
 }
@@ -97,6 +97,28 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
             type: 'city',
             icon: 'location-outline',
             subtitle: `${city.region} • Ville`,
+          });
+        });
+      }
+
+      // Recherche dans les communes (priorité avant les quartiers)
+      const { data: communes, error: communesError } = await supabase
+        .from('neighborhoods')
+        .select('commune')
+        .ilike('commune', `%${searchQuery}%`)
+        .limit(5);
+
+      if (!communesError && communes) {
+        // Éviter les doublons de communes en utilisant un Set
+        const uniqueCommunes = [...new Set(communes.map(c => c.commune))];
+        
+        uniqueCommunes.forEach((communeName, index) => {
+          suggestions.push({
+            id: `commune_${index}`,
+            text: communeName,
+            type: 'commune',
+            icon: 'location-outline',
+            subtitle: 'Commune',
           });
         });
       }

@@ -88,10 +88,24 @@ export const useProperties = () => {
           .ilike('name', searchTerm)
           .single();
         
-        // Si pas trouvé dans les villes, chercher dans les quartiers
         let cityId = cityExists?.id;
         
         if (!cityId) {
+          // Chercher directement dans les communes (priorité avant les quartiers)
+          const { data: communeExists } = await supabase
+            .from('neighborhoods')
+            .select('city_id, name, commune')
+            .ilike('commune', searchTerm)
+            .single();
+          
+          if (communeExists) {
+            cityId = communeExists.city_id;
+            console.log(`✅ Commune trouvée: "${communeExists.commune}" pour la recherche "${searchTerm}"`);
+          }
+        }
+        
+        if (!cityId) {
+          // Chercher dans les quartiers (nom du quartier)
           const { data: neighborhoodExists } = await supabase
             .from('neighborhoods')
             .select('city_id, name, commune')
@@ -102,12 +116,14 @@ export const useProperties = () => {
             cityId = neighborhoodExists.city_id;
             console.log(`✅ Quartier trouvé: "${neighborhoodExists.name}" (${neighborhoodExists.commune}) pour la recherche "${searchTerm}"`);
           }
-        } else {
+        }
+        
+        if (cityExists) {
           console.log(`✅ Ville trouvée: "${cityExists.name}" pour la recherche "${searchTerm}"`);
         }
         
         if (!cityId) {
-          console.log(`⚠️ Aucune ville ou quartier trouvé pour "${searchTerm}"`);
+          console.log(`⚠️ Aucune ville, quartier ou commune trouvé pour "${searchTerm}"`);
           setProperties([]);
           setLoading(false);
           return;
