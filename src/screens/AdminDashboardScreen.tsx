@@ -128,10 +128,6 @@ const AdminDashboardScreen: React.FC = () => {
     navigation.navigate('AdminHostPaymentInfo');
   };
 
-  const handleNavigateToDebugHostData = () => {
-    navigation.navigate('DebugHostData');
-  };
-
   if (!user) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -284,12 +280,6 @@ const AdminDashboardScreen: React.FC = () => {
                   description="Gérer les informations de paiement des hôtes"
                   icon="card-outline"
                   onPress={handleNavigateToHostPaymentInfo}
-                />
-                <QuickAction
-                  title="Debug - Données Hôtes"
-                  description="Vérifier les données existantes des hôtes"
-                  icon="bug-outline"
-                  onPress={handleNavigateToDebugHostData}
                 />
           
           <QuickAction

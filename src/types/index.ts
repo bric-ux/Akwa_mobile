@@ -161,7 +161,6 @@ export type RootStackParamList = {
   AdminUsers: undefined;
   AdminIdentityDocuments: undefined;
   AdminHostPaymentInfo: undefined;
-  DebugHostData: undefined;
   AdminNotifications: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
