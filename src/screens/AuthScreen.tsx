@@ -39,6 +39,7 @@ const AuthScreen: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   // Fonction de validation du mot de passe
   const validatePassword = (password: string) => {
@@ -60,8 +61,30 @@ const AuthScreen: React.FC = () => {
   const validateAdultAge = (dateOfBirth: string) => {
     if (!dateOfBirth) return { isValid: false, message: 'La date de naissance est requise' };
     
-    const birthDate = new Date(dateOfBirth);
+    // Parser la date au format DD/MM/YYYY
+    const parts = dateOfBirth.split('/');
+    if (parts.length !== 3) {
+      return { isValid: false, message: 'Format de date invalide' };
+    }
+    
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // Les mois commencent à 0 en JavaScript
+    const year = parseInt(parts[2], 10);
+    
+    // Vérifier que les valeurs sont valides
+    if (isNaN(day) || isNaN(month) || isNaN(year) || 
+        day < 1 || day > 31 || month < 0 || month > 11 || year < 1900) {
+      return { isValid: false, message: 'Date invalide' };
+    }
+    
+    const birthDate = new Date(year, month, day);
     const today = new Date();
+    
+    // Vérifier que la date de naissance est dans le passé
+    if (birthDate > today) {
+      return { isValid: false, message: 'La date de naissance ne peut pas être dans le futur' };
+    }
+    
     const age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
     
@@ -285,6 +308,14 @@ const AuthScreen: React.FC = () => {
     }
     
     setDateOfBirth(formattedText);
+    
+    // Validation en temps réel si la date est complète
+    if (formattedText.length === 10) { // DD/MM/YYYY
+      const ageValidation = validateAdultAge(formattedText);
+      setDateError(ageValidation.isValid ? null : ageValidation.message);
+    } else {
+      setDateError(null);
+    }
   };
 
   return (
@@ -353,7 +384,7 @@ const AuthScreen: React.FC = () => {
                 <View style={styles.inputContainer}>
                   <Ionicons name="calendar-outline" size={20} color="#666" style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, dateError && styles.inputError]}
                     placeholder="Date de naissance (JJ/MM/AAAA)"
                     value={dateOfBirth}
                     onChangeText={handleDateInputChange}
@@ -362,6 +393,9 @@ const AuthScreen: React.FC = () => {
                     placeholderTextColor="#999"
                   />
                 </View>
+                {dateError && (
+                  <Text style={styles.errorText}>{dateError}</Text>
+                )}
               </>
             )}
 
@@ -799,6 +833,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  inputError: {
+    borderColor: '#dc2626',
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 12,
+    marginTop: 5,
+    marginLeft: 15,
   },
 });
 
