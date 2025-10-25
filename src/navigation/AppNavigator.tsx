@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 // Screens
 import HomeScreen from '../screens/HomeScreen';
 import AuthScreen from '../screens/AuthScreen';
+import EmailVerificationScreen from '../screens/EmailVerificationScreen';
 import SearchScreen from '../screens/SearchScreen';
 import MessagingScreen from '../screens/MessagingScreen';
 import PropertyDetailsScreen from '../screens/PropertyDetailsScreen';
@@ -138,6 +139,14 @@ const AppNavigator = () => {
           component={AuthScreen}
           options={{ 
             title: 'Authentification',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen 
+          name="EmailVerification" 
+          component={EmailVerificationScreen}
+          options={{ 
+            title: 'Vérification d\'email',
             headerShown: false 
           }}
         />

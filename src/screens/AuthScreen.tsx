@@ -160,27 +160,59 @@ const AuthScreen: React.FC = () => {
             } else {
               console.log('✅ Profil créé automatiquement');
             }
+
+            // Générer un code de vérification à 6 chiffres
+            const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Stocker le code dans la base de données
+            const expiresAt = new Date();
+            expiresAt.setMinutes(expiresAt.getMinutes() + 10); // Expire dans 10 minutes
+            
+            try {
+              await supabase
+                .from('email_verification_codes')
+                .insert({
+                  email: email,
+                  code: verificationCode,
+                  expires_at: expiresAt.toISOString()
+                });
+                
+              // Envoyer l'email avec le code via notre edge function
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'email_confirmation',
+                  to: email,
+                  data: {
+                    firstName: firstName,
+                    verificationCode: verificationCode
+                  }
+                }
+              });
+              
+              console.log('✅ Email de vérification envoyé');
+            } catch (err) {
+              console.error('❌ Erreur envoi email:', err);
+              Alert.alert('Erreur', 'Erreur lors de l\'envoi de l\'email de vérification');
+              setLoading(false);
+              return;
+            }
           }
         } catch (profileError) {
           console.error('Erreur création profil:', profileError);
         }
 
         Alert.alert(
-          'Inscription réussie',
-          'Votre compte a été créé avec succès !',
+          'Inscription réussie !',
+          'Un code de vérification a été envoyé à votre email. Vérifiez votre boîte mail.',
           [
             {
               text: 'OK',
               onPress: () => {
-                // Retourner à la page d'origine si spécifiée
-                if (returnTo && returnParams) {
-                  navigation.replace(returnTo as any, returnParams);
-                } else {
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Home' }],
-                  });
-                }
+                // Rediriger vers l'écran de vérification d'email
+                navigation.navigate('EmailVerification', { 
+                  email: email, 
+                  firstName: firstName 
+                });
               }
             }
           ]
@@ -230,6 +262,29 @@ const AuthScreen: React.FC = () => {
       // En cas d'erreur, afficher le modal local
       setShowTermsModal(true);
     }
+  };
+
+  // Fonction pour formater automatiquement la date avec les séparateurs
+  const handleDateInputChange = (text: string) => {
+    // Supprimer tous les caractères non numériques
+    const numericText = text.replace(/\D/g, '');
+    
+    // Limiter à 8 chiffres (DDMMYYYY)
+    const limitedText = numericText.slice(0, 8);
+    
+    // Formater avec les séparateurs
+    let formattedText = '';
+    if (limitedText.length >= 1) {
+      formattedText = limitedText.slice(0, 2);
+    }
+    if (limitedText.length >= 3) {
+      formattedText += '/' + limitedText.slice(2, 4);
+    }
+    if (limitedText.length >= 5) {
+      formattedText += '/' + limitedText.slice(4, 8);
+    }
+    
+    setDateOfBirth(formattedText);
   };
 
   return (
@@ -301,7 +356,7 @@ const AuthScreen: React.FC = () => {
                     style={styles.input}
                     placeholder="Date de naissance (JJ/MM/AAAA)"
                     value={dateOfBirth}
-                    onChangeText={setDateOfBirth}
+                    onChangeText={handleDateInputChange}
                     keyboardType="numeric"
                     maxLength={10}
                     placeholderTextColor="#999"
@@ -490,6 +545,7 @@ const AuthScreen: React.FC = () => {
           </View>
         </View>
       )}
+
     </SafeAreaView>
   );
 };

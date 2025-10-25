@@ -141,6 +141,7 @@ export interface SearchFilters {
 export type RootStackParamList = {
   Home: undefined;
   Auth: undefined;
+  EmailVerification: { email: string; firstName: string };
   Search: { destination?: string };
   PropertyDetails: { propertyId: string };
   Booking: { propertyId: string };
@@ -179,33 +180,3 @@ export interface AuthContextType {
   signUp: (email: string, password: string, userData: any) => Promise<void>;
   signOut: () => Promise<void>;
 }
-
-// Types pour la navigation
-export type RootStackParamList = {
-  Home: undefined;
-  Search: { destination?: string } | undefined;
-  PropertyDetails: { propertyId: string };
-  Booking: { propertyId: string };
-  Auth: { returnTo?: string; returnParams?: any } | undefined;
-  BecomeHost: undefined;
-  MyHostApplications: undefined;
-  HostDashboard: undefined;
-  MyProperties: undefined;
-  AddProperty: undefined;
-  MyBookings: undefined;
-  Messaging: undefined;
-  Admin: undefined;
-  AdminApplications: undefined;
-  AdminProperties: undefined;
-  AdminUsers: undefined;
-  EditProperty: { propertyId: string };
-  PropertyCalendar: { propertyId: string };
-  SupabaseTest: undefined;
-};
-
-export type TabParamList = {
-  HomeTab: undefined;
-  SearchTab: undefined;
-  BookingsTab: undefined;
-  FavoritesTab: undefined;
-};
