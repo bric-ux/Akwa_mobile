@@ -155,6 +155,7 @@ export type RootStackParamList = {
   MyProperties: undefined;
   HostDashboard: undefined;
   HostPaymentInfo: undefined;
+  HostStats: undefined;
   Admin: undefined;
   AdminApplications: undefined;
   AdminProperties: undefined;

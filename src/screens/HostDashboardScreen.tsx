@@ -101,32 +101,6 @@ const HostDashboardScreen: React.FC = () => {
     }).format(price);
   };
 
-  const StatCard = ({ title, value, icon, color, onPress }: {
-    title: string;
-    value: string | number;
-    icon: string;
-    color: string;
-    onPress?: () => void;
-  }) => (
-    <TouchableOpacity
-      style={[styles.statCard, { borderLeftColor: color }]}
-      onPress={onPress}
-      disabled={!onPress}
-    >
-      <View style={styles.statContent}>
-        <View style={styles.statIconContainer}>
-          <Ionicons name={icon as any} size={24} color={color} />
-        </View>
-        <View style={styles.statTextContainer}>
-          <Text style={styles.statValue}>{value}</Text>
-          <Text style={styles.statTitle}>{title}</Text>
-        </View>
-      </View>
-      {onPress && (
-        <Ionicons name="chevron-forward" size={20} color="#ccc" />
-      )}
-    </TouchableOpacity>
-  );
 
   if (!user) {
     return (
@@ -237,76 +211,31 @@ const HostDashboardScreen: React.FC = () => {
           
           <TouchableOpacity
             style={styles.quickAction}
+            onPress={() => navigation.navigate('HostStats')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="analytics-outline" size={24} color="#e74c3c" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Statistiques</Text>
+              <Text style={styles.quickActionDescription}>Voir vos statistiques détaillées</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.quickAction}
             onPress={() => navigation.navigate('BecomeHost')}
           >
             <View style={styles.quickActionIcon}>
-              <Ionicons name="add-circle-outline" size={24} color="#3498db" />
+              <Ionicons name="person-add-outline" size={24} color="#3498db" />
             </View>
             <View style={styles.quickActionContent}>
-              <Text style={styles.quickActionTitle}>Ajouter une propriété</Text>
+              <Text style={styles.quickActionTitle}>Devenir hôte</Text>
               <Text style={styles.quickActionDescription}>Créer une nouvelle annonce</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
-        </View>
-
-        {/* Statistiques principales */}
-        <Text style={styles.sectionTitle}>Statistiques générales</Text>
-        
-        <View style={styles.statsContainer}>
-          <StatCard
-            title="Propriétés"
-            value={stats.totalProperties}
-            icon="home-outline"
-            color="#2E7D32"
-            onPress={() => navigation.navigate('MyProperties')}
-          />
-          
-          <StatCard
-            title="Réservations totales"
-            value={stats.totalBookings}
-            icon="calendar-outline"
-            color="#3498db"
-            onPress={() => navigation.navigate('HostBookings')}
-          />
-          
-          <StatCard
-            title="En attente"
-            value={stats.pendingBookings}
-            icon="time-outline"
-            color="#f39c12"
-          />
-          
-          <StatCard
-            title="Confirmées"
-            value={stats.confirmedBookings}
-            icon="checkmark-circle-outline"
-            color="#27ae60"
-          />
-          
-          <StatCard
-            title="Revenus totaux"
-            value={formatPrice(stats.totalRevenue)}
-            icon="cash-outline"
-            color="#e67e22"
-          />
-          
-          <StatCard
-            title="Note moyenne"
-            value={`${stats.averageRating}/5`}
-            icon="star-outline"
-            color="#9b59b6"
-          />
-        </View>
-
-        {/* Message d'encouragement */}
-        <View style={styles.encouragementContainer}>
-          <Ionicons name="trophy-outline" size={32} color="#f39c12" />
-          <Text style={styles.encouragementTitle}>Continuez comme ça !</Text>
-          <Text style={styles.encouragementText}>
-            Vous gérez {stats.totalProperties} propriété{stats.totalProperties > 1 ? 's' : ''} avec {stats.totalBookings} réservation{stats.totalBookings > 1 ? 's' : ''}.
-            {stats.averageRating > 0 && ` Votre note moyenne est de ${stats.averageRating}/5.`}
-          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -356,51 +285,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 15,
   },
-  statsContainer: {
-    marginBottom: 20,
-  },
-  statCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 10,
-    borderLeftWidth: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  statIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#f8f9fa',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  statTextContainer: {
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  statTitle: {
-    fontSize: 14,
-    color: '#666',
-  },
   quickActionsContainer: {
     marginBottom: 20,
   },
@@ -438,28 +322,6 @@ const styles = StyleSheet.create({
   quickActionDescription: {
     fontSize: 14,
     color: '#666',
-  },
-  encouragementContainer: {
-    backgroundColor: '#fff3cd',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ffeaa7',
-    marginTop: 20,
-  },
-  encouragementTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#856404',
-    marginTop: 10,
-    marginBottom: 8,
-  },
-  encouragementText: {
-    fontSize: 14,
-    color: '#856404',
-    textAlign: 'center',
-    lineHeight: 20,
   },
   emptyTitle: {
     fontSize: 20,

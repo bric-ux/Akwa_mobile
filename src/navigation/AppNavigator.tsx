@@ -35,6 +35,7 @@ import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 import MessagingDebugScreen from '../screens/MessagingDebugScreen';
 import HostPaymentInfoScreen from '../screens/HostPaymentInfoScreen';
 import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
+import HostStatsScreen from '../screens/HostStatsScreen';
 
 // Types
 import { RootStackParamList, TabParamList } from '../types';
@@ -233,6 +234,22 @@ const AppNavigator = () => {
               component={HostPaymentInfoScreen}
               options={{ 
                 title: 'Informations de paiement',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="HostStats" 
+              component={HostStatsScreen}
+              options={{ 
+                title: 'Statistiques détaillées',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="MyProperties" 
+              component={MyPropertiesScreen}
+              options={{ 
+                title: 'Mes propriétés',
                 headerShown: false 
               }}
             />
