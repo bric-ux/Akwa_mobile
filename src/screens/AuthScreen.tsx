@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,8 +34,10 @@ const AuthScreen: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
 
   // Fonction de validation du mot de passe
   const validatePassword = (password: string) => {
@@ -52,30 +55,57 @@ const AuthScreen: React.FC = () => {
     };
   };
 
+  // Fonction de validation de l'âge
+  const validateAdultAge = (dateOfBirth: string) => {
+    if (!dateOfBirth) return { isValid: false, message: 'La date de naissance est requise' };
+    
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    const age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate()) 
+      ? age - 1 
+      : age;
+    
+    return {
+      isValid: actualAge >= 18,
+      message: actualAge >= 18 ? '' : 'Vous devez avoir au moins 18 ans pour vous inscrire'
+    };
+  };
+
+  // Fonction de validation complète
+  const validateSignupForm = () => {
+    if (!firstName.trim()) return 'Le prénom est requis';
+    if (!lastName.trim()) return 'Le nom est requis';
+    if (!email.trim()) return 'L\'email est requis';
+    if (!dateOfBirth) return 'La date de naissance est requise';
+    
+    const ageValidation = validateAdultAge(dateOfBirth);
+    if (!ageValidation.isValid) return ageValidation.message;
+    
+    if (!password) return 'Le mot de passe est requis';
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) return 'Le mot de passe doit contenir au moins 8 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&)';
+    
+    if (password !== confirmPassword) return 'Les mots de passe ne correspondent pas';
+    if (!agreeTerms) return 'Vous devez accepter les conditions générales d\'utilisation';
+    
+    return null;
+  };
+
   const handleAuth = async () => {
-    if (!email || !password) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
-      return;
-    }
-
-    if (!isLogin) {
-      // Validation du mot de passe pour l'inscription
-      const passwordValidation = validatePassword(password);
-      if (!passwordValidation.isValid) {
-        Alert.alert(
-          'Mot de passe invalide',
-          'Le mot de passe doit contenir au moins 8 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&)'
-        );
+    if (isLogin) {
+      // Validation pour la connexion
+      if (!email || !password) {
+        Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
         return;
       }
-
-      if (password !== confirmPassword) {
-        Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
-        return;
-      }
-
-      if (!firstName || !lastName) {
-        Alert.alert('Erreur', 'Veuillez remplir votre nom et prénom');
+    } else {
+      // Validation complète pour l'inscription
+      const validationError = validateSignupForm();
+      if (validationError) {
+        Alert.alert('Erreur de validation', validationError);
         return;
       }
     }
@@ -105,6 +135,7 @@ const AuthScreen: React.FC = () => {
         await signUp(email, password, {
           first_name: firstName,
           last_name: lastName,
+          date_of_birth: dateOfBirth
         });
 
         // Créer automatiquement le profil dans la table profiles
@@ -118,6 +149,7 @@ const AuthScreen: React.FC = () => {
                 first_name: firstName,
                 last_name: lastName,
                 email: email,
+                date_of_birth: dateOfBirth,
                 role: 'user',
                 is_host: false,
               });
@@ -167,6 +199,35 @@ const AuthScreen: React.FC = () => {
     setConfirmPassword('');
     setFirstName('');
     setLastName('');
+    setDateOfBirth('');
+    setAgreeTerms(false);
+  };
+
+  const openTerms = async () => {
+    try {
+      // URL des conditions générales sur le site web
+      const termsUrl = 'https://cote-ivoire-stays.com/terms';
+      
+      // Vérifier si l'URL peut être ouverte
+      const canOpen = await Linking.canOpenURL(termsUrl);
+      
+      if (canOpen) {
+        await Linking.openURL(termsUrl);
+      } else {
+        Alert.alert(
+          'Erreur',
+          'Impossible d\'ouvrir les conditions générales. Veuillez visiter notre site web.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ouverture des conditions générales:', error);
+      Alert.alert(
+        'Erreur',
+        'Impossible d\'ouvrir les conditions générales. Veuillez visiter notre site web.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   return (
@@ -193,7 +254,7 @@ const AuthScreen: React.FC = () => {
                 resizeMode="contain"
               />
               <Text style={styles.logoText}>AkwaHome</Text>
-              <Text style={styles.logoSubtext}>Votre maison en Côte d'Ivoire</Text>
+              <Text style={styles.logoSubtext}>Ici c'est chez vous !</Text>
             </View>
           </View>
 
@@ -229,6 +290,19 @@ const AuthScreen: React.FC = () => {
                     value={lastName}
                     onChangeText={setLastName}
                     autoCapitalize="words"
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Ionicons name="calendar-outline" size={20} color="#666" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Date de naissance (JJ/MM/AAAA)"
+                    value={dateOfBirth}
+                    onChangeText={setDateOfBirth}
+                    keyboardType="numeric"
+                    maxLength={10}
+                    placeholderTextColor="#999"
                   />
                 </View>
               </>
@@ -288,10 +362,30 @@ const AuthScreen: React.FC = () => {
               </View>
             )}
 
+            {!isLogin && (
+              <View style={styles.termsContainer}>
+                <TouchableOpacity
+                  style={styles.checkboxContainer}
+                  onPress={() => setAgreeTerms(!agreeTerms)}
+                >
+                  <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+                    {agreeTerms && (
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                    )}
+                  </View>
+                  <Text style={styles.termsText}>
+                    J'accepte les{' '}
+                    <Text style={styles.termsLink} onPress={openTerms}>conditions générales d'utilisation</Text>
+                    {' '}d'AkwaHome
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <TouchableOpacity
-              style={[styles.authButton, loading && styles.authButtonDisabled]}
+              style={[styles.authButton, (loading || (!isLogin && !agreeTerms)) && styles.authButtonDisabled]}
               onPress={handleAuth}
-              disabled={loading}
+              disabled={loading || (!isLogin && !agreeTerms)}
             >
               <Text style={styles.authButtonText}>
                 {loading
@@ -450,6 +544,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  termsContainer: {
+    marginVertical: 15,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    borderRadius: 4,
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: '#2E7D32',
+    textDecorationLine: 'underline',
   },
   toggleButton: {
     alignItems: 'center',
