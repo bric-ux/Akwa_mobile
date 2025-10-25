@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../services/AuthContext';
 import { useHostApplications } from '../hooks/useHostApplications';
-import CitySearchInput from '../components/CitySearchInput';
+import CitySearchInputModal from '../components/CitySearchInputModal';
 import { Amenity } from '../types';
 
 const PROPERTY_TYPES = [
@@ -104,10 +104,13 @@ const BecomeHostScreen: React.FC = () => {
   };
 
   const handleLocationSelect = (result: any) => {
+    console.log('📍 Sélection de localisation reçue:', result);
     setSelectedLocation(result);
     if (result) {
+      console.log('📍 Nom de la localisation:', result.name);
       handleInputChange('location', result.name);
     } else {
+      console.log('📍 Localisation effacée');
       handleInputChange('location', '');
     }
   };
@@ -345,7 +348,7 @@ const BecomeHostScreen: React.FC = () => {
       {/* Localisation */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Localisation *</Text>
-        <CitySearchInput
+        <CitySearchInputModal
           value={formData.location}
           onChange={handleLocationSelect}
           placeholder="Rechercher ville, commune ou quartier..."

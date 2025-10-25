@@ -42,6 +42,66 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
   const { cities, loading: citiesLoading } = useCities();
   const { neighborhoods, loading: neighborhoodsLoading } = useNeighborhoods();
 
+  // Synchroniser searchTerm avec la valeur externe - version simplifiée
+  useEffect(() => {
+    console.log('🔄 Synchronisation - Valeur externe:', value, 'Valeur interne:', searchTerm);
+    if (value !== searchTerm) {
+      console.log('🔄 Mise à jour searchTerm de', searchTerm, 'vers', value);
+      setSearchTerm(value);
+      
+      // Si une valeur est fournie, essayer de trouver le résultat correspondant
+      if (value && value.trim()) {
+        // Chercher dans les villes
+        const cityMatch = cities.find(city => city.name === value);
+        if (cityMatch) {
+          console.log('🏙️ Correspondance ville trouvée:', cityMatch);
+          setSelectedResult({
+            id: cityMatch.id,
+            name: cityMatch.name,
+            type: 'city',
+            region: cityMatch.region
+          });
+          return;
+        }
+        
+        // Chercher dans les quartiers
+        const neighborhoodMatch = neighborhoods.find(neighborhood => neighborhood.name === value);
+        if (neighborhoodMatch) {
+          console.log('🏠 Correspondance quartier trouvée:', neighborhoodMatch);
+          setSelectedResult({
+            id: neighborhoodMatch.id,
+            name: neighborhoodMatch.name,
+            type: 'neighborhood',
+            commune: neighborhoodMatch.commune,
+            city_id: neighborhoodMatch.city_id
+          });
+          return;
+        }
+        
+        // Si pas de correspondance exacte, créer un résultat générique
+        console.log('❓ Aucune correspondance exacte, création générique pour:', value);
+        setSelectedResult({
+          id: `generic-${value}`,
+          name: value,
+          type: 'city',
+          region: 'Non spécifiée'
+        });
+      } else {
+        console.log('🗑️ Valeur vide, suppression de la sélection');
+        setSelectedResult(null);
+      }
+    }
+  }, [value, cities, neighborhoods]);
+
+  // Effet pour forcer la mise à jour du champ de texte
+  useEffect(() => {
+    console.log('🔄 Effet de mise à jour forcée - value:', value, 'searchTerm:', searchTerm);
+    if (value && value !== searchTerm) {
+      console.log('🔄 Forçage de la mise à jour de searchTerm');
+      setSearchTerm(value);
+    }
+  }, [value]);
+
   // Filtrer les villes et quartiers basé sur le terme de recherche
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -93,12 +153,32 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
     // Combiner et trier les résultats
     results.push(...filteredCities, ...communeResults, ...filteredNeighborhoods);
     
-    // Trier par type (communes d'abord, puis quartiers, puis villes) puis par nom
+    // Trier par pertinence puis par type puis par nom
     results.sort((a, b) => {
+      // Calculer un score de pertinence basé sur la correspondance
+      const getRelevanceScore = (item: SearchResult) => {
+        const nameLower = item.name.toLowerCase();
+        
+        if (nameLower === searchLower) return 100;
+        if (nameLower.startsWith(searchLower)) return 80;
+        if (nameLower.includes(searchLower)) return 60;
+        return 20;
+      };
+      
+      const scoreA = getRelevanceScore(a);
+      const scoreB = getRelevanceScore(b);
+      
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA; // Score décroissant
+      }
+      
+      // Si même score, trier par type (communes d'abord, puis quartiers, puis villes)
       if (a.type !== b.type) {
         const typeOrder = { commune: 0, neighborhood: 1, city: 2 };
         return typeOrder[a.type] - typeOrder[b.type];
       }
+      
+      // Enfin par nom alphabétique
       return a.name.localeCompare(b.name);
     });
 
@@ -106,27 +186,96 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
     setFilteredResults(results.slice(0, 15));
   }, [searchTerm, cities, neighborhoods]);
 
-  // Gérer la sélection d'un résultat (ville ou quartier)
+  // Gérer la sélection d'un résultat (ville ou quartier) - Version robuste
   const handleResultSelect = (result: SearchResult) => {
-    setSelectedResult(result);
-    setSearchTerm(result.name);
+    console.log('🔍 === DÉBUT SÉLECTION ROBUSTE ===');
+    console.log('🔍 Résultat sélectionné:', result);
+    console.log('🔍 Nom du résultat:', result.name);
+    console.log('🔍 Type du résultat:', result.type);
+    
+    // Fermer le dropdown immédiatement
     setIsOpen(false);
-    onChange(result);
+    
+    // Mettre à jour l'état local avec un délai pour forcer le re-render
+    setTimeout(() => {
+      console.log('🔍 Mise à jour différée des états locaux');
+      setSelectedResult(result);
+      setSearchTerm(result.name);
+      
+      console.log('🔍 États locaux mis à jour:');
+      console.log('🔍 - selectedResult:', result);
+      console.log('🔍 - searchTerm:', result.name);
+      
+      // Notifier le composant parent
+      console.log('🔍 Notification du parent avec:', result);
+      onChange(result);
+      
+      console.log('🔍 === FIN SÉLECTION ROBUSTE ===');
+    }, 0);
   };
 
   // Gérer la suppression de la sélection
   const handleClear = () => {
+    console.log('🗑️ Effacement de la sélection');
     setSelectedResult(null);
     setSearchTerm('');
+    setIsOpen(false);
     onChange(null);
+  };
+
+  // Gérer le changement de texte dans l'input
+  const handleTextChange = (text: string) => {
+    console.log('📝 === CHANGEMENT DE TEXTE ===');
+    console.log('📝 Nouveau texte:', text);
+    console.log('📝 Ancien texte:', searchTerm);
+    console.log('📝 Résultat sélectionné actuel:', selectedResult?.name);
+    
+    setSearchTerm(text);
+    setIsOpen(true);
+    
+    // Si le texte est effacé, effacer aussi la sélection
+    if (!text.trim()) {
+      console.log('📝 Texte effacé, suppression de la sélection');
+      setSelectedResult(null);
+      onChange(null);
+    } else {
+      // Si le texte change et qu'il y a une sélection, la réinitialiser
+      if (selectedResult && selectedResult.name !== text) {
+        console.log('📝 Texte modifié manuellement, réinitialisation de la sélection');
+        console.log('📝 Ancienne sélection:', selectedResult.name);
+        console.log('📝 Nouveau texte:', text);
+        setSelectedResult(null);
+      }
+    }
+    
+    console.log('📝 === FIN CHANGEMENT DE TEXTE ===');
+  };
+
+  // Gérer le focus de l'input
+  const handleFocus = () => {
+    console.log('🎯 Focus sur l\'input');
+    setIsOpen(true);
+  };
+
+  // Gérer la fermeture du dropdown
+  const handleCloseDropdown = () => {
+    console.log('❌ Fermeture du dropdown');
+    setIsOpen(false);
   };
 
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons name="search" size={32} color="#9ca3af" />
-      <Text style={styles.emptyStateTitle}>Aucun résultat trouvé</Text>
-      <Text style={styles.emptyStateSubtitle}>Essayez avec un autre terme</Text>
+      <Text style={styles.emptyStateTitle}>
+        {searchTerm.trim() ? 'Aucun résultat trouvé' : 'Commencez à taper pour rechercher'}
+      </Text>
+      <Text style={styles.emptyStateSubtitle}>
+        {searchTerm.trim() 
+          ? `Essayez avec un autre terme que "${searchTerm}"` 
+          : 'Villes et quartiers d\'Abidjan disponibles'
+        }
+      </Text>
     </View>
   );
 
@@ -146,11 +295,14 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
           <TextInput
             style={[styles.input, disabled && styles.inputDisabled]}
             value={searchTerm}
-            onChangeText={setSearchTerm}
-            onFocus={() => setIsOpen(true)}
+            onChangeText={handleTextChange}
+            onFocus={handleFocus}
+            onBlur={handleCloseDropdown}
             placeholder={placeholder}
             placeholderTextColor="#9ca3af"
             editable={!disabled}
+            autoCorrect={false}
+            autoCapitalize="words"
           />
           {searchTerm.length > 0 && (
             <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
@@ -166,12 +318,14 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
           {citiesLoading || neighborhoodsLoading ? (
             renderLoadingState()
           ) : filteredResults.length > 0 ? (
-            <View style={styles.resultsList}>
-              {filteredResults.map((item) => (
+            <FlatList
+              data={filteredResults}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
                 <TouchableOpacity
-                  key={item.id}
                   style={styles.resultItem}
                   onPress={() => handleResultSelect(item)}
+                  activeOpacity={0.7}
                 >
                   <View style={styles.resultContent}>
                     <View style={styles.resultIcon}>
@@ -210,16 +364,12 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
                     </View>
                   </View>
                 </TouchableOpacity>
-              ))}
-            </View>
-          ) : searchTerm.trim() ? (
-            renderEmptyState()
+              )}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            />
           ) : (
-            <View style={styles.emptyState}>
-              <Ionicons name="search" size={32} color="#e67e22" />
-              <Text style={styles.emptyStateTitle}>Commencez à taper pour rechercher</Text>
-              <Text style={styles.emptyStateSubtitle}>Villes et quartiers d'Abidjan disponibles</Text>
-            </View>
+            renderEmptyState()
           )}
         </View>
       )}
