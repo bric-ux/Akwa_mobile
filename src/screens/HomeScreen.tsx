@@ -26,6 +26,9 @@ const HomeScreen: React.FC = () => {
   const { user } = useAuth();
   const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
   const { cities, loading: citiesLoading, error: citiesError, getPopularDestinations } = useCities();
+  
+  const [popularDestinations, setPopularDestinations] = useState<any[]>([]);
+  const [destinationsLoading, setDestinationsLoading] = useState(true);
 
   // Affichage vertical uniquement
 
@@ -73,6 +76,21 @@ const HomeScreen: React.FC = () => {
   useEffect(() => {
     // Charger les propriétés au montage du composant
     fetchProperties();
+    
+    // Charger les destinations populaires
+    const loadPopularDestinations = async () => {
+      try {
+        setDestinationsLoading(true);
+        const destinations = await getPopularDestinations(8);
+        setPopularDestinations(destinations);
+      } catch (error) {
+        console.error('Erreur lors du chargement des destinations populaires:', error);
+      } finally {
+        setDestinationsLoading(false);
+      }
+    };
+    
+    loadPopularDestinations();
   }, []);
 
 
@@ -111,9 +129,9 @@ const HomeScreen: React.FC = () => {
       <HeroSection onSearchPress={handleSearchPress} />
 
       <PopularDestinations
-        destinations={getPopularDestinations(8)}
+        destinations={popularDestinations}
         onDestinationPress={handleDestinationPress}
-        loading={citiesLoading}
+        loading={destinationsLoading}
       />
 
       <ImageCarousel

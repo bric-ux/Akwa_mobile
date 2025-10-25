@@ -20,19 +20,19 @@ export const useNeighborhoods = () => {
         setError(null);
 
         const { data, error } = await supabase
-          .from('neighborhoods')
-          .select('id, name, commune, city_id')
-          .order('commune', { ascending: true })
-          .order('name', { ascending: true });
-        
+          .from("neighborhoods")
+          .select("id, name, commune, city_id")
+          .order("commune", { ascending: true })
+          .order("name", { ascending: true });
+
         if (error) {
           throw error;
         }
 
         setNeighborhoods(data || []);
       } catch (err) {
-        console.error('Erreur lors du chargement des quartiers:', err);
-        setError('Erreur lors du chargement des quartiers');
+        console.error("Erreur lors du chargement des quartiers:", err);
+        setError("Erreur lors du chargement des quartiers");
       } finally {
         setLoading(false);
       }
@@ -41,9 +41,9 @@ export const useNeighborhoods = () => {
     fetchNeighborhoods();
   }, []);
 
-  return {
-    neighborhoods,
-    loading,
+  return { 
+    neighborhoods, 
+    loading, 
     error,
     refetch: () => {
       setLoading(true);
@@ -51,5 +51,3 @@ export const useNeighborhoods = () => {
     }
   };
 };
-
-

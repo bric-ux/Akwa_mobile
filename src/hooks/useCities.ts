@@ -1,121 +1,120 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 
-export interface CityStats {
+export interface City {
   id: string;
   name: string;
-  propertiesCount: number;
-  image: string;
   region: string;
-  country: string;
 }
 
 export const useCities = () => {
-  const [cities, setCities] = useState<CityStats[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCitiesStats();
+    const fetchCities = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const { data, error } = await supabase
+          .from('cities')
+          .select('id, name, region')
+          .order('name');
+        
+        if (error) {
+          throw error;
+        }
+
+        // Supprimer les doublons par nom
+        const uniqueCities = data?.filter((city, index, arr) => 
+          arr.findIndex(c => c.name === city.name) === index
+        ) || [];
+
+        setCities(uniqueCities);
+      } catch (err) {
+        console.error('Erreur lors du chargement des villes:', err);
+        setError('Erreur lors du chargement des villes');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCities();
   }, []);
 
-  const fetchCitiesStats = async () => {
+  const getPopularDestinations = async (limit: number = 8) => {
     try {
-      setLoading(true);
-      setError(null);
-
-      // Récupérer TOUTES les villes de la table cities
-      const { data: allCities, error: citiesError } = await supabase
-        .from('cities')
-        .select('id, name, region, country');
-
-      if (citiesError) {
-        throw citiesError;
-      }
-
-      // Récupérer les statistiques des villes avec le nombre de propriétés ACTIVES et VISIBLES
-      const { data: propertiesData, error: queryError } = await supabase
+      // Récupérer les villes avec le nombre de propriétés en utilisant une requête avec agrégation
+      const { data, error } = await supabase
         .from('properties')
         .select(`
+          city_id,
           cities!inner(
             id,
             name,
-            region,
-            country
+            region
           )
         `)
         .eq('is_active', true)
-        .eq('is_hidden', false)
-        .not('cities', 'is', null);
+        .not('city_id', 'is', null);
 
-      if (queryError) {
-        throw queryError;
-      }
+      console.log('Données brutes des propriétés:', data);
+      console.log('Nombre de propriétés trouvées:', data?.length || 0);
 
-      // Compter les propriétés par ville
-      const cityCounts: { [key: string]: number } = {};
+      // Compter le nombre de propriétés par ville
+      const cityCounts: { [key: string]: { city: any; count: number } } = {};
       
-      propertiesData?.forEach((property: any) => {
+      data?.forEach((property: any) => {
+        const cityId = property.city_id;
         const city = property.cities;
-        if (city) {
-          const cityId = city.id;
-          cityCounts[cityId] = (cityCounts[cityId] || 0) + 1;
+        
+        if (cityId && city) {
+          if (!cityCounts[cityId]) {
+            cityCounts[cityId] = {
+              city: city,
+              count: 0
+            };
+          }
+          cityCounts[cityId].count++;
         }
       });
 
-      // Créer la liste finale avec TOUTES les villes (sans limitation par propriétés)
-      const citiesArray = (allCities || []).map(city => ({
-        id: city.id,
-        name: city.name,
-        propertiesCount: cityCounts[city.id] || 0,
-        image: getCityImage(city.name),
-        region: city.region,
-        country: city.country,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name)); // Trier alphabétiquement par nom
+      // Convertir en tableau et trier par nombre de propriétés
+      const popularDestinations = Object.values(cityCounts)
+        .filter(item => item.count > 0)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit)
+        .map(item => ({
+          ...item.city,
+          propertyCount: item.count
+        }));
 
-      setCities(citiesArray);
+      console.log('Destinations populaires trouvées:', popularDestinations);
+      
+      // Si aucune destination trouvée, utiliser les villes disponibles
+      if (popularDestinations.length === 0) {
+        console.log('Aucune destination populaire trouvée, utilisation des villes disponibles');
+        return cities.slice(0, limit);
+      }
+      
+      return popularDestinations;
     } catch (err) {
-      console.error('Erreur lors du chargement des villes:', err);
-      setError(err instanceof Error ? err.message : 'Erreur inconnue');
-    } finally {
-      setLoading(false);
+      console.error('Erreur lors de la récupération des destinations populaires:', err);
+      // Fallback vers les premières villes si erreur
+      return cities.slice(0, limit);
     }
-  };
-
-  // Fonction pour obtenir l'image de la ville
-  const getCityImage = (cityName: string): string => {
-    const cityImages: { [key: string]: string } = {
-      'Abidjan': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Yamoussoukro': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Grand-Bassam': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'San-Pédro': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Bouaké': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Korhogo': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Man': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Gagnoa': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Daloa': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Divo': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Anyama': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-      'Bingerville': 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop',
-    };
-    
-    return cityImages[cityName] || 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop';
-  };
-
-  // Fonction pour obtenir les destinations populaires (triées par nombre de propriétés)
-  const getPopularDestinations = (limit: number = 8): CityStats[] => {
-    return cities
-      .filter(city => city.propertiesCount > 0) // Filtrer seulement les villes avec au moins 1 propriété
-      .sort((a, b) => b.propertiesCount - a.propertiesCount) // Trier par nombre de propriétés
-      .slice(0, limit); // Limiter au nombre demandé
   };
 
   return {
     cities,
     loading,
     error,
-    refetch: fetchCitiesStats,
     getPopularDestinations,
+    refetch: () => {
+      setLoading(true);
+      setCities([]);
+    }
   };
 };
