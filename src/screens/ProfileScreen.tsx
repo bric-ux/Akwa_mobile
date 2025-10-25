@@ -18,6 +18,7 @@ import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { useEmailVerification } from '../hooks/useEmailVerification';
 import EmailVerificationModal from '../components/EmailVerificationModal';
+import { useHostApplications } from '../hooks/useHostApplications';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -25,16 +26,34 @@ const ProfileScreen: React.FC = () => {
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
   const { isEmailVerified, generateVerificationCode } = useEmailVerification();
+  const { getApplications } = useHostApplications();
   const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [hasPendingApplications, setHasPendingApplications] = useState(false);
 
   // Rafraîchir le profil quand l'écran devient actif (seulement si connecté)
   useFocusEffect(
     React.useCallback(() => {
       if (user) {
         refreshProfile();
+        checkPendingApplications();
       }
     }, [refreshProfile, user])
   );
+
+  const checkPendingApplications = async () => {
+    if (!user) return;
+    
+    try {
+      const applications = await getApplications();
+      const pendingApps = applications.filter(app => 
+        app.status === 'pending' || app.status === 'reviewing'
+      );
+      setHasPendingApplications(pendingApps.length > 0);
+    } catch (error) {
+      console.error('Erreur lors de la vérification des candidatures:', error);
+      setHasPendingApplications(false);
+    }
+  };
 
 
   const handleEmailVerification = async () => {
@@ -128,11 +147,11 @@ const ProfileScreen: React.FC = () => {
   // Construire la liste des éléments de menu selon le profil
   let menuItems = [...baseMenuItems];
 
-  // Ajouter l'élément hôte si l'utilisateur est hôte
-  if (profile?.is_host) {
+  // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
+  if (profile?.is_host || hasPendingApplications) {
     menuItems.push(hostDashboardItem);
   } else {
-    // Ajouter "Devenir hôte" si pas encore hôte
+    // Ajouter "Devenir hôte" si pas encore hôte et pas de candidatures en cours
     menuItems.push(becomeHostItem);
   }
 

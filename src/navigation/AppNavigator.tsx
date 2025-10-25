@@ -33,6 +33,9 @@ import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
 import EditPropertyScreen from '../screens/EditPropertyScreen';
 import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 import MessagingDebugScreen from '../screens/MessagingDebugScreen';
+import HostPaymentInfoScreen from '../screens/HostPaymentInfoScreen';
+import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
+import DebugHostDataScreen from '../screens/DebugHostDataScreen';
 
 // Types
 import { RootStackParamList, TabParamList } from '../types';
@@ -227,10 +230,10 @@ const AppNavigator = () => {
               }}
             />
             <Stack.Screen 
-              name="MyProperties" 
-              component={MyPropertiesScreen}
+              name="HostPaymentInfo" 
+              component={HostPaymentInfoScreen}
               options={{ 
-                title: 'Mes propriétés',
+                title: 'Informations de paiement',
                 headerShown: false 
               }}
             />
@@ -287,14 +290,22 @@ const AppNavigator = () => {
                 headerShown: false 
               }}
             />
-            <Stack.Screen 
-              name="AdminNotifications" 
-              component={AdminNotificationsScreen}
-              options={{ 
-                title: 'Notifications',
-                headerShown: false 
-              }}
-            />
+        <Stack.Screen
+          name="AdminHostPaymentInfo"
+          component={AdminHostPaymentInfoScreen}
+          options={{
+            title: 'Informations de paiement hôtes',
+            headerShown: false
+          }}
+        />
+        <Stack.Screen
+          name="DebugHostData"
+          component={DebugHostDataScreen}
+          options={{
+            title: 'Debug - Données Hôtes',
+            headerShown: false
+          }}
+        />
             <Stack.Screen 
               name="EditProperty" 
               component={EditPropertyScreen}

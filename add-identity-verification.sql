@@ -137,3 +137,4 @@ GRANT EXECUTE ON FUNCTION get_identity_verification_stats() TO authenticated;
 
 -- Commenter la fonction
 COMMENT ON FUNCTION get_identity_verification_stats() IS 'Fonction pour obtenir les statistiques de vérification d\'identité';
+

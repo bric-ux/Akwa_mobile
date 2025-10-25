@@ -154,11 +154,14 @@ export type RootStackParamList = {
   MyHostApplications: undefined;
   MyProperties: undefined;
   HostDashboard: undefined;
+  HostPaymentInfo: undefined;
   Admin: undefined;
   AdminApplications: undefined;
   AdminProperties: undefined;
   AdminUsers: undefined;
   AdminIdentityDocuments: undefined;
+  AdminHostPaymentInfo: undefined;
+  DebugHostData: undefined;
   AdminNotifications: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };

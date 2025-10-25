@@ -223,6 +223,20 @@ const HostDashboardScreen: React.FC = () => {
           
           <TouchableOpacity
             style={styles.quickAction}
+            onPress={() => navigation.navigate('HostPaymentInfo')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="card-outline" size={24} color="#27ae60" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Informations de paiement</Text>
+              <Text style={styles.quickActionDescription}>Gérer vos méthodes de paiement</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.quickAction}
             onPress={() => navigation.navigate('BecomeHost')}
           >
             <View style={styles.quickActionIcon}>

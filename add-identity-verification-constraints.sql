@@ -182,3 +182,4 @@ GRANT EXECUTE ON FUNCTION get_unverified_users_with_bookings() TO authenticated;
 
 -- Commenter la fonction
 COMMENT ON FUNCTION get_unverified_users_with_bookings() IS 'Retourne les utilisateurs non vérifiés qui ont tenté de faire des réservations';
+

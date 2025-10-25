@@ -15,9 +15,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useHostApplications } from '../hooks/useHostApplications';
+import { useEmailService } from '../hooks/useEmailService';
+import { useIdentityVerification } from '../hooks/useIdentityVerification';
+import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
 
 const PROPERTY_TYPES = [
@@ -69,8 +74,12 @@ const PHOTO_CATEGORIES = [
 ];
 
 const BecomeHostScreen: React.FC = () => {
+  const navigation = useNavigation();
   const { user } = useAuth();
   const { submitApplication, getAmenities, loading } = useHostApplications();
+  const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();
+  const { hasUploadedIdentity, verificationStatus, checkIdentityStatus } = useIdentityVerification();
+  const { hasPaymentInfo, isPaymentInfoComplete } = useHostPaymentInfo();
   
   const [formData, setFormData] = useState({
     // Informations sur le logement
@@ -111,6 +120,7 @@ const BecomeHostScreen: React.FC = () => {
   const [availableAmenities, setAvailableAmenities] = useState<Amenity[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
   const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
+  const [identityUploadedInSession, setIdentityUploadedInSession] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number}>>([]);
@@ -422,6 +432,17 @@ const BecomeHostScreen: React.FC = () => {
         }
         return true;
         
+      case 5:
+        // Étape 5: Informations de paiement
+        if (!hasPaymentInfo() || !isPaymentInfoComplete()) {
+          Alert.alert(
+            'Informations de paiement requises',
+            'Vous devez configurer vos informations de paiement pour recevoir vos revenus.'
+          );
+          return false;
+        }
+        return true;
+        
       default:
         return true;
     }
@@ -429,7 +450,7 @@ const BecomeHostScreen: React.FC = () => {
 
   const nextStep = () => {
     if (validateStep(currentStep)) {
-      if (currentStep < 4) {
+      if (currentStep < 5) {
         setCurrentStep(currentStep + 1);
       }
     }
@@ -447,8 +468,46 @@ const BecomeHostScreen: React.FC = () => {
       return;
     }
 
+    // Vérifier l'identité avant de permettre la soumission
+    if (!hasUploadedIdentity && !identityUploadedInSession) {
+      Alert.alert(
+        'Vérification d\'identité requise',
+        'Vous devez télécharger une pièce d\'identité pour soumettre votre candidature.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { 
+            text: 'Vérifier mon identité', 
+            onPress: () => {
+              // Retourner à l'accueil pour permettre la navigation vers le profil
+              navigation.goBack();
+            }
+          }
+        ]
+      );
+      return;
+    }
+
+    // Vérifier les informations de paiement
+    if (!hasPaymentInfo() || !isPaymentInfoComplete()) {
+      Alert.alert(
+        'Informations de paiement requises',
+        'Vous devez configurer vos informations de paiement pour recevoir vos revenus.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { 
+            text: 'Configurer le paiement', 
+            onPress: () => {
+              // Naviguer vers l'écran de paiement
+              navigation.navigate('HostPaymentInfo');
+            }
+          }
+        ]
+      );
+      return;
+    }
+
     // Validation finale de toutes les étapes
-    for (let step = 1; step <= 4; step++) {
+    for (let step = 1; step <= 5; step++) {
       if (!validateStep(step)) {
         // Si une étape n'est pas valide, retourner à cette étape
         setCurrentStep(step);
@@ -489,10 +548,61 @@ const BecomeHostScreen: React.FC = () => {
     const result = await submitApplication(applicationPayload);
 
     if (result.success) {
+      // Envoyer les emails après une soumission réussie
+      try {
+        // Email de confirmation au candidat
+        await sendHostApplicationSubmitted(
+          formData.hostEmail,
+          formData.hostFullName,
+          formData.title,
+          formData.propertyType,
+          formData.location
+        );
+
+        // Email de notification aux admins
+        const { data: adminUsers } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('role', 'admin');
+
+        if (adminUsers && adminUsers.length > 0) {
+          for (const admin of adminUsers) {
+            await sendHostApplicationReceived(
+              admin.email,
+              formData.hostFullName,
+              formData.hostEmail,
+              formData.title,
+              formData.propertyType,
+              formData.location,
+              parseInt(formData.price) || 0
+            );
+          }
+        } else {
+          // Fallback vers l'email admin par défaut
+          await sendHostApplicationReceived(
+            'admin@akwahome.com',
+            formData.hostFullName,
+            formData.hostEmail,
+            formData.title,
+            formData.propertyType,
+            formData.location,
+            parseInt(formData.price) || 0
+          );
+        }
+
+        console.log('✅ Emails de candidature envoyés avec succès');
+      } catch (emailError) {
+        console.error('❌ Erreur lors de l\'envoi des emails:', emailError);
+        // Continue même si les emails échouent
+      }
+
       Alert.alert(
         'Candidature soumise !', 
         'Votre candidature a été soumise avec succès. Nous vous contacterons bientôt.',
-        [{ text: 'OK', onPress: () => setCurrentStep(1) }]
+        [{ text: 'OK', onPress: () => {
+          // Naviguer vers le tableau de bord hôte
+          navigation.navigate('HostDashboard');
+        }}]
       );
     } else {
       Alert.alert('Erreur', 'Une erreur est survenue lors de la soumission de votre candidature.');
@@ -501,7 +611,7 @@ const BecomeHostScreen: React.FC = () => {
 
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
-      {[1, 2, 3, 4].map((step) => (
+      {[1, 2, 3, 4, 5].map((step) => (
         <View key={step} style={styles.stepContainer}>
           <View style={[
             styles.stepCircle,
@@ -514,7 +624,7 @@ const BecomeHostScreen: React.FC = () => {
               {step}
             </Text>
           </View>
-          {step < 4 && <View style={styles.stepLine} />}
+          {step < 5 && <View style={styles.stepLine} />}
         </View>
       ))}
     </View>
@@ -1009,6 +1119,53 @@ const BecomeHostScreen: React.FC = () => {
     </View>
   );
 
+  const renderStep5 = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.stepTitle}>Informations de paiement</Text>
+      
+      <View style={styles.paymentInfoContainer}>
+        <Ionicons name="card" size={48} color="#e67e22" />
+        <Text style={styles.paymentInfoTitle}>Configuration du paiement</Text>
+        <Text style={styles.paymentInfoDescription}>
+          Pour recevoir vos revenus, vous devez configurer vos informations de paiement.
+        </Text>
+        
+        {hasPaymentInfo() ? (
+          <View style={styles.paymentStatusContainer}>
+            <Ionicons 
+              name={isPaymentInfoComplete() ? 'checkmark-circle' : 'alert-circle'} 
+              size={24} 
+              color={isPaymentInfoComplete() ? '#10b981' : '#f59e0b'} 
+            />
+            <Text style={styles.paymentStatusText}>
+              {isPaymentInfoComplete() 
+                ? 'Informations de paiement configurées' 
+                : 'Informations de paiement incomplètes'
+              }
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.paymentStatusContainer}>
+            <Ionicons name="add-circle" size={24} color="#e67e22" />
+            <Text style={styles.paymentStatusText}>
+              Aucune information de paiement configurée
+            </Text>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.configurePaymentButton}
+          onPress={() => navigation.navigate('HostPaymentInfo')}
+        >
+          <Ionicons name="settings" size={20} color="#fff" />
+          <Text style={styles.configurePaymentButtonText}>
+            {hasPaymentInfo() ? 'Modifier le paiement' : 'Configurer le paiement'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
@@ -1024,6 +1181,47 @@ const BecomeHostScreen: React.FC = () => {
           </Text>
         </View>
 
+        {/* Alerte de vérification d'identité */}
+        {!hasUploadedIdentity && !identityUploadedInSession && (
+          <View style={styles.identityAlert}>
+            <Ionicons 
+              name={
+                verificationStatus === 'pending' ? 'time-outline' :
+                verificationStatus === 'rejected' ? 'close-circle-outline' : 
+                'shield-checkmark-outline'
+              } 
+              size={24} 
+              color={
+                verificationStatus === 'pending' ? '#f59e0b' :
+                verificationStatus === 'rejected' ? '#ef4444' : 
+                '#f59e0b'
+              } 
+            />
+            <View style={styles.identityAlertContent}>
+              <Text style={styles.identityAlertTitle}>
+                {verificationStatus === 'pending' ? 'Vérification en cours' :
+                 verificationStatus === 'rejected' ? 'Document refusé' : 
+                 'Vérification d\'identité requise'}
+              </Text>
+              <Text style={styles.identityAlertMessage}>
+                {verificationStatus === 'pending' ? 'Votre identité est en cours de vérification. Vous pourrez soumettre votre candidature une fois validée.' :
+                 verificationStatus === 'rejected' ? 'Votre document a été refusé. Veuillez télécharger un nouveau document valide.' :
+                 'Vous devez vérifier votre identité avant de pouvoir devenir hôte.'}
+              </Text>
+              <TouchableOpacity 
+                style={styles.identityAlertButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Text style={styles.identityAlertButtonText}>
+                  {verificationStatus === 'pending' ? 'Voir le statut' :
+                   verificationStatus === 'rejected' ? 'Télécharger un nouveau document' :
+                   'Vérifier mon identité'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Indicateur d'étapes */}
         {renderStepIndicator()}
 
@@ -1032,6 +1230,7 @@ const BecomeHostScreen: React.FC = () => {
         {currentStep === 2 && renderStep2()}
         {currentStep === 3 && renderStep3()}
         {currentStep === 4 && renderStep4()}
+        {currentStep === 5 && renderStep5()}
 
         {/* Boutons de navigation */}
         <View style={styles.navigationButtons}>
@@ -1221,6 +1420,45 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#6b7280',
+  },
+  identityAlert: {
+    flexDirection: 'row',
+    backgroundColor: '#fef3c7',
+    borderColor: '#f59e0b',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    margin: 20,
+    marginTop: 10,
+    alignItems: 'flex-start',
+  },
+  identityAlertContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  identityAlertTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  identityAlertMessage: {
+    fontSize: 14,
+    color: '#92400e',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  identityAlertButton: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  identityAlertButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   stepIndicator: {
     flexDirection: 'row',
@@ -1689,6 +1927,54 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
     textAlign: 'center',
+  },
+  // Styles pour l'étape 5 - Informations de paiement
+  paymentInfoContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  paymentInfoTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  paymentInfoDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  paymentStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 24,
+  },
+  paymentStatusText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  configurePaymentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  configurePaymentButtonText: {
+    marginLeft: 8,
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
