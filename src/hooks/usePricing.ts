@@ -77,24 +77,33 @@ export function calculateTotalPrice(
 }
 
 /**
- * Calcule les frais supplémentaires
+ * Calcule les frais supplémentaires en utilisant les vrais frais de la propriété
  */
-export function calculateFees(basePrice: number, nights: number): {
+export function calculateFees(
+  basePrice: number, 
+  nights: number, 
+  propertyFees?: {
+    cleaning_fee?: number | null;
+    service_fee?: number | null;
+    taxes?: number | null;
+  }
+): {
   cleaningFee: number;
   serviceFee: number;
+  taxes: number;
   totalFees: number;
 } {
-  // Frais de nettoyage : 5% du prix de base par nuit
-  const cleaningFee = Math.round(basePrice * 0.05);
+  // Utiliser les vrais frais de la propriété ou des valeurs par défaut
+  const cleaningFee = propertyFees?.cleaning_fee || 0;
+  const serviceFee = propertyFees?.service_fee || 0;
+  const taxes = propertyFees?.taxes || 0;
   
-  // Frais de service : 3% du prix de base par nuit
-  const serviceFee = Math.round(basePrice * 0.03);
-  
-  const totalFees = cleaningFee + serviceFee;
+  const totalFees = cleaningFee + serviceFee + taxes;
   
   return {
     cleaningFee,
     serviceFee,
+    taxes,
     totalFees
   };
 }
@@ -105,14 +114,19 @@ export function calculateFees(basePrice: number, nights: number): {
 export function calculateFinalPrice(
   basePrice: number,
   nights: number,
-  discountConfig: DiscountConfig
+  discountConfig: DiscountConfig,
+  propertyFees?: {
+    cleaning_fee?: number | null;
+    service_fee?: number | null;
+    taxes?: number | null;
+  }
 ): {
   pricing: ReturnType<typeof calculateTotalPrice>;
   fees: ReturnType<typeof calculateFees>;
   finalTotal: number;
 } {
   const pricing = calculateTotalPrice(basePrice, nights, discountConfig);
-  const fees = calculateFees(basePrice, nights);
+  const fees = calculateFees(basePrice, nights, propertyFees);
   const finalTotal = pricing.totalPrice + fees.totalFees;
   
   return {

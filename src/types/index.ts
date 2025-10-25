@@ -41,6 +41,7 @@ export interface Property {
   property_type?: string;
   cleaning_fee?: number;
   service_fee?: number;
+  taxes?: number;
   is_hidden?: boolean;
   auto_booking?: boolean;
   minimum_nights?: number;
@@ -158,6 +159,7 @@ export type RootStackParamList = {
   AdminProperties: undefined;
   AdminUsers: undefined;
   AdminIdentityDocuments: undefined;
+  AdminNotifications: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
   MyBookings: undefined;

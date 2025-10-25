@@ -109,6 +109,9 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
   const handleVerifyDocument = async (docId: string, verified: boolean) => {
     setVerifying(true);
     try {
+      const doc = documents.find(d => d.id === docId);
+      if (!doc) throw new Error('Document non trouvé');
+
       const updateData: any = {
         verified: verified,
         verified_at: verified ? new Date().toISOString() : null,
@@ -126,6 +129,47 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
 
       if (error) throw error;
 
+      // Mettre à jour le profil utilisateur
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ identity_verified: verified })
+        .eq('user_id', doc.user_id);
+
+      if (profileError) throw profileError;
+
+      // Envoyer l'email de notification
+      try {
+        const user = users[doc.user_id];
+        if (user?.email) {
+          const emailType = verified ? 'identity_verified' : 'identity_rejected';
+          const reason = verified 
+            ? 'Document approuvé par l\'administrateur' 
+            : 'Document rejeté par l\'administrateur';
+
+          const { error: emailError } = await supabase.functions.invoke('send-email', {
+            body: {
+              type: emailType,
+              to: user.email,
+              data: {
+                firstName: user.first_name,
+                reason: reason,
+                siteUrl: 'https://akwahome.com' // URL du site web
+              }
+            }
+          });
+
+          if (emailError) {
+            console.error('Erreur envoi email:', emailError);
+            // Continue même si l'email échoue
+          } else {
+            console.log('✅ Email de notification envoyé');
+          }
+        }
+      } catch (emailError) {
+        console.error('Erreur lors de l\'envoi de l\'email:', emailError);
+        // Continue même si l'email échoue
+      }
+
       // Mettre à jour l'état local
       setDocuments(prev => prev.map(doc => 
         doc.id === docId 
@@ -140,7 +184,7 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
 
       Alert.alert(
         'Succès',
-        `Document ${verified ? 'approuvé' : 'rejeté'} avec succès`
+        `Document ${verified ? 'approuvé' : 'rejeté'} avec succès${verified ? '' : '. Un email a été envoyé à l\'utilisateur.'}`
       );
 
       setShowModal(false);

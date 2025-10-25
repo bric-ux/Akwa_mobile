@@ -167,6 +167,30 @@ export const useIdentityVerification = () => {
 
       console.log('✅ Document d\'identité uploadé avec succès');
       
+      // Envoyer une notification aux admins
+      try {
+        const { error: notificationError } = await supabase.functions.invoke('send-admin-notification', {
+          body: {
+            type: 'identity_document_uploaded',
+            data: {
+              userId: user.id,
+              documentType: documentType,
+              documentUrl: publicUrl
+            }
+          }
+        });
+
+        if (notificationError) {
+          console.error('Erreur notification admin:', notificationError);
+          // Continue même si la notification échoue
+        } else {
+          console.log('✅ Notification admin envoyée');
+        }
+      } catch (notificationError) {
+        console.error('Erreur lors de l\'envoi de la notification admin:', notificationError);
+        // Continue même si la notification échoue
+      }
+      
       // Recharger le statut
       await checkIdentityStatus(true);
       

@@ -72,7 +72,11 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       }
     });
     
-    const pricing = calculateFinalPrice(basePrice, nights, discountConfig);
+    const pricing = calculateFinalPrice(basePrice, nights, discountConfig, {
+      cleaning_fee: property.cleaning_fee,
+      service_fee: property.service_fee,
+      taxes: property.taxes
+    });
     
     console.log('💰 Résultat du calcul:', pricing);
     
@@ -388,15 +392,26 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                 </View>
               )}
               
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Frais de nettoyage</Text>
-                <Text style={styles.priceValue}>{formatPrice(fees.cleaningFee)}</Text>
-              </View>
+              {fees.cleaningFee > 0 && (
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>Frais de nettoyage</Text>
+                  <Text style={styles.priceValue}>{formatPrice(fees.cleaningFee)}</Text>
+                </View>
+              )}
               
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Frais de service</Text>
-                <Text style={styles.priceValue}>{formatPrice(fees.serviceFee)}</Text>
-              </View>
+              {fees.serviceFee > 0 && (
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>Frais de service</Text>
+                  <Text style={styles.priceValue}>{formatPrice(fees.serviceFee)}</Text>
+                </View>
+              )}
+              
+              {fees.taxes > 0 && (
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>Taxes</Text>
+                  <Text style={styles.priceValue}>{formatPrice(fees.taxes)}</Text>
+                </View>
+              )}
               
               <View style={[styles.priceRow, styles.totalRow]}>
                 <Text style={styles.totalLabel}>Total</Text>

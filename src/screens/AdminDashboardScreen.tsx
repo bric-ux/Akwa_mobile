@@ -14,6 +14,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin, DashboardStats } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
+import AdminNotificationBell from '../components/AdminNotificationBell';
 
 const AdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -191,6 +192,9 @@ const AdminDashboardScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Notifications */}
+        <AdminNotificationBell />
+
         {/* Statistiques principales */}
         <Text style={styles.sectionTitle}>Statistiques générales</Text>
         
