@@ -230,26 +230,35 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
           <View style={styles.selectedResultContent}>
             {selectedResult.type === 'city' ? (
               <Ionicons name="location" size={16} color="#3b82f6" />
+            ) : selectedResult.type === 'commune' ? (
+              <Ionicons name="business" size={16} color="#8b5cf6" />
             ) : (
-              <Ionicons name="business" size={16} color="#10b981" />
+              <Ionicons name="home" size={16} color="#10b981" />
             )}
             <Text style={styles.selectedResultText}>
               Sélectionné: <Text style={styles.selectedResultName}>{selectedResult.name}</Text> - {
                 selectedResult.type === 'city' 
                   ? (selectedResult.region && selectedResult.region !== 'Non spécifiée' ? selectedResult.region : 'Côte d\'Ivoire')
-                  : `${selectedResult.commune} - Abidjan`
+                  : selectedResult.name === selectedResult.commune 
+                    ? 'Abidjan' 
+                    : `${selectedResult.commune} - Abidjan`
               }
             </Text>
           </View>
           <View style={[
             styles.selectedResultType,
-            selectedResult.type === 'city' ? styles.selectedResultTypeCity : styles.selectedResultTypeNeighborhood
+            selectedResult.type === 'city' ? styles.selectedResultTypeCity : 
+            selectedResult.type === 'commune' ? styles.selectedResultTypeCommune : 
+            styles.selectedResultTypeNeighborhood
           ]}>
             <Text style={[
               styles.selectedResultTypeText,
-              selectedResult.type === 'city' ? styles.selectedResultTypeTextCity : styles.selectedResultTypeTextNeighborhood
+              selectedResult.type === 'city' ? styles.selectedResultTypeTextCity : 
+              selectedResult.type === 'commune' ? styles.selectedResultTypeTextCommune : 
+              styles.selectedResultTypeTextNeighborhood
             ]}>
-              {selectedResult.type === 'city' ? 'Ville' : 'Quartier'}
+              {selectedResult.type === 'city' ? 'Ville' : 
+               selectedResult.type === 'commune' ? 'Commune' : 'Quartier'}
             </Text>
           </View>
         </View>
@@ -421,6 +430,9 @@ const styles = StyleSheet.create({
   selectedResultTypeCity: {
     backgroundColor: '#dbeafe',
   },
+  selectedResultTypeCommune: {
+    backgroundColor: '#e9d5ff',
+  },
   selectedResultTypeNeighborhood: {
     backgroundColor: '#d1fae5',
   },
@@ -430,6 +442,9 @@ const styles = StyleSheet.create({
   },
   selectedResultTypeTextCity: {
     color: '#1e40af',
+  },
+  selectedResultTypeTextCommune: {
+    color: '#7c3aed',
   },
   selectedResultTypeTextNeighborhood: {
     color: '#065f46',
