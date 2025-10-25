@@ -21,6 +21,7 @@ import { Property } from '../types';
 import PropertyImageCarousel from '../components/PropertyImageCarousel';
 import BookingModal from '../components/BookingModal';
 import ContactHostButton from '../components/ContactHostButton';
+import PhotoCategoryDisplay from '../components/PhotoCategoryDisplay';
 import { supabase } from '../services/supabase';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
@@ -197,16 +198,23 @@ const PropertyDetailsScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
-      {/* Galerie d'images */}
+      {/* Galerie d'images par catégories */}
       <View style={styles.imageContainer}>
-        <PropertyImageCarousel
-          images={property.images || []}
-          height={300}
-          onImagePress={(imageIndex) => {
-            console.log('Image sélectionnée:', imageIndex);
-            // Optionnel : ouvrir une vue plein écran des images
-          }}
-        />
+        {property.photos && property.photos.length > 0 ? (
+          <PhotoCategoryDisplay
+            photos={property.photos}
+            propertyTitle={property.title}
+          />
+        ) : (
+          <PropertyImageCarousel
+            images={property.images || []}
+            height={300}
+            onImagePress={(imageIndex) => {
+              console.log('Image sélectionnée:', imageIndex);
+              // Optionnel : ouvrir une vue plein écran des images
+            }}
+          />
+        )}
       </View>
 
       {/* Informations principales */}
