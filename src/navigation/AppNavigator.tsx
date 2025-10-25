@@ -28,6 +28,7 @@ import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AdminApplicationsScreen from '../screens/AdminApplicationsScreen';
 import AdminPropertiesScreen from '../screens/AdminPropertiesScreen';
 import AdminUsersScreen from '../screens/AdminUsersScreen';
+import AdminIdentityDocumentsScreen from '../screens/AdminIdentityDocumentsScreen';
 import EditPropertyScreen from '../screens/EditPropertyScreen';
 import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 import MessagingDebugScreen from '../screens/MessagingDebugScreen';
@@ -274,6 +275,14 @@ const AppNavigator = () => {
               component={AdminUsersScreen}
               options={{ 
                 title: 'Gestion des utilisateurs',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="AdminIdentityDocuments" 
+              component={AdminIdentityDocumentsScreen}
+              options={{ 
+                title: 'Documents d\'identité',
                 headerShown: false 
               }}
             />

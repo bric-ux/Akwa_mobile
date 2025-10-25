@@ -14,11 +14,14 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useAuth } from '../services/AuthContext';
+import { useIdentityVerification } from '../hooks/useIdentityVerification';
+import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
+  const { verificationStatus, isVerified } = useIdentityVerification();
 
   // Rafraîchir le profil quand l'écran devient actif (seulement si connecté)
   useFocusEffect(
@@ -117,7 +120,7 @@ const ProfileScreen: React.FC = () => {
       id: 'admin',
       title: 'Administration',
       icon: 'shield-outline',
-      onPress: () => navigation.navigate('AdminDashboard'),
+      onPress: () => navigation.navigate('Admin'),
     });
   }
 
@@ -174,11 +177,52 @@ const ProfileScreen: React.FC = () => {
                 console.log('Erreur de chargement de l\'avatar');
               }}
             />
+            {/* Badge de vérification d'identité */}
+            {verificationStatus === 'verified' && (
+              <View style={styles.verifiedBadge}>
+                <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+              </View>
+            )}
           </View>
           <Text style={styles.userName}>
             {profile?.first_name || 'Utilisateur'} {profile?.last_name || ''}
           </Text>
           <Text style={styles.userEmail}>{profile?.email}</Text>
+          {/* Statut de vérification d'identité */}
+          {verificationStatus && (
+            <View style={styles.identityStatusContainer}>
+              <Ionicons 
+                name={
+                  verificationStatus === 'verified' ? 'checkmark-circle' :
+                  verificationStatus === 'pending' ? 'time' :
+                  verificationStatus === 'rejected' ? 'close-circle' : 'alert-circle'
+                } 
+                size={16} 
+                color={
+                  verificationStatus === 'verified' ? '#10b981' :
+                  verificationStatus === 'pending' ? '#f59e0b' :
+                  verificationStatus === 'rejected' ? '#ef4444' : '#6b7280'
+                } 
+              />
+              <Text style={[
+                styles.identityStatusText,
+                {
+                  color: verificationStatus === 'verified' ? '#10b981' :
+                         verificationStatus === 'pending' ? '#f59e0b' :
+                         verificationStatus === 'rejected' ? '#ef4444' : '#6b7280'
+                }
+              ]}>
+                {verificationStatus === 'verified' ? 'Identité vérifiée' :
+                 verificationStatus === 'pending' ? 'Vérification en cours' :
+                 verificationStatus === 'rejected' ? 'Document refusé' : 'Non vérifié'}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Vérification d'identité */}
+        <View style={styles.identitySection}>
+          <IdentityVerificationAlert />
         </View>
 
         {/* Menu Items */}
@@ -242,6 +286,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e9ecef',
   },
   avatarContainer: {
+    position: 'relative',
     marginBottom: 15,
   },
   avatar: {
@@ -260,6 +305,38 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 16,
     color: '#666',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  identityStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 20,
+    alignSelf: 'center',
+  },
+  identityStatusText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  identitySection: {
+    marginHorizontal: 20,
+    marginTop: 20,
   },
   menuContainer: {
     backgroundColor: '#fff',

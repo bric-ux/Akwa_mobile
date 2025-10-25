@@ -17,6 +17,8 @@ import { useBookings } from '../hooks/useBookings';
 import { useAuth } from '../services/AuthContext';
 import { usePricing, calculateFinalPrice } from '../hooks/usePricing';
 import { useEmailService } from '../hooks/useEmailService';
+import { useIdentityVerification } from '../hooks/useIdentityVerification';
+import BookingIdentityAlert from './BookingIdentityAlert';
 import { supabase } from '../services/supabase';
 import AvailabilityCalendar from './AvailabilityCalendar';
 
@@ -30,6 +32,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
   const { user } = useAuth();
   const { createBooking, loading } = useBookings();
   const { sendBookingConfirmation, sendBookingRequestToHost } = useEmailService();
+  const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
   
   const [checkIn, setCheckIn] = useState<Date | null>(null);
   const [checkOut, setCheckOut] = useState<Date | null>(null);
@@ -129,6 +132,27 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       totalPrice: finalTotal,
       messageToHost: message.trim() || undefined,
     });
+
+    // Vérifier les erreurs d'identité (même logique que le site web)
+    if (!result.success && 'error' in result) {
+      if (result.error === 'IDENTITY_REQUIRED') {
+        Alert.alert(
+          'Vérification d\'identité requise',
+          'Vous devez télécharger une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      if (result.error === 'IDENTITY_NOT_VERIFIED') {
+        Alert.alert(
+          'Identité en cours de vérification',
+          'Votre pièce d\'identité est en cours de vérification. Vous pourrez réserver une fois qu\'elle sera validée par notre équipe.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
 
     if (result.success) {
       const isAutoBooking = property.auto_booking === true;
@@ -238,6 +262,13 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
               {formatPrice(property.price_per_night || 0)}/nuit
             </Text>
           </View>
+
+          {/* Vérification d'identité */}
+          {!isVerified && (
+            <View style={styles.identitySection}>
+              <BookingIdentityAlert />
+            </View>
+          )}
 
           {/* Sélection des dates */}
           <View style={styles.section}>
@@ -378,15 +409,23 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
         {/* Bouton de réservation */}
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.bookButton, loading && styles.bookButtonDisabled]}
+            style={[
+              styles.bookButton, 
+              (loading || identityLoading || !isVerified) && styles.bookButtonDisabled
+            ]}
             onPress={handleSubmit}
-            disabled={loading}
+            disabled={loading || identityLoading || !isVerified}
           >
-            {loading ? (
+            {loading || identityLoading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={styles.bookButtonText}>
-                {property.auto_booking ? 'Réserver maintenant' : 'Envoyer une demande'}
+                {!isVerified 
+                  ? 'Vérification d\'identité requise'
+                  : property.auto_booking 
+                    ? 'Réserver maintenant' 
+                    : 'Envoyer une demande'
+                }
               </Text>
             )}
           </TouchableOpacity>
@@ -468,6 +507,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2E7D32',
+  },
+  identitySection: {
+    marginHorizontal: 20,
+    marginVertical: 10,
   },
   section: {
     backgroundColor: '#fff',

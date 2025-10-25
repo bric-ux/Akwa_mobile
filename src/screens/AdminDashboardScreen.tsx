@@ -119,6 +119,10 @@ const AdminDashboardScreen: React.FC = () => {
     navigation.navigate('AdminUsers');
   };
 
+  const handleNavigateToIdentityDocuments = () => {
+    navigation.navigate('AdminIdentityDocuments');
+  };
+
   if (!user) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -234,6 +238,14 @@ const AdminDashboardScreen: React.FC = () => {
             icon="time-outline"
             color="#e74c3c"
             onPress={handleNavigateToApplications}
+          />
+          
+          <StatCard
+            title="Documents d'identité"
+            value="Gérer"
+            icon="shield-checkmark-outline"
+            color="#8e44ad"
+            onPress={handleNavigateToIdentityDocuments}
           />
         </View>
 

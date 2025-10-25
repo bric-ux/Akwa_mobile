@@ -16,6 +16,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { supabase } from '../services/supabase';
 
 interface User {
   user_id: string;
@@ -27,6 +28,7 @@ interface User {
   is_host: boolean;
   created_at: string;
   avatar_url?: string;
+  identity_verified?: boolean | null;
 }
 
 const AdminUsersScreen: React.FC = () => {
@@ -43,7 +45,34 @@ const AdminUsersScreen: React.FC = () => {
   const loadUsers = async () => {
     try {
       const allUsers = await getAllUsers();
-      setUsers(allUsers);
+      
+      // Récupérer le statut de vérification d'identité pour chaque utilisateur
+      const usersWithIdentityStatus = await Promise.all(
+        allUsers.map(async (user) => {
+          try {
+            const { data: identityDoc } = await supabase
+              .from('identity_documents')
+              .select('verified')
+              .eq('user_id', user.user_id)
+              .order('uploaded_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            return {
+              ...user,
+              identity_verified: identityDoc?.verified || null
+            };
+          } catch (error) {
+            console.error(`Erreur lors de la récupération du statut d'identité pour ${user.user_id}:`, error);
+            return {
+              ...user,
+              identity_verified: null
+            };
+          }
+        })
+      );
+      
+      setUsers(usersWithIdentityStatus);
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error);
     }
@@ -104,6 +133,18 @@ const AdminUsersScreen: React.FC = () => {
     });
   };
 
+  const getIdentityBadge = (verified: boolean | null) => {
+    if (verified === true) {
+      return { text: 'Vérifié', color: '#10b981', icon: 'checkmark-circle' };
+    } else if (verified === false) {
+      return { text: 'Rejeté', color: '#ef4444', icon: 'close-circle' };
+    } else if (verified === null) {
+      return { text: 'En attente', color: '#f59e0b', icon: 'time' };
+    } else {
+      return { text: 'Non vérifié', color: '#6b7280', icon: 'alert-circle' };
+    }
+  };
+
   const getRoleBadge = (role: string, isHost: boolean) => {
     if (role === 'admin') {
       return { color: '#e74c3c', text: 'Admin', icon: 'shield-outline' };
@@ -136,6 +177,7 @@ const AdminUsersScreen: React.FC = () => {
 
   const renderUserItem = ({ item: user }: { item: User }) => {
     const roleInfo = getRoleBadge(user.role, user.is_host);
+    const identityInfo = getIdentityBadge(user.identity_verified);
     
     return (
       <TouchableOpacity style={styles.userCard}>
@@ -158,9 +200,15 @@ const AdminUsersScreen: React.FC = () => {
               )}
             </View>
           </View>
-          <View style={[styles.roleBadge, { backgroundColor: roleInfo.color }]}>
-            <Ionicons name={roleInfo.icon as any} size={12} color="#fff" />
-            <Text style={styles.roleText}>{roleInfo.text}</Text>
+          <View style={styles.badgesContainer}>
+            <View style={[styles.roleBadge, { backgroundColor: roleInfo.color }]}>
+              <Ionicons name={roleInfo.icon as any} size={12} color="#fff" />
+              <Text style={styles.roleText}>{roleInfo.text}</Text>
+            </View>
+            <View style={[styles.identityBadge, { backgroundColor: identityInfo.color }]}>
+              <Ionicons name={identityInfo.icon as any} size={12} color="#fff" />
+              <Text style={styles.identityText}>{identityInfo.text}</Text>
+            </View>
           </View>
         </View>
 
@@ -510,6 +558,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  badgesContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -518,6 +570,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   roleText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  identityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  identityText: {
     fontSize: 12,
     color: '#fff',
     fontWeight: '500',

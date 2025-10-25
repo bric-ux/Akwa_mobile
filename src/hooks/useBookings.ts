@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
+import { useIdentityVerification } from './useIdentityVerification';
 
 export interface BookingData {
   propertyId: string;
@@ -58,10 +59,27 @@ export const useBookings = () => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const { sendBookingRequest, sendBookingRequestSent } = useEmailService();
+  const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
 
   const createBooking = async (bookingData: BookingData) => {
     if (!user) {
       setError('Vous devez être connecté pour effectuer une réservation');
+      return { success: false };
+    }
+
+    // Vérifier si l'identité est vérifiée (même logique que le site web)
+    if (identityLoading) {
+      setError('Vérification de l\'identité en cours...');
+      return { success: false };
+    }
+
+    if (!hasUploadedIdentity) {
+      setError('IDENTITY_REQUIRED');
+      return { success: false };
+    }
+
+    if (!isVerified) {
+      setError('IDENTITY_NOT_VERIFIED');
       return { success: false };
     }
 
