@@ -16,6 +16,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../types';
 import { useAuth } from '../services/AuthContext';
 import { useHostApplications } from '../hooks/useHostApplications';
 import { useEmailService } from '../hooks/useEmailService';
@@ -62,19 +64,17 @@ const CANCELLATION_POLICIES = [
 ];
 
 const PHOTO_CATEGORIES = [
-  { value: 'exterior', label: 'Extérieur', icon: '🏠', priority: 1 },
-  { value: 'living_room', label: 'Salon', icon: '🛋️', priority: 2 },
-  { value: 'bedroom', label: 'Chambre', icon: '🛏️', priority: 3 },
-  { value: 'bathroom', label: 'Salle de bain', icon: '🚿', priority: 4 },
-  { value: 'kitchen', label: 'Cuisine', icon: '🍳', priority: 5 },
-  { value: 'dining_room', label: 'Salle à manger', icon: '🍽️', priority: 6 },
-  { value: 'balcony', label: 'Balcon/Terrasse', icon: '🌿', priority: 7 },
-  { value: 'amenities', label: 'Équipements', icon: '🏊', priority: 8 },
-  { value: 'other', label: 'Autres', icon: '📸', priority: 9 },
+  { value: 'exterieur', label: 'Extérieur', icon: '🏠', priority: 1 },
+  { value: 'salon', label: 'Salon', icon: '🛋️', priority: 2 },
+  { value: 'chambre', label: 'Chambre', icon: '🛏️', priority: 3 },
+  { value: 'salle_de_bain', label: 'Salle de bain', icon: '🚿', priority: 4 },
+  { value: 'cuisine', label: 'Cuisine', icon: '🍳', priority: 5 },
+  { value: 'jardin', label: 'Jardin', icon: '🌳', priority: 6 },
+  { value: 'autre', label: 'Autres', icon: '📸', priority: 7 },
 ];
 
 const BecomeHostScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
   const { submitApplication, getAmenities, loading } = useHostApplications();
   const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();

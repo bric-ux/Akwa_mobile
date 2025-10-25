@@ -48,6 +48,7 @@ export interface HostApplication {
   created_at: string;
   updated_at: string;
   admin_notes?: string;
+  revision_message?: string;
   images?: string[];
   categorized_photos?: any;
   amenities?: string[];
@@ -227,6 +228,7 @@ export const useHostApplications = () => {
           discount_percentage: applicationData.discountPercentage || null,
           cleaning_fee: applicationData.cleaningFee || 0,
           taxes: applicationData.taxes || 0,
+          status: 'reviewing', // Repasser en révision après modification
           updated_at: new Date().toISOString(),
         })
         .eq('id', applicationId)

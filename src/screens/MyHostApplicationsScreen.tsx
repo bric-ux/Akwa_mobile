@@ -123,11 +123,16 @@ const MyHostApplicationsScreen: React.FC = () => {
       day: 'numeric',
       month: 'long',
       year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
   const renderApplication = (application: HostApplication) => (
-    <View key={application.id} style={styles.applicationCard}>
+    <View key={application.id} style={[
+      styles.applicationCard,
+      application.status === 'reviewing' && styles.reviewingCard
+    ]}>
       <View style={styles.applicationHeader}>
         <View style={styles.propertyInfo}>
           <Text style={styles.propertyIcon}>
@@ -149,6 +154,12 @@ const MyHostApplicationsScreen: React.FC = () => {
               {getStatusText(application.status)}
             </Text>
           </View>
+          {application.status === 'reviewing' && (
+            <View style={styles.reviewingIndicator}>
+              <Ionicons name="refresh" size={12} color="#ffc107" />
+              <Text style={styles.reviewingText}>En révision</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -188,6 +199,26 @@ const MyHostApplicationsScreen: React.FC = () => {
           <View style={styles.notesContainer}>
             <Text style={styles.notesLabel}>Notes de l'admin:</Text>
             <Text style={styles.notesText}>{application.admin_notes}</Text>
+          </View>
+        )}
+
+        {application.revision_message && (
+          <View style={styles.revisionContainer}>
+            <View style={styles.revisionHeader}>
+              <Ionicons name="alert-circle" size={20} color="#856404" />
+              <Text style={styles.revisionLabel}>⚠️ Modifications requises</Text>
+            </View>
+            <Text style={styles.revisionText}>{application.revision_message}</Text>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => {
+                // Navigation vers l'écran d'édition de la candidature
+                navigation.navigate('BecomeHost', { editApplicationId: application.id });
+              }}
+            >
+              <Ionicons name="create-outline" size={16} color="#e74c3c" />
+              <Text style={styles.editButtonText}>Modifier la candidature</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -369,6 +400,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  reviewingCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#ffc107',
+    backgroundColor: '#fffbf0',
+  },
   applicationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -410,6 +446,17 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
+  reviewingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  reviewingText: {
+    fontSize: 10,
+    color: '#ffc107',
+    fontWeight: '500',
+  },
   applicationDetails: {
     marginBottom: 12,
   },
@@ -443,6 +490,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 18,
+  },
+  revisionContainer: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#fff3cd',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ffc107',
+  },
+  revisionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#856404',
+    marginBottom: 4,
+  },
+  revisionText: {
+    fontSize: 14,
+    color: '#856404',
+    lineHeight: 20,
+  },
+  revisionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e74c3c',
+    gap: 6,
+  },
+  editButtonText: {
+    fontSize: 14,
+    color: '#e74c3c',
+    fontWeight: '600',
   },
   actionsContainer: {
     flexDirection: 'row',

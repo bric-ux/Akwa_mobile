@@ -11,6 +11,7 @@ import {
   TextInput,
   ScrollView,
   Image,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,9 +32,13 @@ const AdminApplicationsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedApp, setSelectedApp] = useState<HostApplication | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
+  const [revisionMessage, setRevisionMessage] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'reviewing' | 'approved' | 'rejected'>('all');
   const [identityDoc, setIdentityDoc] = useState<any>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showPhotos, setShowPhotos] = useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [photoCategories, setPhotoCategories] = useState<{[key: number]: string}>({});
 
   const loadApplications = async () => {
     try {
@@ -106,10 +111,16 @@ const AdminApplicationsScreen: React.FC = () => {
           text: actionText.charAt(0).toUpperCase() + actionText.slice(1),
           onPress: async () => {
             try {
-              const result = await updateApplicationStatus(applicationId, status, adminNotes || undefined);
+              // Pour la révision, utiliser le message de révision spécifique
+              const messageToSend = status === 'reviewing' ? revisionMessage : adminNotes;
+              // Pour l'approbation, inclure les catégories de photos
+              const photoCategoriesToSend = status === 'approved' ? photoCategories : undefined;
+              const result = await updateApplicationStatus(applicationId, status, messageToSend || undefined, photoCategoriesToSend);
               if (result.success) {
                 Alert.alert('Succès', `Candidature ${actionText}ée avec succès`);
                 setAdminNotes('');
+                setRevisionMessage('');
+                setPhotoCategories({});
                 setSelectedApp(null);
                 setShowDetails(false);
                 loadApplications(); // Recharger la liste
@@ -131,6 +142,8 @@ const AdminApplicationsScreen: React.FC = () => {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -163,10 +176,15 @@ const AdminApplicationsScreen: React.FC = () => {
     
     return (
       <TouchableOpacity
-        style={styles.applicationCard}
+        style={[
+          styles.applicationCard,
+          application.status === 'reviewing' && styles.reviewingCard
+        ]}
         onPress={() => {
           setSelectedApp(application);
           setShowDetails(true);
+          setAdminNotes(application.admin_notes || '');
+          setRevisionMessage(application.revision_message || '');
         }}
       >
         <View style={styles.applicationHeader}>
@@ -216,6 +234,16 @@ const AdminApplicationsScreen: React.FC = () => {
           </View>
         )}
 
+        {application.status === 'reviewing' && application.revision_message && (
+          <View style={styles.revisionContainer}>
+            <View style={styles.revisionHeader}>
+              <Ionicons name="alert-circle" size={16} color="#856404" />
+              <Text style={styles.revisionLabel}>Message de révision envoyé</Text>
+            </View>
+            <Text style={styles.revisionText}>{application.revision_message}</Text>
+          </View>
+        )}
+
         <View style={styles.applicationActions}>
           <TouchableOpacity
             style={styles.actionButton}
@@ -227,6 +255,20 @@ const AdminApplicationsScreen: React.FC = () => {
             <Ionicons name="eye-outline" size={16} color="#3498db" />
             <Text style={styles.actionButtonText}>Voir détails</Text>
           </TouchableOpacity>
+          
+          {application.images && application.images.length > 0 && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => {
+                setSelectedApp(application);
+                setShowPhotos(true);
+                setSelectedPhotoIndex(0);
+              }}
+            >
+              <Ionicons name="images-outline" size={16} color="#e67e22" />
+              <Text style={styles.actionButtonText}>Photos ({application.images.length})</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -247,6 +289,8 @@ const AdminApplicationsScreen: React.FC = () => {
               setShowDetails(false);
               setSelectedApp(null);
               setAdminNotes('');
+              setRevisionMessage('');
+              setPhotoCategories({});
             }}
           >
             <Ionicons name="close" size={24} color="#333" />
@@ -388,17 +432,38 @@ const AdminApplicationsScreen: React.FC = () => {
                 <Text style={styles.detailsValue}>{formatDate(selectedApp.reviewed_at)}</Text>
               </View>
             )}
+
+            {selectedApp.status === 'reviewing' && selectedApp.revision_message && (
+              <View style={styles.detailsItem}>
+                <Text style={styles.detailsLabel}>Message envoyé:</Text>
+                <Text style={styles.detailsValue}>{selectedApp.revision_message}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Message de révision */}
+          <View style={styles.detailsSection}>
+            <Text style={styles.detailsSectionTitle}>📝 Message de révision</Text>
+            
+            <TextInput
+              style={styles.notesInput}
+              value={revisionMessage}
+              onChangeText={setRevisionMessage}
+              placeholder="Message à envoyer à l'hôte pour la révision..."
+              multiline
+              numberOfLines={3}
+            />
           </View>
 
           {/* Notes administratives */}
           <View style={styles.detailsSection}>
-            <Text style={styles.detailsSectionTitle}>📝 Notes administratives</Text>
+            <Text style={styles.detailsSectionTitle}>📋 Notes administratives</Text>
             
             <TextInput
               style={styles.notesInput}
               value={adminNotes}
               onChangeText={setAdminNotes}
-              placeholder="Ajouter des notes pour cette candidature..."
+              placeholder="Notes internes pour cette candidature..."
               multiline
               numberOfLines={3}
             />
@@ -412,11 +477,42 @@ const AdminApplicationsScreen: React.FC = () => {
               {selectedApp.status !== 'reviewing' && (
                 <TouchableOpacity
                   style={[styles.actionButton, styles.reviewButton]}
-                  onPress={() => handleStatusUpdate(selectedApp.id, 'reviewing')}
+                  onPress={() => {
+                    if (!revisionMessage.trim()) {
+                      Alert.alert(
+                        'Message requis',
+                        'Veuillez entrer un message de révision avant de mettre en révision.',
+                        [{ text: 'OK' }]
+                      );
+                      return;
+                    }
+                    handleStatusUpdate(selectedApp.id, 'reviewing');
+                  }}
                   disabled={loading}
                 >
                   <Ionicons name="eye-outline" size={16} color="#3498db" />
                   <Text style={styles.actionButtonText}>Mettre en révision</Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedApp.status === 'reviewing' && (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.reviewButton]}
+                  onPress={() => {
+                    if (!revisionMessage.trim()) {
+                      Alert.alert(
+                        'Message requis',
+                        'Veuillez entrer un nouveau message de révision.',
+                        [{ text: 'OK' }]
+                      );
+                      return;
+                    }
+                    handleStatusUpdate(selectedApp.id, 'reviewing');
+                  }}
+                  disabled={loading}
+                >
+                  <Ionicons name="refresh-outline" size={16} color="#3498db" />
+                  <Text style={styles.actionButtonText}>Remettre en révision</Text>
                 </TouchableOpacity>
               )}
               
@@ -468,6 +564,114 @@ const AdminApplicationsScreen: React.FC = () => {
     );
   }
 
+  const renderPhotoViewer = () => {
+    if (!selectedApp || !showPhotos || !selectedApp.images || selectedApp.images.length === 0) return null;
+
+    const currentPhoto = selectedApp.images[selectedPhotoIndex];
+
+    return (
+      <Modal
+        visible={showPhotos}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowPhotos(false);
+          setSelectedApp(null);
+          setSelectedPhotoIndex(0);
+        }}
+      >
+        <SafeAreaView style={styles.photoModal}>
+          <View style={styles.photoHeader}>
+            <Text style={styles.photoTitle}>Photos de la propriété</Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => {
+                setShowPhotos(false);
+                setSelectedApp(null);
+                setSelectedPhotoIndex(0);
+              }}
+            >
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.photoContainer}>
+            <Image source={{ uri: currentPhoto }} style={styles.photoImage} resizeMode="cover" />
+            
+            {/* Catégorisation des photos */}
+            <View style={styles.categoryContainer}>
+              <Text style={styles.categoryLabel}>Catégorie:</Text>
+              <View style={styles.categoryButtons}>
+                {['exterieur', 'salon', 'chambre', 'salle_de_bain', 'cuisine', 'jardin', 'autre'].map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[
+                      styles.categoryButton,
+                      photoCategories[selectedPhotoIndex] === category && styles.categoryButtonSelected
+                    ]}
+                    onPress={() => setPhotoCategories(prev => ({
+                      ...prev,
+                      [selectedPhotoIndex]: category
+                    }))}
+                  >
+                    <Text style={[
+                      styles.categoryButtonText,
+                      photoCategories[selectedPhotoIndex] === category && styles.categoryButtonTextSelected
+                    ]}>
+                      {category.replace('_', ' ')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            
+            {selectedApp.images.length > 1 && (
+              <View style={styles.photoNavigation}>
+                <TouchableOpacity
+                  style={styles.navButton}
+                  onPress={() => setSelectedPhotoIndex(Math.max(0, selectedPhotoIndex - 1))}
+                  disabled={selectedPhotoIndex === 0}
+                >
+                  <Ionicons name="chevron-back" size={24} color={selectedPhotoIndex === 0 ? "#ccc" : "#333"} />
+                </TouchableOpacity>
+                
+                <Text style={styles.photoCounter}>
+                  {selectedPhotoIndex + 1} / {selectedApp.images.length}
+                </Text>
+                
+                <TouchableOpacity
+                  style={styles.navButton}
+                  onPress={() => setSelectedPhotoIndex(Math.min(selectedApp.images.length - 1, selectedPhotoIndex + 1))}
+                  disabled={selectedPhotoIndex === selectedApp.images.length - 1}
+                >
+                  <Ionicons name="chevron-forward" size={24} color={selectedPhotoIndex === selectedApp.images.length - 1 ? "#ccc" : "#333"} />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Miniatures */}
+          {selectedApp.images.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailsContainer}>
+              {selectedApp.images.map((photo, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.thumbnail,
+                    index === selectedPhotoIndex && styles.selectedThumbnail
+                  ]}
+                  onPress={() => setSelectedPhotoIndex(index)}
+                >
+                  <Image source={{ uri: photo }} style={styles.thumbnailImage} resizeMode="cover" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
+    );
+  };
+
   // Vérifier que l'utilisateur est admin
   if (profile?.role !== 'admin') {
     return (
@@ -515,12 +719,16 @@ const AdminApplicationsScreen: React.FC = () => {
           <Text style={styles.statLabel}>En attente</Text>
         </View>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{applications.filter(app => app.status === 'reviewing').length}</Text>
+          <Text style={[styles.statValue, { color: '#3498db' }]}>{applications.filter(app => app.status === 'reviewing').length}</Text>
           <Text style={styles.statLabel}>En révision</Text>
         </View>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{applications.filter(app => app.status === 'approved').length}</Text>
           <Text style={styles.statLabel}>Approuvées</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{applications.filter(app => app.status === 'rejected').length}</Text>
+          <Text style={styles.statLabel}>Refusées</Text>
         </View>
       </View>
 
@@ -584,6 +792,9 @@ const AdminApplicationsScreen: React.FC = () => {
 
       {/* Modal de détails */}
       {renderApplicationDetails()}
+      
+      {/* Modal de photos */}
+      {renderPhotoViewer()}
     </SafeAreaView>
   );
 };
@@ -684,6 +895,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  reviewingCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#3498db',
+    backgroundColor: '#f8f9ff',
+  },
   applicationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -759,6 +975,30 @@ const styles = StyleSheet.create({
   adminNotesText: {
     fontSize: 14,
     color: '#333',
+  },
+  revisionContainer: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#fff3cd',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ffc107',
+  },
+  revisionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  revisionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#856404',
+  },
+  revisionText: {
+    fontSize: 14,
+    color: '#856404',
+    lineHeight: 20,
   },
   applicationActions: {
     flexDirection: 'row',
@@ -899,6 +1139,118 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#666',
+  },
+  // Styles pour le photo viewer
+  photoModal: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    zIndex: 1000,
+  },
+  photoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  photoTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  photoContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoImage: {
+    width: '100%',
+    height: '70%',
+  },
+  photoNavigation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 20,
+  },
+  navButton: {
+    padding: 10,
+  },
+  photoCounter: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '600',
+  },
+  thumbnailsContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#f8f9fa',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  thumbnail: {
+    width: 60,
+    height: 60,
+    marginRight: 10,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  selectedThumbnail: {
+    borderColor: '#e74c3c',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  // Styles pour la catégorisation
+  categoryContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#f8f9fa',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  categoryLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  categoryButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  categoryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  categoryButtonSelected: {
+    backgroundColor: '#e74c3c',
+    borderColor: '#e74c3c',
+  },
+  categoryButtonText: {
+    fontSize: 12,
+    color: '#333',
+    fontWeight: '500',
+  },
+  categoryButtonTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
 

@@ -58,7 +58,8 @@ export const useAdmin = () => {
   const updateApplicationStatus = async (
     applicationId: string,
     status: 'pending' | 'reviewing' | 'approved' | 'rejected',
-    adminNotes?: string
+    adminNotes?: string,
+    photoCategories?: {[key: number]: string}
   ) => {
     if (!user) {
       setError('Vous devez être connecté');
@@ -85,6 +86,10 @@ export const useAdmin = () => {
       
       if (adminNotes) {
         updateData.admin_notes = adminNotes;
+        // Si mise en révision, ajouter aussi dans revision_message
+        if (status === 'reviewing') {
+          updateData.revision_message = adminNotes;
+        }
       }
 
       const { data, error } = await supabase
@@ -102,6 +107,27 @@ export const useAdmin = () => {
 
       console.log('Application updated successfully:', data);
 
+      // Si mise en révision, envoyer email de notification
+      if (status === 'reviewing' && adminNotes && application?.email) {
+        try {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'application_revision',
+              to: application.email,
+              data: {
+                firstName: application.full_name.split(' ')[0] || application.full_name,
+                revisionMessage: adminNotes,
+                propertyTitle: application.title,
+                siteUrl: 'https://akwahome.com' // URL du site web
+              }
+            }
+          });
+          console.log('✅ Email de révision envoyé');
+        } catch (emailError) {
+          console.error('Erreur envoi email de révision:', emailError);
+        }
+      }
+
       // Si approuvé, mettre à jour le profil pour marquer comme hôte
       if (status === 'approved' && application) {
         const { error: profileError } = await supabase
@@ -111,6 +137,21 @@ export const useAdmin = () => {
 
         if (profileError) {
           console.error('Error updating profile:', profileError);
+        }
+
+        // Traiter les photos catégorisées si fournies
+        if (photoCategories && application.images) {
+          const categorizedPhotos = application.images.map((url, index) => ({
+            url,
+            category: photoCategories[index] || 'autre',
+            displayOrder: index
+          }));
+
+          // Mettre à jour l'application avec les photos catégorisées
+          await supabase
+            .from('host_applications')
+            .update({ categorized_photos: categorizedPhotos })
+            .eq('id', applicationId);
         }
 
         // Envoyer email de confirmation d'approbation
