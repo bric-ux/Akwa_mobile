@@ -38,6 +38,7 @@ const AuthScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Fonction de validation du mot de passe
   const validatePassword = (password: string) => {
@@ -205,28 +206,29 @@ const AuthScreen: React.FC = () => {
 
   const openTerms = async () => {
     try {
-      // URL des conditions générales sur le site web
-      const termsUrl = 'https://cote-ivoire-stays.com/terms';
+      // URL des conditions générales sur le site web AkwaHome
+      const termsUrl = 'https://akwahome.com/terms';
       
       // Vérifier si l'URL peut être ouverte
       const canOpen = await Linking.canOpenURL(termsUrl);
       
       if (canOpen) {
-        await Linking.openURL(termsUrl);
+        try {
+          await Linking.openURL(termsUrl);
+          return; // Si l'ouverture réussit, on s'arrête ici
+        } catch (openError) {
+          console.log('URL externe non accessible, affichage du modal local');
+          // Si l'ouverture échoue, on affiche le modal local
+          setShowTermsModal(true);
+        }
       } else {
-        Alert.alert(
-          'Erreur',
-          'Impossible d\'ouvrir les conditions générales. Veuillez visiter notre site web.',
-          [{ text: 'OK' }]
-        );
+        // Si l'URL ne peut pas être ouverte, afficher le modal local
+        setShowTermsModal(true);
       }
     } catch (error) {
       console.error('Erreur lors de l\'ouverture des conditions générales:', error);
-      Alert.alert(
-        'Erreur',
-        'Impossible d\'ouvrir les conditions générales. Veuillez visiter notre site web.',
-        [{ text: 'OK' }]
-      );
+      // En cas d'erreur, afficher le modal local
+      setShowTermsModal(true);
     }
   };
 
@@ -415,6 +417,79 @@ const AuthScreen: React.FC = () => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal des conditions générales (fallback) */}
+      {showTermsModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Conditions Générales d'Utilisation</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowTermsModal(false)}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalScrollView}>
+              <Text style={styles.modalText}>
+                <Text style={styles.modalSectionTitle}>1. Objet et champ d'application</Text>
+                {'\n\n'}
+                Les présentes conditions générales d'utilisation (CGU) régissent l'utilisation de la plateforme 
+                AkwaHome, service de mise en relation entre propriétaires de logements et voyageurs en Côte d'Ivoire. 
+                L'utilisation de la plateforme implique l'acceptation pleine et entière des présentes CGU.
+                {'\n\n'}
+                <Text style={styles.modalSectionTitle}>2. Définitions</Text>
+                {'\n\n'}
+                • "Plateforme" désigne le site web et l'application mobile AkwaHome{'\n'}
+                • "Utilisateur" désigne toute personne utilisant la plateforme{'\n'}
+                • "Hôte" désigne le propriétaire ou gestionnaire d'un logement{'\n'}
+                • "Voyageur" désigne la personne réservant un logement{'\n'}
+                {'\n\n'}
+                <Text style={styles.modalSectionTitle}>3. Acceptation des conditions</Text>
+                {'\n\n'}
+                En utilisant AkwaHome, vous acceptez automatiquement les présentes conditions générales. 
+                Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser notre plateforme.
+                {'\n\n'}
+                <Text style={styles.modalSectionTitle}>4. Utilisation de la plateforme</Text>
+                {'\n\n'}
+                Vous vous engagez à utiliser AkwaHome de manière légale et responsable. Il est interdit de :
+                {'\n'}
+                • Publier des informations fausses ou trompeuses{'\n'}
+                • Utiliser la plateforme à des fins illégales{'\n'}
+                • Porter atteinte aux droits d'autrui{'\n'}
+                {'\n\n'}
+                <Text style={styles.modalSectionTitle}>5. Responsabilité</Text>
+                {'\n\n'}
+                AkwaHome agit en tant qu'intermédiaire entre les hôtes et les voyageurs. Nous ne sommes pas 
+                responsables des dommages causés par les logements ou les services proposés par les hôtes.
+                {'\n\n'}
+                <Text style={styles.modalSectionTitle}>6. Modification des conditions</Text>
+                {'\n\n'}
+                Nous nous réservons le droit de modifier ces conditions à tout moment. Les modifications 
+                seront effectives dès leur publication sur la plateforme.
+                {'\n\n'}
+                <Text style={styles.modalSectionTitle}>7. Contact</Text>
+                {'\n\n'}
+                Pour toute question concernant ces conditions générales, vous pouvez nous contacter à : 
+                nkouadioaristide@gmail.com
+                {'\n\n'}
+                <Text style={styles.modalFooterText}>
+                  Dernière mise à jour : {new Date().toLocaleDateString('fr-FR')}
+                </Text>
+              </Text>
+            </ScrollView>
+            
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setShowTermsModal(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -598,6 +673,76 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#2E7D32',
     fontWeight: '500',
+  },
+  toggleButtonText: {
+    color: '#2E7D32',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    flex: 1,
+  },
+  closeButton: {
+    padding: 5,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+    marginBottom: 15,
+  },
+  modalText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#374151',
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginTop: 10,
+  },
+  modalFooterText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontStyle: 'italic',
+    marginTop: 10,
+  },
+  modalCloseButton: {
+    backgroundColor: '#2E7D32',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
