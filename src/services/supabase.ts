@@ -266,6 +266,32 @@ export interface Database {
           created_at?: string;
         };
       };
+      property_photos: {
+        Row: {
+          id: string;
+          property_id: string;
+          url: string;
+          category: 'chambre' | 'salle_de_bain' | 'cuisine' | 'jardin' | 'salon' | 'exterieur' | 'terrasse' | 'balcon' | 'autre';
+          display_order: number | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          property_id: string;
+          url: string;
+          category?: 'chambre' | 'salle_de_bain' | 'cuisine' | 'jardin' | 'salon' | 'exterieur' | 'terrasse' | 'balcon' | 'autre';
+          display_order?: number | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          property_id?: string;
+          url?: string;
+          category?: 'chambre' | 'salle_de_bain' | 'cuisine' | 'jardin' | 'salon' | 'exterieur' | 'terrasse' | 'balcon' | 'autre';
+          display_order?: number | null;
+          created_at?: string | null;
+        };
+      };
     };
   };
 }

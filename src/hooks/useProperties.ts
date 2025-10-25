@@ -72,6 +72,13 @@ export const useProperties = () => {
           reviews!property_id (
             rating,
             created_at
+          ),
+          property_photos (
+            id,
+            url,
+            category,
+            display_order,
+            created_at
           )
         `)
         .eq('is_active', true)
@@ -206,34 +213,47 @@ export const useProperties = () => {
           const finalRating = property.rating && property.review_count ? property.rating : averageRating;
           const finalReviewCount = property.review_count || reviewCount;
 
+
+          // Traiter les photos catégorisées
+          const categorizedPhotos = property.property_photos || [];
+          const sortedPhotos = categorizedPhotos.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+          
+          // Créer un tableau d'images pour la compatibilité avec l'ancien système
+          const imageUrls = sortedPhotos.map(photo => photo.url);
+          
+          // Si pas de photos catégorisées, utiliser l'ancien système
+          const fallbackImages = property.images || [];
+          const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+
           // Debug pour la propriété "haut standing"
           if (property.title && property.title.toLowerCase().includes('haut standing')) {
-            console.log('🏠 Debug propriété haut standing:', {
+            console.log('🏠 useProperties - Transformation des données:', {
               title: property.title,
-              propertyId: property.id,
-              propertyRating: property.rating,
-              propertyReviewCount: property.review_count,
-              reviews: reviews,
-              reviewCount: reviewCount,
-              averageRating: averageRating,
-              finalRating: finalRating,
-              finalReviewCount: finalReviewCount,
-              calculatedRating: Math.round(finalRating * 100) / 100,
-              rawPropertyKeys: Object.keys(property),
-              hasReviewsProperty: 'reviews' in property,
-              reviewsType: typeof property.reviews,
-              reviewsIsArray: Array.isArray(property.reviews)
+              categorizedPhotosRaw: categorizedPhotos,
+              categorizedPhotosLength: categorizedPhotos.length,
+              sortedPhotos: sortedPhotos,
+              sortedPhotosLength: sortedPhotos.length,
+              imageUrls: imageUrls,
+              imageUrlsLength: imageUrls.length,
+              fallbackImages: fallbackImages,
+              fallbackImagesLength: fallbackImages.length,
+              finalImages: finalImages,
+              finalImagesLength: finalImages.length
             });
           }
 
-          return {
+          const transformedProperty = {
             ...property,
-            images: property.images || [],
+            images: finalImages, // Pour compatibilité avec l'ancien système
+            photos: sortedPhotos, // Nouveau système de photos catégorisées
             price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000, // Prix entre 10k et 60k FCFA
             rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
             review_count: finalReviewCount, // Nombre d'avis final
             amenities: mappedAmenities
           };
+
+
+          return transformedProperty;
         })
       );
 
@@ -280,6 +300,13 @@ export const useProperties = () => {
             comment,
             created_at,
             reviewer_id
+          ),
+          property_photos (
+            id,
+            url,
+            category,
+            display_order,
+            created_at
           )
         `)
         .eq('id', id)
@@ -308,10 +335,22 @@ export const useProperties = () => {
       const finalRating = data.rating && data.review_count ? data.rating : averageRating;
       const finalReviewCount = data.review_count || reviewCount;
 
+      // Traiter les photos catégorisées
+      const categorizedPhotos = data.property_photos || [];
+      const sortedPhotos = categorizedPhotos.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+      
+      // Créer un tableau d'images pour la compatibilité avec l'ancien système
+      const imageUrls = sortedPhotos.map(photo => photo.url);
+      
+      // Si pas de photos catégorisées, utiliser l'ancien système
+      const fallbackImages = data.images || [];
+      const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+
       // Transformer les données avec les équipements
       const transformedData = {
         ...data,
-        images: data.images || [],
+        images: finalImages, // Pour compatibilité avec l'ancien système
+        photos: sortedPhotos, // Nouveau système de photos catégorisées
         price_per_night: data.price_per_night || Math.floor(Math.random() * 50000) + 10000,
         rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
         review_count: finalReviewCount, // Nombre d'avis final
@@ -368,6 +407,13 @@ export const useProperties = () => {
           ),
           reviews!property_id (
             rating,
+            created_at
+          ),
+          property_photos (
+            id,
+            url,
+            category,
+            display_order,
             created_at
           )
         `)
@@ -455,14 +501,46 @@ export const useProperties = () => {
           const finalRating = property.rating && property.review_count ? property.rating : averageRating;
           const finalReviewCount = property.review_count || reviewCount;
 
-          return {
+          // Traiter les photos catégorisées
+          const categorizedPhotos = property.property_photos || [];
+          const sortedPhotos = categorizedPhotos.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+          
+          // Créer un tableau d'images pour la compatibilité avec l'ancien système
+          const imageUrls = sortedPhotos.map(photo => photo.url);
+          
+          // Si pas de photos catégorisées, utiliser l'ancien système
+          const fallbackImages = property.images || [];
+          const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+
+          // Debug pour la propriété "haut standing" dans refreshProperties
+          if (property.title && property.title.toLowerCase().includes('haut standing')) {
+            console.log('🔄 refreshProperties - Transformation des données:', {
+              title: property.title,
+              categorizedPhotosRaw: categorizedPhotos,
+              categorizedPhotosLength: categorizedPhotos.length,
+              sortedPhotos: sortedPhotos,
+              sortedPhotosLength: sortedPhotos.length,
+              imageUrls: imageUrls,
+              imageUrlsLength: imageUrls.length,
+              fallbackImages: fallbackImages,
+              fallbackImagesLength: fallbackImages.length,
+              finalImages: finalImages,
+              finalImagesLength: finalImages.length
+            });
+          }
+
+          const transformedProperty = {
             ...property,
-            images: property.images || [],
+            images: finalImages, // Pour compatibilité avec l'ancien système
+            photos: sortedPhotos, // Nouveau système de photos catégorisées
             price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000,
             rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
             review_count: finalReviewCount, // Nombre d'avis final
             amenities: await mapAmenities(property.amenities)
           };
+
+
+          return transformedProperty;
         })
       );
 

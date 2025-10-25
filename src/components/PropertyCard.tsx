@@ -23,16 +23,6 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const [isFavorited, setIsFavorited] = useState(false);
 
-  // Debug pour la propriété "haut standing"
-  if (property.title && property.title.toLowerCase().includes('haut standing')) {
-    console.log('🏠 PropertyCard - Debug propriété haut standing:', {
-      title: property.title,
-      rating: property.rating,
-      review_count: property.review_count,
-      reviews_count: property.reviews_count,
-      propertyKeys: Object.keys(property)
-    });
-  }
 
   useEffect(() => {
     // Mettre à jour l'état local quand le cache global change
@@ -77,7 +67,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
           <View style={styles.imageContainer}>
             <Image
               source={{ 
-                uri: property.images[0] || 'https://via.placeholder.com/300x200' 
+                uri: property.images?.[0] || 'https://via.placeholder.com/300x200' 
               }}
               style={styles.cardImage}
               resizeMode="cover"
@@ -144,7 +134,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
           <View style={styles.imageContainer}>
             <Image
               source={{
-                uri: property.images[0] || 'https://via.placeholder.com/300x200'
+                uri: property.images?.[0] || 'https://via.placeholder.com/300x200'
               }}
               style={styles.image}
               resizeMode="cover"

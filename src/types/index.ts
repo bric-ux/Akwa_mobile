@@ -9,13 +9,22 @@ export interface User {
   };
 }
 
+export interface CategorizedPhoto {
+  id: string;
+  url: string;
+  category: 'chambre' | 'salle_de_bain' | 'cuisine' | 'jardin' | 'salon' | 'exterieur' | 'terrasse' | 'balcon' | 'autre';
+  display_order: number | null;
+  created_at: string | null;
+}
+
 export interface Property {
   id: string;
   title: string;
   description: string | null;
   location: string;
   price_per_night: number;
-  images: string[];
+  images: string[]; // Gardé pour compatibilité avec l'ancien système
+  photos?: CategorizedPhoto[]; // Nouveau système de photos catégorisées
   rating?: number;
   review_count?: number;
   amenities?: Amenity[];
