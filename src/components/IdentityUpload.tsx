@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import { supabase } from '../services/supabase';
 
@@ -30,7 +31,12 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
 }) => {
   const [uploading, setUploading] = useState(false);
   const [documentType, setDocumentType] = useState('cni');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{
+    uri: string;
+    type: string;
+    name: string;
+    size?: number;
+  } | null>(null);
   const { uploadIdentityDocument } = useIdentityVerification();
 
   const requestPermissions = async () => {
@@ -49,37 +55,89 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
 
-    if (!result.canceled && result.assets[0]) {
-      setSelectedImage(result.assets[0].uri);
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setSelectedFile({
+          uri: asset.uri,
+          type: 'image/jpeg',
+          name: `identity-document-${Date.now()}.jpg`,
+          size: asset.fileSize
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sélection d\'image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
     }
   };
 
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setSelectedFile({
+          uri: asset.uri,
+          type: asset.mimeType || 'application/pdf',
+          name: asset.name,
+          size: asset.size
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sélection de document:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner le document');
+    }
+  };
+
+  const showFilePicker = () => {
+    Alert.alert(
+      'Sélectionner un fichier',
+      'Choisissez le type de fichier à télécharger',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel'
+        },
+        {
+          text: 'Photo',
+          onPress: pickImage
+        },
+        {
+          text: 'PDF',
+          onPress: pickDocument
+        }
+      ]
+    );
+  };
+
   const handleUpload = async () => {
-    if (!selectedImage) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une image');
+    if (!selectedFile) {
+      Alert.alert('Erreur', 'Veuillez sélectionner un fichier');
+      return;
+    }
+
+    // Vérifier la taille du fichier (max 5MB)
+    if (selectedFile.size && selectedFile.size > 5 * 1024 * 1024) {
+      Alert.alert('Erreur', 'Le fichier ne doit pas dépasser 5MB');
       return;
     }
 
     setUploading(true);
 
     try {
-      // Pour React Native, nous devons créer un objet FormData
-      const formData = new FormData();
-      formData.append('file', {
-        uri: selectedImage,
-        type: 'image/jpeg',
-        name: 'identity-document.jpg',
-      } as any);
-
-      // Utiliser directement l'URI avec Supabase
-      const fileExt = 'jpg';
+      // Déterminer l'extension du fichier
+      const fileExt = selectedFile.type.includes('pdf') ? 'pdf' : 'jpg';
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
       const filePath = `identity-documents/${fileName}`;
 
@@ -87,8 +145,8 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
       const { error: uploadError } = await supabase.storage
         .from('property-images')
         .upload(filePath, {
-          uri: selectedImage,
-          type: 'image/jpeg',
+          uri: selectedFile.uri,
+          type: selectedFile.type,
           name: fileName,
         } as any);
 
@@ -118,7 +176,7 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
           {
             text: 'OK',
             onPress: () => {
-              setSelectedImage(null);
+              setSelectedFile(null);
               onUploadSuccess?.();
             }
           }
@@ -166,21 +224,31 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
       {/* Sélection d'image */}
       <View style={styles.section}>
         <Text style={styles.label}>Document</Text>
-        {selectedImage ? (
-          <View style={styles.imageContainer}>
-            <Image source={{ uri: selectedImage }} style={styles.image} />
+        {selectedFile ? (
+          <View style={styles.fileContainer}>
+            {selectedFile.type.includes('image') ? (
+              <Image source={{ uri: selectedFile.uri }} style={styles.image} />
+            ) : (
+              <View style={styles.pdfContainer}>
+                <Ionicons name="document-text-outline" size={48} color="#ef4444" />
+                <Text style={styles.pdfText}>{selectedFile.name}</Text>
+                <Text style={styles.pdfSize}>
+                  {selectedFile.size ? `${(selectedFile.size / 1024 / 1024).toFixed(1)} MB` : 'PDF'}
+                </Text>
+              </View>
+            )}
             <TouchableOpacity
               style={styles.removeButton}
-              onPress={() => setSelectedImage(null)}
+              onPress={() => setSelectedFile(null)}
             >
               <Ionicons name="close-circle" size={24} color="#dc2626" />
             </TouchableOpacity>
           </View>
         ) : (
-          <TouchableOpacity style={styles.uploadButton} onPress={pickImage}>
-            <Ionicons name="camera-outline" size={32} color="#666" />
-            <Text style={styles.uploadButtonText}>Sélectionner une image</Text>
-            <Text style={styles.uploadButtonSubtext}>Appuyez pour choisir une photo</Text>
+          <TouchableOpacity style={styles.uploadButton} onPress={showFilePicker}>
+            <Ionicons name="add-circle-outline" size={32} color="#666" />
+            <Text style={styles.uploadButtonText}>Sélectionner un fichier</Text>
+            <Text style={styles.uploadButtonSubtext}>Photo ou PDF (max 5MB)</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -189,10 +257,10 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
       <TouchableOpacity
         style={[
           styles.submitButton,
-          (!selectedImage || uploading) && styles.submitButtonDisabled
+          (!selectedFile || uploading) && styles.submitButtonDisabled
         ]}
         onPress={handleUpload}
-        disabled={!selectedImage || uploading}
+        disabled={!selectedFile || uploading}
       >
         {uploading ? (
           <ActivityIndicator color="#fff" />
@@ -274,11 +342,39 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
   },
+  fileContainer: {
+    position: 'relative',
+    alignItems: 'center',
+  },
   image: {
     width: '100%',
     height: 200,
     borderRadius: 8,
     resizeMode: 'cover',
+  },
+  pdfContainer: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+    backgroundColor: '#f9fafb',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  pdfText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  pdfSize: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
   },
   removeButton: {
     position: 'absolute',
