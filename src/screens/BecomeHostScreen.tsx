@@ -120,9 +120,123 @@ const BecomeHostScreen: React.FC = () => {
     );
   };
 
+  const getInputStyle = (fieldName: string) => {
+    return styles.input;
+  };
+
+  const getFieldDisplayName = (fieldName: string): string => {
+    const fieldNames: { [key: string]: string } = {
+      propertyType: 'Type de propriété',
+      location: 'Localisation',
+      guests: 'Nombre d\'invités',
+      bedrooms: 'Chambres',
+      bathrooms: 'Salles de bain',
+      title: 'Titre',
+      description: 'Description',
+      price: 'Prix par nuit',
+      hostFullName: 'Nom complet',
+      hostEmail: 'Email',
+      hostPhone: 'Téléphone',
+    };
+    return fieldNames[fieldName] || fieldName;
+  };
+
+  const validateStep = (step: number): boolean => {
+    switch (step) {
+      case 1:
+        // Étape 1: Informations sur le logement
+        const step1Fields = ['propertyType', 'location', 'guests', 'bedrooms', 'bathrooms', 'title', 'description', 'price'];
+        const missingStep1 = step1Fields.filter(field => !formData[field as keyof typeof formData]);
+        
+        if (missingStep1.length > 0) {
+          const missingFieldsFrench = missingStep1.map(field => getFieldDisplayName(field)).join(', ');
+          Alert.alert(
+            'Champs obligatoires manquants',
+            `Veuillez remplir tous les champs marqués d'un astérisque (*) avant de continuer.\n\nChamps manquants: ${missingFieldsFrench}`
+          );
+          return false;
+        }
+        
+        // Validation spécifique pour les nombres
+        if (parseInt(formData.guests) < 1 || parseInt(formData.bedrooms) < 1 || parseInt(formData.bathrooms) < 1) {
+          Alert.alert(
+            'Valeurs invalides',
+            'Le nombre d\'invités, de chambres et de salles de bain doit être au moins 1.'
+          );
+          return false;
+        }
+        
+        if (parseInt(formData.price) < 1000) {
+          Alert.alert(
+            'Prix trop bas',
+            'Le prix par nuit doit être d\'au moins 1000 FCFA.'
+          );
+          return false;
+        }
+        
+        return true;
+        
+      case 2:
+        // Étape 2: Informations hôte
+        const step2Fields = ['hostFullName', 'hostEmail', 'hostPhone'];
+        const missingStep2 = step2Fields.filter(field => !formData[field as keyof typeof formData]);
+        
+        if (missingStep2.length > 0) {
+          const missingFieldsFrench = missingStep2.map(field => getFieldDisplayName(field)).join(', ');
+          Alert.alert(
+            'Champs obligatoires manquants',
+            `Veuillez remplir tous les champs marqués d'un astérisque (*) avant de continuer.\n\nChamps manquants: ${missingFieldsFrench}`
+          );
+          return false;
+        }
+        
+        // Validation email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.hostEmail)) {
+          Alert.alert(
+            'Email invalide',
+            'Veuillez saisir une adresse email valide.'
+          );
+          return false;
+        }
+        
+        // Validation téléphone
+        const phoneRegex = /^[0-9+\-\s()]{8,}$/;
+        if (!phoneRegex.test(formData.hostPhone)) {
+          Alert.alert(
+            'Numéro de téléphone invalide',
+            'Veuillez saisir un numéro de téléphone valide (au moins 8 chiffres).'
+          );
+          return false;
+        }
+        
+        return true;
+        
+      case 3:
+        // Étape 3: Équipements et règles (pas de champs obligatoires)
+        return true;
+        
+      case 4:
+        // Étape 4: Conditions
+        if (!formData.agreeTerms) {
+          Alert.alert(
+            'Conditions non acceptées',
+            'Vous devez accepter les conditions d\'utilisation pour soumettre votre candidature.'
+          );
+          return false;
+        }
+        return true;
+        
+      default:
+        return true;
+    }
+  };
+
   const nextStep = () => {
-    if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
+    if (validateStep(currentStep)) {
+      if (currentStep < 4) {
+        setCurrentStep(currentStep + 1);
+      }
     }
   };
 
@@ -138,20 +252,13 @@ const BecomeHostScreen: React.FC = () => {
       return;
     }
 
-    // Validation des champs obligatoires
-    const requiredFields = [
-      'propertyType', 'location', 'guests', 'bedrooms', 'bathrooms', 
-      'title', 'description', 'price', 'hostFullName', 'hostEmail', 'hostPhone'
-    ];
-    
-    const missingFields = requiredFields.filter(field => !formData[field as keyof typeof formData]);
-    
-    if (missingFields.length > 0 || !formData.agreeTerms) {
-      Alert.alert(
-        'Informations manquantes', 
-        'Veuillez remplir tous les champs obligatoires et accepter les conditions.'
-      );
-      return;
+    // Validation finale de toutes les étapes
+    for (let step = 1; step <= 4; step++) {
+      if (!validateStep(step)) {
+        // Si une étape n'est pas valide, retourner à cette étape
+        setCurrentStep(step);
+        return;
+      }
     }
 
     const applicationPayload = {
@@ -252,19 +359,19 @@ const BecomeHostScreen: React.FC = () => {
       <View style={styles.row}>
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Nombre d'invités *</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.guests}
-            onChangeText={(value) => handleInputChange('guests', value)}
-            placeholder="2"
-            keyboardType="numeric"
-            placeholderTextColor="#999"
-          />
+        <TextInput
+          style={getInputStyle('guests')}
+          value={formData.guests}
+          onChangeText={(value) => handleInputChange('guests', value)}
+          placeholder="2"
+          keyboardType="numeric"
+          placeholderTextColor="#999"
+        />
         </View>
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Chambres *</Text>
           <TextInput
-            style={styles.input}
+            style={getInputStyle('bedrooms')}
             value={formData.bedrooms}
             onChangeText={(value) => handleInputChange('bedrooms', value)}
             placeholder="1"
@@ -275,7 +382,7 @@ const BecomeHostScreen: React.FC = () => {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Salles de bain *</Text>
           <TextInput
-            style={styles.input}
+            style={getInputStyle('bathrooms')}
             value={formData.bathrooms}
             onChangeText={(value) => handleInputChange('bathrooms', value)}
             placeholder="1"
@@ -289,7 +396,7 @@ const BecomeHostScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Titre de votre annonce *</Text>
         <TextInput
-          style={styles.input}
+          style={getInputStyle('title')}
           value={formData.title}
           onChangeText={(value) => handleInputChange('title', value)}
           placeholder="Ex: Magnifique appartement avec vue sur mer"
@@ -301,7 +408,7 @@ const BecomeHostScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Description *</Text>
         <TextInput
-          style={[styles.input, styles.textArea]}
+          style={[getInputStyle('description'), styles.textArea]}
           value={formData.description}
           onChangeText={(value) => handleInputChange('description', value)}
           placeholder="Décrivez votre logement..."
@@ -315,7 +422,7 @@ const BecomeHostScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Prix par nuit (FCFA) *</Text>
         <TextInput
-          style={styles.input}
+          style={getInputStyle('price')}
           value={formData.price}
           onChangeText={(value) => handleInputChange('price', value)}
           placeholder="25000"
@@ -334,7 +441,7 @@ const BecomeHostScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Nom complet *</Text>
         <TextInput
-          style={styles.input}
+          style={getInputStyle('hostFullName')}
           value={formData.hostFullName}
           onChangeText={(value) => handleInputChange('hostFullName', value)}
           placeholder="Votre nom complet"
@@ -346,7 +453,7 @@ const BecomeHostScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Email *</Text>
         <TextInput
-          style={styles.input}
+          style={getInputStyle('hostEmail')}
           value={formData.hostEmail}
           onChangeText={(value) => handleInputChange('hostEmail', value)}
           placeholder="votre@email.com"
@@ -359,7 +466,7 @@ const BecomeHostScreen: React.FC = () => {
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Téléphone *</Text>
         <TextInput
-          style={styles.input}
+          style={getInputStyle('hostPhone')}
           value={formData.hostPhone}
           onChangeText={(value) => handleInputChange('hostPhone', value)}
           placeholder="+225 XX XX XX XX"
