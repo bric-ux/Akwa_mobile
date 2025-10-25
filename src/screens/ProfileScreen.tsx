@@ -16,12 +16,16 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
+import { useEmailVerification } from '../hooks/useEmailVerification';
+import EmailVerificationModal from '../components/EmailVerificationModal';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
+  const { isEmailVerified, generateVerificationCode } = useEmailVerification();
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
 
   // Rafraîchir le profil quand l'écran devient actif (seulement si connecté)
   useFocusEffect(
@@ -32,6 +36,27 @@ const ProfileScreen: React.FC = () => {
     }, [refreshProfile, user])
   );
 
+
+  const handleEmailVerification = async () => {
+    if (!profile) return;
+    
+    const result = await generateVerificationCode(user?.email || '', profile.first_name || '');
+    
+    if (result.success) {
+      setShowEmailVerification(true);
+    } else {
+      Alert.alert('Erreur', 'Impossible d\'envoyer le code de vérification');
+    }
+  };
+
+  const handleEmailVerificationSuccess = () => {
+    setShowEmailVerification(false);
+    refreshProfile(); // Rafraîchir pour mettre à jour le statut
+  };
+
+  const handleCloseEmailVerification = () => {
+    setShowEmailVerification(false);
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -188,6 +213,27 @@ const ProfileScreen: React.FC = () => {
             {profile?.first_name || 'Utilisateur'} {profile?.last_name || ''}
           </Text>
           <Text style={styles.userEmail}>{profile?.email}</Text>
+          
+          {/* Statut de vérification d'email */}
+          <View style={styles.emailStatusContainer}>
+            <Ionicons 
+              name={isEmailVerified ? 'checkmark-circle' : 'alert-circle'} 
+              size={16} 
+              color={isEmailVerified ? '#10b981' : '#f59e0b'} 
+            />
+            <Text style={styles.emailStatusText}>
+              {isEmailVerified ? 'Email vérifié' : 'Email non vérifié'}
+            </Text>
+            {!isEmailVerified && (
+              <TouchableOpacity 
+                style={styles.verifyEmailButton}
+                onPress={handleEmailVerification}
+              >
+                <Text style={styles.verifyEmailButtonText}>Vérifier</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
           {/* Statut de vérification d'identité */}
           {verificationStatus && (
             <View style={styles.identityStatusContainer}>
@@ -256,6 +302,17 @@ const ProfileScreen: React.FC = () => {
           </Text>
         </View>
       </ScrollView>
+      
+      {/* Modal de vérification d'email */}
+      {user && profile && (
+        <EmailVerificationModal
+          visible={showEmailVerification}
+          email={user.email || ''}
+          firstName={profile.first_name || ''}
+          onVerificationSuccess={handleEmailVerificationSuccess}
+          onClose={handleCloseEmailVerification}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -333,6 +390,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginLeft: 6,
+  },
+  emailStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    paddingHorizontal: 20,
+  },
+  emailStatusText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 6,
+  },
+  verifyEmailButton: {
+    backgroundColor: '#2E7D32',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginLeft: 10,
+  },
+  verifyEmailButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
   },
   identitySection: {
     marginHorizontal: 20,

@@ -20,7 +20,7 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
 }) => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { verificationStatus, isVerified } = useIdentityVerification();
+  const { verificationStatus, isVerified, checkIdentityStatus } = useIdentityVerification();
   const [showUploadForm, setShowUploadForm] = useState(false);
 
   // Si l'utilisateur est vérifié, ne pas afficher l'alerte
@@ -68,6 +68,8 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
 
   const handleUploadSuccess = () => {
     setShowUploadForm(false);
+    // Mettre à jour le statut de vérification
+    checkIdentityStatus(true);
     onVerificationComplete?.();
   };
 

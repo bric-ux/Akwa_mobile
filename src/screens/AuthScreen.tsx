@@ -19,6 +19,8 @@ import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import PasswordValidation from '../components/PasswordValidation';
+import EmailVerificationModal from '../components/EmailVerificationModal';
+import { useEmailVerification } from '../hooks/useEmailVerification';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
@@ -40,6 +42,14 @@ const AuthScreen: React.FC = () => {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [dateError, setDateError] = useState<string | null>(null);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [pendingUserData, setPendingUserData] = useState<{
+    email: string;
+    firstName: string;
+    lastName: string;
+  } | null>(null);
+
+  const { generateVerificationCode } = useEmailVerification();
 
   // Fonction de validation du mot de passe
   const validatePassword = (password: string) => {
@@ -118,6 +128,27 @@ const AuthScreen: React.FC = () => {
     return null;
   };
 
+  const handleEmailVerificationSuccess = () => {
+    setShowEmailVerification(false);
+    setPendingUserData(null);
+    
+    // Naviguer vers l'écran approprié
+    if (returnTo) {
+      navigation.navigate(returnTo as any, returnParams);
+    } else {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+    }
+  };
+
+  const handleCloseEmailVerification = () => {
+    setShowEmailVerification(false);
+    setPendingUserData(null);
+    // L'utilisateur peut continuer sans vérifier l'email
+  };
+
   const handleAuth = async () => {
     if (isLogin) {
       // Validation pour la connexion
@@ -184,41 +215,27 @@ const AuthScreen: React.FC = () => {
               console.log('✅ Profil créé automatiquement');
             }
 
-            // Générer un code de vérification à 6 chiffres
-            const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-            
-            // Stocker le code dans la base de données
-            const expiresAt = new Date();
-            expiresAt.setMinutes(expiresAt.getMinutes() + 10); // Expire dans 10 minutes
-            
-            try {
-              await supabase
-                .from('email_verification_codes')
-                .insert({
-                  email: email,
-                  code: verificationCode,
-                  expires_at: expiresAt.toISOString()
-                });
-                
-              // Envoyer l'email avec le code via notre edge function
-              await supabase.functions.invoke('send-email', {
-                body: {
-                  type: 'email_confirmation',
-                  to: email,
-                  data: {
-                    firstName: firstName,
-                    verificationCode: verificationCode
-                  }
-                }
-              });
-              
-              console.log('✅ Email de vérification envoyé');
-            } catch (err) {
-              console.error('❌ Erreur envoi email:', err);
-              Alert.alert('Erreur', 'Erreur lors de l\'envoi de l\'email de vérification');
-              setLoading(false);
-              return;
-            }
+        // Générer et envoyer le code de vérification email
+        const codeResult = await generateVerificationCode(email, firstName);
+        
+        if (codeResult.success) {
+          console.log('✅ Email de vérification envoyé');
+          
+          // Stocker les données utilisateur pour la vérification
+          setPendingUserData({
+            email,
+            firstName,
+            lastName
+          });
+          
+          // Afficher la modal de vérification
+          setShowEmailVerification(true);
+        } else {
+          console.error('❌ Erreur envoi email:', codeResult.error);
+          Alert.alert('Erreur', 'Erreur lors de l\'envoi de l\'email de vérification');
+          setLoading(false);
+          return;
+        }
           }
         } catch (profileError) {
           console.error('Erreur création profil:', profileError);
@@ -226,16 +243,13 @@ const AuthScreen: React.FC = () => {
 
         Alert.alert(
           'Inscription réussie !',
-          'Un code de vérification a été envoyé à votre email. Vérifiez votre boîte mail.',
+          'Un code de vérification a été envoyé à votre email.',
           [
             {
               text: 'OK',
               onPress: () => {
-                // Rediriger vers l'écran de vérification d'email
-                navigation.navigate('EmailVerification', { 
-                  email: email, 
-                  firstName: firstName 
-                });
+                // La modal de vérification sera affichée automatiquement
+                setLoading(false);
               }
             }
           ]
@@ -580,6 +594,16 @@ const AuthScreen: React.FC = () => {
         </View>
       )}
 
+      {/* Modal de vérification d'email */}
+      {pendingUserData && (
+        <EmailVerificationModal
+          visible={showEmailVerification}
+          email={pendingUserData.email}
+          firstName={pendingUserData.firstName}
+          onVerificationSuccess={handleEmailVerificationSuccess}
+          onClose={handleCloseEmailVerification}
+        />
+      )}
     </SafeAreaView>
   );
 };

@@ -19,7 +19,7 @@ export const IdentityVerificationAlert: React.FC<IdentityVerificationAlertProps>
   onVerificationComplete, 
   showUploadForm = false 
 }) => {
-  const { verificationStatus, loading } = useIdentityVerification();
+  const { verificationStatus, loading, checkIdentityStatus } = useIdentityVerification();
   const [showUpload, setShowUpload] = useState(showUploadForm);
 
   if (loading) return null;
@@ -104,6 +104,8 @@ export const IdentityVerificationAlert: React.FC<IdentityVerificationAlertProps>
               userId="current" // Sera remplacé par l'ID de l'utilisateur connecté
               onUploadSuccess={() => {
                 setShowUpload(false);
+                // Mettre à jour le statut de vérification
+                checkIdentityStatus(true);
                 onVerificationComplete?.();
               }}
             />

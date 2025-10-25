@@ -37,7 +37,7 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
     name: string;
     size?: number;
   } | null>(null);
-  const { uploadIdentityDocument } = useIdentityVerification();
+  const { uploadIdentityDocument, checkIdentityStatus } = useIdentityVerification();
 
   const requestPermissions = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -136,38 +136,16 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
     setUploading(true);
 
     try {
-      // Déterminer l'extension du fichier
-      const fileExt = selectedFile.type.includes('pdf') ? 'pdf' : 'jpg';
-      const fileName = `${userId}-${Date.now()}.${fileExt}`;
-      const filePath = `identity-documents/${fileName}`;
+      // Créer un objet File compatible avec la fonction du hook
+      const file = {
+        uri: selectedFile.uri,
+        type: selectedFile.type,
+        name: selectedFile.name,
+        size: selectedFile.size
+      };
 
-      // Upload vers Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('property-images')
-        .upload(filePath, {
-          uri: selectedFile.uri,
-          type: selectedFile.type,
-          name: fileName,
-        } as any);
-
-      if (uploadError) throw uploadError;
-
-      // Obtenir l'URL publique
-      const { data: { publicUrl } } = supabase.storage
-        .from('property-images')
-        .getPublicUrl(filePath);
-
-      // Sauvegarder dans la base de données
-      const { error: dbError } = await supabase
-        .from('identity_documents')
-        .insert({
-          user_id: userId,
-          document_type: documentType,
-          document_url: publicUrl,
-          verified: null // null = en attente de validation admin
-        });
-
-      if (dbError) throw dbError;
+      // Utiliser la fonction du hook qui gère tout automatiquement
+      await uploadIdentityDocument(file, documentType);
       
       Alert.alert(
         'Succès',
@@ -177,6 +155,8 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
             text: 'OK',
             onPress: () => {
               setSelectedFile(null);
+              // Mettre à jour le statut de vérification
+              checkIdentityStatus(true);
               onUploadSuccess?.();
             }
           }
