@@ -31,7 +31,7 @@ interface BookingModalProps {
 const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property }) => {
   const { user } = useAuth();
   const { createBooking, loading } = useBookings();
-  const { sendBookingConfirmation, sendBookingRequest } = useEmailService();
+  const { sendBookingRequestSent, sendBookingRequest } = useEmailService();
   const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
   
   const [checkIn, setCheckIn] = useState<Date | null>(null);
@@ -179,17 +179,15 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       
       // Envoyer l'email de confirmation au voyageur
       try {
-        await sendBookingConfirmation({
-          userEmail: user.email || '',
-          userName: `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Utilisateur',
-          propertyTitle: property.title,
-          checkInDate: formatDateForAPI(checkIn),
-          checkOutDate: formatDateForAPI(checkOut),
-          totalPrice: finalTotal,
-          isAutoBooking,
-          guestsCount: totalGuests,
-          message: message.trim() || undefined
-        });
+        await sendBookingRequestSent(
+          user.email || '',
+          `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Utilisateur',
+          property.title,
+          formatDateForAPI(checkIn),
+          formatDateForAPI(checkOut),
+          totalGuests,
+          finalTotal
+        );
       } catch (error) {
         console.error('Erreur lors de l\'envoi de l\'email au voyageur:', error);
       }
