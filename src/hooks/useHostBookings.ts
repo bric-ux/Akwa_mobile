@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
+import { useBookingPDF } from './useBookingPDF';
 
 export interface HostBooking {
   id: string;
@@ -53,6 +54,7 @@ export const useHostBookings = () => {
     sendBookingCancelled,
     sendBookingCancelledHost 
   } = useEmailService();
+  const { generateAndSendBookingPDF, generateBookingPDFForHost } = useBookingPDF();
 
   const getHostBookings = useCallback(async (): Promise<HostBooking[]> => {
     if (!user) {
@@ -129,12 +131,13 @@ export const useHostBookings = () => {
             id,
             title,
             host_id,
-            cities(name)
-          ),
-          guest_profile:profiles!bookings_guest_id_fkey(
-            first_name,
-            last_name,
-            email
+            address,
+            price_per_night,
+            cleaning_fee,
+            service_fee,
+            taxes,
+            cancellation_policy,
+            cities(name, region)
           )
         `)
         .eq('id', bookingId)
@@ -144,6 +147,19 @@ export const useHostBookings = () => {
       if (fetchError || !bookingData) {
         console.error('❌ [useHostBookings] Réservation non trouvée:', fetchError);
         setError('Réservation non trouvée');
+        return { success: false };
+      }
+
+      // Récupérer séparément le profil de l'invité
+      const { data: guestProfile, error: guestError } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, email, phone')
+        .eq('user_id', bookingData.guest_id)
+        .single();
+
+      if (guestError) {
+        console.error('❌ [useHostBookings] Erreur récupération profil invité:', guestError);
+        setError('Erreur lors de la récupération du profil invité');
         return { success: false };
       }
 
@@ -165,7 +181,7 @@ export const useHostBookings = () => {
       // Envoyer les emails selon le statut
       try {
         // Vérifier que les données nécessaires existent
-        if (!bookingData.guest_profile?.email) {
+        if (!guestProfile?.email) {
           console.warn('⚠️ [useHostBookings] Email invité manquant, emails non envoyés');
           return { success: true };
         }
@@ -175,39 +191,77 @@ export const useHostBookings = () => {
           return { success: true };
         }
 
-        const guestName = `${bookingData.guest_profile.first_name || ''} ${bookingData.guest_profile.last_name || ''}`.trim();
+        const guestName = `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim();
         const hostName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim();
 
         if (status === 'confirmed') {
-          // Email de confirmation au voyageur
-          await sendBookingResponse(
-            bookingData.guest_profile.email,
-            guestName,
-            bookingData.properties.title,
-            bookingData.check_in_date,
-            bookingData.check_out_date,
-            bookingData.guests_count,
-            bookingData.total_price,
-            'confirmed'
-          );
+          // Préparer les données pour le PDF
+          const pdfBookingData = {
+            id: bookingData.id,
+            property: {
+              title: bookingData.properties.title,
+              address: bookingData.properties.address || '',
+              city_name: bookingData.properties.cities?.name || '',
+              city_region: bookingData.properties.cities?.region || '',
+              price_per_night: bookingData.properties.price_per_night || 0,
+              cleaning_fee: bookingData.properties.cleaning_fee || 0,
+              service_fee: bookingData.properties.service_fee || 0,
+              taxes: bookingData.properties.taxes || 0,
+              cancellation_policy: bookingData.properties.cancellation_policy || 'flexible'
+            },
+            guest: {
+              first_name: guestProfile.first_name || '',
+              last_name: guestProfile.last_name || '',
+              email: guestProfile.email,
+              phone: guestProfile.phone || ''
+            },
+            host: {
+              first_name: user.user_metadata?.first_name || '',
+              last_name: user.user_metadata?.last_name || '',
+              email: user.email || '',
+              phone: user.user_metadata?.phone || ''
+            },
+            check_in_date: bookingData.check_in_date,
+            check_out_date: bookingData.check_out_date,
+            guests_count: bookingData.guests_count,
+            total_price: bookingData.total_price,
+            message: bookingData.message_to_host || '',
+            discount_applied: bookingData.discount_applied || false,
+            discount_amount: bookingData.discount_amount || 0,
+            payment_plan: bookingData.payment_plan || ''
+          };
 
-          // Email de confirmation à l'hôte
-          await sendBookingConfirmedHost(
-            user.email,
-            hostName,
-            guestName,
-            bookingData.properties.title,
-            bookingData.check_in_date,
-            bookingData.check_out_date,
-            bookingData.guests_count,
-            bookingData.total_price
-          );
+          // Générer et envoyer le PDF au voyageur
+          try {
+            console.log('📄 [useHostBookings] Génération PDF pour le voyageur...');
+            const pdfResult = await generateAndSendBookingPDF(pdfBookingData);
+            if (pdfResult.success) {
+              console.log('✅ [useHostBookings] PDF envoyé au voyageur avec succès');
+            } else {
+              console.error('❌ [useHostBookings] Erreur PDF voyageur:', pdfResult.error);
+            }
+          } catch (pdfError) {
+            console.error('❌ [useHostBookings] Erreur génération PDF voyageur:', pdfError);
+          }
 
-          console.log('✅ [useHostBookings] Emails de confirmation envoyés');
+          // Générer et envoyer le PDF à l'hôte
+          try {
+            console.log('📄 [useHostBookings] Génération PDF pour l\'hôte...');
+            const pdfHostResult = await generateBookingPDFForHost(pdfBookingData);
+            if (pdfHostResult.success) {
+              console.log('✅ [useHostBookings] PDF envoyé à l\'hôte avec succès');
+            } else {
+              console.error('❌ [useHostBookings] Erreur PDF hôte:', pdfHostResult.error);
+            }
+          } catch (pdfError) {
+            console.error('❌ [useHostBookings] Erreur génération PDF hôte:', pdfError);
+          }
+
+          console.log('✅ [useHostBookings] Emails avec PDF envoyés');
         } else if (status === 'cancelled') {
           // Email d'annulation au voyageur
           await sendBookingResponse(
-            bookingData.guest_profile.email,
+            guestProfile.email,
             guestName,
             bookingData.properties.title,
             bookingData.check_in_date,

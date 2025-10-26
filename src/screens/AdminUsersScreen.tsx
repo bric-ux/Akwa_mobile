@@ -81,10 +81,10 @@ const AdminUsersScreen: React.FC = () => {
   // Charger les utilisateurs quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
-      if (user) {
+      if (user && profile?.role === 'admin') {
         loadUsers();
       }
-    }, [user])
+    }, [user, profile])
   );
 
   const handleRefresh = async () => {

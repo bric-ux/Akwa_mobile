@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,7 +16,9 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin, DashboardStats } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { useBookingPDF } from '../hooks/useBookingPDF';
 import AdminNotificationBell from '../components/AdminNotificationBell';
+import { supabase } from '../services/supabase';
 
 const AdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -24,6 +28,10 @@ const AdminDashboardScreen: React.FC = () => {
   
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const { generateAndSendBookingPDF } = useBookingPDF();
 
   const loadStats = async () => {
     try {
@@ -40,10 +48,10 @@ const AdminDashboardScreen: React.FC = () => {
   // Charger les statistiques quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
-      if (user) {
+      if (user && profile?.role === 'admin') {
         loadStats();
       }
-    }, [user])
+    }, [user, profile])
   );
 
   const formatPrice = (price: number) => {
@@ -128,6 +136,80 @@ const AdminDashboardScreen: React.FC = () => {
     navigation.navigate('AdminHostPaymentInfo');
   };
 
+  const handleNavigateToNotifications = () => {
+    navigation.navigate('AdminNotifications');
+  };
+
+  const handleTestEmail = () => {
+    setShowEmailModal(true);
+  };
+
+  const sendTestEmail = async () => {
+    if (!testEmail || !testEmail.includes('@')) {
+      Alert.alert('Erreur', 'Veuillez entrer une adresse email valide');
+      return;
+    }
+
+    try {
+      setTestingEmail(true);
+      setShowEmailModal(false);
+
+      // Données de test
+      const testBookingData = {
+        id: 'test-' + Date.now(),
+        property: {
+          title: 'Résidence H.Asso - Test',
+          address: 'Adresse de test, Abidjan',
+          city_name: 'Abidjan',
+          city_region: 'Lagunes',
+          price_per_night: 15000,
+          cleaning_fee: 5000,
+          service_fee: 2000,
+          taxes: 0,
+          cancellation_policy: 'flexible'
+        },
+        guest: {
+          first_name: 'Jean',
+          last_name: 'Dupont',
+          email: testEmail,
+          phone: '+225 07 12 34 56 78'
+        },
+        host: {
+          first_name: 'Marie',
+          last_name: 'Martin',
+          email: user?.email || 'host@example.com',
+          phone: '+225 07 87 65 43 21'
+        },
+        check_in_date: '2025-10-25',
+        check_out_date: '2025-10-27',
+        guests_count: 2,
+        total_price: 45100,
+        message: 'Ceci est un test d\'envoi d\'email avec PDF depuis l\'application mobile AkwaHome.',
+        discount_applied: false,
+        discount_amount: 0,
+        payment_plan: 'full'
+      };
+
+      // Générer et envoyer le PDF
+      const result = await generateAndSendBookingPDF(testBookingData);
+
+      if (result.success) {
+        Alert.alert(
+          'Succès',
+          'Email de test envoyé avec succès à ' + testEmail + '\n\nVérifiez votre boîte mail (y compris les spams).',
+          [{ text: 'OK', onPress: () => setTestEmail('') }]
+        );
+      } else {
+        Alert.alert('Erreur', result.error || 'Impossible d\'envoyer l\'email');
+      }
+    } catch (error) {
+      console.error('Erreur test email:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue lors de l\'envoi de l\'email');
+    } finally {
+      setTestingEmail(false);
+    }
+  };
+
   if (!user) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -200,67 +282,17 @@ const AdminDashboardScreen: React.FC = () => {
         <AdminNotificationBell />
 
         {/* Statistiques principales */}
-        <Text style={styles.sectionTitle}>Statistiques générales</Text>
-        
-        <View style={styles.statsContainer}>
-          <StatCard
-            title="Utilisateurs"
-            value={stats?.totalUsers || 0}
-            icon="people-outline"
-            color="#3498db"
-            onPress={handleNavigateToUsers}
-          />
-          
-          <StatCard
-            title="Propriétés"
-            value={stats?.totalProperties || 0}
-            icon="home-outline"
-            color="#2E7D32"
-            onPress={handleNavigateToProperties}
-          />
-          
-          <StatCard
-            title="Réservations"
-            value={stats?.totalBookings || 0}
-            icon="calendar-outline"
-            color="#f39c12"
-          />
-          
-          <StatCard
-            title="Revenus totaux"
-            value={formatPrice(stats?.totalRevenue || 0)}
-            icon="cash-outline"
-            color="#e67e22"
-          />
-          
-          <StatCard
-            title="Note moyenne"
-            value={`${stats?.averageRating || 0}/5`}
-            icon="star-outline"
-            color="#9b59b6"
-          />
-          
-          <StatCard
-            title="Candidatures en attente"
-            value={stats?.pendingApplications || 0}
-            icon="time-outline"
-            color="#e74c3c"
-            onPress={handleNavigateToApplications}
-          />
-          
-          <StatCard
-            title="Documents d'identité"
-            value="Gérer"
-            icon="shield-checkmark-outline"
-            color="#8e44ad"
-            onPress={handleNavigateToIdentityDocuments}
-          />
-        </View>
-
         {/* Actions rapides */}
         <Text style={styles.sectionTitle}>Actions rapides</Text>
         
         <View style={styles.quickActionsContainer}>
+          <QuickAction
+            title="Statistiques"
+            description="Voir les statistiques détaillées"
+            icon="analytics-outline"
+            onPress={() => navigation.navigate('AdminStats')}
+          />
+
           <QuickAction
             title="Candidatures d'hôtes"
             description="Examiner et valider les nouvelles candidatures"
@@ -275,12 +307,12 @@ const AdminDashboardScreen: React.FC = () => {
             onPress={handleNavigateToProperties}
           />
           
-                <QuickAction
-                  title="Informations de paiement"
-                  description="Gérer les informations de paiement des hôtes"
-                  icon="card-outline"
-                  onPress={handleNavigateToHostPaymentInfo}
-                />
+          <QuickAction
+            title="Informations de paiement"
+            description="Gérer les informations de paiement des hôtes"
+            icon="card-outline"
+            onPress={handleNavigateToHostPaymentInfo}
+          />
           
           <QuickAction
             title="Gestion des utilisateurs"
@@ -288,41 +320,40 @@ const AdminDashboardScreen: React.FC = () => {
             icon="people-outline"
             onPress={handleNavigateToUsers}
           />
+
+          <QuickAction
+            title="Documents d'identité"
+            description="Vérifier les documents d'identité"
+            icon="shield-checkmark-outline"
+            onPress={handleNavigateToIdentityDocuments}
+          />
+
+          <QuickAction
+            title="Notifications"
+            description="Gérer les notifications"
+            icon="notifications-outline"
+            onPress={handleNavigateToNotifications}
+          />
         </View>
 
-        {/* Utilisateurs récents */}
-        {stats?.recentUsers && stats.recentUsers.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Utilisateurs récents</Text>
-            <View style={styles.recentContainer}>
-              {stats.recentUsers.slice(0, 3).map((user, index) => (
-                <View key={index} style={styles.recentItem}>
-                  <View style={styles.recentItemContent}>
-                    <Text style={styles.recentItemTitle}>
-                      {user.first_name} {user.last_name}
-                    </Text>
-                    <Text style={styles.recentItemSubtitle}>{user.email}</Text>
-                    <View style={styles.recentItemMeta}>
-                      <Text style={styles.recentItemDate}>
-                        {formatDate(user.created_at)}
-                      </Text>
-                      {user.role === 'admin' && (
-                        <View style={styles.adminBadge}>
-                          <Text style={styles.adminBadgeText}>Admin</Text>
-                        </View>
-                      )}
-                      {user.is_host && (
-                        <View style={styles.hostBadge}>
-                          <Text style={styles.hostBadgeText}>Hôte</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </>
-        )}
+        {/* Section Tests */}
+        <View style={styles.testSection}>
+          <Text style={styles.sectionTitle}>Tests</Text>
+          <TouchableOpacity
+            style={[styles.testButton, testingEmail && styles.testButtonDisabled]}
+            onPress={handleTestEmail}
+            disabled={testingEmail}
+          >
+            {testingEmail ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="mail-outline" size={20} color="#fff" />
+                <Text style={styles.testButtonText}>Tester l'envoi d'email avec PDF</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
         {/* Réservations récentes */}
         {stats?.recentBookings && stats.recentBookings.length > 0 && (
@@ -353,6 +384,58 @@ const AdminDashboardScreen: React.FC = () => {
           </>
         )}
       </ScrollView>
+
+      {/* Modal pour saisie email de test */}
+      <Modal
+        visible={showEmailModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEmailModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Tester l'envoi d'email</Text>
+            <Text style={styles.modalSubtitle}>
+              Entrez l'adresse email où envoyer le test avec PDF
+            </Text>
+            
+            <TextInput
+              style={styles.emailInput}
+              placeholder="votre-email@example.com"
+              placeholderTextColor="#999"
+              value={testEmail}
+              onChangeText={setTestEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowEmailModal(false);
+                  setTestEmail('');
+                }}
+              >
+                <Text style={styles.modalButtonCancelText}>Annuler</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSend]}
+                onPress={sendTestEmail}
+                disabled={!testEmail || testingEmail}
+              >
+                {testingEmail ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalButtonSendText}>Envoyer</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -577,6 +660,96 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#666',
+  },
+  testSection: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  testButton: {
+    backgroundColor: '#27ae60',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    gap: 8,
+  },
+  testButtonDisabled: {
+    backgroundColor: '#95a5a6',
+    opacity: 0.7,
+  },
+  testButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+  },
+  emailInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#f8f9fa',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  modalButtonCancelText: {
+    color: '#333',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonSend: {
+    backgroundColor: '#27ae60',
+  },
+  modalButtonSendText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

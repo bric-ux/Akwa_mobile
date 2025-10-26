@@ -73,13 +73,16 @@ const PHOTO_CATEGORIES = [
   { value: 'autre', label: 'Autres', icon: '📸', priority: 7 },
 ];
 
-const BecomeHostScreen: React.FC = () => {
+const BecomeHostScreen: React.FC = ({ route }: any) => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
-  const { submitApplication, getAmenities, loading } = useHostApplications();
+  const { submitApplication, getAmenities, getApplicationById, updateApplication, loading } = useHostApplications();
   const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();
   const { hasUploadedIdentity, verificationStatus, checkIdentityStatus } = useIdentityVerification();
-  const { hasPaymentInfo, isPaymentInfoComplete } = useHostPaymentInfo();
+  const { hasPaymentInfo, isPaymentInfoComplete, paymentInfo } = useHostPaymentInfo();
+  
+  const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   
   const [formData, setFormData] = useState({
     // Informations sur le logement
@@ -133,7 +136,112 @@ const BecomeHostScreen: React.FC = () => {
   useEffect(() => {
     loadAmenities();
     loadUserProfile();
-  }, []);
+    
+    // Vérifier si on est en mode édition
+    const editId = route?.params?.editApplicationId;
+    if (editId) {
+      setEditingApplicationId(editId);
+      setIsEditMode(true);
+      loadApplicationData(editId);
+    }
+  }, [route?.params]);
+  
+  const loadApplicationData = async (applicationId: string) => {
+    console.log('📋 Chargement de la candidature pour édition:', applicationId);
+    
+    const application = await getApplicationById(applicationId);
+    if (application) {
+      console.log('📋 Candidature chargée:', application);
+      
+      setFormData({
+        propertyType: application.property_type || '',
+        location: application.location || '',
+        guests: application.max_guests?.toString() || '',
+        bedrooms: application.bedrooms?.toString() || '',
+        bathrooms: application.bathrooms?.toString() || '',
+        title: application.title || '',
+        description: application.description || '',
+        price: application.price_per_night?.toString() || '',
+        addressDetails: '',
+        hostGuide: application.host_guide || '',
+        hostFullName: application.full_name || '',
+        hostEmail: application.email || '',
+        hostPhone: application.phone || '',
+        experience: application.experience || '',
+        cleaningFee: application.cleaning_fee?.toString() || '',
+        houseRules: '',
+        minimumNights: application.minimum_nights?.toString() || '1',
+        autoBooking: application.auto_booking ? 'auto' : 'request',
+        cancellationPolicy: application.cancellation_policy || 'flexible',
+        discountEnabled: application.discount_enabled || false,
+        discountMinNights: application.discount_min_nights?.toString() || '',
+        discountPercentage: application.discount_percentage?.toString() || '',
+        agreeTerms: false
+      });
+      
+      // Charger les équipements
+      setSelectedAmenities(application.amenities || []);
+      
+      // Charger les photos
+      console.log('📸 Données brutes categorized_photos:', JSON.stringify(application.categorized_photos, null, 2));
+      console.log('📸 Type de categorized_photos:', typeof application.categorized_photos);
+      console.log('📸 Est-ce un array?', Array.isArray(application.categorized_photos));
+      
+      if (application.categorized_photos) {
+        try {
+          let photos = [];
+          
+          // Parser les photos catégorisées
+          if (typeof application.categorized_photos === 'string') {
+            photos = JSON.parse(application.categorized_photos);
+          } else if (Array.isArray(application.categorized_photos)) {
+            photos = application.categorized_photos;
+          }
+          
+          console.log('📸 Photos parsées brutes:', photos);
+          
+          if (Array.isArray(photos) && photos.length > 0) {
+            // Convertir les photos au bon format attendu par le formulaire
+            const formattedPhotos = photos.map((photo: any, index: number) => {
+              console.log(`📸 Photo ${index} avant formatage:`, photo);
+              
+              // S'assurer qu'on extrait bien l'URI et la catégorie
+              const photoUri = photo.url || photo.uri || '';
+              const photoCategory = photo.category || 'autre';
+              const photoDisplayOrder = photo.displayOrder ?? photo.display_order ?? index;
+              
+              console.log(`📸 Photo ${index} URI:`, photoUri, 'Category:', photoCategory);
+              
+              const formattedPhoto = {
+                uri: photoUri,
+                category: photoCategory,
+                displayOrder: photoDisplayOrder
+              };
+              
+              console.log(`📸 Photo ${index} formatée:`, formattedPhoto);
+              return formattedPhoto;
+            });
+            
+            console.log('📸 Final formatted photos:', formattedPhotos);
+            console.log('📸 Catégories des photos:', formattedPhotos.map(p => p.category));
+            setSelectedImages(formattedPhotos);
+          }
+        } catch (e) {
+          console.error('❌ Error parsing categorized_photos:', e);
+        }
+      } else if (application.images && application.images.length > 0) {
+        console.log('📸 Pas de categorized_photos, chargement depuis images');
+        const photos = application.images.map((url: string, index: number) => ({
+          uri: url,
+          category: 'autre',
+          displayOrder: index
+        }));
+        setSelectedImages(photos as any);
+      }
+      
+      console.log('✅ Données chargées avec succès');
+    }
+  };
 
   const loadAmenities = async () => {
     const amenities = await getAmenities();
@@ -142,11 +250,12 @@ const BecomeHostScreen: React.FC = () => {
 
   const loadUserProfile = () => {
     if (user) {
+      const metadata = user.user_metadata;
       setFormData(prev => ({
         ...prev,
         hostEmail: user.email || '',
-        hostFullName: user.user_metadata?.first_name && user.user_metadata?.last_name 
-          ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}` 
+        hostFullName: metadata?.first_name && metadata?.last_name 
+          ? `${metadata.first_name} ${metadata.last_name}` 
           : '',
       }));
     }
@@ -220,6 +329,20 @@ const BecomeHostScreen: React.FC = () => {
     }
     setShowCategoryModal(false);
     setSelectedImageForCategory(null);
+    
+    // Si c'était une nouvelle photo, suggérer d'ajouter une autre photo
+    if (selectedImageForCategory !== null && selectedImages[selectedImageForCategory]?.category === 'autre') {
+      setTimeout(() => {
+        Alert.alert(
+          'Photo ajoutée',
+          'Souhaitez-vous ajouter une autre photo?',
+          [
+            { text: 'Non merci', style: 'cancel' },
+            { text: 'Ajouter', onPress: pickImage }
+          ]
+        );
+      }, 1000);
+    }
     
     // Si c'était une nouvelle photo, suggérer d'ajouter une autre photo
     if (selectedImageForCategory !== null && selectedImages[selectedImageForCategory]?.category === 'other') {
@@ -488,10 +611,18 @@ const BecomeHostScreen: React.FC = () => {
     }
 
     // Vérifier les informations de paiement
-    if (!hasPaymentInfo() || !isPaymentInfoComplete()) {
+    // Autoriser la soumission si:
+    // 1. Les infos de paiement sont complètes ET vérifiées
+    // 2. OU les infos de paiement sont complètes ET en cours d'étude
+    // 3. OU les infos de paiement sont complètes (même si pas encore vérifiées)
+    const hasCompletePaymentInfo = hasPaymentInfo() && isPaymentInfoComplete();
+    const paymentPending = paymentInfo?.verification_status === 'pending';
+    const paymentVerified = paymentInfo?.verification_status === 'verified';
+    
+    if (!hasCompletePaymentInfo) {
       Alert.alert(
         'Informations de paiement requises',
-        'Vous devez configurer vos informations de paiement pour recevoir vos revenus.',
+        'Vous devez configurer vos informations de paiement pour recevoir vos revenus. Elles seront vérifiées par notre équipe avant que votre candidature ne soit approuvée.',
         [
           { text: 'Annuler', style: 'cancel' },
           { 
@@ -504,6 +635,28 @@ const BecomeHostScreen: React.FC = () => {
         ]
       );
       return;
+    }
+    
+    // Bloquer si les informations de paiement ont été rejetées
+    if (paymentInfo?.verification_status === 'rejected') {
+      Alert.alert(
+        'Informations de paiement rejetées',
+        'Vos informations de paiement ont été rejetées. Veuillez les mettre à jour avant de soumettre votre candidature.',
+        [
+          { text: 'OK', style: 'default' },
+          { 
+            text: 'Mettre à jour', 
+            onPress: () => {
+              navigation.navigate('HostPaymentInfo');
+            }
+          }
+        ]
+      );
+      return;
+    }
+    
+    if (paymentPending || paymentVerified) {
+      console.log('ℹ️ Informations de paiement', paymentPending ? 'en cours d\'étude' : 'vérifiées', ', autorisation de la soumission');
     }
 
     // Validation finale de toutes les étapes
@@ -529,10 +682,10 @@ const BecomeHostScreen: React.FC = () => {
       phone: formData.hostPhone,
       experience: formData.experience,
       images: selectedImages.map(img => img.uri),
-      categorizedPhotos: selectedImages.map(img => ({
+      categorizedPhotos: selectedImages.map((img, index) => ({
         url: img.uri,
-        category: img.category,
-        displayOrder: img.displayOrder
+        category: img.category || 'autre',
+        displayOrder: img.displayOrder ?? index
       })),
       amenities: selectedAmenities,
       minimumNights: parseInt(formData.minimumNights) || 1,
@@ -545,30 +698,151 @@ const BecomeHostScreen: React.FC = () => {
       cleaningFee: parseInt(formData.cleaningFee) || 0,
     };
 
-    const result = await submitApplication(applicationPayload);
+    const result = isEditMode && editingApplicationId
+      ? await updateApplication(editingApplicationId, applicationPayload)
+      : await submitApplication(applicationPayload);
 
     if (result.success) {
-      // Envoyer les emails après une soumission réussie
-      try {
-        // Email de confirmation au candidat
-        await sendHostApplicationSubmitted(
-          formData.hostEmail,
-          formData.hostFullName,
-          formData.title,
-          formData.propertyType,
-          formData.location
+      if (isEditMode) {
+        // Envoyer un email aux admins lorsqu'une candidature est modifiée
+        try {
+          console.log('📧 Envoi email aux admins pour candidature modifiée...');
+          
+          // Récupérer les informations de paiement de l'utilisateur
+          const { data: userPaymentInfo } = await supabase
+            .from('host_payment_info')
+            .select('*')
+            .eq('user_id', user?.id)
+            .single();
+          
+          const { data: adminUsers } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('role', 'admin');
+
+          if (adminUsers && adminUsers.length > 0) {
+            for (const admin of adminUsers) {
+              // Email de notification standard
+              await sendHostApplicationReceived(
+                admin.email,
+                formData.hostFullName,
+                formData.hostEmail,
+                formData.title,
+                formData.propertyType,
+                formData.location,
+                parseInt(formData.price) || 0
+              );
+              
+              console.log('✅ Email standard envoyé à l\'admin:', admin.email);
+              
+              // Email détaillé avec toutes les modifications et infos de paiement
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'host_application_updated',
+                  to: admin.email,
+                  data: {
+                    hostName: formData.hostFullName,
+                    hostEmail: formData.hostEmail,
+                    hostPhone: formData.hostPhone,
+                    propertyTitle: formData.title,
+                    propertyType: formData.propertyType,
+                    location: formData.location,
+                    pricePerNight: parseInt(formData.price) || 0,
+                    maxGuests: parseInt(formData.guests) || 1,
+                    bedrooms: parseInt(formData.bedrooms) || 1,
+                    bathrooms: parseInt(formData.bathrooms) || 1,
+                    description: formData.description,
+                    amenities: selectedAmenities,
+                    paymentInfo: userPaymentInfo,
+                    message: '⚠️ CANDIDATURE MODIFIÉE - L\'utilisateur a modifié sa candidature et l\'a renvoyée en révision',
+                    isUpdated: true,
+                    updatedAt: new Date().toISOString()
+                  }
+                }
+              });
+              
+              console.log('✅ Email détaillé avec modifications envoyé à l\'admin:', admin.email);
+            }
+          }
+          
+          console.log('✅ Tous les emails de modification envoyés');
+        } catch (emailError) {
+          console.error('❌ Erreur lors de l\'envoi des emails de modification:', emailError);
+        }
+        
+        Alert.alert(
+          'Candidature modifiée !', 
+          'Votre candidature a été mise à jour avec succès. Elle repasse en révision. L\'admin a été notifié.',
+          [{ text: 'OK', onPress: () => {
+            navigation.goBack();
+          }}]
         );
+      } else {
+        // Envoyer les emails après une soumission réussie
+        try {
+          // Récupérer les informations de paiement de l'utilisateur
+          const { data: userPaymentInfo } = await supabase
+            .from('host_payment_info')
+            .select('*')
+            .eq('user_id', user?.id)
+            .single();
+          
+          console.log('💳 Informations de paiement récupérées:', userPaymentInfo);
+          
+          // Email de confirmation au candidat
+          await sendHostApplicationSubmitted(
+            formData.hostEmail,
+            formData.hostFullName,
+            formData.title,
+            formData.propertyType,
+            formData.location
+          );
 
-        // Email de notification aux admins
-        const { data: adminUsers } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('role', 'admin');
+          // Email de notification aux admins
+          const { data: adminUsers } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('role', 'admin');
 
-        if (adminUsers && adminUsers.length > 0) {
-          for (const admin of adminUsers) {
+          if (adminUsers && adminUsers.length > 0) {
+            for (const admin of adminUsers) {
+              await sendHostApplicationReceived(
+                admin.email,
+                formData.hostFullName,
+                formData.hostEmail,
+                formData.title,
+                formData.propertyType,
+                formData.location,
+                parseInt(formData.price) || 0
+              );
+              
+              console.log('✅ Email envoyé à l\'admin:', admin.email);
+              
+              // Envoyer un email avec les informations de paiement
+              if (userPaymentInfo) {
+                await supabase.functions.invoke('send-email', {
+                  body: {
+                    type: 'host_application_received',
+                    to: admin.email,
+                    data: {
+                      hostName: formData.hostFullName,
+                      hostEmail: formData.hostEmail,
+                      propertyTitle: formData.title,
+                      propertyType: formData.propertyType,
+                      location: formData.location,
+                      pricePerNight: parseInt(formData.price) || 0,
+                      paymentInfo: userPaymentInfo,
+                      message: 'Nouvelle candidature soumise'
+                    }
+                  }
+                });
+                console.log('✅ Email avec infos de paiement envoyé à l\'admin:', admin.email);
+              }
+            }
+          } else {
+            // Fallback vers l'email admin par défaut
             await sendHostApplicationReceived(
-              admin.email,
+              'admin@akwahome.com',
               formData.hostFullName,
               formData.hostEmail,
               formData.title,
@@ -576,36 +850,47 @@ const BecomeHostScreen: React.FC = () => {
               formData.location,
               parseInt(formData.price) || 0
             );
+            
+            // Envoyer un email avec les informations de paiement
+            if (userPaymentInfo) {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'host_application_received',
+                  to: 'admin@akwahome.com',
+                  data: {
+                    hostName: formData.hostFullName,
+                    hostEmail: formData.hostEmail,
+                    propertyTitle: formData.title,
+                    propertyType: formData.propertyType,
+                    location: formData.location,
+                    pricePerNight: parseInt(formData.price) || 0,
+                    paymentInfo: userPaymentInfo,
+                    message: 'Nouvelle candidature soumise'
+                  }
+                }
+              });
+            }
           }
-        } else {
-          // Fallback vers l'email admin par défaut
-          await sendHostApplicationReceived(
-            'admin@akwahome.com',
-            formData.hostFullName,
-            formData.hostEmail,
-            formData.title,
-            formData.propertyType,
-            formData.location,
-            parseInt(formData.price) || 0
-          );
+
+          console.log('✅ Emails de candidature envoyés avec succès');
+        } catch (emailError) {
+          console.error('❌ Erreur lors de l\'envoi des emails:', emailError);
+          // Continue même si les emails échouent
         }
 
-        console.log('✅ Emails de candidature envoyés avec succès');
-      } catch (emailError) {
-        console.error('❌ Erreur lors de l\'envoi des emails:', emailError);
-        // Continue même si les emails échouent
+        Alert.alert(
+          'Candidature soumise !', 
+          'Votre candidature a été soumise avec succès. Nous vous contacterons bientôt.',
+          [{ text: 'OK', onPress: () => {
+            // Naviguer vers le tableau de bord hôte
+            navigation.navigate('HostDashboard');
+          }}]
+        );
       }
-
-      Alert.alert(
-        'Candidature soumise !', 
-        'Votre candidature a été soumise avec succès. Nous vous contacterons bientôt.',
-        [{ text: 'OK', onPress: () => {
-          // Naviguer vers le tableau de bord hôte
-          navigation.navigate('HostDashboard');
-        }}]
-      );
     } else {
-      Alert.alert('Erreur', 'Une erreur est survenue lors de la soumission de votre candidature.');
+      Alert.alert('Erreur', isEditMode 
+        ? 'Une erreur est survenue lors de la modification de votre candidature.'
+        : 'Une erreur est survenue lors de la soumission de votre candidature.');
     }
   };
 
@@ -1173,11 +1458,26 @@ const BecomeHostScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
       <ScrollView style={styles.scrollView}>
+        {/* Bouton de retour */}
+        <View style={styles.backButtonContainer}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+            <Text style={styles.backButtonText}>Retour</Text>
+          </TouchableOpacity>
+        </View>
+        
         {/* En-tête */}
         <View style={styles.header}>
-          <Text style={styles.title}>Devenir hôte</Text>
+          <Text style={styles.title}>
+            {isEditMode ? 'Modifier votre candidature' : 'Devenir hôte'}
+          </Text>
           <Text style={styles.subtitle}>
-            Partagez votre logement et générez des revenus supplémentaires
+            {isEditMode 
+              ? 'Modifiez les informations de votre candidature ci-dessous'
+              : 'Partagez votre logement et générez des revenus supplémentaires'}
           </Text>
         </View>
 
@@ -1403,6 +1703,23 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  backButtonContainer: {
+    padding: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2c3e50',
+    marginLeft: 8,
   },
   header: {
     padding: 20,

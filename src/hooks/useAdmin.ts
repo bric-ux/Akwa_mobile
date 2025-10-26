@@ -139,20 +139,46 @@ export const useAdmin = () => {
           console.error('Error updating profile:', profileError);
         }
 
-        // Traiter les photos catégorisées si fournies
-        if (photoCategories && application.images) {
-          const categorizedPhotos = application.images.map((url, index) => ({
-            url,
-            category: photoCategories[index] || 'autre',
-            displayOrder: index
-          }));
+                // Traiter les données de classification si fournies
+                if (photoCategories && application.images) {
+                  // Extraire les données de classification
+                  const adminCategory = photoCategories[0] || 'standard'; // Utiliser la première photo pour la catégorie globale
+                  const adminRating = parseInt(photoCategories[`rating_0`] || '3'); // Note par défaut 3
+                  const isFeatured = photoCategories[`featured_0`] === 'true';
 
-          // Mettre à jour l'application avec les photos catégorisées
-          await supabase
-            .from('host_applications')
-            .update({ categorized_photos: categorizedPhotos })
-            .eq('id', applicationId);
-        }
+                  // Mettre à jour l'application avec les données de classification
+                  await supabase
+                    .from('host_applications')
+                    .update({ 
+                      admin_category: adminCategory,
+                      admin_rating: adminRating,
+                      is_featured: isFeatured,
+                      classification_date: new Date().toISOString(),
+                      classified_by: user.id
+                    })
+                    .eq('id', applicationId);
+
+                  // Si une propriété est créée à partir de cette candidature, appliquer la classification
+                  const { data: createdProperty } = await supabase
+                    .from('properties')
+                    .select('id')
+                    .eq('host_id', application.user_id)
+                    .eq('title', application.title)
+                    .single();
+
+                  if (createdProperty) {
+                    await supabase
+                      .from('properties')
+                      .update({
+                        admin_category: adminCategory,
+                        admin_rating: adminRating,
+                        is_featured: isFeatured,
+                        classification_date: new Date().toISOString(),
+                        classified_by: user.id
+                      })
+                      .eq('id', createdProperty.id);
+                  }
+                }
 
         // Envoyer email de confirmation d'approbation
         try {

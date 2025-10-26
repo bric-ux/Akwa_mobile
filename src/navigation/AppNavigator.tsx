@@ -27,6 +27,7 @@ import HostDashboardScreen from '../screens/HostDashboardScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AdminApplicationsScreen from '../screens/AdminApplicationsScreen';
 import AdminPropertiesScreen from '../screens/AdminPropertiesScreen';
+import AdminStatsScreen from '../screens/AdminStatsScreen';
 import AdminUsersScreen from '../screens/AdminUsersScreen';
 import AdminIdentityDocumentsScreen from '../screens/AdminIdentityDocumentsScreen';
 import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
@@ -291,6 +292,14 @@ const AppNavigator = () => {
               }}
             />
             <Stack.Screen 
+              name="AdminStats" 
+              component={AdminStatsScreen}
+              options={{ 
+                title: 'Statistiques détaillées',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
               name="AdminUsers" 
               component={AdminUsersScreen}
               options={{ 
@@ -306,14 +315,22 @@ const AppNavigator = () => {
                 headerShown: false 
               }}
             />
-        <Stack.Screen
-          name="AdminHostPaymentInfo"
-          component={AdminHostPaymentInfoScreen}
-          options={{
-            title: 'Informations de paiement hôtes',
-            headerShown: false
-          }}
-        />
+            <Stack.Screen
+              name="AdminHostPaymentInfo"
+              component={AdminHostPaymentInfoScreen}
+              options={{
+                title: 'Informations de paiement hôtes',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminNotifications"
+              component={AdminNotificationsScreen}
+              options={{
+                title: 'Gestion des notifications',
+                headerShown: false
+              }}
+            />
             <Stack.Screen 
               name="EditProperty" 
               component={EditPropertyScreen}

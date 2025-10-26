@@ -159,6 +159,7 @@ export type RootStackParamList = {
   Admin: undefined;
   AdminApplications: undefined;
   AdminProperties: undefined;
+  AdminStats: undefined;
   AdminUsers: undefined;
   AdminIdentityDocuments: undefined;
   AdminHostPaymentInfo: undefined;

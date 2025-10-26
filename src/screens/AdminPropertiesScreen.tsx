@@ -40,10 +40,10 @@ const AdminPropertiesScreen: React.FC = () => {
   // Charger les propriétés quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
-      if (user) {
+      if (user && profile?.role === 'admin') {
         loadProperties();
       }
-    }, [user])
+    }, [user, profile])
   );
 
   const handleRefresh = async () => {

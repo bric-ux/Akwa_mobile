@@ -55,7 +55,8 @@ const AdminApplicationsScreen: React.FC = () => {
         .from('identity_documents')
         .select('*')
         .eq('user_id', userId)
-        .maybeSingle();
+        .order('uploaded_at', { ascending: false })
+        .limit(1);
 
       if (error) {
         console.error('Erreur chargement document identité:', error);
@@ -63,7 +64,8 @@ const AdminApplicationsScreen: React.FC = () => {
         return;
       }
 
-      setIdentityDoc(data);
+      // Prendre le premier document (le plus récent) s'il y en a plusieurs
+      setIdentityDoc(data && data.length > 0 ? data[0] : null);
     } catch (error) {
       console.error('Erreur:', error);
       setIdentityDoc(null);
@@ -73,10 +75,10 @@ const AdminApplicationsScreen: React.FC = () => {
   // Charger les candidatures quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
-      if (user) {
+      if (user && profile?.role === 'admin') {
         loadApplications();
       }
-    }, [user])
+    }, [user, profile])
   );
 
   useEffect(() => {
@@ -256,19 +258,34 @@ const AdminApplicationsScreen: React.FC = () => {
             <Text style={styles.actionButtonText}>Voir détails</Text>
           </TouchableOpacity>
           
-          {application.images && application.images.length > 0 && (
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => {
-                setSelectedApp(application);
-                setShowPhotos(true);
-                setSelectedPhotoIndex(0);
-              }}
-            >
-              <Ionicons name="images-outline" size={16} color="#e67e22" />
-              <Text style={styles.actionButtonText}>Photos ({application.images.length})</Text>
-            </TouchableOpacity>
-          )}
+          {(() => {
+            let photoCount = 0;
+            if (application.images && application.images.length > 0) {
+              photoCount = application.images.length;
+            } else if (application.categorized_photos) {
+              try {
+                const photos = typeof application.categorized_photos === 'string' 
+                  ? JSON.parse(application.categorized_photos) 
+                  : application.categorized_photos;
+                photoCount = Array.isArray(photos) ? photos.length : 0;
+              } catch (e) {
+                photoCount = 0;
+              }
+            }
+            return photoCount > 0 ? (
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => {
+                  setSelectedApp(application);
+                  setShowPhotos(true);
+                  setSelectedPhotoIndex(0);
+                }}
+              >
+                <Ionicons name="images-outline" size={16} color="#e67e22" />
+                <Text style={styles.actionButtonText}>Photos ({photoCount})</Text>
+              </TouchableOpacity>
+            ) : null;
+          })()}
         </View>
       </TouchableOpacity>
     );
@@ -565,108 +582,226 @@ const AdminApplicationsScreen: React.FC = () => {
   }
 
   const renderPhotoViewer = () => {
-    if (!selectedApp || !showPhotos || !selectedApp.images || selectedApp.images.length === 0) return null;
+    if (!selectedApp || !showPhotos) return null;
 
-    const currentPhoto = selectedApp.images[selectedPhotoIndex];
+    // Parser les photos catégorisées si disponibles
+    let categorizedPhotos: Array<{url: string, category: string, displayOrder: number}> = [];
+    let images: string[] = [];
+    
+    if (selectedApp.categorized_photos) {
+      try {
+        if (typeof selectedApp.categorized_photos === 'string') {
+          categorizedPhotos = JSON.parse(selectedApp.categorized_photos);
+        } else if (Array.isArray(selectedApp.categorized_photos)) {
+          categorizedPhotos = selectedApp.categorized_photos;
+        }
+        images = categorizedPhotos.map(p => p.url || p.uri).filter(Boolean);
+      } catch (e) {
+        console.error('Error parsing categorized_photos:', e);
+      }
+    }
+    
+    // Fallback sur images simple si pas de photos catégorisées
+    if (images.length === 0 && selectedApp.images) {
+      images = selectedApp.images;
+    }
+    
+    if (images.length === 0) return null;
+
+    const currentPhoto = images[selectedPhotoIndex];
+    const currentPhotoData = categorizedPhotos[selectedPhotoIndex];
+
+    const CATEGORY_LABELS: Record<string, string> = {
+      chambre: '🛏️ Chambre',
+      salle_de_bain: '🚿 Salle de bain',
+      cuisine: '🍳 Cuisine',
+      jardin: '🌳 Jardin',
+      salon: '🛋️ Salon',
+      exterieur: '🏡 Extérieur',
+      terrasse: '☀️ Terrasse',
+      balcon: '🪴 Balcon',
+      autre: '📷 Autre'
+    };
 
     return (
       <Modal
         visible={showPhotos}
         animationType="slide"
-        presentationStyle="pageSheet"
+        presentationStyle="fullScreen"
         onRequestClose={() => {
           setShowPhotos(false);
           setSelectedApp(null);
           setSelectedPhotoIndex(0);
         }}
       >
-        <SafeAreaView style={styles.photoModal}>
+        <SafeAreaView style={styles.photoModal} edges={['top', 'left', 'right']}>
           <View style={styles.photoHeader}>
-            <Text style={styles.photoTitle}>Photos de la propriété</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => {
-                setShowPhotos(false);
-                setSelectedApp(null);
-                setSelectedPhotoIndex(0);
-              }}
-            >
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
+            <View style={styles.photoHeaderLeft}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => {
+                  setShowPhotos(false);
+                  setSelectedApp(null);
+                  setSelectedPhotoIndex(0);
+                }}
+              >
+                <Ionicons name="arrow-back" size={24} color="#333" />
+              </TouchableOpacity>
+              <Text style={styles.photoTitle}>Photos de la propriété</Text>
+            </View>
           </View>
 
-          <View style={styles.photoContainer}>
-            <Image source={{ uri: currentPhoto }} style={styles.photoImage} resizeMode="cover" />
-            
-            {/* Catégorisation des photos */}
-            <View style={styles.categoryContainer}>
-              <Text style={styles.categoryLabel}>Catégorie:</Text>
-              <View style={styles.categoryButtons}>
-                {['exterieur', 'salon', 'chambre', 'salle_de_bain', 'cuisine', 'jardin', 'autre'].map((category) => (
+          <ScrollView style={styles.photoContent} showsVerticalScrollIndicator={false}>
+            {/* Image principale */}
+            <View style={styles.photoMainContainer}>
+              <Image source={{ uri: currentPhoto }} style={styles.photoImage} resizeMode="contain" />
+              
+              {/* Catégorie de la photo */}
+              {currentPhotoData?.category && (
+                <View style={styles.photoCategoryBadge}>
+                  <Text style={styles.photoCategoryText}>
+                    {CATEGORY_LABELS[currentPhotoData.category] || currentPhotoData.category}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Navigation entre photos */}
+            {images.length > 1 && (
+              <View style={styles.photoNavigation}>
+                <TouchableOpacity
+                  style={[styles.navButton, selectedPhotoIndex === 0 && styles.navButtonDisabled]}
+                  onPress={() => setSelectedPhotoIndex(Math.max(0, selectedPhotoIndex - 1))}
+                  disabled={selectedPhotoIndex === 0}
+                >
+                  <Ionicons name="chevron-back" size={28} color={selectedPhotoIndex === 0 ? "#ccc" : "#333"} />
+                </TouchableOpacity>
+                
+                <Text style={styles.photoCounter}>
+                  {selectedPhotoIndex + 1} / {images.length}
+                </Text>
+                
+                <TouchableOpacity
+                  style={[styles.navButton, selectedPhotoIndex === images.length - 1 && styles.navButtonDisabled]}
+                  onPress={() => setSelectedPhotoIndex(Math.min(images.length - 1, selectedPhotoIndex + 1))}
+                  disabled={selectedPhotoIndex === images.length - 1}
+                >
+                  <Ionicons name="chevron-forward" size={28} color={selectedPhotoIndex === images.length - 1 ? "#ccc" : "#333"} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Classification pour l'affichage */}
+            <View style={styles.classificationSection}>
+              <Text style={styles.sectionTitle}>Classification</Text>
+              <View style={styles.categoryGrid}>
+                {[
+                  { value: 'top_choice', label: '⭐ Top Choice', color: '#e74c3c' },
+                  { value: 'premium', label: '💎 Premium', color: '#f39c12' },
+                  { value: 'standard', label: '🏠 Standard', color: '#3498db' },
+                  { value: 'economique', label: '💰 Économique', color: '#2E7D32' }
+                ].map((category) => (
                   <TouchableOpacity
-                    key={category}
+                    key={category.value}
                     style={[
-                      styles.categoryButton,
-                      photoCategories[selectedPhotoIndex] === category && styles.categoryButtonSelected
+                      styles.classificationButton,
+                      photoCategories[selectedPhotoIndex] === category.value && styles.classificationButtonSelected
                     ]}
                     onPress={() => setPhotoCategories(prev => ({
                       ...prev,
-                      [selectedPhotoIndex]: category
+                      [selectedPhotoIndex]: category.value
                     }))}
                   >
                     <Text style={[
-                      styles.categoryButtonText,
-                      photoCategories[selectedPhotoIndex] === category && styles.categoryButtonTextSelected
+                      styles.classificationButtonText,
+                      photoCategories[selectedPhotoIndex] === category.value && styles.classificationButtonTextSelected
                     ]}>
-                      {category.replace('_', ' ')}
+                      {category.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
-            
-            {selectedApp.images.length > 1 && (
-              <View style={styles.photoNavigation}>
-                <TouchableOpacity
-                  style={styles.navButton}
-                  onPress={() => setSelectedPhotoIndex(Math.max(0, selectedPhotoIndex - 1))}
-                  disabled={selectedPhotoIndex === 0}
-                >
-                  <Ionicons name="chevron-back" size={24} color={selectedPhotoIndex === 0 ? "#ccc" : "#333"} />
-                </TouchableOpacity>
-                
-                <Text style={styles.photoCounter}>
-                  {selectedPhotoIndex + 1} / {selectedApp.images.length}
+
+            {/* Note admin */}
+            <View style={styles.ratingSection}>
+              <Text style={styles.sectionTitle}>Note admin (1-5)</Text>
+              <View style={styles.ratingButtons}>
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <TouchableOpacity
+                    key={rating}
+                    style={[
+                      styles.ratingButton,
+                      photoCategories[`rating_${selectedPhotoIndex}`] === rating.toString() && styles.ratingButtonSelected
+                    ]}
+                    onPress={() => setPhotoCategories(prev => ({
+                      ...prev,
+                      [`rating_${selectedPhotoIndex}`]: rating.toString()
+                    }))}
+                  >
+                    <Text style={[
+                      styles.ratingButtonText,
+                      photoCategories[`rating_${selectedPhotoIndex}`] === rating.toString() && styles.ratingButtonTextSelected
+                    ]}>
+                      {rating}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Mise en avant */}
+            <View style={styles.featuredSection}>
+              <TouchableOpacity
+                style={[
+                  styles.featuredButton,
+                  photoCategories[`featured_${selectedPhotoIndex}`] === 'true' && styles.featuredButtonSelected
+                ]}
+                onPress={() => setPhotoCategories(prev => ({
+                  ...prev,
+                  [`featured_${selectedPhotoIndex}`]: prev[`featured_${selectedPhotoIndex}`] === 'true' ? 'false' : 'true'
+                }))}
+              >
+                <Ionicons 
+                  name={photoCategories[`featured_${selectedPhotoIndex}`] === 'true' ? 'star' : 'star-outline'} 
+                  size={24} 
+                  color={photoCategories[`featured_${selectedPhotoIndex}`] === 'true' ? '#fff' : '#f39c12'} 
+                />
+                <Text style={[
+                  styles.featuredButtonText,
+                  photoCategories[`featured_${selectedPhotoIndex}`] === 'true' && styles.featuredButtonTextSelected
+                ]}>
+                  Mettre en avant cette photo
                 </Text>
-                
-                <TouchableOpacity
-                  style={styles.navButton}
-                  onPress={() => setSelectedPhotoIndex(Math.min(selectedApp.images.length - 1, selectedPhotoIndex + 1))}
-                  disabled={selectedPhotoIndex === selectedApp.images.length - 1}
-                >
-                  <Ionicons name="chevron-forward" size={24} color={selectedPhotoIndex === selectedApp.images.length - 1 ? "#ccc" : "#333"} />
-                </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
+
+            {/* Miniatures */}
+            {images.length > 1 && (
+              <View style={styles.thumbnailsSection}>
+                <Text style={styles.sectionTitle}>Toutes les photos</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailsContainer}>
+                  {images.map((photo, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.thumbnail,
+                        index === selectedPhotoIndex && styles.selectedThumbnail
+                      ]}
+                      onPress={() => setSelectedPhotoIndex(index)}
+                    >
+                      <Image source={{ uri: photo }} style={styles.thumbnailImage} resizeMode="cover" />
+                      {index === selectedPhotoIndex && (
+                        <View style={styles.selectedThumbnailOverlay}>
+                          <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             )}
-          </View>
-
-          {/* Miniatures */}
-          {selectedApp.images.length > 1 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailsContainer}>
-              {selectedApp.images.map((photo, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.thumbnail,
-                    index === selectedPhotoIndex && styles.selectedThumbnail
-                  ]}
-                  onPress={() => setSelectedPhotoIndex(index)}
-                >
-                  <Image source={{ uri: photo }} style={styles.thumbnailImage} resizeMode="cover" />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
+          </ScrollView>
         </SafeAreaView>
       </Modal>
     );
@@ -1142,37 +1277,62 @@ const styles = StyleSheet.create({
   },
   // Styles pour le photo viewer
   photoModal: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: '#fff',
-    zIndex: 1000,
   },
   photoHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 15,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  photoHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   photoTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    marginLeft: 12,
   },
-  photoContainer: {
+  photoContent: {
     flex: 1,
+  },
+  photoMainContainer: {
+    backgroundColor: '#000',
+    aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
   photoImage: {
     width: '100%',
-    height: '70%',
+    height: '100%',
+  },
+  photoCategoryBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  photoCategoryText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   photoNavigation: {
     flexDirection: 'row',
@@ -1183,27 +1343,85 @@ const styles = StyleSheet.create({
   },
   navButton: {
     padding: 10,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fa',
+  },
+  navButtonDisabled: {
+    opacity: 0.3,
   },
   photoCounter: {
     fontSize: 16,
     color: '#333',
     fontWeight: '600',
+    minWidth: 60,
+    textAlign: 'center',
   },
-  thumbnailsContainer: {
-    paddingHorizontal: 20,
+  classificationSection: {
+    padding: 20,
+    backgroundColor: '#f8f9fa',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  classificationButton: {
+    paddingHorizontal: 16,
     paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  classificationButtonSelected: {
+    backgroundColor: '#e74c3c',
+    borderColor: '#e74c3c',
+  },
+  classificationButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  classificationButtonTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  ratingSection: {
+    padding: 20,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  featuredSection: {
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  thumbnailsSection: {
+    padding: 20,
     backgroundColor: '#f8f9fa',
     borderTopWidth: 1,
     borderTopColor: '#e9ecef',
   },
+  thumbnailsContainer: {
+    marginTop: 12,
+  },
   thumbnail: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
     marginRight: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 3,
+    borderColor: '#e9ecef',
+    position: 'relative',
   },
   selectedThumbnail: {
     borderColor: '#e74c3c',
@@ -1211,6 +1429,16 @@ const styles = StyleSheet.create({
   thumbnailImage: {
     width: '100%',
     height: '100%',
+  },
+  selectedThumbnailOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Styles pour la catégorisation
   categoryContainer: {
@@ -1251,6 +1479,67 @@ const styles = StyleSheet.create({
   categoryButtonTextSelected: {
     color: '#fff',
     fontWeight: '600',
+  },
+  ratingContainer: {
+    marginTop: 15,
+  },
+  ratingLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  ratingButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  ratingButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#dee2e6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ratingButtonSelected: {
+    backgroundColor: '#e74c3c',
+    borderColor: '#e74c3c',
+  },
+  ratingButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  ratingButtonTextSelected: {
+    color: '#fff',
+  },
+  featuredContainer: {
+    marginTop: 15,
+  },
+  featuredButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#f39c12',
+    gap: 8,
+  },
+  featuredButtonSelected: {
+    backgroundColor: '#f39c12',
+    borderColor: '#f39c12',
+  },
+  featuredButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#f39c12',
+  },
+  featuredButtonTextSelected: {
+    color: '#fff',
   },
 });
 

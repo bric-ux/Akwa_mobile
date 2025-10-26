@@ -52,25 +52,26 @@ export const useUserProfile = () => {
       setLoading(true);
       setError(null);
       
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      // Vérifier d'abord si une session existe
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (userError) {
-        console.error('Erreur d\'authentification dans useUserProfile:', userError);
+      if (sessionError) {
+        console.error('Erreur de session dans useUserProfile:', sessionError);
         setError('Session expirée. Veuillez vous reconnecter.');
-        // Nettoyer le cache global en cas d'erreur d'authentification
         globalProfileCache = null;
         notifyProfileListeners();
         return;
       }
       
-      if (!user) {
-        console.log('Aucun utilisateur connecté dans useUserProfile');
+      if (!session?.user) {
+        console.log('Aucune session active dans useUserProfile');
         setError('Vous devez être connecté pour voir votre profil.');
-        // Nettoyer le cache global quand aucun utilisateur
         globalProfileCache = null;
         notifyProfileListeners();
         return;
       }
+      
+      const user = session.user;
       
       // Récupérer le profil depuis la table profiles pour avoir le rôle
       const { data: profileData, error: profileError } = await supabase
@@ -136,7 +137,13 @@ export const useUserProfile = () => {
   }, []);
 
   useEffect(() => {
-    loadProfile();
+    // Ne charger le profil que si on a déjà un cache ou si on est sûr qu'il y a un utilisateur
+    if (globalProfileCache) {
+      setLoading(false);
+    } else {
+      // Charger le profil seulement si on pense qu'il y a un utilisateur connecté
+      loadProfile();
+    }
   }, [loadProfile]);
 
   return {

@@ -291,10 +291,11 @@ const PropertyDetailsScreen: React.FC = () => {
                           {reviewerName.charAt(0).toUpperCase()}
                         </Text>
                       </View>
-                      <View style={styles.reviewUserDetails}>
-                        <Text style={styles.reviewUserName}>
-                          {reviewerName}
-                        </Text>
+                    </View>
+                    <View style={styles.reviewUserDetails}>
+                      <Text style={styles.reviewUserName}>
+                        {reviewerName}
+                      </Text>
                       <View style={styles.reviewStars}>
                         {[1, 2, 3, 4, 5].map((star) => (
                           <Text key={star} style={[
@@ -314,12 +315,11 @@ const PropertyDetailsScreen: React.FC = () => {
                       year: 'numeric'
                     })}
                   </Text>
-                </View>
-                {review.comment && (
-                  <Text style={styles.reviewComment}>
-                    "{review.comment}"
-                  </Text>
-                )}
+                  {review.comment && (
+                    <Text style={styles.reviewComment}>
+                      "{review.comment}"
+                    </Text>
+                  )}
                 </View>
               );
             })}
@@ -331,9 +331,9 @@ const PropertyDetailsScreen: React.FC = () => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Équipements</Text>
             <View style={styles.amenitiesGrid}>
-              {property.amenities.map((amenity) => (
-                <View key={amenity.id} style={styles.amenityItem}>
-                  <Text style={styles.amenityIcon}>{amenity.icon}</Text>
+              {property.amenities.map((amenity, idx) => (
+                <View key={idx} style={styles.amenityItem}>
+                  <Text style={styles.amenityIcon}>{amenity.icon || '✓'}</Text>
                   <Text style={styles.amenityName}>{amenity.name}</Text>
                 </View>
               ))}
@@ -373,10 +373,7 @@ const PropertyDetailsScreen: React.FC = () => {
         </View>
 
         {/* Section Hôte */}
-        {property && property.host_id && (() => {
-          console.log('🏠 Affichage section hôte pour property:', property.id, 'host_id:', property.host_id, 'hostProfile:', hostProfile);
-          return true;
-        })() && (
+        {property && property.host_id && hostProfile && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Votre hôte</Text>
             <TouchableOpacity
@@ -405,14 +402,14 @@ const PropertyDetailsScreen: React.FC = () => {
                   <Text style={styles.hostTitle}>Hôte sur AkwaHome</Text>
                   
                   {/* Statistiques rapides */}
-                  {hostProfile && (hostProfile.total_properties || hostProfile.average_rating) && (
+                  {hostProfile && ((hostProfile.total_properties != null && hostProfile.total_properties > 0) || (hostProfile.average_rating != null && hostProfile.average_rating > 0)) && (
                     <View style={styles.hostStats}>
-                      {hostProfile.total_properties && (
+                      {(hostProfile.total_properties != null && hostProfile.total_properties > 0) && (
                         <Text style={styles.hostStat}>
                           {hostProfile.total_properties} propriété{hostProfile.total_properties > 1 ? 's' : ''}
                         </Text>
                       )}
-                      {hostProfile.average_rating && (
+                      {(hostProfile.average_rating != null && hostProfile.average_rating > 0) && (
                         <Text style={styles.hostStat}>
                           ⭐ {hostProfile.average_rating}/5
                         </Text>

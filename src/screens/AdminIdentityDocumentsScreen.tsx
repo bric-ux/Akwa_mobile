@@ -94,10 +94,10 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
   // Charger les documents quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
-      if (user) {
+      if (user && profile?.role === 'admin') {
         loadDocuments();
       }
-    }, [user])
+    }, [user, profile])
   );
 
   const handleRefresh = async () => {

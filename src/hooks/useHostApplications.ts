@@ -201,6 +201,8 @@ export const useHostApplications = () => {
     setError(null);
 
     try {
+      console.log('🔄 Mise à jour de la candidature:', applicationId);
+      
       const { data, error } = await supabase
         .from('host_applications')
         .update({
@@ -229,6 +231,7 @@ export const useHostApplications = () => {
           cleaning_fee: applicationData.cleaningFee || 0,
           taxes: applicationData.taxes || 0,
           status: 'reviewing', // Repasser en révision après modification
+          revision_message: 'Candidature modifiée par l\'utilisateur', // Message pour l'admin
           updated_at: new Date().toISOString(),
         })
         .eq('id', applicationId)
@@ -237,7 +240,7 @@ export const useHostApplications = () => {
         .single();
 
       if (error) {
-        console.error('Erreur Supabase:', error);
+        console.error('❌ Erreur Supabase:', error);
         setError('Erreur lors de la mise à jour de la candidature');
         return { success: false };
       }
@@ -280,12 +283,43 @@ export const useHostApplications = () => {
     }
   };
 
+  const getApplicationById = async (applicationId: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('🔍 Chargement de la candidature:', applicationId);
+      
+      const { data, error } = await supabase
+        .from('host_applications')
+        .select('*')
+        .eq('id', applicationId)
+        .single();
+
+      if (error) {
+        console.error('❌ Error fetching application:', error);
+        setError('Erreur lors du chargement de la candidature');
+        return null;
+      }
+
+      console.log('✅ Candidature chargée:', data);
+      return data;
+    } catch (err: any) {
+      console.error('❌ Error in getApplicationById:', err);
+      setError('Erreur lors du chargement de la candidature');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     submitApplication,
     getMyApplications,
     getApplications,
     getAmenities,
     updateApplication,
+    getApplicationById,
     loading,
     error,
   };

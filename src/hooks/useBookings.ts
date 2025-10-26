@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
 import { useIdentityVerification } from './useIdentityVerification';
+import { useBookingPDF } from './useBookingPDF';
 
 export interface BookingData {
   propertyId: string;
@@ -60,6 +61,7 @@ export const useBookings = () => {
   const { user } = useAuth();
   const { sendBookingRequest, sendBookingRequestSent } = useEmailService();
   const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
+  const { generateAndSendBookingPDF } = useBookingPDF();
 
   const createBooking = async (bookingData: BookingData) => {
     if (!user) {
