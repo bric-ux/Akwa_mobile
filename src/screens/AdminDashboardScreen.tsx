@@ -164,7 +164,7 @@ const AdminDashboardScreen: React.FC = () => {
         price_per_night: 15000,
         cleaning_fee: 5000,
         service_fee: 2000,
-        taxes: 0,
+        taxes: 1500,
         cancellation_policy: 'flexible',
         guest_name: 'Jean Dupont',
         guest_email: testEmail,
@@ -177,10 +177,11 @@ const AdminDashboardScreen: React.FC = () => {
         guests_count: 2,
         nights_count: 2,
         subtotal: 30000,
-        total_price: 45100,
+        total_price: 46600,
         booking_message: 'Ceci est un test d\'envoi d\'email avec PDF depuis l\'application mobile AkwaHome.',
-        discount_applied: false,
-        discount_amount: 0,
+        discount_applied: true,
+        discount_amount: 1000,
+        payment_method: 'wave',
         payment_plan: 'full'
       };
 
