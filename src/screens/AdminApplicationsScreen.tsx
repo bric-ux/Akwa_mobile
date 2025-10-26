@@ -297,8 +297,20 @@ const AdminApplicationsScreen: React.FC = () => {
     const statusInfo = getStatusBadge(selectedApp.status);
 
     return (
-      <View style={styles.detailsModal}>
-        <View style={styles.detailsHeader}>
+      <Modal
+        visible={showDetails}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowDetails(false);
+          setSelectedApp(null);
+          setAdminNotes('');
+          setRevisionMessage('');
+          setPhotoCategories({});
+        }}
+      >
+        <SafeAreaView style={styles.detailsModal} edges={['top', 'left', 'right']}>
+          <View style={styles.detailsHeader}>
           <Text style={styles.detailsTitle}>Détails de la candidature</Text>
           <TouchableOpacity
             style={styles.closeButton}
@@ -557,7 +569,8 @@ const AdminApplicationsScreen: React.FC = () => {
             </View>
           </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
+      </Modal>
     );
   };
 
@@ -1157,13 +1170,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   detailsModal: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: '#fff',
-    zIndex: 1000,
   },
   detailsHeader: {
     flexDirection: 'row',
@@ -1284,7 +1292,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
-    paddingTop: 8,
+    paddingTop: 0,
     paddingBottom: 12,
     backgroundColor: '#fff',
     borderBottomWidth: 1,

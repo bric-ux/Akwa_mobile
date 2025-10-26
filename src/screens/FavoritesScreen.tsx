@@ -122,7 +122,7 @@ const FavoritesScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mes Favoris</Text>
         <Text style={styles.headerSubtitle}>

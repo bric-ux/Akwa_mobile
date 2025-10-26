@@ -303,7 +303,7 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <Ionicons name="person-circle-outline" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>Non connecté</Text>
@@ -318,7 +318,7 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
   // Vérifier que l'utilisateur est admin
   if (profile?.role !== 'admin') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <Ionicons name="shield-outline" size={64} color="#e74c3c" />
           <Text style={styles.emptyTitle}>Accès refusé</Text>
@@ -338,7 +338,7 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#e74c3c" />
           <Text style={styles.loadingText}>Chargement des documents...</Text>
@@ -348,7 +348,7 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
