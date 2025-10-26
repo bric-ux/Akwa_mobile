@@ -152,6 +152,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   BecomeHost: undefined;
   MyHostApplications: undefined;
+  ApplicationDetails: { applicationId: string };
   MyProperties: undefined;
   HostDashboard: undefined;
   HostPaymentInfo: undefined;

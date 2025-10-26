@@ -130,10 +130,16 @@ const MyHostApplicationsScreen: React.FC = () => {
   };
 
   const renderApplication = (application: HostApplication) => (
-    <View key={application.id} style={[
-      styles.applicationCard,
-      application.status === 'reviewing' && styles.reviewingCard
-    ]}>
+    <TouchableOpacity 
+      key={application.id} 
+      style={[
+        styles.applicationCard,
+        application.status === 'reviewing' && styles.reviewingCard
+      ]}
+      onPress={() => {
+        navigation.navigate('ApplicationDetails' as never, { applicationId: application.id } as never);
+      }}
+    >
       <View style={styles.applicationHeader}>
         <View style={styles.propertyInfo}>
           <Text style={styles.propertyIcon}>
@@ -244,7 +250,7 @@ const MyHostApplicationsScreen: React.FC = () => {
           </Text>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 
   if (!user) {

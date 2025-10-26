@@ -22,6 +22,7 @@ import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 import BecomeHostScreen from '../screens/BecomeHostScreen';
 import MyHostApplicationsScreen from '../screens/MyHostApplicationsScreen';
+import ApplicationDetailsScreen from '../screens/ApplicationDetailsScreen';
 import MyPropertiesScreen from '../screens/MyPropertiesScreen';
 import HostDashboardScreen from '../screens/HostDashboardScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
@@ -219,6 +220,14 @@ const AppNavigator = () => {
               component={MyHostApplicationsScreen}
               options={{ 
                 title: 'Mes candidatures',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="ApplicationDetails" 
+              component={ApplicationDetailsScreen}
+              options={{ 
+                title: 'Détails de la candidature',
                 headerShown: false 
               }}
             />

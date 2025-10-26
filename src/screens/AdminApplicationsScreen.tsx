@@ -21,12 +21,21 @@ import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { HostApplication } from '../hooks/useHostApplications';
 import { supabase } from '../services/supabase';
+import { getAmenityIcon } from '../utils/amenityIcons';
+import { useAmenities } from '../hooks/useAmenities';
 
 const AdminApplicationsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { getAllHostApplications, updateApplicationStatus, loading } = useAdmin();
+  const { amenities } = useAmenities();
+  
+  // Fonction pour obtenir le nom de l'équipement à partir de son ID
+  const getAmenityName = (amenityId: string): string => {
+    const amenity = amenities.find(a => a.id === amenityId);
+    return amenity ? amenity.name : amenityId;
+  };
   
   const [applications, setApplications] = useState<HostApplication[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -370,7 +379,93 @@ const AdminApplicationsScreen: React.FC = () => {
               <Text style={styles.detailsLabel}>Prix par nuit:</Text>
               <Text style={styles.detailsValue}>{formatPrice(selectedApp.price_per_night)}</Text>
             </View>
+            
+            {selectedApp.minimum_nights && (
+              <View style={styles.detailsItem}>
+                <Text style={styles.detailsLabel}>Nuitées minimum:</Text>
+                <Text style={styles.detailsValue}>{selectedApp.minimum_nights}</Text>
+              </View>
+            )}
+            
+            {selectedApp.cleaning_fee !== undefined && selectedApp.cleaning_fee !== null && (
+              <View style={styles.detailsItem}>
+                <Text style={styles.detailsLabel}>Frais de ménage:</Text>
+                <Text style={styles.detailsValue}>{formatPrice(selectedApp.cleaning_fee)}</Text>
+              </View>
+            )}
+            
+            {selectedApp.taxes !== undefined && selectedApp.taxes !== null && (
+              <View style={styles.detailsItem}>
+                <Text style={styles.detailsLabel}>Taxes:</Text>
+                <Text style={styles.detailsValue}>{formatPrice(selectedApp.taxes)}</Text>
+              </View>
+            )}
+            
+            {selectedApp.amenities && selectedApp.amenities.length > 0 && (
+              <View style={styles.detailsItem}>
+                <Text style={styles.detailsLabel}>Équipements:</Text>
+                <View style={styles.amenitiesList}>
+                  {selectedApp.amenities.map((amenityId, index) => {
+                    const amenityName = getAmenityName(amenityId);
+                    const amenityIcon = getAmenityIcon(amenityName);
+                    return (
+                      <View key={index} style={styles.amenityBadge}>
+                        <Text style={styles.amenityIconText}>{amenityIcon}</Text>
+                        <Text style={styles.amenityItem}>{amenityName}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+            
+            {selectedApp.auto_booking !== undefined && (
+              <View style={styles.detailsItem}>
+                <Text style={styles.detailsLabel}>Réservation automatique:</Text>
+                <Text style={styles.detailsValue}>{selectedApp.auto_booking ? 'Oui' : 'Non'}</Text>
+              </View>
+            )}
+            
+            {selectedApp.cancellation_policy && (
+              <View style={styles.detailsItem}>
+                <Text style={styles.detailsLabel}>Politique d'annulation:</Text>
+                <Text style={styles.detailsValue}>{selectedApp.cancellation_policy}</Text>
+              </View>
+            )}
+            
+            {selectedApp.host_guide && (
+              <View style={styles.detailsItem}>
+                <Text style={styles.detailsLabel}>Guide de l'hôte:</Text>
+                <Text style={styles.detailsValue}>{selectedApp.host_guide}</Text>
+              </View>
+            )}
           </View>
+
+          {/* Réductions */}
+          {selectedApp.discount_enabled && (
+            <View style={styles.detailsSection}>
+              <Text style={styles.detailsSectionTitle}>💰 Réductions</Text>
+              
+              <View style={styles.detailsItem}>
+                <Text style={styles.detailsLabel}>Réductions activées:</Text>
+                <Text style={styles.detailsValue}>Oui</Text>
+              </View>
+              
+              {selectedApp.discount_min_nights && (
+                <View style={styles.detailsItem}>
+                  <Text style={styles.detailsLabel}>Nuitées minimum pour réduction:</Text>
+                  <Text style={styles.detailsValue}>{selectedApp.discount_min_nights}</Text>
+                </View>
+              )}
+              
+              {selectedApp.discount_percentage && (
+                <View style={styles.detailsItem}>
+                  <Text style={styles.detailsLabel}>Pourcentage de réduction:</Text>
+                  <Text style={styles.detailsValue}>{selectedApp.discount_percentage}%</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Informations personnelles */}
           <View style={styles.detailsSection}>
@@ -1253,6 +1348,29 @@ const styles = StyleSheet.create({
   },
   rejectButton: {
     backgroundColor: '#ffeaea',
+  },
+  amenitiesList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  amenityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  amenityIconText: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+  amenityItem: {
+    fontSize: 12,
+    color: '#1976d2',
   },
   emptyTitle: {
     fontSize: 20,
