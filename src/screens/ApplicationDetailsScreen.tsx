@@ -586,6 +586,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
+  approvedMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#d4edda',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#c3e6cb',
+  },
+  approvedMessageText: {
+    fontSize: 14,
+    color: '#155724',
+    marginLeft: 12,
+    flex: 1,
+    lineHeight: 20,
+  },
 });
 
 export default ApplicationDetailsScreen;

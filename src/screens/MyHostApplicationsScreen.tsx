@@ -209,7 +209,7 @@ const MyHostApplicationsScreen: React.FC = () => {
           </View>
         )}
 
-        {application.revision_message && (
+        {application.status === 'reviewing' && application.revision_message && (
           <View style={styles.revisionContainer}>
             <View style={styles.revisionHeader}>
               <Ionicons name="alert-circle" size={20} color="#856404" />
@@ -220,7 +220,7 @@ const MyHostApplicationsScreen: React.FC = () => {
               style={styles.editButton}
               onPress={() => {
                 // Navigation vers l'écran d'édition de la candidature
-                navigation.navigate('BecomeHost', { editApplicationId: application.id });
+                navigation.navigate('BecomeHost' as never, { editApplicationId: application.id } as never);
               }}
             >
               <Ionicons name="create-outline" size={16} color="#e74c3c" />
@@ -229,6 +229,20 @@ const MyHostApplicationsScreen: React.FC = () => {
           </View>
         )}
       </View>
+
+      {application.status === 'reviewing' && !application.revision_message && (
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => {
+              navigation.navigate('BecomeHost' as never, { editApplicationId: application.id } as never);
+            }}
+          >
+            <Ionicons name="create-outline" size={16} color="#e74c3c" />
+            <Text style={styles.editButtonText}>Modifier la candidature</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {application.status === 'pending' && (
         <View style={styles.actionsContainer}>
@@ -242,14 +256,6 @@ const MyHostApplicationsScreen: React.FC = () => {
         </View>
       )}
 
-      {application.status === 'approved' && (
-        <View style={styles.approvedMessage}>
-          <Ionicons name="checkmark-circle" size={20} color="#28a745" />
-          <Text style={styles.approvedText}>
-            Félicitations ! Votre propriété a été approuvée et est maintenant visible sur AkwaHome.
-          </Text>
-        </View>
-      )}
     </TouchableOpacity>
   );
 
@@ -572,6 +578,14 @@ const styles = StyleSheet.create({
     color: '#155724',
     marginLeft: 8,
     flex: 1,
+    fontWeight: '600',
+  },
+  approvedNote: {
+    fontSize: 12,
+    color: '#856404',
+    marginTop: 8,
+    marginLeft: 8,
+    fontStyle: 'italic',
   },
 });
 

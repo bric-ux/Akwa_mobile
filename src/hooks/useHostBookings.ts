@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
-import { useBookingPDF } from './useBookingPDF';
 
 export interface HostBooking {
   id: string;
@@ -54,7 +53,6 @@ export const useHostBookings = () => {
     sendBookingCancelled,
     sendBookingCancelledHost 
   } = useEmailService();
-  const { generateAndSendBookingPDF, generateBookingPDFForHost } = useBookingPDF();
 
   const getHostBookings = useCallback(async (): Promise<HostBooking[]> => {
     if (!user) {
@@ -231,33 +229,127 @@ export const useHostBookings = () => {
             payment_plan: bookingData.payment_plan || ''
           };
 
-          // Générer et envoyer le PDF au voyageur
+          // Envoyer les emails de confirmation avec PDF
           try {
-            console.log('📄 [useHostBookings] Génération PDF pour le voyageur...');
-            const pdfResult = await generateAndSendBookingPDF(pdfBookingData);
-            if (pdfResult.success) {
-              console.log('✅ [useHostBookings] PDF envoyé au voyageur avec succès');
-            } else {
-              console.error('❌ [useHostBookings] Erreur PDF voyageur:', pdfResult.error);
+            console.log('📄 [useHostBookings] Génération PDF...');
+            
+            const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-booking-pdf', {
+              body: { bookingData: pdfBookingData }
+            });
+
+            if (pdfError) {
+              console.log('⚠️ [useHostBookings] PDF non généré, envoi email sans pièce jointe');
+              
+              // Email au voyageur sans PDF
+              const { error: emailError } = await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'booking_confirmed',
+                  to: guestProfile.email,
+                  data: {
+                    bookingId: bookingData.id,
+                    guestName: guestName,
+                    propertyTitle: bookingData.properties.title,
+                    checkIn: bookingData.check_in_date,
+                    checkOut: bookingData.check_out_date,
+                    guests: bookingData.guests_count,
+                    totalPrice: bookingData.total_price,
+                    status: 'confirmed'
+                  }
+                }
+              });
+
+              if (emailError) {
+                console.error('❌ [useHostBookings] Erreur email voyageur:', emailError);
+              }
+
+              // Email à l'hôte sans PDF
+              const { error: hostEmailError } = await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'booking_confirmed_host',
+                  to: user.email,
+                  data: {
+                    bookingId: bookingData.id,
+                    hostName: hostName,
+                    guestName: guestName,
+                    propertyTitle: bookingData.properties.title,
+                    checkIn: bookingData.check_in_date,
+                    checkOut: bookingData.check_out_date,
+                    guests: bookingData.guests_count,
+                    totalPrice: bookingData.total_price
+                  }
+                }
+              });
+
+              if (hostEmailError) {
+                console.error('❌ [useHostBookings] Erreur email hôte:', hostEmailError);
+              }
+            } else if (pdfData?.success && pdfData?.pdf) {
+              console.log('✅ [useHostBookings] PDF généré, envoi emails avec pièce jointe');
+              
+              // Email au voyageur avec PDF
+              const { error: emailError } = await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'booking_confirmed',
+                  to: guestProfile.email,
+                  data: {
+                    bookingId: bookingData.id,
+                    guestName: guestName,
+                    propertyTitle: bookingData.properties.title,
+                    checkIn: bookingData.check_in_date,
+                    checkOut: bookingData.check_out_date,
+                    guests: bookingData.guests_count,
+                    totalPrice: bookingData.total_price,
+                    status: 'confirmed'
+                  },
+                  attachments: [{
+                    filename: pdfData.filename || `reservation-${bookingData.id}.pdf`,
+                    content: pdfData.pdf,
+                    type: 'application/pdf'
+                  }]
+                }
+              });
+
+              if (emailError) {
+                console.error('❌ [useHostBookings] Erreur email voyageur:', emailError);
+              } else {
+                console.log('✅ [useHostBookings] Email avec PDF envoyé au voyageur');
+              }
+
+              // Email à l'hôte avec PDF
+              const { error: hostEmailError } = await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'booking_confirmed_host',
+                  to: user.email,
+                  data: {
+                    bookingId: bookingData.id,
+                    hostName: hostName,
+                    guestName: guestName,
+                    propertyTitle: bookingData.properties.title,
+                    checkIn: bookingData.check_in_date,
+                    checkOut: bookingData.check_out_date,
+                    guests: bookingData.guests_count,
+                    totalPrice: bookingData.total_price
+                  },
+                  attachments: [{
+                    filename: pdfData.filename || `reservation-${bookingData.id}.pdf`,
+                    content: pdfData.pdf,
+                    type: 'application/pdf'
+                  }]
+                }
+              });
+
+              if (hostEmailError) {
+                console.error('❌ [useHostBookings] Erreur email hôte:', hostEmailError);
+              } else {
+                console.log('✅ [useHostBookings] Email avec PDF envoyé à l\'hôte');
+              }
             }
-          } catch (pdfError) {
-            console.error('❌ [useHostBookings] Erreur génération PDF voyageur:', pdfError);
+          } catch (error) {
+            console.error('❌ [useHostBookings] Erreur génération PDF:', error);
+            // L'email sera envoyé sans PDF
           }
 
-          // Générer et envoyer le PDF à l'hôte
-          try {
-            console.log('📄 [useHostBookings] Génération PDF pour l\'hôte...');
-            const pdfHostResult = await generateBookingPDFForHost(pdfBookingData);
-            if (pdfHostResult.success) {
-              console.log('✅ [useHostBookings] PDF envoyé à l\'hôte avec succès');
-            } else {
-              console.error('❌ [useHostBookings] Erreur PDF hôte:', pdfHostResult.error);
-            }
-          } catch (pdfError) {
-            console.error('❌ [useHostBookings] Erreur génération PDF hôte:', pdfError);
-          }
-
-          console.log('✅ [useHostBookings] Emails avec PDF envoyés');
+          console.log('✅ [useHostBookings] Confirmation envoyée aux voyageurs et hôtes');
         } else if (status === 'cancelled') {
           // Email d'annulation au voyageur
           await sendBookingResponse(

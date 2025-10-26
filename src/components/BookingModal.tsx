@@ -31,7 +31,7 @@ interface BookingModalProps {
 const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property }) => {
   const { user } = useAuth();
   const { createBooking, loading } = useBookings();
-  const { sendBookingConfirmation, sendBookingRequestToHost } = useEmailService();
+  const { sendBookingConfirmation, sendBookingRequest } = useEmailService();
   const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
   
   const [checkIn, setCheckIn] = useState<Date | null>(null);
@@ -205,16 +205,17 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
             .single();
 
           if (!hostError && hostData?.email) {
-            await sendBookingRequestToHost(hostData.email, {
-              hostName: `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim() || 'Hôte',
-              guestName: `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur',
-              propertyTitle: property.title,
-              checkInDate: formatDateForAPI(checkIn),
-              checkOutDate: formatDateForAPI(checkOut),
-              totalPrice: finalTotal,
-              guestsCount: totalGuests,
-              message: message.trim() || undefined
-            });
+            await sendBookingRequest(
+              hostData.email,
+              `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim() || 'Hôte',
+              `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur',
+              property.title,
+              formatDateForAPI(checkIn),
+              formatDateForAPI(checkOut),
+              totalGuests,
+              finalTotal,
+              message.trim() || undefined
+            );
           }
         } catch (error) {
           console.error('Erreur lors de l\'envoi de l\'email à l\'hôte:', error);

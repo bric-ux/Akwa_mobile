@@ -189,25 +189,34 @@ const HostBookingsScreen: React.FC = () => {
         </View>
       )}
 
-      {item.status === 'pending' && (
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.confirmButton]}
-            onPress={() => handleStatusUpdate(item, 'confirmed')}
-          >
-            <Ionicons name="checkmark" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Confirmer</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.actionButton, styles.cancelButton]}
-            onPress={() => handleStatusUpdate(item, 'cancelled')}
-          >
-            <Ionicons name="close" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Refuser</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {(() => {
+        // Vérifier si le séjour a déjà commencé
+        const checkInDate = new Date(item.check_in_date);
+        checkInDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const hasAlreadyStarted = checkInDate <= today;
+
+        return item.status === 'pending' && !hasAlreadyStarted && (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.confirmButton]}
+              onPress={() => handleStatusUpdate(item, 'confirmed')}
+            >
+              <Ionicons name="checkmark" size={16} color="#fff" />
+              <Text style={styles.actionButtonText}>Confirmer</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.actionButton, styles.cancelButton]}
+              onPress={() => handleStatusUpdate(item, 'cancelled')}
+            >
+              <Ionicons name="close" size={16} color="#fff" />
+              <Text style={styles.actionButtonText}>Refuser</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      })()}
     </View>
   );
 

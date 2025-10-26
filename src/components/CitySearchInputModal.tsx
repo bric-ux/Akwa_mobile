@@ -67,9 +67,7 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
 
   // Synchroniser avec la valeur externe
   useEffect(() => {
-    console.log('🔄 Sync: value externe =', value, 'inputValue interne =', inputValue);
     if (value !== inputValue) {
-      console.log('🔄 Mise à jour inputValue vers:', value);
       setInputValue(value);
     }
   }, [value]);

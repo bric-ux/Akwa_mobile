@@ -37,6 +37,14 @@ const BookingCard: React.FC<BookingCardProps> = ({
     return checkout < today;
   };
 
+  const hasAlreadyStarted = () => {
+    const checkInDate = new Date(booking.check_in_date);
+    checkInDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return checkInDate <= today;
+  };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
@@ -158,7 +166,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           <Text style={styles.actionButtonText}>Voir la propriété</Text>
         </TouchableOpacity>
 
-        {(booking.status === 'pending' || booking.status === 'confirmed') && !isBookingPast(booking.check_out_date) && (
+        {(booking.status === 'pending' || booking.status === 'confirmed') && !isBookingPast(booking.check_out_date) && !hasAlreadyStarted() && (
           <TouchableOpacity
             style={[styles.actionButton, styles.cancelButton]}
             onPress={() => onCancelBooking(booking)}

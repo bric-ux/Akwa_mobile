@@ -186,13 +186,15 @@ const MyPropertiesScreen: React.FC = () => {
             {property.is_active ? 'Masquer' : 'Afficher'}
           </Text>
         </TouchableOpacity>
+      </View>
 
+      <View style={styles.deleteActionContainer}>
         <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
+          style={styles.deleteButtonFull}
           onPress={() => handleDeleteProperty(property)}
         >
-          <Ionicons name="trash-outline" size={16} color="#e74c3c" />
-          <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Supprimer</Text>
+          <Ionicons name="trash-outline" size={18} color="#fff" />
+          <Text style={styles.deleteButtonFullText}>Supprimer la propriété</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -373,30 +375,48 @@ const styles = StyleSheet.create({
   },
   propertyActions: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
+    marginBottom: 10,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderRadius: 6,
     backgroundColor: '#f8f9fa',
+    flex: 1,
+    marginHorizontal: 3,
+    justifyContent: 'center',
   },
   actionButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#333',
     marginLeft: 4,
     fontWeight: '500',
   },
-  deleteButton: {
-    backgroundColor: '#ffeaea',
+  deleteActionContainer: {
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
-  deleteButtonText: {
-    color: '#e74c3c',
+  deleteButtonFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: '#e74c3c',
+  },
+  deleteButtonFullText: {
+    fontSize: 14,
+    color: '#fff',
+    marginLeft: 8,
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,

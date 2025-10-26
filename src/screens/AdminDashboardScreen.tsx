@@ -154,56 +154,114 @@ const AdminDashboardScreen: React.FC = () => {
       setTestingEmail(true);
       setShowEmailModal(false);
 
-      // Données de test
-      const testBookingData = {
-        id: 'test-' + Date.now(),
-        property: {
-          title: 'Résidence H.Asso - Test',
-          address: 'Adresse de test, Abidjan',
-          city_name: 'Abidjan',
-          city_region: 'Lagunes',
-          price_per_night: 15000,
-          cleaning_fee: 5000,
-          service_fee: 2000,
-          taxes: 0,
-          cancellation_policy: 'flexible'
-        },
-        guest: {
-          first_name: 'Jean',
-          last_name: 'Dupont',
-          email: testEmail,
-          phone: '+225 07 12 34 56 78'
-        },
-        host: {
-          first_name: 'Marie',
-          last_name: 'Martin',
-          email: user?.email || 'host@example.com',
-          phone: '+225 07 87 65 43 21'
-        },
-        check_in_date: '2025-10-25',
-        check_out_date: '2025-10-27',
+      // Données de test pour le PDF
+      const pdfBookingData = {
+        booking_id: 'test-' + Date.now(),
+        property_title: 'Résidence H.Asso - Test',
+        property_address: 'Adresse de test, Abidjan',
+        city_name: 'Abidjan',
+        region: 'Lagunes',
+        price_per_night: 15000,
+        cleaning_fee: 5000,
+        service_fee: 2000,
+        taxes: 0,
+        cancellation_policy: 'flexible',
+        guest_name: 'Jean Dupont',
+        guest_email: testEmail,
+        guest_phone: '+225 07 12 34 56 78',
+        host_name: 'Marie Martin',
+        host_email: user?.email || 'host@example.com',
+        host_phone: '+225 07 87 65 43 21',
+        check_in: '2025-10-25',
+        check_out: '2025-10-27',
         guests_count: 2,
+        nights_count: 2,
+        subtotal: 30000,
         total_price: 45100,
-        message: 'Ceci est un test d\'envoi d\'email avec PDF depuis l\'application mobile AkwaHome.',
+        booking_message: 'Ceci est un test d\'envoi d\'email avec PDF depuis l\'application mobile AkwaHome.',
         discount_applied: false,
         discount_amount: 0,
         payment_plan: 'full'
       };
 
-      // Générer et envoyer le PDF
-      const result = await generateAndSendBookingPDF(testBookingData);
+      console.log('📄 [AdminDashboard] Génération PDF de test...');
+      
+      // 1. Générer le PDF
+      const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-booking-pdf', {
+        body: { bookingData: pdfBookingData }
+      });
 
-      if (result.success) {
-        Alert.alert(
-          'Succès',
-          'Email de test envoyé avec succès à ' + testEmail + '\n\nVérifiez votre boîte mail (y compris les spams).',
-          [{ text: 'OK', onPress: () => setTestEmail('') }]
-        );
-      } else {
-        Alert.alert('Erreur', result.error || 'Impossible d\'envoyer l\'email');
+      if (pdfError) {
+        console.log('⚠️ [AdminDashboard] PDF non généré, envoi email sans pièce jointe');
+        console.log('⚠️ Erreur PDF:', pdfError);
+        
+        // Envoyer l'email sans PDF en cas d'erreur
+        const { error: emailError } = await supabase.functions.invoke('send-email', {
+          body: {
+            type: 'booking_confirmed',
+            to: testEmail,
+            data: {
+              bookingId: pdfBookingData.booking_id,
+              guestName: pdfBookingData.guest_name,
+              propertyTitle: pdfBookingData.property_title,
+              checkIn: pdfBookingData.check_in,
+              checkOut: pdfBookingData.check_out,
+              guests: pdfBookingData.guests_count,
+              totalPrice: pdfBookingData.total_price,
+              status: 'confirmed'
+            }
+          }
+        });
+
+        if (emailError) {
+          console.error('❌ [AdminDashboard] Erreur email:', emailError);
+          Alert.alert('Erreur', 'Impossible d\'envoyer l\'email');
+        } else {
+          Alert.alert(
+            'Email envoyé (sans PDF)',
+            'L\'email de test a été envoyé sans PDF à ' + testEmail + '\n\nNote: PDF non généré. Vérifiez votre boîte mail.',
+            [{ text: 'OK', onPress: () => setTestEmail('') }]
+          );
+        }
+      } else if (pdfData?.success && pdfData?.pdf) {
+        console.log('✅ [AdminDashboard] PDF généré, envoi email avec pièce jointe');
+        
+        // 2. Envoyer l'email avec le PDF
+        const { error: emailError } = await supabase.functions.invoke('send-email', {
+          body: {
+            type: 'booking_confirmed',
+            to: testEmail,
+            data: {
+              bookingId: pdfBookingData.booking_id,
+              guestName: pdfBookingData.guest_name,
+              propertyTitle: pdfBookingData.property_title,
+              checkIn: pdfBookingData.check_in,
+              checkOut: pdfBookingData.check_out,
+              guests: pdfBookingData.guests_count,
+              totalPrice: pdfBookingData.total_price,
+              status: 'confirmed'
+            },
+            attachments: [{
+              filename: pdfData.filename || `reservation-test.pdf`,
+              content: pdfData.pdf,
+              type: 'application/pdf'
+            }]
+          }
+        });
+
+        if (emailError) {
+          console.error('❌ [AdminDashboard] Erreur email:', emailError);
+          Alert.alert('Erreur', 'Impossible d\'envoyer l\'email');
+        } else {
+          Alert.alert(
+            'Succès',
+            'Email de test avec PDF envoyé avec succès à ' + testEmail + '\n\nVérifiez votre boîte mail (y compris les spams).',
+            [{ text: 'OK', onPress: () => setTestEmail('') }]
+          );
+        }
       }
     } catch (error) {
-      console.error('Erreur test email:', error);
+      console.error('❌ [AdminDashboard] Erreur test email:', error);
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'envoi de l\'email');
     } finally {
       setTestingEmail(false);
