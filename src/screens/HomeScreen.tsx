@@ -20,6 +20,7 @@ import { HeroSection } from '../components/HeroSection';
 import { InfoBanner } from '../components/InfoBanner';
 import { PopularDestinations } from '../components/PopularDestinations';
 import ImageCarousel from '../components/ImageCarousel';
+import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -127,6 +128,8 @@ const HomeScreen: React.FC = () => {
   const renderListHeader = () => (
     <>
       <HeroSection onSearchPress={handleSearchPress} />
+
+      <WeatherDateTimeWidget />
 
       <PopularDestinations
         destinations={popularDestinations}
