@@ -9,13 +9,16 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Image,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import { useProperties } from '../hooks/useProperties';
 import { useAuth } from '../services/AuthContext';
-import { Property } from '../types';
+import { Property, CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
 
 type EditPropertyRouteParams = {
@@ -59,6 +62,11 @@ const EditPropertyScreen: React.FC = () => {
     { value: 'other', label: 'Autre' },
   ];
 
+  // États pour la gestion des photos
+  const [photos, setPhotos] = useState<CategorizedPhoto[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+
   useEffect(() => {
     loadProperty();
   }, [propertyId]);
@@ -86,6 +94,11 @@ const EditPropertyScreen: React.FC = () => {
           discount_min_nights: propertyData.discount_min_nights?.toString() || '',
           discount_percentage: propertyData.discount_percentage?.toString() || '',
         });
+
+        // Charger les photos
+        if (propertyData.photos && propertyData.photos.length > 0) {
+          setPhotos(propertyData.photos);
+        }
       }
     } catch (error) {
       console.error('Erreur lors du chargement de la propriété:', error);
@@ -139,6 +152,37 @@ const EditPropertyScreen: React.FC = () => {
         throw error;
       }
 
+      // Supprimer les anciennes photos
+      await supabase
+        .from('property_photos')
+        .delete()
+        .eq('property_id', propertyId);
+
+      // Ajouter les nouvelles photos
+      if (photos.length > 0) {
+        const photosToInsert = photos.map((photo, index) => ({
+          property_id: propertyId,
+          url: photo.url,
+          category: photo.category,
+          display_order: index,
+        }));
+
+        const { error: photosError } = await supabase
+          .from('property_photos')
+          .insert(photosToInsert);
+
+        if (photosError) {
+          console.error('Erreur lors de la sauvegarde des photos:', photosError);
+        }
+
+        // Mettre à jour l'array images dans properties
+        const imageUrls = photos.map(p => p.url);
+        await supabase
+          .from('properties')
+          .update({ images: imageUrls })
+          .eq('id', propertyId);
+      }
+
       Alert.alert(
         'Succès',
         'Propriété mise à jour avec succès',
@@ -164,6 +208,164 @@ const EditPropertyScreen: React.FC = () => {
       [field]: value,
     }));
   };
+
+  // Fonctions pour gérer les photos
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission requise', 'Nous avons besoin de l\'accès à vos photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets) {
+      const newPhotos = result.assets.map((asset, index) => ({
+        id: `temp-${Date.now()}-${index}`,
+        property_id: propertyId,
+        url: asset.uri,
+        category: 'autre' as const,
+        display_order: photos.length + index,
+        created_at: new Date().toISOString(),
+      }));
+      setPhotos([...photos, ...newPhotos]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    Alert.alert(
+      'Supprimer la photo',
+      'Êtes-vous sûr de vouloir supprimer cette photo ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: () => {
+            const newPhotos = photos.filter((_, i) => i !== index);
+            setPhotos(newPhotos);
+          },
+        },
+      ]
+    );
+  };
+
+  const openCategoryModal = (index: number) => {
+    setCurrentPhotoIndex(index);
+    setShowCategoryModal(true);
+  };
+
+  const selectCategory = (category: string) => {
+    const newPhotos = [...photos];
+    if (newPhotos[currentPhotoIndex]) {
+      newPhotos[currentPhotoIndex] = {
+        ...newPhotos[currentPhotoIndex],
+        category: category as CategorizedPhoto['category'],
+      };
+      setPhotos(newPhotos);
+    }
+    setShowCategoryModal(false);
+  };
+
+  const getCategoryLabel = (category: string) => {
+    const labels: Record<string, string> = {
+      'chambre': '🛏️ Chambre',
+      'salle_de_bain': '🚿 Salle de bain',
+      'cuisine': '🍳 Cuisine',
+      'jardin': '🌳 Jardin',
+      'salon': '🛋️ Salon',
+      'exterieur': '🏡 Extérieur',
+      'terrasse': '☀️ Terrasse',
+      'balcon': '🪴 Balcon',
+      'autre': '📷 Autre',
+    };
+    return labels[category] || '📷 Autre';
+  };
+
+  const renderPhotosSection = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Photos de la propriété</Text>
+      
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+        {photos.map((photo, index) => (
+          <View key={photo.id || index} style={styles.photoContainer}>
+            <Image source={{ uri: photo.url }} style={styles.photo} />
+            
+            <TouchableOpacity
+              style={styles.removePhotoButton}
+              onPress={() => removeImage(index)}
+            >
+              <Ionicons name="close-circle" size={24} color="#ff4444" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.categoryButton}
+              onPress={() => openCategoryModal(index)}
+            >
+              <Text style={styles.categoryText}>
+                {getCategoryLabel(photo.category)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+        
+        {photos.length < 30 && (
+          <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
+            <Ionicons name="add" size={40} color="#999" />
+            <Text style={styles.addPhotoButtonText}>Ajouter</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+
+      {/* Modal de sélection de catégorie */}
+      <Modal
+        visible={showCategoryModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCategoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Choisir une catégorie</Text>
+              <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView>
+              {[
+                { value: 'chambre', label: '🛏️ Chambre' },
+                { value: 'salle_de_bain', label: '🚿 Salle de bain' },
+                { value: 'cuisine', label: '🍳 Cuisine' },
+                { value: 'jardin', label: '🌳 Jardin' },
+                { value: 'salon', label: '🛋️ Salon' },
+                { value: 'exterieur', label: '🏡 Extérieur' },
+                { value: 'terrasse', label: '☀️ Terrasse' },
+                { value: 'balcon', label: '🪴 Balcon' },
+                { value: 'autre', label: '📷 Autre' },
+              ].map((category) => (
+                <TouchableOpacity
+                  key={category.value}
+                  style={styles.categoryOption}
+                  onPress={() => selectCategory(category.value)}
+                >
+                  <Text style={styles.categoryOptionText}>{category.label}</Text>
+                  {photos[currentPhotoIndex]?.category === category.value && (
+                    <Ionicons name="checkmark" size={24} color="#2E7D32" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
 
   const renderInputField = (
     label: string,
@@ -320,6 +522,9 @@ const EditPropertyScreen: React.FC = () => {
             propertyTypes
           )}
         </View>
+
+        {/* Photos */}
+        {renderPhotosSection()}
 
         {/* Capacité et équipements */}
         <View style={styles.section}>
@@ -634,6 +839,99 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     fontWeight: '600',
+  },
+  // Styles pour les photos
+  photoScroll: {
+    flexGrow: 0,
+  },
+  photoContainer: {
+    width: 120,
+    height: 120,
+    marginRight: 10,
+    borderRadius: 8,
+    position: 'relative',
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 12,
+  },
+  categoryButton: {
+    position: 'absolute',
+    bottom: 5,
+    left: 5,
+    right: 5,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+  },
+  categoryText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  addPhotoButton: {
+    width: 120,
+    height: 120,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addPhotoButtonText: {
+    color: '#999',
+    fontSize: 12,
+    marginTop: 5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '50%',
+    paddingTop: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  categoryOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  categoryOptionText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 12,
   },
 });
 
