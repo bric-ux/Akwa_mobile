@@ -56,9 +56,9 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
 
   // Recherche d'autocomplétion
   useEffect(() => {
-    if (query.length > 1 && !isSuggestionSelected) {
+    if (query.length > 0 && !isSuggestionSelected) {
       searchSuggestions(query);
-    } else if (query.length <= 1) {
+    } else if (query.length === 0) {
       setSuggestions([]);
       setShowSuggestions(false);
     }
@@ -294,8 +294,8 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
           onSubmitEditing={handleSearch}
           returnKeyType="search"
           onFocus={() => {
-            // Réinitialiser seulement si l'utilisateur tape du nouveau texte
-            if (query.length > 1 && !isSuggestionSelected) {
+            // Afficher les suggestions si au moins une lettre est tapée
+            if (query.length > 0 && suggestions.length > 0 && !isSuggestionSelected) {
               setShowSuggestions(true);
             }
           }}
