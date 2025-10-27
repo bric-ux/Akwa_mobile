@@ -12,6 +12,7 @@ import {
   ScrollView,
   Image,
   Modal,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -42,7 +43,8 @@ const AdminApplicationsScreen: React.FC = () => {
   const [selectedApp, setSelectedApp] = useState<HostApplication | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [revisionMessage, setRevisionMessage] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'reviewing' | 'approved' | 'rejected'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'reviewing' | 'approved' | 'rejected' | 'in_progress'>('all');
+  const [applicationsWithBookings, setApplicationsWithBookings] = useState<Set<string>>(new Set());
   const [identityDoc, setIdentityDoc] = useState<any>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
@@ -53,6 +55,33 @@ const AdminApplicationsScreen: React.FC = () => {
     try {
       const allApplications = await getAllHostApplications();
       setApplications(allApplications);
+      
+      // Check which applications have current bookings
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const { data: activeBookings } = await supabase
+        .from('bookings')
+        .select('properties(id, host_id, title)')
+        .eq('status', 'confirmed')
+        .lte('check_in_date', today.toISOString().split('T')[0])
+        .gte('check_out_date', today.toISOString().split('T')[0]);
+      
+      if (activeBookings) {
+        const appIdsWithBookings = new Set<string>();
+        activeBookings.forEach(booking => {
+          if (booking.properties) {
+            allApplications.forEach(app => {
+              if (app.user_id === booking.properties.host_id && 
+                  app.title === booking.properties.title &&
+                  app.status === 'approved') {
+                appIdsWithBookings.add(app.id);
+              }
+            });
+          }
+        });
+        setApplicationsWithBookings(appIdsWithBookings);
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des candidatures:', error);
     }
@@ -179,6 +208,9 @@ const AdminApplicationsScreen: React.FC = () => {
 
   const filteredApplications = applications.filter(app => {
     if (filterStatus === 'all') return true;
+    if (filterStatus === 'in_progress') {
+      return applicationsWithBookings.has(app.id);
+    }
     return app.status === filterStatus;
   });
 
@@ -977,7 +1009,7 @@ const AdminApplicationsScreen: React.FC = () => {
 
       {/* Filtres */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
-        {['all', 'pending', 'reviewing', 'approved', 'rejected'].map((status) => (
+        {['all', 'pending', 'reviewing', 'approved', 'rejected', 'in_progress'].map((status) => (
           <TouchableOpacity
             key={status}
             style={[
@@ -996,6 +1028,7 @@ const AdminApplicationsScreen: React.FC = () => {
                status === 'pending' ? 'En attente' :
                status === 'reviewing' ? 'En révision' :
                status === 'approved' ? 'Approuvées' :
+               status === 'in_progress' ? 'En cours' :
                'Refusées'}
             </Text>
           </TouchableOpacity>
@@ -1014,6 +1047,8 @@ const AdminApplicationsScreen: React.FC = () => {
           <Text style={styles.emptySubtitle}>
             {filterStatus === 'all' 
               ? 'Aucune candidature trouvée'
+              : filterStatus === 'in_progress'
+              ? 'Aucune candidature avec séjours en cours'
               : `Aucune candidature ${filterStatus === 'pending' ? 'en attente' :
                  filterStatus === 'reviewing' ? 'en révision' :
                  filterStatus === 'approved' ? 'approuvée' : 'refusée'}`
@@ -1410,7 +1445,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
-    paddingTop: 0,
+    paddingTop: Platform.OS === 'ios' ? 10 : 15,
     paddingBottom: 12,
     backgroundColor: '#fff',
     borderBottomWidth: 1,

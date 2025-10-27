@@ -24,7 +24,7 @@ const MyBookingsScreen: React.FC = () => {
   const { getUserBookings, cancelBooking, loading, error } = useBookings();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
 
   const loadBookings = async () => {
     try {
@@ -114,13 +114,27 @@ const MyBookingsScreen: React.FC = () => {
         return 'Terminées';
       case 'cancelled':
         return 'Annulées';
+      case 'in_progress':
+        return 'En cours';
       default:
         return 'Inconnu';
     }
   };
 
+  const isBookingInProgress = (booking: Booking) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkIn = new Date(booking.check_in_date);
+    checkIn.setHours(0, 0, 0, 0);
+    const checkOut = new Date(booking.check_out_date);
+    checkOut.setHours(0, 0, 0, 0);
+    
+    return booking.status === 'confirmed' && checkIn <= today && checkOut >= today;
+  };
+
   const filteredBookings = bookings.filter(booking => {
     if (selectedFilter === 'all') return true;
+    if (selectedFilter === 'in_progress') return isBookingInProgress(booking);
     return booking.status === selectedFilter;
   });
 
@@ -206,6 +220,7 @@ const MyBookingsScreen: React.FC = () => {
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.filtersContent}>
             {renderFilterButton('all', 'Toutes')}
+            {renderFilterButton('in_progress', 'En cours')}
             {renderFilterButton('pending', 'En attente')}
             {renderFilterButton('confirmed', 'Confirmées')}
             {renderFilterButton('completed', 'Terminées')}

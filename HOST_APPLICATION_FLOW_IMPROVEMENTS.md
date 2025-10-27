@@ -122,3 +122,6 @@ Après soumission d'une candidature, l'utilisateur arrive directement sur l'ongl
 - **Gestion d'erreurs** : Les erreurs d'email n'empêchent pas la soumission de la candidature
 - **Fallback robuste** : Système de fallback pour l'email admin en cas de problème
 - **Navigation cohérente** : Même logique de redirection sur web et mobile
+
+
+

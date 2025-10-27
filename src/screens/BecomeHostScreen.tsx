@@ -591,8 +591,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       return;
     }
 
-    // Vérifier l'identité avant de permettre la soumission
-    if (!hasUploadedIdentity && !identityUploadedInSession) {
+    // Vérifier l'identité avant de permettre la soumission (seulement pour les nouvelles candidatures)
+    // Ne pas demander l'identité lors de la modification d'une candidature existante
+    if (!isEditMode && !hasUploadedIdentity && !identityUploadedInSession) {
       Alert.alert(
         'Vérification d\'identité requise',
         'Vous devez télécharger une pièce d\'identité pour soumettre votre candidature.',

@@ -23,7 +23,7 @@ const HostBookingsScreen: React.FC = () => {
   const { getHostBookings, updateBookingStatus, loading, error } = useHostBookings();
   const [bookings, setBookings] = useState<HostBooking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
 
   const loadBookings = async () => {
     try {
@@ -114,13 +114,27 @@ const HostBookingsScreen: React.FC = () => {
         return 'Annulée';
       case 'completed':
         return 'Terminée';
+      case 'in_progress':
+        return 'En cours';
       default:
         return status;
     }
   };
 
+  const isBookingInProgress = (booking: HostBooking) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkIn = new Date(booking.check_in_date);
+    checkIn.setHours(0, 0, 0, 0);
+    const checkOut = new Date(booking.check_out_date);
+    checkOut.setHours(0, 0, 0, 0);
+    
+    return booking.status === 'confirmed' && checkIn <= today && checkOut >= today;
+  };
+
   const filteredBookings = bookings.filter(booking => {
     if (selectedFilter === 'all') return true;
+    if (selectedFilter === 'in_progress') return isBookingInProgress(booking);
     return booking.status === selectedFilter;
   });
 
@@ -273,6 +287,7 @@ const HostBookingsScreen: React.FC = () => {
         >
           {[
             { key: 'all', label: 'Toutes' },
+            { key: 'in_progress', label: 'En cours' },
             { key: 'pending', label: 'En attente' },
             { key: 'confirmed', label: 'Confirmées' },
             { key: 'cancelled', label: 'Annulées' },
