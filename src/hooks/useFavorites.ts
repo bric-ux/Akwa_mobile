@@ -138,6 +138,18 @@ export const useFavorites = () => {
               id,
               name,
               region
+            ),
+            neighborhoods:neighborhood_id (
+              id,
+              name,
+              commune
+            ),
+            property_photos (
+              id,
+              url,
+              category,
+              display_order,
+              created_at
             )
           )
         `)
@@ -147,10 +159,28 @@ export const useFavorites = () => {
       if (error) throw error;
 
       // Transformer les données pour correspondre à l'interface Property
-      const favorites = data?.map((item: any) => ({
-        ...item.properties,
-        cities: item.properties.cities
-      })) || [];
+      const favorites = data?.map((item: any) => {
+        const property = item.properties;
+        
+        // Traiter les photos catégorisées
+        const categorizedPhotos = property.property_photos || [];
+        const sortedPhotos = categorizedPhotos.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        
+        // Créer un tableau d'images pour la compatibilité avec l'ancien système
+        const imageUrls = sortedPhotos.map(photo => photo.url);
+        
+        // Si pas de photos catégorisées, utiliser l'ancien système
+        const fallbackImages = property.images || [];
+        const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+        
+        return {
+          ...property,
+          images: finalImages,
+          photos: sortedPhotos,
+          cities: property.cities,
+          neighborhoods: property.neighborhoods
+        };
+      }) || [];
 
       return favorites;
     } catch (err: any) {

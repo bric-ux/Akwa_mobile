@@ -139,7 +139,18 @@ export const useProperties = () => {
         query = query
           .select(`
             *,
-            cities!inner(id, name, region)
+            cities!inner(id, name, region),
+            reviews!property_id (
+              rating,
+              created_at
+            ),
+            property_photos (
+              id,
+              url,
+              category,
+              display_order,
+              created_at
+            )
           `)
           .eq('cities.id', cityId);
       }
@@ -252,6 +263,12 @@ export const useProperties = () => {
             amenities: mappedAmenities
           };
 
+          // Log pour déboguer les images
+          console.log(`🏠 ${property.title} - Images transformées:`, {
+            imageCount: finalImages.length,
+            firstImage: finalImages[0],
+            hasPhotos: categorizedPhotos.length > 0
+          });
 
           return transformedProperty;
         })
@@ -468,7 +485,18 @@ export const useProperties = () => {
         query = query
           .select(`
             *,
-            cities!inner(id, name, region)
+            cities!inner(id, name, region),
+            reviews!property_id (
+              rating,
+              created_at
+            ),
+            property_photos (
+              id,
+              url,
+              category,
+              display_order,
+              created_at
+            )
           `)
           .eq('city_id', cityId);
       }
