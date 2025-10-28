@@ -29,6 +29,12 @@ const CATEGORY_LABELS: Record<string, string> = {
   exterieur: '🏡 Extérieur',
   terrasse: '☀️ Terrasse',
   balcon: '🪴 Balcon',
+  salle_a_manger: '🍽️ Salle à manger',
+  cave: '🍷 Cave',
+  toilette: '🚽 Toilette',
+  buanderie: '🧺 Buanderie',
+  wc: '🚾 WC',
+  piscine: '🏊 Piscine',
   autre: '📷 Autre'
 };
 
@@ -41,6 +47,12 @@ const CATEGORY_COLORS: Record<string, string> = {
   exterieur: '#eab308',
   terrasse: '#f59e0b',
   balcon: '#14b8a6',
+  salle_a_manger: '#ec4899',
+  cave: '#6366f1',
+  toilette: '#0ea5e9',
+  buanderie: '#8b5cf6',
+  wc: '#64748b',
+  piscine: '#60a5fa',
   autre: '#6b7280'
 };
 

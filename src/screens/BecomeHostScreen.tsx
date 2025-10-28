@@ -70,7 +70,15 @@ const PHOTO_CATEGORIES = [
   { value: 'salle_de_bain', label: 'Salle de bain', icon: '🚿', priority: 4 },
   { value: 'cuisine', label: 'Cuisine', icon: '🍳', priority: 5 },
   { value: 'jardin', label: 'Jardin', icon: '🌳', priority: 6 },
-  { value: 'autre', label: 'Autres', icon: '📸', priority: 7 },
+  { value: 'terrasse', label: 'Terrasse', icon: '☀️', priority: 7 },
+  { value: 'balcon', label: 'Balcon', icon: '🪴', priority: 8 },
+  { value: 'salle_a_manger', label: 'Salle à manger', icon: '🍽️', priority: 9 },
+  { value: 'cave', label: 'Cave', icon: '🍷', priority: 10 },
+  { value: 'toilette', label: 'Toilette', icon: '🚽', priority: 11 },
+  { value: 'buanderie', label: 'Buanderie', icon: '🧺', priority: 12 },
+  { value: 'wc', label: 'WC', icon: '🚾', priority: 13 },
+  { value: 'piscine', label: 'Piscine', icon: '🏊', priority: 14 },
+  { value: 'autre', label: 'Autres', icon: '📸', priority: 15 },
 ];
 
 const BecomeHostScreen: React.FC = ({ route }: any) => {
@@ -83,7 +91,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   
   const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [fieldsToRevise, setRevisionFields] = useState<string[]>([]);
+  const [fieldsToRevise, setFieldsToRevise] = useState<Record<string, boolean>>({});
   
   const [formData, setFormData] = useState({
     // Informations sur le logement
