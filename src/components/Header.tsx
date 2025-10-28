@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
+import CurrencyBadge from './CurrencyBadge';
 
 interface HeaderProps {
   // Props supprimées - plus de cloche
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = () => {
           />
           <Text style={styles.logoText}>AkwaHome</Text>
         </View>
+        <CurrencyBadge />
       </View>
     </View>
   );

@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
 import { useFavorites } from '../hooks/useFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface PropertyCardProps {
   property: Property;
@@ -21,13 +22,14 @@ interface PropertyCardProps {
 const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant = 'grid' }) => {
   const { requireAuthForFavorites } = useAuthRedirect();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
+  const { formatPrice: formatPriceWithCurrency, currency } = useCurrency();
   const [isFavorited, setIsFavorited] = useState(false);
 
 
   useEffect(() => {
     // Mettre à jour l'état local quand le cache global change
     setIsFavorited(isFavoriteSync(property.id));
-  }, [property.id, isFavoriteSync]);
+  }, [property.id, isFavoriteSync, currency]);
 
   const handleFavoritePress = async (e: any) => {
     e.stopPropagation();
@@ -48,11 +50,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
 
   const formatPrice = (price: number | undefined) => {
     if (!price) return 'Prix sur demande';
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
+    return formatPriceWithCurrency(price);
   };
 
   return (

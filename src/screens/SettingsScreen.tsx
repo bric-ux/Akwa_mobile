@@ -34,6 +34,10 @@ const SettingsScreen: React.FC = () => {
   const [bookingNotifications, setBookingNotifications] = useState(true);
   const [messageNotifications, setMessageNotifications] = useState(true);
   const [marketingNotifications, setMarketingNotifications] = useState(false);
+  
+  // État pour la devise
+  const [showCurrencySelector, setShowCurrencySelector] = useState(false);
+  const { currency, currencySymbol } = useCurrency();
 
   const handleNotificationToggle = async (type: string, value: boolean) => {
     try {
@@ -316,6 +320,17 @@ const SettingsScreen: React.FC = () => {
           />
         </View>
 
+        {/* Section Général */}
+        <Text style={styles.sectionTitle}>Général</Text>
+        <View style={styles.section}>
+          <SettingItem
+            icon="cash-outline"
+            title="Devise"
+            subtitle={currency + ' ' + currencySymbol}
+            onPress={() => setShowCurrencySelector(true)}
+          />
+        </View>
+
         {/* Section Confidentialité */}
         <Text style={styles.sectionTitle}>Confidentialité</Text>
         <View style={styles.section}>
@@ -476,6 +491,27 @@ const SettingsScreen: React.FC = () => {
             </View>
           </View>
         </View>
+      </Modal>
+      
+      {/* Modal de sélection de devise */}
+      <Modal
+        visible={showCurrencySelector}
+        animationType="slide"
+        onRequestClose={() => setShowCurrencySelector(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setShowCurrencySelector(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.modalHeaderTitle}>Choisir la devise</Text>
+            <View style={styles.modalPlaceholder} />
+          </View>
+          <CurrencySelector />
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
@@ -701,6 +737,31 @@ const styles = StyleSheet.create({
   },
   switchThumbDisabled: {
     backgroundColor: '#f5f5f5',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalPlaceholder: {
+    width: 40,
   },
 });
 

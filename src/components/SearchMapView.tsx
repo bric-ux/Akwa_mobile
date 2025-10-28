@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Image, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Property } from '../types';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface SearchMapViewProps {
   properties: Property[];
@@ -11,6 +12,7 @@ interface SearchMapViewProps {
 const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPress }) => {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const webViewRef = useRef<WebView>(null);
+  const { formatPrice: formatPriceWithCurrency, currency, currencySymbol, convert } = useCurrency();
 
   // Calculer les coordonnées moyennes pour centrer la carte
   const getCenterCoordinates = () => {
@@ -35,21 +37,13 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   const center = getCenterCoordinates();
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', { 
-      style: 'currency', 
-      currency: 'XOF',
-      minimumFractionDigits: 0
-    }).format(price).replace('XOF', 'FCFA');
+    return formatPriceWithCurrency(price);
   };
 
   // Créer le HTML pour la carte Leaflet avec marqueurs de prix
   const createMapHTML = () => {
     console.log('🗺️ Création de la carte avec', properties.length, 'propriétés');
-    console.log('🗺️ Détails des propriétés:', JSON.stringify(properties.map(p => ({
-      title: p.title,
-      neighborhoods: p.neighborhoods,
-      cities: p.cities
-    })), null, 2));
+    console.log('💰 Devise actuelle:', currency, currencySymbol);
     
     const validProperties = properties.filter(p => {
       const hasCoords = (p.neighborhoods?.latitude || p.cities?.latitude) && 
@@ -73,9 +67,17 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
         
         console.log(`📍 Marqueur ${index}: ${title} à [${lat}, ${lng}]`);
         
+        // Convertir le prix à la devise sélectionnée (si ce n'est pas XOF)
+        let convertedPrice = price;
+        if (currency !== 'XOF') {
+          const result = convert(price);
+          convertedPrice = result.converted;
+        }
+        
         return `{
           position: [${lat}, ${lng}],
           price: ${price},
+          convertedPrice: ${convertedPrice},
           title: ${JSON.stringify(title)},
           id: "${property.id}",
           image: "${property.images?.[0] || ''}"
@@ -83,7 +85,7 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
       });
 
     console.log('🗺️ Markers à afficher:', markers.length);
-    console.log('🗺️ Markers data:', markers);
+    console.log('💰 Devise pour HTML:', currency, currencySymbol);
     
     return `
 <!DOCTYPE html>
@@ -93,7 +95,7 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body { margin: 0; padding: 0; }
+ body { margin: 0; padding: 0; }
     #map { width: 100%; height: 100vh; }
     .price-marker {
       background: white;
@@ -109,7 +111,7 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     }
     .price-marker:hover {
       background: #e74c3c;
-      color: white;
+      color:white;
     }
   </style>
 </head>
@@ -124,15 +126,18 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     }).addTo(map);
 
     const properties = [${markers.join(',\n          ')}];
+    const currentCurrency = '${currency}';
+    const currentCurrencySymbol = '${currencySymbol}';
     
     console.log('🗺️ Nombre de propriétés à afficher:', properties.length);
+    console.log('💰 Devise dans le navigateur:', currentCurrency, currentCurrencySymbol);
 
     properties.forEach((prop, index) => {
       console.log('📍 Création du marqueur', index, ':', prop.title, prop.position);
       // Créer une icône personnalisée avec le prix
       const divIcon = L.divIcon({
         className: 'custom-marker',
-        html: '<div class="price-marker">' + prop.price.toLocaleString('fr-FR') + ' FCFA</div>',
+        html: '<div class="price-marker">' + (prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? prop.convertedPrice.toLocaleString('fr-FR') : prop.price.toLocaleString('fr-FR')) + ' ' + (prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'FCFA') + '</div>',
         iconSize: [120, 40],
         iconAnchor: [60, 40]
       });
@@ -143,7 +148,9 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
       }).addTo(map);
 
       // Popup au clic
-      const popupContent = '<div style="max-width: 200px;"><strong>' + prop.title + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 16px;">' + prop.price.toLocaleString('fr-FR') + ' FCFA/nuit</span><br/><button onclick="selectProperty(\\'' + prop.id + '\\')" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-top: 8px; width: 100%;">Voir détails</button></div>';
+      const displayPrice = prop.convertedPrice !== undefined && prop.convertedPrice !== prop.price ? prop.convertedPrice.toLocaleString('fr-FR') : prop.price.toLocaleString('fr-FR');
+      const displayCurrency = prop.convertedPrice !== undefined && prop.convertedPrice !== prop.price ? currentCurrencySymbol : 'FCFA';
+      const popupContent = '<div style="max-width: 200px;"><strong>' + prop.title + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 16px;">' + displayPrice + ' ' + displayCurrency + '/nuit</span><br/><button onclick="selectProperty(\\'' + prop.id + '\\')" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-top: 8px; width: 100%;">Voir détails</button></div>';
       marker.bindPopup(popupContent);
 
       // Gérer le clic sur le marqueur
@@ -184,11 +191,12 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   };
 
   useEffect(() => {
-    console.log('🔄 Propriétés ont changé, rechargement de la carte');
+    console.log('🔄 Propriétés ou devise ont changé, rechargement de la carte');
+    console.log('💰 Devise actuelle:', currency);
     if (webViewRef.current) {
       webViewRef.current.reload();
     }
-  }, [properties]);
+  }, [properties, currency]);
 
   return (
     <View style={styles.container}>
@@ -308,7 +316,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  propertyImage: {
+propertyImage: {
     width: '100%',
     height: 100,
     borderRadius: 8,
