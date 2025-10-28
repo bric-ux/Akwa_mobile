@@ -17,6 +17,7 @@ import { useProperties } from '../hooks/useProperties';
 import { usePropertySorting, SortOption } from '../hooks/usePropertySorting';
 import { Property, SearchFilters, RootStackParamList } from '../types';
 import PropertyCard from '../components/PropertyCard';
+import SearchMapView from '../components/SearchMapView';
 import FiltersModal from '../components/FiltersModal';
 import SearchSuggestions from '../components/SearchSuggestions';
 import SearchResultsHeader from '../components/SearchResultsHeader';
@@ -39,6 +40,7 @@ const SearchScreen: React.FC = () => {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const [isMapView, setIsMapView] = useState(false);
   
   // États pour les dates et voyageurs
   const [checkIn, setCheckIn] = useState<string>();
@@ -238,17 +240,25 @@ const SearchScreen: React.FC = () => {
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Rechercher</Text>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setShowFilters(true)}
-          >
-            <Ionicons name="options" size={24} color="#2E7D32" />
-            {getActiveFiltersCount() > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.viewToggleButton}
+              onPress={() => setIsMapView(!isMapView)}
+            >
+              <Ionicons name={isMapView ? "list" : "map"} size={24} color="#2E7D32" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowFilters(true)}
+            >
+              <Ionicons name="options" size={24} color="#2E7D32" />
+              {getActiveFiltersCount() > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Contenu du header - visible seulement quand pas réduit */}
@@ -355,6 +365,11 @@ const SearchScreen: React.FC = () => {
             <Text style={styles.clearFiltersButtonText}>Effacer les filtres</Text>
           </TouchableOpacity>
         </View>
+      ) : isMapView ? (
+        <SearchMapView 
+          properties={sortedProperties}
+          onPropertyPress={handlePropertyPress}
+        />
       ) : (
         <FlatList
           data={sortedProperties}
@@ -449,6 +464,14 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
     textAlign: 'center',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  viewToggleButton: {
+    padding: 8,
   },
   filterButton: {
     padding: 8,
