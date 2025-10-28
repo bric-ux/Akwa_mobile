@@ -148,7 +148,14 @@ export const useProperties = () => {
         query = query
           .select(`
             *,
-            cities!inner(id, name, region),
+            cities!inner(id, name, region, latitude, longitude),
+            neighborhoods:neighborhood_id (
+              id,
+              name,
+              commune,
+              latitude,
+              longitude
+            ),
             reviews!property_id (
               rating,
               created_at

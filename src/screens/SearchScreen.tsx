@@ -30,8 +30,6 @@ type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 const SearchScreen: React.FC = () => {
   const route = useRoute<SearchScreenRouteProp>();
   const navigation = useNavigation();
-  const { properties, loading, error, fetchProperties } = useProperties();
-  const sortedProperties = usePropertySorting(properties, sortBy);
   
   const [searchQuery, setSearchQuery] = useState(route.params?.destination || '');
   const [filters, setFilters] = useState<SearchFilters>({});
@@ -41,6 +39,9 @@ const SearchScreen: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   const [isMapView, setIsMapView] = useState(false);
+  
+  const { properties, loading, error, fetchProperties } = useProperties();
+  const sortedProperties = usePropertySorting(properties, sortBy);
   
   // États pour les dates et voyageurs
   const [checkIn, setCheckIn] = useState<string>();
@@ -203,6 +204,7 @@ const SearchScreen: React.FC = () => {
   };
 
   const handleSortChange = (newSort: SortOption) => {
+    console.log('🔄 Changement de tri:', newSort);
     setSortBy(newSort);
   };
 

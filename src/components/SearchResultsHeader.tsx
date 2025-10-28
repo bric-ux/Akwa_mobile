@@ -72,16 +72,6 @@ export const SearchResultsHeader: React.FC<SearchResultsHeaderProps> = ({
             <Ionicons name="chevron-down" size={14} color="#666" />
           </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={styles.viewToggleButton}
-            onPress={onViewToggle}
-          >
-            <Ionicons 
-              name={isGridView ? 'list' : 'grid'} 
-              size={20} 
-              color="#666" 
-            />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -175,9 +165,6 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     marginRight: 4,
     fontWeight: '500',
-  },
-  viewToggleButton: {
-    padding: 5,
   },
   modalOverlay: {
     flex: 1,

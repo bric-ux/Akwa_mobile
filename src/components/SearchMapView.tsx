@@ -45,12 +45,20 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   // Créer le HTML pour la carte Leaflet avec marqueurs de prix
   const createMapHTML = () => {
     console.log('🗺️ Création de la carte avec', properties.length, 'propriétés');
+    console.log('🗺️ Détails des propriétés:', JSON.stringify(properties.map(p => ({
+      title: p.title,
+      neighborhoods: p.neighborhoods,
+      cities: p.cities
+    })), null, 2));
     
     const validProperties = properties.filter(p => {
       const hasCoords = (p.neighborhoods?.latitude || p.cities?.latitude) && 
                        (p.neighborhoods?.longitude || p.cities?.longitude);
       if (!hasCoords) {
-        console.log('⚠️ Propriété sans coordonnées:', p.title);
+        console.log('⚠️ Propriété sans coordonnées:', p.title, {
+          neighborhoods: p.neighborhoods,
+          cities: p.cities
+        });
       }
       return hasCoords;
     });

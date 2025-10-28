@@ -24,10 +24,16 @@ export const usePropertySorting = (properties: Property[], sortBy: SortOption) =
 
     switch (sortBy) {
       case 'price_asc':
-        return sorted.sort((a, b) => (a.price_per_night || 0) - (b.price_per_night || 0));
+        console.log('📊 Tri prix croissant avant:', sorted.map(p => ({ title: p.title, price: p.price_per_night })));
+        const sortedAsc = sorted.sort((a, b) => (a.price_per_night || 0) - (b.price_per_night || 0));
+        console.log('📊 Tri prix croissant après:', sortedAsc.map(p => ({ title: p.title, price: p.price_per_night })));
+        return sortedAsc;
       
       case 'price_desc':
-        return sorted.sort((a, b) => (b.price_per_night || 0) - (a.price_per_night || 0));
+        console.log('📊 Tri prix décroissant avant:', sorted.map(p => ({ title: p.title, price: p.price_per_night })));
+        const sortedDesc = sorted.sort((a, b) => (b.price_per_night || 0) - (a.price_per_night || 0));
+        console.log('📊 Tri prix décroissant après:', sortedDesc.map(p => ({ title: p.title, price: p.price_per_night })));
+        return sortedDesc;
       
       case 'rating':
         return sorted.sort((a, b) => {
