@@ -293,7 +293,16 @@ export const useProperties = () => {
           cities:city_id (
             id,
             name,
-            region
+            region,
+            latitude,
+            longitude
+          ),
+          neighborhoods:neighborhood_id (
+            id,
+            name,
+            commune,
+            latitude,
+            longitude
           ),
           reviews!property_id (
             rating,

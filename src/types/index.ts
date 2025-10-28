@@ -36,7 +36,19 @@ export interface Property {
     id: string;
     name: string;
     region: string;
+    latitude?: number;
+    longitude?: number;
   };
+  neighborhood_id?: string;
+  neighborhoods?: {
+    id: string;
+    name: string;
+    commune: string;
+    latitude?: number;
+    longitude?: number;
+  };
+  latitude?: number;
+  longitude?: number;
   max_guests?: number;
   property_type?: string;
   cleaning_fee?: number;

@@ -567,18 +567,11 @@ const AdminApplicationsScreen: React.FC = () => {
                         style={styles.pdfButton}
                         onPress={async () => {
                           try {
-                            // Vérifier si on peut partager
-                            const isAvailable = await Sharing.isAvailableAsync();
-                            if (isAvailable) {
-                              await Sharing.shareAsync(identityDoc.front_image_url);
+                            const canOpen = await Linking.canOpenURL(identityDoc.front_image_url);
+                            if (canOpen) {
+                              await Linking.openURL(identityDoc.front_image_url);
                             } else {
-                              // Fallback sur Linking
-                              const canOpen = await Linking.canOpenURL(identityDoc.front_image_url);
-                              if (canOpen) {
-                                await Linking.openURL(identityDoc.front_image_url);
-                              } else {
-                                Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
-                              }
+                              Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
                             }
                           } catch (error) {
                             console.error('Erreur lors de l\'ouverture du PDF:', error);
@@ -611,18 +604,11 @@ const AdminApplicationsScreen: React.FC = () => {
                         style={styles.pdfButton}
                         onPress={async () => {
                           try {
-                            // Vérifier si on peut partager
-                            const isAvailable = await Sharing.isAvailableAsync();
-                            if (isAvailable) {
-                              await Sharing.shareAsync(identityDoc.back_image_url);
+                            const canOpen = await Linking.canOpenURL(identityDoc.back_image_url);
+                            if (canOpen) {
+                              await Linking.openURL(identityDoc.back_image_url);
                             } else {
-                              // Fallback sur Linking
-                              const canOpen = await Linking.canOpenURL(identityDoc.back_image_url);
-                              if (canOpen) {
-                                await Linking.openURL(identityDoc.back_image_url);
-                              } else {
-                                Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
-                              }
+                              Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
                             }
                           } catch (error) {
                             console.error('Erreur lors de l\'ouverture du PDF:', error);

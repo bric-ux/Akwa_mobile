@@ -22,6 +22,7 @@ import PropertyImageCarousel from '../components/PropertyImageCarousel';
 import BookingModal from '../components/BookingModal';
 import ContactHostButton from '../components/ContactHostButton';
 import PhotoCategoryDisplay from '../components/PhotoCategoryDisplay';
+import PropertyMap from '../components/PropertyMap';
 import { supabase } from '../services/supabase';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
@@ -431,6 +432,15 @@ const PropertyDetailsScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Localisation sur la carte */}
+        <PropertyMap
+          latitude={property.neighborhoods?.latitude || property.cities?.latitude}
+          longitude={property.neighborhoods?.longitude || property.cities?.longitude}
+          locationName={property.location}
+          cityName={property.cities?.name}
+          neighborhoodName={property.neighborhoods?.name}
+        />
 
         {/* Boutons d'action */}
         <View style={styles.actionButtons}>
