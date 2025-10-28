@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Modal } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, StyleSheet, TouchableOpacity, Text, Image, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Property } from '../types';
 
@@ -166,16 +166,21 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
       if (data.type === 'propertySelected') {
         const property = properties.find(p => p.id === data.propertyId);
         if (property) {
+          // Afficher seulement l'aperçu, ne pas naviguer directement
           setSelectedProperty(property);
-          if (onPropertyPress) {
-            onPropertyPress(property);
-          }
         }
       }
     } catch (error) {
       console.error('Error parsing WebView message:', error);
     }
   };
+
+  useEffect(() => {
+    console.log('🔄 Propriétés ont changé, rechargement de la carte');
+    if (webViewRef.current) {
+      webViewRef.current.reload();
+    }
+  }, [properties]);
 
   return (
     <View style={styles.container}>
@@ -198,10 +203,28 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
 
       {selectedProperty && (
         <View style={styles.propertyCard}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => setSelectedProperty(null)}
+          >
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+          {selectedProperty.images?.[0] && (
+            <Image 
+              source={{ uri: selectedProperty.images[0] }} 
+              style={styles.propertyImage}
+              resizeMode="cover"
+            />
+          )}
           <Text style={styles.propertyTitle}>{selectedProperty.title}</Text>
           <Text style={styles.propertyPrice}>
             {formatPrice(selectedProperty.price_per_night)}/nuit
           </Text>
+          {selectedProperty.cities?.name && (
+            <Text style={styles.propertyLocation}>
+              📍 {selectedProperty.cities.name}
+            </Text>
+          )}
           <TouchableOpacity
             style={styles.viewButton}
             onPress={() => {
@@ -248,11 +271,11 @@ const styles = StyleSheet.create({
   },
   propertyCard: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 10,
     left: 10,
     right: 10,
     backgroundColor: 'white',
-    padding: 16,
+    padding: 12,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -260,27 +283,55 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-  propertyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
+  closeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
-  propertyPrice: {
+  closeButtonText: {
+    color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  propertyImage: {
+    width: '100%',
+    height: 100,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  propertyTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  propertyPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
     color: '#e74c3c',
-    marginBottom: 12,
+    marginBottom: 4,
+  },
+  propertyLocation: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
   },
   viewButton: {
     backgroundColor: '#e74c3c',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
     borderRadius: 8,
   },
   viewButtonText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
   },
