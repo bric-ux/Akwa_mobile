@@ -13,8 +13,11 @@ import {
   Image,
   Modal,
   Platform,
+  Linking,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin } from '../hooks/useAdmin';
@@ -43,6 +46,7 @@ const AdminApplicationsScreen: React.FC = () => {
   const [selectedApp, setSelectedApp] = useState<HostApplication | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [revisionMessage, setRevisionMessage] = useState('');
+  const [fieldsToRevise, setFieldsToRevise] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'reviewing' | 'approved' | 'rejected' | 'in_progress'>('all');
   const [applicationsWithBookings, setApplicationsWithBookings] = useState<Set<string>>(new Set());
   const [identityDoc, setIdentityDoc] = useState<any>(null);
@@ -155,7 +159,9 @@ const AdminApplicationsScreen: React.FC = () => {
               const messageToSend = status === 'reviewing' ? revisionMessage : adminNotes;
               // Pour l'approbation, inclure les catégories de photos
               const photoCategoriesToSend = status === 'approved' ? photoCategories : undefined;
-              const result = await updateApplicationStatus(applicationId, status, messageToSend || undefined, photoCategoriesToSend);
+              // Pour la révision, inclure les champs sélectionnés
+              const fieldsToReviseToSend = status === 'reviewing' ? fieldsToRevise : undefined;
+              const result = await updateApplicationStatus(applicationId, status, messageToSend || undefined, photoCategoriesToSend, fieldsToReviseToSend);
               if (result.success) {
                 Alert.alert('Succès', `Candidature ${actionText}ée avec succès`);
                 setAdminNotes('');
@@ -227,7 +233,8 @@ const AdminApplicationsScreen: React.FC = () => {
           setSelectedApp(application);
           setShowDetails(true);
           setAdminNotes(application.admin_notes || '');
-          setRevisionMessage(application.revision_message || '');
+          setRevisionMessage(''); // Toujours vider pour nouvelle révision
+          setFieldsToRevise({}); // Vider aussi les champs sélectionnés
         }}
       >
         <View style={styles.applicationHeader}>
@@ -293,6 +300,9 @@ const AdminApplicationsScreen: React.FC = () => {
             onPress={() => {
               setSelectedApp(application);
               setShowDetails(true);
+              setAdminNotes(application.admin_notes || '');
+              setRevisionMessage(''); // Toujours vider pour nouvelle révision
+              setFieldsToRevise({}); // Vider aussi les champs sélectionnés
             }}
           >
             <Ionicons name="eye-outline" size={16} color="#3498db" />
@@ -367,7 +377,12 @@ const AdminApplicationsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.detailsContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.detailsContent}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
           {/* Informations sur la propriété */}
           <View style={styles.detailsSection}>
             <Text style={styles.detailsSectionTitle}>🏠 Informations sur la propriété</Text>
@@ -544,22 +559,88 @@ const AdminApplicationsScreen: React.FC = () => {
               {identityDoc.front_image_url && (
                 <View style={styles.detailsItem}>
                   <Text style={styles.detailsLabel}>Image recto:</Text>
-                  <Image 
-                    source={{ uri: identityDoc.front_image_url }} 
-                    style={styles.documentImage}
-                    resizeMode="cover"
-                  />
+                  {identityDoc.front_image_url.toLowerCase().endsWith('.pdf') ? (
+                    <View style={styles.pdfContainer}>
+                      <Ionicons name="document" size={48} color="#e74c3c" />
+                      <Text style={styles.pdfText}>Document PDF</Text>
+                      <TouchableOpacity
+                        style={styles.pdfButton}
+                        onPress={async () => {
+                          try {
+                            // Vérifier si on peut partager
+                            const isAvailable = await Sharing.isAvailableAsync();
+                            if (isAvailable) {
+                              await Sharing.shareAsync(identityDoc.front_image_url);
+                            } else {
+                              // Fallback sur Linking
+                              const canOpen = await Linking.canOpenURL(identityDoc.front_image_url);
+                              if (canOpen) {
+                                await Linking.openURL(identityDoc.front_image_url);
+                              } else {
+                                Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Erreur lors de l\'ouverture du PDF:', error);
+                            Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');
+                          }
+                        }}
+                      >
+                        <Ionicons name="open-outline" size={18} color="#fff" />
+                        <Text style={styles.pdfButtonText}>Ouvrir le PDF</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Image 
+                      source={{ uri: identityDoc.front_image_url }} 
+                      style={styles.documentImage}
+                      resizeMode="cover"
+                    />
+                  )}
                 </View>
               )}
               
               {identityDoc.back_image_url && (
                 <View style={styles.detailsItem}>
                   <Text style={styles.detailsLabel}>Image verso:</Text>
-                  <Image 
-                    source={{ uri: identityDoc.back_image_url }} 
-                    style={styles.documentImage}
-                    resizeMode="cover"
-                  />
+                  {identityDoc.back_image_url.toLowerCase().endsWith('.pdf') ? (
+                    <View style={styles.pdfContainer}>
+                      <Ionicons name="document" size={48} color="#e74c3c" />
+                      <Text style={styles.pdfText}>Document PDF</Text>
+                      <TouchableOpacity
+                        style={styles.pdfButton}
+                        onPress={async () => {
+                          try {
+                            // Vérifier si on peut partager
+                            const isAvailable = await Sharing.isAvailableAsync();
+                            if (isAvailable) {
+                              await Sharing.shareAsync(identityDoc.back_image_url);
+                            } else {
+                              // Fallback sur Linking
+                              const canOpen = await Linking.canOpenURL(identityDoc.back_image_url);
+                              if (canOpen) {
+                                await Linking.openURL(identityDoc.back_image_url);
+                              } else {
+                                Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Erreur lors de l\'ouverture du PDF:', error);
+                            Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');
+                          }
+                        }}
+                      >
+                        <Ionicons name="open-outline" size={18} color="#fff" />
+                        <Text style={styles.pdfButtonText}>Ouvrir le PDF</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Image 
+                      source={{ uri: identityDoc.back_image_url }} 
+                      style={styles.documentImage}
+                      resizeMode="cover"
+                    />
+                  )}
                 </View>
               )}
             </View>
@@ -599,16 +680,85 @@ const AdminApplicationsScreen: React.FC = () => {
 
           {/* Message de révision */}
           <View style={styles.detailsSection}>
-            <Text style={styles.detailsSectionTitle}>📝 Message de révision</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.detailsSectionTitle}>📝 Message de révision</Text>
+              <View style={styles.requiredBadge}>
+                <Text style={styles.requiredBadgeText}>REQUIS</Text>
+              </View>
+            </View>
             
+            <Text style={styles.helperText}>
+              Sélectionnez les champs que l'hôte doit modifier, puis ajoutez un message.
+            </Text>
+            
+            {/* Sélection des champs à modifier */}
+            <Text style={styles.fieldSelectionTitle}>Champs à modifier :</Text>
+            <View style={styles.fieldsGrid}>
+              {[
+                { key: 'title', label: 'Titre' },
+                { key: 'description', label: 'Description' },
+                { key: 'property_type', label: 'Type de propriété' },
+                { key: 'location', label: 'Localisation' },
+                { key: 'price_per_night', label: 'Prix par nuit' },
+                { key: 'max_guests', label: 'Capacité' },
+                { key: 'bedrooms', label: 'Chambres' },
+                { key: 'bathrooms', label: 'Salles de bain' },
+                { key: 'images', label: 'Photos' },
+                { key: 'amenities', label: 'Équipements' },
+                { key: 'minimum_nights', label: 'Nuitées minimum' },
+                { key: 'cancellation_policy', label: 'Politique d\'annulation' },
+              ].map((field) => (
+                <TouchableOpacity
+                  key={field.key}
+                  style={[
+                    styles.fieldCheckbox,
+                    fieldsToRevise[field.key] && styles.fieldCheckboxSelected
+                  ]}
+                  onPress={() => {
+                    setFieldsToRevise(prev => ({
+                      ...prev,
+                      [field.key]: !prev[field.key]
+                    }));
+                  }}
+                >
+                  <Ionicons 
+                    name={fieldsToRevise[field.key] ? 'checkbox' : 'square-outline'} 
+                    size={20} 
+                    color={fieldsToRevise[field.key] ? '#e74c3c' : '#999'} 
+                  />
+                  <Text style={[
+                    styles.fieldCheckboxText,
+                    fieldsToRevise[field.key] && styles.fieldCheckboxTextSelected
+                  ]}>
+                    {field.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <TextInput
-              style={styles.notesInput}
+              style={[
+                styles.notesInput,
+                !revisionMessage.trim() && styles.notesInputRequired
+              ]}
               value={revisionMessage}
               onChangeText={setRevisionMessage}
-              placeholder="Message à envoyer à l'hôte pour la révision..."
+              placeholder="* Obligatoire: Expliquez à l'hôte les raisons de la mise en révision..."
+              placeholderTextColor={!revisionMessage.trim() ? '#e74c3c' : '#999'}
               multiline
-              numberOfLines={3}
+              numberOfLines={4}
             />
+            
+            {(!revisionMessage.trim() || Object.keys(fieldsToRevise).filter(k => fieldsToRevise[k]).length === 0) && (
+              <View style={styles.errorMessage}>
+                <Ionicons name="alert-circle" size={16} color="#e74c3c" />
+                <Text style={styles.errorMessageText}>
+                  {Object.keys(fieldsToRevise).filter(k => fieldsToRevise[k]).length === 0 
+                    ? 'Vous devez sélectionner au moins un champ à modifier'
+                    : 'Vous devez entrer un message avant de mettre en révision'}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Notes administratives */}
@@ -632,43 +782,69 @@ const AdminApplicationsScreen: React.FC = () => {
             <View style={styles.actionButtons}>
               {selectedApp.status !== 'reviewing' && (
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.reviewButton]}
+                  style={[
+                    styles.actionButton,
+                    styles.reviewButton,
+                    !revisionMessage.trim() && styles.actionButtonDisabled
+                  ]}
                   onPress={() => {
                     if (!revisionMessage.trim()) {
                       Alert.alert(
                         'Message requis',
-                        'Veuillez entrer un message de révision avant de mettre en révision.',
+                        '⚠️ Vous devez obligatoirement entrer un message de révision expliquant les modifications nécessaires avant de mettre la candidature en révision.',
                         [{ text: 'OK' }]
                       );
                       return;
                     }
                     handleStatusUpdate(selectedApp.id, 'reviewing');
                   }}
-                  disabled={loading}
+                  disabled={loading || !revisionMessage.trim()}
                 >
-                  <Ionicons name="eye-outline" size={16} color="#3498db" />
-                  <Text style={styles.actionButtonText}>Mettre en révision</Text>
+                  <Ionicons 
+                    name="eye-outline" 
+                    size={16} 
+                    color={revisionMessage.trim() ? "#3498db" : "#ccc"} 
+                  />
+                  <Text style={[
+                    styles.actionButtonText,
+                    !revisionMessage.trim() && styles.actionButtonTextDisabled
+                  ]}>
+                    Mettre en révision
+                  </Text>
                 </TouchableOpacity>
               )}
 
               {selectedApp.status === 'reviewing' && (
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.reviewButton]}
+                  style={[
+                    styles.actionButton,
+                    styles.reviewButton,
+                    !revisionMessage.trim() && styles.actionButtonDisabled
+                  ]}
                   onPress={() => {
                     if (!revisionMessage.trim()) {
                       Alert.alert(
                         'Message requis',
-                        'Veuillez entrer un nouveau message de révision.',
+                        '⚠️ Vous devez obligatoirement entrer un nouveau message de révision.',
                         [{ text: 'OK' }]
                       );
                       return;
                     }
                     handleStatusUpdate(selectedApp.id, 'reviewing');
                   }}
-                  disabled={loading}
+                  disabled={loading || !revisionMessage.trim()}
                 >
-                  <Ionicons name="refresh-outline" size={16} color="#3498db" />
-                  <Text style={styles.actionButtonText}>Remettre en révision</Text>
+                  <Ionicons 
+                    name="refresh-outline" 
+                    size={16} 
+                    color={revisionMessage.trim() ? "#3498db" : "#ccc"} 
+                  />
+                  <Text style={[
+                    styles.actionButtonText,
+                    !revisionMessage.trim() && styles.actionButtonTextDisabled
+                  ]}>
+                    Remettre en révision
+                  </Text>
                 </TouchableOpacity>
               )}
               
@@ -695,7 +871,8 @@ const AdminApplicationsScreen: React.FC = () => {
               )}
             </View>
           </View>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
       </Modal>
     );
@@ -774,20 +951,22 @@ const AdminApplicationsScreen: React.FC = () => {
           setSelectedPhotoIndex(0);
         }}
       >
-        <SafeAreaView style={styles.photoModal} edges={['top', 'left', 'right']}>
-          <View style={styles.photoHeader}>
-            <View style={styles.photoHeaderLeft}>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => {
-                  setShowPhotos(false);
-                  setSelectedApp(null);
-                  setSelectedPhotoIndex(0);
-                }}
-              >
-                <Ionicons name="arrow-back" size={24} color="#333" />
-              </TouchableOpacity>
-              <Text style={styles.photoTitle}>Photos de la propriété</Text>
+        <View style={styles.photoModal}>
+          <View style={styles.photoHeaderContainer}>
+            <View style={styles.photoHeader}>
+              <View style={styles.photoHeaderLeft}>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => {
+                    setShowPhotos(false);
+                    setSelectedApp(null);
+                    setSelectedPhotoIndex(0);
+                  }}
+                >
+                  <Ionicons name="arrow-back" size={24} color="#333" />
+                </TouchableOpacity>
+                <Text style={styles.photoTitle}>Photos de la propriété</Text>
+              </View>
             </View>
           </View>
 
@@ -942,7 +1121,7 @@ const AdminApplicationsScreen: React.FC = () => {
               </View>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
     );
   };
@@ -969,7 +1148,7 @@ const AdminApplicationsScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
@@ -1093,10 +1272,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingTop: 10,
+    paddingBottom: 15,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    marginTop: Platform.OS === 'ios' ? 0 : 10,
   },
   backButton: {
     padding: 8,
@@ -1112,7 +1293,8 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    paddingVertical: 15,
+    paddingTop: Platform.OS === 'ios' ? 0 : 15,
+    paddingBottom: 15,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
@@ -1308,7 +1490,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingTop: Platform.OS === 'ios' ? 0 : 15,
+    paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
   },
@@ -1322,7 +1505,6 @@ const styles = StyleSheet.create({
   },
   detailsContent: {
     flex: 1,
-    padding: 20,
   },
   detailsSection: {
     marginBottom: 25,
@@ -1356,6 +1538,39 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 8,
     marginTop: 8,
+  },
+  // Styles pour les PDF
+  pdfContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginTop: 8,
+  },
+  pdfText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  pdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  pdfButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   notesInput: {
     backgroundColor: '#f8f9fa',
@@ -1441,11 +1656,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  photoHeaderContainer: {
+    backgroundColor: '#fff',
+    paddingTop: Platform.OS === 'ios' ? 50 : 40,
+  },
   photoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
-    paddingTop: Platform.OS === 'ios' ? 10 : 15,
+    paddingTop: 15,
     paddingBottom: 12,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
@@ -1604,7 +1823,8 @@ const styles = StyleSheet.create({
   // Styles pour la catégorisation
   categoryContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingTop: Platform.OS === 'ios' ? 0 : 15,
+    paddingBottom: 15,
     backgroundColor: '#f8f9fa',
     borderTopWidth: 1,
     borderTopColor: '#e9ecef',
@@ -1701,6 +1921,96 @@ const styles = StyleSheet.create({
   },
   featuredButtonTextSelected: {
     color: '#fff',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  requiredBadge: {
+    backgroundColor: '#e74c3c',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  requiredBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  helperText: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 10,
+    fontStyle: 'italic',
+  },
+  notesInputRequired: {
+    borderColor: '#e74c3c',
+    borderWidth: 2,
+    backgroundColor: '#fff5f5',
+  },
+  errorMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: '#fff5f5',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#e74c3c',
+    gap: 8,
+  },
+  errorMessageText: {
+    fontSize: 14,
+    color: '#e74c3c',
+    fontWeight: '500',
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#f0f0f0',
+  },
+  actionButtonTextDisabled: {
+    color: '#999',
+  },
+  fieldSelectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  fieldsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 15,
+    gap: 8,
+  },
+  fieldCheckbox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    marginRight: 8,
+    marginBottom: 8,
+    minWidth: 120,
+  },
+  fieldCheckboxSelected: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#e74c3c',
+  },
+  fieldCheckboxText: {
+    fontSize: 13,
+    color: '#666',
+    marginLeft: 6,
+  },
+  fieldCheckboxTextSelected: {
+    color: '#e74c3c',
+    fontWeight: '600',
   },
 });
 

@@ -59,7 +59,8 @@ export const useAdmin = () => {
     applicationId: string,
     status: 'pending' | 'reviewing' | 'approved' | 'rejected',
     adminNotes?: string,
-    photoCategories?: {[key: number]: string}
+    photoCategories?: {[key: number]: string},
+    fieldsToRevise?: Record<string, boolean>
   ) => {
     if (!user) {
       setError('Vous devez être connecté');
@@ -90,6 +91,11 @@ export const useAdmin = () => {
         if (status === 'reviewing') {
           updateData.revision_message = adminNotes;
         }
+      }
+      
+      // Ajouter les champs de révision si fournis
+      if (fieldsToRevise && Object.keys(fieldsToRevise).length > 0) {
+        updateData.fields_to_revise = fieldsToRevise;
       }
 
       const { data, error } = await supabase
@@ -130,6 +136,13 @@ export const useAdmin = () => {
 
       // Si approuvé, mettre à jour le profil pour marquer comme hôte
       if (status === 'approved' && application) {
+        // Récupérer les données complètes de l'application approuvée
+        const { data: fullApplication } = await supabase
+          .from('host_applications')
+          .select('*')
+          .eq('id', applicationId)
+          .single();
+
         const { error: profileError } = await supabase
           .from('profiles')
           .update({ is_host: true })
@@ -137,6 +150,53 @@ export const useAdmin = () => {
 
         if (profileError) {
           console.error('Error updating profile:', profileError);
+        }
+        
+        // Si c'est une révision qui a été approuvée ET qu'il y a des champs de révision, mettre à jour la propriété existante
+        if (fullApplication?.fields_to_revise && Object.keys(fullApplication.fields_to_revise).length > 0) {
+          console.log('🔄 Mise à jour d\'une propriété existante suite à une révision approuvée');
+          
+          // Trouver la propriété correspondante
+          const { data: existingProperty } = await supabase
+            .from('properties')
+            .select('*')
+            .eq('host_id', application.user_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (existingProperty && fullApplication.fields_to_revise) {
+            const fieldsToUpdate = fullApplication.fields_to_revise;
+            const updates: any = {};
+            
+            // Mettre à jour uniquement les champs modifiés
+            if (fieldsToUpdate.title === true) updates.title = fullApplication.title;
+            if (fieldsToUpdate.description === true) updates.description = fullApplication.description;
+            if (fieldsToUpdate.property_type === true) updates.property_type = fullApplication.property_type;
+            if (fieldsToUpdate.price_per_night === true) updates.price_per_night = fullApplication.price_per_night;
+            if (fieldsToUpdate.max_guests === true) updates.max_guests = fullApplication.max_guests;
+            if (fieldsToUpdate.bedrooms === true) updates.bedrooms = fullApplication.bedrooms;
+            if (fieldsToUpdate.bathrooms === true) updates.bathrooms = fullApplication.bathrooms;
+            if (fieldsToUpdate.images === true) updates.images = fullApplication.images;
+            if (fieldsToUpdate.amenities === true) updates.amenities = fullApplication.amenities;
+            if (fieldsToUpdate.minimum_nights === true) updates.minimum_nights = fullApplication.minimum_nights;
+            if (fieldsToUpdate.cancellation_policy === true) updates.cancellation_policy = fullApplication.cancellation_policy;
+            
+            if (Object.keys(updates).length > 0) {
+              updates.updated_at = new Date().toISOString();
+              
+              const { error: updateError } = await supabase
+                .from('properties')
+                .update(updates)
+                .eq('id', existingProperty.id);
+              
+              if (updateError) {
+                console.error('❌ Erreur lors de la mise à jour de la propriété:', updateError);
+              } else {
+                console.log('✅ Propriété mise à jour avec succès:', Object.keys(updates));
+              }
+            }
+          }
         }
 
                 // Traiter les données de classification si fournies

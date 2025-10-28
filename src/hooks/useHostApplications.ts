@@ -61,6 +61,7 @@ export interface HostApplication {
   discount_percentage?: number;
   cleaning_fee?: number;
   taxes?: number;
+  fields_to_revise?: Record<string, boolean>;
 }
 
 export const useHostApplications = () => {
@@ -203,6 +204,29 @@ export const useHostApplications = () => {
     try {
       console.log('🔄 Mise à jour de la candidature:', applicationId);
       
+      // Récupérer l'ancienne version pour comparer
+      const { data: oldApplication } = await supabase
+        .from('host_applications')
+        .select('*')
+        .eq('id', applicationId)
+        .single();
+
+      // Détecter les changements
+      const changes: string[] = [];
+      if (oldApplication) {
+        if (oldApplication.title !== applicationData.title) changes.push(`Titre: "${oldApplication.title}" → "${applicationData.title}"`);
+        if (oldApplication.property_type !== applicationData.propertyType) changes.push(`Type: "${oldApplication.property_type}" → "${applicationData.propertyType}"`);
+        if (oldApplication.location !== applicationData.location) changes.push(`Localisation: "${oldApplication.location}" → "${applicationData.location}"`);
+        if (oldApplication.price_per_night !== applicationData.pricePerNight) changes.push(`Prix: ${oldApplication.price_per_night} → ${applicationData.pricePerNight} FCFA`);
+        if (oldApplication.max_guests !== applicationData.maxGuests) changes.push(`Capacité: ${oldApplication.max_guests} → ${applicationData.maxGuests}`);
+        if (oldApplication.bedrooms !== applicationData.bedrooms) changes.push(`Chambres: ${oldApplication.bedrooms} → ${applicationData.bedrooms}`);
+        if (oldApplication.bathrooms !== applicationData.bathrooms) changes.push(`Salles de bain: ${oldApplication.bathrooms} → ${applicationData.bathrooms}`);
+      }
+
+      const changesText = changes.length > 0 
+        ? `Modifications:\n${changes.join('\n')}` 
+        : 'Candidature modifiée';
+      
       const { data, error } = await supabase
         .from('host_applications')
         .update({
@@ -230,8 +254,8 @@ export const useHostApplications = () => {
           discount_percentage: applicationData.discountPercentage || null,
           cleaning_fee: applicationData.cleaningFee || 0,
           taxes: applicationData.taxes || 0,
-          status: 'reviewing', // Repasser en révision après modification
-          revision_message: 'Candidature modifiée par l\'utilisateur', // Message pour l'admin
+          status: 'reviewing',
+          revision_message: changesText,
           updated_at: new Date().toISOString(),
         })
         .eq('id', applicationId)

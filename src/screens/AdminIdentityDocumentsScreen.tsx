@@ -12,8 +12,10 @@ import {
   ScrollView,
   Image,
   Modal,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
@@ -461,11 +463,46 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
 
               <View style={styles.documentImageContainer}>
                 <Text style={styles.documentImageTitle}>Document</Text>
-                <Image
-                  source={{ uri: selectedDoc.document_url }}
-                  style={styles.documentImage}
-                  resizeMode="contain"
-                />
+                
+                {/* Détecter si c'est un PDF ou une image */}
+                {selectedDoc.document_url.toLowerCase().endsWith('.pdf') ? (
+                  <View style={styles.pdfContainer}>
+                    <Ionicons name="document" size={64} color="#e74c3c" />
+                    <Text style={styles.pdfText}>Document PDF</Text>
+                    <TouchableOpacity
+                      style={styles.pdfButton}
+                      onPress={async () => {
+                        try {
+                          // Vérifier si on peut partager
+                          const isAvailable = await Sharing.isAvailableAsync();
+                          if (isAvailable) {
+                            await Sharing.shareAsync(selectedDoc.document_url);
+                          } else {
+                            // Fallback sur Linking
+                            const canOpen = await Linking.canOpenURL(selectedDoc.document_url);
+                            if (canOpen) {
+                              await Linking.openURL(selectedDoc.document_url);
+                            } else {
+                              Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
+                            }
+                          }
+                        } catch (error) {
+                          console.error('Erreur lors de l\'ouverture du PDF:', error);
+                          Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');
+                        }
+                      }}
+                    >
+                      <Ionicons name="open-outline" size={20} color="#fff" />
+                      <Text style={styles.pdfButtonText}>Ouvrir le PDF</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: selectedDoc.document_url }}
+                    style={styles.documentImage}
+                    resizeMode="contain"
+                  />
+                )}
               </View>
 
               <View style={styles.notesContainer}>
@@ -770,6 +807,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  // Styles pour les PDF
+  pdfContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  pdfText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  pdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  pdfButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

@@ -209,12 +209,48 @@ const MyHostApplicationsScreen: React.FC = () => {
           </View>
         )}
 
-        {application.status === 'reviewing' && application.revision_message && (
+        {/* Afficher l'encart "modifications requises" seulement si le message ne commence pas par "Modifications:" (c'est-à-dire si l'hôte n'a pas encore modifié) */}
+        {application.status === 'reviewing' && application.revision_message && !application.revision_message.startsWith('Modifications:') && (
           <View style={styles.revisionContainer}>
             <View style={styles.revisionHeader}>
               <Ionicons name="alert-circle" size={20} color="#856404" />
               <Text style={styles.revisionLabel}>⚠️ Modifications requises</Text>
             </View>
+            
+            {/* Afficher les champs spécifiques à modifier */}
+            {application.fields_to_revise && application.fields_to_revise.length > 0 && (
+              <View style={styles.revisionFieldsContainer}>
+                <Text style={styles.revisionFieldsLabel}>Champs à modifier :</Text>
+                <View style={styles.revisionFieldsList}>
+                  {application.fields_to_revise.map((field, index) => {
+                    const fieldLabels: Record<string, string> = {
+                      'title': 'Titre',
+                      'description': 'Description',
+                      'property_type': 'Type de propriété',
+                      'location': 'Localisation',
+                      'price_per_night': 'Prix par nuit',
+                      'max_guests': 'Capacité',
+                      'bedrooms': 'Chambres',
+                      'bathrooms': 'Salles de bain',
+                      'images': 'Photos',
+                      'amenities': 'Équipements',
+                      'minimum_nights': 'Nuitées minimum',
+                      'cancellation_policy': 'Politique d\'annulation',
+                      'host_guide': 'Guide de l\'hôte',
+                      'cleaning_fee': 'Frais de ménage',
+                    };
+                    return (
+                      <View key={index} style={styles.revisionFieldTag}>
+                        <Text style={styles.revisionFieldText}>
+                          {fieldLabels[field] || field}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+            
             <Text style={styles.revisionText}>{application.revision_message}</Text>
             <TouchableOpacity
               style={styles.editButton}
@@ -226,6 +262,17 @@ const MyHostApplicationsScreen: React.FC = () => {
               <Ionicons name="create-outline" size={16} color="#e74c3c" />
               <Text style={styles.editButtonText}>Modifier la candidature</Text>
             </TouchableOpacity>
+          </View>
+        )}
+        
+        {/* Afficher le message "Modifications effectuées" si l'hôte a déjà modifié */}
+        {application.status === 'reviewing' && application.revision_message && application.revision_message.startsWith('Modifications:') && (
+          <View style={[styles.revisionContainer, { backgroundColor: '#e8f5e9', borderLeftColor: '#2E7D32' }]}>
+            <View style={styles.revisionHeader}>
+              <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+              <Text style={[styles.revisionLabel, { color: '#2E7D32' }]}>✅ Modifications soumises</Text>
+            </View>
+            <Text style={[styles.revisionText, { color: '#1b5e20' }]}>{application.revision_message}</Text>
           </View>
         )}
       </View>
@@ -529,6 +576,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
     gap: 8,
+  },
+  revisionFieldsContainer: {
+    marginBottom: 12,
+    padding: 10,
+    backgroundColor: '#fffbf0',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffc107',
+  },
+  revisionFieldsLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#856404',
+    marginBottom: 6,
+  },
+  revisionFieldsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  revisionFieldTag: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ffc107',
+  },
+  revisionFieldText: {
+    fontSize: 12,
+    color: '#856404',
+    fontWeight: '500',
   },
   editButton: {
     flexDirection: 'row',

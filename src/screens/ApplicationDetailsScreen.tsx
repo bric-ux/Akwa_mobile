@@ -391,9 +391,54 @@ const ApplicationDetailsScreen: React.FC = () => {
         </View>
 
         {/* Messages */}
-        {application.revision_message && (
+        {application.revision_message && !application.revision_message.startsWith('Modifications:') && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>💬 Message de révision</Text>
+            
+            {/* Afficher les champs spécifiques à modifier */}
+            {application.fields_to_revise && application.fields_to_revise.length > 0 && (
+              <View style={styles.revisionFieldsContainer}>
+                <Text style={styles.revisionFieldsLabel}>Champs à modifier :</Text>
+                <View style={styles.revisionFieldsList}>
+                  {application.fields_to_revise.map((field, index) => {
+                    const fieldLabels: Record<string, string> = {
+                      'title': 'Titre',
+                      'description': 'Description',
+                      'property_type': 'Type de propriété',
+                      'location': 'Localisation',
+                      'priceี่ยper_night': 'Prix par nuit',
+                      'max_guests': 'Capacité',
+                      'bedrooms': 'Chambres',
+                      'bathrooms': 'Salles de bain',
+                      'images': 'Photos',
+                      'amenities': 'Équipements',
+                      'minimum_nights': 'Nuitées minimum',
+                      'cancellation_policy': 'Politique d\'annulation',
+                      'host_guide': 'Guide de l\'hôte',
+                      'cleaning_fee': 'Frais de ménage',
+                    };
+                    return (
+                      <View key={index} style={styles.revisionFieldTag}>
+                        <Text style={styles.revisionFieldText}>
+                          {fieldLabels[field] || field}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+            
+            <View style={styles.messageContainer}>
+              <Text style={styles.messageText}>{application.revision_message}</Text>
+            </View>
+          </View>
+        )}
+        
+        {/* Afficher le message "Modifications effectuées" si l'hôte a déjà modifié */}
+        {application.revision_message && application.revision_message.startsWith('Modifications:') && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>✅ Modifications effectuées</Text>
             <View style={styles.messageContainer}>
               <Text style={styles.messageText}>{application.revision_message}</Text>
             </View>
@@ -571,6 +616,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     lineHeight: 20,
+  },
+  revisionFieldsContainer: {
+    marginBottom: 12,
+    padding: 10,
+    backgroundColor: '#fffbf0',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffc107',
+  },
+  revisionFieldsLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#856404',
+    marginBottom: 6,
+  },
+  revisionFieldsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  revisionFieldTag: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ffc107',
+  },
+  revisionFieldText: {
+    fontSize: 12,
+    color: '#856404',
+    fontWeight: '500',
   },
   editButton: {
     backgroundColor: '#2E7D32',

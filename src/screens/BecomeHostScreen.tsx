@@ -83,6 +83,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   
   const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [fieldsToRevise, setRevisionFields] = useState<string[]>([]);
   
   const [formData, setFormData] = useState({
     // Informations sur le logement
@@ -146,6 +147,14 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     }
   }, [route?.params]);
   
+  // Fonction pour vérifier si un champ doit être affiché en mode révision
+  const shouldShowField = (fieldName: string) => {
+    // Si on n'est pas en mode édition ou s'il n'y a pas de champs de révision, afficher tous les champs
+    if (!isEditMode || Object.keys(fieldsToRevise).length === 0) return true;
+    // Sinon, n'afficher que les champs présents dans fields_to_revise
+    return fieldsToRevise[fieldName] === true;
+  };
+
   const loadApplicationData = async (applicationId: string) => {
     console.log('📋 Chargement de la candidature pour édition:', applicationId);
     
@@ -181,6 +190,14 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       
       // Charger les équipements
       setSelectedAmenities(application.amenities || []);
+      
+      // Charger les champs de révision
+      if (application.fields_to_revise && application.status === 'reviewing') {
+        setFieldsToRevise(application.fields_to_revise);
+        console.log('🔍 Champs de révision:', application.fields_to_revise);
+      } else {
+        setFieldsToRevise({});
+      }
       
       // Charger les photos
       console.log('📸 Données brutes categorized_photos:', JSON.stringify(application.categorized_photos, null, 2));
@@ -723,20 +740,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
 
           if (adminUsers && adminUsers.length > 0) {
             for (const admin of adminUsers) {
-              // Email de notification standard
-              await sendHostApplicationReceived(
-                admin.email,
-                formData.hostFullName,
-                formData.hostEmail,
-                formData.title,
-                formData.propertyType,
-                formData.location,
-                parseInt(formData.price) || 0
-              );
-              
-              console.log('✅ Email standard envoyé à l\'admin:', admin.email);
-              
-              // Email détaillé avec toutes les modifications et infos de paiement
+              // Email pour modification seulement (pas email de nouvelle candidature)
               await supabase.functions.invoke('send-email', {
                 body: {
                   type: 'host_application_updated',
@@ -921,83 +925,96 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       <Text style={styles.stepTitle}>Informations sur le logement</Text>
       
       {/* Type de propriété */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Type de propriété *</Text>
-        <TouchableOpacity 
-          style={styles.selectButton}
-          onPress={() => setShowPropertyTypeModal(true)}
-        >
-          <Text style={styles.selectButtonText}>
-            {formData.propertyType ? 
-              PROPERTY_TYPES.find(t => t.value === formData.propertyType)?.label : 
-              'Sélectionner un type'
-            }
-          </Text>
-          <Ionicons name="chevron-down" size={20} color="#666" />
-        </TouchableOpacity>
-      </View>
+      {(!isEditMode || shouldShowField('property_type')) && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Type de propriété *</Text>
+          <TouchableOpacity 
+            style={styles.selectButton}
+            onPress={() => setShowPropertyTypeModal(true)}
+          >
+            <Text style={styles.selectButtonText}>
+              {formData.propertyType ? 
+                PROPERTY_TYPES.find(t => t.value === formData.propertyType)?.label : 
+                'Sélectionner un type'
+              }
+            </Text>
+            <Ionicons name="chevron-down" size={20} color="#666" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Localisation */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Localisation *</Text>
-        <CitySearchInputModal
-          value={formData.location}
-          onChange={handleLocationSelect}
-          placeholder="Rechercher ville, commune ou quartier..."
-        />
-        <Text style={styles.helpText}>
-          Recherchez votre ville, commune ou quartier avec autocomplétion
-        </Text>
-      </View>
+      {(!isEditMode || shouldShowField('location')) && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Localisation *</Text>
+          <CitySearchInputModal
+            value={formData.location}
+            onChange={handleLocationSelect}
+            placeholder="Rechercher ville, commune ou quartier..."
+          />
+          <Text style={styles.helpText}>
+            Recherchez votre ville, commune ou quartier avec autocomplétion
+          </Text>
+        </View>
+      )}
 
       {/* Capacité */}
-      <View style={styles.row}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Nombre d'invités *</Text>
-        <TextInput
-          ref={(ref) => { inputRefs.current['guests'] = ref; }}
-          style={getInputStyle('guests')}
-          value={formData.guests}
-          onChangeText={(value) => handleInputChange('guests', value)}
-          placeholder="2"
-          keyboardType="numeric"
-          placeholderTextColor="#999"
-          returnKeyType="next"
-          onSubmitEditing={() => handleInputSubmit('guests')}
-        />
+      {(!isEditMode || shouldShowField('max_guests') || shouldShowField('bedrooms') || shouldShowField('bathrooms')) && (
+        <View style={styles.row}>
+          {(!isEditMode || shouldShowField('max_guests')) && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Nombre d'invités *</Text>
+            <TextInput
+              ref={(ref) => { inputRefs.current['guests'] = ref; }}
+              style={getInputStyle('guests')}
+              value={formData.guests}
+              onChangeText={(value) => handleInputChange('guests', value)}
+              placeholder="2"
+              keyboardType="numeric"
+              placeholderTextColor="#999"
+              returnKeyType="next"
+              onSubmitEditing={() => handleInputSubmit('guests')}
+            />
+            </View>
+          )}
+          {(!isEditMode || shouldShowField('bedrooms')) && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Chambres *</Text>
+              <TextInput
+                ref={(ref) => { inputRefs.current['bedrooms'] = ref; }}
+                style={getInputStyle('bedrooms')}
+                value={formData.bedrooms}
+                onChangeText={(value) => handleInputChange('bedrooms', value)}
+                placeholder="1"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+                returnKeyType="next"
+                onSubmitEditing={() => handleInputSubmit('bedrooms')}
+              />
+            </View>
+          )}
+          {(!isEditMode || shouldShowField('bathrooms')) && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Salles de bain *</Text>
+              <TextInput
+                ref={(ref) => { inputRefs.current['bathrooms'] = ref; }}
+                style={getInputStyle('bathrooms')}
+                value={formData.bathrooms}
+                onChangeText={(value) => handleInputChange('bathrooms', value)}
+                placeholder="1"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+                returnKeyType="next"
+                onSubmitEditing={() => handleInputSubmit('bathrooms')}
+              />
+            </View>
+          )}
         </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Chambres *</Text>
-          <TextInput
-            ref={(ref) => { inputRefs.current['bedrooms'] = ref; }}
-            style={getInputStyle('bedrooms')}
-            value={formData.bedrooms}
-            onChangeText={(value) => handleInputChange('bedrooms', value)}
-            placeholder="1"
-            keyboardType="numeric"
-            placeholderTextColor="#999"
-            returnKeyType="next"
-            onSubmitEditing={() => handleInputSubmit('bedrooms')}
-          />
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Salles de bain *</Text>
-          <TextInput
-            ref={(ref) => { inputRefs.current['bathrooms'] = ref; }}
-            style={getInputStyle('bathrooms')}
-            value={formData.bathrooms}
-            onChangeText={(value) => handleInputChange('bathrooms', value)}
-            placeholder="1"
-            keyboardType="numeric"
-            placeholderTextColor="#999"
-            returnKeyType="next"
-            onSubmitEditing={() => handleInputSubmit('bathrooms')}
-          />
-        </View>
-      </View>
+      )}
 
       {/* Titre */}
-      <View style={styles.inputGroup}>
+      {(!isEditMode || shouldShowField('title')) && (
+        <View style={styles.inputGroup}>
         <Text style={styles.label}>Titre de votre annonce *</Text>
         <TextInput
           ref={(ref) => { inputRefs.current['title'] = ref; }}
@@ -1009,42 +1026,45 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           returnKeyType="next"
           onSubmitEditing={() => handleInputSubmit('title')}
         />
-      </View>
+        </View>
+      )}
 
       {/* Description */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Description *</Text>
-        <TextInput
-          ref={(ref) => { inputRefs.current['description'] = ref; }}
-          style={[getInputStyle('description'), styles.textArea]}
-          value={formData.description}
-          onChangeText={(value) => handleInputChange('description', value)}
-          placeholder="Décrivez votre logement..."
-          multiline
-          numberOfLines={4}
-          placeholderTextColor="#999"
-          returnKeyType="next"
-          onSubmitEditing={() => handleInputSubmit('description')}
-        />
-      </View>
+          {(!isEditMode || shouldShowField('description')) && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Description *</Text>
+          <TextInput
+            ref={(ref) => { inputRefs.current['description'] = ref; }}
+            style={[getInputStyle('description'), styles.textArea]}
+            value={formData.description}
+            onChangeText={(value) => handleInputChange('description', value)}
+            placeholder="Décrivez votre logement..."
+            multiline
+            numberOfLines={4}
+            placeholderTextColor="#999"
+            returnKeyType="next"
+            onSubmitEditing={() => handleInputSubmit('description')}
+          />
+        </View>
+      )}
 
       {/* Prix */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Prix par nuit (FCFA) *</Text>
-        <TextInput
-          ref={(ref) => { inputRefs.current['price'] = ref; }}
-          style={getInputStyle('price')}
-          value={formData.price}
-          onChangeText={(value) => handleInputChange('price', value)}
-          placeholder="25000"
-          keyboardType="numeric"
-          placeholderTextColor="#999"
-          returnKeyType="next"
-          onSubmitEditing={() => handleInputSubmit('price')}
-        />
-      </View>
-
-      {/* Indications complémentaires sur l'adresse */}
+      {(!isEditMode || shouldShowField('price_per_night')) && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Prix par nuit (FCFA) *</Text>
+          <TextInput
+            ref={(ref) => { inputRefs.current['price'] = ref; }}
+            style={getInputStyle('price')}
+            value={formData.price}
+            onChangeText={(value) => handleInputChange('price', value)}
+            placeholder="25000"
+            keyboardType="numeric"
+            placeholderTextColor="#999"
+            returnKeyType="next"
+            onSubmitEditing={() => handleInputSubmit('price')}
+          />
+        </View>
+      )}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Indications complémentaires sur l'adresse</Text>
         <TextInput
