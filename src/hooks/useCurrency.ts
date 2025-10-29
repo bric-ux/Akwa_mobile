@@ -1,2 +1,7 @@
-// This file is now deprecated - use ../contexts/CurrencyContext instead
-export { useCurrency, CurrencyProvider, type Currency } from '../contexts/CurrencyContext';
+// Réexport depuis CurrencyContext pour compatibilité avec les imports existants
+export { 
+  useCurrency,
+  CurrencyProvider
+} from '../contexts/CurrencyContext';
+
+export type { Currency } from '../contexts/CurrencyContext';

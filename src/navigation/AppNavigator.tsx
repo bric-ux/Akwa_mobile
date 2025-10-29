@@ -38,6 +38,8 @@ import MessagingDebugScreen from '../screens/MessagingDebugScreen';
 import HostPaymentInfoScreen from '../screens/HostPaymentInfoScreen';
 import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
 import HostStatsScreen from '../screens/HostStatsScreen';
+import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
+import TermsScreen from '../screens/TermsScreen';
 
 // Types
 import { RootStackParamList, TabParamList } from '../types';
@@ -360,6 +362,22 @@ const AppNavigator = () => {
           name="SupabaseTest" 
           component={SupabaseTestScreen}
           options={{ title: 'Test Supabase' }}
+        />
+        <Stack.Screen 
+          name="PrivacyPolicy" 
+          component={PrivacyPolicyScreen}
+          options={{ 
+            title: 'Politique de confidentialité',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen 
+          name="Terms" 
+          component={TermsScreen}
+          options={{ 
+            title: "Conditions d'utilisation",
+            headerShown: false 
+          }}
         />
         <Stack.Screen 
           name="MessagingDebug" 

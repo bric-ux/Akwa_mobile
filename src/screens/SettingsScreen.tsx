@@ -35,9 +35,7 @@ const SettingsScreen: React.FC = () => {
   const [messageNotifications, setMessageNotifications] = useState(true);
   const [marketingNotifications, setMarketingNotifications] = useState(false);
   
-  // État pour la devise
-  const [showCurrencySelector, setShowCurrencySelector] = useState(false);
-  const { currency, currencySymbol } = useCurrency();
+  // (Sélection de devise déplacée dans l'en-tête d'accueil)
 
   const handleNotificationToggle = async (type: string, value: boolean) => {
     try {
@@ -320,16 +318,7 @@ const SettingsScreen: React.FC = () => {
           />
         </View>
 
-        {/* Section Général */}
-        <Text style={styles.sectionTitle}>Général</Text>
-        <View style={styles.section}>
-          <SettingItem
-            icon="cash-outline"
-            title="Devise"
-            subtitle={currency + ' ' + currencySymbol}
-            onPress={() => setShowCurrencySelector(true)}
-          />
-        </View>
+        {/* Section Général (sélection de devise retirée) */}
 
         {/* Section Confidentialité */}
         <Text style={styles.sectionTitle}>Confidentialité</Text>
@@ -338,14 +327,14 @@ const SettingsScreen: React.FC = () => {
             icon="shield-outline"
             title="Politique de confidentialité"
             subtitle="Lire notre politique"
-            onPress={() => Alert.alert('Info', 'Fonctionnalité en cours de développement')}
+            onPress={() => (navigation as any).navigate('PrivacyPolicy')}
           />
           
           <SettingItem
             icon="document-text-outline"
             title="Conditions d'utilisation"
             subtitle="Lire nos conditions"
-            onPress={() => Alert.alert('Info', 'Fonctionnalité en cours de développement')}
+            onPress={() => (navigation as any).navigate('Terms')}
           />
         </View>
 
@@ -353,17 +342,10 @@ const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>Support</Text>
         <View style={styles.section}>
           <SettingItem
-            icon="help-circle-outline"
-            title="Centre d'aide"
-            subtitle="FAQ et support"
-            onPress={() => Alert.alert('Info', 'Fonctionnalité en cours de développement')}
-          />
-          
-          <SettingItem
             icon="mail-outline"
-            title="Nous contacter"
-            subtitle="Envoyer un message"
-            onPress={() => Alert.alert('Info', 'Fonctionnalité en cours de développement')}
+            title="Support AkwaHome"
+            subtitle="support@akwahome.com"
+            onPress={() => Alert.alert('Support', 'Écrivez-nous à support@akwahome.com')}
           />
         </View>
 
@@ -493,26 +475,7 @@ const SettingsScreen: React.FC = () => {
         </View>
       </Modal>
       
-      {/* Modal de sélection de devise */}
-      <Modal
-        visible={showCurrencySelector}
-        animationType="slide"
-        onRequestClose={() => setShowCurrencySelector(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setShowCurrencySelector(false)}
-              style={styles.modalCloseButton}
-            >
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-            <Text style={styles.modalHeaderTitle}>Choisir la devise</Text>
-            <View style={styles.modalPlaceholder} />
-          </View>
-          <CurrencySelector />
-        </SafeAreaView>
-      </Modal>
+      {/* Modal de sélection de devise supprimée (présente dans l'en-tête) */}
     </SafeAreaView>
   );
 };
