@@ -360,6 +360,94 @@ const HostPaymentInfoScreen: React.FC = () => {
         }
       </Text>
 
+      {/* Afficher les informations de paiement */}
+      <View style={styles.infoSection}>
+        <Text style={styles.infoSectionTitle}>Détails de paiement</Text>
+        
+        <View style={styles.infoRow}>
+          <Ionicons name="card-outline" size={18} color="#666" />
+          <Text style={styles.infoLabel}>Méthode préférée</Text>
+          <Text style={styles.infoValue}>
+            {paymentInfo?.preferred_payment_method === 'bank_transfer' ? 'Virement bancaire' : 
+             paymentInfo?.preferred_payment_method === 'mobile_money' ? 'Mobile Money' :
+             paymentInfo?.preferred_payment_method === 'paypal' ? 'PayPal' : '-'}
+          </Text>
+        </View>
+
+        {paymentInfo?.preferred_payment_method === 'bank_transfer' && (
+          <>
+            <View style={styles.infoRow}>
+              <Ionicons name="business-outline" size={18} color="#666" />
+              <Text style={styles.infoLabel}>Banque</Text>
+              <Text style={styles.infoValue}>{paymentInfo.bank_name || '-'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Ionicons name="person-outline" size={18} color="#666" />
+              <Text style={styles.infoLabel}>Titulaire</Text>
+              <Text style={styles.infoValue}>{paymentInfo.account_holder_name || '-'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Ionicons name="key-outline" size={18} color="#666" />
+              <Text style={styles.infoLabel}>N° compte</Text>
+              <Text style={styles.infoValue}>
+                {paymentInfo.account_number ? `•••• ${paymentInfo.account_number.slice(-4)}` : '-'}
+              </Text>
+            </View>
+            {paymentInfo.bank_code && (
+              <View style={styles.infoRow}>
+                <Ionicons name="barcode-outline" size={18} color="#666" />
+                <Text style={styles.infoLabel}>Code banque</Text>
+                <Text style={styles.infoValue}>{paymentInfo.bank_code}</Text>
+              </View>
+            )}
+            {paymentInfo.swift_code && (
+              <View style={styles.infoRow}>
+                <Ionicons name="globe-outline" size={18} color="#666" />
+                <Text style={styles.infoLabel}>Code SWIFT</Text>
+                <Text style={styles.infoValue}>{paymentInfo.swift_code}</Text>
+              </View>
+            )}
+            {paymentInfo.iban && (
+              <View style={styles.infoRow}>
+                <Ionicons name="document-text-outline" size={18} color="#666" />
+                <Text style={styles.infoLabel}>IBAN</Text>
+                <Text style={styles.infoValue}>{paymentInfo.iban}</Text>
+              </View>
+            )}
+          </>
+        )}
+
+        {paymentInfo?.preferred_payment_method === 'mobile_money' && (
+          <>
+            <View style={styles.infoRow}>
+              <Ionicons name="phone-portrait-outline" size={18} color="#666" />
+              <Text style={styles.infoLabel}>Opérateur</Text>
+              <Text style={styles.infoValue}>
+                {paymentInfo.mobile_money_provider === 'orange_money' ? 'Orange Money' :
+                 paymentInfo.mobile_money_provider === 'mtn_money' ? 'MTN Money' :
+                 paymentInfo.mobile_money_provider === 'moov_money' ? 'Moov Money' :
+                 paymentInfo.mobile_money_provider === 'wave' ? 'Wave' : '-'}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Ionicons name="call-outline" size={18} color="#666" />
+              <Text style={styles.infoLabel}>Numéro</Text>
+              <Text style={styles.infoValue}>
+                {paymentInfo.mobile_money_number ? `•••• ${paymentInfo.mobile_money_number.slice(-4)}` : '-'}
+              </Text>
+            </View>
+          </>
+        )}
+
+        {paymentInfo?.preferred_payment_method === 'paypal' && (
+          <View style={styles.infoRow}>
+            <Ionicons name="mail-outline" size={18} color="#666" />
+            <Text style={styles.infoLabel}>Email PayPal</Text>
+            <Text style={styles.infoValue}>{paymentInfo.paypal_email || '-'}</Text>
+          </View>
+        )}
+      </View>
+
       {paymentInfo?.verification_notes && (
         <View style={styles.notesContainer}>
           <Text style={styles.notesTitle}>Notes de vérification:</Text>
@@ -667,6 +755,38 @@ const styles = StyleSheet.create({
     color: '#e67e22',
     fontSize: 16,
     fontWeight: '500',
+  },
+  infoSection: {
+    marginTop: 20,
+    marginBottom: 16,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  infoSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10,
+  },
+  infoLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  infoValue: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1f2937',
+    fontWeight: '600',
+    textAlign: 'right',
   },
 });
 
