@@ -30,7 +30,7 @@ const CurrencySelector: React.FC = () => {
                 <Text style={styles.currencySymbol}>{CURRENCY_SYMBOLS[curr]}</Text>
                 <View style={styles.currencyTextContainer}>
                   <Text style={[styles.currencyCode, currency === curr && styles.currencyCodeActive]}>
-                    {curr}
+                    {curr === 'XOF' ? 'CFA' : curr}
                   </Text>
                   <Text style={[styles.currencyName, currency === curr && styles.currencyNameActive]}>
                     {CURRENCY_NAMES[curr]}
@@ -50,7 +50,7 @@ const CurrencySelector: React.FC = () => {
         <View style={styles.noteContainer}>
           <Ionicons name="information-circle-outline" size={16} color="#666" />
           <Text style={styles.noteText}>
-            Les prix sont convertis depuis le Franc CFA (FCFA). Les taux de change peuvent varier.
+            Les prix sont convertis depuis le Franc CFA (CFA). Les taux de change peuvent varier.
           </Text>
         </View>
       )}

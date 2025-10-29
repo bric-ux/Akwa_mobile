@@ -137,7 +137,13 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
       // Créer une icône personnalisée avec le prix
       const divIcon = L.divIcon({
         className: 'custom-marker',
-        html: '<div class="price-marker">' + (prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? prop.convertedPrice.toLocaleString('fr-FR') : prop.price.toLocaleString('fr-FR')) + ' ' + (prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'FCFA') + '</div>',
+        html: '<div class="price-marker">' + (
+          prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
+            ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : prop.price.toLocaleString('fr-FR')
+        ) + ' ' + (
+          prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
+        ) + '</div>',
         iconSize: [120, 40],
         iconAnchor: [60, 40]
       });
@@ -148,8 +154,16 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
       }).addTo(map);
 
       // Popup au clic
-      const displayPrice = prop.convertedPrice !== undefined && prop.convertedPrice !== prop.price ? prop.convertedPrice.toLocaleString('fr-FR') : prop.price.toLocaleString('fr-FR');
-      const displayCurrency = prop.convertedPrice !== undefined && prop.convertedPrice !== prop.price ? currentCurrencySymbol : 'FCFA';
+      const displayPrice = (
+        prop.convertedPrice !== undefined && prop.convertedPrice !== prop.price
+          ? (
+            currentCurrency !== 'JPY'
+              ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : Math.round(prop.convertedPrice).toLocaleString('fr-FR')
+          )
+          : prop.price.toLocaleString('fr-FR')
+      );
+      const displayCurrency = prop.convertedPrice !== undefined && prop.convertedPrice !== prop.price ? currentCurrencySymbol : 'CFA';
       const popupContent = '<div style="max-width: 200px;"><strong>' + prop.title + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 16px;">' + displayPrice + ' ' + displayCurrency + '/nuit</span><br/><button onclick="selectProperty(\\'' + prop.id + '\\')" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-top: 8px; width: 100%;">Voir détails</button></div>';
       marker.bindPopup(popupContent);
 

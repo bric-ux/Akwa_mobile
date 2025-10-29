@@ -102,3 +102,5 @@ const shouldShowField = (fieldName: string) => {
 
 Modifier AdminApplicationsScreen.tsx pour convertir les checkboxes de selection en objet Record<string, boolean> au lieu d'array.
 
+
+

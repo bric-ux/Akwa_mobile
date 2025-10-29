@@ -59,7 +59,7 @@ const CurrencyBadge: React.FC = () => {
                       currency === curr && styles.currencyTextActive
                     ]}
                   >
-                    {curr}
+                    {curr === 'XOF' ? 'CFA' : curr}
                   </Text>
                 </View>
                 {currency === curr && (
@@ -138,4 +138,6 @@ const styles = StyleSheet.create({
 });
 
 export default CurrencyBadge;
+
+
 

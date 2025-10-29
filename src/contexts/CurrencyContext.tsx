@@ -8,7 +8,7 @@ interface ExchangeRates {
 }
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  XOF: 'FCFA',
+  XOF: 'CFA',
   EUR: '€',
   USD: '$',
   RUB: '₽',
@@ -96,7 +96,12 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     } else if (currency === 'JPY') {
       formatted = `¥${Math.round(converted).toLocaleString('fr-FR')}`;
     } else {
-      formatted = `${CURRENCY_SYMBOLS[currency]}${converted.toFixed(2)}`;
+      // EUR, USD, RUB: 2 décimales, format fr-FR
+      const withTwoDecimals = Number(converted).toLocaleString('fr-FR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      formatted = `${CURRENCY_SYMBOLS[currency]}${withTwoDecimals}`;
     }
 
     return { converted, formatted };

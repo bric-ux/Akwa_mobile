@@ -241,3 +241,5 @@ const revisionFieldsOptions = [
 - La détection des modifications est faite côté client dans `updateApplication`
 - Le message "Modifications:" est un préfixe pour distinguer les messages de l'admin et de l'hôte
 
+
+

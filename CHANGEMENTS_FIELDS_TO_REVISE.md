@@ -142,3 +142,5 @@ L'application mobile utilise maintenant le même format que le site web (`fields
 2. Vérifier que les champs sont correctement sauvegardés
 3. Confirmer que l'affichage des champs à modifier fonctionne côté host
 
+
+

@@ -560,7 +560,7 @@ const EditPropertyScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Tarification</Text>
           
           {renderInputField(
-            'Prix par nuit (XOF) *',
+            'Prix par nuit (CFA) *',
             'price_per_night',
             formData.price_per_night,
             'Prix par nuit en francs CFA',
@@ -568,7 +568,7 @@ const EditPropertyScreen: React.FC = () => {
           )}
           
           {renderInputField(
-            'Frais de ménage (XOF)',
+            'Frais de ménage (CFA)',
             'cleaning_fee',
             formData.cleaning_fee,
             'Frais de ménage',
@@ -576,7 +576,7 @@ const EditPropertyScreen: React.FC = () => {
           )}
           
           {renderInputField(
-            'Frais de service (XOF)',
+            'Frais de service (CFA)',
             'service_fee',
             formData.service_fee,
             'Frais de service',

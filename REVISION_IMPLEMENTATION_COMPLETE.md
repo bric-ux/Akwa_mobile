@@ -121,3 +121,5 @@ Tous les champs révisables ont maintenant des labels français :
 
 L'implémentation est complète et prête pour la production. La logique est identique au site web avec une meilleure expérience utilisateur grâce à l'affichage visuel des champs à modifier.
 
+
+

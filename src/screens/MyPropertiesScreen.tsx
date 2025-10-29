@@ -114,11 +114,7 @@ const MyPropertiesScreen: React.FC = () => {
 
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
+    return `${Math.round(price).toLocaleString('fr-FR')} CFA`;
   };
 
   const renderPropertyItem = ({ item: property }: { item: Property }) => (
