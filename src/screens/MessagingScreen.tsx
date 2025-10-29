@@ -116,8 +116,12 @@ const MessagingScreen: React.FC = () => {
   // Charger les messages quand une conversation est sélectionnée
   useEffect(() => {
     if (selectedConversation && user) {
-      loadMessages(selectedConversation.id);
-      markMessagesAsRead(selectedConversation.id, user.id);
+      const loadAndMark = async () => {
+        await loadMessages(selectedConversation.id);
+        // Marquer comme lus après avoir chargé les messages
+        await markMessagesAsRead(selectedConversation.id, user.id);
+      };
+      loadAndMark();
     }
   }, [selectedConversation, user, loadMessages, markMessagesAsRead]);
 

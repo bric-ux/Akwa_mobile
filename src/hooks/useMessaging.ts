@@ -121,27 +121,29 @@ export const useMessaging = () => {
             // Compter les messages non lus pour l'utilisateur courant
             let unread_count = 0;
             try {
-              const { data: unreadData, error: unreadError } = await supabase
+              // Compter uniquement les messages reçus (non envoyés par l'utilisateur) et non lus
+              const { data: unreadList, error: unreadError } = await supabase
                 .from('conversation_messages')
-                .select('id', { count: 'exact', head: true })
+                .select('id, read_at, sender_id')
                 .eq('conversation_id', conversation.id)
                 .neq('sender_id', userId)
                 .is('read_at', null);
+
               if (unreadError) {
                 console.warn('⚠️ [useMessaging] Erreur comptage non lus:', unreadError);
-              } else if ((unreadData as any)?.length === 0) {
-                // head:true => unreadData est undefined; utiliser count depuis response via supabase-js v2 nécessite .count
+              } else {
+                unread_count = (unreadList || []).length;
+                // Log détaillé pour debug
+                if (unread_count > 0) {
+                  console.log(`📊 [useMessaging] Conversation ${conversation.id}: ${unread_count} messages non lus`);
+                  console.log(`📊 [useMessaging] Messages non lus:`, unreadList?.map(m => ({ id: m.id, sender: m.sender_id, read_at: m.read_at })));
+                } else {
+                  console.log(`✅ [useMessaging] Conversation ${conversation.id}: 0 messages non lus`);
+                }
               }
-              // @ts-ignore supabase-js renvoie count sur la réponse; workaround: refaire une requête sans head
-              const { data: unreadList } = await supabase
-                .from('conversation_messages')
-                .select('id')
-                .eq('conversation_id', conversation.id)
-                .neq('sender_id', userId)
-                .is('read_at', null);
-              unread_count = (unreadList || []).length;
             } catch (ucErr) {
               console.warn('⚠️ [useMessaging] Comptage non lus (fallback):', ucErr);
+              unread_count = 0;
             }
 
             return {
@@ -353,16 +355,63 @@ export const useMessaging = () => {
   // Marquer les messages comme lus
   const markMessagesAsRead = useCallback(async (conversationId: string, userId: string) => {
     try {
-      await supabase
-        .from('conversation_messages')
-        .update({ read_at: new Date().toISOString() })
-        .eq('conversation_id', conversationId)
-        .neq('sender_id', userId)
-        .is('read_at', null);
+      // Utiliser la fonction SQL qui est SECURITY DEFINER et devrait contourner les problèmes RLS
+      const { error: functionError } = await supabase.rpc('mark_messages_as_read', {
+        conversation_uuid: conversationId,
+        user_uuid: userId
+      });
+
+      if (functionError) {
+        console.warn('⚠️ [useMessaging] Erreur avec la fonction SQL, essai avec UPDATE direct:', functionError);
+        // Fallback: utiliser UPDATE direct avec une syntaxe différente
+        const now = new Date().toISOString();
+        const { data, error } = await supabase
+          .from('conversation_messages')
+          .update({ read_at: now })
+          .eq('conversation_id', conversationId)
+          .neq('sender_id', userId)
+          .is('read_at', null)
+          .select('id');
+
+        if (error) {
+          console.error('❌ [useMessaging] Erreur lors du marquage des messages comme lus (UPDATE):', error);
+          throw error;
+        }
+
+        console.log('✅ [useMessaging] Messages marqués comme lus (UPDATE):', data?.length || 0, 'messages');
+      } else {
+        console.log('✅ [useMessaging] Messages marqués comme lus (fonction SQL) pour la conversation', conversationId);
+        
+        // Vérifier le nombre de messages non lus après le marquage pour confirmer
+        const { data: verificationData } = await supabase
+          .from('conversation_messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .neq('sender_id', userId)
+          .is('read_at', null);
+        
+        const remainingUnread = (verificationData || []).length;
+        if (remainingUnread > 0) {
+          console.warn(`⚠️ [useMessaging] Il reste ${remainingUnread} messages non lus après marquage`);
+        }
+      }
+      
       // Mettre à jour localement le compteur non lus
-      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, unread_count: 0 } : c));
+      const now = new Date().toISOString();
+      setConversations(prev => prev.map(c => {
+        if (c.id !== conversationId) return c;
+        return { ...c, unread_count: 0 };
+      }));
+
+      // Mettre à jour aussi les messages locaux si on est dans cette conversation
+      setMessages(prev => prev.map(msg => {
+        if (msg.conversation_id === conversationId && msg.sender_id !== userId && !msg.read_at) {
+          return { ...msg, read_at: now };
+        }
+        return msg;
+      }));
     } catch (err) {
-      console.error('Erreur lors du marquage des messages comme lus:', err);
+      console.error('❌ [useMessaging] Erreur lors du marquage des messages comme lus:', err);
     }
   }, []);
 
