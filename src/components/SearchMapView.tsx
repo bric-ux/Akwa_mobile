@@ -95,22 +95,23 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
- body { margin: 0; padding: 0; }
+    body { margin: 0; padding: 0; }
     #map { width: 100%; height: 100vh; }
     .price-marker {
-      background: white;
-      border: 2px solid #e74c3c;
-      border-radius: 20px;
-      padding: 6px 12px;
-      font-weight: bold;
-      font-size: 14px;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1.5px solid #e74c3c;
+      border-radius: 16px;
+      padding: 4px 10px;
+      font-weight: 700;
+      font-size: 12px;
       color: #e74c3c;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
       cursor: pointer;
       white-space: nowrap;
+      backdrop-filter: blur(2px);
     }
     .price-marker:hover {
-      background: #e74c3c;
+      background: rgba(231, 76, 60, 0.9);
       color:white;
     }
   </style>
@@ -144,8 +145,8 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
         ) + ' ' + (
           prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
         ) + '</div>',
-        iconSize: [120, 40],
-        iconAnchor: [60, 40]
+        iconSize: [90, 34],
+        iconAnchor: [45, 34]
       });
 
       const marker = L.marker(prop.position, { 
