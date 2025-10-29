@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Configuration Supabase - Valeurs de votre projet
 const supabaseUrl = 'https://hqzgndjbxzgsyfoictgo.supabase.co';
@@ -8,6 +9,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    storage: AsyncStorage,
+    detectSessionInUrl: false,
   },
   // Options de débogage pour React Native
   global: {

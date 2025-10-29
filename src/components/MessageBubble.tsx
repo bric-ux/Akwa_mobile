@@ -103,11 +103,19 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           
           {isOwn && (
             <View style={styles.messageStatus}>
-              <Ionicons 
-                name="checkmark" 
-                size={12} 
-                color={message.read_at ? "#007AFF" : "#ccc"} 
-              />
+              {message.read_at ? (
+                <Ionicons 
+                  name="checkmark-done" 
+                  size={14} 
+                  color="#0A84FF" 
+                />
+              ) : (
+                <Ionicons 
+                  name="checkmark" 
+                  size={12} 
+                  color="#ccc" 
+                />
+              )}
             </View>
           )}
         </View>

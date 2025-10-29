@@ -118,15 +118,43 @@ export const useMessaging = () => {
               console.error('❌ [useMessaging] Erreur lors du chargement du dernier message:', lastMessageError);
             }
 
+            // Compter les messages non lus pour l'utilisateur courant
+            let unread_count = 0;
+            try {
+              const { data: unreadData, error: unreadError } = await supabase
+                .from('conversation_messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('conversation_id', conversation.id)
+                .neq('sender_id', userId)
+                .is('read_at', null);
+              if (unreadError) {
+                console.warn('⚠️ [useMessaging] Erreur comptage non lus:', unreadError);
+              } else if ((unreadData as any)?.length === 0) {
+                // head:true => unreadData est undefined; utiliser count depuis response via supabase-js v2 nécessite .count
+              }
+              // @ts-ignore supabase-js renvoie count sur la réponse; workaround: refaire une requête sans head
+              const { data: unreadList } = await supabase
+                .from('conversation_messages')
+                .select('id')
+                .eq('conversation_id', conversation.id)
+                .neq('sender_id', userId)
+                .is('read_at', null);
+              unread_count = (unreadList || []).length;
+            } catch (ucErr) {
+              console.warn('⚠️ [useMessaging] Comptage non lus (fallback):', ucErr);
+            }
+
             return {
               ...conversation,
-              last_message: lastMessageData || null
+              last_message: lastMessageData || null,
+              unread_count,
             };
           } catch (err) {
             console.error('❌ [useMessaging] Erreur lors du chargement du dernier message pour la conversation:', conversation.id, err);
             return {
               ...conversation,
-              last_message: null
+              last_message: null,
+              unread_count: 0,
             };
           }
         })
