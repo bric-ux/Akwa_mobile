@@ -69,7 +69,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         styles.messageText,
         isOwn ? styles.ownMessageText : styles.otherMessageText
       ]}>
-        {message.message}
+        {String(message.message ?? '')}
       </Text>
     );
   };

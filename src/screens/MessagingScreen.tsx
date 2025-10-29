@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,14 +8,14 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
   Dimensions,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useMessaging } from '../hooks/useMessaging';
 import { Conversation, Message } from '../types';
@@ -29,8 +29,9 @@ const MessagingScreen: React.FC = () => {
   const route = useRoute();
   const { user } = useAuth();
   
-  // Récupérer l'ID de conversation depuis les paramètres de navigation
+  // Récupérer l'ID de conversation et de propriété depuis les paramètres de navigation
   const conversationId = (route.params as any)?.conversationId;
+  const propertyId = (route.params as any)?.propertyId;
   const {
     conversations,
     messages,
@@ -41,7 +42,8 @@ const MessagingScreen: React.FC = () => {
     loadMessages,
     sendMessage,
     markMessagesAsRead,
-    setupRealtimeSubscription
+    setupRealtimeSubscription,
+    clearUnreadForConversation
   } = useMessaging();
 
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -49,6 +51,7 @@ const MessagingScreen: React.FC = () => {
   const [showConversations, setShowConversations] = useState(true);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [openedFromParam, setOpenedFromParam] = useState(false);
   
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -63,15 +66,43 @@ const MessagingScreen: React.FC = () => {
 
   // Ouvrir automatiquement une conversation si un ID est fourni
   useEffect(() => {
-    if (conversationId && conversations.length > 0) {
+    if (conversationId && !openedFromParam && conversations.length > 0) {
       const conversation = conversations.find(conv => conv.id === conversationId);
       if (conversation) {
         console.log('🎯 [MessagingScreen] Ouverture automatique de la conversation:', conversationId);
         setSelectedConversation(conversation);
         setShowConversations(false);
+        setOpenedFromParam(true);
+        // Nettoyer le param conversationId pour éviter les réouvertures ultérieures
+        // Mais garder propertyId pour le retour
+        try {
+          (navigation as any).setParams({ conversationId: undefined });
+        } catch {}
       }
     }
-  }, [conversationId, conversations]);
+  }, [conversationId, conversations, openedFromParam, navigation]);
+
+  // Réinitialiser openedFromParam quand on revient à la liste des conversations
+  useEffect(() => {
+    if (showConversations && openedFromParam) {
+      setOpenedFromParam(false);
+    }
+  }, [showConversations, openedFromParam]);
+
+  // Réinitialiser l'état quand l'écran perd le focus (quand on fait goBack)
+  useFocusEffect(
+    useCallback(() => {
+      // Quand l'écran est focus, on ne fait rien
+      return () => {
+        // Quand l'écran perd le focus (on quitte), réinitialiser si on était dans une conversation ouverte depuis une propriété
+        if (openedFromParam) {
+          setOpenedFromParam(false);
+          setSelectedConversation(null);
+          setShowConversations(true);
+        }
+      };
+    }, [openedFromParam])
+  );
 
   // Configuration du temps réel
   useEffect(() => {
@@ -102,6 +133,8 @@ const MessagingScreen: React.FC = () => {
   const handleSelectConversation = (conversation: Conversation) => {
     setSelectedConversation(conversation);
     setShowConversations(false);
+    // Clear badge immédiatement côté UI
+    clearUnreadForConversation(conversation.id);
   };
 
   const handleSendMessage = async () => {
@@ -118,6 +151,12 @@ const MessagingScreen: React.FC = () => {
   };
 
   const handleBackToConversations = () => {
+    // Si la conversation a été ouverte depuis une propriété, naviguer vers la propriété
+    if (openedFromParam && propertyId) {
+      (navigation as any).navigate('PropertyDetails', { propertyId });
+      return;
+    }
+    // Sinon, retourner à la liste locale des conversations
     setSelectedConversation(null);
     setShowConversations(true);
   };
@@ -137,13 +176,17 @@ const MessagingScreen: React.FC = () => {
 
   const getOtherUserName = (conversation: Conversation) => {
     if (user?.id === conversation.guest_id) {
-      return conversation.host_profile 
-        ? `${conversation.host_profile.first_name} ${conversation.host_profile.last_name}`.trim()
-        : 'Hôte';
+      if (!conversation.host_profile) return 'Hôte';
+      const firstName = String(conversation.host_profile.first_name ?? '').trim();
+      const lastName = String(conversation.host_profile.last_name ?? '').trim();
+      const fullName = `${firstName} ${lastName}`.trim();
+      return fullName || 'Hôte';
     }
-    return conversation.guest_profile
-      ? `${conversation.guest_profile.first_name} ${conversation.guest_profile.last_name}`.trim()
-      : 'Invité';
+    if (!conversation.guest_profile) return 'Invité';
+    const firstName = String(conversation.guest_profile.first_name ?? '').trim();
+    const lastName = String(conversation.guest_profile.last_name ?? '').trim();
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName || 'Invité';
   };
 
   // Si l'utilisateur n'est pas connecté, afficher le bouton de connexion
@@ -221,7 +264,7 @@ const MessagingScreen: React.FC = () => {
               {getOtherUserName(selectedConversation)}
             </Text>
             <Text style={styles.chatSubtitle} numberOfLines={1}>
-              {selectedConversation.property?.title || 'Propriété'}
+              {String(selectedConversation.property?.title ?? 'Propriété')}
             </Text>
           </View>
           
@@ -244,13 +287,11 @@ const MessagingScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           refreshControl={
-            <RefreshControl
+          <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
               colors={['#007AFF']}
               tintColor="#007AFF"
-              title="Actualisation..."
-              titleColor="#666"
             />
           }
         />
@@ -296,7 +337,7 @@ const MessagingScreen: React.FC = () => {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color="#FF3B30" />
           <Text style={styles.errorTitle}>Erreur</Text>
-          <Text style={styles.errorMessage}>{error}</Text>
+          <Text style={styles.errorMessage}>{String(error ?? 'Une erreur est survenue')}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => user && loadConversations(user.id)}

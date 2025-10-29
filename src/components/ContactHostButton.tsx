@@ -83,10 +83,10 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
             {
               text: 'Ouvrir la conversation',
               onPress: () => {
-                // Navigation vers l'onglet de messagerie avec l'ID de conversation
+                // Navigation vers l'onglet de messagerie avec l'ID de conversation et la propriété
                 (navigation as any).navigate('Home', { 
                   screen: 'MessagingTab',
-                  params: { conversationId }
+                  params: { conversationId, propertyId: property.id }
                 });
               }
             }

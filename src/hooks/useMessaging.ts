@@ -359,9 +359,16 @@ export const useMessaging = () => {
         .eq('conversation_id', conversationId)
         .neq('sender_id', userId)
         .is('read_at', null);
+      // Mettre à jour localement le compteur non lus
+      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, unread_count: 0 } : c));
     } catch (err) {
       console.error('Erreur lors du marquage des messages comme lus:', err);
     }
+  }, []);
+
+  // Réinitialiser localement le compteur non lus (utile lors de la sélection)
+  const clearUnreadForConversation = useCallback((conversationId: string) => {
+    setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, unread_count: 0 } : c));
   }, []);
 
   // Configuration du temps réel
@@ -394,13 +401,13 @@ export const useMessaging = () => {
           });
           
           // Mettre à jour la conversation dans la liste
-          setConversations(prev => 
-            prev.map(conv => 
-              conv.id === newMessage.conversation_id 
-                ? { ...conv, updated_at: new Date().toISOString() }
-                : conv
-            )
-          );
+          setConversations(prev => prev.map(conv => {
+            if (conv.id !== newMessage.conversation_id) return conv;
+            const isFromSelf = newMessage.sender_id === userId;
+            // Incrémenter non-lus uniquement si message reçu (pas envoyé par soi)
+            const nextUnread = isFromSelf ? (conv.unread_count || 0) : (conv.unread_count || 0) + 1;
+            return { ...conv, updated_at: new Date().toISOString(), unread_count: nextUnread };
+          }));
         }
       )
       .on(
@@ -461,6 +468,7 @@ export const useMessaging = () => {
     sendMessage,
     createOrGetConversation,
     markMessagesAsRead,
-    setupRealtimeSubscription
+    setupRealtimeSubscription,
+    clearUnreadForConversation
   };
 };
