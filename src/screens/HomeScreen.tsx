@@ -39,7 +39,7 @@ const HomeScreen: React.FC = () => {
     {
       id: '1',
       source: require('../../assets/images/pont.jpg'),
-      title: 'Le Pont Félix Houphouët-Boigny',
+      title: 'Pont Ado',
       description: 'Pont emblématique d\'Abidjan, symbole de modernité',
     },
     {
@@ -63,8 +63,8 @@ const HomeScreen: React.FC = () => {
     {
       id: '5',
       source: require('../../assets/images/abidjan.jpg'),
-      title: 'Cathédrale Saint-Paul d\'Abidjan',
-      description: 'Architecture moderne unique, symbole de la foi',
+      title: 'Abidjan by Night',
+      description: 'La perle des lagunes illuminée',
     },
     {
       id: '6',
