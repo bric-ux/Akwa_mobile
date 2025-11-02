@@ -32,6 +32,7 @@ import AdminStatsScreen from '../screens/AdminStatsScreen';
 import AdminUsersScreen from '../screens/AdminUsersScreen';
 import AdminIdentityDocumentsScreen from '../screens/AdminIdentityDocumentsScreen';
 import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
+import PdfViewerScreen from '../screens/PdfViewerScreen';
 import EditPropertyScreen from '../screens/EditPropertyScreen';
 import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 import MessagingDebugScreen from '../screens/MessagingDebugScreen';
@@ -362,6 +363,11 @@ const AppNavigator = () => {
           name="SupabaseTest" 
           component={SupabaseTestScreen}
           options={{ title: 'Test Supabase' }}
+        />
+        <Stack.Screen 
+          name="PdfViewer" 
+          component={PdfViewerScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen 
           name="PrivacyPolicy" 

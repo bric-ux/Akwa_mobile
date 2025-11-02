@@ -104,3 +104,4 @@ Modifier AdminApplicationsScreen.tsx pour convertir les checkboxes de selection 
 
 
 
+

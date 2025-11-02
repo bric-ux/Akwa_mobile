@@ -567,12 +567,15 @@ const AdminApplicationsScreen: React.FC = () => {
                         style={styles.pdfButton}
                         onPress={async () => {
                           try {
-                            const canOpen = await Linking.canOpenURL(identityDoc.front_image_url);
-                            if (canOpen) {
-                              await Linking.openURL(identityDoc.front_image_url);
-                            } else {
-                              Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
+                            const url = identityDoc.front_image_url;
+                            if (url.startsWith('file://')) {
+                              Alert.alert('Document local', "Ce document est local à l'appareil de l'utilisateur et n'a pas été synchronisé. Demandez un nouvel envoi pour générer un lien accessible.");
+                              return;
                             }
+                            (navigation as any).navigate('PdfViewer', {
+                              url,
+                              title: "Document d'identité (recto)"
+                            });
                           } catch (error) {
                             console.error('Erreur lors de l\'ouverture du PDF:', error);
                             Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');
@@ -604,12 +607,15 @@ const AdminApplicationsScreen: React.FC = () => {
                         style={styles.pdfButton}
                         onPress={async () => {
                           try {
-                            const canOpen = await Linking.canOpenURL(identityDoc.back_image_url);
-                            if (canOpen) {
-                              await Linking.openURL(identityDoc.back_image_url);
-                            } else {
-                              Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
+                            const url = identityDoc.back_image_url;
+                            if (url.startsWith('file://')) {
+                              Alert.alert('Document local', "Ce document est local à l'appareil de l'utilisateur et n'a pas été synchronisé. Demandez un nouvel envoi pour générer un lien accessible.");
+                              return;
                             }
+                            (navigation as any).navigate('PdfViewer', {
+                              url,
+                              title: "Document d'identité (verso)"
+                            });
                           } catch (error) {
                             console.error('Erreur lors de l\'ouverture du PDF:', error);
                             Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');

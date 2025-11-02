@@ -473,22 +473,18 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
                       style={styles.pdfButton}
                       onPress={async () => {
                         try {
-                          // Vérifier si on peut partager
-                          const isAvailable = await Sharing.isAvailableAsync();
-                          if (isAvailable) {
-                            await Sharing.shareAsync(selectedDoc.document_url);
-                          } else {
-                            // Fallback sur Linking
-                            const canOpen = await Linking.canOpenURL(selectedDoc.document_url);
-                            if (canOpen) {
-                              await Linking.openURL(selectedDoc.document_url);
-                            } else {
-                              Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF sur cet appareil');
-                            }
+                          const url = selectedDoc.document_url;
+                          if (url.startsWith('file://')) {
+                            Alert.alert('Document local', "Ce document est local à l'appareil de l'utilisateur et n'a pas été synchronisé. Demandez un nouvel envoi pour générer un lien accessible.");
+                            return;
                           }
+                          (navigation as any).navigate('PdfViewer', {
+                            url,
+                            title: 'Document d\'identité'
+                          });
                         } catch (error) {
-                          console.error('Erreur lors de l\'ouverture du PDF:', error);
-                          Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');
+                          console.error("Erreur lors de l'ouverture du PDF:", error);
+                          Alert.alert('Erreur', "Impossible d'ouvrir le PDF");
                         }
                       }}
                     >

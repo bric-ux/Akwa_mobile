@@ -137,14 +137,40 @@ export const useIdentityVerification = () => {
         console.log('✅ Documents supprimés avec succès');
       }
 
-      // Upload vers storage - utiliser directement le fichier
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      // Préparer le contenu pour Supabase Storage (gérer les URI locaux iOS/Android)
+      // Nettoyer le nom, forcer l'extension et le content-type
+      const originalName: string = String(file.name || 'identity.pdf');
+      const isPdf = (file.type && String(file.type).includes('pdf')) || originalName.toLowerCase().endsWith('.pdf');
+      const safeBase = originalName
+        .replace(/\s+/g, '_')
+        .replace(/[^a-zA-Z0-9_.-]/g, '')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'document';
+      const ext = isPdf ? 'pdf' : (originalName.split('.').pop() || 'jpg');
+      const fileName = `${user.id}-${Date.now()}-${safeBase}.${ext}`.toLowerCase();
       const filePath = `identity-documents/${fileName}`;
+
+      // Récupérer les octets depuis l'URI local si présent
+      let dataToUpload: any = file;
+      try {
+        if (file.uri) {
+          const res = await fetch(file.uri);
+          const blob = await res.blob();
+          dataToUpload = blob;
+        }
+      } catch (e) {
+        console.warn('⚠️ Impossible de lire le fichier en blob, tentative upload direct');
+      }
+
+      const contentType = isPdf ? 'application/pdf' : (file.type || 'image/jpeg');
 
       const { error: uploadError } = await supabase.storage
         .from('property-images')
-        .upload(filePath, file);
+        .upload(filePath, dataToUpload, {
+          contentType,
+          cacheControl: '3600',
+          upsert: true,
+        });
 
       if (uploadError) throw uploadError;
 

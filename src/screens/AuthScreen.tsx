@@ -351,7 +351,7 @@ const AuthScreen: React.FC = () => {
             
             <View style={styles.logoContainer}>
               <Image 
-                source={require('../../assets/images/akwa-home-logo-transparent.png')} 
+                source={require('../../assets/images/akwahome_logo.png')} 
                 style={styles.logoImage}
                 resizeMode="contain"
               />

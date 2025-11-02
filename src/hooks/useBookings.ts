@@ -48,6 +48,12 @@ export interface Booking {
     title: string;
     price_per_night: number;
     images: string[];
+    property_photos?: {
+      id: string;
+      url: string;
+      category: string;
+      display_order: number;
+    }[];
     cities?: {
       name: string;
       region: string;
@@ -263,6 +269,12 @@ export const useBookings = () => {
             title,
             price_per_night,
             images,
+            property_photos (
+              id,
+              url,
+              category,
+              display_order
+            ),
             cities (
               name,
               region

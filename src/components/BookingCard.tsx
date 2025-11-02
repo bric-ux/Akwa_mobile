@@ -88,6 +88,29 @@ const BookingCard: React.FC<BookingCardProps> = ({
     / (1000 * 60 * 60 * 24)
   );
 
+  // Fonction pour obtenir l'URL de l'image de la propriété
+  // Priorité: property_photos (triées par display_order) > images > placeholder
+  const getPropertyImageUrl = (): string => {
+    const property = booking.properties;
+    if (!property) return 'https://via.placeholder.com/300x200';
+
+    // Priorité 1: property_photos (photos catégorisées)
+    if (property.property_photos && property.property_photos.length > 0) {
+      const sortedPhotos = [...property.property_photos].sort((a, b) => 
+        (a.display_order || 0) - (b.display_order || 0)
+      );
+      return sortedPhotos[0].url;
+    }
+
+    // Priorité 2: images array
+    if (property.images && Array.isArray(property.images) && property.images.length > 0) {
+      return property.images[0];
+    }
+
+    // Fallback: placeholder
+    return 'https://via.placeholder.com/300x200';
+  };
+
   return (
     <TouchableOpacity
       style={styles.bookingCard}
@@ -98,7 +121,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
         <View style={styles.propertyInfo}>
           <Image
             source={{ 
-              uri: booking.properties?.images?.[0] || 'https://via.placeholder.com/300x200' 
+              uri: getPropertyImageUrl()
             }}
             style={styles.propertyImage}
           />
