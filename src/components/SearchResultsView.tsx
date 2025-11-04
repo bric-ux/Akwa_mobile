@@ -18,7 +18,7 @@ import PropertyCard from './PropertyCard';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.5; // Carte prend 50% de l'écran
 const BOTTOM_SHEET_MIN_HEIGHT = SCREEN_HEIGHT * 0.5; // Bottom sheet prend l'autre 50%
-const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.75; // 75% de l'écran max (pour laisser un peu de carte visible)
+const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.98; // 98% de l'écran max (pour cacher presque complètement la carte et afficher la liste)
 
 interface SearchResultsViewProps {
   properties: Property[];
