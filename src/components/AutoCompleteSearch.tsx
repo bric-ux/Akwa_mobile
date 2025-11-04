@@ -47,10 +47,15 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
     setRecentSearches(['Abidjan', 'Yamoussoukro', 'Grand-Bassam', 'San-Pédro']);
   }, []);
 
-  // Synchroniser avec la valeur initiale du parent (seulement au montage)
+  // Synchroniser avec la valeur initiale du parent
   useEffect(() => {
-    if (initialValue && initialValue !== query) {
+    // Mettre à jour query quand initialValue change (y compris quand il devient vide)
+    if (initialValue !== query) {
       setQuery(initialValue);
+      // Réinitialiser aussi l'état de sélection quand on efface depuis le parent
+      if (initialValue === '') {
+        setIsSuggestionSelected(false);
+      }
     }
   }, [initialValue]);
 
