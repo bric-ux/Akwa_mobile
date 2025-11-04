@@ -41,16 +41,19 @@ const ConversationList: React.FC<ConversationListProps> = ({
       if (diffInHours < 24) {
         return date.toLocaleTimeString('fr-FR', { 
           hour: '2-digit', 
-          minute: '2-digit' 
+          minute: '2-digit',
+          timeZone: 'Africa/Abidjan'
         }) || '';
       } else if (diffInHours < 168) { // 7 jours
         return date.toLocaleDateString('fr-FR', { 
-          weekday: 'short' 
+          weekday: 'short',
+          timeZone: 'Africa/Abidjan'
         }) || '';
       } else {
         return date.toLocaleDateString('fr-FR', { 
           day: '2-digit', 
-          month: '2-digit' 
+          month: '2-digit',
+          timeZone: 'Africa/Abidjan'
         }) || '';
       }
     } catch (error) {

@@ -14,10 +14,17 @@ const WeatherDateTimeWidget: React.FC = () => {
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
   useEffect(() => {
-    // Update time every minute
-    const timer = setInterval(() => {
+    // Obtenir l'heure actuelle de la Côte d'Ivoire
+    const updateTime = () => {
+      // Utiliser directement l'heure actuelle, elle sera formatée avec le bon fuseau horaire
       setCurrentTime(new Date());
-    }, 60000);
+    };
+    
+    // Mettre à jour immédiatement
+    updateTime();
+    
+    // Update time every minute
+    const timer = setInterval(updateTime, 60000);
 
     // Load weather data
     loadWeatherData();
@@ -55,18 +62,29 @@ const WeatherDateTimeWidget: React.FC = () => {
   };
 
   const formatDate = (date: Date) => {
-    const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-    const day = days[date.getDay()];
-    const dayNumber = date.getDate();
-    const month = date.getMonth() + 1;
+    // Utiliser le fuseau horaire de la Côte d'Ivoire pour obtenir le jour correct
+    const dayName = date.toLocaleDateString('fr-FR', { 
+      weekday: 'short',
+      timeZone: 'Africa/Abidjan'
+    });
+    const dayNumber = date.toLocaleDateString('fr-FR', { 
+      day: 'numeric',
+      timeZone: 'Africa/Abidjan'
+    });
+    const month = date.toLocaleDateString('fr-FR', { 
+      month: 'numeric',
+      timeZone: 'Africa/Abidjan'
+    });
     
-    return `${day} ${dayNumber}/${month}`;
+    return `${dayName} ${dayNumber}/${month}`;
   };
 
   const formatTime = (date: Date) => {
+    // Utiliser directement le fuseau horaire de la Côte d'Ivoire
     return date.toLocaleTimeString('fr-FR', { 
       hour: '2-digit', 
-      minute: '2-digit' 
+      minute: '2-digit',
+      timeZone: 'Africa/Abidjan'
     });
   };
 
