@@ -9,6 +9,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
@@ -24,6 +25,7 @@ import SearchResultsHeader from '../components/SearchResultsHeader';
 import AutoCompleteSearch from '../components/AutoCompleteSearch';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import SearchButton from '../components/SearchButton';
+import SearchResultsView from '../components/SearchResultsView';
 
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 
@@ -174,8 +176,10 @@ const SearchScreen: React.FC = () => {
     
     // Lancer la recherche
     handleSearch(searchQuery);
-    // Replier le header après recherche
-    setIsHeaderCollapsed(true);
+    // Replier le header après recherche seulement si on a des résultats
+    if (sortedProperties.length > 0) {
+      setIsHeaderCollapsed(true);
+    }
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
@@ -217,6 +221,41 @@ const SearchScreen: React.FC = () => {
     return count;
   };
 
+  const formatDateShort = (dateString?: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+    });
+  };
+
+  const getDatesText = () => {
+    if (!checkIn && !checkOut) return '';
+    if (checkIn && checkOut) {
+      const checkInDate = new Date(checkIn);
+      const checkOutDate = new Date(checkOut);
+      const checkInDay = checkInDate.getDate();
+      const checkOutDay = checkOutDate.getDate();
+      const checkInMonth = checkInDate.toLocaleDateString('fr-FR', { month: 'short' });
+      const checkOutMonth = checkOutDate.toLocaleDateString('fr-FR', { month: 'short' });
+      
+      if (checkInMonth === checkOutMonth) {
+        return `${checkInDay}-${checkOutDay} ${checkInMonth}`;
+      }
+      return `${formatDateShort(checkIn)} - ${formatDateShort(checkOut)}`;
+    }
+    if (checkIn) return `À partir du ${formatDateShort(checkIn)}`;
+    return '';
+  };
+
+  const getGuestsText = () => {
+    const total = adults + children + babies;
+    if (total === 0) return 'Ajouter des voyageurs';
+    if (total === 1) return '1 voyageur';
+    return `${total} voyageurs`;
+  };
+
   const renderPropertyCard = ({ item }: { item: Property }) => (
     <PropertyCard 
       property={item} 
@@ -225,46 +264,49 @@ const SearchScreen: React.FC = () => {
     />
   );
 
+  // Si on a des résultats, afficher la vue combinée avec carte et bottom sheet
+  const hasResults = sortedProperties.length > 0 && !loading && !error;
+
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Header avec bouton retour */}
-      {/* Header collapsible */}
-      <TouchableOpacity 
-        style={[styles.collapsibleHeader, isHeaderCollapsed && styles.collapsibleHeaderCollapsed]}
-        onPress={handleHeaderPress}
-        activeOpacity={0.8}
-      >
-        <View style={styles.headerTop}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header avec contrôles de recherche */}
+      <View style={styles.searchHeader}>
+        <View style={styles.headerTopRow}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Rechercher</Text>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity
-              style={styles.viewToggleButton}
-              onPress={() => setIsMapView(!isMapView)}
-            >
-              <Ionicons name={isMapView ? "list" : "map"} size={24} color="#2E7D32" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => setShowFilters(true)}
-            >
-              <Ionicons name="options" size={24} color="#2E7D32" />
-              {getActiveFiltersCount() > 0 && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
+          {hasResults && (
+            <View style={styles.headerCenter}>
+              <Text style={styles.resultsHeaderTitle}>
+                {searchQuery ? `${searchQuery} · Logements` : 'Logements'}
+              </Text>
+              <Text style={styles.headerSubtitleText}>
+                {getDatesText() && `${getDatesText()} · `}
+                {getGuestsText()}
+              </Text>
+            </View>
+          )}
+          {!hasResults && (
+            <Text style={styles.headerTitle}>Rechercher</Text>
+          )}
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setShowFilters(true)}
+          >
+            <Ionicons name={hasResults ? "options-outline" : "options"} size={24} color={hasResults ? "#333" : "#2E7D32"} />
+            {getActiveFiltersCount() > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* Contenu du header - visible seulement quand pas réduit */}
-        {!isHeaderCollapsed && (
+        {/* Contrôles de recherche - toujours visibles */}
+        {(!hasResults || !isHeaderCollapsed) && (
           <View style={styles.headerContent}>
             {/* Barre de recherche avec autocomplétion */}
             <AutoCompleteSearch
@@ -293,17 +335,19 @@ const SearchScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Indicateur de réduction */}
-        {isHeaderCollapsed && (
-          <View style={styles.collapsedIndicator}>
+        {/* Indicateur de réduction pour les résultats */}
+        {hasResults && isHeaderCollapsed && (
+          <TouchableOpacity
+            style={styles.collapsedIndicator}
+            onPress={() => setIsHeaderCollapsed(false)}
+          >
             <Text style={styles.collapsedText}>
-              {searchQuery ? `Recherche: ${searchQuery}` : 'Rechercher un hébergement'}
+              {searchQuery ? `Recherche: ${searchQuery}` : 'Modifier la recherche'}
             </Text>
             <Ionicons name="chevron-down" size={16} color="#666" />
-          </View>
+          </TouchableOpacity>
         )}
-      </TouchableOpacity>
-
+      </View>
 
       {/* Bouton pour effacer les filtres */}
       {getActiveFiltersCount() > 0 && (
@@ -367,10 +411,14 @@ const SearchScreen: React.FC = () => {
             <Text style={styles.clearFiltersButtonText}>Effacer les filtres</Text>
           </TouchableOpacity>
         </View>
-      ) : isMapView ? (
-        <SearchMapView 
+      ) : hasResults ? (
+        <SearchResultsView
           properties={sortedProperties}
           onPropertyPress={handlePropertyPress}
+          location={searchQuery}
+          checkIn={checkIn}
+          checkOut={checkOut}
+          guests={adults + children + babies}
         />
       ) : (
         <FlatList
@@ -399,6 +447,7 @@ const SearchScreen: React.FC = () => {
         onApply={handleFilterChange}
         initialFilters={filters}
       />
+
     </SafeAreaView>
   );
 };
@@ -406,7 +455,81 @@ const SearchScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
+  },
+  searchHeader: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  headerCenter: {
+    flex: 1,
+    marginHorizontal: 12,
+    alignItems: 'flex-start',
+  },
+  resultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  headerSubtitle: {
+    marginTop: 4,
+  },
+  headerSubtitleText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  resultsHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  placeholder: {
+    width: 32,
+  },
+  modalContent: {
+    padding: 20,
   },
   header: {
     flexDirection: 'row',
@@ -461,8 +584,8 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '600',
     color: '#333',
     flex: 1,
     textAlign: 'center',
