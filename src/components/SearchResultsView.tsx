@@ -18,7 +18,7 @@ import PropertyCard from './PropertyCard';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.5; // Carte prend 50% de l'écran
 const BOTTOM_SHEET_MIN_HEIGHT = SCREEN_HEIGHT * 0.5; // Bottom sheet prend l'autre 50%
-const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
+const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.75; // 75% de l'écran max (pour laisser un peu de carte visible)
 
 interface SearchResultsViewProps {
   properties: Property[];
@@ -38,19 +38,23 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   guests,
 }) => {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [sheetHeight, setSheetHeight] = useState(BOTTOM_SHEET_MIN_HEIGHT);
   const webViewRef = useRef<WebView>(null);
   const { formatPrice: formatPriceWithCurrency, currency, currencySymbol, convert } = useCurrency();
-  const panY = useRef(new Animated.Value(0)).current;
+  // sheetTop représente directement la position top du bottom sheet (MAP_HEIGHT = position minimale)
   const sheetTop = useRef(new Animated.Value(MAP_HEIGHT)).current;
-  const bottomSheetHeight = useRef(BOTTOM_SHEET_MIN_HEIGHT);
   
-  // Initialiser la hauteur du bottom sheet
+  // Initialiser la position du bottom sheet
   useEffect(() => {
-    bottomSheetHeight.current = BOTTOM_SHEET_MIN_HEIGHT;
-    setSheetHeight(BOTTOM_SHEET_MIN_HEIGHT);
+    // S'assurer que le bottom sheet commence visible à MAP_HEIGHT
     sheetTop.setValue(MAP_HEIGHT);
   }, []);
+  
+  // Réinitialiser la position quand les propriétés changent
+  useEffect(() => {
+    if (properties.length > 0) {
+      sheetTop.setValue(MAP_HEIGHT);
+    }
+  }, [properties.length]);
 
   // Calculer les limites (bounds) pour ajuster la vue sur toutes les propriétés
   const getMapBounds = () => {
@@ -253,6 +257,10 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     }
   }, [properties, currency]);
 
+  // Positions min et max du bottom sheet
+  const MIN_TOP = MAP_HEIGHT;
+  const MAX_TOP = SCREEN_HEIGHT - BOTTOM_SHEET_MAX_HEIGHT;
+  
   // Pan responder pour le bottom sheet
   const panResponder = useRef(
     PanResponder.create({
@@ -264,53 +272,43 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
         sheetTop.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
-        // Quand on glisse vers le haut (dy négatif), on réduit top (le bottom sheet monte)
-        // Quand on glisse vers le bas (dy positif), on augmente top (le bottom sheet descend)
-        const newTop = MAP_HEIGHT + gestureState.dy;
-        const minTop = SCREEN_HEIGHT - BOTTOM_SHEET_MAX_HEIGHT;
-        const maxTop = MAP_HEIGHT;
-        const clampedTop = Math.max(minTop, Math.min(maxTop, newTop));
-        sheetTop.setValue(clampedTop - MAP_HEIGHT);
+        // dy négatif = swipe up = bottom sheet monte (top diminue)
+        // dy positif = swipe down = bottom sheet descend (top augmente)
+        const newTop = gestureState.dy;
+        const clampedValue = Math.max(MAX_TOP - MAP_HEIGHT, Math.min(0, newTop));
+        sheetTop.setValue(clampedValue);
       },
       onPanResponderRelease: (_, gestureState) => {
+        const offset = (sheetTop as any)._offset || MAP_HEIGHT;
+        const currentValue = (sheetTop as any)._value || 0;
+        const currentTop = offset + currentValue;
+        
         sheetTop.flattenOffset();
-        const currentTop = (sheetTop as any)._value || MAP_HEIGHT;
-        const currentHeight = bottomSheetHeight.current;
-        let targetHeight = BOTTOM_SHEET_MIN_HEIGHT;
-        let targetTop = MAP_HEIGHT;
+        
+        let targetTop = MIN_TOP;
 
         if (gestureState.dy < -50 || gestureState.vy < -0.5) {
           // Swipe up - agrandir le bottom sheet
-          targetHeight = BOTTOM_SHEET_MAX_HEIGHT;
-          // Le top doit être ajusté pour que le bottom sheet monte
-          targetTop = SCREEN_HEIGHT - BOTTOM_SHEET_MAX_HEIGHT;
+          targetTop = MAX_TOP;
         } else if (gestureState.dy > 50 || gestureState.vy > 0.5) {
           // Swipe down - réduire le bottom sheet
-          targetHeight = BOTTOM_SHEET_MIN_HEIGHT;
-          targetTop = MAP_HEIGHT;
+          targetTop = MIN_TOP;
         } else {
           // Snap to nearest
-          const midPoint = (BOTTOM_SHEET_MIN_HEIGHT + BOTTOM_SHEET_MAX_HEIGHT) / 2;
-          if (currentHeight < midPoint) {
-            targetHeight = BOTTOM_SHEET_MIN_HEIGHT;
-            targetTop = MAP_HEIGHT;
+          const midPoint = (MIN_TOP + MAX_TOP) / 2;
+          if (currentTop < midPoint) {
+            targetTop = MAX_TOP;
           } else {
-            targetHeight = BOTTOM_SHEET_MAX_HEIGHT;
-            targetTop = SCREEN_HEIGHT - BOTTOM_SHEET_MAX_HEIGHT;
+            targetTop = MIN_TOP;
           }
         }
 
-        bottomSheetHeight.current = targetHeight;
-        setSheetHeight(targetHeight);
-
-        Animated.parallel([
-          Animated.spring(sheetTop, {
-            toValue: targetTop,
-            useNativeDriver: false,
-            tension: 50,
-            friction: 7,
-          }),
-        ]).start();
+        Animated.spring(sheetTop, {
+          toValue: targetTop,
+          useNativeDriver: false,
+          tension: 50,
+          friction: 7,
+        }).start();
       },
     })
   ).current;
@@ -323,7 +321,6 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
 
   const bottomSheetStyle = {
     top: sheetTop,
-    height: sheetHeight,
   };
 
   // Si pas de propriétés, ne pas afficher la vue avec carte
@@ -348,7 +345,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
         />
       </View>
 
-      {/* Bottom Sheet en bas */}
+      {/* Bottom Sheet en bas - doit être visible au-dessus de la carte */}
       <Animated.View style={[styles.bottomSheet, bottomSheetStyle]}>
         {/* Handle */}
         <View {...panResponder.panHandlers} style={styles.handleContainer}>
@@ -378,6 +375,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.propertiesList}
+          style={styles.flatList}
           nestedScrollEnabled={true}
           onScrollToIndexFailed={(info) => {
             // Handle scroll to index failure
@@ -401,6 +399,7 @@ const styles = StyleSheet.create({
   mapContainer: {
     height: MAP_HEIGHT,
     width: '100%',
+    zIndex: 1,
   },
   webview: {
     flex: 1,
@@ -409,6 +408,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    bottom: 0,
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -420,7 +420,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
+    zIndex: 10,
     overflow: 'hidden',
+    minHeight: BOTTOM_SHEET_MIN_HEIGHT,
   },
   handleContainer: {
     paddingVertical: 12,
@@ -472,6 +474,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 20,
+  },
+  flatList: {
+    flex: 1,
   },
 });
 
