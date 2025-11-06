@@ -228,10 +228,10 @@ const HostDashboardScreen: React.FC = () => {
             onPress={() => navigation.navigate('BecomeHost')}
           >
             <View style={styles.quickActionIcon}>
-              <Ionicons name="person-add-outline" size={24} color="#3498db" />
+              <Ionicons name="add-circle-outline" size={24} color="#3498db" />
             </View>
             <View style={styles.quickActionContent}>
-              <Text style={styles.quickActionTitle}>Devenir hôte</Text>
+              <Text style={styles.quickActionTitle}>Ajouter une nouvelle propriété</Text>
               <Text style={styles.quickActionDescription}>Créer une nouvelle annonce</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
