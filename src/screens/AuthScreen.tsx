@@ -67,6 +67,21 @@ const AuthScreen: React.FC = () => {
     };
   };
 
+  // Fonction pour convertir la date du format DD/MM/YYYY vers YYYY-MM-DD (ISO)
+  const convertDateToISO = (dateString: string): string | null => {
+    if (!dateString) return null;
+    
+    const parts = dateString.split('/');
+    if (parts.length !== 3) return null;
+    
+    const day = parts[0].padStart(2, '0');
+    const month = parts[1].padStart(2, '0');
+    const year = parts[2];
+    
+    // Retourner au format YYYY-MM-DD
+    return `${year}-${month}-${day}`;
+  };
+
   // Fonction de validation de l'âge
   const validateAdultAge = (dateOfBirth: string) => {
     if (!dateOfBirth) return { isValid: false, message: 'La date de naissance est requise' };
@@ -187,32 +202,82 @@ const AuthScreen: React.FC = () => {
         }
       } else {
         // Inscription
+        // Convertir la date au format ISO (YYYY-MM-DD) pour la base de données
+        const dateOfBirthISO = convertDateToISO(dateOfBirth);
+        
         await signUp(email, password, {
           first_name: firstName,
           last_name: lastName,
-          date_of_birth: dateOfBirth
+          date_of_birth: dateOfBirthISO || dateOfBirth
         });
 
-        // Créer automatiquement le profil dans la table profiles
+        // Créer ou mettre à jour le profil dans la table profiles
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            const { error: profileError } = await supabase
+            // Vérifier si le profil existe déjà
+            const { data: existingProfile } = await supabase
               .from('profiles')
-              .insert({
-                user_id: user.id,
-                first_name: firstName,
-                last_name: lastName,
-                email: email,
-                date_of_birth: dateOfBirth,
-                role: 'user',
-                is_host: false,
-              });
+              .select('user_id')
+              .eq('user_id', user.id)
+              .single();
 
-            if (profileError) {
-              console.error('Erreur création profil:', profileError);
+            if (existingProfile) {
+              // Le profil existe déjà, le mettre à jour
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .update({
+                  first_name: firstName,
+                  last_name: lastName,
+                  email: email,
+                  date_of_birth: dateOfBirthISO, // Utiliser le format ISO
+                })
+                .eq('user_id', user.id);
+
+              if (profileError) {
+                console.error('Erreur mise à jour profil:', profileError);
+              } else {
+                console.log('✅ Profil mis à jour automatiquement');
+              }
             } else {
-              console.log('✅ Profil créé automatiquement');
+              // Le profil n'existe pas, le créer
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                  user_id: user.id,
+                  first_name: firstName,
+                  last_name: lastName,
+                  email: email,
+                  date_of_birth: dateOfBirthISO, // Utiliser le format ISO
+                  role: 'user',
+                  is_host: false,
+                });
+
+              if (profileError) {
+                // Si l'erreur est due à un doublon, essayer de mettre à jour
+                if (profileError.code === '23505') {
+                  console.log('⚠️ Profil existe déjà, mise à jour...');
+                  const { error: updateError } = await supabase
+                    .from('profiles')
+                    .update({
+                      first_name: firstName,
+                      last_name: lastName,
+                      email: email,
+                      date_of_birth: dateOfBirthISO,
+                    })
+                    .eq('user_id', user.id);
+                  
+                  if (updateError) {
+                    console.error('Erreur mise à jour profil:', updateError);
+                  } else {
+                    console.log('✅ Profil mis à jour automatiquement');
+                  }
+                } else {
+                  console.error('Erreur création profil:', profileError);
+                }
+              } else {
+                console.log('✅ Profil créé automatiquement');
+              }
             }
 
         // Générer et envoyer le code de vérification email
@@ -602,6 +667,7 @@ const AuthScreen: React.FC = () => {
           firstName={pendingUserData.firstName}
           onVerificationSuccess={handleEmailVerificationSuccess}
           onClose={handleCloseEmailVerification}
+          canClose={false} // Ne peut pas être fermée sans vérification lors de la création de compte
         />
       )}
     </SafeAreaView>

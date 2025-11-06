@@ -25,7 +25,7 @@ const ProfileScreen: React.FC = () => {
   const { user } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
-  const { isEmailVerified, generateVerificationCode } = useEmailVerification();
+  const { isEmailVerified, generateVerificationCode, checkEmailVerificationStatus } = useEmailVerification();
   const { getApplications } = useHostApplications();
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [hasPendingApplications, setHasPendingApplications] = useState(false);
@@ -59,18 +59,40 @@ const ProfileScreen: React.FC = () => {
   const handleEmailVerification = async () => {
     if (!profile) return;
     
-    const result = await generateVerificationCode(user?.email || '', profile.first_name || '');
+    const email = user?.email;
+    if (!email) {
+      Alert.alert('Erreur', 'Aucune adresse email trouvée');
+      return;
+    }
+    
+    console.log('📧 Début de la vérification d\'email pour:', email);
+    
+    const result = await generateVerificationCode(email, profile.first_name || '');
     
     if (result.success) {
-      setShowEmailVerification(true);
+      console.log('✅ Code généré avec succès, affichage de la modal');
+      Alert.alert(
+        'Code envoyé',
+        'Un code de vérification a été envoyé à votre adresse email. Vérifiez votre boîte de réception (et le dossier spam).',
+        [{ text: 'OK', onPress: () => setShowEmailVerification(true) }]
+      );
     } else {
-      Alert.alert('Erreur', 'Impossible d\'envoyer le code de vérification');
+      console.error('❌ Erreur lors de la génération du code:', result.error);
+      const errorMessage = result.error || 'Impossible d\'envoyer le code de vérification';
+      Alert.alert(
+        'Erreur',
+        errorMessage + '\n\nVérifiez votre connexion et réessayez.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
-  const handleEmailVerificationSuccess = () => {
+  const handleEmailVerificationSuccess = async () => {
     setShowEmailVerification(false);
-    refreshProfile(); // Rafraîchir pour mettre à jour le statut
+    // Recharger le statut de vérification de l'email depuis la base de données
+    await checkEmailVerificationStatus();
+    // Rafraîchir le profil pour mettre à jour toutes les informations
+    refreshProfile();
   };
 
   const handleCloseEmailVerification = () => {

@@ -158,7 +158,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       if (result.error === 'IDENTITY_REQUIRED') {
         Alert.alert(
           'Vérification d\'identité requise',
-          'Vous devez télécharger une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
+          'Vous devez envoyer une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
           [{ text: 'OK' }]
         );
         return;

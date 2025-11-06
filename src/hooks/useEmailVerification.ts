@@ -41,6 +41,8 @@ export const useEmailVerification = () => {
     setError(null);
 
     try {
+      console.log('📧 Génération du code de vérification pour:', email);
+      
       const { data, error } = await supabase.functions.invoke('generate-verification-code', {
         body: {
           email,
@@ -48,13 +50,36 @@ export const useEmailVerification = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erreur lors de l\'appel de la fonction:', error);
+        const errorMessage = error.message || 'Erreur lors de l\'appel de la fonction';
+        setError(errorMessage);
+        return { success: false, error: errorMessage, details: error };
+      }
 
+      // Vérifier si la réponse contient une erreur
+      if (data && data.error) {
+        console.error('❌ Erreur dans la réponse:', data.error);
+        const errorMessage = data.error || 'Erreur lors de l\'envoi de l\'email';
+        setError(errorMessage);
+        return { success: false, error: errorMessage, details: data.details };
+      }
+
+      // Vérifier si le succès est confirmé
+      if (data && data.success) {
+        console.log('✅ Code généré et email envoyé avec succès');
+        return { success: true, data };
+      }
+
+      // Si aucune erreur mais pas de confirmation explicite, considérer comme succès
+      console.log('✅ Code généré (réponse:', data, ')');
       return { success: true, data };
+      
     } catch (error: any) {
-      console.error('Erreur lors de la génération du code:', error);
-      setError(error.message || 'Impossible de générer le code de vérification');
-      return { success: false, error: error.message };
+      console.error('❌ Erreur inattendue lors de la génération du code:', error);
+      const errorMessage = error.message || 'Impossible de générer le code de vérification';
+      setError(errorMessage);
+      return { success: false, error: errorMessage, details: error };
     } finally {
       setLoading(false);
     }
@@ -106,9 +131,13 @@ export const useEmailVerification = () => {
           .eq('user_id', user.id);
 
         if (profileError) throw profileError;
+        
+        // Recharger le statut depuis la base de données pour être sûr
+        await checkEmailVerificationStatus();
+      } else {
+        setIsEmailVerified(true);
       }
-
-      setIsEmailVerified(true);
+      
       return { success: true };
     } catch (error: any) {
       console.error('Erreur lors de la vérification du code:', error);
@@ -133,6 +162,7 @@ export const useEmailVerification = () => {
     checkEmailVerificationStatus
   };
 };
+
 
 
 

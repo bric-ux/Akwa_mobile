@@ -30,7 +30,7 @@ export const IdentityVerificationAlert: React.FC<IdentityVerificationAlertProps>
       icon: 'close-circle' as const,
       color: '#dc2626',
       title: 'Document refusé',
-      message: 'Votre pièce d\'identité a été refusée. Veuillez télécharger un nouveau document valide pour effectuer une réservation.',
+      message: 'Votre pièce d\'identité a été refusée. Veuillez envoyer un nouveau document valide pour effectuer une réservation.',
       showUploadButton: true
     },
     pending: {
@@ -91,7 +91,7 @@ export const IdentityVerificationAlert: React.FC<IdentityVerificationAlertProps>
             >
               <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
               <Text style={styles.uploadButtonText}>
-                {verificationStatus === 'rejected' ? 'Télécharger un nouveau document' : 'Vérifier mon identité maintenant'}
+                {verificationStatus === 'rejected' ? 'Envoyer un nouveau document' : 'Vérifier mon identité maintenant'}
               </Text>
             </TouchableOpacity>
           )

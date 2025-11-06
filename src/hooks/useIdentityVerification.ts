@@ -94,12 +94,12 @@ export const useIdentityVerification = () => {
     if (!user) throw new Error('Utilisateur non connecté');
 
     // Vérifier la taille du fichier (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size && file.size > 5 * 1024 * 1024) {
       throw new Error('Le fichier ne doit pas dépasser 5MB');
     }
 
     // Vérifier le type de fichier
-    if (!file.type.startsWith('image/') && !file.type.includes('pdf')) {
+    if (file.type && !file.type.startsWith('image/') && !file.type.includes('pdf')) {
       throw new Error('Seules les images et les PDF sont acceptés');
     }
 
@@ -150,16 +150,32 @@ export const useIdentityVerification = () => {
       const fileName = `${user.id}-${Date.now()}-${safeBase}.${ext}`.toLowerCase();
       const filePath = `identity-documents/${fileName}`;
 
-      // Récupérer les octets depuis l'URI local si présent
+      // Récupérer les octets depuis l'URI local si présent (React Native compatible)
       let dataToUpload: any = file;
       try {
         if (file.uri) {
+          console.log('📤 Conversion du fichier URI en ArrayBuffer:', file.uri);
           const res = await fetch(file.uri);
-          const blob = await res.blob();
-          dataToUpload = blob;
+          if (!res.ok) {
+            throw new Error(`Erreur HTTP: ${res.status}`);
+          }
+          // Utiliser arrayBuffer() au lieu de blob() pour React Native
+          const arrayBuffer = await res.arrayBuffer();
+          // Convertir ArrayBuffer en Uint8Array pour Supabase Storage
+          const uint8Array = new Uint8Array(arrayBuffer);
+          console.log('✅ ArrayBuffer créé, taille:', uint8Array.length, 'bytes');
+          dataToUpload = uint8Array;
+        } else if (file instanceof Uint8Array) {
+          // Si c'est déjà un Uint8Array, l'utiliser directement
+          dataToUpload = file;
+        } else if (file instanceof ArrayBuffer) {
+          // Si c'est un ArrayBuffer, le convertir en Uint8Array
+          dataToUpload = new Uint8Array(file);
         }
-      } catch (e) {
-        console.warn('⚠️ Impossible de lire le fichier en blob, tentative upload direct');
+      } catch (e: any) {
+        console.error('⚠️ Erreur lors de la conversion du fichier:', e);
+        console.warn('⚠️ Tentative upload direct du fichier');
+        // Continuer avec le fichier original si la conversion échoue
       }
 
       const contentType = isPdf ? 'application/pdf' : (file.type || 'image/jpeg');
@@ -193,29 +209,9 @@ export const useIdentityVerification = () => {
 
       console.log('✅ Document d\'identité uploadé avec succès');
       
-      // Envoyer une notification aux admins
-      try {
-        const { error: notificationError } = await supabase.functions.invoke('send-admin-notification', {
-          body: {
-            type: 'identity_document_uploaded',
-            data: {
-              userId: user.id,
-              documentType: documentType,
-              documentUrl: publicUrl
-            }
-          }
-        });
-
-        if (notificationError) {
-          console.error('Erreur notification admin:', notificationError);
-          // Continue même si la notification échoue
-        } else {
-          console.log('✅ Notification admin envoyée');
-        }
-      } catch (notificationError) {
-        console.error('Erreur lors de l\'envoi de la notification admin:', notificationError);
-        // Continue même si la notification échoue
-      }
+      // Note: Les notifications admin sont gérées automatiquement via la base de données
+      // Les admins peuvent voir les nouveaux documents dans leur tableau de bord
+      // via la table identity_documents avec verified = null
       
       // Recharger le statut
       await checkIdentityStatus(true);

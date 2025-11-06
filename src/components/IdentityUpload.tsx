@@ -44,7 +44,7 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
     if (status !== 'granted') {
       Alert.alert(
         'Permission requise',
-        'Nous avons besoin de l\'accès à votre galerie pour télécharger votre pièce d\'identité.'
+        'Nous avons besoin de l\'accès à votre galerie pour envoyer votre pièce d\'identité.'
       );
       return false;
     }
@@ -103,7 +103,7 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
   const showFilePicker = () => {
     Alert.alert(
       'Sélectionner un fichier',
-      'Choisissez le type de fichier à télécharger',
+      'Choisissez le type de fichier à envoyer',
       [
         {
           text: 'Annuler',
@@ -149,7 +149,7 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
       
       Alert.alert(
         'Succès',
-        'Votre pièce d\'identité a été téléchargée avec succès. Elle sera vérifiée par notre équipe.',
+        'Votre pièce d\'identité a été envoyée avec succès. Elle sera vérifiée par notre équipe.',
         [
           {
             text: 'OK',
@@ -164,7 +164,7 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
       );
     } catch (error: any) {
       console.error('Erreur upload:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de télécharger le document');
+      Alert.alert('Erreur', error.message || 'Impossible d\'envoyer le document');
     } finally {
       setUploading(false);
     }
@@ -172,9 +172,9 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Télécharger votre pièce d'identité</Text>
+      <Text style={styles.title}>Envoyer votre pièce d'identité</Text>
       <Text style={styles.subtitle}>
-        Téléchargez une pièce d'identité valide (carte d'identité, passeport, ou permis de conduire).
+        Envoyez une pièce d'identité valide (carte d'identité, passeport, ou permis de conduire).
       </Text>
 
       {/* Sélection du type de document */}
@@ -247,7 +247,7 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
         ) : (
           <>
             <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
-            <Text style={styles.submitButtonText}>Télécharger le document</Text>
+            <Text style={styles.submitButtonText}>Envoyer le document</Text>
           </>
         )}
       </TouchableOpacity>

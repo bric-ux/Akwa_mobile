@@ -465,40 +465,52 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
                 <Text style={styles.documentImageTitle}>Document</Text>
                 
                 {/* Détecter si c'est un PDF ou une image */}
-                {selectedDoc.document_url.toLowerCase().endsWith('.pdf') ? (
-                  <View style={styles.pdfContainer}>
-                    <Ionicons name="document" size={64} color="#e74c3c" />
-                    <Text style={styles.pdfText}>Document PDF</Text>
-                    <TouchableOpacity
-                      style={styles.pdfButton}
-                      onPress={async () => {
-                        try {
-                          const url = selectedDoc.document_url;
-                          if (url.startsWith('file://')) {
-                            Alert.alert('Document local', "Ce document est local à l'appareil de l'utilisateur et n'a pas été synchronisé. Demandez un nouvel envoi pour générer un lien accessible.");
-                            return;
-                          }
-                          (navigation as any).navigate('PdfViewer', {
-                            url,
-                            title: 'Document d\'identité'
-                          });
-                        } catch (error) {
-                          console.error("Erreur lors de l'ouverture du PDF:", error);
-                          Alert.alert('Erreur', "Impossible d'ouvrir le PDF");
-                        }
-                      }}
-                    >
-                      <Ionicons name="open-outline" size={20} color="#fff" />
-                      <Text style={styles.pdfButtonText}>Ouvrir le PDF</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <Image
-                    source={{ uri: selectedDoc.document_url }}
-                    style={styles.documentImage}
-                    resizeMode="contain"
-                  />
-                )}
+                {(() => {
+                  const docUrl = selectedDoc.document_url.toLowerCase();
+                  const isPdf = docUrl.endsWith('.pdf') || 
+                                docUrl.includes('application/pdf') ||
+                                selectedDoc.document_type === 'pdf';
+                  
+                  if (isPdf) {
+                    return (
+                      <View style={styles.pdfContainer}>
+                        <Ionicons name="document" size={64} color="#e74c3c" />
+                        <Text style={styles.pdfText}>Document PDF</Text>
+                        <TouchableOpacity
+                          style={styles.pdfButton}
+                          onPress={async () => {
+                            try {
+                              const url = selectedDoc.document_url;
+                              if (url.startsWith('file://')) {
+                                Alert.alert('Document local', "Ce document est local à l'appareil de l'utilisateur et n'a pas été synchronisé.");
+                                return;
+                              }
+                              const canOpen = await Linking.canOpenURL(url);
+                              if (canOpen) {
+                                await Linking.openURL(url);
+                              } else {
+                                Alert.alert('Erreur', 'Impossible d\'ouvrir cette URL');
+                              }
+                            } catch (error) {
+                              console.error("Erreur ouverture navigateur:", error);
+                              Alert.alert('Erreur', "Impossible d'ouvrir dans le navigateur");
+                            }
+                          }}
+                        >
+                          <Ionicons name="globe-outline" size={20} color="#fff" />
+                          <Text style={styles.pdfButtonText}>Ouvrir dans le navigateur</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  }
+                  return (
+                    <Image
+                      source={{ uri: selectedDoc.document_url }}
+                      style={styles.documentImage}
+                      resizeMode="contain"
+                    />
+                  );
+                })()}
               </View>
 
               <View style={styles.notesContainer}>
@@ -829,12 +841,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
-    gap: 8,
+    minWidth: 200,
+    marginTop: 16,
   },
   pdfButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    marginLeft: 8,
   },
 });
 

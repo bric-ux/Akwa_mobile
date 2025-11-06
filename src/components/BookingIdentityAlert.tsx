@@ -42,7 +42,7 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
           icon: 'close-circle-outline',
           color: '#ef4444',
           title: 'Document refusé',
-          message: 'Votre document a été refusé. Veuillez télécharger un nouveau document valide.'
+          message: 'Votre document a été refusé. Veuillez envoyer un nouveau document valide.'
         };
       default:
         return {
@@ -163,7 +163,7 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
             />
             <Text style={styles.actionButtonText}>
               {verificationStatus === 'pending' ? 'Voir le statut' :
-               verificationStatus === 'rejected' ? 'Télécharger un nouveau document' : 
+               verificationStatus === 'rejected' ? 'Envoyer un nouveau document' : 
                'Vérifier mon identité'}
             </Text>
           </TouchableOpacity>

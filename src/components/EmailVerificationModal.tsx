@@ -10,9 +10,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEmailVerification } from '../hooks/useEmailVerification';
 
 interface EmailVerificationModalProps {
@@ -21,6 +22,7 @@ interface EmailVerificationModalProps {
   firstName: string;
   onVerificationSuccess: () => void;
   onClose: () => void;
+  canClose?: boolean; // Si false, la modal ne peut pas être fermée sans vérification
 }
 
 const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
@@ -29,12 +31,14 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   firstName,
   onVerificationSuccess,
   onClose,
+  canClose = true, // Par défaut, la modal peut être fermée
 }) => {
   const [code, setCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [canResend, setCanResend] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const { verifyCode, resendCode, loading, error } = useEmailVerification();
 
@@ -101,15 +105,28 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
 
   const handleResendCode = async () => {
     setIsResending(true);
+    console.log('📧 Renvoi du code de vérification pour:', email);
+    
     const result = await resendCode(email, firstName);
 
     if (result.success) {
-      Alert.alert('Code renvoyé', 'Un nouveau code de vérification a été envoyé à votre email');
+      console.log('✅ Code renvoyé avec succès');
+      Alert.alert(
+        'Code renvoyé',
+        'Un nouveau code de vérification a été envoyé à votre email. Vérifiez votre boîte de réception (et le dossier spam).',
+        [{ text: 'OK' }]
+      );
       setTimeLeft(600);
       setCanResend(false);
       startTimer();
     } else {
-      Alert.alert('Erreur', result.error || 'Impossible de renvoyer le code');
+      console.error('❌ Erreur lors du renvoi du code:', result.error);
+      const errorMessage = result.error || 'Impossible de renvoyer le code';
+      Alert.alert(
+        'Erreur',
+        errorMessage + '\n\nVérifiez votre connexion et réessayez.',
+        [{ text: 'OK' }]
+      );
     }
 
     setIsResending(false);
@@ -119,18 +136,24 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle={canClose ? "pageSheet" : "fullScreen"} // fullScreen empêche le swipe-to-dismiss sur iOS
+      onRequestClose={canClose ? onClose : undefined} // Empêcher la fermeture sur Android si canClose est false
     >
-      <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoidingView}
         >
           {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#666" />
-            </TouchableOpacity>
+          <View style={[styles.header, { paddingTop: Math.max(15, insets.top + 5) }]}>
+            {canClose ? (
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.closeButton} />
+            )}
             <Text style={styles.title}>Vérification d'email</Text>
             <View style={styles.placeholder} />
           </View>
@@ -240,7 +263,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingTop: 15,
+    paddingBottom: 15,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
@@ -363,6 +387,7 @@ const styles = StyleSheet.create({
 });
 
 export default EmailVerificationModal;
+
 
 
 

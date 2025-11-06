@@ -559,80 +559,102 @@ const AdminApplicationsScreen: React.FC = () => {
               {identityDoc.front_image_url && (
                 <View style={styles.detailsItem}>
                   <Text style={styles.detailsLabel}>Image recto:</Text>
-                  {identityDoc.front_image_url.toLowerCase().endsWith('.pdf') ? (
-                    <View style={styles.pdfContainer}>
-                      <Ionicons name="document" size={48} color="#e74c3c" />
-                      <Text style={styles.pdfText}>Document PDF</Text>
-                      <TouchableOpacity
-                        style={styles.pdfButton}
-                        onPress={async () => {
-                          try {
-                            const url = identityDoc.front_image_url;
-                            if (url.startsWith('file://')) {
-                              Alert.alert('Document local', "Ce document est local à l'appareil de l'utilisateur et n'a pas été synchronisé. Demandez un nouvel envoi pour générer un lien accessible.");
-                              return;
-                            }
-                            (navigation as any).navigate('PdfViewer', {
-                              url,
-                              title: "Document d'identité (recto)"
-                            });
-                          } catch (error) {
-                            console.error('Erreur lors de l\'ouverture du PDF:', error);
-                            Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');
-                          }
-                        }}
-                      >
-                        <Ionicons name="open-outline" size={18} color="#fff" />
-                        <Text style={styles.pdfButtonText}>Ouvrir le PDF</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <Image 
-                      source={{ uri: identityDoc.front_image_url }} 
-                      style={styles.documentImage}
-                      resizeMode="cover"
-                    />
-                  )}
+                  {(() => {
+                    const docUrl = identityDoc.front_image_url?.toLowerCase() || '';
+                    const isPdf = docUrl.endsWith('.pdf') || 
+                                  docUrl.includes('application/pdf');
+                    
+                    if (isPdf) {
+                      return (
+                        <View style={styles.pdfContainer}>
+                          <Ionicons name="document" size={48} color="#e74c3c" />
+                          <Text style={styles.pdfText}>Document PDF</Text>
+                          <TouchableOpacity
+                            style={styles.pdfButton}
+                            onPress={async () => {
+                              try {
+                                const url = identityDoc.front_image_url;
+                                if (url.startsWith('file://')) {
+                                  Alert.alert('Document local', "Ce document est local à l'appareil de l'utilisateur et n'a pas été synchronisé.");
+                                  return;
+                                }
+                                const canOpen = await Linking.canOpenURL(url);
+                                if (canOpen) {
+                                  await Linking.openURL(url);
+                                } else {
+                                  Alert.alert('Erreur', 'Impossible d\'ouvrir cette URL');
+                                }
+                              } catch (error) {
+                                console.error('Erreur ouverture navigateur:', error);
+                                Alert.alert('Erreur', "Impossible d'ouvrir dans le navigateur");
+                              }
+                            }}
+                          >
+                            <Ionicons name="globe-outline" size={18} color="#fff" />
+                            <Text style={styles.pdfButtonText}>Ouvrir dans le navigateur</Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    }
+                    return (
+                      <Image 
+                        source={{ uri: identityDoc.front_image_url }} 
+                        style={styles.documentImage}
+                        resizeMode="cover"
+                      />
+                    );
+                  })()}
                 </View>
               )}
               
               {identityDoc.back_image_url && (
                 <View style={styles.detailsItem}>
                   <Text style={styles.detailsLabel}>Image verso:</Text>
-                  {identityDoc.back_image_url.toLowerCase().endsWith('.pdf') ? (
-                    <View style={styles.pdfContainer}>
-                      <Ionicons name="document" size={48} color="#e74c3c" />
-                      <Text style={styles.pdfText}>Document PDF</Text>
-                      <TouchableOpacity
-                        style={styles.pdfButton}
-                        onPress={async () => {
-                          try {
-                            const url = identityDoc.back_image_url;
-                            if (url.startsWith('file://')) {
-                              Alert.alert('Document local', "Ce document est local à l'appareil de l'utilisateur et n'a pas été synchronisé. Demandez un nouvel envoi pour générer un lien accessible.");
-                              return;
-                            }
-                            (navigation as any).navigate('PdfViewer', {
-                              url,
-                              title: "Document d'identité (verso)"
-                            });
-                          } catch (error) {
-                            console.error('Erreur lors de l\'ouverture du PDF:', error);
-                            Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');
-                          }
-                        }}
-                      >
-                        <Ionicons name="open-outline" size={18} color="#fff" />
-                        <Text style={styles.pdfButtonText}>Ouvrir le PDF</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <Image 
-                      source={{ uri: identityDoc.back_image_url }} 
-                      style={styles.documentImage}
-                      resizeMode="cover"
-                    />
-                  )}
+                  {(() => {
+                    const docUrl = identityDoc.back_image_url?.toLowerCase() || '';
+                    const isPdf = docUrl.endsWith('.pdf') || 
+                                  docUrl.includes('application/pdf');
+                    
+                    if (isPdf) {
+                      return (
+                        <View style={styles.pdfContainer}>
+                          <Ionicons name="document" size={48} color="#e74c3c" />
+                          <Text style={styles.pdfText}>Document PDF</Text>
+                          <TouchableOpacity
+                            style={styles.pdfButton}
+                            onPress={async () => {
+                              try {
+                                const url = identityDoc.back_image_url;
+                                if (url.startsWith('file://')) {
+                                  Alert.alert('Document local', "Ce document est local à l'appareil de l'utilisateur et n'a pas été synchronisé.");
+                                  return;
+                                }
+                                const canOpen = await Linking.canOpenURL(url);
+                                if (canOpen) {
+                                  await Linking.openURL(url);
+                                } else {
+                                  Alert.alert('Erreur', 'Impossible d\'ouvrir cette URL');
+                                }
+                              } catch (error) {
+                                console.error('Erreur ouverture navigateur:', error);
+                                Alert.alert('Erreur', "Impossible d'ouvrir dans le navigateur");
+                              }
+                            }}
+                          >
+                            <Ionicons name="globe-outline" size={18} color="#fff" />
+                            <Text style={styles.pdfButtonText}>Ouvrir dans le navigateur</Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    }
+                    return (
+                      <Image 
+                        source={{ uri: identityDoc.back_image_url }} 
+                        style={styles.documentImage}
+                        resizeMode="cover"
+                      />
+                    );
+                  })()}
                 </View>
               )}
             </View>
@@ -1557,12 +1579,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
-    gap: 6,
+    minWidth: 200,
+    marginTop: 16,
   },
   pdfButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+    marginLeft: 6,
   },
   notesInput: {
     backgroundColor: '#f8f9fa',

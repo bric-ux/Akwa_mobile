@@ -621,7 +621,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     if (!isEditMode && !hasUploadedIdentity && !identityUploadedInSession) {
       Alert.alert(
         'Vérification d\'identité requise',
-        'Vous devez télécharger une pièce d\'identité pour soumettre votre candidature.',
+        'Vous devez envoyer une pièce d\'identité pour soumettre votre candidature.',
         [
           { text: 'Annuler', style: 'cancel' },
           { 
@@ -1534,7 +1534,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               </Text>
               <Text style={styles.identityAlertMessage}>
                 {verificationStatus === 'pending' ? 'Votre identité est en cours de vérification. Vous pourrez soumettre votre candidature une fois validée.' :
-                 verificationStatus === 'rejected' ? 'Votre document a été refusé. Veuillez télécharger un nouveau document valide.' :
+                 verificationStatus === 'rejected' ? 'Votre document a été refusé. Veuillez envoyer un nouveau document valide.' :
                  'Vous devez vérifier votre identité avant de pouvoir devenir hôte.'}
               </Text>
               <TouchableOpacity 
@@ -1543,7 +1543,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               >
                 <Text style={styles.identityAlertButtonText}>
                   {verificationStatus === 'pending' ? 'Voir le statut' :
-                   verificationStatus === 'rejected' ? 'Télécharger un nouveau document' :
+                   verificationStatus === 'rejected' ? 'Envoyer un nouveau document' :
                    'Vérifier mon identité'}
                 </Text>
               </TouchableOpacity>
