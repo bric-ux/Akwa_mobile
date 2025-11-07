@@ -337,6 +337,67 @@ export const useHostApplications = () => {
     }
   };
 
+  const deleteApplication = async (applicationId: string) => {
+    if (!user) {
+      setError('Vous devez être connecté pour supprimer une candidature');
+      return { success: false, error: 'Non connecté' };
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('🗑️ Suppression de la candidature:', applicationId);
+      
+      // Vérifier que la candidature appartient à l'utilisateur
+      const { data: application, error: fetchError } = await supabase
+        .from('host_applications')
+        .select('id, user_id, status')
+        .eq('id', applicationId)
+        .single();
+
+      if (fetchError) {
+        console.error('❌ Erreur lors de la vérification:', fetchError);
+        setError('Candidature introuvable');
+        return { success: false, error: 'Candidature introuvable' };
+      }
+
+      if (application.user_id !== user.id) {
+        console.error('❌ Accès non autorisé');
+        setError('Vous n\'êtes pas autorisé à supprimer cette candidature');
+        return { success: false, error: 'Accès non autorisé' };
+      }
+
+      // Vérifier que la candidature peut être supprimée (seulement si pending ou rejected)
+      if (application.status === 'approved') {
+        setError('Vous ne pouvez pas supprimer une candidature approuvée');
+        return { success: false, error: 'Impossible de supprimer une candidature approuvée' };
+      }
+
+      // Supprimer la candidature
+      const { error: deleteError } = await supabase
+        .from('host_applications')
+        .delete()
+        .eq('id', applicationId)
+        .eq('user_id', user.id);
+
+      if (deleteError) {
+        console.error('❌ Erreur lors de la suppression:', deleteError);
+        setError('Erreur lors de la suppression de la candidature');
+        return { success: false, error: deleteError.message || 'Erreur lors de la suppression' };
+      }
+
+      console.log('✅ Candidature supprimée avec succès');
+      return { success: true };
+    } catch (err: any) {
+      console.error('❌ Erreur lors de la suppression:', err);
+      setError('Erreur lors de la suppression de la candidature');
+      return { success: false, error: err.message || 'Erreur lors de la suppression' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     submitApplication,
     getMyApplications,
@@ -344,6 +405,7 @@ export const useHostApplications = () => {
     getAmenities,
     updateApplication,
     getApplicationById,
+    deleteApplication,
     loading,
     error,
   };

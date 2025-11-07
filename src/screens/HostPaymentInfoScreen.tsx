@@ -8,8 +8,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useHostPaymentInfo, PaymentInfoFormData } from '../hooks/useHostPaymentInfo';
@@ -165,9 +165,18 @@ const HostPaymentInfoScreen: React.FC = () => {
         >
           <Ionicons name="globe" size={24} color="#e67e22" />
           <View style={styles.paymentMethodContent}>
-            <Text style={styles.paymentMethodTitle}>PayPal</Text>
+            <View style={styles.paypalHeader}>
+              <Text style={styles.paymentMethodTitle}>PayPal</Text>
+              <View style={styles.recommendedBadge}>
+                <Ionicons name="star" size={12} color="#FFD700" />
+                <Text style={styles.recommendedText}>Recommandé</Text>
+              </View>
+            </View>
             <Text style={styles.paymentMethodDescription}>
               Transfert international via PayPal
+            </Text>
+            <Text style={styles.paypalNote}>
+              💡 Sans frais d'envoi - Méthode recommandée
             </Text>
           </View>
           <Ionicons 
@@ -606,9 +615,36 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 4,
   },
+  paypalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  recommendedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    gap: 4,
+  },
+  recommendedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#856404',
+  },
   paymentMethodDescription: {
     fontSize: 14,
     color: '#6b7280',
+    marginBottom: 4,
+  },
+  paypalNote: {
+    fontSize: 12,
+    color: '#10b981',
+    fontWeight: '500',
+    marginTop: 4,
   },
   nextButton: {
     flexDirection: 'row',

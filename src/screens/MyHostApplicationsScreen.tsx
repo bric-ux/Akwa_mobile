@@ -291,7 +291,7 @@ const MyHostApplicationsScreen: React.FC = () => {
         </View>
       )}
 
-      {application.status === 'pending' && (
+      {(application.status === 'pending' || application.status === 'rejected') && (
         <View style={styles.actionsContainer}>
           <TouchableOpacity
             style={styles.deleteButton}

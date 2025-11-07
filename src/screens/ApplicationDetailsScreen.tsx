@@ -157,9 +157,13 @@ const ApplicationDetailsScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Détails de la candidature</Text>
-        <TouchableOpacity onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={24} color="#dc3545" />
-        </TouchableOpacity>
+        {(application.status === 'pending' || application.status === 'rejected') ? (
+          <TouchableOpacity onPress={handleDelete}>
+            <Ionicons name="trash-outline" size={24} color="#dc3545" />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 24 }} />
+        )}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
