@@ -41,7 +41,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
   const [infants, setInfants] = useState(0);
   const [message, setMessage] = useState('');
   const [showCalendar, setShowCalendar] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'orange_money' | 'mtn_money' | 'moov_money' | 'wave' | 'cash'>('card');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'orange_money' | 'mtn_money' | 'moov_money' | 'wave' | 'paypal' | 'cash'>('card');
   const [paymentPlan, setPaymentPlan] = useState<'full' | 'split'>('full');
   const [paymentInfo, setPaymentInfo] = useState({
     cardNumber: '',
@@ -50,7 +50,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
     expiryYear: '',
     cvv: '',
     phoneNumber: '',
-    pin: ''
+    pin: '',
+    paypalEmail: ''
   });
 
   const totalGuests = adults + children + infants;
@@ -275,6 +276,17 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
         Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide');
         return false;
       }
+    } else if (selectedPaymentMethod === 'paypal') {
+      if (!paymentInfo.paypalEmail) {
+        Alert.alert('Erreur', 'Veuillez entrer votre email PayPal');
+        return false;
+      }
+      // Validation basique de l'email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(paymentInfo.paypalEmail)) {
+        Alert.alert('Erreur', 'Veuillez entrer une adresse email PayPal valide');
+        return false;
+      }
     } else if (['orange_money', 'mtn_money', 'moov_money'].includes(selectedPaymentMethod)) {
       if (!paymentInfo.phoneNumber || !paymentInfo.pin) {
         Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone et le code PIN Mobile Money');
@@ -472,7 +484,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
           </View>
 
         {/* Plan de paiement */}
-        {checkIn && checkOut && selectedPaymentMethod !== 'cash' && (
+        {checkIn && checkOut && selectedPaymentMethod !== 'cash' && selectedPaymentMethod !== 'paypal' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Plan de paiement</Text>
             <View style={styles.paymentPlanContainer}>
@@ -719,6 +731,51 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                 />
               </TouchableOpacity>
 
+              {/* PayPal */}
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethod,
+                  selectedPaymentMethod === 'paypal' && styles.paymentMethodSelected
+                ]}
+                onPress={() => {
+                  setSelectedPaymentMethod('paypal');
+                  setPaymentInfo({
+                    cardNumber: '',
+                    cardHolder: '',
+                    expiryMonth: '',
+                    expiryYear: '',
+                    cvv: '',
+                    phoneNumber: '',
+                    pin: '',
+                    paypalEmail: ''
+                  });
+                }}
+              >
+                <View style={styles.paymentMethodContent}>
+                  <Ionicons name="globe" size={24} color="#0070ba" />
+                  <View style={styles.paymentMethodInfo}>
+                    <View style={styles.paypalHeader}>
+                      <Text style={styles.paymentMethodTitle}>PayPal</Text>
+                      <View style={styles.recommendedBadge}>
+                        <Ionicons name="star" size={10} color="#FFD700" />
+                        <Text style={styles.recommendedText}>Recommandé</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.paymentMethodDescription}>
+                      Paiement sécurisé via PayPal
+                    </Text>
+                    <Text style={styles.paypalNote}>
+                      💡 Sans frais d'envoi
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons 
+                  name={selectedPaymentMethod === 'paypal' ? 'checkmark-circle' : 'ellipse-outline'} 
+                  size={20} 
+                  color={selectedPaymentMethod === 'paypal' ? '#e67e22' : '#ccc'} 
+                />
+              </TouchableOpacity>
+
               {/* Espèces */}
               <TouchableOpacity
                 style={[
@@ -735,7 +792,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                     expiryYear: '',
                     cvv: '',
                     phoneNumber: '',
-                    pin: ''
+                    pin: '',
+                    paypalEmail: ''
                   });
                 }}
               >
@@ -892,6 +950,30 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                 </View>
               )}
 
+              {/* Formulaire pour PayPal */}
+              {selectedPaymentMethod === 'paypal' && (
+                <View style={styles.paymentForm}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Email PayPal *</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="votre.email@example.com"
+                      value={paymentInfo.paypalEmail}
+                      onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, paypalEmail: value }))}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  <View style={styles.paypalInfoBox}>
+                    <Ionicons name="information-circle-outline" size={16} color="#0070ba" />
+                    <Text style={styles.paypalInfoText}>
+                      Vous serez redirigé vers PayPal pour finaliser le paiement de manière sécurisée. Sans frais d'envoi.
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Formulaire pour Orange Money, MTN Money, Moov Money */}
               {(selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
                 <View style={styles.paymentForm}>
@@ -976,11 +1058,15 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                   ? 'Vérification d\'identité requise'
                   : selectedPaymentMethod === 'cash'
                     ? 'Confirmer la réservation'
-                    : paymentPlan === 'split'
-                      ? `Payer ${formatPrice(finalTotal * 0.5)} maintenant`
-                      : property.auto_booking 
-                        ? 'Payer et réserver' 
-                        : 'Envoyer une demande'
+                    : selectedPaymentMethod === 'paypal'
+                      ? property.auto_booking 
+                        ? 'Payer avec PayPal et réserver' 
+                        : 'Payer avec PayPal'
+                      : paymentPlan === 'split'
+                        ? `Payer ${formatPrice(finalTotal * 0.5)} maintenant`
+                        : property.auto_booking 
+                          ? 'Payer et réserver' 
+                          : 'Envoyer une demande'
                 }
               </Text>
             )}
@@ -1255,9 +1341,53 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 4,
   },
+  paypalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  recommendedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    gap: 3,
+  },
+  recommendedText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#856404',
+  },
   paymentMethodDescription: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 2,
+  },
+  paypalNote: {
+    fontSize: 12,
+    color: '#10b981',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  paypalInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#e8f4f8',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#0070ba',
+  },
+  paypalInfoText: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#0070ba',
+    flex: 1,
+    lineHeight: 18,
   },
   securityInfo: {
     flexDirection: 'row',
