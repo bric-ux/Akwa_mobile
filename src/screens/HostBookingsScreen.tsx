@@ -16,29 +16,45 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useHostBookings, HostBooking } from '../hooks/useHostBookings';
 import { useAuth } from '../services/AuthContext';
+import { useMyProperties } from '../hooks/useMyProperties';
+import { supabase } from '../services/supabase';
 
 const HostBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { getHostBookings, updateBookingStatus, loading, error } = useHostBookings();
+  const { getMyProperties } = useMyProperties();
   const [bookings, setBookings] = useState<HostBooking[]>([]);
+  const [allProperties, setAllProperties] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
 
-  const loadBookings = async () => {
+  const loadData = async () => {
     try {
+      // Charger toutes les propriétés de l'hôte
+      const properties = await getMyProperties();
+      console.log('🏠 Propriétés chargées:', properties.length);
+      setAllProperties(properties);
+
+      // Charger les réservations
       const hostBookings = await getHostBookings();
+      console.log('📦 Réservations chargées:', hostBookings.length);
       setBookings(hostBookings);
     } catch (err) {
-      console.error('Erreur lors du chargement des réservations:', err);
+      console.error('Erreur lors du chargement:', err);
     }
   };
 
-  // Charger les réservations quand l'écran devient actif
+  const loadBookings = async () => {
+    await loadData();
+  };
+
+  // Charger les données quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
       if (user) {
-        loadBookings();
+        loadData();
       }
     }, [user])
   );
@@ -132,30 +148,154 @@ const HostBookingsScreen: React.FC = () => {
     return booking.status === 'confirmed' && checkIn <= today && checkOut >= today;
   };
 
-  const filteredBookings = bookings.filter(booking => {
-    if (selectedFilter === 'all') return true;
-    if (selectedFilter === 'in_progress') return isBookingInProgress(booking);
-    return booking.status === selectedFilter;
-  });
+
+  // Fonction pour obtenir toutes les propriétés avec leurs réservations
+  const getPropertiesWithBookings = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Créer une map des réservations par propriété
+    const bookingsByProperty = new Map<string, HostBooking[]>();
+    bookings.forEach(booking => {
+      if (!booking.properties || !booking.properties.id) return;
+      const propertyId = booking.properties.id;
+      if (!bookingsByProperty.has(propertyId)) {
+        bookingsByProperty.set(propertyId, []);
+      }
+      bookingsByProperty.get(propertyId)!.push(booking);
+    });
+
+    // Créer la liste de toutes les propriétés avec leurs stats
+    const propertiesWithStats = allProperties.map(property => {
+      const propertyBookings = bookingsByProperty.get(property.id) || [];
+      
+      const stats = {
+        total: propertyBookings.length,
+        pending: 0,
+        confirmed: 0,
+        cancelled: 0,
+        completed: 0,
+        inProgress: 0,
+      };
+
+      let isCurrentlyOccupied = false;
+
+      propertyBookings.forEach(booking => {
+        stats.total++;
+        if (booking.status === 'pending') stats.pending++;
+        if (booking.status === 'confirmed') stats.confirmed++;
+        if (booking.status === 'cancelled') stats.cancelled++;
+        if (booking.status === 'completed') stats.completed++;
+        
+        // Vérifier si en cours
+        try {
+          const checkIn = new Date(booking.check_in_date);
+          checkIn.setHours(0, 0, 0, 0);
+          const checkOut = new Date(booking.check_out_date);
+          checkOut.setHours(0, 0, 0, 0);
+          
+          if (booking.status === 'confirmed' && checkIn <= today && checkOut >= today) {
+            stats.inProgress++;
+            isCurrentlyOccupied = true;
+          }
+        } catch (dateError) {
+          console.error('Erreur lors du traitement des dates:', dateError);
+        }
+      });
+
+      return {
+        property: {
+          id: property.id,
+          title: property.title,
+          price_per_night: property.price_per_night,
+          images: property.images || [],
+          property_photos: property.property_photos || [],
+          cities: property.cities,
+        },
+        bookings: propertyBookings,
+        stats,
+        isCurrentlyOccupied,
+        isAvailable: propertyBookings.length === 0,
+      };
+    });
+
+    // Trier : d'abord les occupées, puis celles avec réservations, puis les disponibles
+    const sorted = propertiesWithStats.sort((a, b) => {
+      if (a.isCurrentlyOccupied && !b.isCurrentlyOccupied) return -1;
+      if (!a.isCurrentlyOccupied && b.isCurrentlyOccupied) return 1;
+      if (a.stats.total > 0 && b.stats.total === 0) return -1;
+      if (a.stats.total === 0 && b.stats.total > 0) return 1;
+      return b.stats.total - a.stats.total;
+    });
+
+    console.log('🏠 Propriétés chargées:', sorted.length);
+    sorted.forEach((p, idx) => {
+      console.log(`  ${idx + 1}. ${p.property?.title || 'Sans titre'} - ${p.stats.total} réservation(s) - ${p.isAvailable ? 'Disponible' : p.isCurrentlyOccupied ? 'Occupée' : 'Avec réservations'}`);
+    });
+
+    return sorted;
+  };
+
+  const propertiesWithBookings = getPropertiesWithBookings();
+  
+  // Obtenir les réservations de la propriété sélectionnée
+  const getSelectedPropertyBookings = () => {
+    if (!selectedPropertyId) return [];
+    
+    const propertyBookings = bookings.filter(b => b.properties?.id === selectedPropertyId);
+    
+    return propertyBookings.filter(booking => {
+      if (selectedFilter === 'all') return true;
+      if (selectedFilter === 'in_progress') return isBookingInProgress(booking);
+      return booking.status === selectedFilter;
+    });
+  };
+
+  const selectedPropertyBookings = getSelectedPropertyBookings();
+  const selectedProperty = propertiesWithBookings.find(p => p.property?.id === selectedPropertyId);
+
+  // Fonction pour obtenir l'URL de la photo principale d'une propriété
+  const getPropertyMainImageUrl = (property: any): string => {
+    if (!property) return 'https://via.placeholder.com/150';
+
+    // Priorité 1: property_photos (photos catégorisées) triées par display_order
+    if (property.property_photos && Array.isArray(property.property_photos) && property.property_photos.length > 0) {
+      const sortedPhotos = [...property.property_photos].sort((a, b) => 
+        (a.display_order || 0) - (b.display_order || 0)
+      );
+      return sortedPhotos[0].url;
+    }
+
+    // Priorité 2: images array
+    if (property.images && Array.isArray(property.images) && property.images.length > 0) {
+      return property.images[0];
+    }
+
+    // Fallback: placeholder
+    return 'https://via.placeholder.com/150';
+  };
 
   const renderBookingCard = ({ item }: { item: HostBooking }) => (
     <View style={styles.bookingCard}>
       <View style={styles.bookingHeader}>
         <View style={styles.propertyInfo}>
-          {item.properties?.images && item.properties.images.length > 0 ? (
-            <Image
-              source={{ uri: item.properties.images[0] }}
-              style={styles.propertyImage}
-            />
-          ) : (
-            <View style={styles.propertyImagePlaceholder}>
-              <Ionicons name="home" size={24} color="#666" />
-            </View>
-          )}
+          <Image
+            source={{ uri: getPropertyMainImageUrl(item.properties) }}
+            style={styles.propertyImage}
+            resizeMode="cover"
+          />
           <View style={styles.propertyDetails}>
-            <Text style={styles.propertyTitle} numberOfLines={2}>
-              {item.properties?.title || 'Propriété'}
-            </Text>
+            <View style={styles.propertyTitleRow}>
+              <Text style={styles.propertyTitle} numberOfLines={2}>
+                {item.properties?.title || 'Propriété'}
+              </Text>
+              {isBookingInProgress(item) && (
+                <View style={styles.occupiedIndicator}>
+                  <Ionicons name="time" size={12} color="#fff" />
+                  <Text style={styles.occupiedIndicatorText}>Occupée</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.propertyLocation}>
               {item.properties?.cities?.name || 'Localisation inconnue'}
             </Text>
@@ -234,18 +374,6 @@ const HostBookingsScreen: React.FC = () => {
     </View>
   );
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons name="calendar-outline" size={64} color="#ccc" />
-      <Text style={styles.emptyTitle}>Aucune réservation</Text>
-      <Text style={styles.emptySubtitle}>
-        {selectedFilter === 'all' 
-          ? 'Vous n\'avez pas encore de réservations'
-          : `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()}`
-        }
-      </Text>
-    </View>
-  );
 
   // Si l'utilisateur n'est pas connecté, afficher le bouton de connexion
   if (!user) {
@@ -278,63 +406,273 @@ const HostBookingsScreen: React.FC = () => {
         <View style={styles.placeholder} />
       </View>
 
-      {/* Filtres */}
-      <View style={styles.filtersContainer}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.filtersScrollContent}
-        >
-          {[
-            { key: 'all', label: 'Toutes' },
-            { key: 'in_progress', label: 'En cours' },
-            { key: 'pending', label: 'En attente' },
-            { key: 'confirmed', label: 'Confirmées' },
-            { key: 'cancelled', label: 'Annulées' },
-            { key: 'completed', label: 'Terminées' },
-          ].map((filter) => (
-            <TouchableOpacity
-              key={filter.key}
-              style={[
-                styles.filterButton,
-                selectedFilter === filter.key && styles.filterButtonActive,
-              ]}
-              onPress={() => setSelectedFilter(filter.key as any)}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  selectedFilter === filter.key && styles.filterButtonTextActive,
-                ]}
-              >
-                {filter.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+      {!selectedPropertyId ? (
+        // Vue liste des propriétés
+        <>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderContent}>
+              <Ionicons name="home" size={20} color="#e67e22" />
+              <Text style={styles.sectionTitle}>Mes propriétés</Text>
+            </View>
+            <Text style={styles.sectionSubtitle}>
+              {propertiesWithBookings.length} propriété{propertiesWithBookings.length > 1 ? 's' : ''} avec réservations
+            </Text>
+          </View>
 
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#e67e22" />
-          <Text style={styles.loadingText}>Chargement des réservations...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredBookings}
-          renderItem={renderBookingCard}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={['#e67e22']}
-              tintColor="#e67e22"
+          {loading && !refreshing ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#e67e22" />
+              <Text style={styles.loadingText}>Chargement des réservations...</Text>
+            </View>
+          ) : propertiesWithBookings.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="alert-circle-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyTitle}>Problème de chargement</Text>
+              <Text style={styles.emptySubtitle}>
+                Impossible de charger les propriétés. Veuillez réessayer.
+              </Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={handleRefresh}
+              >
+                <Text style={styles.retryButtonText}>Réessayer</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <FlatList
+              data={propertiesWithBookings}
+              keyExtractor={(item) => item.property?.id || Math.random().toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.propertyCard,
+                    item.isCurrentlyOccupied && styles.propertyCardOccupied
+                  ]}
+                  onPress={() => setSelectedPropertyId(item.property?.id || null)}
+                >
+                  <View style={styles.propertyCardImageContainer}>
+                    <Image
+                      source={{ uri: getPropertyMainImageUrl(item.property) }}
+                      style={styles.propertyCardImage}
+                      resizeMode="cover"
+                      onError={(error) => {
+                        console.error('Erreur chargement image propriété:', error.nativeEvent.error);
+                      }}
+                    />
+                  </View>
+                  <View style={styles.propertyCardContent}>
+                    <View style={styles.propertyCardHeader}>
+                      <Text style={styles.propertyCardTitle} numberOfLines={2}>
+                        {item.property?.title || 'Propriété'}
+                      </Text>
+                      {item.isCurrentlyOccupied ? (
+                        <View style={styles.occupiedBadgeSmall}>
+                          <Ionicons name="time" size={12} color="#fff" />
+                          <Text style={styles.occupiedBadgeSmallText}>Occupée</Text>
+                        </View>
+                      ) : item.isAvailable ? (
+                        <View style={styles.availableBadgeSmall}>
+                          <Ionicons name="checkmark-circle" size={12} color="#fff" />
+                          <Text style={styles.availableBadgeSmallText}>Disponible</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.propertyCardLocation}>
+                      {item.property?.cities?.name || 'Localisation inconnue'}
+                    </Text>
+                    
+                    {item.isAvailable ? (
+                      <View style={styles.availableInfo}>
+                        <Ionicons name="calendar-outline" size={16} color="#4CAF50" />
+                        <Text style={styles.availableText}>Aucune réservation - Disponible</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.propertyStats}>
+                        <View style={styles.statItem}>
+                          <Text style={styles.statValue}>{item.stats.total}</Text>
+                          <Text style={styles.statLabel}>Total</Text>
+                        </View>
+                        {item.stats.inProgress > 0 && (
+                          <View style={[styles.statItem, styles.statItemActive]}>
+                            <Text style={[styles.statValue, styles.statValueActive]}>
+                              {item.stats.inProgress}
+                            </Text>
+                            <Text style={[styles.statLabel, styles.statLabelActive]}>En cours</Text>
+                          </View>
+                        )}
+                        {item.stats.pending > 0 && (
+                          <View style={styles.statItem}>
+                            <Text style={[styles.statValue, { color: '#FFA500' }]}>
+                              {item.stats.pending}
+                            </Text>
+                            <Text style={styles.statLabel}>En attente</Text>
+                          </View>
+                        )}
+                        {item.stats.confirmed > 0 && (
+                          <View style={styles.statItem}>
+                            <Text style={[styles.statValue, { color: '#4CAF50' }]}>
+                              {item.stats.confirmed}
+                            </Text>
+                            <Text style={styles.statLabel}>Confirmées</Text>
+                          </View>
+                        )}
+                        {item.stats.completed > 0 && (
+                          <View style={styles.statItem}>
+                            <Text style={[styles.statValue, { color: '#2196F3' }]}>
+                              {item.stats.completed}
+                            </Text>
+                            <Text style={styles.statLabel}>Terminées</Text>
+                          </View>
+                        )}
+                        {item.stats.cancelled > 0 && (
+                          <View style={styles.statItem}>
+                            <Text style={[styles.statValue, { color: '#F44336' }]}>
+                              {item.stats.cancelled}
+                            </Text>
+                            <Text style={styles.statLabel}>Annulées</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#ccc" style={styles.chevronIcon} />
+                </TouchableOpacity>
+              )}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  colors={['#e67e22']}
+                  tintColor="#e67e22"
+                />
+              }
+              contentContainerStyle={styles.listContainer}
             />
-          }
-          ListEmptyComponent={renderEmptyState}
-          contentContainerStyle={styles.listContainer}
-        />
+          )}
+        </>
+      ) : (
+        // Vue détaillée des réservations d'une propriété
+        <>
+          {/* En-tête avec bouton retour */}
+          <View style={styles.propertyHeader}>
+            <TouchableOpacity
+              style={styles.backToPropertiesButton}
+              onPress={() => {
+                setSelectedPropertyId(null);
+                setSelectedFilter('all');
+              }}
+            >
+              <Ionicons name="arrow-back" size={20} color="#e67e22" />
+              <Text style={styles.backToPropertiesText}>Retour aux propriétés</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Informations de la propriété */}
+          {selectedProperty && (
+            <View style={styles.selectedPropertyInfo}>
+              <View style={styles.selectedPropertyImageContainer}>
+                <Image
+                  source={{ uri: getPropertyMainImageUrl(selectedProperty.property) }}
+                  style={styles.selectedPropertyImage}
+                  resizeMode="cover"
+                  onError={(error) => {
+                    console.error('Erreur chargement image propriété sélectionnée:', error.nativeEvent.error);
+                  }}
+                />
+              </View>
+              <View style={styles.selectedPropertyDetails}>
+                <Text style={styles.selectedPropertyTitle}>
+                  {selectedProperty.property?.title || 'Propriété'}
+                </Text>
+                <Text style={styles.selectedPropertyLocation}>
+                  {selectedProperty.property?.cities?.name || 'Localisation inconnue'}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Filtres */}
+          <View style={styles.filtersContainer}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={styles.filtersScrollContent}
+            >
+              {[
+                { key: 'all', label: 'Toutes' },
+                { key: 'in_progress', label: 'En cours' },
+                { key: 'pending', label: 'En attente' },
+                { key: 'confirmed', label: 'Confirmées' },
+                { key: 'cancelled', label: 'Annulées' },
+                { key: 'completed', label: 'Terminées' },
+              ].map((filter) => (
+                <TouchableOpacity
+                  key={filter.key}
+                  style={[
+                    styles.filterButton,
+                    selectedFilter === filter.key && styles.filterButtonActive,
+                  ]}
+                  onPress={() => setSelectedFilter(filter.key as any)}
+                >
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      selectedFilter === filter.key && styles.filterButtonTextActive,
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Liste des réservations */}
+          {loading && !refreshing ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#e67e22" />
+              <Text style={styles.loadingText}>Chargement des réservations...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={selectedPropertyBookings}
+              renderItem={renderBookingCard}
+              keyExtractor={(item) => item.id}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  colors={['#e67e22']}
+                  tintColor="#e67e22"
+                />
+              }
+              ListEmptyComponent={() => (
+                <View style={styles.emptyContainer}>
+                  <Ionicons 
+                    name={selectedProperty?.isAvailable ? "calendar-outline" : "calendar-outline"} 
+                    size={64} 
+                    color="#ccc" 
+                  />
+                  <Text style={styles.emptyTitle}>
+                    {selectedProperty?.isAvailable 
+                      ? 'Propriété disponible' 
+                      : 'Aucune réservation'
+                    }
+                  </Text>
+                  <Text style={styles.emptySubtitle}>
+                    {selectedProperty?.isAvailable 
+                      ? 'Cette propriété n\'a pas encore de réservations. Elle est disponible pour les voyageurs.'
+                      : selectedFilter === 'all' 
+                        ? 'Aucune réservation pour cette propriété'
+                        : `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()} pour cette propriété`
+                    }
+                  </Text>
+                </View>
+              )}
+              contentContainerStyle={styles.listContainer}
+            />
+          )}
+        </>
       )}
     </SafeAreaView>
   );
@@ -456,11 +794,32 @@ const styles = StyleSheet.create({
   propertyDetails: {
     flex: 1,
   },
+  propertyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 4,
+    gap: 6,
+  },
   propertyTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
+    flex: 1,
+  },
+  occupiedIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    gap: 4,
+  },
+  occupiedIndicatorText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: '600',
   },
   propertyLocation: {
     fontSize: 14,
@@ -557,6 +916,218 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   exploreButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  sectionHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  sectionHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 28,
+  },
+  propertyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+    flexDirection: 'row',
+  },
+  propertyCardOccupied: {
+    borderWidth: 2,
+    borderColor: '#e67e22',
+    backgroundColor: '#fff5e6',
+  },
+  propertyCardImageContainer: {
+    width: 120,
+    height: 120,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  propertyCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  propertyCardContent: {
+    flex: 1,
+    padding: 12,
+  },
+  propertyCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    gap: 8,
+  },
+  propertyCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  occupiedBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  occupiedBadgeSmallText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  availableBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  availableBadgeSmallText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  availableInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  availableText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  propertyCardLocation: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 10,
+  },
+  propertyStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  statItem: {
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  statItemActive: {
+    backgroundColor: '#fff5e6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  statValueActive: {
+    color: '#e67e22',
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#666',
+  },
+  statLabelActive: {
+    color: '#e67e22',
+    fontWeight: '600',
+  },
+  chevronIcon: {
+    marginRight: 12,
+    alignSelf: 'center',
+  },
+  propertyHeader: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  backToPropertiesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backToPropertiesText: {
+    fontSize: 16,
+    color: '#e67e22',
+    fontWeight: '600',
+  },
+  selectedPropertyInfo: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    padding: 20,
+    flexDirection: 'row',
+    gap: 15,
+  },
+  selectedPropertyImageContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: '#f0f0f0',
+    overflow: 'hidden',
+  },
+  selectedPropertyImage: {
+    width: '100%',
+    height: '100%',
+  },
+  selectedPropertyDetails: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  selectedPropertyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 6,
+  },
+  selectedPropertyLocation: {
+    fontSize: 14,
+    color: '#666',
+  },
+  retryButton: {
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  retryButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

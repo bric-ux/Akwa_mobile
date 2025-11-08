@@ -27,6 +27,12 @@ export interface HostBooking {
     title: string;
     price_per_night: number;
     images: string[];
+    property_photos?: Array<{
+      id: string;
+      url: string;
+      category: string;
+      display_order: number;
+    }>;
     cities?: {
       name: string;
       region: string;
@@ -79,6 +85,12 @@ export const useHostBookings = () => {
             cities(
               name,
               region
+            ),
+            property_photos (
+              id,
+              url,
+              category,
+              display_order
             )
           ),
           guest_profile:profiles!bookings_guest_id_fkey(
