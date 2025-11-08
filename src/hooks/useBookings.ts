@@ -19,6 +19,8 @@ export interface BookingData {
   discountAmount?: number;
   originalTotal?: number;
   voucherCode?: string;
+  paymentMethod?: string;
+  paymentPlan?: string;
 }
 
 export interface Booking {
@@ -176,6 +178,8 @@ export const useBookings = () => {
           discount_applied: bookingData.discountApplied || false,
           discount_amount: bookingData.discountAmount || 0,
           original_total: bookingData.originalTotal || bookingData.totalPrice,
+          payment_method: bookingData.paymentMethod || null,
+          payment_plan: bookingData.paymentPlan || null,
           status: propertyData.auto_booking ? 'confirmed' : 'pending',
         })
         .select()

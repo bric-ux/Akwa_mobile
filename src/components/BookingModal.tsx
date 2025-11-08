@@ -288,6 +288,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       totalPrice: pricing.finalTotal,
       messageToHost: message.trim() || undefined,
       voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
+      paymentMethod: selectedPaymentMethod,
+      paymentPlan: paymentPlan,
     });
 
     // Vérifier les erreurs d'identité (même logique que le site web)

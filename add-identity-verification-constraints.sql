@@ -195,3 +195,4 @@ COMMENT ON FUNCTION get_unverified_users_with_bookings() IS 'Retourne les utilis
 
 
 
+

@@ -154,6 +154,12 @@ export const useHostBookings = () => {
         .eq('properties.host_id', user.id)
         .single();
 
+      console.log('📊 [useHostBookings] Données réservation récupérées:', {
+        id: bookingData?.id,
+        payment_method: bookingData?.payment_method,
+        payment_plan: bookingData?.payment_plan
+      });
+
       if (fetchError || !bookingData) {
         console.error('❌ [useHostBookings] Réservation non trouvée:', fetchError);
         const errorMessage = fetchError?.message || 'Réservation non trouvée';
@@ -234,19 +240,28 @@ export const useHostBookings = () => {
               email: user.email || '',
               phone: user.user_metadata?.phone || ''
             },
-            check_in_date: bookingData.check_in_date,
-            check_out_date: bookingData.check_out_date,
+            check_in: bookingData.check_in_date,
+            check_out: bookingData.check_out_date,
             guests_count: bookingData.guests_count,
             total_price: bookingData.total_price,
+            status: bookingData.status,
+            created_at: bookingData.created_at,
             message: bookingData.message_to_host || '',
             discount_applied: bookingData.discount_applied || false,
             discount_amount: bookingData.discount_amount || 0,
+            original_total: bookingData.original_total || bookingData.total_price,
+            payment_method: bookingData.payment_method || '',
             payment_plan: bookingData.payment_plan || ''
           };
 
           // Envoyer les emails de confirmation avec PDF
           try {
             console.log('📄 [useHostBookings] Génération PDF...');
+            console.log('📊 [useHostBookings] Données PDF préparées:', {
+              id: pdfBookingData.id,
+              payment_method: pdfBookingData.payment_method,
+              payment_plan: pdfBookingData.payment_plan
+            });
             
             const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-booking-pdf', {
               body: { bookingData: pdfBookingData }
