@@ -23,6 +23,7 @@ import { useHostApplications } from '../hooks/useHostApplications';
 import { useEmailService } from '../hooks/useEmailService';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
+import { useReferrals } from '../hooks/useReferrals';
 import CitySearchInputModal from '../components/CitySearchInputModal';
 import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
@@ -88,10 +89,15 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();
   const { hasUploadedIdentity, verificationStatus, checkIdentityStatus } = useIdentityVerification();
   const { hasPaymentInfo, isPaymentInfoComplete, paymentInfo } = useHostPaymentInfo();
+  const { verifyReferralCode } = useReferrals();
   
   const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [fieldsToRevise, setFieldsToRevise] = useState<Record<string, boolean>>({});
+  const [enteredReferralCode, setEnteredReferralCode] = useState<string>('');
+  const [referralCodeError, setReferralCodeError] = useState<string>('');
+  const [referrerName, setReferrerName] = useState<string>('');
+  const [isReferred, setIsReferred] = useState(false);
   
   const [formData, setFormData] = useState({
     // Informations sur le logement
@@ -685,6 +691,17 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       console.log('ℹ️ Informations de paiement', paymentPending ? 'en cours d\'étude' : 'vérifiées', ', autorisation de la soumission');
     }
 
+    // Validation du code de parrainage si activé (seulement pour les nouveaux hôtes)
+    if (!isEditMode && isReferred && enteredReferralCode) {
+      if (referralCodeError || !referrerName) {
+        Alert.alert(
+          "Code de parrainage invalide",
+          "Veuillez vérifier le code de parrainage ou désactiver l'option.",
+        );
+        return;
+      }
+    }
+
     // Validation finale de toutes les étapes
     for (let step = 1; step <= 5; step++) {
       if (!validateStep(step)) {
@@ -723,6 +740,22 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       discountPercentage: formData.discountEnabled ? parseInt(formData.discountPercentage) || undefined : undefined,
       cleaningFee: parseInt(formData.cleaningFee) || 0,
     };
+
+    // Enregistrer le code de parrainage dans le profil si fourni (seulement pour les nouveaux hôtes)
+    if (!isEditMode && isReferred && enteredReferralCode && referrerName && !referralCodeError) {
+      try {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ referral_code_used: enteredReferralCode.toUpperCase() })
+          .eq('user_id', user?.id);
+
+        if (profileError) {
+          console.error('Erreur lors de l\'enregistrement du code de parrainage:', profileError);
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'enregistrement du code de parrainage:', error);
+      }
+    }
 
     const result = isEditMode && editingApplicationId
       ? await updateApplication(editingApplicationId, applicationPayload)
@@ -1412,6 +1445,72 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           onSubmitEditing={() => handleInputSubmit('minimumNights')}
         />
       </View>
+
+      {/* Section Parrainage - Masquée si l'utilisateur est déjà hôte */}
+      {!isEditMode && (
+        <View style={styles.inputGroup}>
+          <View style={styles.referralSection}>
+            <TouchableOpacity
+              style={styles.switchContainer}
+              onPress={() => {
+                setIsReferred(!isReferred);
+                if (!isReferred) {
+                  setEnteredReferralCode('');
+                  setReferralCodeError('');
+                  setReferrerName('');
+                }
+              }}
+            >
+              <View style={[styles.switch, isReferred && styles.switchActive]}>
+                <View style={[styles.switchThumb, isReferred && styles.switchThumbActive]} />
+              </View>
+              <Text style={styles.switchLabel}>J'ai un code de parrainage</Text>
+            </TouchableOpacity>
+
+            {isReferred && (
+              <View style={styles.referralInputContainer}>
+                <Text style={styles.label}>Code de parrainage *</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    referralCodeError ? styles.inputError : referrerName ? styles.inputSuccess : null
+                  ]}
+                  placeholder="Entrez le code de parrainage"
+                  value={enteredReferralCode}
+                  onChangeText={async (code) => {
+                    const upperCode = code.toUpperCase();
+                    setEnteredReferralCode(upperCode);
+                    setReferralCodeError('');
+                    setReferrerName('');
+
+                    if (upperCode.length >= 6) {
+                      const result = await verifyReferralCode(upperCode);
+                      if (result.valid) {
+                        setReferrerName(result.referrerName || '');
+                      } else {
+                        setReferralCodeError(result.error || 'Code invalide');
+                      }
+                    }
+                  }}
+                  autoCapitalize="characters"
+                  placeholderTextColor="#999"
+                />
+                {referralCodeError && (
+                  <Text style={styles.errorText}>{referralCodeError}</Text>
+                )}
+                {referrerName && !referralCodeError && (
+                  <View style={styles.successContainer}>
+                    <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
+                    <Text style={styles.successText}>
+                      Code valide ! Parrainé par {referrerName}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Conditions d'utilisation */}
       <View style={styles.inputGroup}>
@@ -2321,6 +2420,39 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  referralSection: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 15,
+    marginTop: 10,
+  },
+  referralInputContainer: {
+    marginTop: 15,
+  },
+  inputError: {
+    borderColor: '#dc2626',
+  },
+  inputSuccess: {
+    borderColor: '#2E7D32',
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 12,
+    marginTop: 5,
+  },
+  successContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  successText: {
+    color: '#2E7D32',
+    fontSize: 12,
+    marginLeft: 8,
   },
 });
 

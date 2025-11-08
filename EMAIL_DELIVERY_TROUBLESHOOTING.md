@@ -125,3 +125,5 @@ Vous pouvez utiliser ce code directement dans l'application si l'email n'arrive 
 
 Même si le domaine est marqué "Verified" dans Resend, cela ne signifie pas que tous les enregistrements DNS sont correctement configurés. Vérifiez que **tous** les enregistrements (SPF, DKIM, DMARC) sont bien configurés dans votre DNS.
 
+
+

@@ -95,3 +95,5 @@ Si le problème persiste après ces modifications, vérifiez :
 3. Les logs Supabase Edge Functions
 4. La table `email_verification_codes` dans la base de données
 
+
+

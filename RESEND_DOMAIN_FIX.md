@@ -90,3 +90,5 @@ Utilisez l'email `brice.kouadio.pro@gmail.com` pour tester la fonctionnalité en
 
 Sans domaine vérifié, vous ne pourrez envoyer des emails qu'à l'adresse email de votre compte Resend. Pour permettre l'envoi à tous les utilisateurs, vous devez absolument vérifier un domaine.
 
+
+

@@ -236,6 +236,20 @@ const HostDashboardScreen: React.FC = () => {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('HostReferral')}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="gift-outline" size={24} color="#e67e22" />
+            </View>
+            <View style={styles.quickActionContent}>
+              <Text style={styles.quickActionTitle}>Système de Parrainage</Text>
+              <Text style={styles.quickActionDescription}>Parrainez des hôtes et gagnez des récompenses</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#ccc" />
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>

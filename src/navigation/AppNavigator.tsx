@@ -39,6 +39,7 @@ import MessagingDebugScreen from '../screens/MessagingDebugScreen';
 import HostPaymentInfoScreen from '../screens/HostPaymentInfoScreen';
 import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
 import HostStatsScreen from '../screens/HostStatsScreen';
+import HostReferralScreen from '../screens/HostReferralScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsScreen from '../screens/TermsScreen';
 
@@ -239,6 +240,14 @@ const AppNavigator = () => {
               component={HostDashboardScreen}
               options={{ 
                 title: 'Tableau de bord hôte',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="HostReferral" 
+              component={HostReferralScreen}
+              options={{ 
+                title: 'Système de Parrainage',
                 headerShown: false 
               }}
             />

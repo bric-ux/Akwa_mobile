@@ -21,6 +21,7 @@ import { useAuth } from '../services/AuthContext';
 import PasswordValidation from '../components/PasswordValidation';
 import EmailVerificationModal from '../components/EmailVerificationModal';
 import { useEmailVerification } from '../hooks/useEmailVerification';
+import { useReferrals } from '../hooks/useReferrals';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
@@ -29,6 +30,7 @@ const AuthScreen: React.FC = () => {
   const route = useRoute<AuthScreenRouteProp>();
   const { returnTo, returnParams } = route.params || {};
   const { signIn, signUp } = useAuth();
+  const { verifyReferralCode } = useReferrals();
 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -48,6 +50,9 @@ const AuthScreen: React.FC = () => {
     firstName: string;
     lastName: string;
   } | null>(null);
+  const [referralCode, setReferralCode] = useState('');
+  const [referralCodeError, setReferralCodeError] = useState('');
+  const [referrerName, setReferrerName] = useState('');
 
   const { generateVerificationCode } = useEmailVerification();
 
@@ -222,16 +227,23 @@ const AuthScreen: React.FC = () => {
               .eq('user_id', user.id)
               .single();
 
+            const profileData: any = {
+              first_name: firstName,
+              last_name: lastName,
+              email: email,
+              date_of_birth: dateOfBirthISO, // Utiliser le format ISO
+            };
+
+            // Ajouter le code de parrainage si fourni
+            if (referralCode && referrerName && !referralCodeError) {
+              profileData.referral_code_used = referralCode.toUpperCase();
+            }
+
             if (existingProfile) {
               // Le profil existe déjà, le mettre à jour
               const { error: profileError } = await supabase
                 .from('profiles')
-                .update({
-                  first_name: firstName,
-                  last_name: lastName,
-                  email: email,
-                  date_of_birth: dateOfBirthISO, // Utiliser le format ISO
-                })
+                .update(profileData)
                 .eq('user_id', user.id);
 
               if (profileError) {
@@ -241,17 +253,24 @@ const AuthScreen: React.FC = () => {
               }
             } else {
               // Le profil n'existe pas, le créer
+              const insertData: any = {
+                user_id: user.id,
+                first_name: firstName,
+                last_name: lastName,
+                email: email,
+                date_of_birth: dateOfBirthISO, // Utiliser le format ISO
+                role: 'user',
+                is_host: false,
+              };
+
+              // Ajouter le code de parrainage si fourni
+              if (referralCode && referrerName && !referralCodeError) {
+                insertData.referral_code_used = referralCode.toUpperCase();
+              }
+
               const { error: profileError } = await supabase
                 .from('profiles')
-                .insert({
-                  user_id: user.id,
-                  first_name: firstName,
-                  last_name: lastName,
-                  email: email,
-                  date_of_birth: dateOfBirthISO, // Utiliser le format ISO
-                  role: 'user',
-                  is_host: false,
-                });
+                .insert(insertData);
 
               if (profileError) {
                 // Si l'erreur est due à un doublon, essayer de mettre à jour
@@ -336,6 +355,25 @@ const AuthScreen: React.FC = () => {
     setLastName('');
     setDateOfBirth('');
     setAgreeTerms(false);
+    setReferralCode('');
+    setReferralCodeError('');
+    setReferrerName('');
+  };
+
+  // Vérifier le code de parrainage
+  const handleReferralCodeChange = async (code: string) => {
+    setReferralCode(code.toUpperCase());
+    setReferralCodeError('');
+    setReferrerName('');
+
+    if (code.length >= 6) {
+      const result = await verifyReferralCode(code);
+      if (result.valid) {
+        setReferrerName(result.referrerName || '');
+      } else {
+        setReferralCodeError(result.error || 'Code invalide');
+      }
+    }
   };
 
   const openTerms = async () => {
@@ -533,23 +571,49 @@ const AuthScreen: React.FC = () => {
             )}
 
             {!isLogin && (
-              <View style={styles.termsContainer}>
-                <TouchableOpacity
-                  style={styles.checkboxContainer}
-                  onPress={() => setAgreeTerms(!agreeTerms)}
-                >
-                  <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
-                    {agreeTerms && (
-                      <Ionicons name="checkmark" size={16} color="#fff" />
-                    )}
+              <>
+                {/* Champ de code de parrainage */}
+                <View style={styles.inputContainer}>
+                  <Ionicons name="gift-outline" size={20} color="#666" style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, referralCodeError ? styles.inputError : referrerName ? styles.inputSuccess : null]}
+                    placeholder="Code de parrainage (optionnel)"
+                    value={referralCode}
+                    onChangeText={handleReferralCodeChange}
+                    autoCapitalize="characters"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+                {referralCodeError && (
+                  <Text style={styles.errorText}>{referralCodeError}</Text>
+                )}
+                {referrerName && !referralCodeError && (
+                  <View style={styles.successContainer}>
+                    <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
+                    <Text style={styles.successText}>
+                      Code valide ! Parrainé par {referrerName}
+                    </Text>
                   </View>
-                  <Text style={styles.termsText}>
-                    J'accepte les{' '}
-                    <Text style={styles.termsLink} onPress={openTerms}>conditions générales d'utilisation</Text>
-                    {' '}d'AkwaHome
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                )}
+
+                <View style={styles.termsContainer}>
+                  <TouchableOpacity
+                    style={styles.checkboxContainer}
+                    onPress={() => setAgreeTerms(!agreeTerms)}
+                  >
+                    <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+                      {agreeTerms && (
+                        <Ionicons name="checkmark" size={16} color="#fff" />
+                      )}
+                    </View>
+                    <Text style={styles.termsText}>
+                      J'accepte les{' '}
+                      <Text style={styles.termsLink} onPress={openTerms}>conditions générales d'utilisation</Text>
+                      {' '}d'AkwaHome
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
             )}
 
             <TouchableOpacity
@@ -927,11 +991,28 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: '#dc2626',
   },
+  inputSuccess: {
+    borderColor: '#2E7D32',
+  },
   errorText: {
     color: '#dc2626',
     fontSize: 12,
     marginTop: 5,
     marginLeft: 15,
+  },
+  successContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    marginLeft: 15,
+  },
+  successText: {
+    color: '#2E7D32',
+    fontSize: 12,
+    marginLeft: 8,
   },
 });
 
