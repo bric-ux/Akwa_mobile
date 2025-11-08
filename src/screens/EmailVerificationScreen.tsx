@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +29,7 @@ const EmailVerificationScreen: React.FC = () => {
   const [isResending, setIsResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes en secondes
+  const codeInputRef = useRef<TextInput>(null);
 
   // Timer pour l'expiration du code
   useEffect(() => {
@@ -36,6 +38,17 @@ const EmailVerificationScreen: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [timeLeft]);
+
+  // Fermer le clavier quand le code atteint 6 chiffres
+  useEffect(() => {
+    if (code.length === 6) {
+      // Petit délai pour permettre la saisie complète avant de fermer
+      const timer = setTimeout(() => {
+        Keyboard.dismiss();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [code]);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -55,6 +68,9 @@ const EmailVerificationScreen: React.FC = () => {
       setError('Veuillez entrer un code à 6 chiffres');
       return;
     }
+
+    // Fermer le clavier avant de vérifier
+    Keyboard.dismiss();
 
     setIsLoading(true);
     setError(null);
@@ -205,6 +221,7 @@ const EmailVerificationScreen: React.FC = () => {
             {/* Code Input */}
             <View style={styles.codeContainer}>
               <TextInput
+                ref={codeInputRef}
                 style={styles.codeInput}
                 value={code}
                 onChangeText={handleCodeChange}

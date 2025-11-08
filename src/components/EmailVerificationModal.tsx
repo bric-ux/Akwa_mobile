@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,6 +39,7 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   const [isResending, setIsResending] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [canResend, setCanResend] = useState(false);
+  const codeInputRef = useRef<TextInput>(null);
   const insets = useSafeAreaInsets();
 
   const { verifyCode, resendCode, loading, error } = useEmailVerification();
@@ -70,6 +72,17 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  // Fermer le clavier quand le code atteint 6 chiffres
+  useEffect(() => {
+    if (code.length === 6) {
+      // Petit délai pour permettre la saisie complète avant de fermer
+      const timer = setTimeout(() => {
+        Keyboard.dismiss();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [code]);
+
   const handleCodeChange = (text: string) => {
     // Ne garder que les chiffres et limiter à 6 caractères
     const numericCode = text.replace(/\D/g, '').slice(0, 6);
@@ -81,6 +94,9 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
       Alert.alert('Erreur', 'Veuillez entrer un code à 6 chiffres');
       return;
     }
+
+    // Fermer le clavier avant de vérifier
+    Keyboard.dismiss();
 
     setIsVerifying(true);
     const result = await verifyCode(email, code);
@@ -181,6 +197,7 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
             {/* Code Input */}
             <View style={styles.codeContainer}>
               <TextInput
+                ref={codeInputRef}
                 style={styles.codeInput}
                 value={code}
                 onChangeText={handleCodeChange}
