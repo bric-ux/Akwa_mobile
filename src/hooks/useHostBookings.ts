@@ -156,8 +156,9 @@ export const useHostBookings = () => {
 
       if (fetchError || !bookingData) {
         console.error('❌ [useHostBookings] Réservation non trouvée:', fetchError);
-        setError('Réservation non trouvée');
-        return { success: false };
+        const errorMessage = fetchError?.message || 'Réservation non trouvée';
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
       }
 
       // Récupérer séparément le profil de l'invité
@@ -169,8 +170,9 @@ export const useHostBookings = () => {
 
       if (guestError) {
         console.error('❌ [useHostBookings] Erreur récupération profil invité:', guestError);
-        setError('Erreur lors de la récupération du profil invité');
-        return { success: false };
+        const errorMessage = guestError?.message || 'Erreur lors de la récupération du profil invité';
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
       }
 
       // Mettre à jour le statut
@@ -184,8 +186,9 @@ export const useHostBookings = () => {
 
       if (updateError) {
         console.error('❌ [useHostBookings] Erreur mise à jour:', updateError);
-        setError('Erreur lors de la mise à jour');
-        return { success: false };
+        const errorMessage = updateError?.message || 'Erreur lors de la mise à jour du statut';
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
       }
 
       // Envoyer les emails selon le statut
@@ -396,10 +399,11 @@ export const useHostBookings = () => {
 
       console.log('✅ [useHostBookings] Statut mis à jour avec succès');
       return { success: true };
-    } catch (err) {
+    } catch (err: any) {
       console.error('❌ [useHostBookings] Erreur inattendue:', err);
-      setError('Erreur lors de la mise à jour');
-      return { success: false };
+      const errorMessage = err?.message || 'Une erreur inattendue est survenue';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }

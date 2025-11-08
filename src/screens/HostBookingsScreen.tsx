@@ -80,15 +80,25 @@ const HostBookingsScreen: React.FC = () => {
           text: action.charAt(0).toUpperCase() + action.slice(1),
           style: status === 'cancelled' ? 'destructive' : 'default',
           onPress: async () => {
-            const result = await updateBookingStatus(booking.id, status);
-            if (result.success) {
-              Alert.alert(
-                'Succès',
-                `La réservation a été ${status === 'confirmed' ? 'confirmée' : 'annulée'} avec succès.`
-              );
-              loadBookings(); // Recharger les réservations
-            } else {
-              Alert.alert('Erreur', 'Impossible de mettre à jour la réservation.');
+            try {
+              console.log('🔄 [HostBookingsScreen] Mise à jour réservation:', booking.id, 'vers:', status);
+              const result = await updateBookingStatus(booking.id, status);
+              console.log('📊 [HostBookingsScreen] Résultat mise à jour:', result);
+              
+              if (result.success) {
+                Alert.alert(
+                  'Succès',
+                  `La réservation a été ${status === 'confirmed' ? 'confirmée' : 'annulée'} avec succès.`,
+                  [{ text: 'OK', onPress: () => loadBookings() }]
+                );
+              } else {
+                const errorMessage = result.error || 'Impossible de mettre à jour la réservation.';
+                console.error('❌ [HostBookingsScreen] Erreur mise à jour:', errorMessage);
+                Alert.alert('Erreur', errorMessage);
+              }
+            } catch (error: any) {
+              console.error('❌ [HostBookingsScreen] Erreur inattendue:', error);
+              Alert.alert('Erreur', error?.message || 'Une erreur inattendue est survenue.');
             }
           },
         },
@@ -351,11 +361,26 @@ const HostBookingsScreen: React.FC = () => {
         today.setHours(0, 0, 0, 0);
         const hasAlreadyStarted = checkInDate <= today;
 
-        return item.status === 'pending' && !hasAlreadyStarted && (
+        const shouldShowButtons = item.status === 'pending';
+        
+        if (shouldShowButtons) {
+          console.log('🔘 [HostBookingsScreen] Boutons d\'action pour réservation:', {
+            bookingId: item.id,
+            status: item.status,
+            hasAlreadyStarted,
+            checkInDate: item.check_in_date,
+            today: today.toISOString()
+          });
+        }
+
+        return shouldShowButtons && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, styles.confirmButton]}
-              onPress={() => handleStatusUpdate(item, 'confirmed')}
+              onPress={() => {
+                console.log('✅ [HostBookingsScreen] Bouton Confirmer cliqué pour réservation:', item.id);
+                handleStatusUpdate(item, 'confirmed');
+              }}
             >
               <Ionicons name="checkmark" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Confirmer</Text>
@@ -363,7 +388,10 @@ const HostBookingsScreen: React.FC = () => {
             
             <TouchableOpacity
               style={[styles.actionButton, styles.cancelButton]}
-              onPress={() => handleStatusUpdate(item, 'cancelled')}
+              onPress={() => {
+                console.log('❌ [HostBookingsScreen] Bouton Refuser cliqué pour réservation:', item.id);
+                handleStatusUpdate(item, 'cancelled');
+              }}
             >
               <Ionicons name="close" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Refuser</Text>
