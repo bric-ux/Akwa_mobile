@@ -27,6 +27,12 @@ export const useMyProperties = () => {
             name,
             region,
             country
+          ),
+          property_photos (
+            id,
+            url,
+            category,
+            display_order
           )
         `)
         .eq('host_id', user.id)

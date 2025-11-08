@@ -8,6 +8,7 @@ import {
   Alert,
   RefreshControl,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -129,6 +130,41 @@ const MyHostApplicationsScreen: React.FC = () => {
     });
   };
 
+  // Fonction pour obtenir l'URL de la photo principale d'une candidature
+  const getApplicationMainImageUrl = (application: HostApplication): string => {
+    // Priorité 1: categorized_photos (photos catégorisées) triées par display_order
+    if (application.categorized_photos) {
+      let photos = [];
+      
+      // Parser les photos catégorisées si c'est une string
+      if (typeof application.categorized_photos === 'string') {
+        try {
+          photos = JSON.parse(application.categorized_photos);
+        } catch (e) {
+          console.error('Error parsing categorized_photos:', e);
+        }
+      } else if (Array.isArray(application.categorized_photos)) {
+        photos = application.categorized_photos;
+      }
+      
+      if (photos.length > 0) {
+        // Trier par display_order et prendre la première
+        const sortedPhotos = [...photos].sort((a, b) => 
+          (a.displayOrder || a.display_order || 0) - (b.displayOrder || b.display_order || 0)
+        );
+        return sortedPhotos[0].url || sortedPhotos[0].uri || '';
+      }
+    }
+
+    // Priorité 2: images array
+    if (application.images && Array.isArray(application.images) && application.images.length > 0) {
+      return application.images[0];
+    }
+
+    // Fallback: placeholder
+    return 'https://via.placeholder.com/150';
+  };
+
   const renderApplication = (application: HostApplication) => (
     <TouchableOpacity 
       key={application.id} 
@@ -142,9 +178,11 @@ const MyHostApplicationsScreen: React.FC = () => {
     >
       <View style={styles.applicationHeader}>
         <View style={styles.propertyInfo}>
-          <Text style={styles.propertyIcon}>
-            {getPropertyTypeIcon(application.property_type)}
-          </Text>
+          <Image
+            source={{ uri: getApplicationMainImageUrl(application) }}
+            style={styles.propertyImage}
+            resizeMode="cover"
+          />
           <View style={styles.propertyDetails}>
             <Text style={styles.propertyTitle} numberOfLines={1}>
               {application.title}
@@ -476,6 +514,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  propertyImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 12,
+    backgroundColor: '#f0f0f0',
   },
   propertyIcon: {
     fontSize: 24,

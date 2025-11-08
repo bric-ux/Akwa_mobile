@@ -117,6 +117,25 @@ const MyPropertiesScreen: React.FC = () => {
     return `${Math.round(price).toLocaleString('fr-FR')} CFA`;
   };
 
+  // Fonction pour obtenir l'URL de la photo principale
+  const getMainImageUrl = (property: Property): string => {
+    // Priorité 1: property_photos (photos catégorisées) triées par display_order
+    if (property.property_photos && Array.isArray(property.property_photos) && property.property_photos.length > 0) {
+      const sortedPhotos = [...property.property_photos].sort((a, b) => 
+        (a.display_order || 0) - (b.display_order || 0)
+      );
+      return sortedPhotos[0].url;
+    }
+
+    // Priorité 2: images array
+    if (property.images && Array.isArray(property.images) && property.images.length > 0) {
+      return property.images[0];
+    }
+
+    // Fallback: placeholder
+    return 'https://via.placeholder.com/150';
+  };
+
   const renderPropertyItem = ({ item: property }: { item: Property }) => (
     <View style={styles.propertyCard}>
       <TouchableOpacity
@@ -124,8 +143,9 @@ const MyPropertiesScreen: React.FC = () => {
         onPress={() => handleViewProperty(property.id)}
       >
         <Image
-          source={{ uri: property.images?.[0] || 'https://via.placeholder.com/150' }}
+          source={{ uri: getMainImageUrl(property) }}
           style={styles.propertyImage}
+          resizeMode="cover"
         />
         <View style={styles.propertyDetails}>
           <Text style={styles.propertyTitle} numberOfLines={1}>{property.title}</Text>
