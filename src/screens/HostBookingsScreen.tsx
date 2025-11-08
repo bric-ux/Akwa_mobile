@@ -402,7 +402,7 @@ const HostBookingsScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mes réservations</Text>
+        <Text style={styles.headerTitle}>Gestion des réservations</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -412,7 +412,7 @@ const HostBookingsScreen: React.FC = () => {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderContent}>
               <Ionicons name="home" size={20} color="#e67e22" />
-              <Text style={styles.sectionTitle}>Mes propriétés</Text>
+              <Text style={styles.sectionTitle}>Gestion des propriétés</Text>
             </View>
             <Text style={styles.sectionSubtitle}>
               {propertiesWithBookings.length} propriété{propertiesWithBookings.length > 1 ? 's' : ''} avec réservations

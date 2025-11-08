@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import PropertyCard from './PropertyCard';
+import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.5; // Carte prend 50% de l'écran
@@ -40,6 +41,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   guests,
 }) => {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedPropertyPrice, setSelectedPropertyPrice] = useState<number | null>(null);
+  const [propertyPrices, setPropertyPrices] = useState<Map<string, number>>(new Map());
   const webViewRef = useRef<WebView>(null);
   const { formatPrice: formatPriceWithCurrency, currency, currencySymbol, convert } = useCurrency();
   // sheetTop représente directement la position top du bottom sheet (MAP_HEIGHT = position minimale)
@@ -57,6 +60,67 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
       sheetTop.setValue(MAP_HEIGHT);
     }
   }, [properties.length]);
+
+  // Charger les prix dynamiques pour toutes les propriétés
+  useEffect(() => {
+    const loadPrices = async () => {
+      const pricesMap = new Map<string, number>();
+      const today = new Date();
+      
+      for (const property of properties) {
+        try {
+          const price = await getPriceForDate(property.id, today, property.price_per_night || 0);
+          pricesMap.set(property.id, price);
+        } catch (error) {
+          console.error(`Error loading price for property ${property.id}:`, error);
+          pricesMap.set(property.id, property.price_per_night || 0);
+        }
+      }
+      
+      setPropertyPrices(pricesMap);
+    };
+
+    if (properties.length > 0) {
+      loadPrices();
+    }
+  }, [properties]);
+
+  // Charger le prix pour la propriété sélectionnée (avec dates si disponibles)
+  useEffect(() => {
+    const loadSelectedPropertyPrice = async () => {
+      if (!selectedProperty) {
+        setSelectedPropertyPrice(null);
+        return;
+      }
+
+      try {
+        let price: number;
+        
+        if (checkIn && checkOut) {
+          // Calculer le prix moyen pour la période
+          const checkInDate = new Date(checkIn);
+          const checkOutDate = new Date(checkOut);
+          price = await getAveragePriceForPeriod(
+            selectedProperty.id,
+            checkInDate,
+            checkOutDate,
+            selectedProperty.price_per_night || 0
+          );
+        } else {
+          // Utiliser le prix d'aujourd'hui
+          const today = new Date();
+          price = await getPriceForDate(selectedProperty.id, today, selectedProperty.price_per_night || 0);
+        }
+        
+        setSelectedPropertyPrice(price);
+      } catch (error) {
+        console.error('Error loading selected property price:', error);
+        setSelectedPropertyPrice(selectedProperty.price_per_night || 0);
+      }
+    };
+
+    loadSelectedPropertyPrice();
+  }, [selectedProperty, checkIn, checkOut]);
 
   // Calculer les limites (bounds) pour ajuster la vue sur toutes les propriétés
   const getMapBounds = () => {
@@ -111,7 +175,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   };
 
   // Créer le HTML pour la carte Leaflet avec marqueurs de prix
-  const createMapHTML = () => {
+  const createMapHTML = useCallback(() => {
     const validProperties = properties.filter(
       (p) =>
         (p.neighborhoods?.latitude || p.cities?.latitude) &&
@@ -121,7 +185,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     const markers = validProperties.map((property) => {
       const lat = property.neighborhoods?.latitude || property.cities?.latitude || 0;
       const lng = property.neighborhoods?.longitude || property.cities?.longitude || 0;
-      const price = property.price_per_night || 0;
+      // Utiliser le prix dynamique si disponible, sinon le prix de base
+      const price = propertyPrices.get(property.id) || property.price_per_night || 0;
       const title = property.title || 'Propriété';
 
       let convertedPrice = price;
@@ -271,7 +336,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
 </body>
 </html>
     `;
-  };
+  }, [properties, propertyPrices, currency, currencySymbol, convert, mapBounds]);
 
   const handleMessage = (event: any) => {
     try {
@@ -314,7 +379,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     if (properties.length > 0 && webViewRef.current) {
       webViewRef.current.reload();
     }
-  }, [properties, currency]);
+  }, [properties, currency, propertyPrices]);
   
   // Pan responder pour le bottom sheet
   const panResponder = useRef(
@@ -391,6 +456,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
           ref={webViewRef}
           source={{ html: createMapHTML() }}
           style={styles.webview}
+          key={`map-${properties.length}-${propertyPrices.size}`}
           scrollEnabled={true}
           zoomEnabled={true}
           onMessage={handleMessage}
@@ -409,7 +475,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
           onLoadEnd={() => {
             console.log('Map loaded successfully');
           }}
-          key={`map-${properties.length}`} // Force le rechargement quand le nombre change
+          key={`map-${properties.length}-${propertyPrices.size}`} // Force le rechargement quand le nombre ou les prix changent
         />
       </View>
 
@@ -492,7 +558,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
               <View style={styles.propertyDetailPriceContainer}>
                 <View style={styles.propertyDetailPrice}>
                   <Text style={styles.propertyDetailPriceAmount}>
-                    {formatPrice(selectedProperty.price_per_night || 0)}
+                    {formatPrice(selectedPropertyPrice !== null ? selectedPropertyPrice : (selectedProperty.price_per_night || 0))}
                   </Text>
                   <Text style={styles.propertyDetailPriceLabel}>/nuit</Text>
                 </View>

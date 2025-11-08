@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import BookingIdentityAlert from './BookingIdentityAlert';
 import { supabase } from '../services/supabase';
 import AvailabilityCalendar from './AvailabilityCalendar';
+import { getAveragePriceForPeriod } from '../utils/priceCalculator';
 
 interface BookingModalProps {
   visible: boolean;
@@ -53,6 +54,16 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
     pin: '',
     paypalEmail: ''
   });
+  const [effectivePrice, setEffectivePrice] = useState<number | null>(null);
+  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherDiscount, setVoucherDiscount] = useState<{
+    valid: boolean;
+    discountPercentage?: number;
+    discountAmount?: number;
+    error?: string;
+  } | null>(null);
+  const [validatingVoucher, setValidatingVoucher] = useState(false);
 
   const totalGuests = adults + children + infants;
 
@@ -62,9 +73,110 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
     return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   };
 
+  // Charger le prix effectif quand les dates changent
+  useEffect(() => {
+    const loadEffectivePrice = async () => {
+      if (checkIn && checkOut && property.id) {
+        setLoadingPrice(true);
+        try {
+          const avgPrice = await getAveragePriceForPeriod(
+            property.id,
+            checkIn,
+            checkOut,
+            property.price_per_night || 0
+          );
+          setEffectivePrice(avgPrice);
+        } catch (error) {
+          console.error('Error loading effective price:', error);
+          setEffectivePrice(property.price_per_night || 0);
+        } finally {
+          setLoadingPrice(false);
+        }
+      } else {
+        setEffectivePrice(null);
+      }
+    };
+
+    loadEffectivePrice();
+  }, [checkIn, checkOut, property.id, property.price_per_night]);
+
+  // Fonction pour valider le code promotionnel
+  const validateVoucherCode = async (code: string) => {
+    if (!code || !code.trim()) {
+      setVoucherDiscount(null);
+      return;
+    }
+
+    if (!user) {
+      setVoucherDiscount({
+        valid: false,
+        error: 'Vous devez être connecté pour utiliser un code promotionnel'
+      });
+      return;
+    }
+
+    setValidatingVoucher(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_discount_vouchers')
+        .select('*')
+        .eq('voucher_code', code.toUpperCase().trim())
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single();
+
+      if (error || !data) {
+        setVoucherDiscount({
+          valid: false,
+          error: 'Code promotionnel invalide ou déjà utilisé'
+        });
+        return;
+      }
+
+      // Vérifier si le code a expiré
+      if (data.valid_until && new Date(data.valid_until) < new Date()) {
+        setVoucherDiscount({
+          valid: false,
+          error: 'Ce code promotionnel a expiré'
+        });
+        return;
+      }
+
+      // Code valide
+      setVoucherDiscount({
+        valid: true,
+        discountPercentage: data.discount_percentage,
+        discountAmount: data.discount_amount
+      });
+    } catch (error) {
+      console.error('Error validating voucher:', error);
+      setVoucherDiscount({
+        valid: false,
+        error: 'Erreur lors de la validation du code'
+      });
+    } finally {
+      setValidatingVoucher(false);
+    }
+  };
+
+  // Valider le code quand il change
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (voucherCode.trim()) {
+        validateVoucherCode(voucherCode);
+      } else {
+        setVoucherDiscount(null);
+      }
+    }, 500); // Debounce de 500ms
+
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voucherCode, user?.id]);
+
   const calculateTotal = () => {
     const nights = calculateNights();
-    const basePrice = property.price_per_night || 0;
+    // Utiliser le prix effectif (moyenne des prix dynamiques) si disponible, sinon le prix de base
+    const basePrice = effectivePrice !== null ? effectivePrice : (property.price_per_night || 0);
     
     // Configuration de réduction - utiliser les vrais noms de colonnes de la base de données
     const discountConfig = {
@@ -90,11 +202,28 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       taxes: property.taxes
     });
     
+    // Appliquer la réduction du code promotionnel si valide
+    let finalTotal = pricing.finalTotal;
+    let voucherDiscountAmount = 0;
+    
+    if (voucherDiscount?.valid && voucherDiscount.discountPercentage) {
+      // Calculer la réduction sur le total (après toutes les autres réductions)
+      voucherDiscountAmount = Math.round(finalTotal * (voucherDiscount.discountPercentage / 100));
+      finalTotal = finalTotal - voucherDiscountAmount;
+    } else if (voucherDiscount?.valid && voucherDiscount.discountAmount) {
+      // Réduction fixe
+      voucherDiscountAmount = voucherDiscount.discountAmount;
+      finalTotal = Math.max(0, finalTotal - voucherDiscountAmount);
+    }
+    
     console.log('💰 Résultat du calcul:', pricing);
     
     return {
       nights,
-      ...pricing
+      ...pricing,
+      finalTotal,
+      voucherDiscountAmount,
+      voucherApplied: voucherDiscount?.valid || false
     };
   };
 
@@ -140,7 +269,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       return;
     }
 
-    const { finalTotal } = calculateTotal();
+    const pricing = calculateTotal();
     
     const result = await createBooking({
       propertyId: property.id,
@@ -150,8 +279,9 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       adultsCount: adults,
       childrenCount: children,
       infantsCount: infants,
-      totalPrice: finalTotal,
+      totalPrice: pricing.finalTotal,
       messageToHost: message.trim() || undefined,
+      voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
     });
 
     // Vérifier les erreurs d'identité (même logique que le site web)
@@ -236,6 +366,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       setChildren(0);
       setInfants(0);
       setMessage('');
+      setVoucherCode('');
+      setVoucherDiscount(null);
     } else {
       console.error('Erreur de réservation:', result.error || 'Erreur inconnue');
       Alert.alert(
@@ -422,6 +554,47 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
             </View>
           </View>
 
+          {/* Code promotionnel */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Code promotionnel (optionnel)</Text>
+            <View style={styles.voucherContainer}>
+              <TextInput
+                style={[
+                  styles.voucherInput,
+                  voucherDiscount?.valid && styles.voucherInputValid,
+                  voucherDiscount?.valid === false && styles.voucherInputError
+                ]}
+                placeholder="Entrez votre code promo"
+                value={voucherCode}
+                onChangeText={(text) => setVoucherCode(text.toUpperCase())}
+                autoCapitalize="characters"
+                placeholderTextColor="#999"
+              />
+              {validatingVoucher && (
+                <ActivityIndicator size="small" color="#e67e22" style={styles.voucherLoader} />
+              )}
+              {voucherDiscount?.valid && !validatingVoucher && (
+                <Ionicons name="checkmark-circle" size={20} color="#2E7D32" style={styles.voucherIcon} />
+              )}
+              {voucherDiscount?.valid === false && !validatingVoucher && (
+                <Ionicons name="close-circle" size={20} color="#e74c3c" style={styles.voucherIcon} />
+              )}
+            </View>
+            {voucherDiscount?.error && (
+              <Text style={styles.voucherError}>{voucherDiscount.error}</Text>
+            )}
+            {voucherDiscount?.valid && voucherDiscount.discountPercentage && (
+              <Text style={styles.voucherSuccess}>
+                Code valide ! Réduction de {voucherDiscount.discountPercentage}% appliquée
+              </Text>
+            )}
+            {voucherDiscount?.valid && voucherDiscount.discountAmount && (
+              <Text style={styles.voucherSuccess}>
+                Code valide ! Réduction de {formatPrice(voucherDiscount.discountAmount)} appliquée
+              </Text>
+            )}
+          </View>
+
           {/* Message à l'hôte */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Message à l'hôte (optionnel)</Text>
@@ -438,11 +611,13 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
           {/* Résumé des prix */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Résumé des prix</Text>
-            <View style={styles.priceBreakdown}>
+              <View style={styles.priceBreakdown}>
               <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>
-                  {formatPrice(property.price_per_night || 0)} × {nights} nuit{nights > 1 ? 's' : ''}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.priceLabel}>
+                    {formatPrice(effectivePrice !== null ? effectivePrice : (property.price_per_night || 0))} × {nights} nuit{nights > 1 ? 's' : ''}
+                  </Text>
+                </View>
                 <Text style={styles.priceValue}>{formatPrice(pricing.originalTotal)}</Text>
               </View>
               
@@ -476,9 +651,18 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                 </View>
               )}
               
+              {pricing.voucherApplied && pricing.voucherDiscountAmount > 0 && (
+                <View style={styles.priceRow}>
+                  <Text style={styles.discountLabel}>
+                    Réduction code promo
+                  </Text>
+                  <Text style={styles.discountValue}>-{formatPrice(pricing.voucherDiscountAmount)}</Text>
+                </View>
+              )}
+              
               <View style={[styles.priceRow, styles.totalRow]}>
                 <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatPrice(finalTotal)}</Text>
+                <Text style={styles.totalValue}>{formatPrice(pricing.finalTotal)}</Text>
               </View>
             </View>
           </View>
@@ -1229,6 +1413,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#f8f9fa',
     textAlignVertical: 'top',
+  },
+  voucherContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  voucherInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#f8f9fa',
+    paddingRight: 40,
+  },
+  voucherInputValid: {
+    borderColor: '#2E7D32',
+    backgroundColor: '#f0f9f0',
+  },
+  voucherInputError: {
+    borderColor: '#e74c3c',
+    backgroundColor: '#fff5f5',
+  },
+  voucherLoader: {
+    position: 'absolute',
+    right: 12,
+  },
+  voucherIcon: {
+    position: 'absolute',
+    right: 12,
+  },
+  voucherError: {
+    fontSize: 12,
+    color: '#e74c3c',
+    marginTop: 4,
+  },
+  voucherSuccess: {
+    fontSize: 12,
+    color: '#2E7D32',
+    marginTop: 4,
+    fontWeight: '500',
   },
   priceBreakdown: {
     gap: 10,

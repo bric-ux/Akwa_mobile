@@ -5,109 +5,136 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Alert,
   ActivityIndicator,
-  TextInput,
+  RefreshControl,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useAvailabilityCalendar, useBlockedDates, BlockedDate } from '../hooks/useAvailabilityCalendar';
-import { useAuth } from '../services/AuthContext';
+import { useAvailabilityCalendar } from '../hooks/useAvailabilityCalendar';
+import { useBlockedDates, BlockedDate } from '../hooks/useBlockedDates';
+import { useDynamicPricing } from '../hooks/useDynamicPricing';
+import { supabase } from '../services/supabase';
 
 const PropertyCalendarScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { user } = useAuth();
   const { propertyId } = route.params as { propertyId: string };
-  
+
   const { unavailableDates, loading: calendarLoading, refetch, isDateUnavailable } = useAvailabilityCalendar(propertyId);
   const { getBlockedDates, blockDates, unblockDates, loading: blockedLoading } = useBlockedDates();
-  
+  const { getDynamicPrices, setPriceForPeriod, deleteDynamicPrice, loading: pricingLoading } = useDynamicPricing();
+
   const [blockedDatesList, setBlockedDatesList] = useState<BlockedDate[]>([]);
-  const [selectedRange, setSelectedRange] = useState<{ from?: Date; to?: Date }>({});
+  const [dynamicPrices, setDynamicPrices] = useState<any[]>([]);
+  const [basePrice, setBasePrice] = useState<number | null>(null);
+  const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
+  const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
   const [reason, setReason] = useState('');
+  const [customPrice, setCustomPrice] = useState('');
   const [isSelectingRange, setIsSelectingRange] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (propertyId) {
-      loadBlockedDates();
-    }
+    loadBlockedDates();
+    loadDynamicPrices();
+    loadBasePrice();
   }, [propertyId]);
+
+  const loadBasePrice = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('price_per_night')
+        .eq('id', propertyId)
+        .single();
+      
+      if (!error && data) {
+        setBasePrice(data.price_per_night);
+      }
+    } catch (error) {
+      console.error('Error loading base price:', error);
+    }
+  };
 
   const loadBlockedDates = async () => {
     const dates = await getBlockedDates(propertyId);
     setBlockedDatesList(dates);
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+  const loadDynamicPrices = async () => {
+    const prices = await getDynamicPrices(propertyId);
+    setDynamicPrices(prices);
   };
 
-  const formatDateForAPI = (date: Date) => {
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      loadBlockedDates(),
+      loadDynamicPrices(),
+      refetch(),
+    ]);
+    setRefreshing(false);
+  };
+
+  const handleDatePress = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+
+    if (compareDate < today || isDateUnavailable(date)) {
+      return; // Ne pas permettre la sélection des dates passées ou indisponibles
+    }
+
+    if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
+      // Nouvelle sélection
+      setSelectedStartDate(date);
+      setSelectedEndDate(null);
+      setIsSelectingRange(true);
+    } else if (selectedStartDate && !selectedEndDate) {
+      // Compléter la plage
+      if (date >= selectedStartDate) {
+        setSelectedEndDate(date);
+        setIsSelectingRange(false);
+      } else {
+        // Si la date sélectionnée est avant la date de début, inverser
+        setSelectedEndDate(selectedStartDate);
+        setSelectedStartDate(date);
+        setIsSelectingRange(false);
+      }
+    }
+  };
+
+  // Fonction pour formater une date en YYYY-MM-DD sans problème de fuseau horaire
+  const formatDateToISO = (date: Date): string => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
 
-  const handleDatePress = (date: Date) => {
-    if (isDateUnavailable(date)) {
-      Alert.alert('Date indisponible', 'Cette date est déjà réservée ou bloquée');
-      return;
-    }
-
-    if (isSelectingRange && selectedRange.from && !selectedRange.to) {
-      // Deuxième clic : définir la date de fin pour créer une plage
-      const startDate = selectedRange.from;
-      const endDate = date;
-      
-      // Si c'est la même date, créer une date unique
-      if (startDate.getTime() === endDate.getTime()) {
-        setSelectedRange({ from: startDate, to: startDate });
-      } else {
-        // S'assurer que la date de fin est après la date de début
-        if (endDate >= startDate) {
-          setSelectedRange({ from: startDate, to: endDate });
-        } else {
-          setSelectedRange({ from: endDate, to: startDate });
-        }
-      }
-      setIsSelectingRange(false);
-    } else {
-      // Premier clic : définir la date de début
-      setSelectedRange({ from: date, to: undefined });
-      setIsSelectingRange(true);
-    }
-  };
-
   const handleBlockDates = async () => {
-    if (!selectedRange.from || !selectedRange.to) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une plage de dates');
+    if (!selectedStartDate || !selectedEndDate) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une période');
       return;
     }
 
-    const result = await blockDates(
-      propertyId,
-      formatDateForAPI(selectedRange.from),
-      formatDateForAPI(selectedRange.to),
-      reason || undefined
-    );
+    const startDateStr = formatDateToISO(selectedStartDate);
+    const endDateStr = formatDateToISO(selectedEndDate);
+
+    const result = await blockDates(propertyId, startDateStr, endDateStr, reason);
 
     if (result.success) {
-      Alert.alert('Succès', 'Dates bloquées avec succès');
-      setSelectedRange({});
+      setSelectedStartDate(null);
+      setSelectedEndDate(null);
       setReason('');
       setIsSelectingRange(false);
       await loadBlockedDates();
       await refetch();
-    } else {
-      Alert.alert('Erreur', result.error || 'Impossible de bloquer ces dates');
     }
   };
 
@@ -119,14 +146,12 @@ const PropertyCalendarScreen: React.FC = () => {
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Débloquer',
+          style: 'destructive',
           onPress: async () => {
             const result = await unblockDates(id);
             if (result.success) {
-              Alert.alert('Succès', 'Dates débloquées avec succès');
-              await loadBlockedDates();
-              await refetch();
-            } else {
-              Alert.alert('Erreur', result.error || 'Impossible de débloquer ces dates');
+              loadBlockedDates();
+              refetch();
             }
           },
         },
@@ -134,7 +159,90 @@ const PropertyCalendarScreen: React.FC = () => {
     );
   };
 
-  const generateCalendarDays = (year: number, month: number) => {
+  const handleSetPrice = async () => {
+    if (!selectedStartDate || !selectedEndDate || !customPrice) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une période et entrer un prix');
+      return;
+    }
+
+    const startDateStr = formatDateToISO(selectedStartDate);
+    const endDateStr = formatDateToISO(selectedEndDate);
+    const price = parseInt(customPrice);
+
+    if (isNaN(price) || price <= 0) {
+      Alert.alert('Erreur', 'Veuillez entrer un prix valide');
+      return;
+    }
+
+    const result = await setPriceForPeriod(propertyId, startDateStr, endDateStr, price);
+
+    if (result.success) {
+      setSelectedStartDate(null);
+      setSelectedEndDate(null);
+      setCustomPrice('');
+      setIsSelectingRange(false);
+      await loadDynamicPrices();
+    }
+  };
+
+  const handleDeletePrice = async (priceId: string) => {
+    Alert.alert(
+      'Supprimer le prix',
+      'Êtes-vous sûr de vouloir supprimer ce prix personnalisé ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await deleteDynamicPrice(priceId);
+            if (result.success) {
+              loadDynamicPrices();
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Fonction pour obtenir le prix d'une date
+  const getPriceForDate = (date: Date): number | null => {
+    const dateStr = formatDateToISO(date);
+    const priceInfo = dynamicPrices.find(price => {
+      return dateStr >= price.start_date && dateStr <= price.end_date;
+    });
+    return priceInfo ? priceInfo.price_per_night : basePrice;
+  };
+
+  // Fonction pour vérifier si une date a un prix personnalisé
+  const hasCustomPrice = (date: Date): boolean => {
+    const dateStr = formatDateToISO(date);
+    return dynamicPrices.some(price => {
+      return dateStr >= price.start_date && dateStr <= price.end_date;
+    });
+  };
+
+  // Fonction pour obtenir le type de blocage d'une date
+  const getDateBlockType = (date: Date): 'reserved' | 'blocked' | 'available' => {
+    const dateStr = formatDateToISO(date);
+    const unavailable = unavailableDates.find(period => {
+      return dateStr >= period.start_date && dateStr <= period.end_date;
+    });
+    
+    if (!unavailable) return 'available';
+    
+    // Vérifier si c'est une date bloquée manuellement
+    const isBlocked = blockedDatesList.some(blocked => {
+      return dateStr >= blocked.start_date && dateStr <= blocked.end_date;
+    });
+    
+    return isBlocked ? 'blocked' : 'reserved';
+  };
+
+  // Fonction pour générer les jours du mois
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
@@ -142,138 +250,47 @@ const PropertyCalendarScreen: React.FC = () => {
 
     const days = [];
     
-    // Ajouter les jours vides du mois précédent
+    // Ajouter les jours vides du début
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
-    
+
     // Ajouter les jours du mois
     for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      days.push(date);
+      days.push(new Date(year, month, day));
     }
-    
+
     return days;
   };
 
-  const renderCalendar = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const days = generateCalendarDays(year, month);
-    
-    const monthNames = [
-      'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-    ];
-
-    return (
-      <View style={styles.calendarContainer}>
-        <View style={styles.calendarHeader}>
-          <TouchableOpacity
-            onPress={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-            style={styles.navButton}
-          >
-            <Ionicons name="chevron-back" size={24} color="#333" />
-          </TouchableOpacity>
-          
-          <Text style={styles.monthTitle}>
-            {monthNames[month]} {year}
-          </Text>
-          
-          <TouchableOpacity
-            onPress={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-            style={styles.navButton}
-          >
-            <Ionicons name="chevron-forward" size={24} color="#333" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.weekDays}>
-          {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map((day) => (
-            <Text key={day} style={styles.weekDay}>{day}</Text>
-          ))}
-        </View>
-
-        <View style={styles.calendarGrid}>
-          {days.map((day, index) => {
-            if (!day) {
-              return <View key={index} style={styles.dayCell} />;
-            }
-
-            const isUnavailable = isDateUnavailable(day);
-            const isPast = day < new Date();
-            const isSelected = selectedRange.from && selectedRange.to && 
-              day >= selectedRange.from && day <= selectedRange.to;
-            const isStart = selectedRange.from && day.getTime() === selectedRange.from.getTime();
-            const isEnd = selectedRange.to && day.getTime() === selectedRange.to.getTime();
-
-            return (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.dayCell,
-                  isUnavailable && styles.unavailableDay,
-                  isPast && styles.pastDay,
-                  isSelected && styles.selectedDay,
-                  isStart && styles.startDay,
-                  isEnd && styles.endDay,
-                ]}
-                onPress={() => handleDatePress(day)}
-                disabled={isUnavailable || isPast}
-              >
-                <Text style={[
-                  styles.dayText,
-                  isUnavailable && styles.unavailableText,
-                  isPast && styles.pastText,
-                  isSelected && styles.selectedText,
-                ]}>
-                  {day.getDate()}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-    );
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
   };
 
-  const renderBlockedDatesList = () => (
-    <View style={styles.blockedDatesContainer}>
-      <Text style={styles.sectionTitle}>Dates bloquées</Text>
-      {blockedDatesList.length === 0 ? (
-        <Text style={styles.emptyText}>Aucune date bloquée</Text>
-      ) : (
-        blockedDatesList.map((blocked) => (
-          <View key={blocked.id} style={styles.blockedDateItem}>
-            <View style={styles.blockedDateInfo}>
-              <Text style={styles.blockedDateRange}>
-                {formatDate(new Date(blocked.start_date))} - {formatDate(new Date(blocked.end_date))}
-              </Text>
-              {blocked.reason && (
-                <Text style={styles.blockedDateReason}>{blocked.reason}</Text>
-              )}
-            </View>
-            <TouchableOpacity
-              style={styles.unblockButton}
-              onPress={() => handleUnblock(blocked.id)}
-            >
-              <Ionicons name="close-circle" size={20} color="#e74c3c" />
-            </TouchableOpacity>
-          </View>
-        ))
-      )}
-    </View>
-  );
+  const formatDateShort = (date: Date) => {
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+    });
+  };
 
-  if (!user) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>Connexion requise</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    const newMonth = new Date(currentMonth);
+    if (direction === 'prev') {
+      newMonth.setMonth(newMonth.getMonth() - 1);
+    } else {
+      newMonth.setMonth(newMonth.getMonth() + 1);
+    }
+    setCurrentMonth(newMonth);
+  };
+
+  const days = getDaysInMonth(currentMonth);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -282,87 +299,297 @@ const PropertyCalendarScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Calendrier de disponibilité</Text>
-        <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={() => {
-            loadBlockedDates();
-            refetch();
-          }}
-        >
-          <Ionicons name="refresh" size={24} color="#2E7D32" />
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Instructions */}
-        <View style={styles.instructionsContainer}>
-          <Text style={styles.instructionsTitle}>💡 Instructions</Text>
-          <Text style={styles.instructionsText}>
-            • Cliquez sur une date pour commencer la sélection{'\n'}
-            • Cliquez sur une autre date pour terminer la plage{'\n'}
-            • Les dates rouges sont indisponibles (réservées ou bloquées){'\n'}
-            • Les dates grises sont dans le passé
-          </Text>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {/* Calendrier */}
+        <View style={styles.calendarSection}>
+          <View style={styles.calendarHeader}>
+            <TouchableOpacity onPress={() => navigateMonth('prev')}>
+              <Ionicons name="chevron-back" size={24} color="#e67e22" />
+            </TouchableOpacity>
+            <Text style={styles.monthTitle}>
+              {currentMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+            </Text>
+            <TouchableOpacity onPress={() => navigateMonth('next')}>
+              <Ionicons name="chevron-forward" size={24} color="#e67e22" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.calendarGrid}>
+            {/* Jours de la semaine */}
+            {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map((day, index) => (
+              <View key={index} style={styles.dayHeader}>
+                <Text style={styles.dayHeaderText}>{day}</Text>
+              </View>
+            ))}
+
+            {/* Jours du mois */}
+            {days.map((date, index) => {
+              if (!date) {
+                return <View key={`empty-${index}`} style={styles.dayCell} />;
+              }
+
+              const dateStr = formatDateToISO(date);
+              const isPast = date < today;
+              const unavailable = isDateUnavailable(date);
+              const blockType = getDateBlockType(date);
+              const isSelected = selectedStartDate && selectedEndDate &&
+                date >= selectedStartDate && date <= selectedEndDate;
+              const isStart = selectedStartDate && date.getTime() === selectedStartDate.getTime();
+              const isEnd = selectedEndDate && date.getTime() === selectedEndDate.getTime();
+              const price = !isPast && !unavailable ? getPriceForDate(date) : null;
+              const hasCustomPriceForDate = !isPast && !unavailable ? hasCustomPrice(date) : false;
+
+              return (
+                <TouchableOpacity
+                  key={dateStr}
+                  style={[
+                    styles.dayCell,
+                    isPast && styles.dayCellPast,
+                    unavailable && blockType === 'reserved' && styles.dayCellReserved,
+                    unavailable && blockType === 'blocked' && styles.dayCellBlocked,
+                    isSelected && styles.dayCellSelected,
+                    isStart && styles.dayCellStart,
+                    isEnd && styles.dayCellEnd,
+                    !isPast && !unavailable && hasCustomPriceForDate && styles.dayCellCustomPrice,
+                  ]}
+                  onPress={() => handleDatePress(date)}
+                  disabled={isPast || unavailable}
+                >
+                  <Text
+                    style={[
+                      styles.dayText,
+                      isPast && styles.dayTextPast,
+                      unavailable && blockType === 'reserved' && styles.dayTextReserved,
+                      unavailable && blockType === 'blocked' && styles.dayTextBlocked,
+                      isSelected && styles.dayTextSelected,
+                    ]}
+                  >
+                    {date.getDate()}
+                  </Text>
+                  {price && (
+                    <Text style={[
+                      styles.priceText,
+                      hasCustomPriceForDate && styles.priceTextCustom
+                    ]}>
+                      {(price / 1000).toFixed(0)}k
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
-        {/* Calendrier */}
-        {renderCalendar()}
+        {/* Section de sélection */}
+        {(selectedStartDate || isSelectingRange) && (
+          <View style={styles.selectionSection}>
+            <View style={[
+              styles.selectionCard,
+              isSelectingRange && styles.selectionCardActive
+            ]}>
+              <Text style={styles.selectionTitle}>
+                {isSelectingRange ? 'Sélection en cours...' : 'Période sélectionnée'}
+              </Text>
+              {selectedStartDate && (
+                <Text style={styles.selectionDate}>
+                  Du {formatDate(selectedStartDate)}
+                </Text>
+              )}
+              {selectedEndDate && (
+                <Text style={styles.selectionDate}>
+                  Au {formatDate(selectedEndDate)}
+                </Text>
+              )}
+              {selectedStartDate && selectedEndDate && (
+                <Text style={styles.selectionDays}>
+                  {Math.ceil((selectedEndDate.getTime() - selectedStartDate.getTime()) / (1000 * 60 * 60 * 24))} jour(s)
+                </Text>
+              )}
+            </View>
 
-        {/* Sélection en cours */}
-        {isSelectingRange && (
-          <View style={styles.selectionContainer}>
-            <Text style={styles.selectionText}>
-              Sélection en cours : Cliquez sur la date de fin pour compléter la plage
-            </Text>
-          </View>
-        )}
+            <View style={styles.inputSection}>
+              <Text style={styles.label}>Raison (optionnel)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={reason}
+                onChangeText={setReason}
+                placeholder="Ex: Travaux, vacances personnelles..."
+                multiline
+              />
+            </View>
 
-        {/* Formulaire de blocage */}
-        {selectedRange.from && selectedRange.to && (
-          <View style={styles.blockFormContainer}>
-            <Text style={styles.sectionTitle}>Bloquer les dates sélectionnées</Text>
-            <Text style={styles.selectedRangeText}>
-              Du {formatDate(selectedRange.from)} au {formatDate(selectedRange.to)}
-            </Text>
-            
-            <TextInput
-              style={styles.reasonInput}
-              value={reason}
-              onChangeText={setReason}
-              placeholder="Raison du blocage (optionnel)"
-              multiline
-              numberOfLines={2}
-            />
-            
-            <View style={styles.formActions}>
+            <View style={styles.inputSection}>
+              <Text style={styles.label}>Prix personnalisé (XOF/nuit)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={customPrice}
+                onChangeText={setCustomPrice}
+                placeholder="Ex: 15000"
+                keyboardType="numeric"
+              />
+              <Text style={styles.hint}>
+                Laissez vide pour bloquer sans modifier le prix
+              </Text>
+            </View>
+
+            <View style={styles.actionButtons}>
               <TouchableOpacity
-                style={styles.cancelButton}
+                style={[styles.actionButton, styles.blockButton]}
+                onPress={handleBlockDates}
+                disabled={blockedLoading || !selectedStartDate || !selectedEndDate || isSelectingRange}
+              >
+                {blockedLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="close-circle" size={20} color="#fff" />
+                    <Text style={styles.actionButtonText}>Bloquer</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {customPrice && (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.priceButton]}
+                  onPress={handleSetPrice}
+                  disabled={pricingLoading || !selectedStartDate || !selectedEndDate || isSelectingRange}
+                >
+                  {pricingLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="cash" size={20} color="#fff" />
+                      <Text style={styles.actionButtonText}>Définir prix</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.cancelButton]}
                 onPress={() => {
-                  setSelectedRange({});
+                  setSelectedStartDate(null);
+                  setSelectedEndDate(null);
                   setReason('');
+                  setCustomPrice('');
                   setIsSelectingRange(false);
                 }}
               >
-                <Text style={styles.cancelButtonText}>Annuler</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.blockButton}
-                onPress={handleBlockDates}
-                disabled={blockedLoading}
-              >
-                {blockedLoading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.blockButtonText}>Bloquer</Text>
-                )}
+                <Ionicons name="close" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
           </View>
         )}
 
-        {/* Liste des dates bloquées */}
-        {renderBlockedDatesList()}
+        {/* Périodes indisponibles */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Périodes indisponibles</Text>
+          {calendarLoading ? (
+            <ActivityIndicator size="small" color="#e67e22" />
+          ) : unavailableDates.length === 0 ? (
+            <Text style={styles.emptyText}>Aucune période indisponible</Text>
+          ) : (
+            unavailableDates.map((period, index) => {
+              const isBlocked = blockedDatesList.find(
+                b => b.start_date === period.start_date && b.end_date === period.end_date
+              );
+
+              return (
+                <View key={index} style={styles.periodCard}>
+                  <View style={styles.periodInfo}>
+                    <View style={[
+                      styles.badge,
+                      period.reason === 'Réservé' ? styles.badgeReserved : styles.badgeBlocked
+                    ]}>
+                      <Text style={styles.badgeText}>
+                        {period.reason || 'Bloqué'}
+                      </Text>
+                    </View>
+                    <Text style={styles.periodDate}>
+                      {period.start_date === period.end_date ? (
+                        formatDateShort(new Date(period.start_date))
+                      ) : (
+                        `${formatDateShort(new Date(period.start_date))} → ${formatDateShort(new Date(period.end_date))}`
+                      )}
+                    </Text>
+                  </View>
+                  {isBlocked && (
+                    <TouchableOpacity
+                      onPress={() => handleUnblock(isBlocked.id)}
+                      disabled={blockedLoading}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#e74c3c" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        {/* Prix personnalisés */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Prix personnalisés</Text>
+          {dynamicPrices.length === 0 ? (
+            <Text style={styles.emptyText}>Aucun prix personnalisé défini</Text>
+          ) : (
+            dynamicPrices.map((price) => (
+              <View key={price.id} style={styles.priceCard}>
+                <View style={styles.priceInfo}>
+                  <View style={styles.priceBadge}>
+                    <Text style={styles.priceBadgeText}>
+                      {price.price_per_night.toLocaleString('fr-FR')} XOF/nuit
+                    </Text>
+                  </View>
+                  <Text style={styles.priceDate}>
+                    {price.start_date === price.end_date ? (
+                      formatDateShort(new Date(price.start_date))
+                    ) : (
+                      `${formatDateShort(new Date(price.start_date))} → ${formatDateShort(new Date(price.end_date))}`
+                    )}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => handleDeletePrice(price.id)}
+                  disabled={pricingLoading}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#e74c3c" />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Légende */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Légende</Text>
+          <View style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendColor, { backgroundColor: '#e67e22' }]} />
+              <Text style={styles.legendText}>Réservé</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendColor, { backgroundColor: '#e74c3c' }]} />
+              <Text style={styles.legendText}>Bloqué manuellement</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendColor, { borderWidth: 2, borderColor: '#3498db' }]} />
+              <Text style={styles.legendText}>Prix de base</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendColor, { borderWidth: 2, borderColor: '#2ecc71' }]} />
+              <Text style={styles.legendText}>Prix personnalisé</Text>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -372,16 +599,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    fontSize: 18,
-    color: '#e74c3c',
-    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -401,37 +618,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
-  refreshButton: {
-    padding: 8,
+  placeholder: {
+    width: 40,
   },
-  content: {
+  scrollView: {
     flex: 1,
-    padding: 20,
   },
-  instructionsContainer: {
-    backgroundColor: '#fff3cd',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#ffeaa7',
-  },
-  instructionsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#856404',
-    marginBottom: 8,
-  },
-  instructionsText: {
-    fontSize: 14,
-    color: '#856404',
-    lineHeight: 20,
-  },
-  calendarContainer: {
+  calendarSection: {
     backgroundColor: '#fff',
+    margin: 20,
     borderRadius: 12,
     padding: 15,
-    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -442,88 +639,184 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  navButton: {
-    padding: 8,
+    marginBottom: 15,
   },
   monthTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-  },
-  weekDays: {
-    flexDirection: 'row',
-    marginBottom: 10,
-  },
-  weekDay: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#666',
+    textTransform: 'capitalize',
   },
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
+  dayHeader: {
+    width: '14.28%',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  dayHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+  },
   dayCell: {
     width: '14.28%',
     aspectRatio: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#e9ecef',
+    backgroundColor: '#fff',
+  },
+  dayCellPast: {
+    backgroundColor: '#f5f5f5',
+    opacity: 0.5,
+  },
+  dayCellReserved: {
+    backgroundColor: '#fff3e0',
+    borderColor: '#e67e22',
+    borderWidth: 2,
+  },
+  dayCellBlocked: {
+    backgroundColor: '#ffebee',
+    borderColor: '#e74c3c',
+    borderWidth: 2,
+  },
+  dayCellCustomPrice: {
+    borderWidth: 2,
+    borderColor: '#2ecc71',
+  },
+  dayCellSelected: {
+    backgroundColor: '#e3f2fd',
+    borderColor: '#2196F3',
+  },
+  dayCellStart: {
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+  },
+  dayCellEnd: {
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
   },
   dayText: {
     fontSize: 14,
     color: '#333',
   },
-  unavailableDay: {
-    backgroundColor: '#ffeaea',
-  },
-  unavailableText: {
-    color: '#e74c3c',
-    fontWeight: 'bold',
-  },
-  pastDay: {
-    backgroundColor: '#f8f9fa',
-  },
-  pastText: {
+  dayTextPast: {
     color: '#999',
   },
-  selectedDay: {
-    backgroundColor: '#e3f2fd',
+  dayTextReserved: {
+    color: '#e67e22',
+    fontWeight: '600',
   },
-  selectedText: {
-    color: '#1976d2',
+  dayTextBlocked: {
+    color: '#e74c3c',
+    fontWeight: '600',
+  },
+  dayTextSelected: {
+    color: '#2196F3',
     fontWeight: 'bold',
   },
-  startDay: {
-    backgroundColor: '#2E7D32',
+  priceText: {
+    fontSize: 8,
+    color: '#3498db',
+    fontWeight: 'bold',
+    marginTop: 2,
   },
-  endDay: {
-    backgroundColor: '#2E7D32',
+  priceTextCustom: {
+    color: '#2ecc71',
   },
-  selectionContainer: {
-    backgroundColor: '#fff3cd',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#ffeaa7',
+  selectionSection: {
+    margin: 20,
+    marginTop: 0,
   },
-  selectionText: {
-    fontSize: 14,
-    color: '#856404',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  blockFormContainer: {
+  selectionCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
+    padding: 15,
+    marginBottom: 15,
+    borderWidth: 2,
+    borderColor: '#2196F3',
+  },
+  selectionCardActive: {
+    borderColor: '#ffc107',
+    backgroundColor: '#fffbf0',
+  },
+  selectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  selectionDate: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  selectionDays: {
+    fontSize: 12,
+    color: '#2196F3',
+    marginTop: 4,
+  },
+  inputSection: {
+    marginBottom: 15,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  textInput: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    fontSize: 14,
+  },
+  hint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  blockButton: {
+    backgroundColor: '#e74c3c',
+  },
+  priceButton: {
+    backgroundColor: '#2ecc71',
+  },
+  cancelButton: {
+    backgroundColor: '#95a5a6',
+    flex: 0,
+    paddingHorizontal: 20,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  section: {
+    backgroundColor: '#fff',
+    margin: 20,
+    marginTop: 0,
+    borderRadius: 12,
+    padding: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -536,98 +829,95 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 15,
   },
-  selectedRangeText: {
-    fontSize: 16,
-    color: '#2E7D32',
-    fontWeight: '500',
-    marginBottom: 15,
-  },
-  reasonInput: {
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 20,
-    textAlignVertical: 'top',
-  },
-  formActions: {
+  periodCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    marginRight: 10,
-    borderRadius: 8,
+    padding: 12,
     backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
-  },
-  blockButton: {
-    flex: 1,
-    paddingVertical: 12,
-    marginLeft: 10,
     borderRadius: 8,
-    backgroundColor: '#e74c3c',
+    marginBottom: 8,
+  },
+  periodInfo: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    flex: 1,
   },
-  blockButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  blockedDatesContainer: {
-    backgroundColor: '#fff',
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  },
+  badgeReserved: {
+    backgroundColor: '#e67e22',
+  },
+  badgeBlocked: {
+    backgroundColor: '#e74c3c',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  periodDate: {
+    fontSize: 14,
+    color: '#333',
   },
   emptyText: {
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    fontStyle: 'italic',
+    paddingVertical: 20,
   },
-  blockedDateItem: {
+  priceCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    padding: 12,
+    backgroundColor: '#e3f2fd',
+    borderRadius: 8,
+    marginBottom: 8,
   },
-  blockedDateInfo: {
+  priceInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     flex: 1,
   },
-  blockedDateRange: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 4,
+  priceBadge: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  blockedDateReason: {
+  priceBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  priceDate: {
+    fontSize: 14,
+    color: '#333',
+  },
+  legend: {
+    gap: 12,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  legendColor: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+  },
+  legendText: {
     fontSize: 14,
     color: '#666',
-  },
-  unblockButton: {
-    padding: 8,
   },
 });
 
 export default PropertyCalendarScreen;
-
 

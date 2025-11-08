@@ -161,7 +161,7 @@ const HostDashboardScreen: React.FC = () => {
               <Ionicons name="business-outline" size={24} color="#2E7D32" />
             </View>
             <View style={styles.quickActionContent}>
-              <Text style={styles.quickActionTitle}>Mes propriétés</Text>
+              <Text style={styles.quickActionTitle}>Gestion des propriétés</Text>
               <Text style={styles.quickActionDescription}>Gérer vos propriétés et calendriers</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
@@ -175,7 +175,7 @@ const HostDashboardScreen: React.FC = () => {
               <Ionicons name="calendar-outline" size={24} color="#e67e22" />
             </View>
             <View style={styles.quickActionContent}>
-              <Text style={styles.quickActionTitle}>Réservations reçues</Text>
+              <Text style={styles.quickActionTitle}>Gestion des réservations</Text>
               <Text style={styles.quickActionDescription}>Gérer les demandes de réservation</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />

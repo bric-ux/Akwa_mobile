@@ -25,6 +25,7 @@ import MyHostApplicationsScreen from '../screens/MyHostApplicationsScreen';
 import ApplicationDetailsScreen from '../screens/ApplicationDetailsScreen';
 import MyPropertiesScreen from '../screens/MyPropertiesScreen';
 import HostDashboardScreen from '../screens/HostDashboardScreen';
+import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AdminApplicationsScreen from '../screens/AdminApplicationsScreen';
 import AdminPropertiesScreen from '../screens/AdminPropertiesScreen';
@@ -34,7 +35,6 @@ import AdminIdentityDocumentsScreen from '../screens/AdminIdentityDocumentsScree
 import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
 import PdfViewerScreen from '../screens/PdfViewerScreen';
 import EditPropertyScreen from '../screens/EditPropertyScreen';
-import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 import MessagingDebugScreen from '../screens/MessagingDebugScreen';
 import HostPaymentInfoScreen from '../screens/HostPaymentInfoScreen';
 import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
@@ -191,7 +191,7 @@ const AppNavigator = () => {
           name="HostBookings" 
           component={HostBookingsScreen}
           options={{ 
-            title: 'Mes réservations',
+            title: 'Gestion des réservations',
             headerShown: false 
           }}
         />
@@ -271,7 +271,7 @@ const AppNavigator = () => {
               name="MyProperties" 
               component={MyPropertiesScreen}
               options={{ 
-                title: 'Mes propriétés',
+                title: 'Gestion des propriétés',
                 headerShown: false 
               }}
             />

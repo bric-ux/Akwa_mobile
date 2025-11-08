@@ -258,7 +258,7 @@ const MyPropertiesScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mes propriétés</Text>
+        <Text style={styles.headerTitle}>Gestion des propriétés</Text>
         <TouchableOpacity
           style={styles.addButton}
           onPress={() => navigation.navigate('BecomeHost')}

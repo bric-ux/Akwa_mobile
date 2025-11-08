@@ -24,6 +24,7 @@ import ContactHostButton from '../components/ContactHostButton';
 import PhotoCategoryDisplay from '../components/PhotoCategoryDisplay';
 import PropertyMap from '../components/PropertyMap';
 import { supabase } from '../services/supabase';
+import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -41,6 +42,8 @@ const PropertyDetailsScreen: React.FC = () => {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [reviewersProfiles, setReviewersProfiles] = useState<{[key: string]: string}>({});
+  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
 
   useEffect(() => {
     const loadProperty = async () => {
@@ -98,7 +101,28 @@ const PropertyDetailsScreen: React.FC = () => {
     };
 
     loadProperty();
-  }, [propertyId]); // Supprimer les autres dépendances pour éviter la boucle
+  }, [propertyId]);
+
+  // Charger le prix pour aujourd'hui (ou le prix de base)
+  useEffect(() => {
+    const loadTodayPrice = async () => {
+      if (property) {
+        setPriceLoading(true);
+        try {
+          const today = new Date();
+          const price = await getPriceForDate(property.id, today, property.price_per_night);
+          setDisplayPrice(price);
+        } catch (error) {
+          console.error('Error loading today price:', error);
+          setDisplayPrice(null);
+        } finally {
+          setPriceLoading(false);
+        }
+      }
+    };
+
+    loadTodayPrice();
+  }, [property]); // Supprimer les autres dépendances pour éviter la boucle
 
   // Fonction pour charger les profils des reviewers
   const loadReviewersProfiles = async (reviews: any[]) => {
@@ -249,10 +273,16 @@ const PropertyDetailsScreen: React.FC = () => {
 
         <View style={styles.priceContainer}>
           <View style={styles.priceRow}>
-            <Text style={styles.price}>
-              {formatPrice(property.price_per_night)}
-            </Text>
-            <Text style={styles.priceUnit}>/nuit</Text>
+            {priceLoading ? (
+              <Text style={styles.price}>Chargement...</Text>
+            ) : (
+              <>
+                <Text style={styles.price}>
+                  {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}
+                </Text>
+                <Text style={styles.priceUnit}>/nuit</Text>
+              </>
+            )}
           </View>
           {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
             <View style={styles.discountContainer}>

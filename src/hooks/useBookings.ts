@@ -18,6 +18,7 @@ export interface BookingData {
   discountApplied?: boolean;
   discountAmount?: number;
   originalTotal?: number;
+  voucherCode?: string;
 }
 
 export interface Booking {
@@ -184,6 +185,30 @@ export const useBookings = () => {
         console.error('Booking creation error:', bookingError);
         setError('Erreur lors de la création de la réservation');
         return { success: false, error: `Erreur lors de la création de la réservation: ${bookingError.message}` };
+      }
+
+      // Marquer le code promotionnel comme utilisé si un code a été fourni
+      if (bookingData.voucherCode && booking?.id) {
+        try {
+          const { error: voucherError } = await supabase
+            .from('user_discount_vouchers')
+            .update({
+              status: 'used',
+              used_on_booking_id: booking.id,
+              used_at: new Date().toISOString()
+            })
+            .eq('voucher_code', bookingData.voucherCode.toUpperCase().trim())
+            .eq('user_id', user.id)
+            .eq('status', 'active');
+
+          if (voucherError) {
+            console.error('Error updating voucher:', voucherError);
+            // Ne pas faire échouer la réservation si la mise à jour du voucher échoue
+          }
+        } catch (voucherUpdateError) {
+          console.error('Error updating voucher:', voucherUpdateError);
+          // Ne pas faire échouer la réservation si la mise à jour du voucher échoue
+        }
       }
 
       // Envoyer les emails après création de la réservation

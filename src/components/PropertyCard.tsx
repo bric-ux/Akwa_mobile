@@ -12,6 +12,7 @@ import { Property } from '../types';
 import { useFavorites } from '../hooks/useFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import { useCurrency } from '../hooks/useCurrency';
+import { getPriceForDate } from '../utils/priceCalculator';
 
 interface PropertyCardProps {
   property: Property;
@@ -24,12 +25,29 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { formatPrice: formatPriceWithCurrency, currency } = useCurrency();
   const [isFavorited, setIsFavorited] = useState(false);
+  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
 
 
   useEffect(() => {
     // Mettre à jour l'état local quand le cache global change
     setIsFavorited(isFavoriteSync(property.id));
   }, [property.id, isFavoriteSync, currency]);
+
+  // Charger le prix pour aujourd'hui
+  useEffect(() => {
+    const loadTodayPrice = async () => {
+      try {
+        const today = new Date();
+        const price = await getPriceForDate(property.id, today, property.price_per_night || 0);
+        setDisplayPrice(price);
+      } catch (error) {
+        console.error('Error loading today price:', error);
+        setDisplayPrice(null);
+      }
+    };
+
+    loadTodayPrice();
+  }, [property.id, property.price_per_night]);
 
   const handleFavoritePress = async (e: any) => {
     e.stopPropagation();
@@ -73,9 +91,11 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             
             {/* Prix en overlay */}
             <View style={styles.priceOverlay}>
-              <Text style={styles.priceText}>
-                {formatPrice(property.price_per_night)}/nuit
-              </Text>
+              <View style={styles.priceOverlayContent}>
+                <Text style={styles.priceText}>
+                  {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}/nuit
+                </Text>
+              </View>
               {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
                 <Text style={styles.discountOverlay}>
                   -{property.discount_percentage}% pour {property.discount_min_nights}+ nuits
@@ -152,7 +172,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
           
           <View style={styles.priceContainer}>
             <Text style={styles.price}>
-              {formatPrice(property.price_per_night)}/nuit
+              {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}/nuit
             </Text>
             {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
               <Text style={styles.discountBadgeOverlay}>
@@ -257,6 +277,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
+    alignItems: 'center',
+  },
+  priceOverlayContent: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   priceText: {
