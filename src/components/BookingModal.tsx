@@ -216,11 +216,17 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       finalTotal = Math.max(0, finalTotal - voucherDiscountAmount);
     }
     
-    console.log('💰 Résultat du calcul:', pricing);
+    console.log('💰 Résultat du calcul:', {
+      pricing,
+      fees,
+      finalTotal,
+      voucherDiscountAmount
+    });
     
     return {
       nights,
-      ...pricing,
+      pricing: pricing.pricing,
+      fees: pricing.fees,
       finalTotal,
       voucherDiscountAmount,
       voucherApplied: voucherDiscount?.valid || false
@@ -651,18 +657,22 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                 </View>
               )}
               
-              {pricing.voucherApplied && pricing.voucherDiscountAmount > 0 && (
+              {voucherDiscount?.valid && (voucherDiscount.discountPercentage || voucherDiscount.discountAmount) && (
                 <View style={styles.priceRow}>
                   <Text style={styles.discountLabel}>
                     Réduction code promo
                   </Text>
-                  <Text style={styles.discountValue}>-{formatPrice(pricing.voucherDiscountAmount)}</Text>
+                  <Text style={styles.discountValue}>-{formatPrice(
+                    voucherDiscount.discountPercentage 
+                      ? Math.round((pricing.totalPrice + fees.totalFees) * (voucherDiscount.discountPercentage / 100))
+                      : (voucherDiscount.discountAmount || 0)
+                  )}</Text>
                 </View>
               )}
               
               <View style={[styles.priceRow, styles.totalRow]}>
                 <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatPrice(pricing.finalTotal)}</Text>
+                <Text style={styles.totalValue}>{formatPrice(finalTotal)}</Text>
               </View>
             </View>
           </View>

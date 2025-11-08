@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -88,7 +89,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const { submitApplication, getAmenities, getApplicationById, updateApplication, loading } = useHostApplications();
   const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();
   const { hasUploadedIdentity, verificationStatus, checkIdentityStatus } = useIdentityVerification();
-  const { hasPaymentInfo, isPaymentInfoComplete, paymentInfo } = useHostPaymentInfo();
+  const { hasPaymentInfo, isPaymentInfoComplete, paymentInfo, fetchPaymentInfo } = useHostPaymentInfo();
   const { verifyReferralCode } = useReferrals();
   
   const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
@@ -98,6 +99,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [referralCodeError, setReferralCodeError] = useState<string>('');
   const [referrerName, setReferrerName] = useState<string>('');
   const [isReferred, setIsReferred] = useState(false);
+  const [isAlreadyHost, setIsAlreadyHost] = useState(false);
   
   const [formData, setFormData] = useState({
     // Informations sur le logement
@@ -160,6 +162,21 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       loadApplicationData(editId);
     }
   }, [route?.params]);
+
+  // Recharger les informations de paiement quand l'écran devient actif
+  // (utile quand l'utilisateur revient de l'écran de configuration du paiement)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        console.log('🔄 Rechargement des informations de paiement...');
+        fetchPaymentInfo().then(() => {
+          console.log('✅ Informations de paiement rechargées');
+        }).catch((error) => {
+          console.error('❌ Erreur lors du rechargement des informations de paiement:', error);
+        });
+      }
+    }, [user])
+  );
   
   // Fonction pour vérifier si un champ doit être affiché en mode révision
   const shouldShowField = (fieldName: string) => {
@@ -279,7 +296,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     setAvailableAmenities(amenities);
   };
 
-  const loadUserProfile = () => {
+  const loadUserProfile = async () => {
     if (user) {
       const metadata = user.user_metadata;
       setFormData(prev => ({
@@ -289,6 +306,21 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           ? `${metadata.first_name} ${metadata.last_name}` 
           : '',
       }));
+
+      // Vérifier si l'utilisateur est déjà hôte
+      try {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('is_host')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!error && profile) {
+          setIsAlreadyHost(profile.is_host || false);
+        }
+      } catch (error) {
+        console.error('Error checking host status:', error);
+      }
     }
   };
 
@@ -624,6 +656,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
 
     // Vérifier l'identité avant de permettre la soumission (seulement pour les nouvelles candidatures)
     // Ne pas demander l'identité lors de la modification d'une candidature existante
+    // Permettre la soumission si l'identité est uploadée, même si elle est en cours de vérification
     if (!isEditMode && !hasUploadedIdentity && !identityUploadedInSession) {
       Alert.alert(
         'Vérification d\'identité requise',
@@ -642,19 +675,61 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       return;
     }
 
-    // Vérifier les informations de paiement
-    // Autoriser la soumission si:
-    // 1. Les infos de paiement sont complètes ET vérifiées
-    // 2. OU les infos de paiement sont complètes ET en cours d'étude
-    // 3. OU les infos de paiement sont complètes (même si pas encore vérifiées)
-    const hasCompletePaymentInfo = hasPaymentInfo() && isPaymentInfoComplete();
-    const paymentPending = paymentInfo?.verification_status === 'pending';
-    const paymentVerified = paymentInfo?.verification_status === 'verified';
+    // Si l'identité est en cours de vérification, c'est OK - on peut soumettre
+    // (la vérification sera faite par l'admin avant l'approbation)
+    if (hasUploadedIdentity && verificationStatus === 'pending') {
+      console.log('ℹ️ Identité en cours de vérification - soumission autorisée');
+    }
+
+    // Recharger les informations de paiement avant la validation
+    // (au cas où elles n'auraient pas été rechargées automatiquement)
+    console.log('🔄 Rechargement des informations de paiement avant validation...');
+    const freshPaymentInfo = await fetchPaymentInfo();
     
-    if (!hasCompletePaymentInfo) {
+    // Utiliser les données fraîchement récupérées pour la validation
+    const hasPayment = freshPaymentInfo !== null;
+    const isComplete = isPaymentInfoComplete(freshPaymentInfo);
+    const paymentPending = freshPaymentInfo?.verification_status === 'pending';
+    const paymentVerified = freshPaymentInfo?.verification_status === 'verified';
+    
+    // Autoriser la soumission si:
+    // 1. Les informations de paiement sont complètes
+    // 2. OU les informations sont en cours de validation (pending) - cela signifie qu'elles ont déjà été acceptées
+    // 3. OU les informations sont vérifiées
+    const canSubmit = hasPayment && (isComplete || paymentPending || paymentVerified);
+    
+    console.log('💳 Vérification paiement:', {
+      hasPayment,
+      isComplete,
+      paymentPending,
+      paymentVerified,
+      canSubmit,
+      paymentInfo: freshPaymentInfo ? {
+        preferred_payment_method: freshPaymentInfo.preferred_payment_method,
+        bank_name: freshPaymentInfo.bank_name,
+        account_number: freshPaymentInfo.account_number,
+        mobile_money_provider: freshPaymentInfo.mobile_money_provider,
+        mobile_money_number: freshPaymentInfo.mobile_money_number,
+        paypal_email: freshPaymentInfo.paypal_email,
+        verification_status: freshPaymentInfo.verification_status
+      } : null
+    });
+    
+    if (!canSubmit) {
+      console.log('❌ Paiement incomplet ou manquant');
+      
+      // Message plus détaillé selon la situation
+      let message = 'Vous devez configurer vos informations de paiement pour recevoir vos revenus.';
+      if (!hasPayment) {
+        message += '\n\nAucune information de paiement trouvée. Veuillez les configurer maintenant.';
+      } else if (!isComplete) {
+        message += '\n\nVos informations de paiement sont incomplètes. Veuillez les compléter.';
+      }
+      message += '\n\nElles seront vérifiées par notre équipe avant que votre candidature ne soit approuvée.';
+      
       Alert.alert(
         'Informations de paiement requises',
-        'Vous devez configurer vos informations de paiement pour recevoir vos revenus. Elles seront vérifiées par notre équipe avant que votre candidature ne soit approuvée.',
+        message,
         [
           { text: 'Annuler', style: 'cancel' },
           { 
@@ -669,8 +744,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       return;
     }
     
+    console.log('✅ Informations de paiement complètes');
+    
     // Bloquer si les informations de paiement ont été rejetées
-    if (paymentInfo?.verification_status === 'rejected') {
+    if (freshPaymentInfo?.verification_status === 'rejected') {
       Alert.alert(
         'Informations de paiement rejetées',
         'Vos informations de paiement ont été rejetées. Veuillez les mettre à jour avant de soumettre votre candidature.',
@@ -1447,7 +1524,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       </View>
 
       {/* Section Parrainage - Masquée si l'utilisateur est déjà hôte */}
-      {!isEditMode && (
+      {!isEditMode && !isAlreadyHost && (
         <View style={styles.inputGroup}>
           <View style={styles.referralSection}>
             <TouchableOpacity
@@ -1610,7 +1687,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         </View>
 
         {/* Alerte de vérification d'identité */}
-        {!hasUploadedIdentity && !identityUploadedInSession && (
+        {(!hasUploadedIdentity && !identityUploadedInSession) || (hasUploadedIdentity && verificationStatus === 'pending') || (hasUploadedIdentity && verificationStatus === 'rejected') ? (
           <View style={styles.identityAlert}>
             <Ionicons 
               name={
@@ -1632,23 +1709,24 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
                  'Vérification d\'identité requise'}
               </Text>
               <Text style={styles.identityAlertMessage}>
-                {verificationStatus === 'pending' ? 'Votre identité est en cours de vérification. Vous pourrez soumettre votre candidature une fois validée.' :
+                {verificationStatus === 'pending' ? 'Votre identité est en cours de vérification. Vous pouvez soumettre votre candidature maintenant, la vérification sera complétée par notre équipe avant l\'approbation.' :
                  verificationStatus === 'rejected' ? 'Votre document a été refusé. Veuillez envoyer un nouveau document valide.' :
                  'Vous devez vérifier votre identité avant de pouvoir devenir hôte.'}
               </Text>
-              <TouchableOpacity 
-                style={styles.identityAlertButton}
-                onPress={() => navigation.goBack()}
-              >
-                <Text style={styles.identityAlertButtonText}>
-                  {verificationStatus === 'pending' ? 'Voir le statut' :
-                   verificationStatus === 'rejected' ? 'Envoyer un nouveau document' :
-                   'Vérifier mon identité'}
-                </Text>
-              </TouchableOpacity>
+              {verificationStatus !== 'pending' && (
+                <TouchableOpacity 
+                  style={styles.identityAlertButton}
+                  onPress={() => navigation.goBack()}
+                >
+                  <Text style={styles.identityAlertButtonText}>
+                    {verificationStatus === 'rejected' ? 'Envoyer un nouveau document' :
+                     'Vérifier mon identité'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
-        )}
+        ) : null}
 
         {/* Indicateur d'étapes */}
         {renderStepIndicator()}

@@ -21,7 +21,6 @@ import { useAuth } from '../services/AuthContext';
 import PasswordValidation from '../components/PasswordValidation';
 import EmailVerificationModal from '../components/EmailVerificationModal';
 import { useEmailVerification } from '../hooks/useEmailVerification';
-import { useReferrals } from '../hooks/useReferrals';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
@@ -30,7 +29,6 @@ const AuthScreen: React.FC = () => {
   const route = useRoute<AuthScreenRouteProp>();
   const { returnTo, returnParams } = route.params || {};
   const { signIn, signUp } = useAuth();
-  const { verifyReferralCode } = useReferrals();
 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -50,9 +48,6 @@ const AuthScreen: React.FC = () => {
     firstName: string;
     lastName: string;
   } | null>(null);
-  const [referralCode, setReferralCode] = useState('');
-  const [referralCodeError, setReferralCodeError] = useState('');
-  const [referrerName, setReferrerName] = useState('');
 
   const { generateVerificationCode } = useEmailVerification();
 
@@ -234,10 +229,6 @@ const AuthScreen: React.FC = () => {
               date_of_birth: dateOfBirthISO, // Utiliser le format ISO
             };
 
-            // Ajouter le code de parrainage si fourni
-            if (referralCode && referrerName && !referralCodeError) {
-              profileData.referral_code_used = referralCode.toUpperCase();
-            }
 
             if (existingProfile) {
               // Le profil existe déjà, le mettre à jour
@@ -263,10 +254,6 @@ const AuthScreen: React.FC = () => {
                 is_host: false,
               };
 
-              // Ajouter le code de parrainage si fourni
-              if (referralCode && referrerName && !referralCodeError) {
-                insertData.referral_code_used = referralCode.toUpperCase();
-              }
 
               const { error: profileError } = await supabase
                 .from('profiles')
@@ -355,26 +342,8 @@ const AuthScreen: React.FC = () => {
     setLastName('');
     setDateOfBirth('');
     setAgreeTerms(false);
-    setReferralCode('');
-    setReferralCodeError('');
-    setReferrerName('');
   };
 
-  // Vérifier le code de parrainage
-  const handleReferralCodeChange = async (code: string) => {
-    setReferralCode(code.toUpperCase());
-    setReferralCodeError('');
-    setReferrerName('');
-
-    if (code.length >= 6) {
-      const result = await verifyReferralCode(code);
-      if (result.valid) {
-        setReferrerName(result.referrerName || '');
-      } else {
-        setReferralCodeError(result.error || 'Code invalide');
-      }
-    }
-  };
 
   const openTerms = async () => {
     try {
@@ -572,30 +541,6 @@ const AuthScreen: React.FC = () => {
 
             {!isLogin && (
               <>
-                {/* Champ de code de parrainage */}
-                <View style={styles.inputContainer}>
-                  <Ionicons name="gift-outline" size={20} color="#666" style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, referralCodeError ? styles.inputError : referrerName ? styles.inputSuccess : null]}
-                    placeholder="Code de parrainage (optionnel)"
-                    value={referralCode}
-                    onChangeText={handleReferralCodeChange}
-                    autoCapitalize="characters"
-                    placeholderTextColor="#999"
-                  />
-                </View>
-                {referralCodeError && (
-                  <Text style={styles.errorText}>{referralCodeError}</Text>
-                )}
-                {referrerName && !referralCodeError && (
-                  <View style={styles.successContainer}>
-                    <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                    <Text style={styles.successText}>
-                      Code valide ! Parrainé par {referrerName}
-                    </Text>
-                  </View>
-                )}
-
                 <View style={styles.termsContainer}>
                   <TouchableOpacity
                     style={styles.checkboxContainer}

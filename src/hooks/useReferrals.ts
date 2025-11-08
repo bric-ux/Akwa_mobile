@@ -130,6 +130,7 @@ export const useReferrals = () => {
   }, [user]);
 
   // Créer un code de parrainage si l'utilisateur n'en a pas
+  // Les hôtes ET les voyageurs peuvent créer des codes de parrainage
   const createReferralCode = async () => {
     if (!user) throw new Error('Not authenticated');
 
@@ -161,37 +162,86 @@ export const useReferrals = () => {
   // Vérifier un code de parrainage
   const verifyReferralCode = async (code: string) => {
     try {
-      const { data, error } = await supabase
+      // D'abord, récupérer le code de parrainage
+      const { data: referralCodeData, error: referralError } = await supabase
         .from('user_referral_codes')
-        .select('*, profiles:user_id(first_name, last_name)')
+        .select('*')
         .eq('referral_code', code.toUpperCase())
         .maybeSingle();
 
-      if (error) throw error;
+      if (referralError) {
+        console.error('Error verifying referral code:', referralError);
+        throw referralError;
+      }
       
-      if (!data) {
+      if (!referralCodeData) {
         return { valid: false, error: 'Code de parrainage invalide' };
       }
 
       // Vérifier que ce n'est pas l'utilisateur lui-même
-      if (user && data.user_id === user.id) {
+      if (user && referralCodeData.user_id === user.id) {
         return { valid: false, error: 'Vous ne pouvez pas vous auto-parrainer' };
       }
 
-      // Vérifier que le parrain n'est pas déjà hôte (pour les nouveaux hôtes)
-      const { data: parrainProfile } = await supabase
-        .from('profiles')
-        .select('is_host')
-        .eq('user_id', data.user_id)
-        .single();
+      // Vérifier que l'utilisateur qui entre le code n'est pas déjà hôte
+      if (user) {
+        const { data: currentUserProfile, error: currentUserError } = await supabase
+          .from('profiles')
+          .select('is_host')
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      if (parrainProfile?.is_host) {
-        return { valid: false, error: 'Ce parrain est déjà hôte, le parrainage n\'est pas valide' };
+        if (currentUserError) {
+          console.error('Error checking current user host status:', currentUserError);
+        }
+
+        // Vérifier aussi si l'utilisateur a des propriétés
+        const { data: userProperties, error: userPropertiesError } = await supabase
+          .from('properties')
+          .select('id')
+          .eq('host_id', user.id)
+          .limit(1);
+
+        if (userPropertiesError) {
+          console.error('Error checking user properties:', userPropertiesError);
+        }
+
+        const userHasProperties = userProperties && userProperties.length > 0;
+        const userIsHost = currentUserProfile?.is_host || userHasProperties;
+
+        if (userIsHost) {
+          return { valid: false, error: 'Vous êtes déjà hôte. Le parrainage n\'est disponible que pour devenir hôte pour la première fois.' };
+        }
       }
+
+      // Récupérer le profil du parrain
+      const { data: parrainProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('user_id', referralCodeData.user_id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('Error fetching referrer profile:', profileError);
+        // Ne pas faire échouer la validation si on ne peut pas récupérer le profil
+      }
+
+      console.log('🔍 Vérification code parrainage:', {
+        code: code.toUpperCase(),
+        parrainUserId: referralCodeData.user_id,
+        parrainName: parrainProfile ? `${parrainProfile.first_name} ${parrainProfile.last_name}` : 'Inconnu',
+        currentUserId: user?.id
+      });
+
+      console.log('✅ Code valide: le parrain peut être un hôte ou un voyageur');
+
+      const referrerName = parrainProfile 
+        ? `${parrainProfile.first_name || ''} ${parrainProfile.last_name || ''}`.trim() || 'Utilisateur'
+        : 'Utilisateur';
 
       return { 
         valid: true, 
-        referrerName: parrainProfile ? `${parrainProfile.first_name} ${parrainProfile.last_name}` : 'Utilisateur'
+        referrerName
       };
     } catch (error: any) {
       console.error('Error verifying referral code:', error);

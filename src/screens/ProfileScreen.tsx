@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
-import { useUserProfile } from '../hooks/useUserProfile';
+import { useUserProfile, clearProfileCache } from '../hooks/useUserProfile';
 import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
@@ -22,7 +22,7 @@ import { useHostApplications } from '../hooks/useHostApplications';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
   const { isEmailVerified, generateVerificationCode, checkEmailVerificationStatus } = useEmailVerification();
@@ -110,12 +110,30 @@ const ProfileScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await supabase.auth.signOut();
+              // Nettoyer le cache du profil avant la déconnexion
+              clearProfileCache();
+              
+              // Utiliser la fonction signOut du contexte pour mettre à jour le state
+              await signOut();
+              
+              // Forcer la navigation vers l'écran d'authentification
               navigation.reset({
                 index: 0,
-                routes: [{ name: 'Home' }],
+                routes: [{ name: 'Auth' }],
               });
-            } catch (error) {
+            } catch (error: any) {
+              console.error('Erreur lors de la déconnexion:', error);
+              
+              // Si c'est une erreur de session manquante, on considère que la déconnexion est réussie
+              if (error?.message?.includes('Auth session missing')) {
+                clearProfileCache();
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Auth' }],
+                });
+                return;
+              }
+              
               Alert.alert('Erreur', 'Impossible de se déconnecter');
             }
           },

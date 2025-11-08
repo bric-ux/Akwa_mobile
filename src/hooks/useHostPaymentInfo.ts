@@ -41,14 +41,17 @@ export const useHostPaymentInfo = () => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
-  const fetchPaymentInfo = async () => {
+  const fetchPaymentInfo = async (): Promise<HostPaymentInfo | null> => {
     try {
       setLoading(true);
       setError(null);
 
       if (!user) {
+        console.error('❌ [useHostPaymentInfo] Utilisateur non connecté');
         throw new Error('Utilisateur non connecté');
       }
+
+      console.log('🔄 [useHostPaymentInfo] Récupération des informations de paiement pour user:', user.id);
 
       const { data, error: fetchError } = await supabase
         .from('host_payment_info')
@@ -56,14 +59,52 @@ export const useHostPaymentInfo = () => {
         .eq('user_id', user.id)
         .single();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
+      console.log('📊 [useHostPaymentInfo] Résultat de la requête:', {
+        hasData: !!data,
+        data: data,
+        hasError: !!fetchError,
+        errorCode: fetchError?.code,
+        errorMessage: fetchError?.message
+      });
+
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          // Aucune donnée trouvée
+          console.log('⚠️ [useHostPaymentInfo] Aucune information de paiement trouvée (code PGRST116)');
+          setPaymentInfo(null);
+          return null;
+        } else {
+          // Autre erreur
+          console.error('❌ [useHostPaymentInfo] Erreur Supabase:', fetchError);
+          throw fetchError;
+        }
       }
 
+      if (!data) {
+        console.log('⚠️ [useHostPaymentInfo] Aucune donnée retournée');
+        setPaymentInfo(null);
+        return null;
+      }
+
+      console.log('✅ [useHostPaymentInfo] Informations de paiement récupérées:', {
+        id: data.id,
+        preferred_payment_method: data.preferred_payment_method,
+        verification_status: data.verification_status,
+        bank_name: data.bank_name,
+        account_number: data.account_number,
+        mobile_money_provider: data.mobile_money_provider,
+        mobile_money_number: data.mobile_money_number,
+        paypal_email: data.paypal_email
+      });
+      
       setPaymentInfo(data as HostPaymentInfo);
+      return data as HostPaymentInfo;
     } catch (err) {
-      console.error('Erreur lors de la récupération des informations de paiement:', err);
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+      console.error('❌ [useHostPaymentInfo] Erreur lors de la récupération des informations de paiement:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Une erreur est survenue';
+      setError(errorMessage);
+      setPaymentInfo(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -194,10 +235,21 @@ export const useHostPaymentInfo = () => {
     return paymentInfo !== null;
   };
 
-  const isPaymentInfoComplete = (): boolean => {
-    if (!paymentInfo) return false;
+  const isPaymentInfoComplete = (info?: HostPaymentInfo | null): boolean => {
+    const infoToCheck = info !== undefined ? info : paymentInfo;
     
-    const errors = validatePaymentInfo(paymentInfo);
+    if (!infoToCheck) {
+      console.log('❌ isPaymentInfoComplete: paymentInfo is null');
+      return false;
+    }
+    
+    const errors = validatePaymentInfo(infoToCheck);
+    console.log('🔍 Validation paiement:', {
+      preferred_payment_method: infoToCheck.preferred_payment_method,
+      errors: errors,
+      isValid: errors.length === 0
+    });
+    
     return errors.length === 0;
   };
 
@@ -207,8 +259,10 @@ export const useHostPaymentInfo = () => {
 
   useEffect(() => {
     if (user) {
+      console.log('🔄 [useHostPaymentInfo] useEffect - Chargement initial pour user:', user.id);
       fetchPaymentInfo();
     } else {
+      console.log('⚠️ [useHostPaymentInfo] useEffect - Pas d\'utilisateur');
       setPaymentInfo(null);
       setLoading(false);
     }

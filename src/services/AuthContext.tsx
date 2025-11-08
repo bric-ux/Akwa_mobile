@@ -119,8 +119,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signOut();
+      // Si la session est déjà manquante, considérer la déconnexion comme réussie
+      if (error && error.message !== 'Auth session missing!' && error.message !== 'Auth session missing') {
+        throw error;
+      }
+      // Mettre à jour le state local même si la session était déjà absente
+      setUser(null);
+    } catch (error: any) {
+      // Si c'est une erreur de session manquante, on considère que la déconnexion est réussie
+      if (error?.message?.includes('Auth session missing')) {
+        setUser(null);
+        return;
+      }
+      throw error;
+    }
   };
 
   const value = {
