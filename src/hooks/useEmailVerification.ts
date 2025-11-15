@@ -153,78 +153,127 @@ export const useEmailVerification = () => {
     setError(null);
 
     try {
-      // Utiliser l'Edge Function verify-code qui contourne RLS avec service role key
-      // C'est la même approche que le site web
-      const { data, error: verifyError } = await supabase.functions.invoke('verify-code', {
-        body: { email, code }
-      });
+      console.log('🔍 Vérification du code pour:', email);
+      
+      // Vérifier le code dans la table email_verification_codes (même approche que le site web)
+      const { data: verificationData, error: verifyError } = await supabase
+        .from('email_verification_codes')
+        .select('*')
+        .eq('email', email)
+        .eq('code', code)
+        .eq('used', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
       if (verifyError) {
-        throw verifyError;
+        console.error('❌ Erreur lors de la vérification du code:', verifyError);
+        setError('Erreur lors de la vérification. Veuillez réessayer.');
+        return { success: false, error: 'Erreur lors de la vérification' };
       }
 
-      if (!data || !data.success) {
-        console.error('❌ Erreur de vérification:', data);
-        setError(data?.error || 'Code de vérification invalide');
-        return { success: false, error: data?.error || 'Code invalide' };
+      if (!verificationData || verificationData.length === 0) {
+        console.error('❌ Code de vérification invalide');
+        setError('Code de vérification invalide. Veuillez réessayer.');
+        return { success: false, error: 'Code de vérification invalide' };
       }
 
-      // Vérifier si email_verified est retourné dans la réponse
-      console.log('📧 Réponse complète de verify-code:', JSON.stringify(data, null, 2));
-      
-      if (data.email_verified === true) {
-        console.log('✅ Email vérifié confirmé par la fonction:', data.email_verified);
-        setIsEmailVerified(true);
-      } else {
-        console.warn('⚠️ La fonction verify-code a réussi mais email_verified n\'est pas true:', data.email_verified);
-        console.warn('⚠️ Cela peut indiquer un problème de mise à jour en base de données');
+      const verification = verificationData[0];
+
+      // Vérifier si le code a expiré
+      if (new Date(verification.expires_at) < new Date()) {
+        console.error('❌ Code expiré');
+        setError('Le code a expiré. Veuillez demander un nouveau code.');
+        return { success: false, error: 'Le code a expiré' };
       }
+
+      // Marquer le code comme utilisé
+      const { error: updateCodeError } = await supabase
+        .from('email_verification_codes')
+        .update({ used: true })
+        .eq('id', verification.id);
+
+      if (updateCodeError) {
+        console.error('❌ Erreur lors de la mise à jour du code:', updateCodeError);
+        setError('Erreur lors de la mise à jour du code. Veuillez réessayer.');
+        return { success: false, error: 'Erreur lors de la mise à jour du code' };
+      }
+
+      // Utiliser la fonction RPC pour marquer l'email comme vérifié (même approche que le site web)
+      console.log('📧 Appel de la fonction RPC mark_email_as_verified...');
+      const { error: rpcError } = await supabase.rpc('mark_email_as_verified');
       
-      // Attendre un peu pour que la base de données soit mise à jour
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (rpcError) {
+        console.error('❌ Erreur lors de la mise à jour du profil via RPC:', rpcError);
+        setError('Erreur lors de la mise à jour du profil. Veuillez réessayer.');
+        return { success: false, error: 'Erreur lors de la mise à jour du profil' };
+      }
+
+      console.log('✅ RPC appelée avec succès, vérification en base de données...');
       
-      // Vérifier directement en base de données pour confirmer la mise à jour
+      // Vérifier directement en base de données que la mise à jour a bien eu lieu
       if (user) {
-        console.log('🔍 Vérification directe en base de données après vérification...');
-        const { data: directCheck, error: directError } = await supabase
+        // Attendre un court instant pour que la transaction soit commitée
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        const { data: profileCheck, error: checkError } = await supabase
           .from('profiles')
           .select('email_verified')
           .eq('user_id', user.id)
           .single();
         
-        if (directError) {
-          console.error('❌ Erreur lors de la vérification directe:', directError);
+        if (checkError) {
+          console.error('❌ Erreur lors de la vérification en base:', checkError);
         } else {
-          console.log('📧 Statut direct en base:', directCheck?.email_verified);
-          if (directCheck?.email_verified === true) {
-            console.log('✅ Confirmation: email_verified est bien true en base de données');
+          console.log('📧 Statut email_verified en base après RPC:', profileCheck?.email_verified);
+          
+          if (profileCheck?.email_verified === true) {
+            console.log('✅ CONFIRMÉ: email_verified est bien true en base de données');
             setIsEmailVerified(true);
           } else {
-            console.error('❌ PROBLÈME: email_verified n\'est PAS true en base après vérification!');
-            console.error('❌ Valeur en base:', directCheck?.email_verified);
-            console.error('❌ Cela indique que la fonction Edge verify-code n\'a pas mis à jour la base de données');
+            console.error('❌ PROBLÈME: email_verified n\'est PAS true après l\'appel RPC!');
+            console.error('❌ Valeur actuelle:', profileCheck?.email_verified);
+            console.error('❌ Cela indique que la fonction RPC n\'a pas mis à jour la base de données');
+            // Essayer une deuxième fois
+            console.log('🔄 Nouvelle tentative d\'appel RPC...');
+            const { error: retryError } = await supabase.rpc('mark_email_as_verified');
+            if (retryError) {
+              console.error('❌ Erreur lors de la deuxième tentative:', retryError);
+            } else {
+              // Vérifier à nouveau
+              await new Promise(resolve => setTimeout(resolve, 200));
+              const { data: retryCheck } = await supabase
+                .from('profiles')
+                .select('email_verified')
+                .eq('user_id', user.id)
+                .single();
+              
+              if (retryCheck?.email_verified === true) {
+                console.log('✅ Succès après nouvelle tentative');
+                setIsEmailVerified(true);
+              } else {
+                console.error('❌ Échec même après nouvelle tentative');
+                setError('La mise à jour du profil a échoué. Veuillez réessayer.');
+                return { success: false, error: 'La mise à jour du profil a échoué' };
+              }
+            }
           }
         }
         
+        // Forcer le rafraîchissement du statut depuis la base de données
         // Réinitialiser le flag pour forcer le rafraîchissement
         isCheckingRef.current = false;
         // Forcer le rafraîchissement immédiatement avec force=true
         await checkEmailVerificationStatus(true);
-        
-        // Vérifier à nouveau après un délai pour être sûr que la DB est bien à jour
-        setTimeout(async () => {
-          isCheckingRef.current = false;
-          await checkEmailVerificationStatus(true);
-        }, 1500);
       } else {
+        // Si pas d'utilisateur, on met quand même à jour l'état local
         setIsEmailVerified(true);
       }
       
       return { success: true };
     } catch (error: any) {
-      console.error('Erreur lors de la vérification du code:', error);
+      console.error('❌ Erreur lors de la vérification du code:', error);
       setError(error.message || 'Erreur lors de la vérification');
-      return { success: false, error: error.message };
+      return { success: false, error: error.message || 'Erreur lors de la vérification' };
     } finally {
       setLoading(false);
     }

@@ -76,11 +76,15 @@ const EmailVerificationScreen: React.FC = () => {
     setError(null);
 
     try {
-      // Utiliser l'Edge Function verify-code qui contourne RLS avec service role key
-      // C'est la même approche que le site web
-      const { data, error: verifyError } = await supabase.functions.invoke('verify-code', {
-        body: { email, code }
-      });
+      // Vérifier le code dans la table email_verification_codes (même approche que le site web)
+      const { data: verificationData, error: verifyError } = await supabase
+        .from('email_verification_codes')
+        .select('*')
+        .eq('email', email)
+        .eq('code', code)
+        .eq('used', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
       if (verifyError) {
         console.error('Erreur vérification:', verifyError);
@@ -89,14 +93,85 @@ const EmailVerificationScreen: React.FC = () => {
         return;
       }
 
-      if (!data || !data.success) {
-        setError(data?.error || 'Code de vérification invalide. Veuillez réessayer.');
+      if (!verificationData || verificationData.length === 0) {
+        setError('Code de vérification invalide. Veuillez réessayer.');
         setIsLoading(false);
         return;
       }
 
-      // Attendre un peu pour que la base de données soit mise à jour
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const verification = verificationData[0];
+
+      // Vérifier si le code a expiré
+      if (new Date(verification.expires_at) < new Date()) {
+        setError('Le code a expiré. Veuillez demander un nouveau code.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Marquer le code comme utilisé
+      await supabase
+        .from('email_verification_codes')
+        .update({ used: true })
+        .eq('id', verification.id);
+
+      // Utiliser la fonction RPC pour marquer l'email comme vérifié (même approche que le site web)
+      console.log('📧 Appel de la fonction RPC mark_email_as_verified...');
+      const { error: rpcError } = await supabase.rpc('mark_email_as_verified');
+      
+      if (rpcError) {
+        console.error('❌ Erreur mise à jour profil:', rpcError);
+        setError('Erreur lors de la mise à jour du profil. Veuillez réessayer.');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('✅ RPC appelée avec succès, vérification en base de données...');
+      
+      // Vérifier directement en base de données que la mise à jour a bien eu lieu
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Attendre un court instant pour que la transaction soit commitée
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        const { data: profileCheck, error: checkError } = await supabase
+          .from('profiles')
+          .select('email_verified')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (checkError) {
+          console.error('❌ Erreur lors de la vérification en base:', checkError);
+        } else {
+          console.log('📧 Statut email_verified en base après RPC:', profileCheck?.email_verified);
+          
+          if (profileCheck?.email_verified === true) {
+            console.log('✅ CONFIRMÉ: email_verified est bien true en base de données');
+          } else {
+            console.error('❌ PROBLÈME: email_verified n\'est PAS true après l\'appel RPC!');
+            console.error('❌ Valeur actuelle:', profileCheck?.email_verified);
+            // Essayer une deuxième fois
+            console.log('🔄 Nouvelle tentative d\'appel RPC...');
+            const { error: retryError } = await supabase.rpc('mark_email_as_verified');
+            if (!retryError) {
+              await new Promise(resolve => setTimeout(resolve, 200));
+              const { data: retryCheck } = await supabase
+                .from('profiles')
+                .select('email_verified')
+                .eq('user_id', user.id)
+                .single();
+              
+              if (retryCheck?.email_verified === true) {
+                console.log('✅ Succès après nouvelle tentative');
+              } else {
+                console.error('❌ Échec même après nouvelle tentative');
+                setError('La mise à jour du profil a échoué. Veuillez réessayer.');
+                setIsLoading(false);
+                return;
+              }
+            }
+          }
+        }
+      }
       
       // Rafraîchir le statut de vérification de l'email
       // Utiliser useEmailVerification via un callback ou forcer le rafraîchissement
