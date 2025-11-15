@@ -171,18 +171,13 @@ const ProfileScreen: React.FC = () => {
   };
 
   // Créer les éléments de menu de base
+  // Note: "Mes réservations" n'est plus ici car accessible via l'onglet "Réservations" de la navigation principale
   const baseMenuItems = [
     {
       id: 'edit',
       title: 'Modifier le profil',
       icon: 'person-outline',
       onPress: () => navigation.navigate('EditProfile'),
-    },
-    {
-      id: 'bookings',
-      title: 'Mes réservations',
-      icon: 'calendar-outline',
-      onPress: () => navigation.navigate('MyBookings'),
     },
   ];
 

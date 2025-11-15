@@ -101,7 +101,7 @@ const TabNavigator = () => {
       <Tab.Screen 
         name="ProfileTab" 
         component={ProfileScreen}
-        options={{ tabBarLabel: 'Profil' }}
+        options={{ tabBarLabel: 'Mon compte' }}
       />
     </Tab.Navigator>
   );

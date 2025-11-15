@@ -257,13 +257,6 @@ const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>Compte</Text>
         <View style={styles.section}>
           <SettingItem
-            icon="person-outline"
-            title="Informations personnelles"
-            subtitle="Modifier votre profil"
-            onPress={() => navigation.navigate('EditProfile' as never)}
-          />
-          
-          <SettingItem
             icon="lock-closed-outline"
             title="Mot de passe"
             subtitle="Changer votre mot de passe"
