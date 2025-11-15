@@ -20,6 +20,8 @@ import { useProperties } from '../hooks/useProperties';
 import { useAuth } from '../services/AuthContext';
 import { Property, CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
+import { useAmenities } from '../hooks/useAmenities';
+import { useHostApplications } from '../hooks/useHostApplications';
 
 type EditPropertyRouteParams = {
   propertyId: string;
@@ -31,10 +33,13 @@ const EditPropertyScreen: React.FC = () => {
   const { propertyId } = route.params;
   const { user } = useAuth();
   const { getPropertyById } = useProperties();
+  const { getAmenities } = useHostApplications();
   
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [availableAmenities, setAvailableAmenities] = useState<any[]>([]);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   
   // États du formulaire
   const [formData, setFormData] = useState({
@@ -46,7 +51,6 @@ const EditPropertyScreen: React.FC = () => {
     bathrooms: '',
     property_type: 'apartment',
     cleaning_fee: '',
-    service_fee: '',
     minimum_nights: '',
     auto_booking: false,
     discount_enabled: false,
@@ -69,7 +73,13 @@ const EditPropertyScreen: React.FC = () => {
 
   useEffect(() => {
     loadProperty();
+    loadAmenities();
   }, [propertyId]);
+
+  const loadAmenities = async () => {
+    const amenities = await getAmenities();
+    setAvailableAmenities(amenities);
+  };
 
   const loadProperty = async () => {
     try {
@@ -87,7 +97,6 @@ const EditPropertyScreen: React.FC = () => {
           bathrooms: propertyData.bathrooms?.toString() || '',
           property_type: propertyData.property_type || 'apartment',
           cleaning_fee: propertyData.cleaning_fee?.toString() || '',
-          service_fee: propertyData.service_fee?.toString() || '',
           minimum_nights: propertyData.minimum_nights?.toString() || '',
           auto_booking: propertyData.auto_booking || false,
           discount_enabled: propertyData.discount_enabled || false,
@@ -98,6 +107,11 @@ const EditPropertyScreen: React.FC = () => {
         // Charger les photos
         if (propertyData.photos && propertyData.photos.length > 0) {
           setPhotos(propertyData.photos);
+        }
+
+        // Charger les équipements sélectionnés
+        if (propertyData.amenities && Array.isArray(propertyData.amenities)) {
+          setSelectedAmenities(propertyData.amenities);
         }
       }
     } catch (error) {
@@ -124,7 +138,7 @@ const EditPropertyScreen: React.FC = () => {
       }
 
       // Préparer les données pour la mise à jour
-      const updateData = {
+      const updateData: any = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         price_per_night: Number(formData.price_per_night),
@@ -133,8 +147,8 @@ const EditPropertyScreen: React.FC = () => {
         bathrooms: formData.bathrooms ? Number(formData.bathrooms) : null,
         property_type: formData.property_type,
         cleaning_fee: formData.cleaning_fee ? Number(formData.cleaning_fee) : null,
-        service_fee: formData.service_fee ? Number(formData.service_fee) : null,
         minimum_nights: formData.minimum_nights ? Number(formData.minimum_nights) : null,
+        amenities: selectedAmenities,
         auto_booking: formData.auto_booking,
         discount_enabled: formData.discount_enabled,
         discount_min_nights: formData.discount_min_nights ? Number(formData.discount_min_nights) : null,
@@ -269,6 +283,14 @@ const EditPropertyScreen: React.FC = () => {
       setPhotos(newPhotos);
     }
     setShowCategoryModal(false);
+  };
+
+  const toggleAmenity = (amenityName: string) => {
+    setSelectedAmenities(prev => 
+      prev.includes(amenityName) 
+        ? prev.filter(name => name !== amenityName)
+        : [...prev, amenityName]
+    );
   };
 
   const getCategoryLabel = (category: string) => {
@@ -480,7 +502,7 @@ const EditPropertyScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Modifier la propriété</Text>
+        <Text style={styles.headerTitle}>Modifier les informations du logement</Text>
         <TouchableOpacity
           onPress={handleSave}
           style={styles.saveButton}
@@ -494,7 +516,11 @@ const EditPropertyScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Informations de base */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations de base</Text>
@@ -526,9 +552,9 @@ const EditPropertyScreen: React.FC = () => {
         {/* Photos */}
         {renderPhotosSection()}
 
-        {/* Capacité et équipements */}
+        {/* Capacité */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Capacité et équipements</Text>
+          <Text style={styles.sectionTitle}>Capacité</Text>
           
           {renderInputField(
             'Capacité maximale',
@@ -555,9 +581,37 @@ const EditPropertyScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Tarification */}
+        {/* Équipements */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tarification</Text>
+          <Text style={styles.sectionTitle}>Équipements</Text>
+          <Text style={styles.sectionSubtitle}>
+            Sélectionnez les équipements disponibles dans votre logement
+          </Text>
+          
+          <View style={styles.amenitiesGrid}>
+            {availableAmenities.map((amenity) => (
+              <TouchableOpacity
+                key={amenity.id}
+                style={[
+                  styles.amenityItem,
+                  selectedAmenities.includes(amenity.name) && styles.amenityItemSelected
+                ]}
+                onPress={() => toggleAmenity(amenity.name)}
+              >
+                <Text style={[
+                  styles.amenityText,
+                  selectedAmenities.includes(amenity.name) && styles.amenityTextSelected
+                ]}>
+                  {amenity.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Tarification de base */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tarification de base</Text>
           
           {renderInputField(
             'Prix par nuit (CFA) *',
@@ -576,51 +630,11 @@ const EditPropertyScreen: React.FC = () => {
           )}
           
           {renderInputField(
-            'Frais de service (CFA)',
-            'service_fee',
-            formData.service_fee,
-            'Frais de service',
-            'numeric'
-          )}
-          
-          {renderInputField(
             'Nuitées minimum',
             'minimum_nights',
             formData.minimum_nights,
             'Nombre de nuits minimum',
             'numeric'
-          )}
-        </View>
-
-        {/* Réductions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Réductions</Text>
-          
-          {renderSwitchField(
-            'Activer les réductions',
-            'discount_enabled',
-            formData.discount_enabled,
-            'Proposer des réductions pour les séjours longs'
-          )}
-          
-          {formData.discount_enabled && (
-            <>
-              {renderInputField(
-                'Nuitées minimum pour réduction',
-                'discount_min_nights',
-                formData.discount_min_nights,
-                'Nombre de nuits minimum',
-                'numeric'
-              )}
-              
-              {renderInputField(
-                'Pourcentage de réduction',
-                'discount_percentage',
-                formData.discount_percentage,
-                'Pourcentage de réduction (%)',
-                'numeric'
-              )}
-            </>
           )}
         </View>
 
@@ -635,6 +649,7 @@ const EditPropertyScreen: React.FC = () => {
             'Accepter automatiquement les réservations sans validation manuelle'
           )}
         </View>
+
 
         {/* Bouton de sauvegarde */}
         <View style={styles.saveSection}>
@@ -673,7 +688,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     paddingVertical: 15,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
@@ -681,26 +696,33 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: 8,
+    minWidth: 40,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
+    flex: 1,
+    textAlign: 'center',
+    paddingHorizontal: 10,
   },
   saveButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
     backgroundColor: '#2E7D32',
+    minWidth: 80,
   },
   saveButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#fff',
     fontWeight: '600',
   },
   content: {
     flex: 1,
-    padding: 20,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   section: {
     backgroundColor: '#fff',
@@ -721,6 +743,36 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+  },
+  amenitiesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  amenityItem: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  amenityItemSelected: {
+    backgroundColor: '#e67e22',
+    borderColor: '#e67e22',
+  },
+  amenityText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  amenityTextSelected: {
+    color: '#fff',
   },
   inputGroup: {
     marginBottom: 20,
@@ -793,6 +845,7 @@ const styles = StyleSheet.create({
   saveSection: {
     marginTop: 20,
     marginBottom: 40,
+    paddingHorizontal: 20,
   },
   saveButtonLarge: {
     flexDirection: 'row',
@@ -800,8 +853,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#2E7D32',
     paddingVertical: 16,
+    paddingHorizontal: 24,
     borderRadius: 12,
     gap: 10,
+    width: '100%',
   },
   saveButtonDisabled: {
     backgroundColor: '#ccc',

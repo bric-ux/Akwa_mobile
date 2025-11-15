@@ -236,7 +236,7 @@ const PropertyManagementScreen: React.FC = () => {
             onPress={handleEditProperty}
           >
             <Ionicons name="create-outline" size={20} color="#f39c12" />
-            <Text style={styles.actionButtonText}>Modifier</Text>
+            <Text style={styles.actionButtonText}>Modifier les informations du logement</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -378,10 +378,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   actionButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#333',
     marginLeft: 6,
     fontWeight: '500',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   optionCard: {
     backgroundColor: '#f8f9fa',
