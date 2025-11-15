@@ -95,13 +95,24 @@ const EmailVerificationScreen: React.FC = () => {
         return;
       }
 
+      // Attendre un peu pour que la base de données soit mise à jour
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Rafraîchir le statut de vérification de l'email
+      // Utiliser useEmailVerification via un callback ou forcer le rafraîchissement
       Alert.alert(
         'Email vérifié avec succès !',
         'Votre compte a été activé. Bienvenue sur AkwaHome !',
-        [{ text: 'OK', onPress: () => navigation.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        })}]
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            // Navigation vers Home qui déclenchera le rafraîchissement du profil
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Home' }],
+            });
+          }
+        }]
       );
     } catch (err) {
       console.error('Verification error:', err);

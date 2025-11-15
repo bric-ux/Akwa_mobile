@@ -36,8 +36,20 @@ const ProfileScreen: React.FC = () => {
       if (user) {
         refreshProfile();
         checkPendingApplications();
+        // Rafraîchir aussi le statut de vérification de l'email
+        // Forcer le rafraîchissement pour être sûr d'avoir la dernière valeur
+        // Utiliser un délai pour s'assurer que les autres opérations sont terminées
+        setTimeout(() => {
+          checkEmailVerificationStatus(true); // force = true pour forcer le rafraîchissement
+        }, 300);
+        
+        // Vérification supplémentaire après un délai plus long pour être sûr
+        setTimeout(() => {
+          checkEmailVerificationStatus(true);
+        }, 1000);
       }
-    }, [refreshProfile, user])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]) // Ne pas inclure les fonctions pour éviter les boucles
   );
 
   const checkPendingApplications = async () => {
@@ -89,10 +101,26 @@ const ProfileScreen: React.FC = () => {
 
   const handleEmailVerificationSuccess = async () => {
     setShowEmailVerification(false);
-    // Recharger le statut de vérification de l'email depuis la base de données
-    await checkEmailVerificationStatus();
+    
+    // Attendre un peu pour que la base de données soit mise à jour
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Forcer le rafraîchissement du statut de vérification de l'email immédiatement
+    await checkEmailVerificationStatus(true); // force = true
+    
     // Rafraîchir le profil pour mettre à jour toutes les informations
-    refreshProfile();
+    await refreshProfile();
+    
+    // Vérifier à nouveau après un délai pour être sûr que la DB est bien à jour
+    setTimeout(async () => {
+      await checkEmailVerificationStatus(true);
+      await refreshProfile();
+    }, 1500);
+    
+    // Dernière vérification après un délai supplémentaire pour être absolument sûr
+    setTimeout(async () => {
+      await checkEmailVerificationStatus(true);
+    }, 3000);
   };
 
   const handleCloseEmailVerification = () => {

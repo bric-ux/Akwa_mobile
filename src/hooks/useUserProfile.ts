@@ -73,10 +73,10 @@ export const useUserProfile = () => {
       
       const user = session.user;
       
-      // Récupérer le profil depuis la table profiles pour avoir le rôle
+      // Récupérer le profil depuis la table profiles pour avoir le rôle et email_verified
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('role, is_host, first_name, last_name, phone, avatar_url, bio')
+        .select('role, is_host, first_name, last_name, phone, avatar_url, bio, email, email_verified')
         .eq('user_id', user.id)
         .single();
 
