@@ -232,6 +232,7 @@ const AuthScreen: React.FC = () => {
 
             if (existingProfile) {
               // Le profil existe déjà, le mettre à jour
+              // Utiliser la même approche que le site web
               const { error: profileError } = await supabase
                 .from('profiles')
                 .update(profileData)
@@ -239,6 +240,8 @@ const AuthScreen: React.FC = () => {
 
               if (profileError) {
                 console.error('Erreur mise à jour profil:', profileError);
+                // Ne pas bloquer l'inscription si la mise à jour du profil échoue
+                // Le profil existe déjà et l'utilisateur peut continuer
               } else {
                 console.log('✅ Profil mis à jour automatiquement');
               }
@@ -275,6 +278,7 @@ const AuthScreen: React.FC = () => {
                   
                   if (updateError) {
                     console.error('Erreur mise à jour profil:', updateError);
+                    // Ne pas bloquer l'inscription si la mise à jour du profil échoue
                   } else {
                     console.log('✅ Profil mis à jour automatiquement');
                   }

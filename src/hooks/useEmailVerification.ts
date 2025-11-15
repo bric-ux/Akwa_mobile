@@ -90,49 +90,23 @@ export const useEmailVerification = () => {
     setError(null);
 
     try {
-      // Vérifier le code dans la table email_verification_codes
-      const { data: verificationData, error: verificationError } = await supabase
-        .from('email_verification_codes')
-        .select('*')
-        .eq('email', email)
-        .eq('code', code)
-        .eq('used', false)
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // Utiliser l'Edge Function verify-code qui contourne RLS avec service role key
+      // C'est la même approche que le site web
+      const { data, error: verifyError } = await supabase.functions.invoke('verify-code', {
+        body: { email, code }
+      });
 
-      if (verificationError) throw verificationError;
-
-      if (!verificationData || verificationData.length === 0) {
-        setError('Code de vérification invalide');
-        return { success: false, error: 'Code invalide' };
+      if (verifyError) {
+        throw verifyError;
       }
 
-      const verification = verificationData[0];
-
-      // Vérifier si le code a expiré
-      if (new Date(verification.expires_at) < new Date()) {
-        setError('Le code a expiré. Veuillez demander un nouveau code.');
-        return { success: false, error: 'Code expiré' };
+      if (!data || !data.success) {
+        setError(data?.error || 'Code de vérification invalide');
+        return { success: false, error: data?.error || 'Code invalide' };
       }
-
-      // Marquer le code comme utilisé
-      const { error: updateError } = await supabase
-        .from('email_verification_codes')
-        .update({ used: true })
-        .eq('id', verification.id);
-
-      if (updateError) throw updateError;
-
-      // Mettre à jour le profil pour marquer l'email comme vérifié
+      
+      // Recharger le statut depuis la base de données pour être sûr
       if (user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ email_verified: true })
-          .eq('user_id', user.id);
-
-        if (profileError) throw profileError;
-        
-        // Recharger le statut depuis la base de données pour être sûr
         await checkEmailVerificationStatus();
       } else {
         setIsEmailVerified(true);

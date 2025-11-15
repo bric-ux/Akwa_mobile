@@ -76,15 +76,11 @@ const EmailVerificationScreen: React.FC = () => {
     setError(null);
 
     try {
-      // Vérifier le code dans notre table email_verification_codes
-      const { data: verificationData, error: verifyError } = await supabase
-        .from('email_verification_codes')
-        .select('*')
-        .eq('email', email)
-        .eq('code', code)
-        .eq('used', false)
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // Utiliser l'Edge Function verify-code qui contourne RLS avec service role key
+      // C'est la même approche que le site web
+      const { data, error: verifyError } = await supabase.functions.invoke('verify-code', {
+        body: { email, code }
+      });
 
       if (verifyError) {
         console.error('Erreur vérification:', verifyError);
@@ -93,34 +89,10 @@ const EmailVerificationScreen: React.FC = () => {
         return;
       }
 
-      if (!verificationData || verificationData.length === 0) {
-        setError('Code de vérification invalide. Veuillez réessayer.');
+      if (!data || !data.success) {
+        setError(data?.error || 'Code de vérification invalide. Veuillez réessayer.');
         setIsLoading(false);
         return;
-      }
-
-      const verification = verificationData[0];
-
-      // Vérifier si le code a expiré
-      if (new Date(verification.expires_at) < new Date()) {
-        setError('Le code a expiré. Veuillez demander un nouveau code.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Marquer le code comme utilisé
-      await supabase
-        .from('email_verification_codes')
-        .update({ used: true })
-        .eq('id', verification.id);
-
-      // Mettre à jour le profil pour marquer l'email comme vérifié
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({ email_verified: true })
-          .eq('user_id', user.id);
       }
 
       Alert.alert(
