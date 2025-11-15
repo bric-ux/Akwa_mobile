@@ -236,7 +236,7 @@ const PropertyManagementScreen: React.FC = () => {
             onPress={handleEditProperty}
           >
             <Ionicons name="create-outline" size={20} color="#f39c12" />
-            <Text style={styles.actionButtonText}>Modifier les informations du logement</Text>
+            <Text style={styles.actionButtonText}>Modifier</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -270,6 +270,17 @@ const PropertyManagementScreen: React.FC = () => {
           >
             <Ionicons name="document-text-outline" size={20} color="#e67e22" />
             <Text style={styles.actionButtonText}>Règlement intérieur</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Option Supprimer */}
+        <View style={styles.deleteSection}>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={handleDeleteProperty}
+          >
+            <Ionicons name="trash-outline" size={20} color="#fff" />
+            <Text style={styles.deleteButtonText}>Supprimer la propriété</Text>
           </TouchableOpacity>
         </View>
 
@@ -378,12 +389,34 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   actionButtonText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#333',
     marginLeft: 6,
     fontWeight: '500',
     textAlign: 'center',
     flexShrink: 1,
+  },
+  deleteSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: '#e74c3c',
+  },
+  deleteButtonText: {
+    fontSize: 14,
+    color: '#fff',
+    marginLeft: 8,
+    fontWeight: '600',
   },
   optionCard: {
     backgroundColor: '#f8f9fa',
