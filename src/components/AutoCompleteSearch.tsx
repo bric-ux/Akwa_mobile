@@ -26,7 +26,7 @@ interface AutoCompleteSearchProps {
 }
 
 const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
-  placeholder = "Rechercher ville ou quartier...",
+  placeholder = "Où allez-vous ?",
   onSearch,
   onSuggestionSelect,
   initialValue = '',
@@ -280,7 +280,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+        <Ionicons name="location" size={20} color="#666" style={styles.searchIcon} />
         <TextInput
           ref={textInputRef}
           style={styles.input}

@@ -19,6 +19,7 @@ import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { useEmailVerification } from '../hooks/useEmailVerification';
 import EmailVerificationModal from '../components/EmailVerificationModal';
 import { useHostApplications } from '../hooks/useHostApplications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -36,17 +37,9 @@ const ProfileScreen: React.FC = () => {
       if (user) {
         refreshProfile();
         checkPendingApplications();
-        // Rafraîchir aussi le statut de vérification de l'email
-        // Forcer le rafraîchissement pour être sûr d'avoir la dernière valeur
-        // Utiliser un délai pour s'assurer que les autres opérations sont terminées
-        setTimeout(() => {
-          checkEmailVerificationStatus(true); // force = true pour forcer le rafraîchissement
-        }, 300);
-        
-        // Vérification supplémentaire après un délai plus long pour être sûr
-        setTimeout(() => {
-          checkEmailVerificationStatus(true);
-        }, 1000);
+        // Rafraîchir aussi le statut de vérification de l'email immédiatement
+        // Vérifier immédiatement pour éviter l'affichage de "non vérifié" puis "vérifié"
+        checkEmailVerificationStatus(true);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]) // Ne pas inclure les fonctions pour éviter les boucles
@@ -179,6 +172,12 @@ const ProfileScreen: React.FC = () => {
       icon: 'person-outline',
       onPress: () => navigation.navigate('EditProfile'),
     },
+    {
+      id: 'referral',
+      title: 'Système de parrainage',
+      icon: 'gift-outline',
+      onPress: () => navigation.navigate('GuestReferral' as never),
+    },
   ];
 
   // Élément pour l'espace hôte (navigation complète avec onglets)
@@ -186,7 +185,27 @@ const ProfileScreen: React.FC = () => {
     id: 'hostSpace',
     title: 'Espace hôte',
     icon: 'business-outline',
-    onPress: () => navigation.navigate('HostSpace' as never),
+    onPress: async () => {
+      Alert.alert(
+        'Passer en mode hôte',
+        'Vous allez accéder à votre espace hôte pour gérer vos propriétés et réservations. Souhaitez-vous continuer ?',
+        [
+          {
+            text: 'Annuler',
+            style: 'cancel',
+          },
+          {
+            text: 'Continuer',
+            onPress: async () => {
+              // Sauvegarder le mode préféré
+              await AsyncStorage.setItem('preferredMode', 'host');
+              navigation.navigate('HostSpace' as never);
+            },
+            style: 'default',
+          },
+        ]
+      );
+    },
   };
 
   // Élément pour devenir hôte (si pas encore hôte)
@@ -353,21 +372,45 @@ const ProfileScreen: React.FC = () => {
           <IdentityVerificationAlert />
         </View>
 
+        {/* Bouton Espace hôte (si applicable) */}
+        {(profile?.is_host || hasPendingApplications) && (
+          <View style={styles.hostSpaceContainer}>
+            <TouchableOpacity
+              style={styles.hostSpaceButton}
+              onPress={hostSpaceItem.onPress}
+              activeOpacity={0.8}
+            >
+              <View style={styles.hostSpaceContent}>
+                <View style={styles.hostSpaceIconContainer}>
+                  <Ionicons name="business" size={18} color="#fff" />
+                </View>
+                <View style={styles.hostSpaceTextContainer}>
+                  <Text style={styles.hostSpaceText}>Espace hôte</Text>
+                  <Text style={styles.hostSpaceSubtext}>Gérer vos propriétés</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Menu Items */}
         <View style={styles.menuContainer}>
-          {menuItems.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.menuItem}
-              onPress={item.onPress}
-            >
-              <View style={styles.menuItemLeft}>
-                <Ionicons name={item.icon as any} size={24} color="#333" />
-                <Text style={styles.menuItemText}>{item.title}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#ccc" />
-            </TouchableOpacity>
-          ))}
+          {menuItems
+            .filter(item => item.id !== 'hostSpace') // Exclure hostSpaceItem de la liste normale
+            .map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.menuItem}
+                onPress={item.onPress}
+              >
+                <View style={styles.menuItemLeft}>
+                  <Ionicons name={item.icon as any} size={24} color="#333" />
+                  <Text style={styles.menuItemText}>{item.title}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              </TouchableOpacity>
+            ))}
         </View>
 
         {/* Logout Button */}
@@ -507,6 +550,51 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     borderRadius: 12,
     overflow: 'hidden',
+  },
+  hostSpaceContainer: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  hostSpaceButton: {
+    backgroundColor: '#e67e22',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  hostSpaceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  hostSpaceIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  hostSpaceTextContainer: {
+    flex: 1,
+  },
+  hostSpaceText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  hostSpaceSubtext: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   menuItem: {
     flexDirection: 'row',

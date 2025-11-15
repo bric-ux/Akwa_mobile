@@ -31,7 +31,7 @@ interface CitySearchInputProps {
 const CitySearchInput: React.FC<CitySearchInputProps> = ({
   value = '',
   onChange,
-  placeholder = 'Rechercher une ville ou un quartier...',
+  placeholder = 'Où allez-vous ?',
   disabled = false
 }) => {
   const [inputValue, setInputValue] = useState(value);
@@ -192,7 +192,7 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
     <View style={styles.container}>
       {/* Input */}
       <View style={styles.inputContainer}>
-        <Ionicons name="search" size={20} color="#9ca3af" style={styles.searchIcon} />
+        <Ionicons name="location" size={20} color="#9ca3af" style={styles.searchIcon} />
         <TextInput
           style={[styles.input, disabled && styles.inputDisabled]}
           value={inputValue}

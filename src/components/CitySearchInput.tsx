@@ -31,7 +31,7 @@ interface CitySearchInputProps {
 const CitySearchInput: React.FC<CitySearchInputProps> = ({
   value = '',
   onChange,
-  placeholder = 'Rechercher une ville ou un quartier...',
+  placeholder = 'Où allez-vous ?',
   disabled = false
 }) => {
   const [searchTerm, setSearchTerm] = useState(value);
@@ -266,7 +266,7 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons name="search" size={32} color="#9ca3af" />
+      <Ionicons name="location" size={32} color="#9ca3af" />
       <Text style={styles.emptyStateTitle}>
         {searchTerm.trim() ? 'Aucun résultat trouvé' : 'Commencez à taper pour rechercher'}
       </Text>
@@ -291,7 +291,7 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
       {/* Input de recherche */}
       <View style={styles.inputContainer}>
         <View style={styles.inputWrapper}>
-          <Ionicons name="search" size={20} color="#9ca3af" style={styles.searchIcon} />
+          <Ionicons name="location" size={20} color="#9ca3af" style={styles.searchIcon} />
           <TextInput
             style={[styles.input, disabled && styles.inputDisabled]}
             value={searchTerm}

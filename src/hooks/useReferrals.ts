@@ -84,6 +84,7 @@ export const useReferrals = () => {
 
     const fetchReferrals = async () => {
       try {
+        // Récupérer tous les parrainages (hôtes et voyageurs)
         const { data, error } = await supabase
           .from('host_referrals')
           .select('*')

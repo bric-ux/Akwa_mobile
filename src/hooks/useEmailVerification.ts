@@ -89,12 +89,10 @@ export const useEmailVerification = () => {
 
   useEffect(() => {
     if (user) {
-      // Vérifier le statut au chargement initial et forcer le rafraîchissement
+      // Vérifier le statut au chargement initial immédiatement (sans délai)
       console.log('🔄 Hook useEmailVerification: Vérification initiale du statut pour user:', user.id);
-      // Forcer le rafraîchissement au chargement pour être sûr d'avoir la dernière valeur
-      setTimeout(() => {
-        checkEmailVerificationStatus(true);
-      }, 300);
+      // Vérifier immédiatement pour éviter l'affichage de "non vérifié" puis "vérifié"
+      checkEmailVerificationStatus(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]); // Ne pas inclure checkEmailVerificationStatus pour éviter les boucles

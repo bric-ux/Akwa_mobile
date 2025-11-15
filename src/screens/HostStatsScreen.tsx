@@ -199,9 +199,7 @@ const HostStatsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
         <Text style={styles.headerTitle}>Statistiques détaillées</Text>
         <TouchableOpacity
           style={styles.refreshButton}
@@ -343,16 +341,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
   },
-  backButton: {
-    padding: 8,
+  placeholder: {
+    width: 40,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    flex: 1,
+    textAlign: 'center',
   },
   refreshButton: {
     padding: 8,
+    width: 40,
+    alignItems: 'center',
   },
   content: {
     flex: 1,

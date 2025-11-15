@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
@@ -195,10 +196,27 @@ const AuthScreen: React.FC = () => {
             navigation.replace(returnTo as any);
           }
         } else {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Home' }],
-          });
+          // Vérifier le mode préféré sauvegardé
+          try {
+            const preferredMode = await AsyncStorage.getItem('preferredMode');
+            if (preferredMode === 'host') {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'HostSpace' }],
+              });
+            } else {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Home' }],
+              });
+            }
+          } catch (error) {
+            console.error('Error checking preferred mode:', error);
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Home' }],
+            });
+          }
         }
       } else {
         // Inscription

@@ -1,8 +1,10 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef, CommonActions } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../services/AuthContext';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -45,6 +47,7 @@ import TermsScreen from '../screens/TermsScreen';
 import PropertyManagementScreen from '../screens/PropertyManagementScreen';
 import PropertyPricingScreen from '../screens/PropertyPricingScreen';
 import PropertyRulesScreen from '../screens/PropertyRulesScreen';
+import GuestReferralScreen from '../screens/GuestReferralScreen';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList } from '../types';
@@ -165,7 +168,7 @@ const HostTabNavigator = () => {
       <HostTab.Screen 
         name="HostProfileTab" 
         component={HostAccountScreen}
-        options={{ tabBarLabel: 'Compte' }}
+        options={{ tabBarLabel: 'Mon compte' }}
       />
     </HostTab.Navigator>
   );
@@ -173,8 +176,46 @@ const HostTabNavigator = () => {
 
 // Main Stack Navigator
 const AppNavigator = () => {
+  const navigationRef = useNavigationContainerRef();
+  const { user, loading: authLoading } = useAuth();
+  const hasCheckedMode = React.useRef(false);
+
+  React.useEffect(() => {
+    const checkAndNavigate = async () => {
+      if (!authLoading && user && !hasCheckedMode.current) {
+        // Attendre que le navigator soit prêt
+        const checkReady = setInterval(() => {
+          if (navigationRef.isReady()) {
+            clearInterval(checkReady);
+            hasCheckedMode.current = true;
+            (async () => {
+              try {
+                const preferredMode = await AsyncStorage.getItem('preferredMode');
+                if (preferredMode === 'host') {
+                  navigationRef.dispatch(
+                    CommonActions.reset({
+                      index: 0,
+                      routes: [{ name: 'HostSpace' }],
+                    })
+                  );
+                }
+              } catch (error) {
+                console.error('Error checking preferred mode:', error);
+              }
+            })();
+          }
+        }, 100);
+
+        // Nettoyer après 5 secondes max
+        setTimeout(() => clearInterval(checkReady), 5000);
+      }
+    };
+
+    checkAndNavigate();
+  }, [user, authLoading, navigationRef]);
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         initialRouteName="Home"
         screenOptions={{
@@ -315,6 +356,14 @@ const AppNavigator = () => {
             <Stack.Screen 
               name="HostReferral" 
               component={HostReferralScreen}
+              options={{ 
+                title: 'Système de Parrainage',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="GuestReferral" 
+              component={GuestReferralScreen}
               options={{ 
                 title: 'Système de Parrainage',
                 headerShown: false 

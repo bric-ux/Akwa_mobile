@@ -35,7 +35,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
               style={styles.searchButton}
               onPress={onSearchPress}
             >
-              <Ionicons name="search" size={20} color="#fff" />
+              <Ionicons name="location" size={20} color="#fff" />
               <Text style={styles.searchButtonText}>
                 Rechercher un hébergement
               </Text>

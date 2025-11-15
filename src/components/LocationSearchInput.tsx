@@ -28,7 +28,7 @@ const LocationSearchInput: React.FC<LocationSearchInputProps> = ({
   value,
   onChangeText,
   onLocationSelect,
-  placeholder = 'Rechercher ville ou quartier...',
+  placeholder = 'Où allez-vous ?',
   style,
 }) => {
   const [showModal, setShowModal] = useState(false);
@@ -146,7 +146,7 @@ const LocationSearchInput: React.FC<LocationSearchInputProps> = ({
         onPress={openModal}
         activeOpacity={0.7}
       >
-        <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+        <Ionicons name="location" size={20} color="#666" style={styles.searchIcon} />
         <Text style={[styles.input, !value && styles.placeholder]}>
           {value || placeholder}
         </Text>
@@ -178,7 +178,7 @@ const LocationSearchInput: React.FC<LocationSearchInputProps> = ({
 
             {/* Search Input */}
             <View style={styles.searchContainer}>
-              <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+              <Ionicons name="location" size={20} color="#666" style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Tapez pour rechercher..."

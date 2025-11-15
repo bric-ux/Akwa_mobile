@@ -310,7 +310,7 @@ const SearchScreen: React.FC = () => {
           <View style={styles.headerContent}>
             {/* Barre de recherche avec autocomplétion */}
             <AutoCompleteSearch
-              placeholder="Rechercher ville ou quartier..."
+              placeholder="Où allez-vous ?"
               onSearch={handleSearch}
               onSuggestionSelect={handleSuggestionSelect}
               initialValue={searchQuery}

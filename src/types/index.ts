@@ -170,6 +170,7 @@ export type RootStackParamList = {
   HostDashboard: undefined;
   HostPaymentInfo: undefined;
   HostStats: undefined;
+  GuestReferral: undefined; // Système de parrainage pour les voyageurs
   Admin: undefined;
   AdminApplications: undefined;
   AdminProperties: undefined;

@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUserProfile, clearProfileCache } from '../hooks/useUserProfile';
 import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
@@ -68,7 +69,7 @@ const HostAccountScreen: React.FC = () => {
     );
   };
 
-  const handleSwitchToTravelerMode = () => {
+  const handleSwitchToTravelerMode = async () => {
     Alert.alert(
       'Retour au mode voyageur',
       'Voulez-vous retourner au mode voyageur ?',
@@ -76,7 +77,9 @@ const HostAccountScreen: React.FC = () => {
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Oui',
-          onPress: () => {
+          onPress: async () => {
+            // Sauvegarder le mode préféré
+            await AsyncStorage.setItem('preferredMode', 'traveler');
             navigation.reset({
               index: 0,
               routes: [{ name: 'Home' }],
@@ -125,7 +128,7 @@ const HostAccountScreen: React.FC = () => {
       id: 'referral',
       title: 'Système de parrainage',
       icon: 'gift-outline',
-      onPress: () => navigation.navigate('HostReferral'),
+      onPress: () => navigation.navigate('GuestReferral' as never),
     },
     {
       id: 'settings',
@@ -184,9 +187,18 @@ const HostAccountScreen: React.FC = () => {
           <TouchableOpacity 
             style={styles.switchModeButton}
             onPress={handleSwitchToTravelerMode}
+            activeOpacity={0.8}
           >
-            <Ionicons name="arrow-back-circle-outline" size={20} color="#e67e22" />
-            <Text style={styles.switchModeText}>Retour au mode voyageur</Text>
+            <View style={styles.switchModeContent}>
+              <View style={styles.switchModeIconContainer}>
+                <Ionicons name="airplane-outline" size={18} color="#fff" />
+              </View>
+              <View style={styles.switchModeTextContainer}>
+                <Text style={styles.switchModeText}>Retour au mode voyageur</Text>
+                <Text style={styles.switchModeSubtext}>Explorer et réserver</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#fff" />
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -310,20 +322,41 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   switchModeButton: {
+    backgroundColor: '#e67e22',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#e67e22',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  switchModeContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e67e22',
+    justifyContent: 'space-between',
+  },
+  switchModeIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  switchModeTextContainer: {
+    flex: 1,
   },
   switchModeText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#e67e22',
-    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  switchModeSubtext: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   identitySection: {
     marginHorizontal: 20,

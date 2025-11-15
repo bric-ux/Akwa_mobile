@@ -41,23 +41,30 @@ const WeatherDateTimeWidget: React.FC = () => {
       { city: 'Korhogo', temp: 29, condition: 'Partiellement nuageux', icon: 'partly-sunny' },
       { city: 'San-Pédro', temp: 26, condition: 'Ensoleillé', icon: 'sunny' },
       { city: 'Man', temp: 25, condition: 'Pluvieux', icon: 'rainy' },
+      { city: 'Odienné', temp: 31, condition: 'Ensoleillé', icon: 'sunny' },
+      { city: 'Grand-Bassam', temp: 27, condition: 'Ensoleillé', icon: 'sunny' },
+      { city: 'Gagnoa', temp: 28, condition: 'Partiellement nuageux', icon: 'partly-sunny' },
+      { city: 'Jacqueville', temp: 26, condition: 'Ensoleillé', icon: 'sunny' },
     ];
     
     setWeatherData(mockWeather);
   };
 
-  const getWeatherIcon = (icon: string) => {
+  const getWeatherIcon = (icon: string, currentHour: number) => {
+    // Déterminer si c'est le jour (6h-18h) ou la nuit
+    const isDay = currentHour >= 6 && currentHour < 18;
+    
     switch (icon) {
       case 'sunny':
-        return 'sunny-outline';
+        return isDay ? 'sunny-outline' : 'moon-outline';
       case 'cloudy':
-        return 'cloudy-outline';
+        return isDay ? 'cloudy-outline' : 'cloudy-night-outline';
       case 'partly-sunny':
-        return 'partly-sunny-outline';
+        return isDay ? 'partly-sunny-outline' : 'cloudy-night-outline';
       case 'rainy':
         return 'rainy-outline';
       default:
-        return 'partly-sunny-outline';
+        return isDay ? 'partly-sunny-outline' : 'moon-outline';
     }
   };
 
@@ -106,17 +113,25 @@ const WeatherDateTimeWidget: React.FC = () => {
           showsHorizontalScrollIndicator={false}
           style={styles.weatherSection}
           contentContainerStyle={styles.weatherScroll}>
-          {weatherData.map((weather, index) => (
-            <View key={index} style={styles.weatherCard}>
-              <Ionicons 
-                name={getWeatherIcon(weather.icon) as any} 
-                size={18} 
-                color="#e67e22" 
-              />
-              <Text style={styles.weatherTemp}>{weather.temp}°</Text>
-              <Text style={styles.weatherCity}>{weather.city}</Text>
-            </View>
-          ))}
+          {weatherData.map((weather, index) => {
+            const currentHour = new Date().toLocaleTimeString('fr-FR', {
+              hour: '2-digit',
+              timeZone: 'Africa/Abidjan'
+            }).split(':')[0];
+            const hour = parseInt(currentHour, 10);
+            
+            return (
+              <View key={index} style={styles.weatherCard}>
+                <Ionicons 
+                  name={getWeatherIcon(weather.icon, hour) as any} 
+                  size={18} 
+                  color="#e67e22" 
+                />
+                <Text style={styles.weatherTemp}>{weather.temp}°</Text>
+                <Text style={styles.weatherCity}>{weather.city}</Text>
+              </View>
+            );
+          })}
         </ScrollView>
       </View>
     </View>
