@@ -42,12 +42,17 @@ import HostStatsScreen from '../screens/HostStatsScreen';
 import HostReferralScreen from '../screens/HostReferralScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsScreen from '../screens/TermsScreen';
+import PropertyManagementScreen from '../screens/PropertyManagementScreen';
+import PropertyPricingScreen from '../screens/PropertyPricingScreen';
+import PropertyRulesScreen from '../screens/PropertyRulesScreen';
 
 // Types
-import { RootStackParamList, TabParamList } from '../types';
+import { RootStackParamList, TabParamList, HostTabParamList } from '../types';
+import HostAccountScreen from '../screens/HostAccountScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
+const HostTab = createBottomTabNavigator<HostTabParamList>();
 
 // Tab Navigator
 const TabNavigator = () => {
@@ -107,6 +112,65 @@ const TabNavigator = () => {
   );
 };
 
+// Host Tab Navigator (pour les hôtes)
+const HostTabNavigator = () => {
+  return (
+    <HostTab.Navigator
+      initialRouteName="HostPropertiesTab"
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+
+          if (route.name === 'HostPropertiesTab') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'HostBookingsTab') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'HostMessagingTab') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          } else if (route.name === 'HostStatsTab') {
+            iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+          } else if (route.name === 'HostProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else {
+            iconName = 'home-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#e67e22',
+        tabBarInactiveTintColor: 'gray',
+        headerShown: false,
+      })}
+    >
+      <HostTab.Screen 
+        name="HostPropertiesTab" 
+        component={MyPropertiesScreen}
+        options={{ tabBarLabel: 'Propriétés' }}
+      />
+      <HostTab.Screen
+        name="HostBookingsTab"
+        component={HostBookingsScreen}
+        options={{ tabBarLabel: 'Réservations' }}
+      />
+      <HostTab.Screen 
+        name="HostMessagingTab" 
+        component={MessagingScreen}
+        options={{ tabBarLabel: 'Messages' }}
+      />
+      <HostTab.Screen 
+        name="HostStatsTab" 
+        component={HostStatsScreen}
+        options={{ tabBarLabel: 'Statistiques' }}
+      />
+      <HostTab.Screen 
+        name="HostProfileTab" 
+        component={HostAccountScreen}
+        options={{ tabBarLabel: 'Compte' }}
+      />
+    </HostTab.Navigator>
+  );
+};
+
 // Main Stack Navigator
 const AppNavigator = () => {
   return (
@@ -143,6 +207,11 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="Home" 
           component={TabNavigator}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="HostSpace" 
+          component={HostTabNavigator}
           options={{ headerShown: false }}
         />
         <Stack.Screen 
@@ -365,6 +434,30 @@ const AppNavigator = () => {
               component={PropertyCalendarScreen}
               options={{ 
                 title: 'Calendrier de disponibilité',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="PropertyManagement" 
+              component={PropertyManagementScreen}
+              options={{ 
+                title: 'Gestion de la propriété',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="PropertyPricing" 
+              component={PropertyPricingScreen}
+              options={{ 
+                title: 'Tarification',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="PropertyRules" 
+              component={PropertyRulesScreen}
+              options={{ 
+                title: 'Règlement intérieur',
                 headerShown: false 
               }}
             />

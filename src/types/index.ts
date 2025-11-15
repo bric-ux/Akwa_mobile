@@ -153,6 +153,7 @@ export interface SearchFilters {
 // Types de navigation
 export type RootStackParamList = {
   Home: undefined;
+  HostSpace: undefined; // Navigation hôte avec onglets
   Auth: undefined;
   EmailVerification: { email: string; firstName: string };
   Search: { destination?: string };
@@ -179,6 +180,9 @@ export type RootStackParamList = {
   AdminNotifications: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
+  PropertyManagement: { propertyId: string }; // Gestion de propriété avec photos et options
+  PropertyPricing: { propertyId: string }; // Tarification
+  PropertyRules: { propertyId: string }; // Règlement intérieur
   MyBookings: undefined;
   Favorites: undefined;
   Messaging: undefined;
@@ -191,6 +195,14 @@ export type TabParamList = {
   BookingsTab: undefined;
   FavoritesTab: undefined;
   ProfileTab: undefined;
+};
+
+export type HostTabParamList = {
+  HostPropertiesTab: undefined;
+  HostBookingsTab: undefined;
+  HostMessagingTab: { conversationId?: string };
+  HostStatsTab: undefined;
+  HostProfileTab: undefined;
 };
 
 export interface AuthContextType {

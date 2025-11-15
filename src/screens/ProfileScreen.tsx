@@ -181,12 +181,12 @@ const ProfileScreen: React.FC = () => {
     },
   ];
 
-  // Élément pour le tableau de bord hôte (contient toutes les options hôtes)
-  const hostDashboardItem = {
-    id: 'hostDashboard',
-    title: 'Tableau de bord hôte',
-    icon: 'grid-outline',
-    onPress: () => navigation.navigate('HostDashboard'),
+  // Élément pour l'espace hôte (navigation complète avec onglets)
+  const hostSpaceItem = {
+    id: 'hostSpace',
+    title: 'Espace hôte',
+    icon: 'business-outline',
+    onPress: () => navigation.navigate('HostSpace' as never),
   };
 
   // Élément pour devenir hôte (si pas encore hôte)
@@ -212,7 +212,7 @@ const ProfileScreen: React.FC = () => {
 
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
   if (profile?.is_host || hasPendingApplications) {
-    menuItems.push(hostDashboardItem);
+    menuItems.push(hostSpaceItem);
   } else {
     // Ajouter "Devenir hôte" si pas encore hôte et pas de candidatures en cours
     menuItems.push(becomeHostItem);

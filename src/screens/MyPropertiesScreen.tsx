@@ -9,6 +9,7 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,35 +17,54 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useMyProperties } from '../hooks/useMyProperties';
 import { useAuth } from '../services/AuthContext';
 import { Property } from '../hooks/useProperties';
+import { useHostApplications } from '../hooks/useHostApplications';
+import { HostApplication } from '../hooks/useHostApplications';
+
+type TabType = 'applications' | 'properties';
 
 const MyPropertiesScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { getMyProperties, hideProperty, showProperty, deleteProperty, loading } = useMyProperties();
+  const { getApplications, loading: applicationsLoading } = useHostApplications();
+  const [activeTab, setActiveTab] = useState<TabType>('properties');
   const [properties, setProperties] = useState<Property[]>([]);
+  const [applications, setApplications] = useState<HostApplication[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadProperties = async () => {
     try {
       const userProperties = await getMyProperties();
-      setProperties(userProperties);
+      // Filtrer pour ne garder que les propriétés actives
+      const activeProperties = userProperties.filter(p => p.is_active === true);
+      setProperties(activeProperties);
     } catch (err) {
       console.error('Erreur lors du chargement des propriétés:', err);
     }
   };
 
-  // Charger les propriétés quand l'écran devient actif
+  const loadApplications = async () => {
+    try {
+      const data = await getApplications();
+      setApplications(data);
+    } catch (err) {
+      console.error('Erreur lors du chargement des candidatures:', err);
+    }
+  };
+
+  // Charger les données quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
       if (user) {
         loadProperties();
+        loadApplications();
       }
     }, [user])
   );
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadProperties();
+    await Promise.all([loadProperties(), loadApplications()]);
     setRefreshing(false);
   };
 
@@ -109,7 +129,7 @@ const MyPropertiesScreen: React.FC = () => {
   };
 
   const handleViewProperty = (propertyId: string) => {
-    navigation.navigate('PropertyDetails', { propertyId });
+    navigation.navigate('PropertyManagement', { propertyId } as never);
   };
 
 
@@ -137,11 +157,12 @@ const MyPropertiesScreen: React.FC = () => {
   };
 
   const renderPropertyItem = ({ item: property }: { item: Property }) => (
-    <View style={styles.propertyCard}>
-      <TouchableOpacity
-        style={styles.propertyInfo}
-        onPress={() => handleViewProperty(property.id)}
-      >
+    <TouchableOpacity
+      style={styles.propertyCard}
+      onPress={() => handleViewProperty(property.id)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.propertyInfo}>
         <Image
           source={{ uri: getMainImageUrl(property) }}
           style={styles.propertyImage}
@@ -159,7 +180,7 @@ const MyPropertiesScreen: React.FC = () => {
           </View>
           <Text style={styles.propertyPrice}>{formatPrice(property.price_per_night)}/nuit</Text>
         </View>
-      </TouchableOpacity>
+      </View>
 
       <View style={styles.propertyStatus}>
         <View style={[
@@ -171,64 +192,90 @@ const MyPropertiesScreen: React.FC = () => {
           </Text>
         </View>
       </View>
+    </TouchableOpacity>
+  );
 
-      <View style={styles.propertyActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('PropertyCalendar', { propertyId: property.id })}
-        >
-          <Ionicons name="calendar-outline" size={16} color="#3498db" />
-          <Text style={styles.actionButtonText}>Calendrier</Text>
-        </TouchableOpacity>
+  // Fonction pour obtenir l'URL de l'image principale d'une candidature
+  const getApplicationMainImageUrl = (application: HostApplication): string => {
+    if (application.categorized_photos && Array.isArray(application.categorized_photos) && application.categorized_photos.length > 0) {
+      const sortedPhotos = [...application.categorized_photos].sort((a, b) => 
+        (a.displayOrder || 0) - (b.displayOrder || 0)
+      );
+      return sortedPhotos[0].url;
+    }
+    if (application.images && Array.isArray(application.images) && application.images.length > 0) {
+      return application.images[0];
+    }
+    return 'https://via.placeholder.com/150';
+  };
 
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleEditProperty(property.id)}
-        >
-          <Ionicons name="create-outline" size={16} color="#f39c12" />
-          <Text style={styles.actionButtonText}>Modifier</Text>
-        </TouchableOpacity>
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved': return '#2E7D32';
+      case 'reviewing': return '#ffc107';
+      case 'rejected': return '#e74c3c';
+      default: return '#6c757d';
+    }
+  };
 
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleToggleVisibility(property)}
-        >
-          <Ionicons 
-            name={property.is_active ? "eye-off-outline" : "eye-outline"} 
-            size={16} 
-            color="#3498db" 
-          />
-          <Text style={styles.actionButtonText}>
-            {property.is_active ? 'Masquer' : 'Afficher'}
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending': return 'En attente';
+      case 'reviewing': return 'En révision';
+      case 'approved': return 'Approuvée';
+      case 'rejected': return 'Refusée';
+      default: return status;
+    }
+  };
+
+  const renderApplication = (application: HostApplication) => (
+    <TouchableOpacity 
+      key={application.id} 
+      style={styles.applicationCard}
+      onPress={() => {
+        navigation.navigate('ApplicationDetails' as never, { applicationId: application.id } as never);
+      }}
+    >
+      <Image
+        source={{ uri: getApplicationMainImageUrl(application) }}
+        style={styles.applicationImage}
+        resizeMode="cover"
+      />
+      <View style={styles.applicationDetails}>
+        <Text style={styles.applicationTitle} numberOfLines={1}>
+          {application.title}
+        </Text>
+        <Text style={styles.applicationLocation} numberOfLines={1}>
+          📍 {application.location}
+        </Text>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(application.status) }]}>
+          <Text style={styles.statusText}>
+            {getStatusText(application.status)}
           </Text>
-        </TouchableOpacity>
+        </View>
       </View>
-
-      <View style={styles.deleteActionContainer}>
-        <TouchableOpacity
-          style={styles.deleteButtonFull}
-          onPress={() => handleDeleteProperty(property)}
-        >
-          <Ionicons name="trash-outline" size={18} color="#fff" />
-          <Text style={styles.deleteButtonFullText}>Supprimer la propriété</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Ionicons name="home-outline" size={64} color="#ccc" />
-      <Text style={styles.emptyTitle}>Aucune propriété</Text>
-      <Text style={styles.emptySubtitle}>
-        Vous n'avez pas encore de propriétés. Commencez par soumettre une candidature pour devenir hôte.
+      <Text style={styles.emptyTitle}>
+        {activeTab === 'applications' ? 'Aucune candidature' : 'Aucune propriété'}
       </Text>
-      <TouchableOpacity
-        style={styles.becomeHostButton}
-        onPress={() => navigation.navigate('BecomeHost')}
-      >
-        <Text style={styles.becomeHostButtonText}>Devenir hôte</Text>
-      </TouchableOpacity>
+      <Text style={styles.emptySubtitle}>
+        {activeTab === 'applications' 
+          ? 'Vous n\'avez pas encore soumis de candidature pour devenir hôte.'
+          : 'Vous n\'avez pas encore de propriétés actives.'}
+      </Text>
+      {activeTab === 'applications' && (
+        <TouchableOpacity
+          style={styles.becomeHostButton}
+          onPress={() => navigation.navigate('BecomeHost')}
+        >
+          <Text style={styles.becomeHostButtonText}>Créer une candidature</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -255,36 +302,97 @@ const MyPropertiesScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Gestion des propriétés</Text>
+        <View style={styles.placeholder} />
+        <Text style={styles.headerTitle}>Propriétés</Text>
+        {activeTab === 'applications' && (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('BecomeHost')}
+          >
+            <Ionicons name="add" size={24} color="#2E7D32" />
+          </TouchableOpacity>
+        )}
+        {activeTab === 'properties' && (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('BecomeHost')}
+          >
+            <Ionicons name="add" size={24} color="#2E7D32" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Onglets */}
+      <View style={styles.tabsContainer}>
         <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('BecomeHost')}
+          style={[styles.tab, activeTab === 'properties' && styles.activeTab]}
+          onPress={() => setActiveTab('properties')}
         >
-          <Ionicons name="add" size={24} color="#2E7D32" />
+          <Ionicons 
+            name="home-outline" 
+            size={20} 
+            color={activeTab === 'properties' ? '#e67e22' : '#666'} 
+          />
+          <Text style={[styles.tabText, activeTab === 'properties' && styles.activeTabText]}>
+            Propriétés actives
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'applications' && styles.activeTab]}
+          onPress={() => setActiveTab('applications')}
+        >
+          <Ionicons 
+            name="document-text-outline" 
+            size={20} 
+            color={activeTab === 'applications' ? '#e67e22' : '#666'} 
+          />
+          <Text style={[styles.tabText, activeTab === 'applications' && styles.activeTabText]}>
+            Mes candidatures
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {loading && properties.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>Chargement de vos propriétés...</Text>
-        </View>
-      ) : properties.length === 0 ? (
-        renderEmptyState()
+      {/* Contenu selon l'onglet actif */}
+      {activeTab === 'properties' ? (
+        loading && properties.length === 0 ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#2E7D32" />
+            <Text style={styles.loadingText}>Chargement de vos propriétés...</Text>
+          </View>
+        ) : properties.length === 0 ? (
+          renderEmptyState()
+        ) : (
+          <FlatList
+            data={properties}
+            keyExtractor={(item) => item.id}
+            renderItem={renderPropertyItem}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#2E7D32']} />
+            }
+          />
+        )
       ) : (
-        <FlatList
-          data={properties}
-          keyExtractor={(item) => item.id}
-          renderItem={renderPropertyItem}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#2E7D32']} />
-          }
-        />
+        applicationsLoading && applications.length === 0 ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#2E7D32" />
+            <Text style={styles.loadingText}>Chargement des candidatures...</Text>
+          </View>
+        ) : applications.length === 0 ? (
+          renderEmptyState()
+        ) : (
+          <FlatList
+            data={applications}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => renderApplication(item)}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#2E7D32']} />
+            }
+          />
+        )
       )}
     </SafeAreaView>
   );
@@ -322,6 +430,9 @@ const styles = StyleSheet.create({
   addButton: {
     padding: 8,
   },
+  placeholder: {
+    width: 40,
+  },
   listContainer: {
     padding: 20,
     flexGrow: 1,
@@ -339,7 +450,6 @@ const styles = StyleSheet.create({
   },
   propertyInfo: {
     flexDirection: 'row',
-    marginBottom: 10,
   },
   propertyImage: {
     width: 80,
@@ -377,7 +487,7 @@ const styles = StyleSheet.create({
   },
   propertyStatus: {
     alignItems: 'flex-end',
-    marginBottom: 10,
+    marginTop: 10,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -388,51 +498,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#fff',
     fontWeight: '500',
-  },
-  propertyActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    marginBottom: 10,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: '#f8f9fa',
-    flex: 1,
-    marginHorizontal: 3,
-    justifyContent: 'center',
-  },
-  actionButtonText: {
-    fontSize: 11,
-    color: '#333',
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  deleteActionContainer: {
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-  },
-  deleteButtonFull: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    backgroundColor: '#e74c3c',
-  },
-  deleteButtonFullText: {
-    fontSize: 14,
-    color: '#fff',
-    marginLeft: 8,
-    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,
@@ -468,6 +533,68 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#666',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    paddingHorizontal: 20,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTab: {
+    borderBottomColor: '#e67e22',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+    marginLeft: 8,
+  },
+  activeTabText: {
+    color: '#e67e22',
+    fontWeight: '600',
+  },
+  applicationCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 15,
+    padding: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    flexDirection: 'row',
+  },
+  applicationImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    marginRight: 15,
+  },
+  applicationDetails: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  applicationTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  applicationLocation: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
   },
 });
 
