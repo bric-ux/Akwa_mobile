@@ -16,6 +16,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAvailabilityCalendar } from '../hooks/useAvailabilityCalendar';
 import { useBlockedDates, BlockedDate } from '../hooks/useBlockedDates';
 import { useDynamicPricing } from '../hooks/useDynamicPricing';
+import { useICalSync, ICalLink } from '../hooks/useICalSync';
 import { supabase } from '../services/supabase';
 
 const PropertyCalendarScreen: React.FC = () => {
@@ -26,6 +27,7 @@ const PropertyCalendarScreen: React.FC = () => {
   const { unavailableDates, loading: calendarLoading, refetch, isDateUnavailable } = useAvailabilityCalendar(propertyId);
   const { getBlockedDates, blockDates, unblockDates, loading: blockedLoading } = useBlockedDates();
   const { getDynamicPrices, setPriceForPeriod, deleteDynamicPrice, loading: pricingLoading } = useDynamicPricing();
+  const { getICalLinks, addICalLink, syncCalendar, removeICalLink, loading: icalLoading } = useICalSync();
 
   const [blockedDatesList, setBlockedDatesList] = useState<BlockedDate[]>([]);
   const [dynamicPrices, setDynamicPrices] = useState<any[]>([]);
@@ -37,11 +39,16 @@ const PropertyCalendarScreen: React.FC = () => {
   const [isSelectingRange, setIsSelectingRange] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
+  const [icalLinks, setICalLinks] = useState<ICalLink[]>([]);
+  const [showICalForm, setShowICalForm] = useState(false);
+  const [icalUrl, setICalUrl] = useState('');
+  const [icalPlatform, setICalPlatform] = useState('airbnb');
 
   useEffect(() => {
     loadBlockedDates();
     loadDynamicPrices();
     loadBasePrice();
+    loadICalLinks();
   }, [propertyId]);
 
   const loadBasePrice = async () => {
@@ -70,11 +77,64 @@ const PropertyCalendarScreen: React.FC = () => {
     setDynamicPrices(prices);
   };
 
+  const loadICalLinks = async () => {
+    const links = await getICalLinks(propertyId);
+    setICalLinks(links);
+  };
+
+  const handleAddICalLink = async () => {
+    if (!icalUrl.trim()) {
+      Alert.alert('Erreur', 'Veuillez entrer une URL iCal');
+      return;
+    }
+    
+    const result = await addICalLink(propertyId, icalPlatform, icalUrl);
+    if (result.success) {
+      setICalUrl('');
+      setShowICalForm(false);
+      await loadICalLinks();
+      await refetch();
+      await loadBlockedDates();
+    }
+  };
+
+  const handleSyncCalendar = async (platform: string) => {
+    const result = await syncCalendar(propertyId, platform);
+    if (result.success) {
+      await refetch();
+      await loadBlockedDates();
+      await loadICalLinks();
+    }
+  };
+
+  const handleRemoveICalLink = async (linkId: string) => {
+    Alert.alert(
+      'Confirmer la suppression',
+      'Êtes-vous sûr de vouloir supprimer ce lien de synchronisation ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await removeICalLink(linkId);
+            if (result.success) {
+              await loadICalLinks();
+              await loadBlockedDates();
+              await refetch();
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
       loadBlockedDates(),
       loadDynamicPrices(),
+      loadICalLinks(),
       refetch(),
     ]);
     setRefreshing(false);
@@ -568,6 +628,141 @@ const PropertyCalendarScreen: React.FC = () => {
           )}
         </View>
 
+        {/* Synchronisation iCal */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="link" size={20} color="#e67e22" style={{ marginRight: 8 }} />
+            <Text style={styles.sectionTitle}>Synchronisation Airbnb & autres plateformes</Text>
+          </View>
+          <Text style={styles.sectionSubtitle}>
+            Importez automatiquement les réservations depuis d'autres plateformes via iCal
+          </Text>
+
+          {!showICalForm ? (
+            <TouchableOpacity
+              style={styles.addICalButton}
+              onPress={() => setShowICalForm(true)}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#e67e22" />
+              <Text style={styles.addICalButtonText}>Ajouter une synchronisation</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.icalForm}>
+              <View style={styles.inputSection}>
+                <Text style={styles.label}>Plateforme</Text>
+                <View style={styles.platformSelector}>
+                  {['airbnb', 'booking', 'vrbo', 'other'].map((platform) => (
+                    <TouchableOpacity
+                      key={platform}
+                      style={[
+                        styles.platformOption,
+                        icalPlatform === platform && styles.platformOptionActive,
+                        { marginRight: 8, marginBottom: 8 }
+                      ]}
+                      onPress={() => setICalPlatform(platform)}
+                    >
+                      <Text style={[
+                        styles.platformOptionText,
+                        icalPlatform === platform && styles.platformOptionTextActive
+                      ]}>
+                        {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.inputSection}>
+                <Text style={styles.label}>URL du calendrier iCal</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={icalUrl}
+                  onChangeText={setICalUrl}
+                  placeholder="https://www.airbnb.com/calendar/ical/..."
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Text style={styles.hint}>
+                  Copiez l'URL iCal depuis les paramètres de votre calendrier sur {icalPlatform}
+                </Text>
+              </View>
+
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.blockButton]}
+                  onPress={handleAddICalLink}
+                  disabled={icalLoading || !icalUrl.trim()}
+                >
+                  {icalLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                      <Text style={styles.actionButtonText}>Ajouter</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.cancelButton]}
+                  onPress={() => {
+                    setShowICalForm(false);
+                    setICalUrl('');
+                  }}
+                >
+                  <Ionicons name="close" size={20} color="#fff" />
+                  <Text style={styles.actionButtonText}>Annuler</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Liste des synchronisations actives */}
+          {icalLinks.length > 0 && (
+            <View style={styles.icalLinksList}>
+              <Text style={styles.subsectionTitle}>Synchronisations actives</Text>
+              {icalLinks.map((link) => (
+                <View key={link.id} style={styles.icalLinkCard}>
+                  <View style={styles.icalLinkInfo}>
+                    <View style={styles.platformBadge}>
+                      <Text style={styles.platformBadgeText}>
+                        {link.platform.charAt(0).toUpperCase() + link.platform.slice(1)}
+                      </Text>
+                    </View>
+                    {link.last_synced_at && (
+                      <Text style={styles.syncDate}>
+                        Dernière sync: {new Date(link.last_synced_at).toLocaleDateString('fr-FR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.icalLinkActions}>
+                    <TouchableOpacity
+                      style={[styles.syncButton, { marginRight: 12 }]}
+                      onPress={() => handleSyncCalendar(link.platform)}
+                      disabled={icalLoading}
+                    >
+                      <Ionicons name="refresh" size={18} color="#e67e22" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleRemoveICalLink(link.id)}
+                      disabled={icalLoading}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#e74c3c" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         {/* Légende */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Légende</Text>
@@ -916,6 +1111,119 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 14,
     color: '#666',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  addICalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#e67e22',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  addICalButtonText: {
+    fontSize: 14,
+    color: '#e67e22',
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  icalForm: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+  },
+  platformSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  platformOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    backgroundColor: '#fff',
+  },
+  platformOptionActive: {
+    borderColor: '#e67e22',
+    backgroundColor: '#fff5f0',
+  },
+  platformOptionText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  platformOptionTextActive: {
+    color: '#e67e22',
+  },
+  icalLinksList: {
+    marginTop: 16,
+  },
+  subsectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  icalLinkCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  icalLinkInfo: {
+    flex: 1,
+  },
+  platformBadge: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 4,
+    backgroundColor: '#f0f0f0',
+    marginBottom: 4,
+  },
+  platformBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    textTransform: 'capitalize',
+  },
+  syncDate: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+  },
+  icalLinkActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  syncButton: {
+    padding: 8,
+  },
+  deleteButton: {
+    padding: 8,
   },
 });
 
