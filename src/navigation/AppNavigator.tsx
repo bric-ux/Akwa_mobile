@@ -148,7 +148,7 @@ const HostTabNavigator = () => {
       <HostTab.Screen 
         name="HostPropertiesTab" 
         component={MyPropertiesScreen}
-        options={{ tabBarLabel: 'Propriétés' }}
+        options={{ tabBarLabel: 'Mes propriétés' }}
       />
       <HostTab.Screen
         name="HostBookingsTab"
