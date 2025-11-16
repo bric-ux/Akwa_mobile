@@ -395,12 +395,12 @@ const PropertyDetailsScreen: React.FC = () => {
                 <View style={styles.rulesCardContent}>
                   {property.check_in_time && (
                     <Text style={styles.rulesText}>
-                      Arrivée : à partir de {property.check_in_time}
+                      Arrivée : à partir de {property.check_in_time.substring(0, 5)}
                     </Text>
                   )}
                   {property.check_out_time && (
                     <Text style={styles.rulesText}>
-                      Départ : avant {property.check_out_time}
+                      Départ : avant {property.check_out_time.substring(0, 5)}
                     </Text>
                   )}
                 </View>
