@@ -184,6 +184,7 @@ export type RootStackParamList = {
   PropertyManagement: { propertyId: string }; // Gestion de propriété avec photos et options
   PropertyPricing: { propertyId: string }; // Tarification
   PropertyRules: { propertyId: string }; // Règlement intérieur
+  ModeTransition: { targetMode?: 'host' | 'traveler'; targetPath?: string; fromMode?: 'host' | 'traveler' }; // Page de transition entre modes
   MyBookings: undefined;
   Favorites: undefined;
   Messaging: undefined;

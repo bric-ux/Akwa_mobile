@@ -44,6 +44,8 @@ const HostAccountScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Nettoyer le mode préféré lors de la déconnexion
+              await AsyncStorage.removeItem('preferredMode');
               clearProfileCache();
               await signOut();
               // Retourner au mode voyageur (Home)
@@ -78,11 +80,11 @@ const HostAccountScreen: React.FC = () => {
         {
           text: 'Oui',
           onPress: async () => {
-            // Sauvegarder le mode préféré
-            await AsyncStorage.setItem('preferredMode', 'traveler');
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Home' }],
+            // Naviguer vers la page de transition
+            navigation.navigate('ModeTransition' as never, {
+              targetMode: 'traveler',
+              targetPath: 'Home',
+              fromMode: 'host',
             });
           },
         },
@@ -117,12 +119,6 @@ const HostAccountScreen: React.FC = () => {
       title: 'Modifier le profil',
       icon: 'person-outline',
       onPress: () => navigation.navigate('EditProfile'),
-    },
-    {
-      id: 'payment',
-      title: 'Informations de paiement',
-      icon: 'card-outline',
-      onPress: () => navigation.navigate('HostPaymentInfo'),
     },
     {
       id: 'referral',

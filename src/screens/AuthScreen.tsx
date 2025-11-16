@@ -188,6 +188,12 @@ const AuthScreen: React.FC = () => {
         // Connexion
         await signIn(email, password);
 
+        // Attendre un peu pour que l'utilisateur soit disponible
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Récupérer l'utilisateur actuel
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+
         // Redirection automatique après connexion réussie
         if (returnTo && returnTo !== 'Auth') {
           if (returnParams) {
@@ -196,14 +202,38 @@ const AuthScreen: React.FC = () => {
             navigation.replace(returnTo as any);
           }
         } else {
-          // Vérifier le mode préféré sauvegardé
+          // Vérifier le mode préféré sauvegardé et que l'utilisateur est bien hôte
           try {
             const preferredMode = await AsyncStorage.getItem('preferredMode');
-            if (preferredMode === 'host') {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'HostSpace' }],
-              });
+            if (preferredMode === 'host' && currentUser) {
+              // Vérifier que l'utilisateur est bien hôte
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('is_host')
+                .eq('user_id', currentUser.id)
+                .single();
+
+              const { data: properties } = await supabase
+                .from('properties')
+                .select('id')
+                .eq('host_id', currentUser.id)
+                .limit(1);
+
+              const isHost = profile?.is_host || (properties && properties.length > 0);
+
+              if (isHost) {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'HostSpace' }],
+                });
+              } else {
+                // L'utilisateur n'est pas hôte, réinitialiser le mode préféré
+                await AsyncStorage.setItem('preferredMode', 'traveler');
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+              }
             } else {
               navigation.reset({
                 index: 0,

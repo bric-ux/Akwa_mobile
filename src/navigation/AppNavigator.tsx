@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
+import { supabase } from '../services/supabase';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -48,6 +49,7 @@ import PropertyManagementScreen from '../screens/PropertyManagementScreen';
 import PropertyPricingScreen from '../screens/PropertyPricingScreen';
 import PropertyRulesScreen from '../screens/PropertyRulesScreen';
 import GuestReferralScreen from '../screens/GuestReferralScreen';
+import ModeTransitionScreen from '../screens/ModeTransitionScreen';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList } from '../types';
@@ -191,16 +193,48 @@ const AppNavigator = () => {
             (async () => {
               try {
                 const preferredMode = await AsyncStorage.getItem('preferredMode');
+                
+                // Vérifier que l'utilisateur est bien hôte avant d'appliquer le mode hôte
                 if (preferredMode === 'host') {
-                  navigationRef.dispatch(
-                    CommonActions.reset({
-                      index: 0,
-                      routes: [{ name: 'HostSpace' }],
-                    })
-                  );
+                  // Vérifier le statut hôte dans le profil
+                  const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('is_host')
+                    .eq('user_id', user.id)
+                    .single();
+
+                  if (profileError) {
+                    console.error('Error checking host status:', profileError);
+                    // En cas d'erreur, ne pas appliquer le mode hôte
+                    await AsyncStorage.setItem('preferredMode', 'traveler');
+                    return;
+                  }
+
+                  // Vérifier aussi si l'utilisateur a des propriétés (au cas où is_host serait false mais qu'il ait des propriétés)
+                  const { data: properties } = await supabase
+                    .from('properties')
+                    .select('id')
+                    .eq('host_id', user.id)
+                    .limit(1);
+
+                  const isHost = profile?.is_host || (properties && properties.length > 0);
+
+                  if (isHost) {
+                    navigationRef.dispatch(
+                      CommonActions.reset({
+                        index: 0,
+                        routes: [{ name: 'HostSpace' }],
+                      })
+                    );
+                  } else {
+                    // L'utilisateur n'est pas hôte, réinitialiser le mode préféré
+                    await AsyncStorage.setItem('preferredMode', 'traveler');
+                  }
                 }
               } catch (error) {
                 console.error('Error checking preferred mode:', error);
+                // En cas d'erreur, réinitialiser le mode préféré
+                await AsyncStorage.setItem('preferredMode', 'traveler');
               }
             })();
           }
@@ -508,6 +542,14 @@ const AppNavigator = () => {
               options={{ 
                 title: 'Règlement intérieur',
                 headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="ModeTransition" 
+              component={ModeTransitionScreen}
+              options={{ 
+                headerShown: false,
+                gestureEnabled: false,
               }}
             />
         <Stack.Screen 

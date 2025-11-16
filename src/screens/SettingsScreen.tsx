@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from '../hooks/useEmailService';
 import { clearProfileCache } from '../hooks/useUserProfile';
@@ -126,6 +127,8 @@ const SettingsScreen: React.FC = () => {
         return;
       }
 
+      // Nettoyer le mode préféré lors de la déconnexion
+      await AsyncStorage.removeItem('preferredMode');
       // Nettoyer le cache du profil
       clearProfileCache();
       
@@ -256,6 +259,12 @@ const SettingsScreen: React.FC = () => {
         {/* Section Compte */}
         <Text style={styles.sectionTitle}>Compte</Text>
         <View style={styles.section}>
+          <SettingItem
+            icon="card-outline"
+            title="Informations de paiement"
+            subtitle="Gérer vos méthodes de paiement"
+            onPress={() => (navigation as any).navigate('HostPaymentInfo')}
+          />
           <SettingItem
             icon="lock-closed-outline"
             title="Mot de passe"

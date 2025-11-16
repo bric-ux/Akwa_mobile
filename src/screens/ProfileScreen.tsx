@@ -131,6 +131,8 @@ const ProfileScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Nettoyer le mode préféré lors de la déconnexion
+              await AsyncStorage.removeItem('preferredMode');
               // Nettoyer le cache du profil avant la déconnexion
               clearProfileCache();
               
@@ -197,9 +199,12 @@ const ProfileScreen: React.FC = () => {
           {
             text: 'Continuer',
             onPress: async () => {
-              // Sauvegarder le mode préféré
-              await AsyncStorage.setItem('preferredMode', 'host');
-              navigation.navigate('HostSpace' as never);
+              // Naviguer vers la page de transition
+              navigation.navigate('ModeTransition' as never, {
+                targetMode: 'host',
+                targetPath: 'HostSpace',
+                fromMode: 'traveler',
+              });
             },
             style: 'default',
           },
