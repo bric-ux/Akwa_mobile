@@ -78,14 +78,19 @@ const PropertyPricingScreen: React.FC = () => {
         discount_percentage: discountPercentage ? parseFloat(discountPercentage) : null,
       };
 
-      // Si réduction séjour long activée, on peut stocker dans un champ JSON ou séparé
+      // Si réduction séjour long activée, utiliser les champs corrects
       if (longStayDiscountEnabled) {
         try {
-          updates.long_stay_discount_days = parseInt(longStayDays);
+          updates.long_stay_discount_enabled = true;
+          updates.long_stay_discount_min_nights = parseInt(longStayDays);
           updates.long_stay_discount_percentage = parseFloat(longStayDiscountPercentage);
         } catch (e) {
           console.log('Les champs de réduction séjour long ne sont pas disponibles');
         }
+      } else {
+        updates.long_stay_discount_enabled = false;
+        updates.long_stay_discount_min_nights = null;
+        updates.long_stay_discount_percentage = null;
       }
 
       const { error } = await supabase

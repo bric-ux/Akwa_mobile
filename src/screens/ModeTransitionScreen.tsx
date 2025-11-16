@@ -21,6 +21,18 @@ const ModeTransitionScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<ModeTransitionRouteProp>();
   const { targetMode = 'host', targetPath = 'HostSpace', fromMode = 'traveler' } = route.params || {};
+  
+  useEffect(() => {
+    console.log('🟡 [ModeTransitionScreen] Page de transition montée avec params:', {
+      targetMode,
+      targetPath,
+      fromMode,
+      allParams: route.params,
+    });
+    return () => {
+      console.log('🔴 [ModeTransitionScreen] Page de transition démontée');
+    };
+  }, [targetMode, targetPath, fromMode, route.params]);
 
   const [animationStage, setAnimationStage] = useState(0);
   const fadeAnim = useState(new Animated.Value(1))[0];
@@ -113,6 +125,9 @@ const ModeTransitionScreen: React.FC = () => {
               index: 0,
               routes: [{ name: 'HostSpace' }],
             });
+          } else if (targetPath === 'BecomeHost') {
+            // Si la destination est BecomeHost, naviguer directement sans reset
+            navigation.navigate('BecomeHost' as never);
           } else {
             navigation.reset({
               index: 0,

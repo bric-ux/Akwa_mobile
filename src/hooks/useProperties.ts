@@ -223,6 +223,17 @@ export const useProperties = () => {
         (data || []).map(async (property) => {
           const mappedAmenities = await mapAmenities(property.amenities);
           console.log(`🏠 ${property.title} - Équipements:`, property.amenities, '→ Mappés:', mappedAmenities);
+          
+          // Ajouter les équipements personnalisés s'ils existent
+          const customAmenitiesList = property.custom_amenities && Array.isArray(property.custom_amenities) 
+            ? property.custom_amenities.map((name: string) => ({
+                id: `custom-${name}`,
+                name: name.trim(),
+                icon: '➕'
+              }))
+            : [];
+          
+          const allAmenities = [...mappedAmenities, ...customAmenitiesList];
           console.log(`💰 ${property.title} - Réductions:`, {
             discount_enabled: property.discount_enabled,
             discount_min_nights: property.discount_min_nights,
@@ -276,7 +287,8 @@ export const useProperties = () => {
             price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000, // Prix entre 10k et 60k FCFA
             rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
             review_count: finalReviewCount, // Nombre d'avis final
-            amenities: mappedAmenities
+            amenities: allAmenities,
+            custom_amenities: property.custom_amenities || []
           };
 
           // Log pour déboguer les images
@@ -389,6 +401,16 @@ export const useProperties = () => {
       const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
 
       // Transformer les données avec les équipements
+      const mappedAmenities = await mapAmenities(data.amenities);
+      const customAmenitiesList = data.custom_amenities && Array.isArray(data.custom_amenities)
+        ? data.custom_amenities.map((name: string) => ({
+            id: `custom-${name}`,
+            name: name.trim(),
+            icon: '➕'
+          }))
+        : [];
+      const allAmenities = [...mappedAmenities, ...customAmenitiesList];
+      
       const transformedData = {
         ...data,
         images: finalImages, // Pour compatibilité avec l'ancien système
@@ -396,7 +418,8 @@ export const useProperties = () => {
         price_per_night: data.price_per_night || Math.floor(Math.random() * 50000) + 10000,
         rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
         review_count: finalReviewCount, // Nombre d'avis final
-        amenities: await mapAmenities(data.amenities)
+        amenities: allAmenities,
+        custom_amenities: data.custom_amenities || []
       };
 
       console.log('✅ Propriété transformée:', transformedData.title);
@@ -591,6 +614,17 @@ export const useProperties = () => {
             });
           }
 
+          // Ajouter les équipements personnalisés s'ils existent
+          const mappedAmenitiesForRefresh = await mapAmenities(property.amenities);
+          const customAmenitiesListForRefresh = property.custom_amenities && Array.isArray(property.custom_amenities)
+            ? property.custom_amenities.map((name: string) => ({
+                id: `custom-${name}`,
+                name: name.trim(),
+                icon: '➕'
+              }))
+            : [];
+          const allAmenitiesForRefresh = [...mappedAmenitiesForRefresh, ...customAmenitiesListForRefresh];
+          
           const transformedProperty = {
             ...property,
             images: finalImages, // Pour compatibilité avec l'ancien système
@@ -598,7 +632,8 @@ export const useProperties = () => {
             price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000,
             rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
             review_count: finalReviewCount, // Nombre d'avis final
-            amenities: await mapAmenities(property.amenities)
+            amenities: allAmenitiesForRefresh,
+            custom_amenities: property.custom_amenities || []
           };
 
 

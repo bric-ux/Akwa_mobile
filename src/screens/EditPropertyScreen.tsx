@@ -40,6 +40,7 @@ const EditPropertyScreen: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [availableAmenities, setAvailableAmenities] = useState<any[]>([]);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [customAmenities, setCustomAmenities] = useState<string>('');
   
   // États du formulaire
   const [formData, setFormData] = useState({
@@ -113,6 +114,13 @@ const EditPropertyScreen: React.FC = () => {
         if (propertyData.amenities && Array.isArray(propertyData.amenities)) {
           setSelectedAmenities(propertyData.amenities);
         }
+        
+        // Charger les équipements personnalisés
+        if (propertyData.custom_amenities && Array.isArray(propertyData.custom_amenities)) {
+          setCustomAmenities(propertyData.custom_amenities.join(', '));
+        } else if (propertyData.custom_amenities) {
+          setCustomAmenities(propertyData.custom_amenities);
+        }
       }
     } catch (error) {
       console.error('Erreur lors du chargement de la propriété:', error);
@@ -149,6 +157,9 @@ const EditPropertyScreen: React.FC = () => {
         cleaning_fee: formData.cleaning_fee ? Number(formData.cleaning_fee) : null,
         minimum_nights: formData.minimum_nights ? Number(formData.minimum_nights) : null,
         amenities: selectedAmenities,
+        custom_amenities: customAmenities.trim() 
+          ? customAmenities.split(',').map(a => a.trim()).filter(a => a.length > 0)
+          : null,
         auto_booking: formData.auto_booking,
         discount_enabled: formData.discount_enabled,
         discount_min_nights: formData.discount_min_nights ? Number(formData.discount_min_nights) : null,
@@ -607,6 +618,23 @@ const EditPropertyScreen: React.FC = () => {
               </TouchableOpacity>
             ))}
           </View>
+          
+          {/* Champ pour les équipements personnalisés */}
+          <View style={styles.customAmenitiesSection}>
+            <Text style={styles.label}>Autres équipements (non listés ci-dessus)</Text>
+            <Text style={styles.hint}>
+              Ajoutez des équipements supplémentaires qui ne figurent pas dans la liste (séparés par des virgules)
+            </Text>
+            <TextInput
+              style={styles.textArea}
+              value={customAmenities}
+              onChangeText={setCustomAmenities}
+              placeholder="Exemple: Lave-vaisselle, Sèche-linge, Barbecue, etc."
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+          </View>
         </View>
 
         {/* Tarification de base */}
@@ -773,6 +801,29 @@ const styles = StyleSheet.create({
   },
   amenityTextSelected: {
     color: '#fff',
+  },
+  customAmenitiesSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  textArea: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: '#333',
+    backgroundColor: '#fff',
+    minHeight: 80,
+    marginTop: 8,
+  },
+  hint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    marginBottom: 8,
   },
   inputGroup: {
     marginBottom: 20,

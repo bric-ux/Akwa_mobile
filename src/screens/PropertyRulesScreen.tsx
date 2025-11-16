@@ -74,10 +74,16 @@ const PropertyRulesScreen: React.FC = () => {
       const updates: any = {
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
-        events_allowed: eventsAllowed,
         smoking_allowed: smokingAllowed,
         vaping_allowed: vapingAllowed,
       };
+      
+      // Ajouter events_allowed seulement si la colonne existe
+      try {
+        updates.events_allowed = eventsAllowed;
+      } catch (e) {
+        console.log('Le champ events_allowed n\'est pas disponible');
+      }
 
       const { error } = await supabase
         .from('properties')

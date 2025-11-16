@@ -25,6 +25,8 @@ const GuestReferralScreen: React.FC = () => {
     vouchers,
     isLoadingVouchers,
     guestStats,
+    isLoadingReferrals,
+    referrals,
   } = useReferrals();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -202,29 +204,223 @@ const GuestReferralScreen: React.FC = () => {
         </View>
 
         {/* Statistiques */}
-        {guestStats && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mes statistiques</Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{guestStats.total}</Text>
-                <Text style={styles.statLabel}>Parrainages</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{guestStats.completed}</Text>
-                <Text style={styles.statLabel}>Complétés</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{guestStats.activeVouchers}</Text>
-                <Text style={styles.statLabel}>Bons actifs</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{formatPrice(guestStats.totalSavings)}</Text>
-                <Text style={styles.statLabel}>Économies</Text>
-              </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mes statistiques</Text>
+          {isLoadingReferrals || isLoadingVouchers ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#e67e22" />
             </View>
-          </View>
-        )}
+          ) : (
+            <>
+              <View style={styles.statsGrid}>
+                <View style={styles.statCard}>
+                  <Text style={styles.statValue}>{guestStats?.total || 0}</Text>
+                  <Text style={styles.statLabel}>Parrainages</Text>
+                  {guestStats && (guestStats.guestReferrals > 0 || guestStats.hostReferrals > 0) && (
+                    <Text style={[styles.statLabel, { fontSize: 10, color: '#999', marginTop: 4 }]}>
+                      {`${guestStats.guestReferrals || 0} voyageur${guestStats.guestReferrals !== 1 ? 's' : ''} • ${guestStats.hostReferrals || 0} hôte${guestStats.hostReferrals !== 1 ? 's' : ''}`}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statValue}>{guestStats?.completed || 0}</Text>
+                  <Text style={styles.statLabel}>Complétés</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statValue}>{guestStats?.activeVouchers || 0}</Text>
+                  <Text style={styles.statLabel}>Bons actifs</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statValue}>
+                    {(() => {
+                      const savings = guestStats?.totalSavings || 0;
+                      const rewards = referrals?.reduce((sum: number, r: any) => {
+                        if (r.referrer_type === 'host' && r.status === 'completed') {
+                          return sum + (r.cash_reward_amount || r.reward_amount || 0);
+                        }
+                        return sum;
+                      }, 0) || 0;
+                      return formatPrice(savings + rewards);
+                    })()}
+                  </Text>
+                  <Text style={styles.statLabel}>
+                    {guestStats && guestStats.hostReferrals > 0 
+                      ? 'Économies + Récompenses' 
+                      : 'Économies'
+                    }
+                  </Text>
+                </View>
+              </View>
+              {guestStats && guestStats.hostReferrals > 0 && (
+                <View style={[styles.card, { marginTop: 16, backgroundColor: '#fff3e0' }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Ionicons name="information-circle-outline" size={16} color="#e67e22" />
+                    <Text style={[styles.label, { marginLeft: 8, fontSize: 13 }]}>
+                      Note importante
+                    </Text>
+                  </View>
+                  <Text style={[styles.cardDescription, { fontSize: 12 }]}>
+                    {`Vous avez ${guestStats.hostReferrals} parrainage${guestStats.hostReferrals !== 1 ? 's' : ''} en tant qu'hôte. En tant qu'hôte, vous recevez des récompenses en cash. En tant que voyageur, vous recevez des bons de réduction.`}
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* Liste des parrainages */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mes filleuls</Text>
+          {isLoadingReferrals ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#e67e22" />
+            </View>
+          ) : referrals && referrals.length > 0 ? (
+            <View style={styles.referralsList}>
+              {referrals.map((ref) => {
+                const isGuest = !ref.referrer_type || ref.referrer_type === 'guest';
+                const firstName = ref.referred_user?.first_name || null;
+                const lastName = ref.referred_user?.last_name || null;
+                const fullName = (() => {
+                  if (firstName && lastName) {
+                    return `${firstName} ${lastName}`.trim();
+                  }
+                  if (firstName) return firstName;
+                  if (lastName) return lastName;
+                  return null;
+                })();
+                const displayName = fullName || ref.referred_email || 'Utilisateur';
+                
+                // Traduire le statut
+                const statusLabels: { [key: string]: string } = {
+                  'pending': 'En attente',
+                  'registered': 'Inscrit',
+                  'first_property': 'Première propriété',
+                  'completed': 'Complété',
+                };
+                const statusLabel = statusLabels[ref.status] || ref.status;
+                
+                // Couleur selon le statut
+                const getStatusColor = (status: string) => {
+                  switch (status) {
+                    case 'completed': return '#4caf50';
+                    case 'first_property': return '#2196f3';
+                    case 'registered': return '#ff9800';
+                    case 'pending': return '#9e9e9e';
+                    default: return '#9e9e9e';
+                  }
+                };
+                
+                return (
+                  <View 
+                    key={ref.id} 
+                    style={[
+                      styles.referralCard,
+                      {
+                        borderLeftWidth: 4,
+                        borderLeftColor: getStatusColor(ref.status),
+                      }
+                    ]}
+                  >
+                    <View style={styles.referralHeader}>
+                      <View style={styles.referralAvatar}>
+                        <Ionicons 
+                          name={isGuest ? "person-outline" : "business-outline"} 
+                          size={24} 
+                          color={isGuest ? "#4caf50" : "#e67e22"} 
+                        />
+                      </View>
+                      <View style={styles.referralInfo}>
+                        {fullName ? (
+                          <>
+                            <Text style={styles.referralName}>{fullName}</Text>
+                            {ref.referred_email && (
+                              <Text style={styles.referralEmail}>{ref.referred_email}</Text>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Text style={styles.referralName}>{ref.referred_email || 'Utilisateur'}</Text>
+                            {ref.referred_user_id && (
+                              <Text style={[styles.referralEmail, { fontStyle: 'italic', color: '#999' }]}>
+                                Profil en cours de création...
+                              </Text>
+                            )}
+                          </>
+                        )}
+                      </View>
+                      <View style={[
+                        styles.referralStatusBadge,
+                        { backgroundColor: `${getStatusColor(ref.status)}20` }
+                      ]}>
+                        <Text style={[
+                          styles.referralStatusText,
+                          { color: getStatusColor(ref.status) }
+                        ]}>
+                          {statusLabel}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.referralDetails}>
+                      <View style={styles.referralDetailRow}>
+                        <Ionicons name="mail-outline" size={14} color="#999" />
+                        <Text style={styles.referralDetailText}>{ref.referred_email}</Text>
+                      </View>
+                      <View style={styles.referralDetailRow}>
+                        <Ionicons 
+                          name={isGuest ? "gift-outline" : "cash-outline"} 
+                          size={14} 
+                          color={isGuest ? "#999" : "#4caf50"} 
+                        />
+                        <Text style={[
+                          styles.referralDetailText,
+                          !isGuest && ref.cash_reward_amount ? { color: '#4caf50', fontWeight: '600' } : {}
+                        ]}>
+                          {(() => {
+                            if (isGuest) {
+                              return 'Bons de réduction';
+                            }
+                            if (ref.cash_reward_amount) {
+                              return `Récompense: ${formatPrice(ref.cash_reward_amount)}`;
+                            }
+                            if (ref.reward_amount) {
+                              return `Récompense: ${formatPrice(ref.reward_amount)}`;
+                            }
+                            return 'Récompense cash (en attente)';
+                          })()}
+                        </Text>
+                      </View>
+                      {!isGuest && (ref.cash_reward_amount || ref.reward_amount) && (
+                        <View style={styles.referralDetailRow}>
+                          <Ionicons name="information-circle-outline" size={14} color="#ff9800" />
+                          <Text style={[styles.referralDetailText, { color: '#ff9800', fontSize: 11 }]}>
+                            {ref.cash_reward_paid ? 'Récompense versée' : 'Récompense en attente de versement'}
+                          </Text>
+                        </View>
+                      )}
+                      {ref.completed_at && (
+                        <View style={styles.referralDetailRow}>
+                          <Ionicons name="checkmark-circle-outline" size={14} color="#4caf50" />
+                          <Text style={[styles.referralDetailText, { color: '#4caf50' }]}>
+                            Complété le {new Date(ref.completed_at).toLocaleDateString('fr-FR')}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>Aucun filleul</Text>
+              <Text style={styles.emptySubtext}>
+                Parrainez des amis pour voir vos filleuls ici
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* Bons de réduction */}
         <View style={styles.section}>
@@ -538,6 +734,72 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+  },
+  referralsList: {
+    gap: 12,
+  },
+  referralCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  referralHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  referralAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f8f9fa',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  referralInfo: {
+    flex: 1,
+  },
+  referralName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  referralEmail: {
+    fontSize: 12,
+    color: '#999',
+  },
+  referralStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  referralStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  referralDetails: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  referralDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  referralDetailText: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 8,
+    flex: 1,
   },
 });
 

@@ -307,7 +307,10 @@ const MyPropertiesScreen: React.FC = () => {
         {activeTab === 'applications' && (
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => navigation.navigate('BecomeHost')}
+            onPress={() => {
+              console.log('🔵 [MyPropertiesScreen] Navigation vers BecomeHost depuis applications');
+              navigation.navigate('BecomeHost' as never);
+            }}
           >
             <Ionicons name="add" size={24} color="#2E7D32" />
           </TouchableOpacity>
@@ -315,7 +318,10 @@ const MyPropertiesScreen: React.FC = () => {
         {activeTab === 'properties' && (
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => navigation.navigate('BecomeHost')}
+            onPress={() => {
+              console.log('🔵 [MyPropertiesScreen] Navigation vers BecomeHost depuis properties');
+              navigation.navigate('BecomeHost' as never);
+            }}
           >
             <Ionicons name="add" size={24} color="#2E7D32" />
           </TouchableOpacity>

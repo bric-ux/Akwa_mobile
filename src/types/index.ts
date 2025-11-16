@@ -28,6 +28,7 @@ export interface Property {
   rating?: number;
   review_count?: number;
   amenities?: Amenity[];
+  custom_amenities?: string[]; // Équipements personnalisés ajoutés par l'hôte
   host_id: string;
   created_at: string;
   updated_at: string;
@@ -60,6 +61,12 @@ export interface Property {
   discount_enabled?: boolean;
   discount_min_nights?: number;
   discount_percentage?: number;
+  check_in_time?: string;
+  check_out_time?: string;
+  house_rules?: string;
+  smoking_allowed?: boolean;
+  vaping_allowed?: boolean;
+  events_allowed?: boolean;
   reviews?: {
     rating: number;
     comment: string | null;

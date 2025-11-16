@@ -218,7 +218,10 @@ const ProfileScreen: React.FC = () => {
     id: 'host',
     title: 'Devenir hôte',
     icon: 'home-outline',
-    onPress: () => navigation.navigate('BecomeHost'),
+    onPress: () => {
+      console.log('🔵 [ProfileScreen] Navigation vers BecomeHost');
+      navigation.navigate('BecomeHost' as never);
+    },
   };
 
   // Éléments de menu communs

@@ -86,6 +86,13 @@ const PHOTO_CATEGORIES = [
 const BecomeHostScreen: React.FC = ({ route }: any) => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
+  
+  useEffect(() => {
+    console.log('🟢 [BecomeHostScreen] Écran BecomeHost monté');
+    return () => {
+      console.log('🔴 [BecomeHostScreen] Écran BecomeHost démonté');
+    };
+  }, []);
   const { submitApplication, getAmenities, getApplicationById, updateApplication, loading } = useHostApplications();
   const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();
   const { hasUploadedIdentity, verificationStatus, checkIdentityStatus } = useIdentityVerification();
@@ -138,6 +145,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [availableAmenities, setAvailableAmenities] = useState<Amenity[]>([]);
+  const [customAmenities, setCustomAmenities] = useState<string>('');
   const [currentStep, setCurrentStep] = useState(1);
   const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
   const [identityUploadedInSession, setIdentityUploadedInSession] = useState(false);
@@ -220,7 +228,14 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       });
       
       // Charger les équipements
-      setSelectedAmenities(application.amenities || []);
+        setSelectedAmenities(application.amenities || []);
+        
+        // Charger les équipements personnalisés
+        if (application.custom_amenities && Array.isArray(application.custom_amenities)) {
+          setCustomAmenities(application.custom_amenities.join(', '));
+        } else if (application.custom_amenities) {
+          setCustomAmenities(application.custom_amenities);
+        }
       
       // Charger les champs de révision
       if (application.fields_to_revise && application.status === 'reviewing') {
@@ -808,6 +823,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         displayOrder: img.displayOrder ?? index
       })),
       amenities: selectedAmenities,
+      customAmenities: customAmenities.trim() 
+        ? customAmenities.split(',').map(a => a.trim()).filter(a => a.length > 0)
+        : undefined,
       minimumNights: parseInt(formData.minimumNights) || 1,
       autoBooking: formData.autoBooking === 'auto',
       cancellationPolicy: formData.cancellationPolicy,
@@ -1377,6 +1395,23 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               </Text>
             </TouchableOpacity>
           ))}
+        </View>
+        
+        {/* Champ pour les équipements personnalisés */}
+        <View style={styles.customAmenitiesSection}>
+          <Text style={styles.label}>Autres équipements (non listés ci-dessus)</Text>
+          <Text style={styles.hint}>
+            Ajoutez des équipements supplémentaires qui ne figurent pas dans la liste (séparés par des virgules)
+          </Text>
+          <TextInput
+            style={styles.textArea}
+            value={customAmenities}
+            onChangeText={setCustomAmenities}
+            placeholder="Exemple: Lave-vaisselle, Sèche-linge, Barbecue, etc."
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
         </View>
       </View>
 
@@ -2055,7 +2090,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1f2937',
   },
-  textArea: {
+  textAreaBase: {
     height: 100,
     textAlignVertical: 'top',
   },
@@ -2102,6 +2137,30 @@ const styles = StyleSheet.create({
   },
   amenityTextSelected: {
     color: '#fff',
+  },
+  customAmenitiesSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  textArea: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: '#333',
+    backgroundColor: '#fff',
+    minHeight: 80,
+    marginTop: 8,
+    textAlignVertical: 'top',
+  },
+  hint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    marginBottom: 8,
   },
   discountContainer: {
     backgroundColor: '#f8f9fa',

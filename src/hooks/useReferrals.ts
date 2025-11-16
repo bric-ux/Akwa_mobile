@@ -23,6 +23,11 @@ interface Referral {
   updated_at: string;
   cash_reward_paid?: boolean;
   cash_reward_amount?: number;
+  // Informations du filleul (ajoutées lors de la récupération)
+  referred_user?: {
+    first_name: string | null;
+    last_name: string | null;
+  };
 }
 
 interface DiscountVoucher {
@@ -57,16 +62,23 @@ export const useReferrals = () => {
 
     const fetchReferralCode = async () => {
       try {
+        setIsLoadingCode(true);
         const { data, error } = await supabase
           .from('user_referral_codes')
           .select('*')
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [useReferrals] Erreur lors de la récupération du code de parrainage:', error);
+          throw error;
+        }
+        
+        console.log('✅ [useReferrals] Code de parrainage récupéré:', data);
         setReferralCode(data);
       } catch (error) {
-        console.error('Error fetching referral code:', error);
+        console.error('❌ [useReferrals] Erreur lors de la récupération du code de parrainage:', error);
+        setReferralCode(null);
       } finally {
         setIsLoadingCode(false);
       }
@@ -84,6 +96,10 @@ export const useReferrals = () => {
 
     const fetchReferrals = async () => {
       try {
+        setIsLoadingReferrals(true);
+        
+        console.log('🔍 [useReferrals] Début de la récupération des parrainages pour user:', user.id);
+        
         // Récupérer tous les parrainages (hôtes et voyageurs)
         const { data, error } = await supabase
           .from('host_referrals')
@@ -91,10 +107,176 @@ export const useReferrals = () => {
           .eq('referrer_id', user.id)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        setReferrals(data || []);
+        if (error) {
+          console.error('❌ [useReferrals] Erreur lors de la récupération des parrainages:', {
+            error,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+          });
+          throw error;
+        }
+        
+        // Récupérer les informations des profiles pour les filleuls
+        // Récupérer par user_id ET par email (au cas où referred_user_id serait null)
+        const referredUserIds = (data || [])
+          .map((r: any) => r.referred_user_id)
+          .filter((id: string | null) => id !== null);
+        
+        const referredEmails = (data || [])
+          .map((r: any) => r.referred_email)
+          .filter((email: string | null) => email !== null && email !== '');
+        
+        let profilesMap: { [key: string]: { first_name: string | null; last_name: string | null; email: string | null } } = {};
+        let profilesMapByEmail: { [key: string]: { first_name: string | null; last_name: string | null; email: string | null } } = {};
+        
+        // Récupérer les profiles par user_id
+        if (referredUserIds.length > 0) {
+          console.log('🔍 [useReferrals] Récupération des profiles par user_id:', {
+            count: referredUserIds.length,
+            ids: referredUserIds,
+          });
+          
+          const profilesPromises = referredUserIds.map(async (userId: string) => {
+            const { data: profile, error } = await supabase
+              .from('profiles')
+              .select('user_id, first_name, last_name, email')
+              .eq('user_id', userId)
+              .maybeSingle();
+            
+            if (error) {
+              console.error(`❌ [useReferrals] Erreur pour user ${userId}:`, error);
+              return null;
+            }
+            
+            return profile;
+          });
+          
+          const profilesResults = await Promise.all(profilesPromises);
+          const validProfiles = profilesResults.filter(p => p !== null);
+          
+          profilesMap = validProfiles.reduce((acc: any, profile: any) => {
+            if (profile && profile.user_id) {
+              acc[profile.user_id] = {
+                first_name: profile.first_name,
+                last_name: profile.last_name,
+                email: profile.email,
+              };
+            }
+            return acc;
+          }, {});
+        }
+        
+        // Récupérer les profiles par email (pour les parrainages où referred_user_id est null)
+        if (referredEmails.length > 0) {
+          console.log('🔍 [useReferrals] Récupération des profiles par email:', {
+            count: referredEmails.length,
+            emails: referredEmails,
+          });
+          
+          const profilesByEmailPromises = referredEmails.map(async (email: string) => {
+            const { data: profile, error } = await supabase
+              .from('profiles')
+              .select('user_id, first_name, last_name, email')
+              .eq('email', email)
+              .maybeSingle();
+            
+            if (error) {
+              console.error(`❌ [useReferrals] Erreur pour email ${email}:`, error);
+              return null;
+            }
+            
+            return profile;
+          });
+          
+          const profilesByEmailResults = await Promise.all(profilesByEmailPromises);
+          const validProfilesByEmail = profilesByEmailResults.filter(p => p !== null);
+          
+          console.log('✅ [useReferrals] Profiles récupérés par email:', {
+            count: validProfilesByEmail.length,
+            profiles: validProfilesByEmail,
+          });
+          
+          profilesMapByEmail = validProfilesByEmail.reduce((acc: any, profile: any) => {
+            if (profile && profile.email) {
+              acc[profile.email.toLowerCase()] = {
+                first_name: profile.first_name,
+                last_name: profile.last_name,
+                email: profile.email,
+              };
+            }
+            return acc;
+          }, {});
+        }
+        
+        console.log('✅ [useReferrals] Profiles maps créés:', {
+          byUserId: profilesMap,
+          byEmail: profilesMapByEmail,
+        });
+        
+        // Transformer les données pour inclure les infos des filleuls
+        const referralsWithUserInfo = (data || []).map((r: any) => {
+          // Essayer d'abord par user_id, puis par email
+          let userInfo = null;
+          if (r.referred_user_id && profilesMap[r.referred_user_id]) {
+            userInfo = profilesMap[r.referred_user_id];
+          } else if (r.referred_email && profilesMapByEmail[r.referred_email.toLowerCase()]) {
+            userInfo = profilesMapByEmail[r.referred_email.toLowerCase()];
+          }
+          
+          console.log(`🔍 [useReferrals] Parrainage ${r.id}:`, {
+            referred_user_id: r.referred_user_id,
+            referred_email: r.referred_email,
+            userInfo: userInfo,
+            foundByUserId: !!(r.referred_user_id && profilesMap[r.referred_user_id]),
+            foundByEmail: !!(r.referred_email && profilesMapByEmail[r.referred_email.toLowerCase()]),
+          });
+          
+          return {
+            ...r,
+            referred_user: userInfo,
+          };
+        });
+        
+        console.log('✅ [useReferrals] Parrainages récupérés:', {
+          userId: user.id,
+          count: referralsWithUserInfo.length,
+          data: referralsWithUserInfo.map((r: any) => ({
+            id: r.id,
+            referrer_id: r.referrer_id,
+            referrer_type: r.referrer_type,
+            status: r.status,
+            referred_email: r.referred_email,
+            referred_user_id: r.referred_user_id,
+            referred_user: r.referred_user,
+            reward_amount: r.reward_amount,
+            cash_reward_amount: r.cash_reward_amount,
+            cash_reward_paid: r.cash_reward_paid,
+            completed_at: r.completed_at,
+            created_at: r.created_at,
+          })),
+        });
+        
+        // Vérifier si les referred_user_id sont présents
+        const referralsWithoutUserId = referralsWithUserInfo.filter((r: any) => !r.referred_user_id);
+        if (referralsWithoutUserId.length > 0) {
+          console.warn('⚠️ [useReferrals] Parrainages sans referred_user_id:', referralsWithoutUserId.map((r: any) => ({
+            id: r.id,
+            email: r.referred_email,
+            status: r.status,
+          })));
+        }
+        
+        // Vérifier si les données sont vides mais qu'on s'attend à en avoir
+        if (!data || data.length === 0) {
+          console.warn('⚠️ [useReferrals] Aucun parrainage trouvé pour user:', user.id);
+        }
+        
+        setReferrals(referralsWithUserInfo);
       } catch (error) {
-        console.error('Error fetching referrals:', error);
+        console.error('❌ [useReferrals] Erreur lors de la récupération des parrainages:', error);
+        setReferrals([]);
       } finally {
         setIsLoadingReferrals(false);
       }
@@ -112,16 +294,27 @@ export const useReferrals = () => {
 
     const fetchVouchers = async () => {
       try {
+        setIsLoadingVouchers(true);
         const { data, error } = await supabase
           .from('user_discount_vouchers')
           .select('*')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [useReferrals] Erreur lors de la récupération des vouchers:', error);
+          throw error;
+        }
+        
+        console.log('✅ [useReferrals] Vouchers récupérés:', {
+          count: data?.length || 0,
+          data: data,
+        });
+        
         setVouchers(data || []);
       } catch (error) {
-        console.error('Error fetching vouchers:', error);
+        console.error('❌ [useReferrals] Erreur lors de la récupération des vouchers:', error);
+        setVouchers([]);
       } finally {
         setIsLoadingVouchers(false);
       }
@@ -251,6 +444,7 @@ export const useReferrals = () => {
   };
 
   // Statistiques pour les hôtes
+  // Inclure seulement les parrainages où referrer_type est explicitement 'host'
   const hostReferrals = referrals.filter(r => r.referrer_type === 'host');
   
   const hostStats = {
@@ -263,19 +457,49 @@ export const useReferrals = () => {
   };
 
   // Statistiques pour les voyageurs
-  const guestReferrals = referrals.filter(r => r.referrer_type === 'guest');
+  // Un hôte est aussi un voyageur, donc on affiche TOUS les parrainages dans la page voyageur
+  // On sépare juste pour les statistiques détaillées
+  const guestReferrals = referrals.filter(r => {
+    // Inclure tous les parrainages où referrer_type est 'guest' ou null/undefined
+    return !r.referrer_type || r.referrer_type === 'guest';
+  });
+  const hostReferralsForGuest = referrals.filter(r => r.referrer_type === 'host');
+  
+  // Statistiques combinées (tous les parrainages)
+  const allReferrals = referrals;
   const activeVouchers = vouchers.filter(v => v.status === 'active');
   const usedVouchers = vouchers.filter(v => v.status === 'used');
   
+  // Statistiques pour les voyageurs (incluant les parrainages hôtes car un hôte est aussi un voyageur)
   const guestStats = {
-    total: guestReferrals.length,
-    pending: guestReferrals.filter(r => r.status === 'pending').length,
-    registered: guestReferrals.filter(r => r.status === 'registered').length,
-    completed: guestReferrals.filter(r => r.status === 'completed').length,
+    total: allReferrals.length, // Total de TOUS les parrainages
+    pending: allReferrals.filter(r => r.status === 'pending').length,
+    registered: allReferrals.filter(r => r.status === 'registered').length,
+    completed: allReferrals.filter(r => r.status === 'completed').length,
+    // Statistiques détaillées par type
+    guestReferrals: guestReferrals.length,
+    hostReferrals: hostReferralsForGuest.length,
     activeVouchers: activeVouchers.length,
     usedVouchers: usedVouchers.length,
     totalSavings: usedVouchers.reduce((sum, v) => sum + (v.discount_amount || 0), 0),
   };
+
+  // Log pour debug
+  console.log('🔍 [useReferrals] Données récupérées:', {
+    referralsCount: referrals.length,
+    referralsWithTypes: referrals.map(r => ({
+      id: r.id,
+      referrer_type: r.referrer_type,
+      status: r.status,
+      referred_email: r.referred_email,
+    })),
+    guestReferralsCount: guestReferrals.length,
+    hostReferralsCount: hostReferrals.length,
+    vouchersCount: vouchers.length,
+    activeVouchersCount: activeVouchers.length,
+    guestStats,
+    hostStats,
+  });
 
   return {
     referralCode,

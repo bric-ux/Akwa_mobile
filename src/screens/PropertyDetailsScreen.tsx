@@ -358,17 +358,67 @@ const PropertyDetailsScreen: React.FC = () => {
         )}
 
         {/* Équipements */}
-        {property.amenities && property.amenities.length > 0 && (
+        {(property.amenities && property.amenities.length > 0) || (property.custom_amenities && property.custom_amenities.length > 0) ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Équipements</Text>
             <View style={styles.amenitiesGrid}>
-              {property.amenities.map((amenity, idx) => (
+              {/* Équipements standards */}
+              {property.amenities && property.amenities.map((amenity, idx) => (
                 <View key={idx} style={styles.amenityItem}>
                   <Text style={styles.amenityIcon}>{amenity.icon || '✓'}</Text>
                   <Text style={styles.amenityName}>{amenity.name}</Text>
                 </View>
               ))}
+              {/* Équipements personnalisés */}
+              {property.custom_amenities && property.custom_amenities.map((amenityName, idx) => (
+                <View key={`custom-${idx}`} style={[styles.amenityItem, styles.customAmenityItem]}>
+                  <Text style={styles.amenityIcon}>➕</Text>
+                  <Text style={styles.amenityName}>{amenityName}</Text>
+                </View>
+              ))}
             </View>
+          </View>
+        ) : null}
+
+        {/* Règlement intérieur */}
+        {(property.check_in_time || property.check_out_time || property.house_rules) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Règlement intérieur</Text>
+            
+            {/* Horaires */}
+            {(property.check_in_time || property.check_out_time) && (
+              <View style={styles.rulesCard}>
+                <View style={styles.rulesCardHeader}>
+                  <Ionicons name="time-outline" size={20} color="#e67e22" />
+                  <Text style={styles.rulesCardTitle}>Horaires</Text>
+                </View>
+                <View style={styles.rulesCardContent}>
+                  {property.check_in_time && (
+                    <Text style={styles.rulesText}>
+                      Arrivée : à partir de {property.check_in_time}
+                    </Text>
+                  )}
+                  {property.check_out_time && (
+                    <Text style={styles.rulesText}>
+                      Départ : avant {property.check_out_time}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* Règles du logement */}
+            {property.house_rules && (
+              <View style={styles.rulesCard}>
+                <View style={styles.rulesCardHeader}>
+                  <Ionicons name="home-outline" size={20} color="#e67e22" />
+                  <Text style={styles.rulesCardTitle}>Règles du logement</Text>
+                </View>
+                <View style={styles.rulesCardContent}>
+                  <Text style={styles.rulesText}>{property.house_rules}</Text>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -644,6 +694,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2c3e50',
     flex: 1,
+  },
+  customAmenityItem: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#e67e22',
+  },
+  rulesCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  rulesCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  rulesCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginLeft: 8,
+  },
+  rulesCardContent: {
+    paddingLeft: 28,
+  },
+  rulesText: {
+    fontSize: 14,
+    color: '#6c757d',
+    lineHeight: 20,
+    marginBottom: 4,
   },
   infoGrid: {
     flexDirection: 'row',
