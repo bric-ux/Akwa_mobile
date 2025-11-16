@@ -178,21 +178,32 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
     // Utiliser le prix effectif (moyenne des prix dynamiques) si disponible, sinon le prix de base
     const basePrice = effectivePrice !== null ? effectivePrice : (property.price_per_night || 0);
     
-    // Configuration de réduction - utiliser les vrais noms de colonnes de la base de données
+    // Configuration de réduction normale
     const discountConfig = {
       enabled: property.discount_enabled || false,
       minNights: property.discount_min_nights || null,
       percentage: property.discount_percentage || null
     };
     
+    // Configuration de réduction longue durée
+    const longStayDiscountConfig = property.long_stay_discount_enabled ? {
+      enabled: property.long_stay_discount_enabled || false,
+      minNights: property.long_stay_discount_min_nights || null,
+      percentage: property.long_stay_discount_percentage || null
+    } : undefined;
+    
     console.log('🔍 Calcul des prix:', {
       basePrice,
       nights,
       discountConfig,
+      longStayDiscountConfig,
       property: {
         discount_enabled: property.discount_enabled,
         discount_min_nights: property.discount_min_nights,
-        discount_percentage: property.discount_percentage
+        discount_percentage: property.discount_percentage,
+        long_stay_discount_enabled: property.long_stay_discount_enabled,
+        long_stay_discount_min_nights: property.long_stay_discount_min_nights,
+        long_stay_discount_percentage: property.long_stay_discount_percentage
       }
     });
     
@@ -200,7 +211,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
       cleaning_fee: property.cleaning_fee,
       service_fee: property.service_fee,
       taxes: property.taxes
-    });
+    }, longStayDiscountConfig);
     
     // Appliquer la réduction du code promotionnel si valide
     let finalTotal = pricing.finalTotal;
@@ -632,7 +643,10 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
               {pricing.discountApplied && (
                 <View style={styles.priceRow}>
                   <Text style={styles.discountLabel}>
-                    Réduction ({property.discount_percentage}% pour {property.discount_min_nights}+ nuits)
+                    {pricing.discountType === 'long_stay' 
+                      ? `Réduction long séjour (${property.long_stay_discount_percentage}% pour ${property.long_stay_discount_min_nights}+ nuits)`
+                      : `Réduction (${property.discount_percentage}% pour ${property.discount_min_nights}+ nuits)`
+                    }
                   </Text>
                   <Text style={styles.discountValue}>-{formatPrice(pricing.discountAmount)}</Text>
                 </View>

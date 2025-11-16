@@ -284,13 +284,21 @@ const PropertyDetailsScreen: React.FC = () => {
               </>
             )}
           </View>
-          {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
+          {(property.discount_enabled && property.discount_percentage && property.discount_min_nights) || 
+           (property.long_stay_discount_enabled && property.long_stay_discount_percentage && property.long_stay_discount_min_nights) ? (
             <View style={styles.discountContainer}>
-              <Text style={styles.discountText}>
-                🎉 Réduction de {property.discount_percentage}% pour {property.discount_min_nights}+ nuits
-              </Text>
+              {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
+                <Text style={styles.discountText}>
+                  🎉 Réduction de {property.discount_percentage}% pour {property.discount_min_nights}+ nuits
+                </Text>
+              )}
+              {property.long_stay_discount_enabled && property.long_stay_discount_percentage && property.long_stay_discount_min_nights && (
+                <Text style={styles.discountText}>
+                  🏆 Réduction long séjour de {property.long_stay_discount_percentage}% pour {property.long_stay_discount_min_nights}+ nuits
+                </Text>
+              )}
             </View>
-          )}
+          ) : null}
         </View>
 
         {/* Description */}
@@ -358,22 +366,21 @@ const PropertyDetailsScreen: React.FC = () => {
         )}
 
         {/* Équipements */}
-        {(property.amenities && property.amenities.length > 0) || (property.custom_amenities && property.custom_amenities.length > 0) ? (
+        {property.amenities && property.amenities.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Équipements</Text>
             <View style={styles.amenitiesGrid}>
-              {/* Équipements standards */}
-              {property.amenities && property.amenities.map((amenity, idx) => (
-                <View key={idx} style={styles.amenityItem}>
+              {/* Tous les équipements (standards + personnalisés sont déjà fusionnés dans amenities) */}
+              {property.amenities.map((amenity, idx) => (
+                <View 
+                  key={amenity.id || idx} 
+                  style={[
+                    styles.amenityItem,
+                    amenity.icon === '➕' && styles.customAmenityItem
+                  ]}
+                >
                   <Text style={styles.amenityIcon}>{amenity.icon || '✓'}</Text>
                   <Text style={styles.amenityName}>{amenity.name}</Text>
-                </View>
-              ))}
-              {/* Équipements personnalisés */}
-              {property.custom_amenities && property.custom_amenities.map((amenityName, idx) => (
-                <View key={`custom-${idx}`} style={[styles.amenityItem, styles.customAmenityItem]}>
-                  <Text style={styles.amenityIcon}>➕</Text>
-                  <Text style={styles.amenityName}>{amenityName}</Text>
                 </View>
               ))}
             </View>

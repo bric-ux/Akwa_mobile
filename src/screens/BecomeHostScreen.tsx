@@ -134,6 +134,14 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     autoBooking: 'request',
     cancellationPolicy: 'flexible',
     
+    // Horaires et règles intérieures
+    checkInTime: '14:00',
+    checkOutTime: '11:00',
+    allowPets: false,
+    allowSmoking: false,
+    allowEvents: false,
+    otherRules: '',
+    
     // Réductions
     discountEnabled: false,
     discountMinNights: '',
@@ -201,6 +209,29 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     if (application) {
       console.log('📋 Candidature chargée:', application);
       
+      // Formater les horaires
+      const formatTime = (time: string | null | undefined): string => {
+        if (!time) return '14:00';
+        // Si le format est HH:MM:SS, ne garder que HH:MM
+        if (time.includes(':')) {
+          const parts = time.split(':');
+          return `${parts[0]}:${parts[1]}`;
+        }
+        return time;
+      };
+      
+      // Parser les règles depuis house_rules
+      const rules = application.house_rules || '';
+      const allowPets = rules.includes('Animaux autorisés');
+      const allowSmoking = rules.includes('Fumer autorisé');
+      const allowEvents = rules.includes('Événements autorisés');
+      const otherRules = rules.split('\n').filter((line: string) => 
+        !line.includes('Animaux autorisés') && 
+        !line.includes('Fumer autorisé') && 
+        !line.includes('Événements autorisés') &&
+        line.trim() !== ''
+      ).join('\n');
+      
       setFormData({
         propertyType: application.property_type || '',
         location: application.location || '',
@@ -221,6 +252,12 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         minimumNights: application.minimum_nights?.toString() || '1',
         autoBooking: application.auto_booking ? 'auto' : 'request',
         cancellationPolicy: application.cancellation_policy || 'flexible',
+        checkInTime: formatTime(application.check_in_time),
+        checkOutTime: formatTime(application.check_out_time),
+        allowPets: allowPets,
+        allowSmoking: allowSmoking,
+        allowEvents: allowEvents,
+        otherRules: otherRules,
         discountEnabled: application.discount_enabled || false,
         discountMinNights: application.discount_min_nights?.toString() || '',
         discountPercentage: application.discount_percentage?.toString() || '',
@@ -509,7 +546,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       'propertyType', 'location', 'guests', 'bedrooms', 'bathrooms',
       'title', 'description', 'price', 'addressDetails',
       'hostFullName', 'hostEmail', 'hostPhone', 'experience', 'hostGuide',
-      'cleaningFee', 'houseRules', 'minimumNights', 'discountMinNights', 'discountPercentage',
+      'cleaningFee', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage',
       'autoBooking', 'cancellationPolicy'
     ];
     
@@ -830,6 +867,14 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       autoBooking: formData.autoBooking === 'auto',
       cancellationPolicy: formData.cancellationPolicy,
       hostGuide: formData.hostGuide || undefined,
+      checkInTime: formData.checkInTime || null,
+      checkOutTime: formData.checkOutTime || null,
+      houseRules: [
+        formData.allowPets && 'Animaux autorisés',
+        formData.allowSmoking && 'Fumer autorisé',
+        formData.allowEvents && 'Événements autorisés',
+        formData.otherRules
+      ].filter(Boolean).join('\n') || null,
       discountEnabled: formData.discountEnabled,
       discountMinNights: formData.discountEnabled ? parseInt(formData.discountMinNights) || undefined : undefined,
       discountPercentage: formData.discountEnabled ? parseInt(formData.discountPercentage) || undefined : undefined,
@@ -1487,21 +1532,84 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         </View>
       </View>
 
-      {/* Règles de la maison */}
+      {/* Horaires */}
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Règles de la maison</Text>
-        <TextInput
-          ref={(ref) => { inputRefs.current['houseRules'] = ref; }}
-          style={[styles.input, styles.textArea]}
-          value={formData.houseRules}
-          onChangeText={(value) => handleInputChange('houseRules', value)}
-          placeholder="Ex: Pas de fumeurs, pas d'animaux..."
-          multiline
-          numberOfLines={3}
-          placeholderTextColor="#999"
-          returnKeyType="next"
-          onSubmitEditing={() => handleInputSubmit('houseRules')}
-        />
+        <Text style={styles.label}>Horaires</Text>
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
+            <Text style={styles.sublabel}>Heure d'arrivée</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.checkInTime}
+              onChangeText={(value) => handleInputChange('checkInTime', value)}
+              placeholder="14:00"
+              placeholderTextColor="#999"
+            />
+          </View>
+          <View style={[styles.inputGroup, { flex: 1 }]}>
+            <Text style={styles.sublabel}>Heure de départ</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.checkOutTime}
+              onChangeText={(value) => handleInputChange('checkOutTime', value)}
+              placeholder="11:00"
+              placeholderTextColor="#999"
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* Règles intérieures */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Règlement intérieur</Text>
+        
+        {/* Événements autorisés */}
+        <View style={styles.switchContainer}>
+          <TouchableOpacity
+            style={[styles.switch, formData.allowEvents && styles.switchActive]}
+            onPress={() => handleInputChange('allowEvents', !formData.allowEvents)}
+          >
+            <View style={[styles.switchThumb, formData.allowEvents && styles.switchThumbActive]} />
+          </TouchableOpacity>
+          <Text style={styles.switchLabel}>Événements autorisés</Text>
+        </View>
+
+        {/* Fumer autorisé */}
+        <View style={styles.switchContainer}>
+          <TouchableOpacity
+            style={[styles.switch, formData.allowSmoking && styles.switchActive]}
+            onPress={() => handleInputChange('allowSmoking', !formData.allowSmoking)}
+          >
+            <View style={[styles.switchThumb, formData.allowSmoking && styles.switchThumbActive]} />
+          </TouchableOpacity>
+          <Text style={styles.switchLabel}>Fumer autorisé</Text>
+        </View>
+
+        {/* Animaux autorisés */}
+        <View style={styles.switchContainer}>
+          <TouchableOpacity
+            style={[styles.switch, formData.allowPets && styles.switchActive]}
+            onPress={() => handleInputChange('allowPets', !formData.allowPets)}
+          >
+            <View style={[styles.switchThumb, formData.allowPets && styles.switchThumbActive]} />
+          </TouchableOpacity>
+          <Text style={styles.switchLabel}>Animaux autorisés</Text>
+        </View>
+
+        {/* Autres règles */}
+        <View style={{ marginTop: 10 }}>
+          <Text style={styles.sublabel}>Autres règles</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={formData.otherRules}
+            onChangeText={(value) => handleInputChange('otherRules', value)}
+            placeholder="Ex: Respecter les voisins, Ne pas utiliser la piscine après 22h..."
+            multiline
+            numberOfLines={3}
+            placeholderTextColor="#999"
+            textAlignVertical="top"
+          />
+        </View>
       </View>
 
       {/* Frais */}
@@ -2073,6 +2181,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#374151',
     marginBottom: 8,
+  },
+  sublabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6b7280',
+    marginBottom: 6,
   },
   helpText: {
     fontSize: 12,

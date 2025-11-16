@@ -4,6 +4,29 @@ export interface DiscountConfig {
   percentage: number | null;
 }
 
+/**
+ * Détermine quelle réduction (normale ou long séjour) doit être appliquée
+ */
+export function getBestDiscount(
+  nights: number, 
+  discountConfig: DiscountConfig,
+  longStayDiscountConfig?: DiscountConfig
+): DiscountConfig | null {
+  const canApplyNormal = shouldApplyDiscount(nights, discountConfig);
+  const canApplyLongStay = longStayDiscountConfig ? shouldApplyDiscount(nights, longStayDiscountConfig) : false;
+  
+  // Appliquer la meilleure réduction (la plus avantageuse)
+  if (canApplyLongStay && longStayDiscountConfig) {
+    if (!canApplyNormal) return longStayDiscountConfig;
+    // Comparer et retourner la meilleure
+    return (longStayDiscountConfig.percentage! > discountConfig.percentage!) 
+      ? longStayDiscountConfig 
+      : discountConfig;
+  }
+  
+  return canApplyNormal ? discountConfig : null;
+}
+
 export interface PropertyPricing {
   basePrice: number;
   discountConfig: DiscountConfig;
@@ -38,22 +61,28 @@ export function calculateDiscountedPrice(
 }
 
 /**
- * Calcule le prix total pour une réservation
+ * Calcule le prix total pour une réservation avec support des réductions de longs séjours
  */
 export function calculateTotalPrice(
   basePrice: number,
   nights: number,
-  discountConfig: DiscountConfig
+  discountConfig: DiscountConfig,
+  longStayDiscountConfig?: DiscountConfig
 ): {
   pricePerNight: number;
   totalPrice: number;
   discountApplied: boolean;
   discountAmount: number;
   originalTotal: number;
+  discountType?: 'normal' | 'long_stay';
 } {
   const originalTotal = basePrice * nights;
   
-  if (!shouldApplyDiscount(nights, discountConfig)) {
+  // Déterminer la meilleure réduction à appliquer
+  const bestDiscount = getBestDiscount(nights, discountConfig, longStayDiscountConfig);
+  const isLongStay = bestDiscount === longStayDiscountConfig;
+  
+  if (!bestDiscount) {
     return {
       pricePerNight: basePrice,
       totalPrice: originalTotal,
@@ -63,7 +92,7 @@ export function calculateTotalPrice(
     };
   }
   
-  const discountedPricePerNight = calculateDiscountedPrice(basePrice, nights, discountConfig);
+  const discountedPricePerNight = calculateDiscountedPrice(basePrice, nights, bestDiscount);
   const totalPrice = discountedPricePerNight * nights;
   const discountAmount = originalTotal - totalPrice;
   
@@ -72,7 +101,8 @@ export function calculateTotalPrice(
     totalPrice,
     discountApplied: true,
     discountAmount,
-    originalTotal
+    originalTotal,
+    discountType: isLongStay ? 'long_stay' : 'normal'
   };
 }
 
@@ -119,13 +149,14 @@ export function calculateFinalPrice(
     cleaning_fee?: number | null;
     service_fee?: number | null;
     taxes?: number | null;
-  }
+  },
+  longStayDiscountConfig?: DiscountConfig
 ): {
   pricing: ReturnType<typeof calculateTotalPrice>;
   fees: ReturnType<typeof calculateFees>;
   finalTotal: number;
 } {
-  const pricing = calculateTotalPrice(basePrice, nights, discountConfig);
+  const pricing = calculateTotalPrice(basePrice, nights, discountConfig, longStayDiscountConfig);
   const fees = calculateFees(basePrice, nights, propertyFees);
   const finalTotal = pricing.totalPrice + fees.totalFees;
   

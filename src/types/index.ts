@@ -61,6 +61,9 @@ export interface Property {
   discount_enabled?: boolean;
   discount_min_nights?: number;
   discount_percentage?: number;
+  long_stay_discount_enabled?: boolean;
+  long_stay_discount_min_nights?: number;
+  long_stay_discount_percentage?: number;
   check_in_time?: string;
   check_out_time?: string;
   house_rules?: string;

@@ -29,9 +29,10 @@ const PropertyRulesScreen: React.FC = () => {
   // État pour le règlement intérieur
   const [checkInTime, setCheckInTime] = useState('14:00');
   const [checkOutTime, setCheckOutTime] = useState('11:00');
-  const [eventsAllowed, setEventsAllowed] = useState(false);
+  const [petsAllowed, setPetsAllowed] = useState(false);
   const [smokingAllowed, setSmokingAllowed] = useState(false);
-  const [vapingAllowed, setVapingAllowed] = useState(false);
+  const [eventsAllowed, setEventsAllowed] = useState(false);
+  const [otherRules, setOtherRules] = useState('');
 
   useEffect(() => {
     loadProperty();
@@ -43,7 +44,7 @@ const PropertyRulesScreen: React.FC = () => {
       
       const { data, error } = await supabase
         .from('properties')
-        .select('check_in_time, check_out_time, events_allowed, smoking_allowed, vaping_allowed')
+        .select('check_in_time, check_out_time, house_rules')
         .eq('id', propertyId)
         .single();
 
@@ -53,11 +54,34 @@ const PropertyRulesScreen: React.FC = () => {
       }
 
       if (data) {
-        setCheckInTime(data.check_in_time || '14:00');
-        setCheckOutTime(data.check_out_time || '11:00');
-        setEventsAllowed(data.events_allowed || false);
-        setSmokingAllowed(data.smoking_allowed || false);
-        setVapingAllowed(data.vaping_allowed || false);
+        // Formater les horaires pour n'afficher que HH:MM (sans secondes)
+        const formatTime = (time: string | null | undefined): string => {
+          if (!time) return '14:00';
+          // Si le format est HH:MM:SS, ne garder que HH:MM
+          if (time.includes(':')) {
+            const parts = time.split(':');
+            return `${parts[0]}:${parts[1]}`;
+          }
+          return time;
+        };
+        
+        setCheckInTime(formatTime(data.check_in_time));
+        setCheckOutTime(formatTime(data.check_out_time));
+        
+        // Parser les règles depuis house_rules (comme sur le web)
+        const rules = data.house_rules || '';
+        setPetsAllowed(rules.includes('Animaux autorisés'));
+        setSmokingAllowed(rules.includes('Fumer autorisé'));
+        setEventsAllowed(rules.includes('Événements autorisés'));
+        
+        // Extraire les autres règles (tout ce qui n'est pas dans les règles prédéfinies)
+        const ruleLines = rules.split('\n').filter((line: string) => 
+          !line.includes('Animaux autorisés') && 
+          !line.includes('Fumer autorisé') && 
+          !line.includes('Événements autorisés') &&
+          line.trim() !== ''
+        );
+        setOtherRules(ruleLines.join('\n'));
       }
     } catch (error) {
       console.error('Erreur lors du chargement de la propriété:', error);
@@ -71,19 +95,17 @@ const PropertyRulesScreen: React.FC = () => {
     try {
       setSaving(true);
 
+      // Construire house_rules comme sur le web (chaîne avec sauts de ligne)
       const updates: any = {
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
-        smoking_allowed: smokingAllowed,
-        vaping_allowed: vapingAllowed,
+        house_rules: [
+          petsAllowed && 'Animaux autorisés',
+          smokingAllowed && 'Fumer autorisé',
+          eventsAllowed && 'Événements autorisés',
+          otherRules
+        ].filter(Boolean).join('\n'),
       };
-      
-      // Ajouter events_allowed seulement si la colonne existe
-      try {
-        updates.events_allowed = eventsAllowed;
-      } catch (e) {
-        console.log('Le champ events_allowed n\'est pas disponible');
-      }
 
       const { error } = await supabase
         .from('properties')
@@ -203,17 +225,39 @@ const PropertyRulesScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Vapoter */}
+          {/* Animaux autorisés */}
           <View style={styles.optionCard}>
             <View style={styles.optionHeader}>
               <View style={styles.optionHeaderLeft}>
-                <Ionicons name="cloud-outline" size={24} color="#e67e22" />
-                <Text style={styles.optionTitle}>Vapoter autorisé</Text>
+                <Ionicons name="paw-outline" size={24} color="#e67e22" />
+                <Text style={styles.optionTitle}>Animaux autorisés</Text>
               </View>
               <Switch
-                value={vapingAllowed}
-                onValueChange={setVapingAllowed}
+                value={petsAllowed}
+                onValueChange={setPetsAllowed}
                 trackColor={{ false: '#ccc', true: '#e67e22' }}
+              />
+            </View>
+          </View>
+
+          {/* Autres règles */}
+          <View style={styles.optionCard}>
+            <View style={styles.optionHeader}>
+              <Ionicons name="document-text-outline" size={24} color="#e67e22" />
+              <Text style={styles.optionTitle}>Autres règles</Text>
+            </View>
+            <View style={styles.optionContent}>
+              <Text style={styles.inputLabel}>
+                Ajoutez d'autres règles spécifiques à votre logement
+              </Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={otherRules}
+                onChangeText={setOtherRules}
+                placeholder="ex: Respecter les voisins, Ne pas utiliser la piscine après 22h..."
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
               />
             </View>
           </View>
@@ -325,6 +369,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
     color: '#333',
+  },
+  textArea: {
+    minHeight: 100,
+    paddingTop: 10,
+    paddingBottom: 10,
   },
 });
 
