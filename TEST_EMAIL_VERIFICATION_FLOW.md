@@ -50,3 +50,4 @@
 - Pas besoin de migration SQL
 - Même approche que le site web (`cote-d-ivoire-stays`)
 
+

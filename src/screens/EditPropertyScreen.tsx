@@ -111,8 +111,30 @@ const EditPropertyScreen: React.FC = () => {
         }
 
         // Charger les équipements sélectionnés
+        // propertyData.amenities contient des objets {id, name, icon}
+        // On doit extraire les noms pour selectedAmenities qui est un tableau de strings
+        // Exclure les équipements personnalisés (icône '➕') car ils sont gérés séparément
         if (propertyData.amenities && Array.isArray(propertyData.amenities)) {
-          setSelectedAmenities(propertyData.amenities);
+          const amenityNames = propertyData.amenities
+            .map((amenity: any) => {
+              // Si c'est un objet avec name, utiliser name
+              if (typeof amenity === 'object' && amenity.name) {
+                // Exclure les équipements personnalisés (icône '➕')
+                if (amenity.icon === '➕') {
+                  return null;
+                }
+                return amenity.name;
+              }
+              // Si c'est déjà une string, l'utiliser directement
+              if (typeof amenity === 'string') {
+                return amenity;
+              }
+              return null;
+            })
+            .filter((name: string | null) => name !== null && name !== '');
+          
+          console.log('📋 Équipements standards chargés:', amenityNames);
+          setSelectedAmenities(amenityNames);
         }
         
         // Charger les équipements personnalisés

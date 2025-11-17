@@ -37,3 +37,4 @@ LIMIT 10;
 -- Allez dans: Edge Functions > verify-code > Logs
 -- Cherchez les messages: "✅ Profil mis à jour avec succès"
 
+
