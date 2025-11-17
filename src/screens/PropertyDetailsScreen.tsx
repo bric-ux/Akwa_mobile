@@ -25,12 +25,14 @@ import PhotoCategoryDisplay from '../components/PhotoCategoryDisplay';
 import PropertyMap from '../components/PropertyMap';
 import { supabase } from '../services/supabase';
 import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
 const PropertyDetailsScreen: React.FC = () => {
   const route = useRoute<PropertyDetailsRouteProp>();
   const navigation = useNavigation();
+  const { t } = useLanguage();
   const { propertyId } = route.params;
   const { getPropertyById } = useProperties();
   const { user } = useAuth();
@@ -94,7 +96,7 @@ const PropertyDetailsScreen: React.FC = () => {
           errorMessage = error.message;
         }
         
-        Alert.alert('Erreur', errorMessage);
+        Alert.alert(t('common.error'), errorMessage);
       } finally {
         setLoading(false);
       }
@@ -186,7 +188,7 @@ const PropertyDetailsScreen: React.FC = () => {
         const newFavoriteState = await toggleFavorite(property.id);
         setIsFavorited(newFavoriteState);
       } catch (error: any) {
-        Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
+        Alert.alert(t('common.error'), error.message || t('favorites.error'));
       }
     });
   };
@@ -207,7 +209,7 @@ const PropertyDetailsScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.loadingText}>Chargement...</Text>
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -215,7 +217,7 @@ const PropertyDetailsScreen: React.FC = () => {
   if (!property) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Propriété non trouvée</Text>
+        <Text style={styles.errorText}>{t('property.notFound')}</Text>
       </View>
     );
   }
@@ -274,13 +276,13 @@ const PropertyDetailsScreen: React.FC = () => {
         <View style={styles.priceContainer}>
           <View style={styles.priceRow}>
             {priceLoading ? (
-              <Text style={styles.price}>Chargement...</Text>
+                <Text style={styles.price}>{t('common.loading')}</Text>
             ) : (
               <>
                 <Text style={styles.price}>
                   {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}
                 </Text>
-                <Text style={styles.priceUnit}>/nuit</Text>
+                <Text style={styles.priceUnit}>/{t('common.perNight')}</Text>
               </>
             )}
           </View>
@@ -304,7 +306,7 @@ const PropertyDetailsScreen: React.FC = () => {
         {/* Description */}
         {property.description && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>À propos de ce logement</Text>
+            <Text style={styles.sectionTitle}>{t('property.about')}</Text>
             <Text style={styles.description}>{property.description}</Text>
           </View>
         )}
@@ -312,7 +314,7 @@ const PropertyDetailsScreen: React.FC = () => {
         {/* Avis et commentaires */}
         {property.reviews && property.reviews.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Avis des voyageurs</Text>
+            <Text style={styles.sectionTitle}>{t('property.reviews')}</Text>
             {property.reviews.map((review, index) => {
               const reviewerName = reviewersProfiles[review.reviewer_id] || 'Anonyme';
               console.log('🔍 Affichage avis:', {
@@ -368,7 +370,7 @@ const PropertyDetailsScreen: React.FC = () => {
         {/* Équipements */}
         {property.amenities && property.amenities.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Équipements</Text>
+            <Text style={styles.sectionTitle}>{t('property.amenities')}</Text>
             <View style={styles.amenitiesGrid}>
               {/* Tous les équipements (standards + personnalisés sont déjà fusionnés dans amenities) */}
               {property.amenities.map((amenity, idx) => (
@@ -390,24 +392,24 @@ const PropertyDetailsScreen: React.FC = () => {
         {/* Règlement intérieur */}
         {(property.check_in_time || property.check_out_time || property.house_rules) && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Règlement intérieur</Text>
+            <Text style={styles.sectionTitle}>{t('property.rules')}</Text>
             
             {/* Horaires */}
             {(property.check_in_time || property.check_out_time) && (
               <View style={styles.rulesCard}>
                 <View style={styles.rulesCardHeader}>
                   <Ionicons name="time-outline" size={20} color="#e67e22" />
-                  <Text style={styles.rulesCardTitle}>Horaires</Text>
+                  <Text style={styles.rulesCardTitle}>{t('property.schedule')}</Text>
                 </View>
                 <View style={styles.rulesCardContent}>
                   {property.check_in_time && (
                     <Text style={styles.rulesText}>
-                      Arrivée : à partir de {property.check_in_time.substring(0, 5)}
+                      {t('property.checkInTime')} {property.check_in_time.substring(0, 5)}
                     </Text>
                   )}
                   {property.check_out_time && (
                     <Text style={styles.rulesText}>
-                      Départ : avant {property.check_out_time.substring(0, 5)}
+                      {t('property.checkOutTime')} {property.check_out_time.substring(0, 5)}
                     </Text>
                   )}
                 </View>
@@ -419,7 +421,7 @@ const PropertyDetailsScreen: React.FC = () => {
               <View style={styles.rulesCard}>
                 <View style={styles.rulesCardHeader}>
                   <Ionicons name="home-outline" size={20} color="#e67e22" />
-                  <Text style={styles.rulesCardTitle}>Règles du logement</Text>
+                  <Text style={styles.rulesCardTitle}>{t('property.houseRules')}</Text>
                 </View>
                 <View style={styles.rulesCardContent}>
                   <Text style={styles.rulesText}>{property.house_rules}</Text>
@@ -431,28 +433,28 @@ const PropertyDetailsScreen: React.FC = () => {
 
         {/* Informations pratiques */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informations pratiques</Text>
+          <Text style={styles.sectionTitle}>{t('property.practicalInfo')}</Text>
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Type</Text>
+              <Text style={styles.infoLabel}>{t('property.type')}</Text>
               <Text style={styles.infoValue}>
                 {property.property_type?.replace('_', ' ').toUpperCase() || 'Non spécifié'}
               </Text>
             </View>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Voyageurs</Text>
+              <Text style={styles.infoLabel}>{t('property.guests')}</Text>
               <Text style={styles.infoValue}>
                 {property.max_guests || 'Non spécifié'}
               </Text>
             </View>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Chambres</Text>
+              <Text style={styles.infoLabel}>{t('property.bedrooms')}</Text>
               <Text style={styles.infoValue}>
                 {property.bedrooms || 'Non spécifié'}
               </Text>
             </View>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Salles de bain</Text>
+              <Text style={styles.infoLabel}>{t('property.bathrooms')}</Text>
               <Text style={styles.infoValue}>
                 {property.bathrooms || 'Non spécifié'}
               </Text>
@@ -463,7 +465,7 @@ const PropertyDetailsScreen: React.FC = () => {
         {/* Section Hôte */}
         {property && property.host_id && hostProfile && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Votre hôte</Text>
+            <Text style={styles.sectionTitle}>{t('property.yourHost')}</Text>
             <TouchableOpacity
               style={styles.hostCard}
               onPress={() => navigation.navigate('HostProfile', { hostId: property.host_id })}
@@ -487,7 +489,7 @@ const PropertyDetailsScreen: React.FC = () => {
                   <Text style={styles.hostName}>
                     {hostProfile ? `${hostProfile.first_name} ${hostProfile.last_name}` : 'Chargement...'}
                   </Text>
-                  <Text style={styles.hostTitle}>Hôte sur AkwaHome</Text>
+                  <Text style={styles.hostTitle}>{t('property.hostOnAkwaHome')}</Text>
                   
                   {/* Statistiques rapides */}
                   {hostProfile && ((hostProfile.total_properties != null && hostProfile.total_properties > 0) || (hostProfile.average_rating != null && hostProfile.average_rating > 0)) && (
@@ -532,7 +534,7 @@ const PropertyDetailsScreen: React.FC = () => {
         {/* Boutons d'action */}
         <View style={styles.actionButtons}>
           <TouchableOpacity style={styles.bookButton} onPress={handleBookNow}>
-            <Text style={styles.bookButtonText}>Réserver maintenant</Text>
+            <Text style={styles.bookButtonText}>{t('property.bookNow')}</Text>
           </TouchableOpacity>
           
           <ContactHostButton

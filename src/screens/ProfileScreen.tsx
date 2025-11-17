@@ -20,10 +20,12 @@ import { useEmailVerification } from '../hooks/useEmailVerification';
 import EmailVerificationModal from '../components/EmailVerificationModal';
 import { useHostApplications } from '../hooks/useHostApplications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user, signOut } = useAuth();
+  const { t } = useLanguage();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
   const { isEmailVerified, generateVerificationCode, checkEmailVerificationStatus } = useEmailVerification();
@@ -66,7 +68,7 @@ const ProfileScreen: React.FC = () => {
     
     const email = user?.email;
     if (!email) {
-      Alert.alert('Erreur', 'Aucune adresse email trouvée');
+      Alert.alert(t('common.error'), t('auth.emailNotFound'));
       return;
     }
     
@@ -77,17 +79,17 @@ const ProfileScreen: React.FC = () => {
     if (result.success) {
       console.log('✅ Code généré avec succès, affichage de la modal');
       Alert.alert(
-        'Code envoyé',
-        'Un code de vérification a été envoyé à votre adresse email. Vérifiez votre boîte de réception (et le dossier spam).',
-        [{ text: 'OK', onPress: () => setShowEmailVerification(true) }]
+        t('emailVerification.codeSent'),
+        t('emailVerification.codeSentDesc'),
+        [{ text: t('common.ok'), onPress: () => setShowEmailVerification(true) }]
       );
     } else {
       console.error('❌ Erreur lors de la génération du code:', result.error);
       const errorMessage = result.error || 'Impossible d\'envoyer le code de vérification';
       Alert.alert(
-        'Erreur',
-        errorMessage + '\n\nVérifiez votre connexion et réessayez.',
-        [{ text: 'OK' }]
+        t('common.error'),
+        errorMessage + '\n\n' + t('common.checkConnection'),
+        [{ text: t('common.ok') }]
       );
     }
   };
@@ -122,12 +124,12 @@ const ProfileScreen: React.FC = () => {
 
   const handleLogout = () => {
     Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      t('profile.logout'),
+      t('profile.logoutConfirm'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Déconnexion',
+          text: t('profile.logout'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -157,7 +159,7 @@ const ProfileScreen: React.FC = () => {
                 return;
               }
               
-              Alert.alert('Erreur', 'Impossible de se déconnecter');
+              Alert.alert(t('common.error'), t('profile.logoutError'));
             }
           },
         },
@@ -170,13 +172,13 @@ const ProfileScreen: React.FC = () => {
   const baseMenuItems = [
     {
       id: 'edit',
-      title: 'Modifier le profil',
+      title: t('profile.edit'),
       icon: 'person-outline',
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
       id: 'referral',
-      title: 'Système de parrainage',
+      title: t('profile.referral'),
       icon: 'gift-outline',
       onPress: () => navigation.navigate('GuestReferral' as never),
     },
@@ -185,19 +187,19 @@ const ProfileScreen: React.FC = () => {
   // Élément pour l'espace hôte (navigation complète avec onglets)
   const hostSpaceItem = {
     id: 'hostSpace',
-    title: 'Espace hôte',
+    title: t('profile.hostSpace'),
     icon: 'business-outline',
     onPress: async () => {
       Alert.alert(
-        'Passer en mode hôte',
-        'Vous allez accéder à votre espace hôte pour gérer vos propriétés et réservations. Souhaitez-vous continuer ?',
+        t('profile.switchToHost'),
+        t('profile.switchToHostConfirmDesc'),
         [
           {
-            text: 'Annuler',
+            text: t('common.cancel'),
             style: 'cancel',
           },
           {
-            text: 'Continuer',
+            text: t('common.continue'),
             onPress: async () => {
               // Naviguer vers la page de transition
               navigation.navigate('ModeTransition' as never, {
@@ -216,10 +218,21 @@ const ProfileScreen: React.FC = () => {
   // Élément pour devenir hôte (si pas encore hôte)
   const becomeHostItem = {
     id: 'host',
-    title: 'Devenir hôte',
+    title: t('becomeHost.title'),
     icon: 'home-outline',
     onPress: () => {
       console.log('🔵 [ProfileScreen] Navigation vers BecomeHost');
+      navigation.navigate('BecomeHost' as never);
+    },
+  };
+
+  // Élément pour ajouter une propriété (si déjà hôte)
+  const addPropertyItem = {
+    id: 'addProperty',
+    title: t('host.addProperty'),
+    icon: 'add-circle-outline',
+    onPress: () => {
+      console.log('🔵 [ProfileScreen] Navigation vers BecomeHost pour ajouter une propriété');
       navigation.navigate('BecomeHost' as never);
     },
   };
@@ -228,7 +241,7 @@ const ProfileScreen: React.FC = () => {
   const commonMenuItems = [
     {
       id: 'settings',
-      title: 'Paramètres',
+      title: t('settings.title'),
       icon: 'settings-outline',
       onPress: () => navigation.navigate('Settings' as never),
     },
@@ -240,6 +253,10 @@ const ProfileScreen: React.FC = () => {
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
   if (profile?.is_host || hasPendingApplications) {
     menuItems.push(hostSpaceItem);
+    // Si l'utilisateur est déjà hôte, ajouter aussi l'option "Ajouter une propriété"
+    if (profile?.is_host) {
+      menuItems.push(addPropertyItem);
+    }
   } else {
     // Ajouter "Devenir hôte" si pas encore hôte et pas de candidatures en cours
     menuItems.push(becomeHostItem);
@@ -275,7 +292,7 @@ const ProfileScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>Redirection vers la connexion...</Text>
+          <Text style={styles.loadingText}>{t('auth.redirecting')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -285,7 +302,7 @@ const ProfileScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>Chargement du profil...</Text>
+          <Text style={styles.loadingText}>{t('profile.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -331,14 +348,14 @@ const ProfileScreen: React.FC = () => {
               color={isEmailVerified ? '#10b981' : '#f59e0b'} 
             />
             <Text style={styles.emailStatusText}>
-              {isEmailVerified ? 'Email vérifié' : 'Email non vérifié'}
+              {isEmailVerified ? t('auth.emailVerified') : t('auth.emailNotVerified')}
             </Text>
             {!isEmailVerified && (
               <TouchableOpacity 
                 style={styles.verifyEmailButton}
                 onPress={handleEmailVerification}
               >
-                <Text style={styles.verifyEmailButtonText}>Vérifier</Text>
+                <Text style={styles.verifyEmailButtonText}>{t('auth.verifyEmail')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -393,8 +410,8 @@ const ProfileScreen: React.FC = () => {
                   <Ionicons name="business" size={18} color="#fff" />
                 </View>
                 <View style={styles.hostSpaceTextContainer}>
-                  <Text style={styles.hostSpaceText}>Espace hôte</Text>
-                  <Text style={styles.hostSpaceSubtext}>Gérer vos propriétés</Text>
+                  <Text style={styles.hostSpaceText}>{t('profile.hostSpace')}</Text>
+                  <Text style={styles.hostSpaceSubtext}>{t('profile.hostSpaceDesc')}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#fff" />
               </View>
@@ -424,7 +441,7 @@ const ProfileScreen: React.FC = () => {
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={24} color="#e74c3c" />
-          <Text style={styles.logoutText}>Se déconnecter</Text>
+          <Text style={styles.logoutText}>{t('profile.logout')}</Text>
         </TouchableOpacity>
 
         {/* App Info */}

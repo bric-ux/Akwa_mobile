@@ -16,9 +16,11 @@ import { useUserProfile, clearProfileCache } from '../hooks/useUserProfile';
 import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const HostAccountScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { t } = useLanguage();
   const { user, signOut } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus } = useIdentityVerification();
@@ -35,12 +37,12 @@ const HostAccountScreen: React.FC = () => {
 
   const handleLogout = () => {
     Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      t('profile.logout'),
+      t('profile.logoutConfirm'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Déconnexion',
+          text: t('profile.logout'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -63,7 +65,7 @@ const HostAccountScreen: React.FC = () => {
                 });
                 return;
               }
-              Alert.alert('Erreur', 'Impossible de se déconnecter');
+              Alert.alert(t('common.error'), t('profile.logoutError'));
             }
           },
         },
@@ -73,12 +75,12 @@ const HostAccountScreen: React.FC = () => {
 
   const handleSwitchToTravelerMode = async () => {
     Alert.alert(
-      'Retour au mode voyageur',
-      'Voulez-vous retourner au mode voyageur ?',
+      t('host.switchToTraveler'),
+      t('host.switchToTravelerConfirm'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Oui',
+          text: t('common.yes'),
           onPress: async () => {
             // Naviguer vers la page de transition
             navigation.navigate('ModeTransition' as never, {
@@ -97,7 +99,7 @@ const HostAccountScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>Redirection vers la connexion...</Text>
+          <Text style={styles.loadingText}>{t('auth.redirecting')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -107,7 +109,7 @@ const HostAccountScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>Chargement du profil...</Text>
+          <Text style={styles.loadingText}>{t('profile.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -116,19 +118,25 @@ const HostAccountScreen: React.FC = () => {
   const menuItems = [
     {
       id: 'edit',
-      title: 'Modifier le profil',
+      title: t('profile.edit'),
       icon: 'person-outline',
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
+      id: 'addProperty',
+      title: t('host.addProperty'),
+      icon: 'add-circle-outline',
+      onPress: () => navigation.navigate('BecomeHost' as never),
+    },
+    {
       id: 'referral',
-      title: 'Système de parrainage',
+      title: t('profile.referral'),
       icon: 'gift-outline',
       onPress: () => navigation.navigate('GuestReferral' as never),
     },
     {
       id: 'settings',
-      title: 'Paramètres',
+      title: t('settings.title'),
       icon: 'settings-outline',
       onPress: () => navigation.navigate('Settings' as never),
     },
@@ -174,7 +182,7 @@ const HostAccountScreen: React.FC = () => {
           {/* Badge Hôte */}
           <View style={styles.hostBadge}>
             <Ionicons name="home" size={16} color="#e67e22" />
-            <Text style={styles.hostBadgeText}>Hôte vérifié</Text>
+            <Text style={styles.hostBadgeText}>{t('host.verified')}</Text>
           </View>
         </View>
 
@@ -190,8 +198,8 @@ const HostAccountScreen: React.FC = () => {
                 <Ionicons name="airplane-outline" size={18} color="#fff" />
               </View>
               <View style={styles.switchModeTextContainer}>
-                <Text style={styles.switchModeText}>Retour au mode voyageur</Text>
-                <Text style={styles.switchModeSubtext}>Explorer et réserver</Text>
+                <Text style={styles.switchModeText}>{t('host.switchToTraveler')}</Text>
+                <Text style={styles.switchModeSubtext}>{t('host.switchToTravelerDesc')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#fff" />
             </View>
@@ -223,7 +231,7 @@ const HostAccountScreen: React.FC = () => {
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={24} color="#e74c3c" />
-          <Text style={styles.logoutText}>Se déconnecter</Text>
+          <Text style={styles.logoutText}>{t('profile.logout')}</Text>
         </TouchableOpacity>
 
         {/* App Info */}

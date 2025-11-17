@@ -13,6 +13,7 @@ import { useFavorites } from '../hooks/useFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import { useCurrency } from '../hooks/useCurrency';
 import { getPriceForDate } from '../utils/priceCalculator';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface PropertyCardProps {
   property: Property;
@@ -24,6 +25,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
   const { requireAuthForFavorites } = useAuthRedirect();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { formatPrice: formatPriceWithCurrency, currency } = useCurrency();
+  const { t } = useLanguage();
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
 
@@ -67,7 +69,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
   };
 
   const formatPrice = (price: number | undefined) => {
-    if (!price) return 'Prix sur demande';
+    if (!price) return t('common.priceOnRequest');
     return formatPriceWithCurrency(price);
   };
 
@@ -93,12 +95,12 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             <View style={styles.priceOverlay}>
               <View style={styles.priceOverlayContent}>
                 <Text style={styles.priceText}>
-                  {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}/nuit
+                  {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}/{t('common.perNight')}
                 </Text>
               </View>
               {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
                 <Text style={styles.discountOverlay}>
-                  -{property.discount_percentage}% pour {property.discount_min_nights}+ nuits
+                  -{property.discount_percentage}% {t('property.forNights')} {property.discount_min_nights}+ {t('property.nights')}
                 </Text>
               )}
             </View>
@@ -128,7 +130,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             </Text>
             
             <Text style={styles.cardRating}>
-              ⭐ {(property.rating || 0).toFixed(1)} ({property.review_count || 0} avis)
+              ⭐ {(property.rating || 0).toFixed(1)} ({property.review_count || 0} {t('property.reviews')})
             </Text>
             
             {property.amenities && property.amenities.length > 0 && (
@@ -140,7 +142,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
                 ))}
                 {property.amenities.length > 3 && (
                   <Text style={styles.moreAmenities}>
-                    +{property.amenities.length - 3} autres
+                    +{property.amenities.length - 3} {t('common.more')}
                   </Text>
                 )}
               </View>
@@ -172,11 +174,11 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
           
           <View style={styles.priceContainer}>
             <Text style={styles.price}>
-              {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}/nuit
+              {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}/{t('common.perNight')}
             </Text>
             {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
               <Text style={styles.discountBadgeOverlay}>
-                -{property.discount_percentage}% pour {property.discount_min_nights}+ nuits
+                -{property.discount_percentage}% {t('property.forNights')} {property.discount_min_nights}+ {t('property.nights')}
               </Text>
             )}
           </View>
@@ -211,7 +213,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             </View>
             
             <Text style={styles.rating}>
-              ⭐ {(property.rating || 0).toFixed(1)} ({property.review_count || 0} avis)
+              ⭐ {(property.rating || 0).toFixed(1)} ({property.review_count || 0} {t('property.reviews')})
             </Text>
             
             {property.amenities && property.amenities.length > 0 && (
@@ -223,7 +225,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
                 ))}
                 {property.amenities.length > 2 && (
                   <Text style={styles.moreAmenities}>
-                    +{property.amenities.length - 2} autres
+                    +{property.amenities.length - 2} {t('common.more')}
                   </Text>
                 )}
               </View>

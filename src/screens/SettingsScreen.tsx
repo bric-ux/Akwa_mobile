@@ -18,14 +18,17 @@ import { useAuth } from '../services/AuthContext';
 import { useEmailService } from '../hooks/useEmailService';
 import { clearProfileCache } from '../hooks/useUserProfile';
 import { supabase } from '../services/supabase';
+import { useLanguage, Language } from '../contexts/LanguageContext';
 
 const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user, signOut } = useAuth();
   const { sendPasswordReset } = useEmailService();
+  const { language, setLanguage, t } = useLanguage();
   
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [loading, setLoading] = useState(false);
   
@@ -72,9 +75,45 @@ const SettingsScreen: React.FC = () => {
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      t('settings.logout'),
+      t('settings.logoutDesc'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('settings.logout'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem('preferredMode');
+              clearProfileCache();
+              await signOut();
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Home' }],
+              });
+            } catch (error: any) {
+              console.error('Erreur lors de la déconnexion:', error);
+              if (error?.message?.includes('Auth session missing')) {
+                clearProfileCache();
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+                return;
+              }
+              Alert.alert(t('common.error'), 'Impossible de se déconnecter');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handlePasswordReset = async () => {
     if (!user?.email) {
-      Alert.alert('Erreur', 'Email non trouvé');
+      Alert.alert(t('common.error'), 'Email non trouvé');
       return;
     }
 
@@ -87,27 +126,28 @@ const SettingsScreen: React.FC = () => {
 
       if (error) {
         console.error('Erreur Supabase:', error);
-        Alert.alert('Erreur', 'Impossible d\'envoyer l\'email de réinitialisation');
+        Alert.alert(t('common.error'), 'Impossible d\'envoyer l\'email de réinitialisation');
         return;
       }
 
       Alert.alert(
-        'Email envoyé',
-        'Un email de réinitialisation a été envoyé à votre adresse email. Vérifiez votre boîte de réception.',
-        [{ text: 'OK' }]
+        t('settings.emailSent'),
+        t('settings.emailSentDesc'),
+        [{ text: t('common.ok') }]
       );
       setShowResetModal(false);
     } catch (error) {
       console.error('Erreur réinitialisation mot de passe:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue lors de l\'envoi de l\'email');
+      Alert.alert(t('common.error'), 'Une erreur est survenue lors de l\'envoi de l\'email');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteAccount = async () => {
-    if (deleteConfirmation !== 'SUPPRIMER') {
-      Alert.alert('Erreur', 'Veuillez taper "SUPPRIMER" pour confirmer');
+    const confirmationText = language === 'fr' ? 'SUPPRIMER' : 'DELETE';
+    if (deleteConfirmation !== confirmationText) {
+      Alert.alert(t('common.error'), `${t('settings.typeDelete')} "${confirmationText}"`);
       return;
     }
 
@@ -136,11 +176,11 @@ const SettingsScreen: React.FC = () => {
       await signOut();
 
       Alert.alert(
-        'Compte supprimé',
-        'Votre compte a été supprimé avec succès.',
+        t('settings.accountDeleted'),
+        t('settings.accountDeletedSuccess'),
         [
           {
-            text: 'OK',
+            text: t('common.ok'),
             onPress: () => {
               navigation.navigate('Home' as never);
             }
@@ -251,51 +291,62 @@ const SettingsScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Paramètres</Text>
+        <Text style={styles.headerTitle}>{t('settings.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Section Langue */}
+        <Text style={styles.sectionTitle}>{t('settings.language')}</Text>
+        <View style={styles.section}>
+          <SettingItem
+            icon="language-outline"
+            title={t('settings.language')}
+            subtitle={language === 'fr' ? t('settings.french') : t('settings.english')}
+            onPress={() => setShowLanguageModal(true)}
+          />
+        </View>
+
         {/* Section Compte */}
-        <Text style={styles.sectionTitle}>Compte</Text>
+        <Text style={styles.sectionTitle}>{t('nav.myAccount')}</Text>
         <View style={styles.section}>
           <SettingItem
             icon="card-outline"
-            title="Informations de paiement"
-            subtitle="Gérer vos méthodes de paiement"
+            title={t('settings.paymentInfo')}
+            subtitle={t('settings.paymentInfoDesc')}
             onPress={() => (navigation as any).navigate('HostPaymentInfo')}
           />
           <SettingItem
             icon="lock-closed-outline"
-            title="Mot de passe"
-            subtitle="Changer votre mot de passe"
+            title={t('settings.password')}
+            subtitle={t('settings.changePassword')}
             onPress={() => setShowResetModal(true)}
           />
         </View>
 
         {/* Section Notifications */}
-        <Text style={styles.sectionTitle}>Notifications</Text>
+        <Text style={styles.sectionTitle}>{t('settings.notifications')}</Text>
         <View style={styles.section}>
           <NotificationItem
             icon="notifications-outline"
-            title="Notifications push"
-            subtitle="Recevoir des notifications sur votre appareil"
+            title={t('settings.pushNotifications')}
+            subtitle={t('settings.pushNotifications')}
             value={pushNotifications}
             onToggle={(value) => handleNotificationToggle('push', value)}
           />
           
           <NotificationItem
             icon="mail-outline"
-            title="Notifications email"
-            subtitle="Recevoir des emails de notification"
+            title={t('settings.emailNotifications')}
+            subtitle={t('settings.emailNotifications')}
             value={emailNotifications}
             onToggle={(value) => handleNotificationToggle('email', value)}
           />
           
           <NotificationItem
             icon="calendar-outline"
-            title="Réservations"
-            subtitle="Nouvelles réservations et confirmations"
+            title={t('settings.bookingNotifications')}
+            subtitle={t('settings.bookingNotifications')}
             value={bookingNotifications}
             onToggle={(value) => handleNotificationToggle('booking', value)}
             disabled={!emailNotifications}
@@ -303,8 +354,8 @@ const SettingsScreen: React.FC = () => {
           
           <NotificationItem
             icon="chatbubbles-outline"
-            title="Messages"
-            subtitle="Nouveaux messages des voyageurs"
+            title={t('settings.messageNotifications')}
+            subtitle={t('settings.messageNotifications')}
             value={messageNotifications}
             onToggle={(value) => handleNotificationToggle('message', value)}
             disabled={!emailNotifications}
@@ -312,8 +363,8 @@ const SettingsScreen: React.FC = () => {
           
           <NotificationItem
             icon="megaphone-outline"
-            title="Marketing"
-            subtitle="Offres spéciales et actualités"
+            title={t('settings.marketingNotifications')}
+            subtitle={t('settings.marketingNotifications')}
             value={marketingNotifications}
             onToggle={(value) => handleNotificationToggle('marketing', value)}
             disabled={!emailNotifications}
@@ -323,42 +374,50 @@ const SettingsScreen: React.FC = () => {
         {/* Section Général (sélection de devise retirée) */}
 
         {/* Section Confidentialité */}
-        <Text style={styles.sectionTitle}>Confidentialité</Text>
+        <Text style={styles.sectionTitle}>{t('settings.confidentiality')}</Text>
         <View style={styles.section}>
           <SettingItem
             icon="shield-outline"
-            title="Politique de confidentialité"
-            subtitle="Lire notre politique"
+            title={t('settings.privacyPolicy')}
+            subtitle={t('settings.readPolicy')}
             onPress={() => (navigation as any).navigate('PrivacyPolicy')}
           />
           
           <SettingItem
             icon="document-text-outline"
-            title="Conditions d'utilisation"
-            subtitle="Lire nos conditions"
+            title={t('settings.terms')}
+            subtitle={t('settings.readTerms')}
             onPress={() => (navigation as any).navigate('Terms')}
           />
         </View>
 
         {/* Section Support */}
-        <Text style={styles.sectionTitle}>Support</Text>
+        <Text style={styles.sectionTitle}>{t('settings.support')}</Text>
         <View style={styles.section}>
           <SettingItem
             icon="mail-outline"
-            title="Support AkwaHome"
+            title={t('settings.supportAkwaHome')}
             subtitle="support@akwahome.com"
-            onPress={() => Alert.alert('Support', 'Écrivez-nous à support@akwahome.com')}
+            onPress={() => Alert.alert(t('settings.support'), 'Écrivez-nous à support@akwahome.com')}
           />
         </View>
 
         {/* Section Danger */}
-        <Text style={styles.sectionTitle}>Zone dangereuse</Text>
+        <Text style={styles.sectionTitle}>{t('settings.deleteAccount')}</Text>
         <View style={styles.section}>
           <SettingItem
             icon="trash-outline"
-            title="Supprimer mon compte"
-            subtitle="Cette action est irréversible"
+            title={t('settings.deleteAccount')}
+            subtitle={t('settings.deleteAccountDesc')}
             onPress={() => setShowDeleteModal(true)}
+            danger={true}
+          />
+          
+          <SettingItem
+            icon="log-out-outline"
+            title={t('settings.logout')}
+            subtitle={t('settings.logoutDesc')}
+            onPress={handleLogout}
             danger={true}
           />
         </View>
@@ -380,14 +439,14 @@ const SettingsScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Réinitialiser le mot de passe</Text>
+              <Text style={styles.modalTitle}>{t('settings.resetPassword')}</Text>
               <TouchableOpacity onPress={() => setShowResetModal(false)}>
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
             
             <Text style={styles.modalText}>
-              Un email de réinitialisation sera envoyé à votre adresse email.
+              {t('settings.resetPasswordDesc')}
             </Text>
             
             <View style={styles.modalActions}>
@@ -395,7 +454,7 @@ const SettingsScreen: React.FC = () => {
                 style={styles.modalButtonSecondary}
                 onPress={() => setShowResetModal(false)}
               >
-                <Text style={styles.modalButtonSecondaryText}>Annuler</Text>
+                <Text style={styles.modalButtonSecondaryText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -406,7 +465,7 @@ const SettingsScreen: React.FC = () => {
                 {loading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.modalButtonPrimaryText}>Envoyer</Text>
+                  <Text style={styles.modalButtonPrimaryText}>{t('settings.send')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -424,25 +483,25 @@ const SettingsScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, styles.dangerText]}>Supprimer le compte</Text>
+              <Text style={[styles.modalTitle, styles.dangerText]}>{t('settings.deleteAccountTitle')}</Text>
               <TouchableOpacity onPress={() => setShowDeleteModal(false)}>
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
             
             <Text style={styles.modalText}>
-              Cette action est irréversible. Toutes vos données seront supprimées définitivement.
+              {t('settings.deleteAccountWarning')}
             </Text>
             
             <Text style={styles.modalText}>
-              Tapez "SUPPRIMER" pour confirmer :
+              {t('settings.typeDelete')}
             </Text>
             
             <TextInput
               style={styles.confirmationInput}
               value={deleteConfirmation}
               onChangeText={setDeleteConfirmation}
-              placeholder="SUPPRIMER"
+              placeholder={language === 'fr' ? 'SUPPRIMER' : 'DELETE'}
               autoCapitalize="characters"
             />
             
@@ -454,22 +513,22 @@ const SettingsScreen: React.FC = () => {
                   setDeleteConfirmation('');
                 }}
               >
-                <Text style={styles.modalButtonSecondaryText}>Annuler</Text>
+                <Text style={styles.modalButtonSecondaryText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={[
                   styles.modalButtonDanger, 
                   loading && styles.disabledButton,
-                  deleteConfirmation.toLowerCase() !== 'supprimer' && styles.disabledButton
+                  deleteConfirmation.toLowerCase() !== (language === 'fr' ? 'supprimer' : 'delete') && styles.disabledButton
                 ]}
                 onPress={handleDeleteAccount}
-                disabled={loading || deleteConfirmation.toLowerCase() !== 'supprimer'}
+                disabled={loading || deleteConfirmation.toLowerCase() !== (language === 'fr' ? 'supprimer' : 'delete')}
               >
                 {loading ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.modalButtonDangerText}>Supprimer</Text>
+                  <Text style={styles.modalButtonDangerText}>{t('common.delete')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -477,7 +536,85 @@ const SettingsScreen: React.FC = () => {
         </View>
       </Modal>
       
-      {/* Modal de sélection de devise supprimée (présente dans l'en-tête) */}
+      {/* Modal de sélection de langue */}
+      <Modal
+        visible={showLanguageModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowLanguageModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('settings.language')}</Text>
+              <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modalText}>
+              {t('settings.languageDesc')}
+            </Text>
+            
+            <View style={styles.languageOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.languageOption,
+                  language === 'fr' && styles.languageOptionActive
+                ]}
+                onPress={async () => {
+                  await setLanguage('fr');
+                  setShowLanguageModal(false);
+                }}
+              >
+                <View style={styles.languageOptionContent}>
+                  <Text style={[
+                    styles.languageOptionText,
+                    language === 'fr' && styles.languageOptionTextActive
+                  ]}>
+                    🇫🇷 {t('settings.french')}
+                  </Text>
+                  {language === 'fr' && (
+                    <Ionicons name="checkmark-circle" size={24} color="#2E7D32" />
+                  )}
+                </View>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.languageOption,
+                  language === 'en' && styles.languageOptionActive
+                ]}
+                onPress={async () => {
+                  await setLanguage('en');
+                  setShowLanguageModal(false);
+                }}
+              >
+                <View style={styles.languageOptionContent}>
+                  <Text style={[
+                    styles.languageOptionText,
+                    language === 'en' && styles.languageOptionTextActive
+                  ]}>
+                    🇬🇧 {t('settings.english')}
+                  </Text>
+                  {language === 'en' && (
+                    <Ionicons name="checkmark-circle" size={24} color="#2E7D32" />
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalButtonSecondary}
+                onPress={() => setShowLanguageModal(false)}
+              >
+                <Text style={styles.modalButtonSecondaryText}>{t('common.close')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -581,6 +718,36 @@ const styles = StyleSheet.create({
   appVersion: {
     fontSize: 14,
     color: '#666',
+  },
+  languageOptions: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  languageOption: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+  },
+  languageOptionActive: {
+    borderColor: '#2E7D32',
+    backgroundColor: '#f0f9f0',
+  },
+  languageOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  languageOptionText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  languageOptionTextActive: {
+    color: '#2E7D32',
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,

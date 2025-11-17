@@ -19,11 +19,13 @@ import { useAuth } from '../services/AuthContext';
 import { Property } from '../hooks/useProperties';
 import { useHostApplications } from '../hooks/useHostApplications';
 import { HostApplication } from '../hooks/useHostApplications';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type TabType = 'applications' | 'properties';
 
 const MyPropertiesScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { t } = useLanguage();
   const { user } = useAuth();
   const { getMyProperties, hideProperty, showProperty, deleteProperty, loading } = useMyProperties();
   const { getApplications, loading: applicationsLoading } = useHostApplications();
@@ -69,27 +71,30 @@ const MyPropertiesScreen: React.FC = () => {
   };
 
   const handleToggleVisibility = async (property: Property) => {
-    const action = property.is_active ? 'masquer' : 'afficher';
+    const action = property.is_active ? t('host.hide') : t('host.show');
+    const actionKey = property.is_active ? 'hide' : 'show';
     const newStatus = !property.is_active;
 
     Alert.alert(
-      `${action.charAt(0).toUpperCase() + action.slice(1)} la propriété`,
-      `Êtes-vous sûr de vouloir ${action} "${property.title}" ?`,
+      property.is_active ? t('host.hideProperty') : t('host.showProperty'),
+      property.is_active 
+        ? t('host.hidePropertyConfirm', { title: property.title })
+        : t('host.showPropertyConfirm', { title: property.title }),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: action.charAt(0).toUpperCase() + action.slice(1),
+          text: action,
           onPress: async () => {
             try {
               const result = newStatus ? await showProperty(property.id) : await hideProperty(property.id);
               if (result.success) {
-                Alert.alert('Succès', `Propriété ${action}ée avec succès`);
+                Alert.alert(t('common.success'), property.is_active ? t('host.propertyHidden') : t('host.propertyShown'));
                 loadProperties(); // Recharger la liste
               } else {
-                Alert.alert('Erreur', `Impossible de ${action} la propriété`);
+                Alert.alert(t('common.error'), property.is_active ? t('host.hidePropertyError') : t('host.showPropertyError'));
               }
             } catch (err) {
-              Alert.alert('Erreur', 'Une erreur est survenue');
+              Alert.alert(t('common.error'), t('common.errorOccurred'));
             }
           },
         },
@@ -99,24 +104,24 @@ const MyPropertiesScreen: React.FC = () => {
 
   const handleDeleteProperty = async (property: Property) => {
     Alert.alert(
-      'Supprimer la propriété',
-      `Êtes-vous sûr de vouloir supprimer définitivement "${property.title}" ? Cette action est irréversible.`,
+      t('host.deleteProperty'),
+      t('host.deletePropertyConfirm', { title: property.title }),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               const result = await deleteProperty(property.id);
               if (result.success) {
-                Alert.alert('Succès', 'Propriété supprimée avec succès');
+                Alert.alert(t('common.success'), t('host.propertyDeleted'));
                 loadProperties(); // Recharger la liste
               } else {
-                Alert.alert('Erreur', 'Impossible de supprimer la propriété');
+                Alert.alert(t('common.error'), t('host.deletePropertyError'));
               }
             } catch (err) {
-              Alert.alert('Erreur', 'Une erreur est survenue');
+              Alert.alert(t('common.error'), t('common.errorOccurred'));
             }
           },
         },
@@ -171,14 +176,14 @@ const MyPropertiesScreen: React.FC = () => {
         <View style={styles.propertyDetails}>
           <Text style={styles.propertyTitle} numberOfLines={1}>{property.title}</Text>
           <Text style={styles.propertyLocation} numberOfLines={1}>
-            📍 {property.cities?.name || 'Inconnu'}
+            📍 {property.cities?.name || t('common.unknown')}
           </Text>
           <View style={styles.propertySpecs}>
             <Text style={styles.specText}>👥 {property.max_guests}</Text>
             <Text style={styles.specText}>🛏️ {property.bedrooms}</Text>
             <Text style={styles.specText}>🚿 {property.bathrooms}</Text>
           </View>
-          <Text style={styles.propertyPrice}>{formatPrice(property.price_per_night)}/nuit</Text>
+          <Text style={styles.propertyPrice}>{formatPrice(property.price_per_night)}/{t('common.perNight')}</Text>
         </View>
       </View>
 
@@ -188,7 +193,7 @@ const MyPropertiesScreen: React.FC = () => {
           { backgroundColor: property.is_active ? '#2E7D32' : '#e74c3c' }
         ]}>
           <Text style={styles.statusText}>
-            {property.is_active ? 'Active' : 'Masquée'}
+            {property.is_active ? t('host.active') : t('host.hidden')}
           </Text>
         </View>
       </View>
@@ -220,10 +225,10 @@ const MyPropertiesScreen: React.FC = () => {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'pending': return 'En attente';
-      case 'reviewing': return 'En révision';
-      case 'approved': return 'Approuvée';
-      case 'rejected': return 'Refusée';
+      case 'pending': return t('applications.pending');
+      case 'reviewing': return t('applications.reviewing');
+      case 'approved': return t('applications.approved');
+      case 'rejected': return t('applications.rejected');
       default: return status;
     }
   };
@@ -261,19 +266,19 @@ const MyPropertiesScreen: React.FC = () => {
     <View style={styles.emptyContainer}>
       <Ionicons name="home-outline" size={64} color="#ccc" />
       <Text style={styles.emptyTitle}>
-        {activeTab === 'applications' ? 'Aucune candidature' : 'Aucune propriété'}
+        {activeTab === 'applications' ? t('host.noApplications') : t('host.noProperties')}
       </Text>
       <Text style={styles.emptySubtitle}>
         {activeTab === 'applications' 
-          ? 'Vous n\'avez pas encore soumis de candidature pour devenir hôte.'
-          : 'Vous n\'avez pas encore de propriétés actives.'}
+          ? t('host.noApplicationsDesc')
+          : t('host.noPropertiesDesc')}
       </Text>
       {activeTab === 'applications' && (
         <TouchableOpacity
           style={styles.becomeHostButton}
           onPress={() => navigation.navigate('BecomeHost')}
         >
-          <Text style={styles.becomeHostButtonText}>Créer une candidature</Text>
+          <Text style={styles.becomeHostButtonText}>{t('host.createApplication')}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -303,7 +308,7 @@ const MyPropertiesScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <View style={styles.placeholder} />
-        <Text style={styles.headerTitle}>Propriétés</Text>
+        <Text style={styles.headerTitle}>{t('host.properties')}</Text>
         {activeTab === 'applications' && (
           <TouchableOpacity
             style={styles.addButton}
@@ -340,7 +345,7 @@ const MyPropertiesScreen: React.FC = () => {
             color={activeTab === 'properties' ? '#e67e22' : '#666'} 
           />
           <Text style={[styles.tabText, activeTab === 'properties' && styles.activeTabText]}>
-            Propriétés actives
+            {t('host.activeProperties')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -353,7 +358,7 @@ const MyPropertiesScreen: React.FC = () => {
             color={activeTab === 'applications' ? '#e67e22' : '#666'} 
           />
           <Text style={[styles.tabText, activeTab === 'applications' && styles.activeTabText]}>
-            Mes candidatures
+            {t('host.applications')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -363,7 +368,7 @@ const MyPropertiesScreen: React.FC = () => {
         loading && properties.length === 0 ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color="#2E7D32" />
-            <Text style={styles.loadingText}>Chargement de vos propriétés...</Text>
+            <Text style={styles.loadingText}>{t('host.loadingProperties')}</Text>
           </View>
         ) : properties.length === 0 ? (
           renderEmptyState()
@@ -383,7 +388,7 @@ const MyPropertiesScreen: React.FC = () => {
         applicationsLoading && applications.length === 0 ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color="#2E7D32" />
-            <Text style={styles.loadingText}>Chargement des candidatures...</Text>
+            <Text style={styles.loadingText}>{t('host.loadingApplications')}</Text>
           </View>
         ) : applications.length === 0 ? (
           renderEmptyState()

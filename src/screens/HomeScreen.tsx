@@ -21,10 +21,12 @@ import { InfoBanner } from '../components/InfoBanner';
 import { PopularDestinations } from '../components/PopularDestinations';
 import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
   const { cities, loading: citiesLoading, error: citiesError, getPopularDestinations } = useCities();
   
@@ -188,12 +190,12 @@ const HomeScreen: React.FC = () => {
           ListHeaderComponent={renderListHeader}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTitle}>Aucune propriété disponible</Text>
+              <Text style={styles.emptyTitle}>{t('property.noProperties')}</Text>
               <Text style={styles.emptySubtitle}>
-                Les propriétés masquées ou inactives ne sont pas affichées ici.
+                {t('property.noPropertiesDesc')}
               </Text>
               <Text style={styles.emptySubtitle}>
-                Revenez plus tard pour découvrir de nouvelles propriétés !
+                {t('property.noPropertiesSubtext')}
               </Text>
             </View>
           )}

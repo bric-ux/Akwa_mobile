@@ -22,12 +22,14 @@ import { useAuth } from '../services/AuthContext';
 import PasswordValidation from '../components/PasswordValidation';
 import EmailVerificationModal from '../components/EmailVerificationModal';
 import { useEmailVerification } from '../hooks/useEmailVerification';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
 const AuthScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<AuthScreenRouteProp>();
+  const { t } = useLanguage();
   const { returnTo, returnParams } = route.params || {};
   const { signIn, signUp } = useAuth();
 
@@ -85,12 +87,12 @@ const AuthScreen: React.FC = () => {
 
   // Fonction de validation de l'âge
   const validateAdultAge = (dateOfBirth: string) => {
-    if (!dateOfBirth) return { isValid: false, message: 'La date de naissance est requise' };
+    if (!dateOfBirth) return { isValid: false, message: t('auth.dateOfBirthRequired') };
     
     // Parser la date au format DD/MM/YYYY
     const parts = dateOfBirth.split('/');
     if (parts.length !== 3) {
-      return { isValid: false, message: 'Format de date invalide' };
+      return { isValid: false, message: t('auth.invalidDateFormat') };
     }
     
     const day = parseInt(parts[0], 10);
@@ -100,7 +102,7 @@ const AuthScreen: React.FC = () => {
     // Vérifier que les valeurs sont valides
     if (isNaN(day) || isNaN(month) || isNaN(year) || 
         day < 1 || day > 31 || month < 0 || month > 11 || year < 1900) {
-      return { isValid: false, message: 'Date invalide' };
+      return { isValid: false, message: t('auth.invalidDate') };
     }
     
     const birthDate = new Date(year, month, day);
@@ -108,7 +110,7 @@ const AuthScreen: React.FC = () => {
     
     // Vérifier que la date de naissance est dans le passé
     if (birthDate > today) {
-      return { isValid: false, message: 'La date de naissance ne peut pas être dans le futur' };
+      return { isValid: false, message: t('auth.dateCannotBeFuture') };
     }
     
     const age = today.getFullYear() - birthDate.getFullYear();
@@ -120,26 +122,26 @@ const AuthScreen: React.FC = () => {
     
     return {
       isValid: actualAge >= 18,
-      message: actualAge >= 18 ? '' : 'Vous devez avoir au moins 18 ans pour vous inscrire'
+      message: actualAge >= 18 ? '' : t('auth.mustBe18')
     };
   };
 
   // Fonction de validation complète
   const validateSignupForm = () => {
-    if (!firstName.trim()) return 'Le prénom est requis';
-    if (!lastName.trim()) return 'Le nom est requis';
-    if (!email.trim()) return 'L\'email est requis';
-    if (!dateOfBirth) return 'La date de naissance est requise';
+    if (!firstName.trim()) return t('auth.firstNameRequired');
+    if (!lastName.trim()) return t('auth.lastNameRequired');
+    if (!email.trim()) return t('auth.emailRequired');
+    if (!dateOfBirth) return t('auth.dateOfBirthRequired');
     
     const ageValidation = validateAdultAge(dateOfBirth);
     if (!ageValidation.isValid) return ageValidation.message;
     
-    if (!password) return 'Le mot de passe est requis';
+    if (!password) return t('auth.passwordRequired');
     const passwordValidation = validatePassword(password);
-    if (!passwordValidation.isValid) return 'Le mot de passe doit contenir au moins 8 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&)';
+    if (!passwordValidation.isValid) return t('auth.passwordRequirements');
     
-    if (password !== confirmPassword) return 'Les mots de passe ne correspondent pas';
-    if (!agreeTerms) return 'Vous devez accepter les conditions générales d\'utilisation';
+    if (password !== confirmPassword) return t('auth.passwordsDontMatch');
+    if (!agreeTerms) return t('auth.mustAgreeTerms');
     
     return null;
   };
@@ -169,14 +171,14 @@ const AuthScreen: React.FC = () => {
     if (isLogin) {
       // Validation pour la connexion
       if (!email || !password) {
-        Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires');
+        Alert.alert(t('common.error'), t('auth.fillAllFields'));
         return;
       }
     } else {
       // Validation complète pour l'inscription
       const validationError = validateSignupForm();
       if (validationError) {
-        Alert.alert('Erreur de validation', validationError);
+        Alert.alert(t('auth.validationError'), validationError);
         return;
       }
     }
@@ -355,7 +357,7 @@ const AuthScreen: React.FC = () => {
           setShowEmailVerification(true);
         } else {
           console.error('❌ Erreur envoi email:', codeResult.error);
-          Alert.alert('Erreur', 'Erreur lors de l\'envoi de l\'email de vérification');
+          Alert.alert(t('common.error'), t('emailVerification.sendError'));
           setLoading(false);
           return;
         }
@@ -365,11 +367,11 @@ const AuthScreen: React.FC = () => {
         }
 
         Alert.alert(
-          'Inscription réussie !',
-          'Un code de vérification a été envoyé à votre email.',
+          t('auth.signupSuccess'),
+          t('emailVerification.codeSentDesc'),
           [
             {
-              text: 'OK',
+              text: t('common.ok'),
               onPress: () => {
                 // La modal de vérification sera affichée automatiquement
                 setLoading(false);
@@ -379,7 +381,7 @@ const AuthScreen: React.FC = () => {
         );
       }
     } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+      Alert.alert(t('common.error'), error.message || t('common.errorOccurred'));
     } finally {
       setLoading(false);
     }
@@ -470,7 +472,7 @@ const AuthScreen: React.FC = () => {
               onPress={() => navigation.navigate('Home')}
             >
               <Ionicons name="arrow-back" size={24} color="#2E7D32" />
-              <Text style={styles.backButtonText}>Retour</Text>
+              <Text style={styles.backButtonText}>{t('common.back')}</Text>
             </TouchableOpacity>
             
             <View style={styles.logoContainer}>
@@ -487,12 +489,12 @@ const AuthScreen: React.FC = () => {
           {/* Form */}
           <View style={styles.formContainer}>
             <Text style={styles.title}>
-              {isLogin ? 'Connexion' : 'Créer un compte'}
+              {isLogin ? t('auth.login') : t('auth.createAccount')}
             </Text>
             <Text style={styles.subtitle}>
               {isLogin
-                ? 'Connectez-vous pour accéder à votre compte'
-                : 'Rejoignez-nous pour découvrir de magnifiques hébergements'}
+                ? t('auth.loginSubtitle')
+                : t('auth.signupSubtitle')}
             </Text>
 
             {!isLogin && (
@@ -501,7 +503,7 @@ const AuthScreen: React.FC = () => {
                   <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Prénom"
+                    placeholder={t('auth.firstName')}
                     value={firstName}
                     onChangeText={setFirstName}
                     autoCapitalize="words"
@@ -512,7 +514,7 @@ const AuthScreen: React.FC = () => {
                   <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Nom"
+                    placeholder={t('auth.lastName')}
                     value={lastName}
                     onChangeText={setLastName}
                     autoCapitalize="words"
@@ -523,7 +525,7 @@ const AuthScreen: React.FC = () => {
                   <Ionicons name="calendar-outline" size={20} color="#666" style={styles.inputIcon} />
                   <TextInput
                     style={[styles.input, dateError && styles.inputError]}
-                    placeholder="Date de naissance (JJ/MM/AAAA)"
+                    placeholder={t('auth.dateOfBirth')}
                     value={dateOfBirth}
                     onChangeText={handleDateInputChange}
                     keyboardType="numeric"
@@ -541,7 +543,7 @@ const AuthScreen: React.FC = () => {
               <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email"
+                placeholder={t('auth.email')}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -554,7 +556,7 @@ const AuthScreen: React.FC = () => {
               <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Mot de passe"
+                placeholder={t('auth.password')}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -582,7 +584,7 @@ const AuthScreen: React.FC = () => {
                 <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Confirmer le mot de passe"
+                  placeholder={t('auth.confirmPassword')}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showPassword}
@@ -604,9 +606,9 @@ const AuthScreen: React.FC = () => {
                       )}
                     </View>
                     <Text style={styles.termsText}>
-                      J'accepte les{' '}
-                      <Text style={styles.termsLink} onPress={openTerms}>conditions générales d'utilisation</Text>
-                      {' '}d'AkwaHome
+                      {t('auth.acceptTerms')}{' '}
+                      <Text style={styles.termsLink} onPress={openTerms}>{t('auth.termsOfService')}</Text>
+                      {' '}{t('auth.ofAkwaHome')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -620,18 +622,18 @@ const AuthScreen: React.FC = () => {
             >
               <Text style={styles.authButtonText}>
                 {loading
-                  ? 'Chargement...'
+                  ? t('common.loading')
                   : isLogin
-                  ? 'Se connecter'
-                  : 'Créer un compte'}
+                  ? t('auth.signIn')
+                  : t('auth.createAccount')}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.toggleButton} onPress={toggleAuthMode}>
               <Text style={styles.toggleButtonText}>
                 {isLogin
-                  ? "Vous n'avez pas de compte ? S'inscrire"
-                  : 'Vous avez déjà un compte ? Se connecter'}
+                  ? t('auth.dontHaveAccount') + ' ' + t('auth.signup')
+                  : t('auth.alreadyHaveAccount') + ' ' + t('auth.login')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -639,9 +641,9 @@ const AuthScreen: React.FC = () => {
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              En continuant, vous acceptez nos{' '}
-              <Text style={styles.linkText}>Conditions d'utilisation</Text> et notre{' '}
-              <Text style={styles.linkText}>Politique de confidentialité</Text>
+              {t('auth.byContinuing')}{' '}
+              <Text style={styles.linkText}>{t('auth.termsOfService')}</Text> {t('auth.and')}{' '}
+              <Text style={styles.linkText}>{t('settings.privacyPolicy')}</Text>
             </Text>
           </View>
         </ScrollView>
@@ -652,7 +654,7 @@ const AuthScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Conditions Générales d'Utilisation</Text>
+              <Text style={styles.modalTitle}>{t('auth.termsOfService')}</Text>
               <TouchableOpacity
                 style={styles.closeButton}
                 onPress={() => setShowTermsModal(false)}
@@ -714,7 +716,7 @@ const AuthScreen: React.FC = () => {
               style={styles.modalCloseButton}
               onPress={() => setShowTermsModal(false)}
             >
-              <Text style={styles.modalCloseButtonText}>Fermer</Text>
+              <Text style={styles.modalCloseButtonText}>{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
         </View>

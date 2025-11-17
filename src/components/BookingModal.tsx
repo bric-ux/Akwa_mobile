@@ -22,6 +22,7 @@ import BookingIdentityAlert from './BookingIdentityAlert';
 import { supabase } from '../services/supabase';
 import AvailabilityCalendar from './AvailabilityCalendar';
 import { getAveragePriceForPeriod } from '../utils/priceCalculator';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface BookingModalProps {
   visible: boolean;
@@ -31,6 +32,7 @@ interface BookingModalProps {
 
 const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property }) => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { createBooking, loading } = useBookings();
   const { sendBookingRequestSent, sendBookingRequest } = useEmailService();
   const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
@@ -465,7 +467,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color="#333" />
           </TouchableOpacity>
-          <Text style={styles.title}>Réserver</Text>
+          <Text style={styles.title}>{t('booking.title')}</Text>
           <View style={styles.placeholder} />
         </View>
 
@@ -477,7 +479,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
               📍 {property.cities?.name || property.location}
             </Text>
             <Text style={styles.propertyPrice}>
-              {formatPrice(property.price_per_night || 0)}/nuit
+              {formatPrice(property.price_per_night || 0)}/{t('common.perNight')}
             </Text>
           </View>
 
@@ -490,22 +492,22 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
 
           {/* Sélection des dates */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Dates de séjour</Text>
+            <Text style={styles.sectionTitle}>{t('booking.stayDates')}</Text>
             <TouchableOpacity 
               style={styles.dateSelector}
               onPress={() => setShowCalendar(true)}
             >
               <View style={styles.dateItem}>
-                <Text style={styles.dateLabel}>Arrivée</Text>
+                <Text style={styles.dateLabel}>{t('booking.arrival')}</Text>
                 <Text style={styles.dateValue}>
-                  {checkIn ? checkIn.toLocaleDateString('fr-FR') : 'Sélectionner'}
+                  {checkIn ? checkIn.toLocaleDateString('fr-FR') : t('booking.selectDates')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#666" />
               <View style={styles.dateItem}>
-                <Text style={styles.dateLabel}>Départ</Text>
+                <Text style={styles.dateLabel}>{t('booking.departure')}</Text>
                 <Text style={styles.dateValue}>
-                  {checkOut ? checkOut.toLocaleDateString('fr-FR') : 'Sélectionner'}
+                  {checkOut ? checkOut.toLocaleDateString('fr-FR') : t('booking.selectDates')}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -513,10 +515,10 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
 
           {/* Nombre de voyageurs */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Voyageurs</Text>
+            <Text style={styles.sectionTitle}>{t('booking.guests')}</Text>
             
             <View style={styles.guestRow}>
-              <Text style={styles.guestLabel}>Adultes (13+ ans)</Text>
+              <Text style={styles.guestLabel}>{t('booking.adults')}</Text>
               <View style={styles.guestControls}>
                 <TouchableOpacity
                   style={styles.guestButton}
@@ -535,7 +537,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
             </View>
 
             <View style={styles.guestRow}>
-              <Text style={styles.guestLabel}>Enfants (2-12 ans)</Text>
+              <Text style={styles.guestLabel}>{t('booking.children')}</Text>
               <View style={styles.guestControls}>
                 <TouchableOpacity
                   style={styles.guestButton}
@@ -554,7 +556,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
             </View>
 
             <View style={styles.guestRow}>
-              <Text style={styles.guestLabel}>Bébés (moins de 2 ans)</Text>
+              <Text style={styles.guestLabel}>{t('booking.infants')}</Text>
               <View style={styles.guestControls}>
                 <TouchableOpacity
                   style={styles.guestButton}
@@ -575,7 +577,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
 
           {/* Code promotionnel */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Code promotionnel (optionnel)</Text>
+            <Text style={styles.sectionTitle}>{t('booking.voucherCode')}</Text>
             <View style={styles.voucherContainer}>
               <TextInput
                 style={[
@@ -583,7 +585,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                   voucherDiscount?.valid && styles.voucherInputValid,
                   voucherDiscount?.valid === false && styles.voucherInputError
                 ]}
-                placeholder="Entrez votre code promo"
+                placeholder={t('booking.voucherPlaceholder')}
                 value={voucherCode}
                 onChangeText={(text) => setVoucherCode(text.toUpperCase())}
                 autoCapitalize="characters"
@@ -604,22 +606,22 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
             )}
             {voucherDiscount?.valid && voucherDiscount.discountPercentage && (
               <Text style={styles.voucherSuccess}>
-                Code valide ! Réduction de {voucherDiscount.discountPercentage}% appliquée
+                {t('booking.voucherValid')} {voucherDiscount.discountPercentage}% {t('booking.voucherApplied')}
               </Text>
             )}
             {voucherDiscount?.valid && voucherDiscount.discountAmount && (
               <Text style={styles.voucherSuccess}>
-                Code valide ! Réduction de {formatPrice(voucherDiscount.discountAmount)} appliquée
+                {t('booking.voucherValid')} {formatPrice(voucherDiscount.discountAmount)} {t('booking.voucherApplied')}
               </Text>
             )}
           </View>
 
           {/* Message à l'hôte */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Message à l'hôte (optionnel)</Text>
+            <Text style={styles.sectionTitle}>{t('booking.messageToHost')}</Text>
             <TextInput
               style={styles.messageInput}
-              placeholder="Dites quelque chose à votre hôte..."
+              placeholder={t('booking.messagePlaceholder')}
               value={message}
               onChangeText={setMessage}
               multiline
@@ -629,7 +631,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
 
           {/* Résumé des prix */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Résumé des prix</Text>
+            <Text style={styles.sectionTitle}>{t('booking.priceSummary')}</Text>
               <View style={styles.priceBreakdown}>
               <View style={styles.priceRow}>
                 <View style={{ flex: 1 }}>
@@ -654,21 +656,21 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
               
               {fees.cleaningFee > 0 && (
                 <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Frais de nettoyage</Text>
+                  <Text style={styles.priceLabel}>{t('booking.cleaningFee')}</Text>
                   <Text style={styles.priceValue}>{formatPrice(fees.cleaningFee)}</Text>
                 </View>
               )}
               
               {fees.serviceFee > 0 && (
                 <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Frais de service</Text>
+                  <Text style={styles.priceLabel}>{t('booking.serviceFee')}</Text>
                   <Text style={styles.priceValue}>{formatPrice(fees.serviceFee)}</Text>
                 </View>
               )}
               
               {fees.taxes > 0 && (
                 <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Taxes</Text>
+                  <Text style={styles.priceLabel}>{t('booking.taxes')}</Text>
                   <Text style={styles.priceValue}>{formatPrice(fees.taxes)}</Text>
                 </View>
               )}
@@ -687,7 +689,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
               )}
               
               <View style={[styles.priceRow, styles.totalRow]}>
-                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalLabel}>{t('booking.total')}</Text>
                 <Text style={styles.totalValue}>{formatPrice(finalTotal)}</Text>
               </View>
             </View>
@@ -696,7 +698,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
         {/* Plan de paiement */}
         {checkIn && checkOut && selectedPaymentMethod !== 'cash' && selectedPaymentMethod !== 'paypal' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Plan de paiement</Text>
+            <Text style={styles.sectionTitle}>{t('booking.paymentPlan')}</Text>
             <View style={styles.paymentPlanContainer}>
               <TouchableOpacity
                 style={[
@@ -716,10 +718,10 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                       styles.paymentPlanTitle,
                       paymentPlan === 'full' && styles.paymentPlanTitleSelected
                     ]}>
-                      Paiement complet
+                      {t('booking.payFull')}
                     </Text>
                     <Text style={styles.paymentPlanDescription}>
-                      {formatPrice(finalTotal)} maintenant
+                      {formatPrice(finalTotal)} {t('common.now')}
                     </Text>
                   </View>
                   {paymentPlan === 'full' && (
@@ -746,10 +748,10 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                       styles.paymentPlanTitle,
                       paymentPlan === 'split' && styles.paymentPlanTitleSelected
                     ]}>
-                      Paiement échelonné
+                      {t('booking.paySplit')}
                     </Text>
                     <Text style={styles.paymentPlanDescription}>
-                      50% maintenant ({formatPrice(finalTotal * 0.5)}), 50% à l'arrivée
+                      50% {t('common.now')} ({formatPrice(finalTotal * 0.5)}), 50% {t('booking.onArrival')}
                     </Text>
                   </View>
                   {paymentPlan === 'split' && (
@@ -763,7 +765,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
 
         {/* Options de paiement */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Méthode de paiement</Text>
+          <Text style={styles.sectionTitle}>{t('booking.paymentMethod')}</Text>
             
             <View style={styles.paymentMethods}>
               {/* Carte bancaire */}
@@ -1012,7 +1014,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                   <View style={styles.paymentMethodInfo}>
                     <Text style={styles.paymentMethodTitle}>Espèces</Text>
                     <Text style={styles.paymentMethodDescription}>
-                      Paiement complet à l'arrivée ({formatPrice(finalTotal)})
+                      {t('booking.payFullOnArrival')} ({formatPrice(finalTotal)})
                     </Text>
                   </View>
                 </View>
@@ -1265,18 +1267,18 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
             ) : (
               <Text style={styles.bookButtonText}>
                 {!isVerified 
-                  ? 'Vérification d\'identité requise'
+                  ? t('booking.identityRequired')
                   : selectedPaymentMethod === 'cash'
-                    ? 'Confirmer la réservation'
+                    ? t('booking.confirmBooking')
                     : selectedPaymentMethod === 'paypal'
                       ? property.auto_booking 
-                        ? 'Payer avec PayPal et réserver' 
-                        : 'Payer avec PayPal'
+                        ? t('booking.payWithPaypalAndBook')
+                        : t('booking.payWithPaypal')
                       : paymentPlan === 'split'
-                        ? `Payer ${formatPrice(finalTotal * 0.5)} maintenant`
+                        ? `${t('booking.pay')} ${formatPrice(finalTotal * 0.5)} ${t('common.now')}`
                         : property.auto_booking 
-                          ? 'Payer et réserver' 
-                          : 'Envoyer une demande'
+                          ? t('booking.payAndBook')
+                          : t('booking.sendRequest')
                 }
               </Text>
             )}

@@ -18,9 +18,11 @@ import { useHostBookings, HostBooking } from '../hooks/useHostBookings';
 import { useAuth } from '../services/AuthContext';
 import { useMyProperties } from '../hooks/useMyProperties';
 import { supabase } from '../services/supabase';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const HostBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { t } = useLanguage();
   const { user } = useAuth();
   const { getHostBookings, updateBookingStatus, loading, error } = useHostBookings();
   const { getMyProperties } = useMyProperties();
@@ -66,18 +68,18 @@ const HostBookingsScreen: React.FC = () => {
   };
 
   const handleStatusUpdate = async (booking: HostBooking, status: 'confirmed' | 'cancelled') => {
-    const action = status === 'confirmed' ? 'confirmer' : 'annuler';
+    const actionKey = status === 'confirmed' ? 'confirm' : 'cancel';
     
     Alert.alert(
-      `${action.charAt(0).toUpperCase() + action.slice(1)} la réservation`,
-      `Êtes-vous sûr de vouloir ${action} cette réservation ?`,
+      status === 'confirmed' ? t('hostBookings.confirmBooking') : t('hostBookings.cancelBooking'),
+      status === 'confirmed' ? t('hostBookings.confirmBookingConfirm') : t('hostBookings.cancelBookingConfirm'),
       [
         {
-          text: 'Annuler',
+          text: t('common.cancel'),
           style: 'cancel',
         },
         {
-          text: action.charAt(0).toUpperCase() + action.slice(1),
+          text: status === 'confirmed' ? t('hostBookings.confirm') : t('hostBookings.cancel'),
           style: status === 'cancelled' ? 'destructive' : 'default',
           onPress: async () => {
             try {
@@ -87,18 +89,18 @@ const HostBookingsScreen: React.FC = () => {
               
               if (result.success) {
                 Alert.alert(
-                  'Succès',
-                  `La réservation a été ${status === 'confirmed' ? 'confirmée' : 'annulée'} avec succès.`,
-                  [{ text: 'OK', onPress: () => loadBookings() }]
+                  t('common.success'),
+                  status === 'confirmed' ? t('hostBookings.bookingConfirmed') : t('hostBookings.bookingCancelled'),
+                  [{ text: t('common.ok'), onPress: () => loadBookings() }]
                 );
               } else {
-                const errorMessage = result.error || 'Impossible de mettre à jour la réservation.';
+                const errorMessage = result.error || t('hostBookings.updateError');
                 console.error('❌ [HostBookingsScreen] Erreur mise à jour:', errorMessage);
-                Alert.alert('Erreur', errorMessage);
+                Alert.alert(t('common.error'), errorMessage);
               }
             } catch (error: any) {
               console.error('❌ [HostBookingsScreen] Erreur inattendue:', error);
-              Alert.alert('Erreur', error?.message || 'Une erreur inattendue est survenue.');
+              Alert.alert(t('common.error'), error?.message || t('common.errorOccurred'));
             }
           },
         },
@@ -133,15 +135,15 @@ const HostBookingsScreen: React.FC = () => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'En attente';
+        return t('hostBookings.pending');
       case 'confirmed':
-        return 'Confirmée';
+        return t('hostBookings.confirmed');
       case 'cancelled':
-        return 'Annulée';
+        return t('hostBookings.cancelled');
       case 'completed':
-        return 'Terminée';
+        return t('hostBookings.completed');
       case 'in_progress':
-        return 'En cours';
+        return t('hostBookings.inProgress');
       default:
         return status;
     }
@@ -297,17 +299,17 @@ const HostBookingsScreen: React.FC = () => {
           <View style={styles.propertyDetails}>
             <View style={styles.propertyTitleRow}>
               <Text style={styles.propertyTitle} numberOfLines={2}>
-                {item.properties?.title || 'Propriété'}
+                {item.properties?.title || t('messages.property')}
               </Text>
               {isBookingInProgress(item) && (
                 <View style={styles.occupiedIndicator}>
                   <Ionicons name="time" size={12} color="#fff" />
-                  <Text style={styles.occupiedIndicatorText}>Occupée</Text>
+                  <Text style={styles.occupiedIndicatorText}>{t('hostBookings.occupied')}</Text>
                 </View>
               )}
             </View>
             <Text style={styles.propertyLocation}>
-              {item.properties?.cities?.name || 'Localisation inconnue'}
+              {item.properties?.cities?.name || t('hostBookings.unknownLocation')}
             </Text>
           </View>
         </View>
@@ -320,7 +322,7 @@ const HostBookingsScreen: React.FC = () => {
         <View style={styles.detailRow}>
           <Ionicons name="person" size={16} color="#666" />
           <Text style={styles.detailText}>
-            {item.guest_profile ? `${item.guest_profile.first_name} ${item.guest_profile.last_name}` : 'Voyageur inconnu'}
+            {item.guest_profile ? `${item.guest_profile.first_name} ${item.guest_profile.last_name}` : t('hostBookings.unknownGuest')}
           </Text>
         </View>
         
@@ -334,7 +336,7 @@ const HostBookingsScreen: React.FC = () => {
         <View style={styles.detailRow}>
           <Ionicons name="people" size={16} color="#666" />
           <Text style={styles.detailText}>
-            {item.guests_count} voyageur{item.guests_count > 1 ? 's' : ''}
+            {item.guests_count} {item.guests_count > 1 ? t('hostBookings.guests') : t('hostBookings.guest')}
           </Text>
         </View>
         
@@ -348,7 +350,7 @@ const HostBookingsScreen: React.FC = () => {
 
       {item.message_to_host && (
         <View style={styles.messageContainer}>
-          <Text style={styles.messageLabel}>Message du voyageur :</Text>
+          <Text style={styles.messageLabel}>{t('hostBookings.guestMessage')}</Text>
           <Text style={styles.messageText}>{item.message_to_host}</Text>
         </View>
       )}
@@ -383,7 +385,7 @@ const HostBookingsScreen: React.FC = () => {
               }}
             >
               <Ionicons name="checkmark" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Confirmer</Text>
+              <Text style={styles.actionButtonText}>{t('hostBookings.confirm')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -394,7 +396,7 @@ const HostBookingsScreen: React.FC = () => {
               }}
             >
               <Ionicons name="close" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Refuser</Text>
+              <Text style={styles.actionButtonText}>{t('hostBookings.reject')}</Text>
             </TouchableOpacity>
           </View>
         );
@@ -409,15 +411,15 @@ const HostBookingsScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <Ionicons name="person-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Text style={styles.emptyTitle}>{t('auth.loginRequired')}</Text>
           <Text style={styles.emptySubtitle}>
-            Vous devez être connecté pour voir vos réservations d'hôte
+            {t('hostBookings.loginRequiredDesc')}
           </Text>
           <TouchableOpacity
             style={styles.exploreButton}
             onPress={() => navigation.navigate('Auth' as never)}
           >
-            <Text style={styles.exploreButtonText}>Se connecter</Text>
+            <Text style={styles.exploreButtonText}>{t('auth.login')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -428,7 +430,7 @@ const HostBookingsScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <View style={styles.placeholder} />
-        <Text style={styles.headerTitle}>Gestion des réservations</Text>
+        <Text style={styles.headerTitle}>{t('hostBookings.title')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -438,30 +440,30 @@ const HostBookingsScreen: React.FC = () => {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderContent}>
               <Ionicons name="home" size={20} color="#e67e22" />
-              <Text style={styles.sectionTitle}>Gestion des propriétés</Text>
+              <Text style={styles.sectionTitle}>{t('hostBookings.propertiesManagement')}</Text>
             </View>
             <Text style={styles.sectionSubtitle}>
-              {propertiesWithBookings.length} propriété{propertiesWithBookings.length > 1 ? 's' : ''} avec réservations
+              {propertiesWithBookings.length} {propertiesWithBookings.length > 1 ? t('hostBookings.propertiesWithBookings') : t('hostBookings.propertyWithBookings')}
             </Text>
           </View>
 
           {loading && !refreshing ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#e67e22" />
-              <Text style={styles.loadingText}>Chargement des réservations...</Text>
+              <Text style={styles.loadingText}>{t('hostBookings.loading')}</Text>
             </View>
           ) : propertiesWithBookings.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="alert-circle-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyTitle}>Problème de chargement</Text>
+              <Text style={styles.emptyTitle}>{t('hostBookings.loadingError')}</Text>
               <Text style={styles.emptySubtitle}>
-                Impossible de charger les propriétés. Veuillez réessayer.
+                {t('hostBookings.loadingErrorDesc')}
               </Text>
               <TouchableOpacity
                 style={styles.retryButton}
                 onPress={handleRefresh}
               >
-                <Text style={styles.retryButtonText}>Réessayer</Text>
+                <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -489,41 +491,41 @@ const HostBookingsScreen: React.FC = () => {
                   <View style={styles.propertyCardContent}>
                     <View style={styles.propertyCardHeader}>
                       <Text style={styles.propertyCardTitle} numberOfLines={2}>
-                        {item.property?.title || 'Propriété'}
+                        {item.property?.title || t('messages.property')}
                       </Text>
                       {item.isCurrentlyOccupied ? (
                         <View style={styles.occupiedBadgeSmall}>
                           <Ionicons name="time" size={12} color="#fff" />
-                          <Text style={styles.occupiedBadgeSmallText}>Occupée</Text>
+                          <Text style={styles.occupiedBadgeSmallText}>{t('hostBookings.occupied')}</Text>
                         </View>
                       ) : item.isAvailable ? (
                         <View style={styles.availableBadgeSmall}>
                           <Ionicons name="checkmark-circle" size={12} color="#fff" />
-                          <Text style={styles.availableBadgeSmallText}>Disponible</Text>
+                          <Text style={styles.availableBadgeSmallText}>{t('hostBookings.available')}</Text>
                         </View>
                       ) : null}
                     </View>
                     <Text style={styles.propertyCardLocation}>
-                      {item.property?.cities?.name || 'Localisation inconnue'}
+                      {item.property?.cities?.name || t('hostBookings.unknownLocation')}
                     </Text>
                     
                     {item.isAvailable ? (
                       <View style={styles.availableInfo}>
                         <Ionicons name="calendar-outline" size={16} color="#4CAF50" />
-                        <Text style={styles.availableText}>Aucune réservation - Disponible</Text>
+                        <Text style={styles.availableText}>{t('hostBookings.noBookingsAvailable')}</Text>
                       </View>
                     ) : (
                       <View style={styles.propertyStats}>
                         <View style={styles.statItem}>
                           <Text style={styles.statValue}>{item.stats.total}</Text>
-                          <Text style={styles.statLabel}>Total</Text>
+                          <Text style={styles.statLabel}>{t('hostBookings.total')}</Text>
                         </View>
                         {item.stats.inProgress > 0 && (
                           <View style={[styles.statItem, styles.statItemActive]}>
                             <Text style={[styles.statValue, styles.statValueActive]}>
                               {item.stats.inProgress}
                             </Text>
-                            <Text style={[styles.statLabel, styles.statLabelActive]}>En cours</Text>
+                            <Text style={[styles.statLabel, styles.statLabelActive]}>{t('hostBookings.inProgress')}</Text>
                           </View>
                         )}
                         {item.stats.pending > 0 && (
@@ -531,7 +533,7 @@ const HostBookingsScreen: React.FC = () => {
                             <Text style={[styles.statValue, { color: '#FFA500' }]}>
                               {item.stats.pending}
                             </Text>
-                            <Text style={styles.statLabel}>En attente</Text>
+                            <Text style={styles.statLabel}>{t('hostBookings.pending')}</Text>
                           </View>
                         )}
                         {item.stats.confirmed > 0 && (
@@ -539,7 +541,7 @@ const HostBookingsScreen: React.FC = () => {
                             <Text style={[styles.statValue, { color: '#4CAF50' }]}>
                               {item.stats.confirmed}
                             </Text>
-                            <Text style={styles.statLabel}>Confirmées</Text>
+                            <Text style={styles.statLabel}>{t('hostBookings.confirmed')}</Text>
                           </View>
                         )}
                         {item.stats.completed > 0 && (
@@ -547,7 +549,7 @@ const HostBookingsScreen: React.FC = () => {
                             <Text style={[styles.statValue, { color: '#2196F3' }]}>
                               {item.stats.completed}
                             </Text>
-                            <Text style={styles.statLabel}>Terminées</Text>
+                            <Text style={styles.statLabel}>{t('hostBookings.completed')}</Text>
                           </View>
                         )}
                         {item.stats.cancelled > 0 && (
@@ -555,7 +557,7 @@ const HostBookingsScreen: React.FC = () => {
                             <Text style={[styles.statValue, { color: '#F44336' }]}>
                               {item.stats.cancelled}
                             </Text>
-                            <Text style={styles.statLabel}>Annulées</Text>
+                            <Text style={styles.statLabel}>{t('hostBookings.cancelled')}</Text>
                           </View>
                         )}
                       </View>
@@ -608,10 +610,10 @@ const HostBookingsScreen: React.FC = () => {
               </View>
               <View style={styles.selectedPropertyDetails}>
                 <Text style={styles.selectedPropertyTitle}>
-                  {selectedProperty.property?.title || 'Propriété'}
+                  {selectedProperty.property?.title || t('messages.property')}
                 </Text>
                 <Text style={styles.selectedPropertyLocation}>
-                  {selectedProperty.property?.cities?.name || 'Localisation inconnue'}
+                  {selectedProperty.property?.cities?.name || t('hostBookings.unknownLocation')}
                 </Text>
               </View>
             </View>
@@ -657,7 +659,7 @@ const HostBookingsScreen: React.FC = () => {
           {loading && !refreshing ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#e67e22" />
-              <Text style={styles.loadingText}>Chargement des réservations...</Text>
+              <Text style={styles.loadingText}>{t('hostBookings.loading')}</Text>
             </View>
           ) : (
             <FlatList
@@ -681,16 +683,16 @@ const HostBookingsScreen: React.FC = () => {
                   />
                   <Text style={styles.emptyTitle}>
                     {selectedProperty?.isAvailable 
-                      ? 'Propriété disponible' 
-                      : 'Aucune réservation'
+                      ? t('hostBookings.propertyAvailable') 
+                      : t('hostBookings.noBookings')
                     }
                   </Text>
                   <Text style={styles.emptySubtitle}>
                     {selectedProperty?.isAvailable 
-                      ? 'Cette propriété n\'a pas encore de réservations. Elle est disponible pour les voyageurs.'
+                      ? t('hostBookings.propertyAvailableDesc')
                       : selectedFilter === 'all' 
-                        ? 'Aucune réservation pour cette propriété'
-                        : `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()} pour cette propriété`
+                        ? t('hostBookings.noBookingsForProperty')
+                        : t('hostBookings.noBookingsForPropertyStatus', { status: getStatusText(selectedFilter).toLowerCase() })
                     }
                   </Text>
                 </View>

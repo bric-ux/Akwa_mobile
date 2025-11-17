@@ -21,12 +21,14 @@ import { useMessaging } from '../hooks/useMessaging';
 import { Conversation, Message } from '../types';
 import ConversationList from '../components/ConversationList';
 import MessageBubble from '../components/MessageBubble';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const { height: screenHeight } = Dimensions.get('window');
 
 const MessagingScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const { t } = useLanguage();
   const { user } = useAuth();
   
   // Récupérer l'ID de conversation et de propriété depuis les paramètres de navigation
@@ -150,7 +152,7 @@ const MessagingScreen: React.FC = () => {
       await sendMessage(selectedConversation.id, newMessage, user.id);
       setNewMessage('');
     } catch (err) {
-      Alert.alert('Erreur', 'Impossible d\'envoyer le message');
+      Alert.alert(t('common.error'), t('messages.sendError'));
     }
   };
 
@@ -199,15 +201,15 @@ const MessagingScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>Connexion requise</Text>
+          <Text style={styles.emptyTitle}>{t('auth.loginRequired')}</Text>
           <Text style={styles.emptySubtitle}>
-            Vous devez être connecté pour accéder aux messages
+            {t('messages.loginRequiredDesc')}
           </Text>
           <TouchableOpacity
             style={styles.exploreButton}
             onPress={() => navigation.navigate('Auth')}
           >
-            <Text style={styles.exploreButtonText}>Se connecter</Text>
+            <Text style={styles.exploreButtonText}>{t('auth.login')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -225,10 +227,10 @@ const MessagingScreen: React.FC = () => {
   const renderConversationList = () => (
     <View style={styles.conversationContainer}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Messages</Text>
+        <Text style={styles.headerTitle}>{t('messages.title')}</Text>
         <TouchableOpacity
           style={styles.searchButton}
-          onPress={() => Alert.alert('Recherche', 'Fonctionnalité à venir')}
+            onPress={() => Alert.alert(t('search.title'), t('messages.comingSoon'))}
         >
           <Ionicons name="search" size={24} color="#007AFF" />
         </TouchableOpacity>
@@ -268,13 +270,13 @@ const MessagingScreen: React.FC = () => {
               {getOtherUserName(selectedConversation)}
             </Text>
             <Text style={styles.chatSubtitle} numberOfLines={1}>
-              {String(selectedConversation.property?.title ?? 'Propriété')}
+              {String(selectedConversation.property?.title ?? t('messages.property'))}
             </Text>
           </View>
           
           <TouchableOpacity
             style={styles.moreButton}
-            onPress={() => Alert.alert('Options', 'Fonctionnalité à venir')}
+            onPress={() => Alert.alert(t('messages.options'), t('messages.comingSoon'))}
           >
             <Ionicons name="ellipsis-vertical" size={24} color="#007AFF" />
           </TouchableOpacity>
@@ -308,7 +310,7 @@ const MessagingScreen: React.FC = () => {
               style={styles.textInput}
               value={newMessage}
               onChangeText={setNewMessage}
-              placeholder="Tapez votre message..."
+              placeholder={t('messages.typeMessage')}
               multiline
               maxLength={1000}
               returnKeyType="send"
@@ -340,13 +342,13 @@ const MessagingScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color="#FF3B30" />
-          <Text style={styles.errorTitle}>Erreur</Text>
-          <Text style={styles.errorMessage}>{String(error ?? 'Une erreur est survenue')}</Text>
+          <Text style={styles.errorTitle}>{t('common.error')}</Text>
+          <Text style={styles.errorMessage}>{String(error ?? t('common.errorOccurred'))}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => user && loadConversations(user.id)}
           >
-            <Text style={styles.retryButtonText}>Réessayer</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

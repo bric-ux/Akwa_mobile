@@ -216,11 +216,11 @@ const GuestReferralScreen: React.FC = () => {
                 <View style={styles.statCard}>
                   <Text style={styles.statValue}>{guestStats?.total || 0}</Text>
                   <Text style={styles.statLabel}>Parrainages</Text>
-                  {guestStats && (guestStats.guestReferrals > 0 || guestStats.hostReferrals > 0) && (
+                  {guestStats && (guestStats.guestReferrals > 0 || guestStats.hostReferrals > 0) ? (
                     <Text style={[styles.statLabel, { fontSize: 10, color: '#999', marginTop: 4 }]}>
                       {`${guestStats.guestReferrals || 0} voyageur${guestStats.guestReferrals !== 1 ? 's' : ''} • ${guestStats.hostReferrals || 0} hôte${guestStats.hostReferrals !== 1 ? 's' : ''}`}
                     </Text>
-                  )}
+                  ) : null}
                 </View>
                 <View style={styles.statCard}>
                   <Text style={styles.statValue}>{guestStats?.completed || 0}</Text>
@@ -251,7 +251,7 @@ const GuestReferralScreen: React.FC = () => {
                   </Text>
                 </View>
               </View>
-              {guestStats && guestStats.hostReferrals > 0 && (
+              {guestStats && guestStats.hostReferrals > 0 ? (
                 <View style={[styles.card, { marginTop: 16, backgroundColor: '#fff3e0' }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                     <Ionicons name="information-circle-outline" size={16} color="#e67e22" />
@@ -263,7 +263,7 @@ const GuestReferralScreen: React.FC = () => {
                     {`Vous avez ${guestStats.hostReferrals} parrainage${guestStats.hostReferrals !== 1 ? 's' : ''} en tant qu'hôte. En tant qu'hôte, vous recevez des récompenses en cash. En tant que voyageur, vous recevez des bons de réduction.`}
                   </Text>
                 </View>
-              )}
+              ) : null}
             </>
           )}
         </View>
@@ -275,7 +275,7 @@ const GuestReferralScreen: React.FC = () => {
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#e67e22" />
             </View>
-          ) : referrals && referrals.length > 0 ? (
+          ) : (referrals && Array.isArray(referrals) && referrals.length > 0) ? (
             <View style={styles.referralsList}>
               {referrals.map((ref) => {
                 const isGuest = !ref.referrer_type || ref.referrer_type === 'guest';
@@ -298,7 +298,7 @@ const GuestReferralScreen: React.FC = () => {
                   'first_property': 'Première propriété',
                   'completed': 'Complété',
                 };
-                const statusLabel = statusLabels[ref.status] || ref.status;
+                const statusLabel = statusLabels[ref.status] || (ref.status ? String(ref.status) : 'Inconnu');
                 
                 // Couleur selon le statut
                 const getStatusColor = (status: string) => {
@@ -334,18 +334,18 @@ const GuestReferralScreen: React.FC = () => {
                         {fullName ? (
                           <>
                             <Text style={styles.referralName}>{fullName}</Text>
-                            {ref.referred_email && (
+                            {ref.referred_email && ref.referred_email.trim() ? (
                               <Text style={styles.referralEmail}>{ref.referred_email}</Text>
-                            )}
+                            ) : null}
                           </>
                         ) : (
                           <>
                             <Text style={styles.referralName}>{ref.referred_email || 'Utilisateur'}</Text>
-                            {ref.referred_user_id && (
+                            {ref.referred_user_id ? (
                               <Text style={[styles.referralEmail, { fontStyle: 'italic', color: '#999' }]}>
                                 Profil en cours de création...
                               </Text>
-                            )}
+                            ) : null}
                           </>
                         )}
                       </View>
@@ -390,22 +390,22 @@ const GuestReferralScreen: React.FC = () => {
                           })()}
                         </Text>
                       </View>
-                      {!isGuest && (ref.cash_reward_amount || ref.reward_amount) && (
+                      {!isGuest && (ref.cash_reward_amount || ref.reward_amount) ? (
                         <View style={styles.referralDetailRow}>
                           <Ionicons name="information-circle-outline" size={14} color="#ff9800" />
                           <Text style={[styles.referralDetailText, { color: '#ff9800', fontSize: 11 }]}>
                             {ref.cash_reward_paid ? 'Récompense versée' : 'Récompense en attente de versement'}
                           </Text>
                         </View>
-                      )}
-                      {ref.completed_at && (
+                      ) : null}
+                      {ref.completed_at ? (
                         <View style={styles.referralDetailRow}>
                           <Ionicons name="checkmark-circle-outline" size={14} color="#4caf50" />
                           <Text style={[styles.referralDetailText, { color: '#4caf50' }]}>
                             Complété le {new Date(ref.completed_at).toLocaleDateString('fr-FR')}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
                     </View>
                   </View>
                 );
@@ -466,11 +466,11 @@ const GuestReferralScreen: React.FC = () => {
                       </Text>
                     </View>
                   </View>
-                  {voucher.valid_until && (
+                  {voucher.valid_until ? (
                     <Text style={styles.voucherDate}>
                       Valide jusqu'au {new Date(voucher.valid_until).toLocaleDateString('fr-FR')}
                     </Text>
-                  )}
+                  ) : null}
                 </View>
               ))}
             </View>

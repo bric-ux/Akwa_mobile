@@ -117,7 +117,7 @@ const HostReferralScreen: React.FC = () => {
         };
       default:
         return {
-          label: status,
+          label: status ? String(status) : 'Inconnu',
           color: '#666',
           icon: 'help-circle-outline',
         };
@@ -180,7 +180,7 @@ const HostReferralScreen: React.FC = () => {
   }
 
   const referralUrl = `https://akwahome.com/become-host?ref=${referralCode.referral_code}`;
-  const hostReferrals = referrals.filter(r => r.referrer_type === 'host');
+  const hostReferrals = (referrals && Array.isArray(referrals)) ? referrals.filter(r => r.referrer_type === 'host') : [];
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -284,7 +284,7 @@ const HostReferralScreen: React.FC = () => {
           <Text style={styles.cardTitle}>Mes Parrainages</Text>
           {isLoadingReferrals ? (
             <ActivityIndicator size="large" color="#2E7D32" style={styles.loader} />
-          ) : hostReferrals.length === 0 ? (
+          ) : (!hostReferrals || hostReferrals.length === 0) ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={48} color="#ccc" />
               <Text style={styles.emptyText}>Aucun parrainage pour le moment</Text>
