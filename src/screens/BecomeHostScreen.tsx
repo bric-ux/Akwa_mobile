@@ -1196,7 +1196,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       {/* Titre */}
       {(!isEditMode || shouldShowField('title')) && (
         <View style={styles.inputGroup}>
-        <Text style={styles.label}>Titre de votre annonce *</Text>
+        <Text style={styles.label}>Devenir hôte *</Text>
         <TextInput
           ref={(ref) => { inputRefs.current['title'] = ref; }}
           style={getInputStyle('title')}

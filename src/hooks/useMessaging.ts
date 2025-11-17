@@ -95,6 +95,14 @@ export const useMessaging = () => {
             }
           })
         );
+
+        // Trier les conversations par date du dernier message (les plus récentes en haut)
+        conversationsWithProfiles.sort((a, b) => {
+          const dateA = a.last_message?.created_at || a.updated_at || '';
+          const dateB = b.last_message?.created_at || b.updated_at || '';
+          return new Date(dateB).getTime() - new Date(dateA).getTime();
+        });
+
         setConversations(conversationsWithProfiles);
         return;
       }
@@ -162,7 +170,14 @@ export const useMessaging = () => {
         })
       );
 
-      console.log('✅ [useMessaging] Conversations avec derniers messages:', conversationsWithLastMessages);
+      // Trier les conversations par date du dernier message (les plus récentes en haut)
+      conversationsWithLastMessages.sort((a, b) => {
+        const dateA = a.last_message?.created_at || a.updated_at || '';
+        const dateB = b.last_message?.created_at || b.updated_at || '';
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
+
+      console.log('✅ [useMessaging] Conversations avec derniers messages (triées):', conversationsWithLastMessages);
       setConversations(conversationsWithLastMessages);
     } catch (err) {
       console.error('❌ [useMessaging] Erreur lors du chargement des conversations:', err);

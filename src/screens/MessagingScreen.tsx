@@ -54,6 +54,7 @@ const MessagingScreen: React.FC = () => {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [openedFromParam, setOpenedFromParam] = useState(false);
+  const [phoneError, setPhoneError] = useState(false);
   
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -143,14 +144,76 @@ const MessagingScreen: React.FC = () => {
     clearUnreadForConversation(conversation.id);
   };
 
+  // Fonction pour détecter les numéros de téléphone dans le texte
+  const containsPhoneNumber = (text: string): boolean => {
+    // Détecter les numéros de 8 à 15 chiffres consécutifs (même dans le texte)
+    // Exemples: "bonjour voici 0707424857", "appelez-moi au 01 23 45 67 89", etc.
+    const phoneRegex = /\d{8,15}/g;
+    
+    // Vérifier si le texte contient un numéro de téléphone
+    if (phoneRegex.test(text)) {
+      return true;
+    }
+    
+    // Détecter les formats avec séparateurs (01 23 45 67 89, 01-23-45-67-89, 01.23.45.67.89, etc.)
+    // Au moins 8 chiffres au total avec des séparateurs optionnels
+    const formattedPhoneRegex = /\d{2}[\s\-\.]\d{2}[\s\-\.]\d{2}[\s\-\.]\d{2}[\s\-\.]?\d{0,2}/g;
+    if (formattedPhoneRegex.test(text)) {
+      return true;
+    }
+    
+    // Détecter les formats avec indicatif pays (+33, 0033, 33, +225, 00225, 225)
+    // Exemples: +33 1 23 45 67 89, 0033 1 23 45 67 89, 33 1 23 45 67 89, +225 07 07 42 48 57
+    const withCountryCodeRegex = /(\+33|0033|33|\+225|00225|225)[\s\-\.]?[1-9][\s\-\.]?\d{2}[\s\-\.]?\d{2}[\s\-\.]?\d{2}[\s\-\.]?\d{2}/g;
+    if (withCountryCodeRegex.test(text)) {
+      return true;
+    }
+    
+    // Détecter les numéros avec préfixes courants (07, 01, 02, etc. pour la Côte d'Ivoire et la France)
+    const prefixRegex = /(07|01|02|03|04|05|06|09)[\s\-\.]?\d{2}[\s\-\.]?\d{2}[\s\-\.]?\d{2}[\s\-\.]?\d{2}/g;
+    if (prefixRegex.test(text)) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Fermer le popup si le numéro est retiré du message
+  useEffect(() => {
+    if (phoneError && newMessage) {
+      const hasPhone = containsPhoneNumber(newMessage);
+      if (!hasPhone) {
+        setPhoneError(false);
+      }
+    }
+  }, [newMessage, phoneError]);
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || !user || sending) {
+      return;
+    }
+
+    // Vérifier si le message contient un numéro de téléphone
+    if (containsPhoneNumber(newMessage)) {
+      Alert.alert(
+        t('messages.phoneDetected'),
+        t('messages.phoneDetectedDesc'),
+        [
+          {
+            text: t('messages.phoneDetectedOk'),
+            onPress: () => setPhoneError(false),
+            style: 'default',
+          },
+        ]
+      );
+      setPhoneError(true);
       return;
     }
 
     try {
       await sendMessage(selectedConversation.id, newMessage, user.id);
       setNewMessage('');
+      setPhoneError(false);
     } catch (err) {
       Alert.alert(t('common.error'), t('messages.sendError'));
     }
@@ -358,6 +421,7 @@ const MessagingScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {showConversations ? renderConversationList() : renderChatView()}
+      
     </SafeAreaView>
   );
 };

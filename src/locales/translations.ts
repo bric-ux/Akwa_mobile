@@ -305,6 +305,9 @@ export const translations: Record<string, Record<string, string>> = {
     'messages.errorDesc': 'Une erreur est survenue',
     'messages.sendError': 'Impossible d\'envoyer le message',
     'messages.loginRequiredDesc': 'Vous devez être connecté pour accéder aux messages',
+    'messages.phoneDetected': 'Numéro de téléphone détecté',
+    'messages.phoneDetectedDesc': 'Pour votre sécurité et celle de nos utilisateurs, l\'envoi de numéros de téléphone par messagerie n\'est pas autorisé.\n\nVeuillez retirer le numéro de téléphone de votre message avant de l\'envoyer.',
+    'messages.phoneDetectedOk': 'J\'ai compris',
     
     // Search
     'search.title': 'Recherche',
@@ -430,7 +433,6 @@ export const translations: Record<string, Record<string, string>> = {
     'becomeHost.guests': 'Nombre d\'invités',
     'becomeHost.bedrooms': 'Nombre de chambres',
     'becomeHost.bathrooms': 'Nombre de salles de bain',
-    'becomeHost.title': 'Titre de votre annonce',
     'becomeHost.description': 'Description détaillée',
     'becomeHost.price': 'Prix par nuit (FCFA)',
     'becomeHost.hostFullName': 'Nom complet',
@@ -896,6 +898,9 @@ export const translations: Record<string, Record<string, string>> = {
     'messages.errorDesc': 'An error occurred',
     'messages.sendError': 'Unable to send message',
     'messages.loginRequiredDesc': 'You must be logged in to access messages',
+    'messages.phoneDetected': 'Phone number detected',
+    'messages.phoneDetectedDesc': 'For your safety and that of our users, sending phone numbers via messaging is not allowed.\n\nPlease remove the phone number from your message before sending.',
+    'messages.phoneDetectedOk': 'I understand',
     
     // Search
     'search.title': 'Search',
@@ -1021,7 +1026,6 @@ export const translations: Record<string, Record<string, string>> = {
     'becomeHost.guests': 'Number of guests',
     'becomeHost.bedrooms': 'Number of bedrooms',
     'becomeHost.bathrooms': 'Number of bathrooms',
-    'becomeHost.title': 'Your listing title',
     'becomeHost.description': 'Detailed description',
     'becomeHost.price': 'Price per night (FCFA)',
     'becomeHost.hostFullName': 'Full Name',
