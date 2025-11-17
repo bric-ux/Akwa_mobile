@@ -79,24 +79,7 @@ export const useHostApplications = () => {
     setError(null);
 
     try {
-      // Vérifier si l'utilisateur a déjà une candidature en cours
-      const { data: existingApplication, error: checkError } = await supabase
-        .from('host_applications')
-        .select('id, status')
-        .eq('user_id', user.id)
-        .in('status', ['pending', 'reviewing'])
-        .maybeSingle();
-
-      if (checkError) {
-        setError('Erreur lors de la vérification des candidatures existantes');
-        return { success: false };
-      }
-
-      if (existingApplication) {
-        setError('Vous avez déjà une candidature en cours de traitement');
-        return { success: false };
-      }
-
+      // Permettre plusieurs candidatures même si une autre est en attente
       const { data, error } = await supabase
         .from('host_applications')
         .insert({

@@ -26,7 +26,7 @@ export const useHostReviews = () => {
     try {
       console.log('🔍 [useHostReviews] Récupération des avis pour hostId:', hostId);
       
-      // Récupérer les avis des propriétés de l'hôte
+      // Récupérer les avis approuvés des propriétés de l'hôte
       const { data, error } = await supabase
         .from('reviews')
         .select(`
@@ -42,6 +42,7 @@ export const useHostReviews = () => {
           )
         `)
         .eq('properties.host_id', hostId)
+        .eq('approved', true)
         .order('created_at', { ascending: false });
 
       if (error) {

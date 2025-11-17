@@ -26,6 +26,8 @@ import PropertyMap from '../components/PropertyMap';
 import { supabase } from '../services/supabase';
 import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useReviewResponses, ReviewResponse } from '../hooks/useReviewResponses';
+import ReviewResponseModal from '../components/ReviewResponseModal';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -46,6 +48,12 @@ const PropertyDetailsScreen: React.FC = () => {
   const [reviewersProfiles, setReviewersProfiles] = useState<{[key: string]: string}>({});
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
+  const { getReviewResponse } = useReviewResponses();
+  const [reviewResponses, setReviewResponses] = useState<Record<string, ReviewResponse>>({});
+  const [selectedReviewForResponse, setSelectedReviewForResponse] = useState<string | null>(null);
+  const [showResponseModal, setShowResponseModal] = useState(false);
+  
+  const isHost = property && user?.id === property.host_id;
 
   useEffect(() => {
     const loadProperty = async () => {
@@ -71,6 +79,8 @@ const PropertyDetailsScreen: React.FC = () => {
         if (propertyData.reviews && propertyData.reviews.length > 0) {
           console.log('🔄 Chargement des profils reviewers...');
           await loadReviewersProfiles(propertyData.reviews);
+          // Charger les réponses de l'hôte pour chaque avis
+          await loadReviewResponses(propertyData.reviews);
         } else {
           console.log('⚠️ Aucun avis trouvé pour cette propriété');
         }
@@ -127,6 +137,17 @@ const PropertyDetailsScreen: React.FC = () => {
   }, [property]); // Supprimer les autres dépendances pour éviter la boucle
 
   // Fonction pour charger les profils des reviewers
+  const loadReviewResponses = async (reviews: any[]) => {
+    const responsesData: Record<string, ReviewResponse> = {};
+    for (const review of reviews) {
+      const response = await getReviewResponse(review.id);
+      if (response) {
+        responsesData[review.id] = response;
+      }
+    }
+    setReviewResponses(responsesData);
+  };
+
   const loadReviewersProfiles = async (reviews: any[]) => {
     try {
       console.log('🔍 Reviews reçues:', reviews);
@@ -315,13 +336,20 @@ const PropertyDetailsScreen: React.FC = () => {
         {property.reviews && property.reviews.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('property.reviews')}</Text>
-            {property.reviews.map((review, index) => {
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.reviewsScrollContainer}
+            >
+              {property.reviews.map((review, index) => {
               const reviewerName = reviewersProfiles[review.reviewer_id] || 'Anonyme';
               console.log('🔍 Affichage avis:', {
                 reviewer_id: review.reviewer_id,
                 reviewerName,
                 profilesMap: reviewersProfiles
               });
+              
+              const reviewResponse = reviewResponses[review.id];
               
               return (
                 <View key={index} style={styles.reviewItem}>
@@ -361,9 +389,62 @@ const PropertyDetailsScreen: React.FC = () => {
                       "{review.comment}"
                     </Text>
                   )}
+                  
+                  {/* Réponse de l'hôte */}
+                  {reviewResponse && (
+                    <View style={styles.hostResponseContainer}>
+                      <View style={styles.hostResponseHeader}>
+                        <Ionicons name="chatbubble-ellipses" size={16} color="#2E7D32" />
+                        <Text style={styles.hostResponseLabel}>
+                          {t('review.hostResponse') || 'Réponse de l\'hôte'}
+                        </Text>
+                      </View>
+                      <Text style={styles.hostResponseText}>
+                        {reviewResponse.response}
+                      </Text>
+                      <Text style={styles.hostResponseDate}>
+                        {new Date(reviewResponse.created_at).toLocaleDateString('fr-FR', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </Text>
+                      {isHost && (
+                        <TouchableOpacity
+                          style={styles.editResponseButton}
+                          onPress={() => {
+                            setSelectedReviewForResponse(review.id);
+                            setShowResponseModal(true);
+                          }}
+                        >
+                          <Ionicons name="create-outline" size={16} color="#2E7D32" />
+                          <Text style={styles.editResponseButtonText}>
+                            {t('review.editResponse') || 'Modifier'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                  
+                  {/* Bouton pour répondre (si hôte et pas de réponse) */}
+                  {isHost && !reviewResponse && (
+                    <TouchableOpacity
+                      style={styles.respondButton}
+                      onPress={() => {
+                        setSelectedReviewForResponse(review.id);
+                        setShowResponseModal(true);
+                      }}
+                    >
+                      <Ionicons name="chatbubble-outline" size={16} color="#2E7D32" />
+                      <Text style={styles.respondButtonText}>
+                        {t('review.respond') || 'Répondre'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })}
+            </ScrollView>
           </View>
         )}
 
@@ -555,6 +636,22 @@ const PropertyDetailsScreen: React.FC = () => {
           property={property}
         />
       )}
+      
+      {/* Modal de réponse aux avis */}
+      <ReviewResponseModal
+        visible={showResponseModal}
+        onClose={() => {
+          setShowResponseModal(false);
+          setSelectedReviewForResponse(null);
+        }}
+        reviewId={selectedReviewForResponse || ''}
+        existingResponse={selectedReviewForResponse ? reviewResponses[selectedReviewForResponse]?.response : null}
+        onResponseSubmitted={async () => {
+          if (property?.reviews) {
+            await loadReviewResponses(property.reviews);
+          }
+        }}
+      />
     </View>
   );
 };
@@ -865,20 +962,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     fontWeight: '500',
   },
-  // Styles pour les avis
-  reviewItem: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
+  // Styles pour les avis (défilement horizontal)
   reviewHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -941,6 +1025,80 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderLeftWidth: 3,
     borderLeftColor: '#2E7D32',
+    marginTop: 8,
+  },
+  reviewsScrollContainer: {
+    paddingRight: 20,
+  },
+  reviewItem: {
+    width: 320,
+    marginRight: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  hostResponseContainer: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f0f7f0',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2E7D32',
+  },
+  hostResponseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 6,
+  },
+  hostResponseLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2E7D32',
+  },
+  hostResponseText: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  hostResponseDate: {
+    fontSize: 12,
+    color: '#666',
+  },
+  respondButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2E7D32',
+    backgroundColor: '#fff',
+    gap: 6,
+  },
+  respondButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2E7D32',
+  },
+  editResponseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 6,
+  },
+  editResponseButtonText: {
+    fontSize: 12,
+    color: '#2E7D32',
+    fontWeight: '500',
   },
 });
 

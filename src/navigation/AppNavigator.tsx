@@ -41,6 +41,7 @@ import EditPropertyScreen from '../screens/EditPropertyScreen';
 import MessagingDebugScreen from '../screens/MessagingDebugScreen';
 import HostPaymentInfoScreen from '../screens/HostPaymentInfoScreen';
 import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
+import AdminReviewsScreen from '../screens/AdminReviewsScreen';
 import HostStatsScreen from '../screens/HostStatsScreen';
 import HostReferralScreen from '../screens/HostReferralScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
@@ -150,7 +151,7 @@ const HostTabNavigator = () => {
       <HostTab.Screen 
         name="HostPropertiesTab" 
         component={MyPropertiesScreen}
-        options={{ tabBarLabel: 'Mes propriétés' }}
+        options={{ tabBarLabel: 'Propriétés' }}
       />
       <HostTab.Screen
         name="HostBookingsTab"
@@ -501,6 +502,14 @@ const AppNavigator = () => {
               component={AdminNotificationsScreen}
               options={{
                 title: 'Gestion des notifications',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminReviews"
+              component={AdminReviewsScreen}
+              options={{
+                title: 'Validation des avis',
                 headerShown: false
               }}
             />

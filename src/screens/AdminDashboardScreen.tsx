@@ -140,6 +140,10 @@ const AdminDashboardScreen: React.FC = () => {
     navigation.navigate('AdminNotifications');
   };
 
+  const handleNavigateToReviews = () => {
+    navigation.navigate('AdminReviews');
+  };
+
   const handleTestEmail = () => {
     setShowEmailModal(true);
   };
@@ -392,6 +396,13 @@ const AdminDashboardScreen: React.FC = () => {
             description="Gérer les notifications"
             icon="notifications-outline"
             onPress={handleNavigateToNotifications}
+          />
+
+          <QuickAction
+            title="Validation des avis"
+            description="Approuver ou rejeter les avis des voyageurs"
+            icon="star-outline"
+            onPress={handleNavigateToReviews}
           />
         </View>
 

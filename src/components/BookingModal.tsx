@@ -629,6 +629,98 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
             />
           </View>
 
+          {/* Plan de paiement - Affiché après sélection des dates */}
+          {checkIn && checkOut && nights > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('booking.paymentPlan')}</Text>
+              <View style={styles.paymentPlanContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.paymentPlanOption,
+                    paymentPlan === 'full' && styles.paymentPlanSelected
+                  ]}
+                  onPress={() => {
+                    setPaymentPlan('full');
+                    // Si espèces est sélectionné et on passe à full, on peut garder espèces
+                  }}
+                >
+                  <View style={styles.paymentPlanContent}>
+                    <Ionicons 
+                      name="card" 
+                      size={24} 
+                      color={paymentPlan === 'full' ? '#2E7D32' : '#666'} 
+                    />
+                    <View style={styles.paymentPlanInfo}>
+                      <Text style={[
+                        styles.paymentPlanTitle,
+                        paymentPlan === 'full' && styles.paymentPlanTitleSelected
+                      ]}>
+                        {t('booking.payFull')}
+                      </Text>
+                      <Text style={styles.paymentPlanDescription}>
+                        {t('booking.payFullDesc')}
+                      </Text>
+                      <Text style={styles.paymentPlanAmount}>
+                        {formatPrice(finalTotal)} {t('common.now')}
+                      </Text>
+                    </View>
+                    {paymentPlan === 'full' && (
+                      <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.paymentPlanOption,
+                    paymentPlan === 'split' && styles.paymentPlanSelected,
+                    selectedPaymentMethod === 'cash' && styles.paymentPlanDisabled
+                  ]}
+                  onPress={() => {
+                    if (selectedPaymentMethod === 'cash') {
+                      Alert.alert(
+                        t('common.error'),
+                        t('booking.splitNotAvailableCash')
+                      );
+                      return;
+                    }
+                    setPaymentPlan('split');
+                    // Si espèces était sélectionné, changer pour carte
+                    if (selectedPaymentMethod === 'cash') {
+                      setSelectedPaymentMethod('card');
+                    }
+                  }}
+                  disabled={selectedPaymentMethod === 'cash'}
+                >
+                  <View style={styles.paymentPlanContent}>
+                    <Ionicons 
+                      name="calendar" 
+                      size={24} 
+                      color={paymentPlan === 'split' && selectedPaymentMethod !== 'cash' ? '#2E7D32' : '#666'} 
+                    />
+                    <View style={styles.paymentPlanInfo}>
+                      <Text style={[
+                        styles.paymentPlanTitle,
+                        paymentPlan === 'split' && styles.paymentPlanTitleSelected
+                      ]}>
+                        {t('booking.paySplit')}
+                      </Text>
+                      <Text style={styles.paymentPlanDescription}>
+                        {t('booking.paySplitDesc')}
+                      </Text>
+                      <Text style={styles.paymentPlanAmount}>
+                        50% {t('common.now')} ({formatPrice(finalTotal * 0.5)}), 50% {t('booking.onArrival')}
+                      </Text>
+                    </View>
+                    {paymentPlan === 'split' && selectedPaymentMethod !== 'cash' && (
+                      <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Résumé des prix */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('booking.priceSummary')}</Text>
@@ -694,74 +786,6 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
               </View>
             </View>
           </View>
-
-        {/* Plan de paiement */}
-        {checkIn && checkOut && selectedPaymentMethod !== 'cash' && selectedPaymentMethod !== 'paypal' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('booking.paymentPlan')}</Text>
-            <View style={styles.paymentPlanContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.paymentPlanOption,
-                  paymentPlan === 'full' && styles.paymentPlanSelected
-                ]}
-                onPress={() => setPaymentPlan('full')}
-              >
-                <View style={styles.paymentPlanContent}>
-                  <Ionicons 
-                    name="card" 
-                    size={24} 
-                    color={paymentPlan === 'full' ? '#2E7D32' : '#666'} 
-                  />
-                  <View style={styles.paymentPlanInfo}>
-                    <Text style={[
-                      styles.paymentPlanTitle,
-                      paymentPlan === 'full' && styles.paymentPlanTitleSelected
-                    ]}>
-                      {t('booking.payFull')}
-                    </Text>
-                    <Text style={styles.paymentPlanDescription}>
-                      {formatPrice(finalTotal)} {t('common.now')}
-                    </Text>
-                  </View>
-                  {paymentPlan === 'full' && (
-                    <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
-                  )}
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.paymentPlanOption,
-                  paymentPlan === 'split' && styles.paymentPlanSelected
-                ]}
-                onPress={() => setPaymentPlan('split')}
-              >
-                <View style={styles.paymentPlanContent}>
-                  <Ionicons 
-                    name="calendar" 
-                    size={24} 
-                    color={paymentPlan === 'split' ? '#2E7D32' : '#666'} 
-                  />
-                  <View style={styles.paymentPlanInfo}>
-                    <Text style={[
-                      styles.paymentPlanTitle,
-                      paymentPlan === 'split' && styles.paymentPlanTitleSelected
-                    ]}>
-                      {t('booking.paySplit')}
-                    </Text>
-                    <Text style={styles.paymentPlanDescription}>
-                      50% {t('common.now')} ({formatPrice(finalTotal * 0.5)}), 50% {t('booking.onArrival')}
-                    </Text>
-                  </View>
-                  {paymentPlan === 'split' && (
-                    <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
-                  )}
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* Options de paiement */}
         <View style={styles.section}>
@@ -1025,19 +1049,15 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                 />
               </TouchableOpacity>
             </View>
-          </View>
 
-          {/* Formulaire de paiement détaillé */}
-          {selectedPaymentMethod && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Informations de paiement</Text>
-              
-              {/* Formulaire pour carte bancaire */}
-              {selectedPaymentMethod === 'card' && (
+            {/* Informations de paiement - Affiché juste en dessous de la méthode sélectionnée */}
+            {selectedPaymentMethod === 'card' && (
+              <View style={styles.paymentInfoContainer}>
+                <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
                 <View style={styles.paymentForm}>
-                  <View style={styles.inputRow}>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Numéro de carte *</Text>
+                    <View style={styles.inputRow}>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Numéro de carte *</Text>
                       <TextInput
                         style={styles.input}
                         placeholder="1234 5678 9012 3456"
@@ -1117,14 +1137,17 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                     </Text>
                   </View>
                 </View>
-              )}
+              </View>
+            )}
 
-              {/* Formulaire pour Wave */}
-              {selectedPaymentMethod === 'wave' && (
+            {/* Informations de paiement pour Wave - Affiché juste en dessous */}
+            {selectedPaymentMethod === 'wave' && (
+              <View style={styles.paymentInfoContainer}>
+                <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
                 <View style={styles.paymentForm}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Numéro de téléphone Wave *</Text>
-                    <TextInput
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Numéro de téléphone Wave *</Text>
+                      <TextInput
                       style={styles.input}
                       placeholder="+225 07 12 34 56 78"
                       value={paymentInfo.phoneNumber}
@@ -1160,14 +1183,17 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                     </Text>
                   </View>
                 </View>
-              )}
+              </View>
+            )}
 
-              {/* Formulaire pour PayPal */}
-              {selectedPaymentMethod === 'paypal' && (
+            {/* Informations de paiement pour PayPal - Affiché juste en dessous */}
+            {selectedPaymentMethod === 'paypal' && (
+              <View style={styles.paymentInfoContainer}>
+                <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
                 <View style={styles.paymentForm}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Email PayPal *</Text>
-                    <TextInput
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Email PayPal *</Text>
+                      <TextInput
                       style={styles.input}
                       placeholder="votre.email@example.com"
                       value={paymentInfo.paypalEmail}
@@ -1184,16 +1210,19 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                     </Text>
                   </View>
                 </View>
-              )}
+              </View>
+            )}
 
-              {/* Formulaire pour Orange Money, MTN Money, Moov Money */}
-              {(selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
+            {/* Informations de paiement pour Orange Money, MTN Money, Moov Money - Affiché juste en dessous */}
+            {(selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
+              <View style={styles.paymentInfoContainer}>
+                <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
                 <View style={styles.paymentForm}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>
-                      Numéro de téléphone {selectedPaymentMethod === 'orange_money' ? 'Orange' : selectedPaymentMethod === 'mtn_money' ? 'MTN' : 'Moov'} *
-                    </Text>
-                    <TextInput
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>
+                        Numéro de téléphone {selectedPaymentMethod === 'orange_money' ? 'Orange' : selectedPaymentMethod === 'mtn_money' ? 'MTN' : 'Moov'} *
+                      </Text>
+                      <TextInput
                       style={styles.input}
                       placeholder="+225 07 12 34 56 78"
                       value={paymentInfo.phoneNumber}
@@ -1229,10 +1258,13 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                     </Text>
                   </View>
                 </View>
-              )}
+              </View>
+            )}
 
-              {/* Message pour espèces */}
-              {selectedPaymentMethod === 'cash' && (
+            {/* Informations pour espèces - Affiché juste en dessous */}
+            {selectedPaymentMethod === 'cash' && (
+              <View style={styles.paymentInfoContainer}>
+                <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
                 <View style={styles.paymentForm}>
                   <View style={styles.cashInfo}>
                     <Ionicons name="cash" size={48} color="#6b7280" />
@@ -1247,9 +1279,10 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
                     </View>
                   </View>
                 </View>
-              )}
-            </View>
-          )}
+              </View>
+            )}
+        </View>
+
         </ScrollView>
 
         {/* Bouton de réservation */}
@@ -1562,6 +1595,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  paymentPlanAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2E7D32',
+    marginTop: 4,
+  },
+  paymentPlanDisabled: {
+    opacity: 0.5,
+  },
+  paymentInfoContainer: {
+    marginTop: 12,
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  paymentInfoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
   // Styles pour les options de paiement
   paymentMethods: {
     gap: 12,
@@ -1667,6 +1723,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginBottom: 16,
+  },
+  inputGroup: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    color: '#000',
   },
   selectContainer: {
     flex: 1,

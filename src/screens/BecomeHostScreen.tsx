@@ -25,6 +25,7 @@ import { useEmailService } from '../hooks/useEmailService';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import { useReferrals } from '../hooks/useReferrals';
+import { useLanguage } from '../contexts/LanguageContext';
 import CitySearchInputModal from '../components/CitySearchInputModal';
 import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
@@ -86,6 +87,7 @@ const PHOTO_CATEGORIES = [
 const BecomeHostScreen: React.FC = ({ route }: any) => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
+  const { t } = useLanguage();
   
   useEffect(() => {
     console.log('🟢 [BecomeHostScreen] Écran BecomeHost monté');
@@ -1196,7 +1198,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       {/* Titre */}
       {(!isEditMode || shouldShowField('title')) && (
         <View style={styles.inputGroup}>
-        <Text style={styles.label}>Devenir hôte *</Text>
+        <Text style={styles.label}>{t('becomeHost.title')} *</Text>
         <TextInput
           ref={(ref) => { inputRefs.current['title'] = ref; }}
           style={getInputStyle('title')}

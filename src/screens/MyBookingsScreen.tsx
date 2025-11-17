@@ -16,20 +16,56 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useBookings, Booking } from '../hooks/useBookings';
 import { useAuth } from '../services/AuthContext';
+import { useReviews } from '../hooks/useReviews';
 import BookingCard from '../components/BookingCard';
+import ReviewModal from '../components/ReviewModal';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { getUserBookings, cancelBooking, loading, error } = useBookings();
+  const { canUserReviewProperty } = useReviews();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
+  const [canReviewMap, setCanReviewMap] = useState<Record<string, boolean>>({});
+
+  const isStayCompleted = (checkOutDate: string): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkout = new Date(checkOutDate);
+    checkout.setHours(0, 0, 0, 0);
+    return checkout < today;
+  };
 
   const loadBookings = async () => {
     try {
       const userBookings = await getUserBookings();
       setBookings(userBookings);
+      
+      // Vérifier quelles réservations peuvent être notées
+      // Seulement les réservations confirmées ou terminées dont le séjour est terminé
+      const canReviewPromises = userBookings
+        .filter(booking => 
+          (booking.status === 'confirmed' || booking.status === 'completed') &&
+          isStayCompleted(booking.check_out_date)
+        )
+        .map(async (booking) => {
+          const canReview = await canUserReviewProperty(
+            booking.property_id,
+            booking.id
+          );
+          return { bookingId: booking.id, canReview };
+        });
+      
+      const canReviewResults = await Promise.all(canReviewPromises);
+      const canReviewMapResult: Record<string, boolean> = {};
+      canReviewResults.forEach(({ bookingId, canReview }) => {
+        canReviewMapResult[bookingId] = canReview;
+      });
+      setCanReviewMap(canReviewMapResult);
     } catch (err) {
       console.error('Erreur lors du chargement des réservations:', err);
     }
@@ -102,6 +138,15 @@ const MyBookingsScreen: React.FC = () => {
     navigation.navigate('PropertyDetails', { propertyId });
   };
 
+  const handleLeaveReview = (booking: Booking) => {
+    setSelectedBookingForReview(booking);
+    setReviewModalVisible(true);
+  };
+
+  const handleReviewSubmitted = () => {
+    loadBookings(); // Recharger pour mettre à jour l'état
+  };
+
   const getStatusText = (status: string) => {
     switch (status) {
       case 'all':
@@ -143,6 +188,8 @@ const MyBookingsScreen: React.FC = () => {
       booking={booking}
       onViewProperty={handleViewProperty}
       onCancelBooking={handleCancelBooking}
+      onLeaveReview={handleLeaveReview}
+      canReview={canReviewMap[booking.id] || false}
     />
   );
 
@@ -259,6 +306,17 @@ const MyBookingsScreen: React.FC = () => {
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
+
+      <ReviewModal
+        visible={reviewModalVisible}
+        onClose={() => {
+          setReviewModalVisible(false);
+          setSelectedBookingForReview(null);
+        }}
+        propertyId={selectedBookingForReview?.property_id || ''}
+        bookingId={selectedBookingForReview?.id || ''}
+        onReviewSubmitted={handleReviewSubmitted}
+      />
     </SafeAreaView>
   );
 };

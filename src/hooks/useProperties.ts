@@ -241,10 +241,11 @@ export const useProperties = () => {
           });
           
           // Calculer la vraie moyenne des avis et le nombre d'avis
-          const reviews = property.reviews || [];
+          // Filtrer uniquement les avis approuvés par l'admin
+          const reviews = (property.reviews || []).filter((review: any) => review.approved === true);
           const reviewCount = reviews.length;
           const averageRating = reviewCount > 0 
-            ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount 
+            ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviewCount 
             : 0;
 
           // Si on a des avis calculés en base, les utiliser en priorité
@@ -353,7 +354,8 @@ export const useProperties = () => {
             rating,
             comment,
             created_at,
-            reviewer_id
+            reviewer_id,
+            approved
           ),
           property_photos (
             id,
@@ -379,9 +381,10 @@ export const useProperties = () => {
       console.log('✅ Propriété trouvée:', data.title, '- Active:', data.is_active, '- Masquée:', data.is_hidden);
 
       // Calculer la vraie moyenne des avis et le nombre d'avis
-      const reviews = data.reviews || [];
+      // Filtrer uniquement les avis approuvés par l'admin
+      const reviews = (data.reviews || []).filter((review: any) => review.approved === true);
       const averageRating = reviews.length > 0 
-        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
+        ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length 
         : 0;
       const reviewCount = reviews.length;
 
@@ -576,10 +579,11 @@ export const useProperties = () => {
       const transformedData = await Promise.all(
         (data || []).map(async (property) => {
           // Calculer la vraie moyenne des avis et le nombre d'avis
-          const reviews = property.reviews || [];
+          // Filtrer uniquement les avis approuvés par l'admin
+          const reviews = (property.reviews || []).filter((review: any) => review.approved === true);
           const reviewCount = reviews.length;
           const averageRating = reviewCount > 0 
-            ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount 
+            ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviewCount 
             : 0;
 
           // Si on a des avis calculés en base, les utiliser en priorité

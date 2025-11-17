@@ -13,12 +13,16 @@ interface BookingCardProps {
   booking: Booking;
   onViewProperty: (propertyId: string) => void;
   onCancelBooking: (booking: Booking) => void;
+  onLeaveReview?: (booking: Booking) => void;
+  canReview?: boolean;
 }
 
 const BookingCard: React.FC<BookingCardProps> = ({
   booking,
   onViewProperty,
   onCancelBooking,
+  onLeaveReview,
+  canReview = false,
 }) => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -35,6 +39,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
     const checkout = new Date(checkOutDate);
     checkout.setHours(0, 0, 0, 0);
     return checkout < today;
+  };
+
+  const isStayCompleted = (): boolean => {
+    return isBookingPast(booking.check_out_date);
   };
 
   const hasAlreadyStarted = () => {
@@ -188,6 +196,18 @@ const BookingCard: React.FC<BookingCardProps> = ({
           <Ionicons name="eye-outline" size={16} color="#2E7D32" />
           <Text style={styles.actionButtonText}>Voir la propriété</Text>
         </TouchableOpacity>
+
+        {canReview && onLeaveReview && (booking.status === 'confirmed' || booking.status === 'completed') && isStayCompleted() && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.reviewButton]}
+            onPress={() => onLeaveReview(booking)}
+          >
+            <Ionicons name="star-outline" size={16} color="#FFD700" />
+            <Text style={[styles.actionButtonText, styles.reviewButtonText]}>
+              Laisser un avis
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {(booking.status === 'pending' || booking.status === 'confirmed') && !isBookingPast(booking.check_out_date) && !hasAlreadyStarted() && (
           <TouchableOpacity
@@ -347,6 +367,12 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#e74c3c',
+  },
+  reviewButton: {
+    borderColor: '#FFD700',
+  },
+  reviewButtonText: {
+    color: '#FFD700',
   },
 });
 
