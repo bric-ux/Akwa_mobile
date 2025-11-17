@@ -336,13 +336,6 @@ const MessagingScreen: React.FC = () => {
               {String(selectedConversation.property?.title ?? t('messages.property'))}
             </Text>
           </View>
-          
-          <TouchableOpacity
-            style={styles.moreButton}
-            onPress={() => Alert.alert(t('messages.options'), t('messages.comingSoon'))}
-          >
-            <Ionicons name="ellipsis-vertical" size={24} color="#007AFF" />
-          </TouchableOpacity>
         </View>
 
         {/* Messages */}
@@ -480,9 +473,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 2,
-  },
-  moreButton: {
-    padding: 8,
   },
   messagesList: {
     flex: 1,
