@@ -118,11 +118,14 @@ const PropertyPricingScreen: React.FC = () => {
     });
   };
 
-  // Composant calendrier des prix
+  // États pour la sélection sur le calendrier
   const [calendarMonth, setCalendarMonth] = useState(new Date());
-  
-  const PricingCalendarComponent = () => {
+  const [calendarSelectedStart, setCalendarSelectedStart] = useState<Date | null>(null);
+  const [calendarSelectedEnd, setCalendarSelectedEnd] = useState<Date | null>(null);
+  const [isSelectingRange, setIsSelectingRange] = useState(false);
 
+  // Composant calendrier des prix
+  const PricingCalendarComponent = () => {
     const getDaysInMonth = (date: Date) => {
       const year = date.getFullYear();
       const month = date.getMonth();
@@ -144,6 +147,35 @@ const PropertyPricingScreen: React.FC = () => {
       }
 
       return days;
+    };
+
+    const handleDatePress = (date: Date) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (date < today) return; // Ne pas permettre la sélection des dates passées
+
+      if (!calendarSelectedStart || (calendarSelectedStart && calendarSelectedEnd)) {
+        // Nouvelle sélection
+        setCalendarSelectedStart(date);
+        setCalendarSelectedEnd(null);
+        setIsSelectingRange(true);
+        setSelectedStartDate(date.toISOString().split('T')[0]);
+        setSelectedEndDate('');
+      } else if (calendarSelectedStart && !calendarSelectedEnd) {
+        // Compléter la plage
+        if (date >= calendarSelectedStart) {
+          setCalendarSelectedEnd(date);
+          setIsSelectingRange(false);
+          setSelectedEndDate(date.toISOString().split('T')[0]);
+        } else {
+          // Si la date sélectionnée est avant la date de début, inverser
+          setCalendarSelectedEnd(calendarSelectedStart);
+          setCalendarSelectedStart(date);
+          setIsSelectingRange(false);
+          setSelectedStartDate(date.toISOString().split('T')[0]);
+          setSelectedEndDate(calendarSelectedStart.toISOString().split('T')[0]);
+        }
+      }
     };
 
     const navigateMonth = (direction: 'prev' | 'next') => {
@@ -176,6 +208,39 @@ const PropertyPricingScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Instructions de sélection */}
+        <View style={styles.calendarInstructions}>
+          {!calendarSelectedStart && (
+            <Text style={styles.instructionText}>
+              👆 Cliquez sur une date pour commencer la sélection
+            </Text>
+          )}
+          {calendarSelectedStart && !calendarSelectedEnd && (
+            <Text style={styles.instructionText}>
+              👆 Cliquez sur une date de fin pour compléter la période
+            </Text>
+          )}
+          {calendarSelectedStart && calendarSelectedEnd && (
+            <View style={styles.instructionSelected}>
+              <Text style={styles.instructionText}>
+                Période sélectionnée : {calendarSelectedStart.toLocaleDateString('fr-FR')} - {calendarSelectedEnd.toLocaleDateString('fr-FR')}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setCalendarSelectedStart(null);
+                  setCalendarSelectedEnd(null);
+                  setIsSelectingRange(false);
+                  setSelectedStartDate('');
+                  setSelectedEndDate('');
+                }}
+                style={styles.resetButton}
+              >
+                <Ionicons name="close-circle" size={18} color="#e67e22" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
         {/* Légende */}
         <View style={styles.calendarLegend}>
           <View style={styles.legendItem}>
@@ -185,6 +250,10 @@ const PropertyPricingScreen: React.FC = () => {
           <View style={styles.legendItem}>
             <View style={[styles.legendColor, { backgroundColor: '#00bcd4' }]} />
             <Text style={styles.legendText}>Prix personnalisé</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendColor, { backgroundColor: '#ff9800' }]} />
+            <Text style={styles.legendText}>Sélection</Text>
           </View>
         </View>
 
@@ -209,9 +278,17 @@ const PropertyPricingScreen: React.FC = () => {
             const displayPrice = customPrice;
             const hasCustomPriceForDate = hasCustomPrice(date);
             const isToday = date.getTime() === today.getTime();
+            
+            // Vérifier si la date est dans la plage sélectionnée
+            const isInSelectedRange = calendarSelectedStart && calendarSelectedEnd &&
+              date >= calendarSelectedStart && date <= calendarSelectedEnd;
+            const isSelectedStart = calendarSelectedStart && date.getTime() === calendarSelectedStart.getTime();
+            const isSelectedEnd = calendarSelectedEnd && date.getTime() === calendarSelectedEnd.getTime();
+            const isInPartialRange = calendarSelectedStart && !calendarSelectedEnd &&
+              date >= calendarSelectedStart;
 
             return (
-              <View
+              <TouchableOpacity
                 key={date.toISOString()}
                 style={[
                   styles.calendarDayCell,
@@ -219,12 +296,19 @@ const PropertyPricingScreen: React.FC = () => {
                   isToday && !isPast && styles.calendarDayCellToday,
                   !isPast && hasCustomPriceForDate && styles.calendarDayCellCustomPrice,
                   !isPast && !hasCustomPriceForDate && styles.calendarDayCellBasePrice,
+                  isInSelectedRange && styles.calendarDayCellSelected,
+                  isSelectedStart && styles.calendarDayCellSelectedStart,
+                  isSelectedEnd && styles.calendarDayCellSelectedEnd,
+                  isInPartialRange && !isSelectedStart && styles.calendarDayCellPartialRange,
                 ]}
+                onPress={() => handleDatePress(date)}
+                disabled={isPast}
               >
                 <Text
                   style={[
                     styles.calendarDayNumber,
                     isPast && styles.calendarDayNumberPast,
+                    isInSelectedRange && styles.calendarDayNumberSelected,
                   ]}
                 >
                   {date.getDate()}
@@ -234,12 +318,13 @@ const PropertyPricingScreen: React.FC = () => {
                     style={[
                       styles.calendarDayPrice,
                       hasCustomPriceForDate && styles.calendarDayPriceCustom,
+                      isInSelectedRange && styles.calendarDayPriceSelected,
                     ]}
                   >
                     {(displayPrice / 1000).toFixed(0)}k
                   </Text>
                 )}
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
@@ -266,6 +351,9 @@ const PropertyPricingScreen: React.FC = () => {
         setSelectedEndDate('');
         setNewPriceAmount('');
         setShowAddPriceForm(false);
+        setCalendarSelectedStart(null);
+        setCalendarSelectedEnd(null);
+        setIsSelectingRange(false);
         await loadDynamicPrices();
         // Forcer le re-render du calendrier
         setCalendarMonth(new Date(calendarMonth));
@@ -389,199 +477,109 @@ const PropertyPricingScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Prix de base */}
-        <View style={styles.section}>
-          <View style={styles.optionCard}>
-            <View style={styles.optionHeader}>
-              <View style={styles.optionHeaderLeft}>
-                <Ionicons name="cash-outline" size={24} color="#e67e22" />
-                <Text style={styles.optionTitle}>Prix de base</Text>
-              </View>
-            </View>
-            <View style={styles.optionContent}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Prix par nuit (XOF)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={basePrice}
-                  onChangeText={setBasePrice}
-                  placeholder="Ex: 20000"
-                  keyboardType="numeric"
-                />
-                <Text style={styles.helpText}>
-                  Ce prix sera utilisé par défaut pour toutes les dates
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
         {/* Calendrier visuel des prix */}
         <View style={styles.section}>
           <View style={styles.optionCard}>
             <View style={styles.optionHeader}>
               <View style={styles.optionHeaderLeft}>
                 <Ionicons name="calendar-outline" size={24} color="#e67e22" />
-                <Text style={styles.optionTitle}>Calendrier des prix</Text>
+                <View style={styles.optionTitleContainer}>
+                  <Text style={styles.optionTitle}>Calendrier des prix</Text>
+                  <Text style={styles.optionSubtitle}>Sélectionnez les dates pour modifier le prix sur une période</Text>
+                </View>
               </View>
             </View>
             <View style={styles.optionContent}>
-              <Text style={styles.helpText}>
-                Visualisez les prix de chaque jour sur le calendrier
-              </Text>
               {PricingCalendarComponent()}
-            </View>
-          </View>
-        </View>
-
-        {/* Prix personnalisés par période */}
-        <View style={styles.section}>
-          <View style={styles.optionCard}>
-            <View style={styles.optionHeader}>
-              <View style={styles.optionHeaderLeft}>
-                <Ionicons name="calendar-outline" size={24} color="#e67e22" />
-                <Text style={styles.optionTitle}>Prix personnalisés par période</Text>
-              </View>
-            </View>
-            <View style={styles.optionContent}>
-              <Text style={styles.helpText}>
-                Définissez des prix personnalisés pour des périodes spécifiques
-              </Text>
               
-              {/* Sélecteurs de dates */}
-              <View style={styles.dateInputGroup}>
-                <View style={styles.dateInputContainer}>
-                  <Text style={styles.inputLabel}>Date de début</Text>
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowStartDatePicker(true)}
-                  >
-                    <Ionicons name="calendar-outline" size={20} color="#e67e22" />
-                    <Text style={styles.dateButtonText}>
-                      {selectedStartDate 
-                        ? new Date(selectedStartDate).toLocaleDateString('fr-FR')
-                        : 'Sélectionner'}
-                    </Text>
-                  </TouchableOpacity>
-                  {showStartDatePicker && (
-                    <DateTimePicker
-                      value={tempStartDate}
-                      mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, date) => {
-                        setShowStartDatePicker(Platform.OS === 'ios');
-                        if (date) {
-                          setTempStartDate(date);
-                          const dateStr = date.toISOString().split('T')[0];
-                          setSelectedStartDate(dateStr);
-                        }
-                      }}
-                      minimumDate={new Date()}
-                    />
-                  )}
-                </View>
-                <View style={styles.dateInputContainer}>
-                  <Text style={styles.inputLabel}>Date de fin</Text>
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowEndDatePicker(true)}
-                  >
-                    <Ionicons name="calendar-outline" size={20} color="#e67e22" />
-                    <Text style={styles.dateButtonText}>
-                      {selectedEndDate 
-                        ? new Date(selectedEndDate).toLocaleDateString('fr-FR')
-                        : 'Sélectionner'}
-                    </Text>
-                  </TouchableOpacity>
-                  {showEndDatePicker && (
-                    <DateTimePicker
-                      value={tempEndDate}
-                      mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, date) => {
-                        setShowEndDatePicker(Platform.OS === 'ios');
-                        if (date) {
-                          setTempEndDate(date);
-                          const dateStr = date.toISOString().split('T')[0];
-                          setSelectedEndDate(dateStr);
-                        }
-                      }}
-                      minimumDate={selectedStartDate ? new Date(selectedStartDate) : new Date()}
-                    />
-                  )}
-                </View>
-              </View>
-
+              {/* Formulaire de prix personnalisé (affiché quand une période est sélectionnée) */}
               {selectedStartDate && selectedEndDate && (
-                <View style={styles.inputGroup}>
-                  <View style={styles.selectedPeriodInfo}>
-                    <Text style={styles.selectedPeriodText}>
-                      Période sélectionnée : {new Date(selectedStartDate).toLocaleDateString('fr-FR')} - {new Date(selectedEndDate).toLocaleDateString('fr-FR')}
-                    </Text>
+                <View style={styles.priceFormContainer}>
+                  <View style={styles.priceFormHeader}>
+                    <Ionicons name="pricetag-outline" size={20} color="#e67e22" />
+                    <Text style={styles.priceFormTitle}>Définir un prix personnalisé</Text>
                     <TouchableOpacity
                       onPress={() => {
                         setSelectedStartDate('');
                         setSelectedEndDate('');
                         setNewPriceAmount('');
+                        setCalendarSelectedStart(null);
+                        setCalendarSelectedEnd(null);
+                        setIsSelectingRange(false);
                       }}
+                      style={styles.closeFormButton}
                     >
                       <Ionicons name="close-circle" size={20} color="#999" />
                     </TouchableOpacity>
                   </View>
-                  <Text style={styles.inputLabel}>Prix par nuit pour cette période (XOF)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newPriceAmount}
-                    onChangeText={setNewPriceAmount}
-                    placeholder="Ex: 25000"
-                    keyboardType="numeric"
-                  />
-                  <TouchableOpacity
-                    style={styles.addPriceButton}
-                    onPress={handleAddDynamicPrice}
-                    disabled={dynamicPricingLoading || !newPriceAmount}
-                  >
-                    {dynamicPricingLoading ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                        <Text style={styles.addPriceButtonText}>Ajouter ce prix</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
+                  <View style={styles.selectedPeriodInfo}>
+                    <Text style={styles.selectedPeriodText}>
+                      Période : {new Date(selectedStartDate).toLocaleDateString('fr-FR')} - {new Date(selectedEndDate).toLocaleDateString('fr-FR')}
+                    </Text>
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Prix par nuit pour cette période (XOF)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={newPriceAmount}
+                      onChangeText={setNewPriceAmount}
+                      placeholder="Ex: 25000"
+                      keyboardType="numeric"
+                    />
+                    <TouchableOpacity
+                      style={styles.addPriceButton}
+                      onPress={handleAddDynamicPrice}
+                      disabled={dynamicPricingLoading || !newPriceAmount}
+                    >
+                      {dynamicPricingLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                          <Text style={styles.addPriceButtonText}>Ajouter ce prix</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              )}
-
-              {/* Liste des prix personnalisés */}
-              {dynamicPrices.length > 0 ? (
-                <View style={styles.dynamicPricesList}>
-                  <Text style={styles.sectionSubtitle}>Prix personnalisés existants</Text>
-                  {dynamicPrices.map((price) => (
-                    <View key={price.id} style={styles.dynamicPriceItem}>
-                      <View style={styles.dynamicPriceInfo}>
-                        <Text style={styles.dynamicPriceAmount}>
-                          {price.price_per_night.toLocaleString('fr-FR')} XOF/nuit
-                        </Text>
-                        <Text style={styles.dynamicPriceDates}>
-                          Du {new Date(price.start_date).toLocaleDateString('fr-FR')} au {new Date(price.end_date).toLocaleDateString('fr-FR')}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.deletePriceButton}
-                        onPress={() => handleDeleteDynamicPrice(price.id)}
-                      >
-                        <Ionicons name="trash-outline" size={20} color="#e74c3c" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.emptyText}>Aucun prix personnalisé défini</Text>
               )}
             </View>
           </View>
         </View>
+
+        {/* Liste des prix personnalisés */}
+        {dynamicPrices.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.optionCard}>
+              <View style={styles.optionHeader}>
+                <View style={styles.optionHeaderLeft}>
+                  <Ionicons name="list-outline" size={24} color="#e67e22" />
+                  <Text style={styles.optionTitle}>Prix personnalisés existants</Text>
+                </View>
+              </View>
+              <View style={styles.optionContent}>
+                {dynamicPrices.map((price) => (
+                  <View key={price.id} style={styles.dynamicPriceItem}>
+                    <View style={styles.dynamicPriceInfo}>
+                      <Text style={styles.dynamicPriceAmount}>
+                        {price.price_per_night.toLocaleString('fr-FR')} XOF/nuit
+                      </Text>
+                      <Text style={styles.dynamicPriceDates}>
+                        Du {new Date(price.start_date).toLocaleDateString('fr-FR')} au {new Date(price.end_date).toLocaleDateString('fr-FR')}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.deletePriceButton}
+                      onPress={() => handleDeleteDynamicPrice(price.id)}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#e74c3c" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Réduction par nombre de nuits */}
         <View style={styles.section}>
@@ -662,6 +660,36 @@ const PropertyPricingScreen: React.FC = () => {
                 </View>
               </View>
             )}
+          </View>
+        </View>
+
+        {/* Prix de base - Modifie le prix de la propriété */}
+        <View style={styles.section}>
+          <View style={styles.optionCard}>
+            <View style={styles.optionHeader}>
+              <View style={styles.optionHeaderLeft}>
+                <Ionicons name="cash-outline" size={24} color="#e67e22" />
+                <View style={styles.optionTitleContainer}>
+                  <Text style={styles.optionTitle}>Prix de base de la propriété</Text>
+                  <Text style={styles.optionSubtitle}>Modifie le prix par défaut de votre propriété</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.optionContent}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Prix par nuit (XOF)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={basePrice}
+                  onChangeText={setBasePrice}
+                  placeholder="Ex: 20000"
+                  keyboardType="numeric"
+                />
+                <Text style={styles.helpText}>
+                  Ce prix sera utilisé par défaut pour toutes les dates sans prix personnalisé
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -748,6 +776,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    marginLeft: 12,
+  },
+  optionTitleContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  optionSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
     marginLeft: 12,
   },
   optionContent: {
@@ -978,6 +1016,77 @@ const styles = StyleSheet.create({
   calendarDayPriceCustom: {
     color: '#00bcd4',
     fontWeight: 'bold',
+  },
+  calendarDayCellSelected: {
+    backgroundColor: '#fff3e0',
+    borderColor: '#ff9800',
+    borderWidth: 2,
+  },
+  calendarDayCellSelectedStart: {
+    backgroundColor: '#ff9800',
+    borderColor: '#ff9800',
+    borderWidth: 2,
+  },
+  calendarDayCellSelectedEnd: {
+    backgroundColor: '#ff9800',
+    borderColor: '#ff9800',
+    borderWidth: 2,
+  },
+  calendarDayCellPartialRange: {
+    backgroundColor: '#ffe0b2',
+  },
+  calendarDayNumberSelected: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  calendarDayPriceSelected: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  calendarInstructions: {
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: '#f0f7ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#b3d9ff',
+  },
+  instructionText: {
+    fontSize: 14,
+    color: '#1976d2',
+    textAlign: 'center',
+  },
+  instructionSelected: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  resetButton: {
+    padding: 4,
+  },
+  priceFormContainer: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  priceFormHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  priceFormTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  closeFormButton: {
+    padding: 4,
   },
 });
 
