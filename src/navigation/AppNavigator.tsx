@@ -52,6 +52,9 @@ import PropertyRulesScreen from '../screens/PropertyRulesScreen';
 import GuestReferralScreen from '../screens/GuestReferralScreen';
 import ModeTransitionScreen from '../screens/ModeTransitionScreen';
 import ConciergerieScreen from '../screens/ConciergerieScreen';
+import VehiclesScreen from '../screens/VehiclesScreen';
+import VehicleDetailsScreen from '../screens/VehicleDetailsScreen';
+import AddVehicleScreen from '../screens/AddVehicleScreen';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList } from '../types';
@@ -593,14 +596,38 @@ const AppNavigator = () => {
           component={MessagingDebugScreen}
           options={{ title: 'Debug Messagerie' }}
         />
-        <Stack.Screen 
-          name="Conciergerie" 
-          component={ConciergerieScreen}
-          options={{ 
-            title: 'Conciergerie',
-            headerShown: false 
-          }}
-        />
+            <Stack.Screen 
+              name="Conciergerie" 
+              component={ConciergerieScreen}
+              options={{ 
+                title: 'Conciergerie',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="Vehicles" 
+              component={VehiclesScreen}
+              options={{ 
+                title: 'Location de véhicules',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="VehicleDetails" 
+              component={VehicleDetailsScreen}
+              options={{ 
+                title: 'Détails du véhicule',
+                headerShown: true 
+              }}
+            />
+            <Stack.Screen 
+              name="AddVehicle" 
+              component={AddVehicleScreen}
+              options={{ 
+                title: 'Ajouter un véhicule',
+                headerShown: false 
+              }}
+            />
       </Stack.Navigator>
     </NavigationContainer>
   );

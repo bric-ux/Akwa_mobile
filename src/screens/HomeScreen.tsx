@@ -8,6 +8,7 @@ import {
   Alert,
   TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../services/AuthContext';
@@ -130,6 +131,21 @@ const HomeScreen: React.FC = () => {
   const renderListHeader = () => (
     <>
       <HeroSection onSearchPress={handleSearchPress} />
+
+      {/* Section Location de véhicules */}
+      <View style={styles.vehiclesSection}>
+        <TouchableOpacity
+          style={styles.vehiclesButton}
+          onPress={() => navigation.navigate('Vehicles' as never)}
+        >
+          <Ionicons name="car" size={24} color="#fff" />
+          <View style={styles.vehiclesButtonTextContainer}>
+            <Text style={styles.vehiclesButtonTitle}>Location de véhicules</Text>
+            <Text style={styles.vehiclesButtonSubtitle}>Trouvez le véhicule parfait pour votre voyage</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
       <WeatherDateTimeWidget />
 
@@ -291,6 +307,40 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 18,
     color: '#dc3545',
+  },
+  vehiclesSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+  },
+  vehiclesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2E7D32',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  vehiclesButtonTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  vehiclesButtonTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  vehiclesButtonSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 });
 

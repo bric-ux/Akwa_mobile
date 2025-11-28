@@ -225,6 +225,12 @@ export type RootStackParamList = {
   Messaging: undefined;
   MessagingDebug: undefined;
   Conciergerie: undefined;
+  Vehicles: undefined;
+  VehicleDetails: { vehicleId: string };
+  VehicleBooking: { vehicleId: string };
+  AddVehicle: undefined;
+  MyVehicles: undefined;
+  MyVehicleBookings: undefined;
 };
 
 export type TabParamList = {
@@ -249,4 +255,124 @@ export interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, userData: any) => Promise<void>;
   signOut: () => Promise<void>;
+}
+
+// Types pour les véhicules
+export type VehicleType = 'car' | 'suv' | 'van' | 'truck' | 'motorcycle' | 'scooter' | 'bicycle' | 'other';
+export type VehicleBookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+export type TransmissionType = 'manual' | 'automatic';
+export type FuelType = 'essence' | 'diesel' | 'electric' | 'hybrid';
+
+export interface Vehicle {
+  id: string;
+  owner_id: string;
+  title: string;
+  description: string | null;
+  vehicle_type: VehicleType;
+  brand: string;
+  model: string;
+  year: number;
+  plate_number: string | null;
+  seats: number;
+  transmission: TransmissionType | null;
+  fuel_type: FuelType | null;
+  mileage: number | null;
+  location_id: string | null;
+  location?: {
+    id: string;
+    name: string;
+    type: 'country' | 'region' | 'city' | 'commune' | 'neighborhood';
+    latitude?: number;
+    longitude?: number;
+    parent_id?: string;
+  };
+  price_per_day: number;
+  price_per_week: number | null;
+  price_per_month: number | null;
+  security_deposit: number;
+  is_active: boolean;
+  is_featured: boolean;
+  minimum_rental_days: number;
+  images: string[];
+  documents: string[];
+  rating: number;
+  review_count: number;
+  features: string[];
+  rules: string[];
+  created_at: string;
+  updated_at: string;
+  photos?: VehiclePhoto[];
+}
+
+export interface VehiclePhoto {
+  id: string;
+  vehicle_id: string;
+  url: string;
+  category: 'exterior' | 'interior' | 'engine' | 'documents' | 'other';
+  is_main: boolean;
+  display_order: number;
+  created_at: string;
+}
+
+export interface VehicleBooking {
+  id: string;
+  vehicle_id: string;
+  renter_id: string;
+  start_date: string;
+  end_date: string;
+  rental_days: number;
+  daily_rate: number;
+  total_price: number;
+  security_deposit: number;
+  status: VehicleBookingStatus;
+  pickup_location: string | null;
+  dropoff_location: string | null;
+  message_to_owner: string | null;
+  special_requests: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
+  cancellation_penalty: number;
+  created_at: string;
+  updated_at: string;
+  vehicle?: Vehicle;
+  renter?: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  };
+}
+
+export interface VehicleReview {
+  id: string;
+  vehicle_id: string;
+  booking_id: string;
+  reviewer_id: string;
+  rating: number;
+  cleanliness_rating: number | null;
+  condition_rating: number | null;
+  value_rating: number | null;
+  communication_rating: number | null;
+  comment: string | null;
+  approved: boolean;
+  created_at: string;
+  reviewer?: {
+    first_name: string;
+    last_name: string;
+  };
+}
+
+export interface VehicleFilters {
+  vehicleType?: VehicleType;
+  brand?: string;
+  priceMin?: number;
+  priceMax?: number;
+  transmission?: TransmissionType;
+  fuelType?: FuelType;
+  seats?: number;
+  locationId?: string;
+  startDate?: string;
+  endDate?: string;
+  features?: string[];
 }
