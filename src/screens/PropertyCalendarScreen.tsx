@@ -15,9 +15,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAvailabilityCalendar } from '../hooks/useAvailabilityCalendar';
 import { useBlockedDates, BlockedDate } from '../hooks/useBlockedDates';
-import { useDynamicPricing } from '../hooks/useDynamicPricing';
 import { useICalSync, ICalLink } from '../hooks/useICalSync';
 import { supabase } from '../services/supabase';
+import * as Clipboard from 'expo-clipboard';
 
 const PropertyCalendarScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -26,16 +26,12 @@ const PropertyCalendarScreen: React.FC = () => {
 
   const { unavailableDates, loading: calendarLoading, refetch, isDateUnavailable } = useAvailabilityCalendar(propertyId);
   const { getBlockedDates, blockDates, unblockDates, loading: blockedLoading } = useBlockedDates();
-  const { getDynamicPrices, setPriceForPeriod, deleteDynamicPrice, loading: pricingLoading } = useDynamicPricing();
   const { getICalLinks, addICalLink, syncCalendar, removeICalLink, loading: icalLoading } = useICalSync();
 
   const [blockedDatesList, setBlockedDatesList] = useState<BlockedDate[]>([]);
-  const [dynamicPrices, setDynamicPrices] = useState<any[]>([]);
-  const [basePrice, setBasePrice] = useState<number | null>(null);
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
   const [reason, setReason] = useState('');
-  const [customPrice, setCustomPrice] = useState('');
   const [isSelectingRange, setIsSelectingRange] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
@@ -43,38 +39,35 @@ const PropertyCalendarScreen: React.FC = () => {
   const [showICalForm, setShowICalForm] = useState(false);
   const [icalUrl, setICalUrl] = useState('');
   const [icalPlatform, setICalPlatform] = useState('airbnb');
+  const [exportUrl, setExportUrl] = useState<string>('');
 
   useEffect(() => {
     loadBlockedDates();
-    loadDynamicPrices();
-    loadBasePrice();
     loadICalLinks();
+    generateExportUrl();
   }, [propertyId]);
 
-  const loadBasePrice = async () => {
+  const generateExportUrl = async () => {
+    // Générer l'URL d'export iCal pour cette propriété
+    // Note: Cette URL devra être générée côté serveur, pour l'instant on utilise une URL générique
+    // L'URL d'export sera générée par le backend
+    // Pour l'instant, on utilise une URL placeholder qui sera remplacée par le backend
+    // TODO: Remplacer par l'URL réelle du backend
+    setExportUrl(`https://api.akwahome.com/api/ical/export/${propertyId}`);
+  };
+
+  const handleCopyExportUrl = async () => {
     try {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('price_per_night')
-        .eq('id', propertyId)
-        .single();
-      
-      if (!error && data) {
-        setBasePrice(data.price_per_night);
-      }
+      await Clipboard.setStringAsync(exportUrl);
+      Alert.alert('Succès', 'Lien d\'export copié dans le presse-papiers');
     } catch (error) {
-      console.error('Error loading base price:', error);
+      Alert.alert('Erreur', 'Impossible de copier le lien');
     }
   };
 
   const loadBlockedDates = async () => {
     const dates = await getBlockedDates(propertyId);
     setBlockedDatesList(dates);
-  };
-
-  const loadDynamicPrices = async () => {
-    const prices = await getDynamicPrices(propertyId);
-    setDynamicPrices(prices);
   };
 
   const loadICalLinks = async () => {
@@ -133,7 +126,6 @@ const PropertyCalendarScreen: React.FC = () => {
     setRefreshing(true);
     await Promise.all([
       loadBlockedDates(),
-      loadDynamicPrices(),
       loadICalLinks(),
       refetch(),
     ]);
@@ -217,69 +209,6 @@ const PropertyCalendarScreen: React.FC = () => {
         },
       ]
     );
-  };
-
-  const handleSetPrice = async () => {
-    if (!selectedStartDate || !selectedEndDate || !customPrice) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une période et entrer un prix');
-      return;
-    }
-
-    const startDateStr = formatDateToISO(selectedStartDate);
-    const endDateStr = formatDateToISO(selectedEndDate);
-    const price = parseInt(customPrice);
-
-    if (isNaN(price) || price <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un prix valide');
-      return;
-    }
-
-    const result = await setPriceForPeriod(propertyId, startDateStr, endDateStr, price);
-
-    if (result.success) {
-      setSelectedStartDate(null);
-      setSelectedEndDate(null);
-      setCustomPrice('');
-      setIsSelectingRange(false);
-      await loadDynamicPrices();
-    }
-  };
-
-  const handleDeletePrice = async (priceId: string) => {
-    Alert.alert(
-      'Supprimer le prix',
-      'Êtes-vous sûr de vouloir supprimer ce prix personnalisé ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await deleteDynamicPrice(priceId);
-            if (result.success) {
-              loadDynamicPrices();
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  // Fonction pour obtenir le prix d'une date
-  const getPriceForDate = (date: Date): number | null => {
-    const dateStr = formatDateToISO(date);
-    const priceInfo = dynamicPrices.find(price => {
-      return dateStr >= price.start_date && dateStr <= price.end_date;
-    });
-    return priceInfo ? priceInfo.price_per_night : basePrice;
-  };
-
-  // Fonction pour vérifier si une date a un prix personnalisé
-  const hasCustomPrice = (date: Date): boolean => {
-    const dateStr = formatDateToISO(date);
-    return dynamicPrices.some(price => {
-      return dateStr >= price.start_date && dateStr <= price.end_date;
-    });
   };
 
   // Fonction pour obtenir le type de blocage d'une date
@@ -404,8 +333,7 @@ const PropertyCalendarScreen: React.FC = () => {
                 date >= selectedStartDate && date <= selectedEndDate;
               const isStart = selectedStartDate && date.getTime() === selectedStartDate.getTime();
               const isEnd = selectedEndDate && date.getTime() === selectedEndDate.getTime();
-              const price = !isPast && !unavailable ? getPriceForDate(date) : null;
-              const hasCustomPriceForDate = !isPast && !unavailable ? hasCustomPrice(date) : false;
+              const isAvailable = !isPast && !unavailable;
 
               return (
                 <TouchableOpacity
@@ -413,12 +341,12 @@ const PropertyCalendarScreen: React.FC = () => {
                   style={[
                     styles.dayCell,
                     isPast && styles.dayCellPast,
+                    isAvailable && styles.dayCellAvailable,
                     unavailable && blockType === 'reserved' && styles.dayCellReserved,
                     unavailable && blockType === 'blocked' && styles.dayCellBlocked,
                     isSelected && styles.dayCellSelected,
                     isStart && styles.dayCellStart,
                     isEnd && styles.dayCellEnd,
-                    !isPast && !unavailable && hasCustomPriceForDate && styles.dayCellCustomPrice,
                   ]}
                   onPress={() => handleDatePress(date)}
                   disabled={isPast || unavailable}
@@ -427,6 +355,7 @@ const PropertyCalendarScreen: React.FC = () => {
                     style={[
                       styles.dayText,
                       isPast && styles.dayTextPast,
+                      isAvailable && styles.dayTextAvailable,
                       unavailable && blockType === 'reserved' && styles.dayTextReserved,
                       unavailable && blockType === 'blocked' && styles.dayTextBlocked,
                       isSelected && styles.dayTextSelected,
@@ -434,14 +363,6 @@ const PropertyCalendarScreen: React.FC = () => {
                   >
                     {date.getDate()}
                   </Text>
-                  {price && (
-                    <Text style={[
-                      styles.priceText,
-                      hasCustomPriceForDate && styles.priceTextCustom
-                    ]}>
-                      {(price / 1000).toFixed(0)}k
-                    </Text>
-                  )}
                 </TouchableOpacity>
               );
             })}
@@ -486,20 +407,6 @@ const PropertyCalendarScreen: React.FC = () => {
               />
             </View>
 
-            <View style={styles.inputSection}>
-              <Text style={styles.label}>Prix personnalisé (XOF/nuit)</Text>
-              <TextInput
-                style={styles.textInput}
-                value={customPrice}
-                onChangeText={setCustomPrice}
-                placeholder="Ex: 15000"
-                keyboardType="numeric"
-              />
-              <Text style={styles.hint}>
-                Laissez vide pour bloquer sans modifier le prix
-              </Text>
-            </View>
-
             <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={[styles.actionButton, styles.blockButton]}
@@ -516,34 +423,17 @@ const PropertyCalendarScreen: React.FC = () => {
                 )}
               </TouchableOpacity>
 
-              {customPrice && (
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.priceButton]}
-                  onPress={handleSetPrice}
-                  disabled={pricingLoading || !selectedStartDate || !selectedEndDate || isSelectingRange}
-                >
-                  {pricingLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="cash" size={20} color="#fff" />
-                      <Text style={styles.actionButtonText}>Définir prix</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
-
               <TouchableOpacity
                 style={[styles.actionButton, styles.cancelButton]}
                 onPress={() => {
                   setSelectedStartDate(null);
                   setSelectedEndDate(null);
                   setReason('');
-                  setCustomPrice('');
                   setIsSelectingRange(false);
                 }}
               >
                 <Ionicons name="close" size={20} color="#fff" />
+                <Text style={styles.actionButtonText}>Annuler</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -595,37 +485,28 @@ const PropertyCalendarScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Prix personnalisés */}
+        {/* Lien d'export iCal */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Prix personnalisés</Text>
-          {dynamicPrices.length === 0 ? (
-            <Text style={styles.emptyText}>Aucun prix personnalisé défini</Text>
-          ) : (
-            dynamicPrices.map((price) => (
-              <View key={price.id} style={styles.priceCard}>
-                <View style={styles.priceInfo}>
-                  <View style={styles.priceBadge}>
-                    <Text style={styles.priceBadgeText}>
-                      {price.price_per_night.toLocaleString('fr-FR')} XOF/nuit
-                    </Text>
-                  </View>
-                  <Text style={styles.priceDate}>
-                    {price.start_date === price.end_date ? (
-                      formatDateShort(new Date(price.start_date))
-                    ) : (
-                      `${formatDateShort(new Date(price.start_date))} → ${formatDateShort(new Date(price.end_date))}`
-                    )}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => handleDeletePrice(price.id)}
-                  disabled={pricingLoading}
-                >
-                  <Ionicons name="trash-outline" size={20} color="#e74c3c" />
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
+          <View style={styles.sectionHeader}>
+            <Ionicons name="share-outline" size={20} color="#e67e22" style={{ marginRight: 8 }} />
+            <Text style={styles.sectionTitle}>Lien d'export pour autres sites</Text>
+          </View>
+          <Text style={styles.sectionSubtitle}>
+            Copiez ce lien pour synchroniser votre calendrier avec d'autres plateformes (Airbnb, Booking.com, etc.)
+          </Text>
+          
+          <View style={styles.exportUrlContainer}>
+            <Text style={styles.exportUrlText} numberOfLines={1}>
+              {exportUrl}
+            </Text>
+            <TouchableOpacity
+              style={styles.copyButton}
+              onPress={handleCopyExportUrl}
+            >
+              <Ionicons name="copy-outline" size={20} color="#e67e22" />
+              <Text style={styles.copyButtonText}>Copier</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Synchronisation iCal */}
@@ -768,6 +649,10 @@ const PropertyCalendarScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Légende</Text>
           <View style={styles.legend}>
             <View style={styles.legendItem}>
+              <View style={[styles.legendColor, { backgroundColor: '#4CAF50' }]} />
+              <Text style={styles.legendText}>Disponible</Text>
+            </View>
+            <View style={styles.legendItem}>
               <View style={[styles.legendColor, { backgroundColor: '#e67e22' }]} />
               <Text style={styles.legendText}>Réservé</Text>
             </View>
@@ -776,12 +661,8 @@ const PropertyCalendarScreen: React.FC = () => {
               <Text style={styles.legendText}>Bloqué manuellement</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { borderWidth: 2, borderColor: '#3498db' }]} />
-              <Text style={styles.legendText}>Prix de base</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { borderWidth: 2, borderColor: '#2ecc71' }]} />
-              <Text style={styles.legendText}>Prix personnalisé</Text>
+              <View style={[styles.legendColor, { backgroundColor: '#9e9e9e' }]} />
+              <Text style={styles.legendText}>Date passée</Text>
             </View>
           </View>
         </View>
@@ -1224,6 +1105,44 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 8,
+  },
+  dayCellAvailable: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  dayTextAvailable: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  exportUrlContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  exportUrlText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#666',
+    marginRight: 8,
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 6,
+  },
+  copyButtonText: {
+    color: '#e67e22',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
