@@ -84,42 +84,37 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
 
     // Rechercher dans les villes
     cities.forEach(city => {
-      if (city.name.toLowerCase().includes(searchTerm) || 
-          city.region.toLowerCase().includes(searchTerm)) {
+      if (city.name.toLowerCase().includes(searchTerm)) {
         filteredResults.push({
           id: city.id,
           name: city.name,
-          type: 'city',
-          region: city.region
+          type: 'city'
         });
       }
     });
 
-    // Rechercher dans les quartiers
+    // Rechercher dans les quartiers et communes
     neighborhoods.forEach(neighborhood => {
-      if (neighborhood.name.toLowerCase().includes(searchTerm) || 
-          neighborhood.commune.toLowerCase().includes(searchTerm)) {
+      if (neighborhood.name.toLowerCase().includes(searchTerm)) {
         filteredResults.push({
           id: neighborhood.id,
           name: neighborhood.name,
-          type: 'neighborhood',
-          commune: neighborhood.commune,
-          city_id: neighborhood.city_id
+          type: neighborhood.type === 'commune' ? 'commune' : 'neighborhood',
+          commune: neighborhood.type === 'commune' ? neighborhood.name : undefined,
+          city_id: neighborhood.parent_id
         });
       }
     });
 
     // Créer des communes uniques
-    const communes = Array.from(new Set(
-      neighborhoods
-        .filter(n => n.commune.toLowerCase().includes(searchTerm))
-        .map(n => n.commune)
-    )).map(commune => ({
-      id: `commune-${commune}`,
-      name: commune,
-      type: 'commune' as const,
-      commune: commune
-    }));
+    const communes = neighborhoods
+      .filter(n => n.type === 'commune' && n.name.toLowerCase().includes(searchTerm))
+      .map(neighborhood => ({
+        id: neighborhood.id,
+        name: neighborhood.name,
+        type: 'commune' as const,
+        commune: neighborhood.name
+      }));
 
     filteredResults.push(...communes);
 
@@ -290,8 +285,10 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
                           <Text style={styles.resultName}>{item.name}</Text>
                           <Text style={styles.resultSubtitle}>
                             {item.type === 'city' 
-                              ? (item.region && item.region !== 'Non spécifiée' ? item.region : 'Côte d\'Ivoire')
-                              : `${item.commune} - Abidjan`
+                              ? 'Côte d\'Ivoire'
+                              : item.type === 'commune'
+                              ? 'Commune'
+                              : item.commune ? `${item.commune} - Abidjan` : 'Quartier'
                             }
                           </Text>
                         </View>

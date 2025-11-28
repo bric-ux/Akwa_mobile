@@ -4,8 +4,9 @@ import { supabase } from '../services/supabase';
 export interface Neighborhood {
   id: string;
   name: string;
-  commune: string;
-  city_id?: string;
+  commune?: string;
+  parent_id?: string;
+  type?: 'neighborhood' | 'commune';
 }
 
 export const useNeighborhoods = () => {
@@ -20,9 +21,9 @@ export const useNeighborhoods = () => {
         setError(null);
 
         const { data, error } = await supabase
-          .from("neighborhoods")
-          .select("id, name, commune, city_id")
-          .order("commune", { ascending: true })
+          .from("locations")
+          .select("id, name, type, parent_id")
+          .in("type", ["neighborhood", "commune"])
           .order("name", { ascending: true });
 
         if (error) {

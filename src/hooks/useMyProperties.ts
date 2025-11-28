@@ -22,11 +22,13 @@ export const useMyProperties = () => {
         .from('properties')
         .select(`
           *,
-          cities (
+          locations:location_id (
             id,
             name,
-            region,
-            country
+            type,
+            latitude,
+            longitude,
+            parent_id
           ),
           property_photos (
             id,

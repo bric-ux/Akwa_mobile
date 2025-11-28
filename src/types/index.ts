@@ -32,7 +32,16 @@ export interface Property {
   host_id: string;
   created_at: string;
   updated_at: string;
-  city_id?: string;
+  location_id?: string;
+  location?: {
+    id: string;
+    name: string;
+    type: 'country' | 'region' | 'city' | 'commune' | 'neighborhood';
+    latitude?: number;
+    longitude?: number;
+    parent_id?: string;
+  };
+  // Garder pour compatibilité avec l'ancien code
   cities?: {
     id: string;
     name: string;
@@ -40,7 +49,6 @@ export interface Property {
     latitude?: number;
     longitude?: number;
   };
-  neighborhood_id?: string;
   neighborhoods?: {
     id: string;
     name: string;

@@ -476,7 +476,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
           <View style={styles.propertyInfo}>
             <Text style={styles.propertyTitle}>{property.title}</Text>
             <Text style={styles.propertyLocation}>
-              📍 {property.cities?.name || property.location}
+              📍 {property.location?.name || property.locations?.name || property.location}
             </Text>
             <Text style={styles.propertyPrice}>
               {formatPrice(property.price_per_night || 0)}/{t('common.perNight')}

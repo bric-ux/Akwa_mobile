@@ -133,8 +133,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
 
     const validProps = properties.filter(
       (p) =>
-        (p.neighborhoods?.latitude || p.cities?.latitude) &&
-        (p.neighborhoods?.longitude || p.cities?.longitude)
+        (p.location?.latitude || p.locations?.latitude || p.latitude) &&
+        (p.location?.longitude || p.locations?.longitude || p.longitude)
     );
 
     if (validProps.length === 0) {
@@ -145,8 +145,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     }
 
     // Calculer les limites (min/max lat/lng)
-    const lats = validProps.map(p => p.neighborhoods?.latitude || p.cities?.latitude || 0);
-    const lngs = validProps.map(p => p.neighborhoods?.longitude || p.cities?.longitude || 0);
+    const lats = validProps.map(p => p.location?.latitude || p.locations?.latitude || p.latitude || 0);
+    const lngs = validProps.map(p => p.location?.longitude || p.locations?.longitude || p.longitude || 0);
     
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
@@ -178,13 +178,13 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   const createMapHTML = useCallback(() => {
     const validProperties = properties.filter(
       (p) =>
-        (p.neighborhoods?.latitude || p.cities?.latitude) &&
-        (p.neighborhoods?.longitude || p.cities?.longitude)
+        (p.location?.latitude || p.locations?.latitude || p.latitude) &&
+        (p.location?.longitude || p.locations?.longitude || p.longitude)
     );
 
     const markers = validProperties.map((property) => {
-      const lat = property.neighborhoods?.latitude || property.cities?.latitude || 0;
-      const lng = property.neighborhoods?.longitude || property.cities?.longitude || 0;
+      const lat = property.location?.latitude || property.locations?.latitude || property.latitude || 0;
+      const lng = property.location?.longitude || property.locations?.longitude || property.longitude || 0;
       // Utiliser le prix dynamique si disponible, sinon le prix de base
       const price = propertyPrices.get(property.id) || property.price_per_night || 0;
       const title = property.title || 'Propriété';
@@ -524,7 +524,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
             <View style={styles.propertyDetailContent}>
               <View style={styles.propertyDetailTitleRow}>
                 <Text style={styles.propertyDetailType}>
-                  {`${selectedProperty.property_type || 'Logement'} · ${selectedProperty.cities?.name || selectedProperty.neighborhoods?.name || ''}`}
+                  {`${selectedProperty.property_type || 'Logement'} · ${selectedProperty.location?.name || selectedProperty.locations?.name || ''}`}
                 </Text>
               </View>
               

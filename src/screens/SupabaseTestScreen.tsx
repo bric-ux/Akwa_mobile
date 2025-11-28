@@ -98,10 +98,13 @@ const SupabaseTestScreen: React.FC = () => {
         .from('properties')
         .select(`
           *,
-          cities:city_id (
+          locations:location_id (
             id,
             name,
-            region
+            type,
+            latitude,
+            longitude,
+            parent_id
           )
         `)
         .eq('id', testId)
@@ -118,7 +121,7 @@ const SupabaseTestScreen: React.FC = () => {
         addResult('✅ Propriété récupérée avec succès');
         addResult(`Titre: ${data.title}`);
         addResult(`Prix: ${data.price_per_night}`);
-        addResult(`Ville: ${data.cities?.name || 'Non définie'}`);
+        addResult(`Ville: ${data.location?.name || data.locations?.name || 'Non définie'}`);
       }
     } catch (error: any) {
       addResult(`❌ Erreur générale: ${error.message}`);

@@ -149,7 +149,7 @@ const AdminPropertiesScreen: React.FC = () => {
         <View style={styles.propertyDetails}>
           <Text style={styles.propertyTitle} numberOfLines={1}>{property.title}</Text>
           <Text style={styles.propertyLocation} numberOfLines={1}>
-            📍 {property.cities?.name || 'Inconnu'}
+            📍 {property.location?.name || property.locations?.name || 'Inconnu'}
           </Text>
           <Text style={styles.propertyHost} numberOfLines={1}>
             👤 {property.host_info?.first_name} {property.host_info?.last_name}

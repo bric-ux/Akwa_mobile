@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
@@ -26,6 +27,7 @@ import PropertyMap from '../components/PropertyMap';
 import { supabase } from '../services/supabase';
 import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useReviews, Review } from '../hooks/useReviews';
 import { useReviewResponses, ReviewResponse } from '../hooks/useReviewResponses';
 import ReviewResponseModal from '../components/ReviewResponseModal';
 
@@ -41,14 +43,15 @@ const PropertyDetailsScreen: React.FC = () => {
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { requireAuthForFavorites } = useAuthRedirect();
   const { hostProfile, getHostProfile } = useHostProfile();
+  const { getPropertyReviews, loading: reviewsLoading } = useReviews();
+  const { getReviewResponse } = useReviewResponses();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
-  const [reviewersProfiles, setReviewersProfiles] = useState<{[key: string]: string}>({});
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
-  const { getReviewResponse } = useReviewResponses();
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewResponses, setReviewResponses] = useState<Record<string, ReviewResponse>>({});
   const [selectedReviewForResponse, setSelectedReviewForResponse] = useState<string | null>(null);
   const [showResponseModal, setShowResponseModal] = useState(false);
@@ -75,15 +78,8 @@ const PropertyDetailsScreen: React.FC = () => {
           await getHostProfile(propertyData.host_id);
         }
 
-        // Charger les profils des reviewers
-        if (propertyData.reviews && propertyData.reviews.length > 0) {
-          console.log('🔄 Chargement des profils reviewers...');
-          await loadReviewersProfiles(propertyData.reviews);
-          // Charger les réponses de l'hôte pour chaque avis
-          await loadReviewResponses(propertyData.reviews);
-        } else {
-          console.log('⚠️ Aucun avis trouvé pour cette propriété');
-        }
+        // Charger les avis séparément comme dans le web (via useReviews)
+        await loadPropertyReviews(propertyData.id);
         
         // Vérifier si la propriété est en favoris
         if (user && propertyData) {
@@ -136,52 +132,36 @@ const PropertyDetailsScreen: React.FC = () => {
     loadTodayPrice();
   }, [property]); // Supprimer les autres dépendances pour éviter la boucle
 
-  // Fonction pour charger les profils des reviewers
-  const loadReviewResponses = async (reviews: any[]) => {
-    const responsesData: Record<string, ReviewResponse> = {};
-    for (const review of reviews) {
-      const response = await getReviewResponse(review.id);
-      if (response) {
-        responsesData[review.id] = response;
-      }
-    }
-    setReviewResponses(responsesData);
-  };
-
-  const loadReviewersProfiles = async (reviews: any[]) => {
+  // Charger les avis de la propriété séparément (comme dans le web)
+  const loadPropertyReviews = async (propertyId: string) => {
     try {
-      console.log('🔍 Reviews reçues:', reviews);
-      const reviewerIds = reviews.map(review => review.reviewer_id).filter(Boolean);
-      console.log('🔍 Reviewer IDs extraits:', reviewerIds);
+      console.log('🔄 [PropertyDetailsScreen] Chargement des avis pour la propriété:', propertyId);
+      // Charger les avis via useReviews (les RLS policies filtrent automatiquement)
+      const reviewsData = await getPropertyReviews(propertyId);
+      console.log('✅ [PropertyDetailsScreen] Avis chargés:', reviewsData.length, 'avis');
+      if (reviewsData.length > 0) {
+        console.log('✅ [PropertyDetailsScreen] Détails du premier avis:', {
+          id: reviewsData[0].id,
+          reviewer_name: reviewsData[0].reviewer_name,
+          rating: reviewsData[0].rating,
+          approved: reviewsData[0].approved
+        });
+      } else {
+        console.log('⚠️ [PropertyDetailsScreen] Aucun avis trouvé pour cette propriété');
+      }
+      setReviews(reviewsData);
       
-      if (reviewerIds.length === 0) {
-        console.log('⚠️ Aucun reviewer_id trouvé');
-        return;
+      // Charger les réponses de l'hôte pour chaque avis
+      const responsesData: Record<string, ReviewResponse> = {};
+      for (const review of reviewsData) {
+        const response = await getReviewResponse(review.id);
+        if (response) {
+          responsesData[review.id] = response;
+        }
       }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, first_name')
-        .in('user_id', reviewerIds);
-
-      if (error) {
-        console.error('❌ Erreur lors du chargement des profils reviewers:', error);
-        return;
-      }
-
-      console.log('🔍 Données profiles récupérées:', data);
-
-      // Créer un mapping reviewer_id -> first_name
-      const profilesMap: {[key: string]: string} = {};
-      data?.forEach(profile => {
-        console.log('🔍 Profile:', profile.user_id, '->', profile.first_name);
-        profilesMap[profile.user_id] = profile.first_name || 'Anonyme';
-      });
-
-      setReviewersProfiles(profilesMap);
-      console.log('✅ Profils reviewers chargés:', profilesMap);
-    } catch (error) {
-      console.error('❌ Erreur lors du chargement des profils reviewers:', error);
+      setReviewResponses(responsesData);
+    } catch (err) {
+      console.error('❌ Erreur lors du chargement des avis:', err);
     }
   };
 
@@ -284,7 +264,7 @@ const PropertyDetailsScreen: React.FC = () => {
         
         <View style={styles.locationContainer}>
           <Text style={styles.location}>
-            📍 {property.cities?.name || property.location}
+            📍 {property.location?.name || property.locations?.name || property.location}
           </Text>
         </View>
 
@@ -333,21 +313,53 @@ const PropertyDetailsScreen: React.FC = () => {
         )}
 
         {/* Avis et commentaires */}
-        {property.reviews && property.reviews.length > 0 && (
-          <View style={styles.section}>
+        <View style={styles.section}>
+          <View style={styles.reviewsHeader}>
             <Text style={styles.sectionTitle}>{t('property.reviews')}</Text>
+            {reviews.length > 0 && (
+              <View style={styles.averageRatingContainer}>
+                <View style={styles.starsContainer}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Text key={star} style={[
+                      styles.averageStar,
+                      star <= Math.round(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) 
+                        ? styles.averageStarFilled 
+                        : styles.averageStarEmpty
+                    ]}>
+                      ⭐
+                    </Text>
+                  ))}
+                </View>
+                <Text style={styles.averageRatingText}>
+                  {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}
+                </Text>
+                <Text style={styles.reviewCountText}>
+                  ({reviews.length} {t('property.reviews')})
+                </Text>
+              </View>
+            )}
+          </View>
+          
+          {reviewsLoading ? (
+            <View style={styles.reviewsLoadingContainer}>
+              <ActivityIndicator size="small" color="#2E7D32" />
+              <Text style={styles.reviewsLoadingText}>{t('common.loading')}</Text>
+            </View>
+          ) : reviews.length === 0 ? (
+            <View style={styles.noReviewsContainer}>
+              <Text style={styles.noReviewsIcon}>⭐</Text>
+              <Text style={styles.noReviewsText}>
+                {t('property.noReviews') || 'Aucun avis pour le moment. Soyez le premier à laisser un avis !'}
+              </Text>
+            </View>
+          ) : (
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.reviewsScrollContainer}
             >
-              {property.reviews.map((review, index) => {
-              const reviewerName = reviewersProfiles[review.reviewer_id] || 'Anonyme';
-              console.log('🔍 Affichage avis:', {
-                reviewer_id: review.reviewer_id,
-                reviewerName,
-                profilesMap: reviewersProfiles
-              });
+              {reviews.map((review, index) => {
+              const reviewerName = review.reviewer_name || 'Utilisateur';
               
               const reviewResponse = reviewResponses[review.id];
               
@@ -445,8 +457,8 @@ const PropertyDetailsScreen: React.FC = () => {
               );
             })}
             </ScrollView>
-          </View>
-        )}
+          )}
+        </View>
 
         {/* Équipements */}
         {property.amenities && property.amenities.length > 0 ? (
@@ -605,11 +617,11 @@ const PropertyDetailsScreen: React.FC = () => {
 
         {/* Localisation sur la carte */}
         <PropertyMap
-          latitude={property.neighborhoods?.latitude || property.cities?.latitude}
-          longitude={property.neighborhoods?.longitude || property.cities?.longitude}
+          latitude={property.location?.latitude || property.latitude || property.locations?.latitude}
+          longitude={property.location?.longitude || property.longitude || property.locations?.longitude}
           locationName={property.location}
-          cityName={property.cities?.name}
-          neighborhoodName={property.neighborhoods?.name}
+          cityName={property.location?.type === 'city' ? property.location?.name : undefined}
+          neighborhoodName={property.location?.type === 'neighborhood' ? property.location?.name : property.location?.type === 'commune' ? property.location?.name : undefined}
         />
 
         {/* Boutons d'action */}
@@ -647,8 +659,8 @@ const PropertyDetailsScreen: React.FC = () => {
         reviewId={selectedReviewForResponse || ''}
         existingResponse={selectedReviewForResponse ? reviewResponses[selectedReviewForResponse]?.response : null}
         onResponseSubmitted={async () => {
-          if (property?.reviews) {
-            await loadReviewResponses(property.reviews);
+          if (property?.id) {
+            await loadPropertyReviews(property.id);
           }
         }}
       />
@@ -1027,6 +1039,39 @@ const styles = StyleSheet.create({
     borderLeftColor: '#2E7D32',
     marginTop: 8,
   },
+  reviewsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  averageRatingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  averageStar: {
+    fontSize: 14,
+  },
+  averageStarFilled: {
+    color: '#ffc107',
+  },
+  averageStarEmpty: {
+    color: '#e9ecef',
+  },
+  averageRatingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  reviewCountText: {
+    fontSize: 14,
+    color: '#6c757d',
+  },
   reviewsScrollContainer: {
     paddingRight: 20,
   },
@@ -1099,6 +1144,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#2E7D32',
     fontWeight: '500',
+  },
+  reviewsLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  reviewsLoadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  noReviewsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  noReviewsIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  noReviewsText: {
+    fontSize: 16,
+    color: '#6c757d',
+    textAlign: 'center',
   },
 });
 

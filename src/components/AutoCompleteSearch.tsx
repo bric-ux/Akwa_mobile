@@ -89,8 +89,9 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
 
       // Recherche dans les villes de la base de données
       const { data: cities, error } = await supabase
-        .from('cities')
-        .select('id, name, region')
+        .from('locations')
+        .select('id, name, type')
+        .eq('type', 'city')
         .ilike('name', `%${searchQuery}%`)
         .limit(5);
 
@@ -101,26 +102,24 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
             text: city.name,
             type: 'city',
             icon: 'location-outline',
-            subtitle: `${city.region} • Ville`,
+            subtitle: 'Ville',
           });
         });
       }
 
-      // Recherche dans les communes (priorité avant les quartiers)
+      // Recherche dans les communes
       const { data: communes, error: communesError } = await supabase
-        .from('neighborhoods')
-        .select('commune')
-        .ilike('commune', `%${searchQuery}%`)
+        .from('locations')
+        .select('id, name, type')
+        .eq('type', 'commune')
+        .ilike('name', `%${searchQuery}%`)
         .limit(5);
 
       if (!communesError && communes) {
-        // Éviter les doublons de communes en utilisant un Set
-        const uniqueCommunes = [...new Set(communes.map(c => c.commune))];
-        
-        uniqueCommunes.forEach((communeName, index) => {
+        communes.forEach((commune) => {
           suggestions.push({
-            id: `commune_${index}`,
-            text: communeName,
+            id: `commune_${commune.id}`,
+            text: commune.name,
             type: 'commune',
             icon: 'location-outline',
             subtitle: 'Commune',
@@ -130,19 +129,39 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
 
       // Recherche dans les quartiers
       const { data: neighborhoods, error: neighborhoodsError } = await supabase
-        .from('neighborhoods')
-        .select('id, name, commune')
+        .from('locations')
+        .select('id, name, type, parent_id')
+        .eq('type', 'neighborhood')
         .ilike('name', `%${searchQuery}%`)
         .limit(5);
 
       if (!neighborhoodsError && neighborhoods) {
+        // Récupérer les noms des communes parentes pour l'affichage
+        const parentIds = neighborhoods.map(n => n.parent_id).filter(Boolean);
+        let parentNames: { [key: string]: string } = {};
+        
+        if (parentIds.length > 0) {
+          const { data: parents } = await supabase
+            .from('locations')
+            .select('id, name')
+            .in('id', parentIds);
+          
+          if (parents) {
+            parentNames = parents.reduce((acc, p) => {
+              acc[p.id] = p.name;
+              return acc;
+            }, {} as { [key: string]: string });
+          }
+        }
+        
         neighborhoods.forEach((neighborhood) => {
+          const communeName = neighborhood.parent_id ? parentNames[neighborhood.parent_id] : '';
           suggestions.push({
             id: `neighborhood_${neighborhood.id}`,
             text: neighborhood.name,
             type: 'neighborhood',
             icon: 'home-outline',
-            subtitle: `${neighborhood.commune} • Quartier`,
+            subtitle: communeName ? `${communeName} • Quartier` : 'Quartier',
           });
         });
       }
@@ -150,8 +169,8 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       // Recherche dans les propriétés
       const { data: properties, error: propertiesError } = await supabase
         .from('properties')
-        .select('id, title, city')
-        .or(`title.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`)
+        .select('id, title, locations:location_id(name)')
+        .or(`title.ilike.%${searchQuery}%`)
         .limit(3);
 
       if (!propertiesError && properties) {
@@ -161,7 +180,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
             text: property.title,
             type: 'property',
             icon: 'home-outline',
-            subtitle: property.city || 'Propriété',
+            subtitle: property.locations?.name || 'Propriété',
           });
         });
       }

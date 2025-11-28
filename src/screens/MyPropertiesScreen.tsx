@@ -176,7 +176,7 @@ const MyPropertiesScreen: React.FC = () => {
         <View style={styles.propertyDetails}>
           <Text style={styles.propertyTitle} numberOfLines={1}>{property.title}</Text>
           <Text style={styles.propertyLocation} numberOfLines={1}>
-            📍 {property.cities?.name || t('common.unknown')}
+            📍 {property.location?.name || property.locations?.name || t('common.unknown')}
           </Text>
           <View style={styles.propertySpecs}>
             <Text style={styles.specText}>👥 {property.max_guests}</Text>

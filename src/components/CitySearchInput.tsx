@@ -58,8 +58,7 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
           setSelectedResult({
             id: cityMatch.id,
             name: cityMatch.name,
-            type: 'city',
-            region: cityMatch.region
+            type: 'city'
           });
           return;
         }
@@ -71,9 +70,9 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
           setSelectedResult({
             id: neighborhoodMatch.id,
             name: neighborhoodMatch.name,
-            type: 'neighborhood',
-            commune: neighborhoodMatch.commune,
-            city_id: neighborhoodMatch.city_id
+            type: neighborhoodMatch.type === 'commune' ? 'commune' : 'neighborhood',
+            commune: neighborhoodMatch.type === 'commune' ? neighborhoodMatch.name : undefined,
+            city_id: neighborhoodMatch.parent_id
           });
           return;
         }
@@ -114,41 +113,36 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
 
     // Filtrer les villes
     const filteredCities = cities.filter(city => 
-      city.name.toLowerCase().includes(searchLower) ||
-      city.region.toLowerCase().includes(searchLower)
+      city.name.toLowerCase().includes(searchLower)
     ).map(city => ({
       id: city.id,
       name: city.name,
-      type: 'city' as const,
-      region: city.region
+      type: 'city' as const
     }));
 
     // Filtrer les quartiers et communes
     const filteredNeighborhoods = neighborhoods.filter(neighborhood => 
-      neighborhood.name.toLowerCase().includes(searchLower) ||
-      neighborhood.commune.toLowerCase().includes(searchLower)
+      neighborhood.name.toLowerCase().includes(searchLower)
     ).map(neighborhood => ({
       id: neighborhood.id,
       name: neighborhood.name,
-      type: 'neighborhood' as const,
-      commune: neighborhood.commune,
-      city_id: neighborhood.city_id
+      type: (neighborhood.type === 'commune' ? 'commune' : 'neighborhood') as const,
+      commune: neighborhood.type === 'commune' ? neighborhood.name : undefined,
+      city_id: neighborhood.parent_id
     }));
 
     // Créer des résultats uniques pour les communes
-    const communeResults = Array.from(
-      new Set(neighborhoods
-        .filter(neighborhood => 
-          neighborhood.commune.toLowerCase().includes(searchLower)
-        )
-        .map(neighborhood => neighborhood.commune)
+    const communeResults = neighborhoods
+      .filter(neighborhood => 
+        neighborhood.type === 'commune' && 
+        neighborhood.name.toLowerCase().includes(searchLower)
       )
-    ).map(commune => ({
-      id: `commune-${commune}`,
-      name: commune,
-      type: 'commune' as const,
-      commune: commune
-    }));
+      .map(neighborhood => ({
+        id: neighborhood.id,
+        name: neighborhood.name,
+        type: 'commune' as const,
+        commune: neighborhood.name
+      }));
 
     // Combiner et trier les résultats
     results.push(...filteredCities, ...communeResults, ...filteredNeighborhoods);
@@ -341,8 +335,10 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
                       <Text style={styles.resultName}>{item.name}</Text>
                       <Text style={styles.resultSubtitle}>
                         {item.type === 'city' 
-                          ? (item.region && item.region !== 'Non spécifiée' ? item.region : 'Côte d\'Ivoire')
-                          : `${item.commune} - Abidjan`
+                          ? 'Côte d\'Ivoire'
+                          : item.type === 'commune'
+                          ? 'Commune'
+                          : item.commune ? `${item.commune} - Abidjan` : 'Quartier'
                         }
                       </Text>
                     </View>
@@ -388,10 +384,10 @@ const CitySearchInput: React.FC<CitySearchInputProps> = ({
             <Text style={styles.selectedResultText}>
               Sélectionné: <Text style={styles.selectedResultName}>{selectedResult.name}</Text> - {
                 selectedResult.type === 'city' 
-                  ? (selectedResult.region && selectedResult.region !== 'Non spécifiée' ? selectedResult.region : 'Côte d\'Ivoire')
-                  : selectedResult.name === selectedResult.commune 
-                    ? 'Abidjan' 
-                    : `${selectedResult.commune} - Abidjan`
+                  ? 'Côte d\'Ivoire'
+                  : selectedResult.type === 'commune'
+                  ? 'Commune'
+                  : selectedResult.commune ? `${selectedResult.commune} - Abidjan` : 'Quartier'
               }
             </Text>
           </View>

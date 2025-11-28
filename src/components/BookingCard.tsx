@@ -138,7 +138,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
               {booking.properties?.title || 'Propriété non trouvée'}
             </Text>
             <Text style={styles.propertyLocation}>
-              📍 {booking.properties?.cities?.name || 'Localisation inconnue'}
+              📍 {booking.properties?.location?.name || booking.properties?.locations?.name || 'Localisation inconnue'}
             </Text>
             <View style={styles.dateContainer}>
               <Text style={styles.dateText}>

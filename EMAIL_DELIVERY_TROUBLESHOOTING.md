@@ -131,3 +131,11 @@ Même si le domaine est marqué "Verified" dans Resend, cela ne signifie pas que
 
 
 
+
+
+
+
+
+
+
+

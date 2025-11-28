@@ -19,17 +19,17 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     if (properties.length === 0) return { lat: 7.5399, lng: -5.5471 }; // Côte d'Ivoire par défaut
 
     const validProps = properties.filter(p => 
-      (p.neighborhoods?.latitude || p.cities?.latitude) && 
-      (p.neighborhoods?.longitude || p.cities?.longitude)
+      (p.location?.latitude || p.locations?.latitude || p.latitude) && 
+      (p.location?.longitude || p.locations?.longitude || p.longitude)
     );
 
     if (validProps.length === 0) return { lat: 7.5399, lng: -5.5471 };
 
     const lat = validProps.reduce((sum, p) => 
-      sum + (p.neighborhoods?.latitude || p.cities?.latitude || 0), 0) / validProps.length;
+      sum + (p.location?.latitude || p.locations?.latitude || p.latitude || 0), 0) / validProps.length;
     
     const lng = validProps.reduce((sum, p) => 
-      sum + (p.neighborhoods?.longitude || p.cities?.longitude || 0), 0) / validProps.length;
+      sum + (p.location?.longitude || p.locations?.longitude || p.longitude || 0), 0) / validProps.length;
 
     return { lat, lng };
   };
@@ -46,8 +46,8 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     console.log('💰 Devise actuelle:', currency, currencySymbol);
     
     const validProperties = properties.filter(p => {
-      const hasCoords = (p.neighborhoods?.latitude || p.cities?.latitude) && 
-                       (p.neighborhoods?.longitude || p.cities?.longitude);
+      const hasCoords = (p.location?.latitude || p.locations?.latitude || p.latitude) && 
+                       (p.location?.longitude || p.locations?.longitude || p.longitude);
       if (!hasCoords) {
         console.log('⚠️ Propriété sans coordonnées:', p.title, {
           neighborhoods: p.neighborhoods,
@@ -60,8 +60,8 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     console.log('🗺️ Propriétés avec coordonnées:', validProperties.length);
     
     const markers = validProperties.map((property, index) => {
-        const lat = property.neighborhoods?.latitude || property.cities?.latitude || 0;
-        const lng = property.neighborhoods?.longitude || property.cities?.longitude || 0;
+        const lat = property.location?.latitude || property.locations?.latitude || property.latitude || 0;
+        const lng = property.location?.longitude || property.locations?.longitude || property.longitude || 0;
         const price = property.price_per_night || 0;
         const title = property.title || 'Propriété';
         
@@ -251,7 +251,7 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
           <Text style={styles.propertyPrice}>
             {formatPrice(selectedProperty.price_per_night)}/nuit
           </Text>
-          {selectedProperty.cities?.name && (
+          {(selectedProperty.location?.name || selectedProperty.locations?.name) && (
             <Text style={styles.propertyLocation}>
               📍 {selectedProperty.cities.name}
             </Text>

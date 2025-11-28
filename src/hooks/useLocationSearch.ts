@@ -113,35 +113,37 @@ export const useLocationSearch = () => {
             id: neighborhood.id,
             name: neighborhood.name,
             type: 'neighborhood' as const,
-            commune: neighborhood.commune,
-            city_id: neighborhood.city_id,
+            commune: neighborhood.type === 'commune' ? neighborhood.name : undefined,
+            city_id: neighborhood.parent_id,
             score
           });
         }
       });
 
       // Recherche intelligente dans les communes avec score
-      const communeMap = new Map<string, { score: number; neighborhood: any }>();
+      const communeMap = new Map<string, { score: number; location: any }>();
       
-      neighborhoods.forEach(neighborhood => {
-        const communeScore = calculateRelevanceScore({ name: neighborhood.commune }, query, 'commune');
-        if (communeScore > 0) {
-          const communeName = neighborhood.commune;
-          // Garder le meilleur score pour chaque commune
-          if (!communeMap.has(communeName) || communeMap.get(communeName)!.score < communeScore) {
-            communeMap.set(communeName, { score: communeScore, neighborhood });
+      neighborhoods.forEach(location => {
+        if (location.type === 'commune') {
+          const communeScore = calculateRelevanceScore(location, query, 'commune');
+          if (communeScore > 0) {
+            const communeName = location.name;
+            // Garder le meilleur score pour chaque commune
+            if (!communeMap.has(communeName) || communeMap.get(communeName)!.score < communeScore) {
+              communeMap.set(communeName, { score: communeScore, location });
+            }
           }
         }
       });
 
       // Ajouter les communes uniques avec leur meilleur score
-      communeMap.forEach(({ score, neighborhood }) => {
+      communeMap.forEach(({ score, location }) => {
         results.push({
-          id: `commune_${neighborhood.id}`,
-          name: neighborhood.commune,
+          id: location.id,
+          name: location.name,
           type: 'commune' as const,
-          commune: neighborhood.commune,
-          city_id: neighborhood.city_id,
+          commune: location.name,
+          city_id: location.parent_id,
           score
         });
       });
@@ -183,10 +185,11 @@ export const useLocationSearch = () => {
     setError(null);
 
     try {
-      // Récupérer simplement les villes disponibles (sans tri par propriétés pour éviter l'erreur SQL)
+      // Récupérer simplement les villes disponibles
       const { data, error } = await supabase
-        .from('cities')
-        .select('id, name, region')
+        .from('locations')
+        .select('id, name')
+        .eq('type', 'city')
         .limit(8);
 
       if (error) {
@@ -198,7 +201,6 @@ export const useLocationSearch = () => {
         id: city.id,
         name: city.name,
         type: 'city' as const,
-        region: city.region,
       }));
 
     } catch (err: any) {

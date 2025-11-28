@@ -309,7 +309,7 @@ const HostBookingsScreen: React.FC = () => {
               )}
             </View>
             <Text style={styles.propertyLocation}>
-              {item.properties?.cities?.name || t('hostBookings.unknownLocation')}
+              {item.properties?.location?.name || item.properties?.locations?.name || t('hostBookings.unknownLocation')}
             </Text>
           </View>
         </View>

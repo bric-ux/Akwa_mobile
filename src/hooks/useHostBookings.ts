@@ -220,8 +220,8 @@ export const useHostBookings = () => {
             property: {
               title: bookingData.properties.title,
               address: bookingData.properties.address || '',
-              city_name: bookingData.properties.cities?.name || '',
-              city_region: bookingData.properties.cities?.region || '',
+              city_name: bookingData.properties.location?.name || bookingData.properties.locations?.name || '',
+              city_region: bookingData.properties.location?.type === 'city' ? bookingData.properties.location?.name : '',
               price_per_night: bookingData.properties.price_per_night || 0,
               cleaning_fee: bookingData.properties.cleaning_fee || 0,
               service_fee: bookingData.properties.service_fee || 0,

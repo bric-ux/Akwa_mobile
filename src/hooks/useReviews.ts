@@ -25,8 +25,9 @@ export const useReviews = () => {
     setError(null);
 
     try {
-      // Récupérer uniquement les avis approuvés par l'admin
-      // Les RLS policies filtrent déjà, mais on ajoute le filtre explicite pour être sûr
+      // Récupérer les avis (les RLS policies filtrent automatiquement pour ne montrer que les avis approuvés)
+      // Comme dans le web, on laisse les RLS policies gérer le filtrage
+      console.log('🔍 [useReviews] Chargement des avis pour propertyId:', propertyId);
       const { data, error } = await supabase
         .from('reviews')
         .select(`
@@ -34,12 +35,22 @@ export const useReviews = () => {
           profiles!reviewer_id(first_name, last_name)
         `)
         .eq('property_id', propertyId)
-        .eq('approved', true)
         .order('created_at', { ascending: false });
 
       if (error) {
+        console.error('❌ [useReviews] Erreur Supabase:', error);
         setError('Erreur lors du chargement des avis');
         return [];
+      }
+
+      console.log('📊 [useReviews] Données brutes récupérées:', data?.length || 0, 'avis');
+      if (data && data.length > 0) {
+        console.log('📊 [useReviews] Premier avis:', {
+          id: data[0].id,
+          approved: data[0].approved,
+          rating: data[0].rating,
+          reviewer_id: data[0].reviewer_id
+        });
       }
 
       return (data || []).map((review: any) => ({

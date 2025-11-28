@@ -126,7 +126,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             </Text>
             
             <Text style={styles.cardLocation} numberOfLines={1}>
-              📍 {property.cities?.name || property.location}
+              📍 {property.location?.name || property.locations?.name || property.location}
             </Text>
             
             <Text style={styles.cardRating}>
@@ -189,7 +189,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             </Text>
             
             <Text style={styles.location} numberOfLines={1}>
-              📍 {property.cities?.name || property.location}
+              📍 {property.location?.name || property.locations?.name || property.location}
             </Text>
             
             {/* Description courte */}

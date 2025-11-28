@@ -52,9 +52,13 @@ const PropertyManagementScreen: React.FC = () => {
         .from('properties')
         .select(`
           *,
-          cities:city_id (
+          locations:location_id (
             id,
-            name
+            name,
+            type,
+            latitude,
+            longitude,
+            parent_id
           ),
           property_photos (
             id,

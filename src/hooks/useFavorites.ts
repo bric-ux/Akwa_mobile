@@ -134,15 +134,13 @@ export const useFavorites = () => {
           *,
           properties:property_id (
             *,
-            cities:city_id (
+            locations:location_id (
               id,
               name,
-              region
-            ),
-            neighborhoods:neighborhood_id (
-              id,
-              name,
-              commune
+              type,
+              latitude,
+              longitude,
+              parent_id
             ),
             property_photos (
               id,

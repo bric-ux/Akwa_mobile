@@ -3,6 +3,36 @@ import { supabase } from '../services/supabase';
 import { Property, SearchFilters, Amenity } from '../types';
 import { getAmenityIcon } from '../utils/amenityIcons';
 
+// Fonction helper pour calculer rating et review_count depuis les avis approuvés
+const calculateRatingFromReviews = async (propertyId: string): Promise<{ rating: number; review_count: number }> => {
+  try {
+    const { data: reviews, error } = await supabase
+      .from('reviews')
+      .select('rating, approved')
+      .eq('property_id', propertyId)
+      .eq('approved', true);
+
+    if (error) {
+      console.error('❌ Erreur lors du calcul du rating:', error);
+      return { rating: 0, review_count: 0 };
+    }
+
+    const approvedReviews = reviews || [];
+    const reviewCount = approvedReviews.length;
+    const rating = reviewCount > 0
+      ? approvedReviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
+      : 0;
+
+    return {
+      rating: Math.round(rating * 100) / 100,
+      review_count: reviewCount
+    };
+  } catch (err) {
+    console.error('❌ Erreur lors du calcul du rating:', err);
+    return { rating: 0, review_count: 0 };
+  }
+};
+
 export const useProperties = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,28 +89,78 @@ export const useProperties = () => {
         return;
       }
 
-      // Query properties with cities - seulement les propriétés actives et non masquées
+      // Récupérer les location_ids à filtrer
+      let locationIds: string[] | null = null;
+      
+      // Recherche par ville
+      if (filters?.city) {
+        const searchTerm = filters.city.trim();
+        const { data: cityData } = await supabase
+          .from('locations')
+          .select('id')
+          .eq('type', 'city')
+          .ilike('name', `%${searchTerm}%`);
+        
+        if (cityData && cityData.length > 0) {
+          // Récupérer tous les enfants (communes, quartiers) de ces villes
+          const cityIds = cityData.map(c => c.id);
+          const { data: childLocations } = await supabase
+            .from('locations')
+            .select('id')
+            .in('parent_id', cityIds);
+          
+          // Inclure les villes ET leurs enfants
+          locationIds = [...cityIds, ...(childLocations || []).map(l => l.id)];
+        } else {
+          // Chercher dans les communes
+          const { data: communeData } = await supabase
+            .from('locations')
+            .select('id, type, parent_id')
+            .eq('type', 'commune')
+            .ilike('name', `%${searchTerm}%`);
+          
+          if (communeData && communeData.length > 0) {
+            const communeIds = communeData.map(c => c.id);
+            const { data: childLocations } = await supabase
+              .from('locations')
+              .select('id')
+              .in('parent_id', communeIds);
+            
+            locationIds = [...communeIds, ...(childLocations || []).map(l => l.id)];
+          } else {
+            // Chercher dans les quartiers
+            const { data: neighborhoodData } = await supabase
+              .from('locations')
+              .select('id')
+              .eq('type', 'neighborhood')
+              .ilike('name', `%${searchTerm}%`);
+            
+            if (neighborhoodData && neighborhoodData.length > 0) {
+              locationIds = neighborhoodData.map(l => l.id);
+            }
+          }
+        }
+        
+        if (!locationIds || locationIds.length === 0) {
+          console.log(`⚠️ Aucune location trouvée pour "${searchTerm}"`);
+          setProperties([]);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Query properties avec nouvelle structure locations
       let query = supabase
         .from('properties')
         .select(`
           *,
-          cities:city_id (
+          locations:location_id (
             id,
             name,
-            region,
+            type,
             latitude,
-            longitude
-          ),
-          neighborhoods:neighborhood_id (
-            id,
-            name,
-            commune,
-            latitude,
-            longitude
-          ),
-          reviews!property_id (
-            rating,
-            created_at
+            longitude,
+            parent_id
           ),
           property_photos (
             id,
@@ -93,82 +173,11 @@ export const useProperties = () => {
         .eq('is_active', true)
         .eq('is_hidden', false);
 
-      // Appliquer les filtres côté serveur
-      if (filters?.city) {
-        const searchTerm = filters.city.trim();
-        
-        // D'abord, chercher dans les villes
-        const { data: cityExists } = await supabase
-          .from('cities')
-          .select('id, name')
-          .ilike('name', searchTerm)
-          .single();
-        
-        let cityId = cityExists?.id;
-        
-        if (!cityId) {
-          // Chercher directement dans les communes (priorité avant les quartiers)
-          const { data: communeExists } = await supabase
-            .from('neighborhoods')
-            .select('city_id, name, commune')
-            .ilike('commune', searchTerm)
-            .single();
-          
-          if (communeExists) {
-            cityId = communeExists.city_id;
-            console.log(`✅ Commune trouvée: "${communeExists.commune}" pour la recherche "${searchTerm}"`);
-          }
-        }
-        
-        if (!cityId) {
-          // Chercher dans les quartiers (nom du quartier)
-          const { data: neighborhoodExists } = await supabase
-            .from('neighborhoods')
-            .select('city_id, name, commune')
-            .ilike('name', searchTerm)
-            .single();
-          
-          if (neighborhoodExists) {
-            cityId = neighborhoodExists.city_id;
-            console.log(`✅ Quartier trouvé: "${neighborhoodExists.name}" (${neighborhoodExists.commune}) pour la recherche "${searchTerm}"`);
-          }
-        }
-        
-        if (cityExists) {
-          console.log(`✅ Ville trouvée: "${cityExists.name}" pour la recherche "${searchTerm}"`);
-        }
-        
-        if (!cityId) {
-          console.log(`⚠️ Aucune ville, quartier ou commune trouvé pour "${searchTerm}"`);
-          setProperties([]);
-          setLoading(false);
-          return;
-        }
-        
+      // Appliquer le filtre location_id si présent
+      if (locationIds && locationIds.length > 0) {
         query = query
-          .select(`
-            *,
-            cities!inner(id, name, region, latitude, longitude),
-            neighborhoods:neighborhood_id (
-              id,
-              name,
-              commune,
-              latitude,
-              longitude
-            ),
-            reviews!property_id (
-              rating,
-              created_at
-            ),
-            property_photos (
-              id,
-              url,
-              category,
-              display_order,
-              created_at
-            )
-          `)
-          .eq('cities.id', cityId);
+          .in('location_id', locationIds)
+          .not('location_id', 'is', null);
       }
 
       if (filters?.guests) {
@@ -242,15 +251,13 @@ export const useProperties = () => {
           
           // Calculer la vraie moyenne des avis et le nombre d'avis
           // Filtrer uniquement les avis approuvés par l'admin
-          const reviews = (property.reviews || []).filter((review: any) => review.approved === true);
-          const reviewCount = reviews.length;
-          const averageRating = reviewCount > 0 
-            ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviewCount 
-            : 0;
-
-          // Si on a des avis calculés en base, les utiliser en priorité
-          const finalRating = property.rating && property.review_count ? property.rating : averageRating;
-          const finalReviewCount = property.review_count || reviewCount;
+          // Calculer dynamiquement rating et review_count depuis les avis approuvés
+          // pour garantir que les valeurs sont toujours à jour dans l'overview
+          const calculatedRating = await calculateRatingFromReviews(property.id);
+          
+          // Utiliser les valeurs calculées (ou celles de la DB si elles sont plus récentes)
+          const finalRating = calculatedRating.rating || property.rating || 0;
+          const finalReviewCount = calculatedRating.review_count || property.review_count || 0;
 
 
           // Traiter les photos catégorisées
@@ -281,6 +288,11 @@ export const useProperties = () => {
             });
           }
 
+          // Extraire les coordonnées de location
+          const location = (property as any).locations;
+          const latitude = location?.latitude || property.latitude;
+          const longitude = location?.longitude || property.longitude;
+
           const transformedProperty = {
             ...property,
             images: finalImages, // Pour compatibilité avec l'ancien système
@@ -289,7 +301,21 @@ export const useProperties = () => {
             rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
             review_count: finalReviewCount, // Nombre d'avis final
             amenities: allAmenities,
-            custom_amenities: property.custom_amenities || []
+            custom_amenities: property.custom_amenities || [],
+            // Extraire et mapper location
+            location: location ? {
+              id: location.id,
+              name: location.name,
+              type: location.type,
+              latitude: location.latitude,
+              longitude: location.longitude,
+              parent_id: location.parent_id
+            } : undefined,
+            // Extraire les coordonnées directement sur la propriété pour compatibilité
+            latitude: latitude,
+            longitude: longitude,
+            // Garder locations pour compatibilité
+            locations: location
           };
 
           // Log pour déboguer les images
@@ -336,26 +362,13 @@ export const useProperties = () => {
         .from('properties')
         .select(`
           *,
-          cities:city_id (
+          locations:location_id (
             id,
             name,
-            region,
+            type,
             latitude,
-            longitude
-          ),
-          neighborhoods:neighborhood_id (
-            id,
-            name,
-            commune,
-            latitude,
-            longitude
-          ),
-          reviews!property_id (
-            rating,
-            comment,
-            created_at,
-            reviewer_id,
-            approved
+            longitude,
+            parent_id
           ),
           property_photos (
             id,
@@ -379,18 +392,19 @@ export const useProperties = () => {
       }
 
       console.log('✅ Propriété trouvée:', data.title, '- Active:', data.is_active, '- Masquée:', data.is_hidden);
+      console.log('📊 Rating et review_count depuis la DB:', {
+        rating: data.rating,
+        review_count: data.review_count
+      });
 
-      // Calculer la vraie moyenne des avis et le nombre d'avis
-      // Filtrer uniquement les avis approuvés par l'admin
-      const reviews = (data.reviews || []).filter((review: any) => review.approved === true);
-      const averageRating = reviews.length > 0 
-        ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length 
-        : 0;
-      const reviewCount = reviews.length;
-
-      // Si on a des avis calculés en base, les utiliser en priorité
-      const finalRating = data.rating && data.review_count ? data.rating : averageRating;
-      const finalReviewCount = data.review_count || reviewCount;
+      // Calculer dynamiquement rating et review_count depuis les avis approuvés
+      // pour garantir que les valeurs sont toujours à jour
+      const calculatedRating = await calculateRatingFromReviews(data.id);
+      console.log('📊 Rating calculé depuis les avis:', calculatedRating);
+      
+      // Utiliser les valeurs calculées (ou celles de la DB si elles sont plus récentes)
+      const finalRating = calculatedRating.rating || data.rating || 0;
+      const finalReviewCount = calculatedRating.review_count || data.review_count || 0;
 
       // Traiter les photos catégorisées
       const categorizedPhotos = data.property_photos || [];
@@ -414,15 +428,44 @@ export const useProperties = () => {
         : [];
       const allAmenities = [...mappedAmenities, ...customAmenitiesList];
       
+      // Extraire les coordonnées de location
+      const location = (data as any).locations;
+      const latitude = location?.latitude || data.latitude;
+      const longitude = location?.longitude || data.longitude;
+      
+      // Debug pour vérifier les coordonnées
+      if (!latitude && !longitude) {
+        console.log(`⚠️ [getPropertyById] Propriété "${data.title}" sans coordonnées:`, {
+          hasLocation: !!location,
+          locationData: location,
+          propertyLatitude: data.latitude,
+          propertyLongitude: data.longitude
+        });
+      }
+
       const transformedData = {
         ...data,
         images: finalImages, // Pour compatibilité avec l'ancien système
         photos: sortedPhotos, // Nouveau système de photos catégorisées
         price_per_night: data.price_per_night || Math.floor(Math.random() * 50000) + 10000,
-        rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
-        review_count: finalReviewCount, // Nombre d'avis final
+        rating: finalRating > 0 ? Math.round(finalRating * 100) / 100 : 0, // Note finale depuis la DB (mise à jour par trigger)
+        review_count: finalReviewCount, // Nombre d'avis final depuis la DB (mise à jour par trigger)
         amenities: allAmenities,
-        custom_amenities: data.custom_amenities || []
+        custom_amenities: data.custom_amenities || [],
+        // Extraire et mapper location
+        location: location ? {
+          id: location.id,
+          name: location.name,
+          type: location.type,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          parent_id: location.parent_id
+        } : undefined,
+        // Extraire les coordonnées directement sur la propriété pour compatibilité
+        latitude: latitude,
+        longitude: longitude,
+        // Garder locations pour compatibilité
+        locations: location
       };
 
       console.log('✅ Propriété transformée:', transformedData.title);
@@ -463,28 +506,78 @@ export const useProperties = () => {
         return newCache;
       });
 
-      // Query properties with cities - seulement les propriétés actives et non masquées
+      // Récupérer les location_ids à filtrer
+      let locationIds: string[] | null = null;
+      
+      // Recherche par ville
+      if (filters?.city) {
+        const searchTerm = filters.city.trim();
+        const { data: cityData } = await supabase
+          .from('locations')
+          .select('id')
+          .eq('type', 'city')
+          .ilike('name', `%${searchTerm}%`);
+        
+        if (cityData && cityData.length > 0) {
+          // Récupérer tous les enfants (communes, quartiers) de ces villes
+          const cityIds = cityData.map(c => c.id);
+          const { data: childLocations } = await supabase
+            .from('locations')
+            .select('id')
+            .in('parent_id', cityIds);
+          
+          // Inclure les villes ET leurs enfants
+          locationIds = [...cityIds, ...(childLocations || []).map(l => l.id)];
+        } else {
+          // Chercher dans les communes
+          const { data: communeData } = await supabase
+            .from('locations')
+            .select('id, type, parent_id')
+            .eq('type', 'commune')
+            .ilike('name', `%${searchTerm}%`);
+          
+          if (communeData && communeData.length > 0) {
+            const communeIds = communeData.map(c => c.id);
+            const { data: childLocations } = await supabase
+              .from('locations')
+              .select('id')
+              .in('parent_id', communeIds);
+            
+            locationIds = [...communeIds, ...(childLocations || []).map(l => l.id)];
+          } else {
+            // Chercher dans les quartiers
+            const { data: neighborhoodData } = await supabase
+              .from('locations')
+              .select('id')
+              .eq('type', 'neighborhood')
+              .ilike('name', `%${searchTerm}%`);
+            
+            if (neighborhoodData && neighborhoodData.length > 0) {
+              locationIds = neighborhoodData.map(l => l.id);
+            }
+          }
+        }
+        
+        if (!locationIds || locationIds.length === 0) {
+          console.log(`⚠️ Aucune location trouvée pour "${searchTerm}"`);
+          setProperties([]);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Query properties avec nouvelle structure locations
       let query = supabase
         .from('properties')
         .select(`
           *,
-          cities:city_id (
+          locations:location_id (
             id,
             name,
-            region,
+            type,
             latitude,
-            longitude
-          ),
-          neighborhoods:neighborhood_id (
-            id,
-            name,
-            commune,
-            latitude,
-            longitude
-          ),
-          reviews!property_id (
-            rating,
-            created_at
+            longitude,
+            parent_id
           ),
           property_photos (
             id,
@@ -497,59 +590,11 @@ export const useProperties = () => {
         .eq('is_active', true)
         .eq('is_hidden', false);
 
-      // Appliquer les filtres côté serveur
-      if (filters?.city) {
-        const searchTerm = filters.city.trim();
-        
-        // D'abord, chercher dans les villes
-        const { data: cityExists } = await supabase
-          .from('cities')
-          .select('id, name')
-          .ilike('name', searchTerm)
-          .single();
-        
-        // Si pas trouvé dans les villes, chercher dans les quartiers
-        let cityId = cityExists?.id;
-        
-        if (!cityId) {
-          const { data: neighborhoodExists } = await supabase
-            .from('neighborhoods')
-            .select('city_id, name, commune')
-            .ilike('name', searchTerm)
-            .single();
-          
-          if (neighborhoodExists) {
-            cityId = neighborhoodExists.city_id;
-            console.log(`✅ Quartier trouvé: "${neighborhoodExists.name}" (${neighborhoodExists.commune}) pour la recherche "${searchTerm}"`);
-          }
-        } else {
-          console.log(`✅ Ville trouvée: "${cityExists.name}" pour la recherche "${searchTerm}"`);
-        }
-        
-        if (!cityId) {
-          console.log(`⚠️ Aucune ville ou quartier trouvé pour "${searchTerm}"`);
-          setProperties([]);
-          setLoading(false);
-          return;
-        }
-        
+      // Appliquer le filtre location_id si présent
+      if (locationIds && locationIds.length > 0) {
         query = query
-          .select(`
-            *,
-            cities!inner(id, name, region),
-            reviews!property_id (
-              rating,
-              created_at
-            ),
-            property_photos (
-              id,
-              url,
-              category,
-              display_order,
-              created_at
-            )
-          `)
-          .eq('city_id', cityId);
+          .in('location_id', locationIds)
+          .not('location_id', 'is', null);
       }
 
       // Appliquer les filtres d'équipements
@@ -580,15 +625,13 @@ export const useProperties = () => {
         (data || []).map(async (property) => {
           // Calculer la vraie moyenne des avis et le nombre d'avis
           // Filtrer uniquement les avis approuvés par l'admin
-          const reviews = (property.reviews || []).filter((review: any) => review.approved === true);
-          const reviewCount = reviews.length;
-          const averageRating = reviewCount > 0 
-            ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviewCount 
-            : 0;
-
-          // Si on a des avis calculés en base, les utiliser en priorité
-          const finalRating = property.rating && property.review_count ? property.rating : averageRating;
-          const finalReviewCount = property.review_count || reviewCount;
+          // Calculer dynamiquement rating et review_count depuis les avis approuvés
+          // pour garantir que les valeurs sont toujours à jour dans l'overview
+          const calculatedRating = await calculateRatingFromReviews(property.id);
+          
+          // Utiliser les valeurs calculées (ou celles de la DB si elles sont plus récentes)
+          const finalRating = calculatedRating.rating || property.rating || 0;
+          const finalReviewCount = calculatedRating.review_count || property.review_count || 0;
 
           // Traiter les photos catégorisées
           const categorizedPhotos = property.property_photos || [];
@@ -629,6 +672,11 @@ export const useProperties = () => {
             : [];
           const allAmenitiesForRefresh = [...mappedAmenitiesForRefresh, ...customAmenitiesListForRefresh];
           
+          // Extraire les coordonnées de location
+          const location = (property as any).locations;
+          const latitude = location?.latitude || property.latitude;
+          const longitude = location?.longitude || property.longitude;
+
           const transformedProperty = {
             ...property,
             images: finalImages, // Pour compatibilité avec l'ancien système
@@ -637,7 +685,21 @@ export const useProperties = () => {
             rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
             review_count: finalReviewCount, // Nombre d'avis final
             amenities: allAmenitiesForRefresh,
-            custom_amenities: property.custom_amenities || []
+            custom_amenities: property.custom_amenities || [],
+            // Extraire et mapper location
+            location: location ? {
+              id: location.id,
+              name: location.name,
+              type: location.type,
+              latitude: location.latitude,
+              longitude: location.longitude,
+              parent_id: location.parent_id
+            } : undefined,
+            // Extraire les coordonnées directement sur la propriété pour compatibilité
+            latitude: latitude,
+            longitude: longitude,
+            // Garder locations pour compatibilité
+            locations: location
           };
 
 
