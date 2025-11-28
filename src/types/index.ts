@@ -224,6 +224,7 @@ export type RootStackParamList = {
   Favorites: undefined;
   Messaging: undefined;
   MessagingDebug: undefined;
+  Conciergerie: undefined;
 };
 
 export type TabParamList = {

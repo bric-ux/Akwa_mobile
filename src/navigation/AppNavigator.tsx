@@ -51,6 +51,7 @@ import PropertyPricingScreen from '../screens/PropertyPricingScreen';
 import PropertyRulesScreen from '../screens/PropertyRulesScreen';
 import GuestReferralScreen from '../screens/GuestReferralScreen';
 import ModeTransitionScreen from '../screens/ModeTransitionScreen';
+import ConciergerieScreen from '../screens/ConciergerieScreen';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList } from '../types';
@@ -591,6 +592,14 @@ const AppNavigator = () => {
           name="MessagingDebug" 
           component={MessagingDebugScreen}
           options={{ title: 'Debug Messagerie' }}
+        />
+        <Stack.Screen 
+          name="Conciergerie" 
+          component={ConciergerieScreen}
+          options={{ 
+            title: 'Conciergerie',
+            headerShown: false 
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>

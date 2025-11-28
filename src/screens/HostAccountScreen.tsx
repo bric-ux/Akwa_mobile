@@ -129,6 +129,12 @@ const HostAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('BecomeHost' as never),
     },
     {
+      id: 'conciergerie',
+      title: 'Conciergerie',
+      icon: 'sparkles-outline',
+      onPress: () => navigation.navigate('Conciergerie' as never),
+    },
+    {
       id: 'referral',
       title: t('profile.referral'),
       icon: 'gift-outline',
