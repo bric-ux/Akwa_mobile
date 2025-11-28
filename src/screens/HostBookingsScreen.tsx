@@ -222,7 +222,15 @@ const HostBookingsScreen: React.FC = () => {
           price_per_night: property.price_per_night,
           images: property.images || [],
           property_photos: property.property_photos || [],
-          cities: property.cities,
+          location: property.locations ? {
+            id: property.locations.id,
+            name: property.locations.name,
+            type: property.locations.type,
+            latitude: property.locations.latitude,
+            longitude: property.locations.longitude,
+            parent_id: property.locations.parent_id
+          } : undefined,
+          locations: property.locations
         },
         bookings: propertyBookings,
         stats,
@@ -506,7 +514,7 @@ const HostBookingsScreen: React.FC = () => {
                       ) : null}
                     </View>
                     <Text style={styles.propertyCardLocation}>
-                      {item.property?.cities?.name || t('hostBookings.unknownLocation')}
+                      {item.property?.location?.name || item.property?.locations?.name || t('hostBookings.unknownLocation')}
                     </Text>
                     
                     {item.isAvailable ? (
@@ -613,7 +621,7 @@ const HostBookingsScreen: React.FC = () => {
                   {selectedProperty.property?.title || t('messages.property')}
                 </Text>
                 <Text style={styles.selectedPropertyLocation}>
-                  {selectedProperty.property?.cities?.name || t('hostBookings.unknownLocation')}
+                  {selectedProperty.property?.location?.name || selectedProperty.property?.locations?.name || t('hostBookings.unknownLocation')}
                 </Text>
               </View>
             </View>

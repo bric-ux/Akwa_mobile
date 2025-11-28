@@ -8,6 +8,10 @@ export interface Review {
   reviewer_id: string;
   booking_id: string;
   rating: number;
+  location_rating: number | null;
+  cleanliness_rating: number | null;
+  value_rating: number | null;
+  communication_rating: number | null;
   comment: string | null;
   created_at: string;
   reviewer_name?: string;
@@ -35,6 +39,7 @@ export const useReviews = () => {
           profiles!reviewer_id(first_name, last_name)
         `)
         .eq('property_id', propertyId)
+        .eq('approved', true)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -112,11 +117,20 @@ export const useReviews = () => {
   const submitReview = async (reviewData: {
     propertyId: string;
     bookingId: string;
-    rating: number;
+    locationRating: number;
+    cleanlinessRating: number;
+    valueRating: number;
+    communicationRating: number;
     comment?: string;
   }) => {
     if (!user) {
       setError('Vous devez être connecté');
+      return { success: false };
+    }
+
+    if (reviewData.locationRating === 0 || reviewData.cleanlinessRating === 0 || 
+        reviewData.valueRating === 0 || reviewData.communicationRating === 0) {
+      setError('Veuillez noter tous les critères');
       return { success: false };
     }
 
@@ -130,12 +144,27 @@ export const useReviews = () => {
           property_id: reviewData.propertyId,
           reviewer_id: user.id,
           booking_id: reviewData.bookingId,
-          rating: reviewData.rating,
+          location_rating: reviewData.locationRating,
+          cleanliness_rating: reviewData.cleanlinessRating,
+          value_rating: reviewData.valueRating,
+          communication_rating: reviewData.communicationRating,
           comment: reviewData.comment || null
-        });
+        } as any);
 
       if (error) {
-        setError('Erreur lors de la soumission de l\'avis');
+        console.error("❌ [useReviews] Erreur lors de la soumission de l'avis:", error);
+        
+        let errorMessage = "Impossible de soumettre votre avis. Veuillez réessayer.";
+        
+        if (error.message.includes("violates row-level security policy")) {
+          errorMessage = "Vous ne pouvez laisser un avis que pour une réservation confirmée et terminée.";
+        } else if (error.message.includes("duplicate key")) {
+          errorMessage = "Vous avez déjà laissé un avis pour cette réservation.";
+        } else if (error.code === "23503") {
+          errorMessage = "Réservation introuvable. Veuillez contacter le support.";
+        }
+        
+        setError(errorMessage);
         return { success: false };
       }
 

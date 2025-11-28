@@ -175,8 +175,15 @@ export const useFavorites = () => {
           ...property,
           images: finalImages,
           photos: sortedPhotos,
-          cities: property.cities,
-          neighborhoods: property.neighborhoods
+          location: property.locations ? {
+            id: property.locations.id,
+            name: property.locations.name,
+            type: property.locations.type,
+            latitude: property.locations.latitude,
+            longitude: property.locations.longitude,
+            parent_id: property.locations.parent_id
+          } : undefined,
+          locations: property.locations
         };
       }) || [];
 

@@ -13,6 +13,7 @@ export interface ReviewResponse {
 
 export const useReviewResponses = () => {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
   const getReviewResponse = async (reviewId: string): Promise<ReviewResponse | null> => {
@@ -25,18 +26,20 @@ export const useReviewResponses = () => {
 
       if (error) throw error;
       return data;
-    } catch (error) {
-      console.error('Error fetching review response:', error);
+    } catch (err) {
+      console.error('Error fetching review response:', err);
       return null;
     }
   };
 
   const submitResponse = async (reviewId: string, response: string) => {
     if (!user) {
-      return { success: false, error: 'Vous devez être connecté' };
+      setError('Vous devez être connecté');
+      return { success: false };
     }
 
     setLoading(true);
+    setError(null);
     try {
       const { error } = await supabase
         .from('review_responses')
@@ -48,9 +51,10 @@ export const useReviewResponses = () => {
 
       if (error) throw error;
       return { success: true };
-    } catch (error: any) {
-      console.error('Error submitting response:', error);
-      return { success: false, error: error.message || 'Erreur lors de la publication de la réponse' };
+    } catch (err: any) {
+      console.error('Error submitting response:', err);
+      setError(err.message || 'Erreur lors de la publication de la réponse');
+      return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
@@ -58,10 +62,12 @@ export const useReviewResponses = () => {
 
   const updateResponse = async (reviewId: string, response: string) => {
     if (!user) {
-      return { success: false, error: 'Vous devez être connecté' };
+      setError('Vous devez être connecté');
+      return { success: false };
     }
 
     setLoading(true);
+    setError(null);
     try {
       const { error } = await supabase
         .from('review_responses')
@@ -71,9 +77,10 @@ export const useReviewResponses = () => {
 
       if (error) throw error;
       return { success: true };
-    } catch (error: any) {
-      console.error('Error updating response:', error);
-      return { success: false, error: error.message || 'Erreur lors de la mise à jour de la réponse' };
+    } catch (err: any) {
+      console.error('Error updating response:', err);
+      setError(err.message || 'Erreur lors de la mise à jour de la réponse');
+      return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
@@ -81,10 +88,12 @@ export const useReviewResponses = () => {
 
   const deleteResponse = async (reviewId: string) => {
     if (!user) {
-      return { success: false, error: 'Vous devez être connecté' };
+      setError('Vous devez être connecté');
+      return { success: false };
     }
 
     setLoading(true);
+    setError(null);
     try {
       const { error } = await supabase
         .from('review_responses')
@@ -94,9 +103,10 @@ export const useReviewResponses = () => {
 
       if (error) throw error;
       return { success: true };
-    } catch (error: any) {
-      console.error('Error deleting response:', error);
-      return { success: false, error: error.message || 'Erreur lors de la suppression de la réponse' };
+    } catch (err: any) {
+      console.error('Error deleting response:', err);
+      setError(err.message || 'Erreur lors de la suppression de la réponse');
+      return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
@@ -104,18 +114,10 @@ export const useReviewResponses = () => {
 
   return {
     loading,
+    error,
     getReviewResponse,
     submitResponse,
     updateResponse,
     deleteResponse
   };
 };
-
-
-
-
-
-
-
-
-

@@ -297,11 +297,13 @@ export const useAdmin = () => {
         .from('properties')
         .select(`
           *,
-          cities (
+          locations:location_id (
             id,
             name,
-            region,
-            country
+            type,
+            latitude,
+            longitude,
+            parent_id
           ),
           profiles!properties_host_id_fkey (
             first_name,
@@ -557,11 +559,12 @@ export const useAdmin = () => {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      // Villes populaires
-      const { data: popularCities } = await supabase
+      // Villes populaires (via locations)
+      const { data: popularLocations } = await supabase
         .from('properties')
         .select(`
-          cities!inner(name, region),
+          location_id,
+          locations:location_id!inner(name, type),
           bookings!inner(id)
         `)
         .eq('is_active', true);
@@ -575,7 +578,7 @@ export const useAdmin = () => {
         pendingApplications: pendingApplications || 0,
         recentUsers: recentUsers || [],
         recentBookings: recentBookings || [],
-        popularCities: popularCities || [],
+        popularCities: popularLocations || [],
       };
 
       return stats;

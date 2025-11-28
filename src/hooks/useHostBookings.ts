@@ -33,9 +33,13 @@ export interface HostBooking {
       category: string;
       display_order: number;
     }>;
-    cities?: {
+    locations?: {
+      id: string;
       name: string;
-      region: string;
+      type: string;
+      latitude?: number;
+      longitude?: number;
+      parent_id?: string;
     };
   };
   guest_profile?: {
@@ -82,9 +86,13 @@ export const useHostBookings = () => {
             price_per_night,
             images,
             host_id,
-            cities(
+            locations:location_id(
+              id,
               name,
-              region
+              type,
+              latitude,
+              longitude,
+              parent_id
             ),
             property_photos (
               id,
@@ -147,7 +155,7 @@ export const useHostBookings = () => {
             service_fee,
             taxes,
             cancellation_policy,
-            cities(name, region)
+            locations:location_id(id, name, type, latitude, longitude, parent_id)
           )
         `)
         .eq('id', bookingId)

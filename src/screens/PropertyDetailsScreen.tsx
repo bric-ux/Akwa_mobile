@@ -27,9 +27,7 @@ import PropertyMap from '../components/PropertyMap';
 import { supabase } from '../services/supabase';
 import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useReviews, Review } from '../hooks/useReviews';
-import { useReviewResponses, ReviewResponse } from '../hooks/useReviewResponses';
-import ReviewResponseModal from '../components/ReviewResponseModal';
+import PropertyReviews from '../components/PropertyReviews';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -43,18 +41,12 @@ const PropertyDetailsScreen: React.FC = () => {
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { requireAuthForFavorites } = useAuthRedirect();
   const { hostProfile, getHostProfile } = useHostProfile();
-  const { getPropertyReviews, loading: reviewsLoading } = useReviews();
-  const { getReviewResponse } = useReviewResponses();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [reviewResponses, setReviewResponses] = useState<Record<string, ReviewResponse>>({});
-  const [selectedReviewForResponse, setSelectedReviewForResponse] = useState<string | null>(null);
-  const [showResponseModal, setShowResponseModal] = useState(false);
   
   const isHost = property && user?.id === property.host_id;
 
@@ -78,8 +70,6 @@ const PropertyDetailsScreen: React.FC = () => {
           await getHostProfile(propertyData.host_id);
         }
 
-        // Charger les avis séparément comme dans le web (via useReviews)
-        await loadPropertyReviews(propertyData.id);
         
         // Vérifier si la propriété est en favoris
         if (user && propertyData) {
@@ -132,38 +122,6 @@ const PropertyDetailsScreen: React.FC = () => {
     loadTodayPrice();
   }, [property]); // Supprimer les autres dépendances pour éviter la boucle
 
-  // Charger les avis de la propriété séparément (comme dans le web)
-  const loadPropertyReviews = async (propertyId: string) => {
-    try {
-      console.log('🔄 [PropertyDetailsScreen] Chargement des avis pour la propriété:', propertyId);
-      // Charger les avis via useReviews (les RLS policies filtrent automatiquement)
-      const reviewsData = await getPropertyReviews(propertyId);
-      console.log('✅ [PropertyDetailsScreen] Avis chargés:', reviewsData.length, 'avis');
-      if (reviewsData.length > 0) {
-        console.log('✅ [PropertyDetailsScreen] Détails du premier avis:', {
-          id: reviewsData[0].id,
-          reviewer_name: reviewsData[0].reviewer_name,
-          rating: reviewsData[0].rating,
-          approved: reviewsData[0].approved
-        });
-      } else {
-        console.log('⚠️ [PropertyDetailsScreen] Aucun avis trouvé pour cette propriété');
-      }
-      setReviews(reviewsData);
-      
-      // Charger les réponses de l'hôte pour chaque avis
-      const responsesData: Record<string, ReviewResponse> = {};
-      for (const review of reviewsData) {
-        const response = await getReviewResponse(review.id);
-        if (response) {
-          responsesData[review.id] = response;
-        }
-      }
-      setReviewResponses(responsesData);
-    } catch (err) {
-      console.error('❌ Erreur lors du chargement des avis:', err);
-    }
-  };
 
   // useEffect séparé pour gérer les favoris
   useEffect(() => {
@@ -264,7 +222,11 @@ const PropertyDetailsScreen: React.FC = () => {
         
         <View style={styles.locationContainer}>
           <Text style={styles.location}>
-            📍 {property.location?.name || property.locations?.name || property.location}
+            📍 {typeof property.location === 'object' && property.location !== null && 'name' in property.location
+              ? property.location.name 
+              : typeof property.location === 'string' 
+              ? property.location 
+              : (property as any).locations?.name || 'Localisation inconnue'}
           </Text>
         </View>
 
@@ -313,152 +275,7 @@ const PropertyDetailsScreen: React.FC = () => {
         )}
 
         {/* Avis et commentaires */}
-        <View style={styles.section}>
-          <View style={styles.reviewsHeader}>
-            <Text style={styles.sectionTitle}>{t('property.reviews')}</Text>
-            {reviews.length > 0 && (
-              <View style={styles.averageRatingContainer}>
-                <View style={styles.starsContainer}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Text key={star} style={[
-                      styles.averageStar,
-                      star <= Math.round(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) 
-                        ? styles.averageStarFilled 
-                        : styles.averageStarEmpty
-                    ]}>
-                      ⭐
-                    </Text>
-                  ))}
-                </View>
-                <Text style={styles.averageRatingText}>
-                  {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}
-                </Text>
-                <Text style={styles.reviewCountText}>
-                  ({reviews.length} {t('property.reviews')})
-                </Text>
-              </View>
-            )}
-          </View>
-          
-          {reviewsLoading ? (
-            <View style={styles.reviewsLoadingContainer}>
-              <ActivityIndicator size="small" color="#2E7D32" />
-              <Text style={styles.reviewsLoadingText}>{t('common.loading')}</Text>
-            </View>
-          ) : reviews.length === 0 ? (
-            <View style={styles.noReviewsContainer}>
-              <Text style={styles.noReviewsIcon}>⭐</Text>
-              <Text style={styles.noReviewsText}>
-                {t('property.noReviews') || 'Aucun avis pour le moment. Soyez le premier à laisser un avis !'}
-              </Text>
-            </View>
-          ) : (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.reviewsScrollContainer}
-            >
-              {reviews.map((review, index) => {
-              const reviewerName = review.reviewer_name || 'Utilisateur';
-              
-              const reviewResponse = reviewResponses[review.id];
-              
-              return (
-                <View key={index} style={styles.reviewItem}>
-                  <View style={styles.reviewHeader}>
-                    <View style={styles.reviewUserInfo}>
-                      <View style={styles.reviewUserAvatar}>
-                        <Text style={styles.reviewUserInitial}>
-                          {reviewerName.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.reviewUserDetails}>
-                      <Text style={styles.reviewUserName}>
-                        {reviewerName}
-                      </Text>
-                      <View style={styles.reviewStars}>
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Text key={star} style={[
-                            styles.reviewStar,
-                            star <= review.rating ? styles.reviewStarFilled : styles.reviewStarEmpty
-                          ]}>
-                            ⭐
-                          </Text>
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                  <Text style={styles.reviewDate}>
-                    {new Date(review.created_at).toLocaleDateString('fr-FR', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric'
-                    })}
-                  </Text>
-                  {review.comment && (
-                    <Text style={styles.reviewComment}>
-                      "{review.comment}"
-                    </Text>
-                  )}
-                  
-                  {/* Réponse de l'hôte */}
-                  {reviewResponse && (
-                    <View style={styles.hostResponseContainer}>
-                      <View style={styles.hostResponseHeader}>
-                        <Ionicons name="chatbubble-ellipses" size={16} color="#2E7D32" />
-                        <Text style={styles.hostResponseLabel}>
-                          {t('review.hostResponse') || 'Réponse de l\'hôte'}
-                        </Text>
-                      </View>
-                      <Text style={styles.hostResponseText}>
-                        {reviewResponse.response}
-                      </Text>
-                      <Text style={styles.hostResponseDate}>
-                        {new Date(reviewResponse.created_at).toLocaleDateString('fr-FR', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </Text>
-                      {isHost && (
-                        <TouchableOpacity
-                          style={styles.editResponseButton}
-                          onPress={() => {
-                            setSelectedReviewForResponse(review.id);
-                            setShowResponseModal(true);
-                          }}
-                        >
-                          <Ionicons name="create-outline" size={16} color="#2E7D32" />
-                          <Text style={styles.editResponseButtonText}>
-                            {t('review.editResponse') || 'Modifier'}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
-                  
-                  {/* Bouton pour répondre (si hôte et pas de réponse) */}
-                  {isHost && !reviewResponse && (
-                    <TouchableOpacity
-                      style={styles.respondButton}
-                      onPress={() => {
-                        setSelectedReviewForResponse(review.id);
-                        setShowResponseModal(true);
-                      }}
-                    >
-                      <Ionicons name="chatbubble-outline" size={16} color="#2E7D32" />
-                      <Text style={styles.respondButtonText}>
-                        {t('review.respond') || 'Répondre'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              );
-            })}
-            </ScrollView>
-          )}
-        </View>
+        <PropertyReviews propertyId={property.id} hostId={property.host_id} />
 
         {/* Équipements */}
         {property.amenities && property.amenities.length > 0 ? (
@@ -617,11 +434,11 @@ const PropertyDetailsScreen: React.FC = () => {
 
         {/* Localisation sur la carte */}
         <PropertyMap
-          latitude={property.location?.latitude || property.latitude || property.locations?.latitude}
-          longitude={property.location?.longitude || property.longitude || property.locations?.longitude}
-          locationName={property.location}
-          cityName={property.location?.type === 'city' ? property.location?.name : undefined}
-          neighborhoodName={property.location?.type === 'neighborhood' ? property.location?.name : property.location?.type === 'commune' ? property.location?.name : undefined}
+          latitude={typeof property.location === 'object' && property.location !== null && 'latitude' in property.location ? (property.location as any).latitude : property.latitude || (property as any).locations?.latitude}
+          longitude={typeof property.location === 'object' && property.location !== null && 'longitude' in property.location ? (property.location as any).longitude : property.longitude || (property as any).locations?.longitude}
+          locationName={typeof property.location === 'object' && property.location !== null && 'name' in property.location ? (property.location as any).name : typeof property.location === 'string' ? property.location : (property as any).locations?.name}
+          cityName={typeof property.location === 'object' && property.location !== null && 'type' in property.location && (property.location as any).type === 'city' ? (property.location as any).name : undefined}
+          neighborhoodName={typeof property.location === 'object' && property.location !== null && 'type' in property.location && (property.location as any).type === 'neighborhood' ? (property.location as any).name : typeof property.location === 'object' && property.location !== null && 'type' in property.location && (property.location as any).type === 'commune' ? (property.location as any).name : undefined}
         />
 
         {/* Boutons d'action */}
@@ -649,21 +466,6 @@ const PropertyDetailsScreen: React.FC = () => {
         />
       )}
       
-      {/* Modal de réponse aux avis */}
-      <ReviewResponseModal
-        visible={showResponseModal}
-        onClose={() => {
-          setShowResponseModal(false);
-          setSelectedReviewForResponse(null);
-        }}
-        reviewId={selectedReviewForResponse || ''}
-        existingResponse={selectedReviewForResponse ? reviewResponses[selectedReviewForResponse]?.response : null}
-        onResponseSubmitted={async () => {
-          if (property?.id) {
-            await loadPropertyReviews(property.id);
-          }
-        }}
-      />
     </View>
   );
 };

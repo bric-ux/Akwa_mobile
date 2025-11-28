@@ -21,7 +21,14 @@ export interface Property {
   id: string;
   title: string;
   description: string | null;
-  location: string;
+  location: string | {
+    id: string;
+    name: string;
+    type: 'country' | 'region' | 'city' | 'commune' | 'neighborhood';
+    latitude?: number;
+    longitude?: number;
+    parent_id?: string;
+  } | undefined;
   price_per_night: number;
   images: string[]; // Gardé pour compatibilité avec l'ancien système
   photos?: CategorizedPhoto[]; // Nouveau système de photos catégorisées
@@ -59,6 +66,8 @@ export interface Property {
   latitude?: number;
   longitude?: number;
   max_guests?: number;
+  bedrooms?: number;
+  bathrooms?: number;
   property_type?: string;
   cleaning_fee?: number;
   service_fee?: number;

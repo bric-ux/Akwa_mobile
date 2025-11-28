@@ -476,7 +476,11 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
           <View style={styles.propertyInfo}>
             <Text style={styles.propertyTitle}>{property.title}</Text>
             <Text style={styles.propertyLocation}>
-              📍 {property.location?.name || property.locations?.name || property.location}
+              📍 {typeof property.location === 'object' && property.location !== null && 'name' in property.location
+                ? (property.location as any).name 
+                : typeof property.location === 'string' 
+                ? property.location 
+                : (property as any).locations?.name || 'Localisation inconnue'}
             </Text>
             <Text style={styles.propertyPrice}>
               {formatPrice(property.price_per_night || 0)}/{t('common.perNight')}

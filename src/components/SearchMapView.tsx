@@ -50,8 +50,8 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
                        (p.location?.longitude || p.locations?.longitude || p.longitude);
       if (!hasCoords) {
         console.log('⚠️ Propriété sans coordonnées:', p.title, {
-          neighborhoods: p.neighborhoods,
-          cities: p.cities
+          location: p.location,
+          locations: p.locations
         });
       }
       return hasCoords;
@@ -253,7 +253,7 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
           </Text>
           {(selectedProperty.location?.name || selectedProperty.locations?.name) && (
             <Text style={styles.propertyLocation}>
-              📍 {selectedProperty.cities.name}
+              📍 {selectedProperty.location?.name || selectedProperty.locations?.name}
             </Text>
           )}
           <TouchableOpacity

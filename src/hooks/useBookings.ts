@@ -57,9 +57,13 @@ export interface Booking {
       category: string;
       display_order: number;
     }[];
-    cities?: {
+    locations?: {
+      id: string;
       name: string;
-      region: string;
+      type: string;
+      latitude?: number;
+      longitude?: number;
+      parent_id?: string;
     };
   };
 }
@@ -304,9 +308,13 @@ export const useBookings = () => {
               category,
               display_order
             ),
-            cities (
+            locations:location_id (
+              id,
               name,
-              region
+              type,
+              latitude,
+              longitude,
+              parent_id
             )
           )
         `)
