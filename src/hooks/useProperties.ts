@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Property, SearchFilters, Amenity } from '../types';
 import { getAmenityIcon } from '../utils/amenityIcons';
+import { calculateDistance, isWithinRadius } from '../utils/distance';
 
 // Fonction helper pour calculer rating et review_count depuis les avis approuvés
 const calculateRatingFromReviews = async (propertyId: string): Promise<{ rating: number; review_count: number }> => {
@@ -197,6 +198,7 @@ export const useProperties = () => {
       }
 
       // Filtres pour les équipements (recherche dans les amenities)
+      // Support des anciens filtres booléens pour compatibilité
       if (filters?.wifi) {
         query = query.contains('amenities', ['WiFi gratuit']);
       }
@@ -213,7 +215,7 @@ export const useProperties = () => {
       // Optimisation : limiter les résultats et trier par pertinence
       const { data, error } = await query
         .order('price_per_night', { ascending: true })
-        .limit(50);
+        .limit(100); // Augmenter la limite pour permettre le filtrage côté client
 
       if (error) {
         throw error;
@@ -227,9 +229,61 @@ export const useProperties = () => {
         });
       }
 
+      // Filtrer par équipements si spécifié (filtrage côté client pour "ET" logique)
+      let filteredData = data || [];
+      if (filters?.amenities && filters.amenities.length > 0) {
+        filteredData = filteredData.filter((property) => {
+          const propertyAmenities = property.amenities || [];
+          // Vérifier que tous les équipements sélectionnés sont présents
+          return filters.amenities!.every(selectedAmenity => 
+            propertyAmenities.includes(selectedAmenity)
+          );
+        });
+        console.log(`🔍 Filtrage par équipements: ${data?.length || 0} → ${filteredData.length} propriétés`);
+      }
+
+      // Filtrer et calculer les distances si recherche par rayon
+      let propertiesWithDistance = filteredData;
+      if (filters?.centerLat && filters?.centerLng && filters?.radiusKm) {
+        
+        propertiesWithDistance = filteredData
+          .map((property) => {
+            const location = (property as any).locations;
+            const propertyLat = location?.latitude || property.latitude;
+            const propertyLng = location?.longitude || property.longitude;
+            
+            if (!propertyLat || !propertyLng) {
+              return null; // Propriété sans coordonnées
+            }
+            
+            const distance = calculateDistance(
+              filters.centerLat!,
+              filters.centerLng!,
+              propertyLat,
+              propertyLng
+            );
+            
+            const withinRadius = isWithinRadius(
+              filters.centerLat!,
+              filters.centerLng!,
+              propertyLat,
+              propertyLng,
+              filters.radiusKm!
+            );
+            
+            return withinRadius ? { ...property, distance } : null;
+          })
+          .filter((p): p is NonNullable<typeof p> => p !== null)
+          .sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity)); // Trier par distance croissante
+        
+        console.log(`📍 Filtrage par rayon ${filters.radiusKm}km: ${filteredData.length} → ${propertiesWithDistance.length} propriétés`);
+      }
+      
+      filteredData = propertiesWithDistance;
+
       // Transformer les données avec les équipements
       const transformedProperties = await Promise.all(
-        (data || []).map(async (property) => {
+        (filteredData || []).map(async (property) => {
           const mappedAmenities = await mapAmenities(property.amenities);
           console.log(`🏠 ${property.title} - Équipements:`, property.amenities, '→ Mappés:', mappedAmenities);
           
@@ -315,7 +369,9 @@ export const useProperties = () => {
             latitude: latitude,
             longitude: longitude,
             // Garder locations pour compatibilité
-            locations: location
+            locations: location,
+            // Distance calculée si recherche par rayon
+            distance: (property as any).distance
           };
 
           // Log pour déboguer les images

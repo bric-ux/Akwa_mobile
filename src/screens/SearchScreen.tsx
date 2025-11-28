@@ -26,6 +26,7 @@ import AutoCompleteSearch from '../components/AutoCompleteSearch';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import SearchButton from '../components/SearchButton';
 import SearchResultsView from '../components/SearchResultsView';
+import { supabase } from '../services/supabase';
 
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 
@@ -41,6 +42,7 @@ const SearchScreen: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   const [isMapView, setIsMapView] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   const { properties, loading, error, fetchProperties } = useProperties();
   const sortedProperties = usePropertySorting(properties, sortBy);
@@ -78,32 +80,115 @@ const SearchScreen: React.FC = () => {
       }
       
       try {
-        await fetchProperties({ 
-          ...filters, 
+        // Si un rayon est spécifié, récupérer les coordonnées de la localisation
+        let centerLat: number | undefined = filters.centerLat;
+        let centerLng: number | undefined = filters.centerLng;
+        
+        // Si un rayon est défini mais pas de coordonnées, les récupérer
+        if (filters.radiusKm && filters.radiusKm > 0 && (!centerLat || !centerLng)) {
+          try {
+            // Chercher la localisation dans la base de données
+            const { data: locationData } = await supabase
+              .from('locations')
+              .select('id, name, latitude, longitude, type')
+              .or(`name.ilike.%${query.trim()}%,name.eq.${query.trim()}`)
+              .limit(1)
+              .single();
+            
+            if (locationData?.latitude && locationData?.longitude) {
+              centerLat = locationData.latitude;
+              centerLng = locationData.longitude;
+              setSelectedLocation({ lat: centerLat, lng: centerLng });
+              console.log(`📍 Coordonnées trouvées pour "${query}": [${centerLat}, ${centerLng}]`);
+            } else {
+              // Si pas trouvé, chercher dans les villes, communes, quartiers
+              const { data: locations } = await supabase
+                .from('locations')
+                .select('latitude, longitude')
+                .or(`name.ilike.%${query.trim()}%`)
+                .limit(1)
+                .single();
+              
+              if (locations?.latitude && locations?.longitude) {
+                centerLat = locations.latitude;
+                centerLng = locations.longitude;
+                setSelectedLocation({ lat: centerLat, lng: centerLng });
+                console.log(`📍 Coordonnées trouvées (recherche large) pour "${query}": [${centerLat}, ${centerLng}]`);
+              }
+            }
+          } catch (err) {
+            console.error('Erreur lors de la récupération des coordonnées:', err);
+            // Continuer sans coordonnées si erreur
+          }
+        }
+        
+        // Construire les filtres de recherche
+        const searchFilters: SearchFilters = {
+          ...filters,
           city: query,
           checkIn,
           checkOut,
           adults,
           children,
           babies,
-          guests: adults + children + babies
-        });
+          guests: adults + children + babies,
+          // Ajouter les coordonnées si trouvées et qu'un rayon est défini
+          centerLat: filters.radiusKm && filters.radiusKm > 0 ? centerLat : undefined,
+          centerLng: filters.radiusKm && filters.radiusKm > 0 ? centerLng : undefined,
+        };
+        
+        await fetchProperties(searchFilters);
       } finally {
         setIsSearching(false);
       }
     } else {
       try {
-        await fetchProperties(filters);
+        // Si pas de query, réinitialiser les coordonnées
+        setSelectedLocation(null);
+        await fetchProperties({
+          ...filters,
+          city: '',
+          centerLat: undefined,
+          centerLng: undefined,
+        });
       } finally {
         setIsSearching(false);
       }
     }
   };
 
-  const handleSuggestionSelect = (suggestion: any) => {
+  const handleSuggestionSelect = async (suggestion: any) => {
     setSearchQuery(suggestion.text);
-    // Mettre à jour les filtres avec la nouvelle ville sélectionnée
-    const newFilters = {
+    
+    // Récupérer les coordonnées du lieu sélectionné si disponible
+    let centerLat: number | undefined;
+    let centerLng: number | undefined;
+    
+    if (suggestion.latitude && suggestion.longitude) {
+      centerLat = suggestion.latitude;
+      centerLng = suggestion.longitude;
+      setSelectedLocation({ lat: centerLat, lng: centerLng });
+    } else if (suggestion.id) {
+      // Si on a un ID mais pas de coordonnées, les récupérer depuis la base
+      try {
+        const { data } = await supabase
+          .from('locations')
+          .select('latitude, longitude')
+          .eq('id', suggestion.id)
+          .single();
+        
+        if (data?.latitude && data?.longitude) {
+          centerLat = data.latitude;
+          centerLng = data.longitude;
+          setSelectedLocation({ lat: centerLat, lng: centerLng });
+        }
+      } catch (err) {
+        console.error('Erreur lors de la récupération des coordonnées:', err);
+      }
+    }
+    
+    // Mettre à jour les filtres avec la nouvelle ville sélectionnée et les coordonnées
+    const newFilters: SearchFilters = {
       ...filters,
       city: suggestion.text,
       checkIn,
@@ -111,7 +196,11 @@ const SearchScreen: React.FC = () => {
       adults,
       children,
       babies,
-      guests: adults + children + babies
+      guests: adults + children + babies,
+      centerLat,
+      centerLng,
+      // Garder le rayon si déjà défini
+      radiusKm: filters.radiusKm
     };
     setFilters(newFilters);
   };
@@ -419,6 +508,8 @@ const SearchScreen: React.FC = () => {
           checkIn={checkIn}
           checkOut={checkOut}
           guests={adults + children + babies}
+          searchCenter={selectedLocation}
+          searchRadius={filters.radiusKm}
         />
       ) : (
         <FlatList

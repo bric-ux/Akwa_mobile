@@ -517,59 +517,30 @@ const HostBookingsScreen: React.FC = () => {
                       {item.property?.location?.name || item.property?.locations?.name || t('hostBookings.unknownLocation')}
                     </Text>
                     
-                    {item.isAvailable ? (
-                      <View style={styles.availableInfo}>
-                        <Ionicons name="calendar-outline" size={16} color="#4CAF50" />
-                        <Text style={styles.availableText}>{t('hostBookings.noBookingsAvailable')}</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.propertyStats}>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statValue}>{item.stats.total}</Text>
-                          <Text style={styles.statLabel}>{t('hostBookings.total')}</Text>
+                    <View style={styles.statusInfo}>
+                      {item.isAvailable ? (
+                        <View style={styles.statusRow}>
+                          <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+                          <Text style={[styles.statusTextSimple, styles.statusTextAvailable]}>
+                            {t('hostBookings.available')}
+                          </Text>
                         </View>
-                        {item.stats.inProgress > 0 && (
-                          <View style={[styles.statItem, styles.statItemActive]}>
-                            <Text style={[styles.statValue, styles.statValueActive]}>
-                              {item.stats.inProgress}
-                            </Text>
-                            <Text style={[styles.statLabel, styles.statLabelActive]}>{t('hostBookings.inProgress')}</Text>
-                          </View>
-                        )}
-                        {item.stats.pending > 0 && (
-                          <View style={styles.statItem}>
-                            <Text style={[styles.statValue, { color: '#FFA500' }]}>
-                              {item.stats.pending}
-                            </Text>
-                            <Text style={styles.statLabel}>{t('hostBookings.pending')}</Text>
-                          </View>
-                        )}
-                        {item.stats.confirmed > 0 && (
-                          <View style={styles.statItem}>
-                            <Text style={[styles.statValue, { color: '#4CAF50' }]}>
-                              {item.stats.confirmed}
-                            </Text>
-                            <Text style={styles.statLabel}>{t('hostBookings.confirmed')}</Text>
-                          </View>
-                        )}
-                        {item.stats.completed > 0 && (
-                          <View style={styles.statItem}>
-                            <Text style={[styles.statValue, { color: '#2196F3' }]}>
-                              {item.stats.completed}
-                            </Text>
-                            <Text style={styles.statLabel}>{t('hostBookings.completed')}</Text>
-                          </View>
-                        )}
-                        {item.stats.cancelled > 0 && (
-                          <View style={styles.statItem}>
-                            <Text style={[styles.statValue, { color: '#F44336' }]}>
-                              {item.stats.cancelled}
-                            </Text>
-                            <Text style={styles.statLabel}>{t('hostBookings.cancelled')}</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
+                      ) : item.isCurrentlyOccupied ? (
+                        <View style={styles.statusRow}>
+                          <Ionicons name="time" size={18} color="#e67e22" />
+                          <Text style={[styles.statusTextSimple, styles.statusTextOccupied]}>
+                            {t('hostBookings.occupied')}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.statusRow}>
+                          <Ionicons name="calendar-outline" size={18} color="#666" />
+                          <Text style={styles.statusTextSimple}>
+                            {item.stats.total} {item.stats.total > 1 ? t('hostBookings.reservations') : t('hostBookings.reservation')}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#ccc" style={styles.chevronIcon} />
                 </TouchableOpacity>
@@ -1054,51 +1025,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
-  availableInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  availableText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '500',
-  },
   propertyCardLocation: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  propertyStats: {
+  statusInfo: {
+    marginTop: 4,
+  },
+  statusRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  statItem: {
     alignItems: 'center',
-    minWidth: 50,
+    gap: 6,
   },
-  statItemActive: {
-    backgroundColor: '#fff5e6',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 2,
-  },
-  statValueActive: {
-    color: '#e67e22',
-  },
-  statLabel: {
-    fontSize: 11,
+  statusTextSimple: {
+    fontSize: 14,
     color: '#666',
+    fontWeight: '500',
   },
-  statLabelActive: {
+  statusTextAvailable: {
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  statusTextOccupied: {
     color: '#e67e22',
     fontWeight: '600',
   },

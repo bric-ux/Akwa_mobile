@@ -16,6 +16,8 @@ interface SearchSuggestion {
   type: 'city' | 'neighborhood' | 'commune' | 'property' | 'recent';
   icon: string;
   subtitle?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface AutoCompleteSearchProps {
@@ -90,7 +92,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       // Recherche dans les villes de la base de données
       const { data: cities, error } = await supabase
         .from('locations')
-        .select('id, name, type')
+        .select('id, name, type, latitude, longitude')
         .eq('type', 'city')
         .ilike('name', `%${searchQuery}%`)
         .limit(5);
@@ -103,6 +105,8 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
             type: 'city',
             icon: 'location-outline',
             subtitle: 'Ville',
+            latitude: city.latitude,
+            longitude: city.longitude,
           });
         });
       }
@@ -110,7 +114,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       // Recherche dans les communes
       const { data: communes, error: communesError } = await supabase
         .from('locations')
-        .select('id, name, type')
+        .select('id, name, type, latitude, longitude')
         .eq('type', 'commune')
         .ilike('name', `%${searchQuery}%`)
         .limit(5);
@@ -123,6 +127,8 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
             type: 'commune',
             icon: 'location-outline',
             subtitle: 'Commune',
+            latitude: commune.latitude,
+            longitude: commune.longitude,
           });
         });
       }
@@ -130,7 +136,7 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       // Recherche dans les quartiers
       const { data: neighborhoods, error: neighborhoodsError } = await supabase
         .from('locations')
-        .select('id, name, type, parent_id')
+        .select('id, name, type, parent_id, latitude, longitude')
         .eq('type', 'neighborhood')
         .ilike('name', `%${searchQuery}%`)
         .limit(5);
@@ -162,6 +168,8 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
             type: 'neighborhood',
             icon: 'home-outline',
             subtitle: communeName ? `${communeName} • Quartier` : 'Quartier',
+            latitude: neighborhood.latitude,
+            longitude: neighborhood.longitude,
           });
         });
       }

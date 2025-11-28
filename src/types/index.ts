@@ -65,6 +65,7 @@ export interface Property {
   };
   latitude?: number;
   longitude?: number;
+  distance?: number; // Distance en km depuis le centre de recherche (si recherche par rayon)
   max_guests?: number;
   bedrooms?: number;
   bathrooms?: number;
@@ -176,6 +177,11 @@ export interface SearchFilters {
   parking?: boolean;
   pool?: boolean;
   airConditioning?: boolean;
+  amenities?: string[]; // Liste des noms d'équipements sélectionnés
+  // Recherche par rayon
+  centerLat?: number; // Latitude du centre de recherche
+  centerLng?: number; // Longitude du centre de recherche
+  radiusKm?: number; // Rayon de recherche en kilomètres
 }
 
 // Types de navigation

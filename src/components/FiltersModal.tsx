@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SearchFilters } from '../types';
+import { useAmenities } from '../hooks/useAmenities';
+import { getAmenityIonicIcon } from '../utils/amenityIcons';
 
 interface FiltersModalProps {
   visible: boolean;
@@ -25,6 +27,8 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   initialFilters = {},
 }) => {
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
+  const { amenities, loading: amenitiesLoading } = useAmenities();
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
 
   const propertyTypes = [
     { key: 'apartment', label: 'Appartement' },
@@ -42,8 +46,18 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     { min: 100000, max: undefined, label: 'Plus de 100k FCFA' },
   ];
 
+  // Initialiser les équipements sélectionnés depuis les filtres
+  useEffect(() => {
+    if (initialFilters.amenities) {
+      setSelectedAmenities(initialFilters.amenities);
+    }
+  }, [initialFilters]);
+
   const handleApply = () => {
-    onApply(filters);
+    onApply({
+      ...filters,
+      amenities: selectedAmenities.length > 0 ? selectedAmenities : undefined,
+    });
     onClose();
   };
 
@@ -57,7 +71,37 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
 
   const clearFilters = () => {
     setFilters({});
+    setSelectedAmenities([]);
   };
+
+  const toggleAmenity = (amenityName: string) => {
+    if (selectedAmenities.includes(amenityName)) {
+      setSelectedAmenities(selectedAmenities.filter(a => a !== amenityName));
+    } else {
+      setSelectedAmenities([...selectedAmenities, amenityName]);
+    }
+  };
+
+  // Équipements essentiels prioritaires (affichés en premier)
+  const essentialAmenities = [
+    'WiFi gratuit',
+    'Eau chaude',
+    'Climatisation',
+    'Parking gratuit',
+    'Piscine',
+    'Jacuzzi',
+    'Sauna',
+    'Ascenseur',
+  ];
+
+  // Trier les équipements : essentiels d'abord, puis les autres
+  const sortedAmenities = [...amenities].sort((a, b) => {
+    const aIsEssential = essentialAmenities.includes(a.name);
+    const bIsEssential = essentialAmenities.includes(b.name);
+    if (aIsEssential && !bIsEssential) return -1;
+    if (!aIsEssential && bIsEssential) return 1;
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -145,62 +189,67 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
           </View>
 
 
+          {/* Recherche par rayon */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recherche par rayon</Text>
+            <Text style={styles.helpText}>
+              Rechercher les logements dans un rayon autour du lieu sélectionné
+            </Text>
+            <View style={styles.radiusInputContainer}>
+              <Text style={styles.radiusLabel}>Rayon (km)</Text>
+              <TextInput
+                style={styles.radiusInput}
+                placeholder="Ex: 5, 10, 20"
+                value={filters.radiusKm?.toString() || ''}
+                onChangeText={(text) => {
+                  const value = text ? parseFloat(text) : undefined;
+                  setFilters({ ...filters, radiusKm: value && value > 0 ? value : undefined });
+                }}
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+              />
+            </View>
+            {filters.radiusKm && filters.radiusKm > 0 && (
+              <Text style={styles.radiusInfo}>
+                Afficher les logements dans un rayon de {filters.radiusKm} km
+              </Text>
+            )}
+          </View>
+
           {/* Équipements */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Équipements essentiels</Text>
-            <View style={styles.amenities}>
-              <TouchableOpacity
-                style={[
-                  styles.amenityButton,
-                  filters.wifi && styles.amenityButtonActive,
-                ]}
-                onPress={() => setFilters({ ...filters, wifi: !filters.wifi })}
-              >
-                <Ionicons name="wifi" size={20} color={filters.wifi ? '#fff' : '#666'} />
-                <Text style={[styles.amenityText, filters.wifi && styles.amenityTextActive]}>
-                  WiFi
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.amenityButton,
-                  filters.parking && styles.amenityButtonActive,
-                ]}
-                onPress={() => setFilters({ ...filters, parking: !filters.parking })}
-              >
-                <Ionicons name="car" size={20} color={filters.parking ? '#fff' : '#666'} />
-                <Text style={[styles.amenityText, filters.parking && styles.amenityTextActive]}>
-                  Parking
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.amenityButton,
-                  filters.pool && styles.amenityButtonActive,
-                ]}
-                onPress={() => setFilters({ ...filters, pool: !filters.pool })}
-              >
-                <Ionicons name="water" size={20} color={filters.pool ? '#fff' : '#666'} />
-                <Text style={[styles.amenityText, filters.pool && styles.amenityTextActive]}>
-                  Piscine
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.amenityButton,
-                  filters.airConditioning && styles.amenityButtonActive,
-                ]}
-                onPress={() => setFilters({ ...filters, airConditioning: !filters.airConditioning })}
-              >
-                <Ionicons name="snow" size={20} color={filters.airConditioning ? '#fff' : '#666'} />
-                <Text style={[styles.amenityText, filters.airConditioning && styles.amenityTextActive]}>
-                  Climatisation
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.sectionTitle}>Équipements</Text>
+            {amenitiesLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Chargement des équipements...</Text>
+              </View>
+            ) : (
+              <View style={styles.amenities}>
+                {sortedAmenities.map((amenity) => {
+                  const isSelected = selectedAmenities.includes(amenity.name);
+                  const iconName = getAmenityIonicIcon(amenity.name) as any;
+                  return (
+                    <TouchableOpacity
+                      key={amenity.id}
+                      style={[
+                        styles.amenityButton,
+                        isSelected && styles.amenityButtonActive,
+                      ]}
+                      onPress={() => toggleAmenity(amenity.name)}
+                    >
+                      <Ionicons 
+                        name={iconName} 
+                        size={20} 
+                        color={isSelected ? '#fff' : '#666'} 
+                      />
+                      <Text style={[styles.amenityText, isSelected && styles.amenityTextActive]}>
+                        {amenity.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
 
           {/* Bouton effacer */}
@@ -369,6 +418,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#dc3545',
     fontWeight: '600',
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  radiusInputContainer: {
+    marginTop: 10,
+  },
+  radiusLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  radiusInput: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  radiusInfo: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 10,
   },
 });
 

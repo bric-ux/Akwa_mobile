@@ -10,6 +10,8 @@ export interface LocationResult {
   region?: string;
   commune?: string;
   city_id?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export const useLocationSearch = () => {
@@ -100,6 +102,8 @@ export const useLocationSearch = () => {
             name: city.name,
             type: 'city' as const,
             region: city.region,
+            latitude: city.latitude,
+            longitude: city.longitude,
             score
           });
         }
@@ -115,6 +119,8 @@ export const useLocationSearch = () => {
             type: 'neighborhood' as const,
             commune: neighborhood.type === 'commune' ? neighborhood.name : undefined,
             city_id: neighborhood.parent_id,
+            latitude: neighborhood.latitude,
+            longitude: neighborhood.longitude,
             score
           });
         }
@@ -144,6 +150,8 @@ export const useLocationSearch = () => {
           type: 'commune' as const,
           commune: location.name,
           city_id: location.parent_id,
+          latitude: location.latitude,
+          longitude: location.longitude,
           score
         });
       });
@@ -185,10 +193,10 @@ export const useLocationSearch = () => {
     setError(null);
 
     try {
-      // Récupérer simplement les villes disponibles
+      // Récupérer simplement les villes disponibles avec coordonnées
       const { data, error } = await supabase
         .from('locations')
-        .select('id, name')
+        .select('id, name, latitude, longitude')
         .eq('type', 'city')
         .limit(8);
 
@@ -201,6 +209,8 @@ export const useLocationSearch = () => {
         id: city.id,
         name: city.name,
         type: 'city' as const,
+        latitude: city.latitude,
+        longitude: city.longitude,
       }));
 
     } catch (err: any) {

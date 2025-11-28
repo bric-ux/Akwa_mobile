@@ -30,6 +30,8 @@ interface SearchResultsViewProps {
   checkIn?: string;
   checkOut?: string;
   guests?: number;
+  searchCenter?: { lat: number; lng: number } | null; // Centre de recherche
+  searchRadius?: number; // Rayon de recherche en km
 }
 
 const SearchResultsView: React.FC<SearchResultsViewProps> = ({
@@ -39,6 +41,8 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   checkIn,
   checkOut,
   guests,
+  searchCenter,
+  searchRadius,
 }) => {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [selectedPropertyPrice, setSelectedPropertyPrice] = useState<number | null>(null);
@@ -124,6 +128,14 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
 
   // Calculer les limites (bounds) pour ajuster la vue sur toutes les propriétés
   const getMapBounds = () => {
+    // Si on a un centre de recherche, l'utiliser
+    if (searchCenter) {
+      return {
+        center: searchCenter,
+        bounds: null
+      };
+    }
+    
     if (properties.length === 0) {
       return {
         center: { lat: 7.5399, lng: -5.5471 },
@@ -169,6 +181,19 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
   };
 
   const mapBounds = getMapBounds();
+  
+  // Calculer le zoom approprié selon le rayon ou les propriétés
+  const getZoomLevel = () => {
+    if (searchRadius && searchRadius > 0) {
+      // Zoom adapté au rayon (plus le rayon est grand, plus le zoom est faible)
+      if (searchRadius <= 5) return 13;
+      if (searchRadius <= 10) return 12;
+      if (searchRadius <= 20) return 11;
+      if (searchRadius <= 50) return 10;
+      return 9;
+    }
+    return 12; // Zoom par défaut
+  };
 
   const formatPrice = (price: number) => {
     return formatPriceWithCurrency(price);
@@ -195,13 +220,14 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
         convertedPrice = result.converted;
       }
 
-      return `{
+        return `{
         position: [${lat}, ${lng}],
         price: ${price},
         convertedPrice: ${convertedPrice},
         title: ${JSON.stringify(title)},
         id: "${property.id}",
-        image: "${property.images?.[0] || ''}"
+        image: "${property.images?.[0] || ''}",
+        distance: ${property.distance || 'null'}
       }`;
     });
 
@@ -245,7 +271,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
       var map = L.map('map', {
         zoomControl: true,
         attributionControl: true
-      }).setView([${mapBounds.center.lat}, ${mapBounds.center.lng}], 12);
+      }).setView([${mapBounds.center.lat}, ${mapBounds.center.lng}], ${getZoomLevel()});
       
       // Ajouter plusieurs sources de tuiles en fallback
       var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -278,6 +304,32 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
       }
     }
 
+    // Ajouter le centre de recherche et le cercle de rayon si disponible
+    ${searchCenter && searchRadius ? `
+    // Marqueur pour le centre de recherche
+    var searchCenterMarker = L.marker([${searchCenter.lat}, ${searchCenter.lng}], {
+      icon: L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      })
+    }).addTo(map);
+    searchCenterMarker.bindPopup('<strong>📍 Centre de recherche</strong><br/>Rayon: ${searchRadius} km');
+    
+    // Cercle pour le rayon de recherche
+    var radiusCircle = L.circle([${searchCenter.lat}, ${searchCenter.lng}], {
+      radius: ${searchRadius * 1000}, // Convertir km en mètres
+      color: '#2E7D32',
+      fillColor: '#4CAF50',
+      fillOpacity: 0.1,
+      weight: 2,
+      dashArray: '5, 5'
+    }).addTo(map);
+    ` : ''}
+
     const properties = ${hasMarkers ? `[${markers.join(',\n          ')}]` : '[]'};
     const currentCurrency = '${currency}';
     const currentCurrencySymbol = '${currencySymbol}';
@@ -308,6 +360,19 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
             }).addTo(map);
 
             markers.push(marker);
+            
+            // Popup avec distance si disponible
+            const distanceText = prop.distance !== null && prop.distance !== undefined 
+              ? '<br/><span style="color: #666; font-size: 12px;">📍 ' + prop.distance.toFixed(1) + ' km</span>' 
+              : '';
+            const popupContent = '<div style="max-width: 200px;"><strong>' + prop.title + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 14px;">' + (
+              prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
+                ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                : prop.price.toLocaleString('fr-FR')
+            ) + ' ' + (
+              prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
+            ) + '/nuit</span>' + distanceText + '</div>';
+            marker.bindPopup(popupContent);
 
             marker.on('click', function() {
               window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -336,7 +401,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
 </body>
 </html>
     `;
-  }, [properties, propertyPrices, currency, currencySymbol, convert, mapBounds]);
+  }, [properties, propertyPrices, currency, currencySymbol, convert, mapBounds, searchCenter, searchRadius]);
 
   const handleMessage = (event: any) => {
     try {

@@ -7,15 +7,22 @@ import { useCurrency } from '../hooks/useCurrency';
 interface SearchMapViewProps {
   properties: Property[];
   onPropertyPress?: (property: Property) => void;
+  searchCenter?: { lat: number; lng: number } | null; // Centre de recherche
+  searchRadius?: number; // Rayon de recherche en km
 }
 
-const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPress }) => {
+const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPress, searchCenter, searchRadius }) => {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const webViewRef = useRef<WebView>(null);
   const { formatPrice: formatPriceWithCurrency, currency, currencySymbol, convert } = useCurrency();
 
   // Calculer les coordonnées moyennes pour centrer la carte
   const getCenterCoordinates = () => {
+    // Si on a un centre de recherche, l'utiliser
+    if (searchCenter) {
+      return searchCenter;
+    }
+    
     if (properties.length === 0) return { lat: 7.5399, lng: -5.5471 }; // Côte d'Ivoire par défaut
 
     const validProps = properties.filter(p => 
@@ -35,6 +42,19 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   };
 
   const center = getCenterCoordinates();
+  
+  // Calculer le zoom approprié selon le rayon ou les propriétés
+  const getZoomLevel = () => {
+    if (searchRadius && searchRadius > 0) {
+      // Zoom adapté au rayon (plus le rayon est grand, plus le zoom est faible)
+      if (searchRadius <= 5) return 13;
+      if (searchRadius <= 10) return 12;
+      if (searchRadius <= 20) return 11;
+      if (searchRadius <= 50) return 10;
+      return 9;
+    }
+    return 10; // Zoom par défaut
+  };
 
   const formatPrice = (price: number) => {
     return formatPriceWithCurrency(price);
@@ -64,8 +84,9 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
         const lng = property.location?.longitude || property.locations?.longitude || property.longitude || 0;
         const price = property.price_per_night || 0;
         const title = property.title || 'Propriété';
+        const distance = property.distance; // Distance en km si recherche par rayon
         
-        console.log(`📍 Marqueur ${index}: ${title} à [${lat}, ${lng}]`);
+        console.log(`📍 Marqueur ${index}: ${title} à [${lat}, ${lng}]${distance ? ` - ${distance}km` : ''}`);
         
         // Convertir le prix à la devise sélectionnée (si ce n'est pas XOF)
         let convertedPrice = price;
@@ -80,7 +101,8 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
           convertedPrice: ${convertedPrice},
           title: ${JSON.stringify(title)},
           id: "${property.id}",
-          image: "${property.images?.[0] || ''}"
+          image: "${property.images?.[0] || ''}",
+          distance: ${distance || 'null'}
         }`;
       });
 
@@ -119,12 +141,38 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
 <body>
   <div id="map"></div>
   <script>
-    var map = L.map('map').setView([${center.lat}, ${center.lng}], 10);
+    var map = L.map('map').setView([${center.lat}, ${center.lng}], ${getZoomLevel()});
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
       maxZoom: 19
     }).addTo(map);
+
+    // Ajouter le centre de recherche et le cercle de rayon si disponible
+    ${searchCenter && searchRadius ? `
+    // Marqueur pour le centre de recherche
+    var searchCenterMarker = L.marker([${searchCenter.lat}, ${searchCenter.lng}], {
+      icon: L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      })
+    }).addTo(map);
+    searchCenterMarker.bindPopup('<strong>📍 Centre de recherche</strong><br/>Rayon: ${searchRadius} km');
+    
+    // Cercle pour le rayon de recherche
+    var radiusCircle = L.circle([${searchCenter.lat}, ${searchCenter.lng}], {
+      radius: ${searchRadius * 1000}, // Convertir km en mètres
+      color: '#2E7D32',
+      fillColor: '#4CAF50',
+      fillOpacity: 0.1,
+      weight: 2,
+      dashArray: '5, 5'
+    }).addTo(map);
+    ` : ''}
 
     const properties = [${markers.join(',\n          ')}];
     const currentCurrency = '${currency}';
@@ -165,7 +213,10 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
           : prop.price.toLocaleString('fr-FR')
       );
       const displayCurrency = prop.convertedPrice !== undefined && prop.convertedPrice !== prop.price ? currentCurrencySymbol : 'CFA';
-      const popupContent = '<div style="max-width: 200px;"><strong>' + prop.title + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 16px;">' + displayPrice + ' ' + displayCurrency + '/nuit</span><br/><button onclick="selectProperty(\\'' + prop.id + '\\')" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-top: 8px; width: 100%;">Voir détails</button></div>';
+      const distanceText = prop.distance !== null && prop.distance !== undefined 
+        ? '<br/><span style="color: #666; font-size: 12px;">📍 ' + prop.distance.toFixed(1) + ' km</span>' 
+        : '';
+      const popupContent = '<div style="max-width: 200px;"><strong>' + prop.title + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 16px;">' + displayPrice + ' ' + displayCurrency + '/nuit</span>' + distanceText + '<br/><button onclick="selectProperty(\\'' + prop.id + '\\')" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-top: 8px; width: 100%;">Voir détails</button></div>';
       marker.bindPopup(popupContent);
 
       // Gérer le clic sur le marqueur
@@ -206,12 +257,14 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   };
 
   useEffect(() => {
-    console.log('🔄 Propriétés ou devise ont changé, rechargement de la carte');
+    console.log('🔄 Propriétés, devise, centre ou rayon ont changé, rechargement de la carte');
     console.log('💰 Devise actuelle:', currency);
+    console.log('📍 Centre de recherche:', searchCenter);
+    console.log('📏 Rayon de recherche:', searchRadius);
     if (webViewRef.current) {
       webViewRef.current.reload();
     }
-  }, [properties, currency]);
+  }, [properties, currency, searchCenter, searchRadius]);
 
   return (
     <View style={styles.container}>
