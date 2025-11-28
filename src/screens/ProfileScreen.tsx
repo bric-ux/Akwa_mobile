@@ -218,7 +218,7 @@ const ProfileScreen: React.FC = () => {
   // Élément pour devenir hôte (si pas encore hôte)
   const becomeHostItem = {
     id: 'host',
-    title: t('becomeHost.title'),
+    title: t('becomeHost.menuTitle') || 'Devenir hôte',
     icon: 'home-outline',
     onPress: () => {
       console.log('🔵 [ProfileScreen] Navigation vers BecomeHost');

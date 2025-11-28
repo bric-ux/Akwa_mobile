@@ -22,6 +22,7 @@ import { Property, CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
 import { useAmenities } from '../hooks/useAmenities';
 import { useHostApplications } from '../hooks/useHostApplications';
+import CitySearchInputModal from '../components/CitySearchInputModal';
 
 type EditPropertyRouteParams = {
   propertyId: string;
@@ -41,6 +42,8 @@ const EditPropertyScreen: React.FC = () => {
   const [availableAmenities, setAvailableAmenities] = useState<any[]>([]);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [customAmenities, setCustomAmenities] = useState<string>('');
+  const [selectedLocation, setSelectedLocation] = useState<any>(null);
+  const [locationDisplay, setLocationDisplay] = useState<string>('');
   
   // États du formulaire
   const [formData, setFormData] = useState({
@@ -52,6 +55,7 @@ const EditPropertyScreen: React.FC = () => {
     bathrooms: '',
     property_type: 'apartment',
     cleaning_fee: '',
+    free_cleaning_min_days: '',
     minimum_nights: '',
     auto_booking: false,
     discount_enabled: false,
@@ -98,6 +102,7 @@ const EditPropertyScreen: React.FC = () => {
           bathrooms: propertyData.bathrooms?.toString() || '',
           property_type: propertyData.property_type || 'apartment',
           cleaning_fee: propertyData.cleaning_fee?.toString() || '',
+          free_cleaning_min_days: propertyData.free_cleaning_min_days?.toString() || '',
           minimum_nights: propertyData.minimum_nights?.toString() || '',
           auto_booking: propertyData.auto_booking || false,
           discount_enabled: propertyData.discount_enabled || false,
@@ -143,6 +148,23 @@ const EditPropertyScreen: React.FC = () => {
         } else if (propertyData.custom_amenities) {
           setCustomAmenities(propertyData.custom_amenities);
         }
+        
+        // Charger la localisation
+        if (propertyData.location_id && propertyData.location) {
+          setSelectedLocation(propertyData.location);
+          setLocationDisplay(
+            typeof propertyData.location === 'object' && propertyData.location !== null
+              ? propertyData.location.name
+              : propertyData.location || ''
+          );
+        } else if (propertyData.location) {
+          // Ancien format (string)
+          setLocationDisplay(
+            typeof propertyData.location === 'string' 
+              ? propertyData.location 
+              : (propertyData.location as any)?.name || ''
+          );
+        }
       }
     } catch (error) {
       console.error('Erreur lors du chargement de la propriété:', error);
@@ -177,6 +199,7 @@ const EditPropertyScreen: React.FC = () => {
         bathrooms: formData.bathrooms ? Number(formData.bathrooms) : null,
         property_type: formData.property_type,
         cleaning_fee: formData.cleaning_fee ? Number(formData.cleaning_fee) : null,
+        free_cleaning_min_days: formData.free_cleaning_min_days ? Number(formData.free_cleaning_min_days) : null,
         minimum_nights: formData.minimum_nights ? Number(formData.minimum_nights) : null,
         amenities: selectedAmenities,
         custom_amenities: customAmenities.trim() 
@@ -188,6 +211,17 @@ const EditPropertyScreen: React.FC = () => {
         discount_percentage: formData.discount_percentage ? Number(formData.discount_percentage) : null,
         updated_at: new Date().toISOString(),
       };
+      
+      // Mettre à jour la localisation si elle a été modifiée
+      if (selectedLocation) {
+        if (selectedLocation.id) {
+          updateData.location_id = selectedLocation.id;
+        }
+        // Garder le nom de la localisation pour compatibilité
+        if (selectedLocation.name) {
+          updateData.location = selectedLocation.name;
+        }
+      }
 
       // Mettre à jour la propriété
       const { error } = await supabase
@@ -580,6 +614,27 @@ const EditPropertyScreen: React.FC = () => {
             formData.property_type,
             propertyTypes
           )}
+          
+          {/* Localisation */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Localisation *</Text>
+            <CitySearchInputModal
+              value={locationDisplay}
+              onChange={(result) => {
+                if (result) {
+                  setSelectedLocation(result);
+                  setLocationDisplay(result.name);
+                } else {
+                  setSelectedLocation(null);
+                  setLocationDisplay('');
+                }
+              }}
+              placeholder="Rechercher ville, commune ou quartier..."
+            />
+            <Text style={styles.helpText}>
+              Recherchez votre ville, commune ou quartier avec autocomplétion
+            </Text>
+          </View>
         </View>
 
         {/* Photos */}
@@ -678,6 +733,21 @@ const EditPropertyScreen: React.FC = () => {
             'Frais de ménage',
             'numeric'
           )}
+          
+          {/* Ménage gratuit */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Ménage gratuit à partir de (nombre de jours)</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.free_cleaning_min_days}
+              onChangeText={(text) => handleInputChange('free_cleaning_min_days', text)}
+              placeholder="Ex: 7 (ménage gratuit dès 7 jours de séjour)"
+              keyboardType="numeric"
+            />
+            <Text style={styles.helpText}>
+              Si vous proposez un ménage gratuit à partir d'un certain nombre de jours, indiquez le seuil ici
+            </Text>
+          </View>
           
           {renderInputField(
             'Nuitées minimum',
@@ -889,6 +959,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 4,
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   selectContainer: {
     flexDirection: 'row',

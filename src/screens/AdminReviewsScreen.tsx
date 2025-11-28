@@ -342,7 +342,7 @@ const AdminReviewsScreen: React.FC = () => {
   ) => (
     <View style={styles.testRatingCategory}>
       <View style={styles.testRatingHeader}>
-        <Ionicons name={icon as any} size={18} color="#666" />
+        <Ionicons name={icon as any} size={22} color="#666" />
         <Text style={styles.testRatingTitle}>{title}</Text>
       </View>
       <View style={styles.testStarsContainer}>
@@ -354,7 +354,7 @@ const AdminReviewsScreen: React.FC = () => {
           >
             <Ionicons
               name={star <= rating ? 'star' : 'star-outline'}
-              size={24}
+              size={32}
               color={star <= rating ? '#FFD700' : '#ccc'}
             />
           </TouchableOpacity>
@@ -508,21 +508,42 @@ const AdminReviewsScreen: React.FC = () => {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={reviews}
-          renderItem={renderReviewItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={['#2E7D32']}
-              tintColor="#2E7D32"
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        />
+        <>
+          <FlatList
+            data={reviews}
+            renderItem={renderReviewItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={['#2E7D32']}
+                tintColor="#2E7D32"
+              />
+            }
+            showsVerticalScrollIndicator={false}
+          />
+          {/* Bouton flottant pour créer un avis de test */}
+          <TouchableOpacity
+            style={styles.floatingTestButton}
+            onPress={() => setShowTestModal(true)}
+          >
+            <Ionicons name="flask" size={24} color="#fff" />
+            <Text style={styles.floatingTestButtonText}>Test avis</Text>
+          </TouchableOpacity>
+        </>
+      )}
+      
+      {/* Bouton flottant aussi visible quand il n'y a pas d'avis */}
+      {reviews.length === 0 && !loading && (
+        <TouchableOpacity
+          style={styles.floatingTestButton}
+          onPress={() => setShowTestModal(true)}
+        >
+          <Ionicons name="flask" size={24} color="#fff" />
+          <Text style={styles.floatingTestButtonText}>Test avis</Text>
+        </TouchableOpacity>
       )}
 
       {/* Modal de test d'avis */}
@@ -659,47 +680,78 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#e8f5e9',
   },
+  floatingTestButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: '#2E7D32',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
+    zIndex: 1000,
+  },
+  floatingTestButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 20,
+    width: '95%',
     maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
+    padding: 24,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
   },
   modalCloseButton: {
-    padding: 4,
+    padding: 8,
   },
   modalBody: {
     flex: 1,
-    padding: 20,
+    padding: 24,
+    maxHeight: '100%',
   },
   modalFooter: {
     flexDirection: 'row',
-    padding: 20,
+    padding: 24,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
   modalButton: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -708,7 +760,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   modalCancelButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
   },
@@ -719,29 +771,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
   modalSubmitButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#fff',
   },
   testSection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   testLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   propertiesList: {
-    maxHeight: 120,
+    maxHeight: 150,
   },
   propertyOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    marginRight: 8,
+    marginRight: 10,
     backgroundColor: '#f8f9fa',
   },
   propertyOptionSelected: {
@@ -749,7 +801,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e8f5e9',
   },
   propertyOptionText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
   },
   propertyOptionTextSelected: {
@@ -757,47 +809,48 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   testRatingCategory: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   testRatingHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+    gap: 10,
+    marginBottom: 12,
   },
   testRatingTitle: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
   },
   testStarsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   testStarButton: {
-    padding: 4,
+    padding: 6,
   },
   testRatingValue: {
-    fontSize: 14,
+    fontSize: 18,
     color: '#666',
-    marginLeft: 8,
+    marginLeft: 12,
+    fontWeight: '600',
   },
   testCommentInput: {
     borderWidth: 1,
     borderColor: '#e0e0e0',
     borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    padding: 16,
+    fontSize: 18,
     color: '#333',
-    minHeight: 100,
+    minHeight: 120,
     backgroundColor: '#f8f9fa',
   },
   charCount: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#999',
     textAlign: 'right',
-    marginTop: 4,
+    marginTop: 6,
   },
   loadingText: {
     marginTop: 10,

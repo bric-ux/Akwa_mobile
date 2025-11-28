@@ -7,10 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   SafeAreaView,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useMyProperties } from '../hooks/useMyProperties';
+import { useHostBookings } from '../hooks/useHostBookings';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 
@@ -31,7 +34,8 @@ interface DetailedStats {
 const HostStatsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { getMyProperties, getPropertyBookings } = useMyProperties();
+  const { getMyProperties } = useMyProperties();
+  const { getHostBookings } = useHostBookings();
   
   const [stats, setStats] = useState<DetailedStats>({
     totalProperties: 0,
@@ -46,18 +50,46 @@ const HostStatsScreen: React.FC = () => {
     totalGuests: 0,
     totalNights: 0,
   });
+  const [monthlyStats, setMonthlyStats] = useState<Record<string, DetailedStats>>({});
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'annual' | 'monthly'>('annual');
+  const [properties, setProperties] = useState<any[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>('all');
+  const [showPropertyModal, setShowPropertyModal] = useState(false);
+  const [showMonthModal, setShowMonthModal] = useState(false);
 
-  const loadDetailedStats = async () => {
+  const loadDetailedStats = async (filterMonth?: string, propertyIdFilter?: string) => {
     if (!user) return;
 
     try {
       setLoading(true);
       
-      // Charger les propriétés
-      const userProperties = await getMyProperties();
+      // Charger les propriétés et les bookings en parallèle pour améliorer les performances
+      const [userProperties, allBookings] = await Promise.all([
+        getMyProperties(),
+        getHostBookings()
+      ]);
 
-      // Calculer les statistiques
+      // Stocker les propriétés pour le sélecteur
+      setProperties(userProperties);
+
+      // Filtrer par propriété si sélectionné
+      const propertyFilteredBookings = propertyIdFilter && propertyIdFilter !== 'all'
+        ? allBookings.filter(booking => {
+            const propertyId = (booking as any).property?.id || (booking as any).property_id;
+            return propertyId === propertyIdFilter;
+          })
+        : allBookings;
+
+      // Filtrer les réservations par mois si nécessaire
+      const filteredBookings = filterMonth
+        ? propertyFilteredBookings.filter(booking => {
+            const bookingMonth = (booking as any).created_at?.slice(0, 7);
+            return bookingMonth === filterMonth;
+          })
+        : propertyFilteredBookings;
+
       let totalBookingsCount = 0;
       let pendingBookingsCount = 0;
       let confirmedBookingsCount = 0;
@@ -69,39 +101,63 @@ const HostStatsScreen: React.FC = () => {
       let totalVisitorsCount = 0;
       let totalViewsCount = 0;
 
-      // Charger les statistiques pour chaque propriété
-      for (const property of userProperties) {
-        // Réservations
-        const bookings = await getPropertyBookings(property.id);
-        totalBookingsCount += bookings.length;
-        
-        const pending = bookings.filter(booking => booking.status === 'pending');
-        pendingBookingsCount += pending.length;
-        
-        const confirmed = bookings.filter(booking => 
-          booking.status === 'confirmed' || booking.status === 'completed'
-        );
-        confirmedBookingsCount += confirmed.length;
-        
-        confirmed.forEach(booking => {
-          revenue += booking.total_price || 0;
-          totalGuestsCount += (booking.adults_count || 0) + (booking.children_count || 0);
-          
-          // Calculer les nuits
-          if (booking.check_in_date && booking.check_out_date) {
-            const checkIn = new Date(booking.check_in_date);
-            const checkOut = new Date(booking.check_out_date);
-            const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-            totalNightsCount += nights;
-          }
-        });
+      const propertyIds = propertyIdFilter && propertyIdFilter !== 'all'
+        ? new Set([propertyIdFilter])
+        : new Set(userProperties.map(p => p.id));
 
-        // Vues et visiteurs
+      const hostBookings = filteredBookings.filter(booking => {
+        const propertyId = (booking as any).property?.id || (booking as any).property_id;
+        return propertyId && propertyIds.has(propertyId);
+      });
+
+      totalBookingsCount = hostBookings.length;
+      
+      const pending = hostBookings.filter(booking => booking.status === 'pending');
+      pendingBookingsCount = pending.length;
+      
+      const confirmed = hostBookings.filter(booking => 
+        booking.status === 'confirmed' || booking.status === 'completed'
+      );
+      confirmedBookingsCount = confirmed.length;
+      
+      confirmed.forEach(booking => {
+        const price = (booking as any).total_price || 0;
+        revenue += price;
+        totalGuestsCount += (booking as any).guests_count || 0;
+        
+        if ((booking as any).check_in_date && (booking as any).check_out_date) {
+          const checkIn = new Date((booking as any).check_in_date);
+          const checkOut = new Date((booking as any).check_out_date);
+          const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+          totalNightsCount += nights;
+        }
+      });
+
+      for (const property of userProperties) {
+        // Filtrer par propriété si nécessaire
+        if (propertyIdFilter && propertyIdFilter !== 'all' && property.id !== propertyIdFilter) {
+          continue;
+        }
+
         try {
-          const { data: views } = await supabase
+          // Requête pour les vues avec filtre de mois si nécessaire
+          const viewsQuery = supabase
             .from('property_views')
             .select('viewer_id, viewed_at')
             .eq('property_id', property.id);
+
+          // Ajouter le filtre mensuel si nécessaire
+          if (filterMonth) {
+            const startOfMonth = new Date(`${filterMonth}-01`);
+            const endOfMonth = new Date(startOfMonth);
+            endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+            
+            viewsQuery
+              .gte('viewed_at', startOfMonth.toISOString())
+              .lt('viewed_at', endOfMonth.toISOString());
+          }
+
+          const { data: views } = await viewsQuery;
 
           const uniqueViewers = views ? new Set(
             views
@@ -116,7 +172,6 @@ const HostStatsScreen: React.FC = () => {
           console.log('Erreur lors du chargement des vues:', error);
         }
 
-        // Calculer la note moyenne
         if (property.rating && property.rating > 0) {
           totalRating += property.rating;
           ratingCount++;
@@ -124,12 +179,10 @@ const HostStatsScreen: React.FC = () => {
       }
 
       const averageRating = ratingCount > 0 ? totalRating / ratingCount : 0;
-      
-      // Calculer le taux d'occupation (approximation)
-      const totalAvailableNights = userProperties.length * 365; // Approximation
+      const totalAvailableNights = userProperties.length * 365;
       const occupancyRate = totalAvailableNights > 0 ? (totalNightsCount / totalAvailableNights) * 100 : 0;
 
-      setStats({
+      const finalStats = {
         totalProperties: userProperties.length,
         totalBookings: totalBookingsCount,
         pendingBookings: pendingBookingsCount,
@@ -141,7 +194,13 @@ const HostStatsScreen: React.FC = () => {
         occupancyRate: Math.round(occupancyRate * 10) / 10,
         totalGuests: totalGuestsCount,
         totalNights: totalNightsCount,
-      });
+      };
+
+      if (filterMonth) {
+        setMonthlyStats(prev => ({ ...prev, [filterMonth]: finalStats }));
+      } else {
+        setStats(finalStats);
+      }
 
     } catch (error) {
       console.error('Erreur lors du chargement des statistiques détaillées:', error);
@@ -152,9 +211,23 @@ const HostStatsScreen: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      loadDetailedStats();
+      loadDetailedStats(undefined, selectedPropertyId);
     }
-  }, [user]);
+  }, [user, selectedPropertyId]);
+
+  useEffect(() => {
+    if (user && viewMode === 'monthly') {
+      loadDetailedStats(selectedMonth, selectedPropertyId);
+    }
+  }, [selectedMonth, viewMode, selectedPropertyId]);
+
+  useEffect(() => {
+    if (user && viewMode === 'monthly' && selectedMonth) {
+      if (!monthlyStats[selectedMonth]) {
+        loadDetailedStats(selectedMonth, selectedPropertyId);
+      }
+    }
+  }, [viewMode, selectedMonth, user, selectedPropertyId]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -185,7 +258,26 @@ const HostStatsScreen: React.FC = () => {
     </View>
   );
 
-  if (loading) {
+  const currentStats = viewMode === 'monthly' && selectedMonth 
+    ? (monthlyStats[selectedMonth] || stats)
+    : stats;
+
+  const getLastMonths = () => {
+    const months = [];
+    for (let i = 0; i < 12; i++) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      months.push(date.toISOString().slice(0, 7));
+    }
+    return months;
+  };
+
+  const formatMonthLabel = (month: string) => {
+    const date = new Date(month + '-01');
+    return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  };
+
+  if (loading && viewMode === 'annual') {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
@@ -203,44 +295,119 @@ const HostStatsScreen: React.FC = () => {
         <Text style={styles.headerTitle}>Statistiques détaillées</Text>
         <TouchableOpacity
           style={styles.refreshButton}
-          onPress={loadDetailedStats}
+          onPress={() => loadDetailedStats(viewMode === 'monthly' ? selectedMonth : undefined, selectedPropertyId)}
+          disabled={loading}
         >
-          <Ionicons name="refresh" size={24} color="#2E7D32" />
+          <Ionicons 
+            name="refresh" 
+            size={24} 
+            color="#2E7D32" 
+            style={loading ? { transform: [{ rotate: '0deg' }] } : undefined}
+          />
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Statistiques principales */}
-        <Text style={styles.sectionTitle}>Vue d'ensemble</Text>
+        {/* Sélecteur de propriété */}
+        {properties.length > 1 && (
+          <View style={styles.filterContainer}>
+            <Text style={styles.filterLabel}>Filtrer par propriété</Text>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowPropertyModal(true)}
+            >
+              <Text style={styles.filterButtonText}>
+                {selectedPropertyId === 'all' 
+                  ? 'Toutes les propriétés' 
+                  : properties.find(p => p.id === selectedPropertyId)?.title || 'Toutes les propriétés'}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Onglets Annuel / Mensuel */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, viewMode === 'annual' && styles.tabActive]}
+            onPress={() => setViewMode('annual')}
+          >
+            <Text style={[styles.tabText, viewMode === 'annual' && styles.tabTextActive]}>
+              Vue annuelle
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, viewMode === 'monthly' && styles.tabActive]}
+            onPress={() => setViewMode('monthly')}
+          >
+            <Text style={[styles.tabText, viewMode === 'monthly' && styles.tabTextActive]}>
+              Vue mensuelle
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Sélecteur de mois pour la vue mensuelle */}
+        {viewMode === 'monthly' && (
+          <View style={styles.filterContainer}>
+            <Text style={styles.filterLabel}>Sélectionner un mois</Text>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowMonthModal(true)}
+            >
+              <Text style={styles.filterButtonText}>
+                {formatMonthLabel(selectedMonth)}
+              </Text>
+              <Ionicons name="calendar-outline" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {loading && viewMode === 'monthly' ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#2E7D32" />
+            <Text style={styles.loadingText}>Chargement des statistiques...</Text>
+          </View>
+        ) : (
+          <>
+            {/* Statistiques principales */}
+            <Text style={styles.sectionTitle}>
+              {viewMode === 'monthly' 
+                ? `Statistiques de ${formatMonthLabel(selectedMonth)}`
+                : 'Vue d\'ensemble'}
+            </Text>
         
         <View style={styles.statsContainer}>
-          <StatCard
-            title="Propriétés"
-            value={stats.totalProperties}
-            icon="home-outline"
-            color="#2E7D32"
-          />
+          {viewMode === 'annual' && (
+            <StatCard
+              title="Propriétés"
+              value={currentStats.totalProperties}
+              icon="home-outline"
+              color="#2E7D32"
+            />
+          )}
           
           <StatCard
-            title="Réservations totales"
-            value={stats.totalBookings}
+            title={viewMode === 'monthly' ? 'Réservations du mois' : 'Réservations totales'}
+            value={currentStats.totalBookings}
             icon="calendar-outline"
             color="#3498db"
           />
           
           <StatCard
-            title="Revenus totaux"
-            value={formatPrice(stats.totalRevenue)}
+            title={viewMode === 'monthly' ? 'Revenus du mois' : 'Revenus totaux'}
+            value={formatPrice(currentStats.totalRevenue)}
             icon="cash-outline"
             color="#e67e22"
           />
           
-          <StatCard
-            title="Note moyenne"
-            value={`${stats.averageRating}/5`}
-            icon="star-outline"
-            color="#9b59b6"
-          />
+          {viewMode === 'annual' && (
+            <StatCard
+              title="Note moyenne"
+              value={`${currentStats.averageRating}/5`}
+              icon="star-outline"
+              color="#9b59b6"
+            />
+          )}
         </View>
 
         {/* Statistiques des réservations */}
@@ -249,73 +416,203 @@ const HostStatsScreen: React.FC = () => {
         <View style={styles.statsContainer}>
           <StatCard
             title="En attente"
-            value={stats.pendingBookings}
+            value={currentStats.pendingBookings}
             icon="time-outline"
             color="#f39c12"
           />
           
           <StatCard
             title="Confirmées"
-            value={stats.confirmedBookings}
+            value={currentStats.confirmedBookings}
             icon="checkmark-circle-outline"
             color="#27ae60"
           />
           
           <StatCard
-            title="Total invités"
-            value={stats.totalGuests}
+            title={viewMode === 'monthly' ? 'Voyageurs du mois' : 'Total invités'}
+            value={currentStats.totalGuests}
             icon="people-outline"
             color="#8e44ad"
           />
           
           <StatCard
-            title="Nuits totales"
-            value={stats.totalNights}
+            title={viewMode === 'monthly' ? 'Nuits réservées' : 'Nuits totales'}
+            value={currentStats.totalNights}
             icon="bed-outline"
             color="#16a085"
           />
         </View>
 
         {/* Statistiques de visibilité */}
-        <Text style={styles.sectionTitle}>Visibilité</Text>
-        
-        <View style={styles.statsContainer}>
-          <StatCard
-            title="Visiteurs uniques"
-            value={stats.totalVisitors}
-            icon="eye-outline"
-            color="#e74c3c"
-            subtitle="Personnes ayant vu vos propriétés"
-          />
-          
-          <StatCard
-            title="Vues totales"
-            value={stats.totalViews}
-            icon="analytics-outline"
-            color="#f39c12"
-            subtitle="Nombre total de consultations"
-          />
-          
-          <StatCard
-            title="Taux d'occupation"
-            value={`${stats.occupancyRate}%`}
-            icon="trending-up-outline"
-            color="#2ecc71"
-            subtitle="Pourcentage de nuits occupées"
-          />
-        </View>
+        {viewMode === 'annual' && (
+          <>
+            <Text style={styles.sectionTitle}>Visibilité</Text>
+            
+            <View style={styles.statsContainer}>
+              <StatCard
+                title="Visiteurs uniques"
+                value={currentStats.totalVisitors}
+                icon="eye-outline"
+                color="#e74c3c"
+                subtitle="Personnes ayant vu vos propriétés"
+              />
+              
+              <StatCard
+                title="Vues totales"
+                value={currentStats.totalViews}
+                icon="analytics-outline"
+                color="#f39c12"
+                subtitle="Nombre total de consultations"
+              />
+              
+              <StatCard
+                title="Taux d'occupation"
+                value={`${currentStats.occupancyRate}%`}
+                icon="trending-up-outline"
+                color="#2ecc71"
+                subtitle="Pourcentage de nuits occupées"
+              />
+            </View>
+          </>
+        )}
+
+        {viewMode === 'monthly' && (
+          <>
+            <Text style={styles.sectionTitle}>Visibilité</Text>
+            
+            <View style={styles.statsContainer}>
+              <StatCard
+                title="Visiteurs uniques du mois"
+                value={currentStats.totalVisitors}
+                icon="eye-outline"
+                color="#e74c3c"
+                subtitle="Personnes ayant vu vos propriétés"
+              />
+              
+              <StatCard
+                title="Vues du mois"
+                value={currentStats.totalViews}
+                icon="analytics-outline"
+                color="#f39c12"
+                subtitle="Nombre de consultations"
+              />
+            </View>
+          </>
+        )}
 
         {/* Résumé des performances */}
-        <View style={styles.summaryContainer}>
-          <Ionicons name="trophy-outline" size={32} color="#f39c12" />
-          <Text style={styles.summaryTitle}>Résumé des performances</Text>
-          <Text style={styles.summaryText}>
-            Vous gérez {stats.totalProperties} propriété{stats.totalProperties > 1 ? 's' : ''} avec un taux d'occupation de {stats.occupancyRate}%.
-            {stats.totalVisitors > 0 && ` Vos propriétés ont été vues par ${stats.totalVisitors} visiteurs uniques.`}
-            {stats.averageRating > 0 && ` Votre note moyenne est de ${stats.averageRating}/5.`}
-          </Text>
-        </View>
+        {viewMode === 'annual' ? (
+          <View style={styles.summaryContainer}>
+            <Ionicons name="trophy-outline" size={32} color="#f39c12" />
+            <Text style={styles.summaryTitle}>Résumé des performances</Text>
+            <Text style={styles.summaryText}>
+              Vous gérez {currentStats.totalProperties} propriété{currentStats.totalProperties > 1 ? 's' : ''} avec un taux d'occupation de {currentStats.occupancyRate}%.
+              {currentStats.totalVisitors > 0 && ` Vos propriétés ont été vues par ${currentStats.totalVisitors} visiteurs uniques.`}
+              {currentStats.averageRating > 0 && ` Votre note moyenne est de ${currentStats.averageRating}/5.`}
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.summaryContainer, { backgroundColor: '#e3f2fd', borderColor: '#90caf9' }]}>
+            <Text style={[styles.summaryTitle, { color: '#1976d2' }]}>Résumé mensuel</Text>
+            <Text style={[styles.summaryText, { color: '#1565c0' }]}>
+              Ce mois, vous avez généré {formatPrice(currentStats.totalRevenue)} avec {currentStats.totalBookings} réservation{currentStats.totalBookings > 1 ? 's' : ''} 
+              {currentStats.totalGuests > 0 && ` et accueilli ${currentStats.totalGuests} invité${currentStats.totalGuests > 1 ? 's' : ''}`}.
+            </Text>
+          </View>
+        )}
+          </>
+        )}
       </ScrollView>
+
+      {/* Modal de sélection de propriété */}
+      <Modal
+        visible={showPropertyModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPropertyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sélectionner une propriété</Text>
+              <TouchableOpacity onPress={() => setShowPropertyModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={[{ id: 'all', title: 'Toutes les propriétés' }, ...properties]}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    selectedPropertyId === item.id && styles.modalItemSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedPropertyId(item.id);
+                    setShowPropertyModal(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalItemText,
+                    selectedPropertyId === item.id && styles.modalItemTextSelected
+                  ]}>
+                    {item.title}
+                  </Text>
+                  {selectedPropertyId === item.id && (
+                    <Ionicons name="checkmark" size={20} color="#2E7D32" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de sélection de mois */}
+      <Modal
+        visible={showMonthModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowMonthModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sélectionner un mois</Text>
+              <TouchableOpacity onPress={() => setShowMonthModal(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={getLastMonths()}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    selectedMonth === item && styles.modalItemSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedMonth(item);
+                    setShowMonthModal(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalItemText,
+                    selectedMonth === item && styles.modalItemTextSelected
+                  ]}>
+                    {formatMonthLabel(item)}
+                  </Text>
+                  {selectedMonth === item && (
+                    <Ionicons name="checkmark" size={20} color="#2E7D32" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -441,6 +738,110 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#666',
+  },
+  filterContainer: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+  },
+  filterButtonText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabActive: {
+    backgroundColor: '#2E7D32',
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  tabTextActive: {
+    color: '#fff',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalItemSelected: {
+    backgroundColor: '#e8f5e9',
+  },
+  modalItemText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  modalItemTextSelected: {
+    color: '#2E7D32',
+    fontWeight: '600',
   },
 });
 

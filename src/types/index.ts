@@ -70,6 +70,7 @@ export interface Property {
   bathrooms?: number;
   property_type?: string;
   cleaning_fee?: number;
+  free_cleaning_min_days?: number;
   service_fee?: number;
   taxes?: number;
   is_hidden?: boolean;

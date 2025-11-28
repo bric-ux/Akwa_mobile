@@ -19,6 +19,7 @@ export interface HostApplicationData {
   categorizedPhotos?: Array<{url: string, category: string, displayOrder: number}>;
   amenities?: string[];
   cleaningFee?: number;
+  freeCleaningMinDays?: number;
   taxes?: number;
   minimumNights?: number;
   autoBooking?: boolean;
@@ -60,6 +61,7 @@ export interface HostApplication {
   discount_min_nights?: number;
   discount_percentage?: number;
   cleaning_fee?: number;
+  free_cleaning_min_days?: number;
   taxes?: number;
   fields_to_revise?: Record<string, boolean>;
 }
@@ -107,6 +109,7 @@ export const useHostApplications = () => {
           discount_min_nights: applicationData.discountMinNights || null,
           discount_percentage: applicationData.discountPercentage || null,
           cleaning_fee: applicationData.cleaningFee || 0,
+          free_cleaning_min_days: applicationData.freeCleaningMinDays || null,
           taxes: applicationData.taxes || 0,
         })
         .select()

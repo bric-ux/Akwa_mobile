@@ -116,6 +116,7 @@ export function calculateFees(
     cleaning_fee?: number | null;
     service_fee?: number | null;
     taxes?: number | null;
+    free_cleaning_min_days?: number | null;
   }
 ): {
   cleaningFee: number;
@@ -124,7 +125,10 @@ export function calculateFees(
   totalFees: number;
 } {
   // Utiliser les vrais frais de la propriété ou des valeurs par défaut
-  const cleaningFee = propertyFees?.cleaning_fee || 0;
+  const baseCleaningFee = propertyFees?.cleaning_fee || 0;
+  // Calculer les frais de ménage (gratuit si nights >= free_cleaning_min_days)
+  const isFreeCleaningApplicable = propertyFees?.free_cleaning_min_days && nights >= propertyFees.free_cleaning_min_days;
+  const cleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
   const serviceFee = propertyFees?.service_fee || 0;
   const taxes = propertyFees?.taxes || 0;
   
@@ -149,6 +153,7 @@ export function calculateFinalPrice(
     cleaning_fee?: number | null;
     service_fee?: number | null;
     taxes?: number | null;
+    free_cleaning_min_days?: number | null;
   },
   longStayDiscountConfig?: DiscountConfig
 ): {

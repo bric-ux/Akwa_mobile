@@ -131,6 +131,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     
     // Frais et règles
     cleaningFee: '',
+    freeCleaningMinDays: '',
     houseRules: '',
     minimumNights: '1',
     autoBooking: 'request',
@@ -250,6 +251,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         hostPhone: application.phone || '',
         experience: application.experience || '',
         cleaningFee: application.cleaning_fee?.toString() || '',
+        freeCleaningMinDays: application.free_cleaning_min_days?.toString() || '',
         houseRules: '',
         minimumNights: application.minimum_nights?.toString() || '1',
         autoBooking: application.auto_booking ? 'auto' : 'request',
@@ -548,7 +550,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       'propertyType', 'location', 'guests', 'bedrooms', 'bathrooms',
       'title', 'description', 'price', 'addressDetails',
       'hostFullName', 'hostEmail', 'hostPhone', 'experience', 'hostGuide',
-      'cleaningFee', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage',
+      'cleaningFee', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage',
       'autoBooking', 'cancellationPolicy'
     ];
     
@@ -881,6 +883,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       discountMinNights: formData.discountEnabled ? parseInt(formData.discountMinNights) || undefined : undefined,
       discountPercentage: formData.discountEnabled ? parseInt(formData.discountPercentage) || undefined : undefined,
       cleaningFee: parseInt(formData.cleaningFee) || 0,
+      freeCleaningMinDays: formData.freeCleaningMinDays ? parseInt(formData.freeCleaningMinDays) || undefined : undefined,
     };
 
     // Enregistrer le code de parrainage dans le profil si fourni (seulement pour les nouveaux hôtes)
@@ -1629,6 +1632,31 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             returnKeyType="next"
             onSubmitEditing={() => handleInputSubmit('cleaningFee')}
           />
+        </View>
+      </View>
+
+      {/* Ménage gratuit */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Ménage gratuit pour les longs séjours</Text>
+        <Text style={styles.helpText}>
+          Offrez un service de ménage gratuit pour inciter les réservations longue durée
+        </Text>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>À partir de combien de jours offrez-vous le ménage gratuit ?</Text>
+          <TextInput
+            ref={(ref) => { inputRefs.current['freeCleaningMinDays'] = ref; }}
+            style={styles.input}
+            value={formData.freeCleaningMinDays}
+            onChangeText={(value) => handleInputChange('freeCleaningMinDays', value)}
+            placeholder="ex: 7 (optionnel)"
+            keyboardType="numeric"
+            placeholderTextColor="#999"
+            returnKeyType="next"
+            onSubmitEditing={() => handleInputSubmit('freeCleaningMinDays')}
+          />
+          <Text style={styles.helpText}>
+            Laissez vide si vous ne proposez pas de ménage gratuit
+          </Text>
         </View>
       </View>
     </View>

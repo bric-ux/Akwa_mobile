@@ -212,7 +212,8 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
     const pricing = calculateFinalPrice(basePrice, nights, discountConfig, {
       cleaning_fee: property.cleaning_fee,
       service_fee: property.service_fee,
-      taxes: property.taxes
+      taxes: property.taxes,
+      free_cleaning_min_days: property.free_cleaning_min_days
     }, longStayDiscountConfig);
     
     // Appliquer la réduction du code promotionnel si valide

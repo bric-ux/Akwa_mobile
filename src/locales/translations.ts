@@ -463,6 +463,7 @@ export const translations: Record<string, Record<string, string>> = {
     'editProperty.error': 'Erreur lors de l\'enregistrement',
     
     // Become Host
+    'becomeHost.menuTitle': 'Devenir hôte',
     'becomeHost.title': 'Titre de votre annonce',
     'becomeHost.step1': 'Informations du logement',
     'becomeHost.step2': 'Informations hôte',
@@ -1102,7 +1103,8 @@ export const translations: Record<string, Record<string, string>> = {
     'editProperty.error': 'Error saving',
     
     // Become Host
-    'becomeHost.title': 'Become a Host',
+    'becomeHost.menuTitle': 'Become a Host',
+    'becomeHost.title': 'Property Title',
     'becomeHost.step1': 'Property Information',
     'becomeHost.step2': 'Host Information',
     'becomeHost.step3': 'Amenities and Rules',
