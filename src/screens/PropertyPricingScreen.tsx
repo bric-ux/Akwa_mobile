@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +28,8 @@ const PropertyPricingScreen: React.FC = () => {
   const route = useRoute<PropertyPricingRouteProp>();
   const { propertyId } = route.params;
   const { getDynamicPrices, setPriceForPeriod, deleteDynamicPrice, loading: dynamicPricingLoading } = useDynamicPricing();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const basePriceInputRef = useRef<TextInput>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -456,6 +460,25 @@ const PropertyPricingScreen: React.FC = () => {
     );
   }
 
+  const handleBasePriceFocus = () => {
+    // Attendre un peu pour que le clavier s'ouvre
+    setTimeout(() => {
+      basePriceInputRef.current?.measureLayout(
+        scrollViewRef.current as any,
+        (x, y) => {
+          scrollViewRef.current?.scrollTo({
+            y: y - 100, // Scroll avec un peu de marge
+            animated: true,
+          });
+        },
+        () => {
+          // Fallback si measureLayout échoue
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }
+      );
+    }, 300);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
@@ -476,7 +499,18 @@ const PropertyPricingScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
         {/* Calendrier visuel des prix */}
         <View style={styles.section}>
           <View style={styles.optionCard}>
@@ -679,11 +713,13 @@ const PropertyPricingScreen: React.FC = () => {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Prix par nuit (XOF)</Text>
                 <TextInput
+                  ref={basePriceInputRef}
                   style={styles.input}
                   value={basePrice}
                   onChangeText={setBasePrice}
                   placeholder="Ex: 20000"
                   keyboardType="numeric"
+                  onFocus={handleBasePriceFocus}
                 />
                 <Text style={styles.helpText}>
                   Ce prix sera utilisé par défaut pour toutes les dates sans prix personnalisé
@@ -692,7 +728,8 @@ const PropertyPricingScreen: React.FC = () => {
             </View>
           </View>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -745,6 +782,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   content: {
     flex: 1,
