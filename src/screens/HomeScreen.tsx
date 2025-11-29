@@ -7,6 +7,7 @@ import {
   FlatList,
   Alert,
   TouchableOpacity,
+  ImageBackground,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -136,8 +137,15 @@ const HomeScreen: React.FC = () => {
 
       {/* Section Promotionnelle Location de véhicules */}
       <View style={styles.vehiclesPromoSection}>
-        <View style={styles.vehiclesPromoContent}>
-          <View style={styles.vehiclesPromoLeft}>
+        <ImageBackground
+          source={require('../../assets/images/vehicles-suv.jpg')}
+          style={styles.vehiclesPromoBackground}
+          imageStyle={styles.vehiclesPromoImageStyle}
+          resizeMode="cover"
+        >
+          <View style={styles.vehiclesPromoOverlay}>
+            <View style={styles.vehiclesPromoContent}>
+              <View style={styles.vehiclesPromoLeft}>
             <View style={styles.vehiclesPromoBadge}>
               <Ionicons name="flash" size={16} color="#FFD700" />
               <Text style={styles.vehiclesPromoBadgeText}>NOUVEAU</Text>
@@ -158,8 +166,8 @@ const HomeScreen: React.FC = () => {
               <Text style={styles.vehiclesPromoButtonText}>Découvrir les véhicules</Text>
               <Ionicons name="arrow-forward" size={18} color="#fff" />
             </TouchableOpacity>
-          </View>
-          <View style={styles.vehiclesPromoRight}>
+              </View>
+              <View style={styles.vehiclesPromoRight}>
             <View style={styles.vehiclesPromoIconContainer}>
               <Ionicons name="car-sport" size={64} color="#2E7D32" />
             </View>
@@ -176,9 +184,11 @@ const HomeScreen: React.FC = () => {
                 <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
                 <Text style={styles.vehiclesPromoFeatureText}>Réservation facile</Text>
               </View>
+              </View>
+              </View>
             </View>
           </View>
-        </View>
+        </ImageBackground>
       </View>
 
       <PopularDestinations
@@ -343,7 +353,6 @@ const styles = StyleSheet.create({
   vehiclesPromoSection: {
     marginHorizontal: 20,
     marginVertical: 20,
-    backgroundColor: '#fff',
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: {
@@ -355,11 +364,22 @@ const styles = StyleSheet.create({
     elevation: 8,
     overflow: 'hidden',
   },
+  vehiclesPromoBackground: {
+    width: '100%',
+    minHeight: 220,
+    borderRadius: 16,
+  },
+  vehiclesPromoImageStyle: {
+    borderRadius: 16,
+  },
+  vehiclesPromoOverlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    padding: 20,
+    borderRadius: 16,
+    minHeight: 220,
+  },
   vehiclesPromoContent: {
     flexDirection: 'row',
-    padding: 20,
-    backgroundColor: 'linear-gradient(135deg, #f0f8f0 0%, #ffffff 100%)',
-    backgroundColor: '#f8fff8',
   },
   vehiclesPromoLeft: {
     flex: 1,
@@ -385,20 +405,30 @@ const styles = StyleSheet.create({
   vehiclesPromoTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2c3e50',
+    color: '#FFFFFF',
     marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   vehiclesPromoSubtitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: '#FFD700',
     marginBottom: 12,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   vehiclesPromoDescription: {
     fontSize: 14,
-    color: '#666',
+    fontWeight: '400',
+    color: '#FFFFFF',
     lineHeight: 20,
     marginBottom: 16,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   vehiclesPromoButton: {
     flexDirection: 'row',
@@ -447,8 +477,11 @@ const styles = StyleSheet.create({
   },
   vehiclesPromoFeatureText: {
     fontSize: 12,
-    color: '#666',
+    color: '#FFFFFF',
     fontWeight: '500',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
 });
 
