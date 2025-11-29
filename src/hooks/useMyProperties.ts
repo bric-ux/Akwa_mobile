@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { Property } from './useProperties';
+import { useEmailService } from './useEmailService';
 
 export const useMyProperties = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { sendBookingCancelled } = useEmailService();
 
   const getMyProperties = async (): Promise<Property[]> => {
     if (!user) {
@@ -107,30 +109,10 @@ export const useMyProperties = () => {
     setError(null);
 
     try {
-      // Vérifier s'il y a des réservations en cours
-      const { data: bookings, error: bookingsError } = await supabase
-        .from('bookings')
-        .select('id, status')
-        .eq('property_id', propertyId)
-        .in('status', ['pending', 'confirmed']);
-
-      if (bookingsError) {
-        console.error('❌ Error checking bookings:', bookingsError);
-        const errorMsg = `Erreur lors de la vérification des réservations: ${bookingsError.message}`;
-        setError(errorMsg);
-        return { success: false, error: errorMsg };
-      }
-
-      if (bookings && bookings.length > 0) {
-        const errorMsg = `Impossible de supprimer une propriété avec ${bookings.length} réservation(s) en cours`;
-        setError(errorMsg);
-        return { success: false, error: errorMsg };
-      }
-
       // Vérifier que la propriété appartient bien à l'utilisateur
       const { data: property, error: propertyError } = await supabase
         .from('properties')
-        .select('id, host_id')
+        .select('id, host_id, title')
         .eq('id', propertyId)
         .single();
 
@@ -149,6 +131,97 @@ export const useMyProperties = () => {
 
       if (property.host_id !== user.id) {
         const errorMsg = 'Vous n\'êtes pas autorisé à supprimer cette propriété';
+        setError(errorMsg);
+        return { success: false, error: errorMsg };
+      }
+
+      // Vérifier s'il y a des réservations en attente (pending) et les annuler automatiquement
+      const { data: pendingBookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('id, status, check_in_date, check_out_date, guests_count, total_price, guest_id')
+        .eq('property_id', propertyId)
+        .eq('status', 'pending');
+
+      if (bookingsError) {
+        console.error('❌ Error checking bookings:', bookingsError);
+        const errorMsg = `Erreur lors de la vérification des réservations: ${bookingsError.message}`;
+        setError(errorMsg);
+        return { success: false, error: errorMsg };
+      }
+
+      // Annuler automatiquement les réservations en attente
+      if (pendingBookings && pendingBookings.length > 0) {
+        console.log(`🔄 Annulation automatique de ${pendingBookings.length} réservation(s) en attente...`);
+        
+        for (const booking of pendingBookings) {
+          // Récupérer le profil de l'invité pour l'email
+          let guestEmail: string | null = null;
+          let guestName = 'Invité';
+          
+          try {
+            const { data: guestProfile, error: profileError } = await supabase
+              .from('profiles')
+              .select('first_name, last_name, email')
+              .eq('user_id', booking.guest_id)
+              .maybeSingle();
+            
+            if (!profileError && guestProfile) {
+              guestEmail = guestProfile.email || null;
+              guestName = `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim() || 'Invité';
+            }
+          } catch (profileErr) {
+            console.warn('⚠️ Impossible de récupérer le profil de l\'invité:', profileErr);
+          }
+          
+          // Mettre à jour le statut de la réservation
+          const { error: updateError } = await supabase
+            .from('bookings')
+            .update({ 
+              status: 'cancelled',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', booking.id);
+
+          if (updateError) {
+            console.error(`❌ Erreur lors de l'annulation de la réservation ${booking.id}:`, updateError);
+            // Continuer même si l'annulation échoue
+          } else {
+            // Envoyer un email d'annulation à l'invité si possible
+            if (guestEmail) {
+              try {
+                await sendBookingCancelled(
+                  guestEmail,
+                  guestName,
+                  property.title,
+                  booking.check_in_date,
+                  booking.check_out_date,
+                  booking.guests_count,
+                  booking.total_price
+                );
+                console.log(`✅ Email d'annulation envoyé à ${guestEmail}`);
+              } catch (emailError) {
+                console.error('❌ Erreur lors de l\'envoi de l\'email d\'annulation:', emailError);
+                // Ne pas bloquer la suppression si l'email échoue
+              }
+            }
+          }
+        }
+        
+        console.log(`✅ ${pendingBookings.length} réservation(s) en attente annulée(s) automatiquement`);
+      }
+
+      // Vérifier s'il y a des réservations confirmées (on empêche la suppression dans ce cas)
+      const { data: confirmedBookings, error: confirmedBookingsError } = await supabase
+        .from('bookings')
+        .select('id, status')
+        .eq('property_id', propertyId)
+        .eq('status', 'confirmed');
+
+      if (confirmedBookingsError) {
+        console.error('❌ Error checking confirmed bookings:', confirmedBookingsError);
+        // Ne pas bloquer la suppression si on ne peut pas vérifier
+      } else if (confirmedBookings && confirmedBookings.length > 0) {
+        const errorMsg = `Impossible de supprimer une propriété avec ${confirmedBookings.length} réservation(s) confirmée(s). Veuillez d'abord annuler ces réservations.`;
         setError(errorMsg);
         return { success: false, error: errorMsg };
       }

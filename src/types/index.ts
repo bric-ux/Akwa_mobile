@@ -250,7 +250,6 @@ export type HostTabParamList = {
   HostBookingsTab: undefined;
   HostMessagingTab: { conversationId?: string };
   HostStatsTab: undefined;
-  HostApplicationsTab: undefined;
   HostProfileTab: undefined;
 };
 

@@ -1150,8 +1150,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           'Candidature soumise !', 
           'Votre candidature a été soumise avec succès. Nous vous contacterons bientôt.',
           [{ text: 'OK', onPress: () => {
-            // Naviguer vers l'espace hôte à l'onglet candidatures
-            navigation.navigate('HostSpace', { screen: 'HostApplicationsTab' });
+            // Naviguer vers l'écran d'accueil
+            navigation.navigate('Home');
           }}]
         );
       }
