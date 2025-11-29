@@ -445,15 +445,6 @@ const HostBookingsScreen: React.FC = () => {
       {!selectedPropertyId ? (
         // Vue liste des propriétés
         <>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderContent}>
-              <Ionicons name="home" size={20} color="#e67e22" />
-              <Text style={styles.sectionTitle}>{t('hostBookings.propertiesManagement')}</Text>
-            </View>
-            <Text style={styles.sectionSubtitle}>
-              {propertiesWithBookings.length} {propertiesWithBookings.length > 1 ? t('hostBookings.propertiesWithBookings') : t('hostBookings.propertyWithBookings')}
-            </Text>
-          </View>
 
           {loading && !refreshing ? (
             <View style={styles.loadingContainer}>
