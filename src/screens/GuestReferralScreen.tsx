@@ -50,18 +50,10 @@ const GuestReferralScreen: React.FC = () => {
     }
   };
 
-  const copyReferralLink = async () => {
-    if (!referralCode) return;
-    const referralUrl = `https://akwahome.com/become-host?ref=${referralCode.referral_code}`;
-    await Clipboard.setStringAsync(referralUrl);
-    Alert.alert('Copié !', 'Lien copié dans le presse-papiers');
-  };
-
   const shareReferralCode = async () => {
     if (!referralCode) return;
 
-    const referralUrl = `https://akwahome.com/become-host?ref=${referralCode.referral_code}`;
-    const message = `Salut ! Je t'invite à devenir hôte sur AkwaHome. En t'inscrivant avec mon code de parrainage, tu pourras mettre ton bien en location facilement.\n\nMon code : ${referralCode.referral_code}\nOu utilise ce lien : ${referralUrl}\n\nÀ bientôt sur AkwaHome !`;
+    const message = `Salut ! Je t'invite à devenir hôte sur AkwaHome. En t'inscrivant avec mon code de parrainage, tu pourras mettre ton bien en location facilement.\n\nMon code : ${referralCode.referral_code}\n\nÀ bientôt sur AkwaHome !`;
 
     try {
       await Share.share({
@@ -75,19 +67,17 @@ const GuestReferralScreen: React.FC = () => {
 
   const shareViaWhatsApp = () => {
     if (!referralCode) return;
-    const referralUrl = `https://akwahome.com/become-host?ref=${referralCode.referral_code}`;
     const text = encodeURIComponent(
-      `Salut ! Je t'invite à devenir hôte sur AkwaHome. Utilise mon code ${referralCode.referral_code} ou ce lien : ${referralUrl}`
+      `Salut ! Je t'invite à devenir hôte sur AkwaHome. Utilise mon code de parrainage : ${referralCode.referral_code}`
     );
     Linking.openURL(`https://wa.me/?text=${text}`);
   };
 
   const shareViaEmail = () => {
     if (!referralCode) return;
-    const referralUrl = `https://akwahome.com/become-host?ref=${referralCode.referral_code}`;
     const subject = encodeURIComponent('Deviens hôte sur AkwaHome et gagne des avantages !');
     const body = encodeURIComponent(
-      `Salut !\n\nJe t'invite à devenir hôte sur AkwaHome. En t'inscrivant avec mon code de parrainage, tu pourras mettre ton bien en location facilement.\n\nMon code : ${referralCode.referral_code}\nOu utilise ce lien : ${referralUrl}\n\nÀ bientôt sur AkwaHome !`
+      `Salut !\n\nJe t'invite à devenir hôte sur AkwaHome. En t'inscrivant avec mon code de parrainage, tu pourras mettre ton bien en location facilement.\n\nMon code : ${referralCode.referral_code}\n\nÀ bientôt sur AkwaHome !`
     );
     Linking.openURL(`mailto:?subject=${subject}&body=${body}`);
   };
@@ -154,21 +144,6 @@ const GuestReferralScreen: React.FC = () => {
                   <TouchableOpacity
                     style={styles.copyButton}
                     onPress={copyReferralCode}
-                  >
-                    <Ionicons name="copy-outline" size={20} color="#e67e22" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.card}>
-                <Text style={styles.label}>Lien de parrainage</Text>
-                <View style={styles.linkContainer}>
-                  <Text style={styles.linkText} numberOfLines={1}>
-                    https://akwahome.com/become-host?ref={referralCode.referral_code}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.copyButton}
-                    onPress={copyReferralLink}
                   >
                     <Ionicons name="copy-outline" size={20} color="#e67e22" />
                   </TouchableOpacity>
@@ -572,18 +547,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     fontFamily: 'monospace',
-  },
-  linkContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-  },
-  linkText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#666',
   },
   copyButton: {
     padding: 8,

@@ -51,8 +51,7 @@ const HostReferralScreen: React.FC = () => {
   const shareReferralCode = async () => {
     if (!referralCode) return;
 
-    const referralUrl = `https://akwahome.com/become-host?ref=${referralCode.referral_code}`;
-    const message = `Rejoignez Akwa Home en tant qu'hôte avec mon code de parrainage: ${referralCode.referral_code}\n${referralUrl}`;
+    const message = `Rejoignez Akwa Home en tant qu'hôte avec mon code de parrainage: ${referralCode.referral_code}`;
 
     try {
       const result = await Share.share({
@@ -67,8 +66,7 @@ const HostReferralScreen: React.FC = () => {
   const shareViaWhatsApp = () => {
     if (!referralCode) return;
 
-    const referralUrl = `https://akwahome.com/become-host?ref=${referralCode.referral_code}`;
-    const message = `Rejoignez Akwa Home en tant qu'hôte avec mon code de parrainage: ${referralCode.referral_code}\n${referralUrl}`;
+    const message = `Rejoignez Akwa Home en tant qu'hôte avec mon code de parrainage: ${referralCode.referral_code}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
     
     Linking.openURL(whatsappUrl).catch(() => {
@@ -79,9 +77,8 @@ const HostReferralScreen: React.FC = () => {
   const shareViaEmail = () => {
     if (!referralCode) return;
 
-    const referralUrl = `https://akwahome.com/become-host?ref=${referralCode.referral_code}`;
     const subject = 'Rejoignez Akwa Home en tant qu\'hôte';
-    const body = `Bonjour,\n\nJe vous invite à rejoindre Akwa Home en tant qu'hôte et à partager vos propriétés avec des voyageurs du monde entier.\n\nUtilisez mon code de parrainage: ${referralCode.referral_code}\nOu inscrivez-vous directement via ce lien: ${referralUrl}\n\nÀ bientôt sur Akwa Home!`;
+    const body = `Bonjour,\n\nJe vous invite à rejoindre Akwa Home en tant qu'hôte et à partager vos propriétés avec des voyageurs du monde entier.\n\nUtilisez mon code de parrainage: ${referralCode.referral_code}\n\nÀ bientôt sur Akwa Home!`;
     const emailUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     
     Linking.openURL(emailUrl).catch(() => {
@@ -179,7 +176,6 @@ const HostReferralScreen: React.FC = () => {
     );
   }
 
-  const referralUrl = `https://akwahome.com/become-host?ref=${referralCode.referral_code}`;
   const hostReferrals = (referrals && Array.isArray(referrals)) ? referrals.filter(r => r.referrer_type === 'host') : [];
 
   return (
