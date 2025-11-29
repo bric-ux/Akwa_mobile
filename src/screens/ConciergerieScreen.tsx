@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,12 +15,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useEmailService } from '../hooks/useEmailService';
+import { useAuth } from '../services/AuthContext';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 const ConciergerieScreen: React.FC = () => {
   const navigation = useNavigation();
   const scrollViewRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
   const { sendEmail } = useEmailService();
+  const { user } = useAuth();
+  const { profile, loading: profileLoading } = useUserProfile();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -31,6 +35,23 @@ const ConciergerieScreen: React.FC = () => {
     message: '',
     selectedPlan: '',
   });
+
+  // Pré-remplir les informations si l'utilisateur est connecté
+  useEffect(() => {
+    if (user && profile && !profileLoading) {
+      const fullName = [profile.first_name, profile.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      
+      setFormData(prev => ({
+        ...prev,
+        name: fullName || prev.name,
+        email: profile.email || prev.email,
+        phone: profile.phone || prev.phone,
+      }));
+    }
+  }, [user, profile, profileLoading]);
 
 
   const plans = [
