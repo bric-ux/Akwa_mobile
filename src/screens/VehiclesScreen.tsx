@@ -75,6 +75,12 @@ const VehiclesScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#2c3e50" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {t('vehicles.title') || 'Location de véhicules'}
         </Text>
@@ -135,6 +141,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
   },
   headerButtons: {
     flexDirection: 'row',

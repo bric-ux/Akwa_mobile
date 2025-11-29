@@ -288,7 +288,9 @@ export const useVehicles = () => {
           documents: vehicleData.documents || [],
           features: vehicleData.features || [],
           rules: vehicleData.rules || [],
-          is_active: true,
+          is_active: false, // En attente de validation admin
+          admin_approved: false,
+          admin_rejected: false,
         })
         .select()
         .single();

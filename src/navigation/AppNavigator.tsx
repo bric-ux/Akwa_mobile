@@ -42,6 +42,7 @@ import MessagingDebugScreen from '../screens/MessagingDebugScreen';
 import HostPaymentInfoScreen from '../screens/HostPaymentInfoScreen';
 import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
 import AdminReviewsScreen from '../screens/AdminReviewsScreen';
+import AdminVehiclesScreen from '../screens/AdminVehiclesScreen';
 import HostStatsScreen from '../screens/HostStatsScreen';
 import HostReferralScreen from '../screens/HostReferralScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
@@ -514,6 +515,14 @@ const AppNavigator = () => {
               component={AdminReviewsScreen}
               options={{
                 title: 'Validation des avis',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminVehicles"
+              component={AdminVehiclesScreen}
+              options={{
+                title: 'Validation des véhicules',
                 headerShown: false
               }}
             />

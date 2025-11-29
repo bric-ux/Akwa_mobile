@@ -214,6 +214,7 @@ export type RootStackParamList = {
   AdminHostPaymentInfo: undefined;
   AdminNotifications: undefined;
   AdminReviews: undefined;
+  AdminVehicles: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
   PropertyManagement: { propertyId: string }; // Gestion de propriété avec photos et options
@@ -302,6 +303,11 @@ export interface Vehicle {
   created_at: string;
   updated_at: string;
   photos?: VehiclePhoto[];
+  admin_approved?: boolean;
+  admin_rejected?: boolean;
+  admin_notes?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
 }
 
 export interface VehiclePhoto {

@@ -220,8 +220,8 @@ const AddVehicleScreen: React.FC = () => {
 
     if (result.success) {
       Alert.alert(
-        'Succès',
-        'Votre véhicule a été ajouté avec succès !',
+        'Demande soumise',
+        'Votre demande de véhicule a été soumise avec succès !\n\nElle sera examinée par un administrateur et vous serez notifié une fois validée.',
         [
           {
             text: 'OK',

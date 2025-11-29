@@ -144,6 +144,10 @@ const AdminDashboardScreen: React.FC = () => {
     navigation.navigate('AdminReviews');
   };
 
+  const handleNavigateToVehicles = () => {
+    navigation.navigate('AdminVehicles');
+  };
+
   const handleTestEmail = () => {
     setShowEmailModal(true);
   };
@@ -403,6 +407,13 @@ const AdminDashboardScreen: React.FC = () => {
             description="Approuver ou rejeter les avis des voyageurs"
             icon="star-outline"
             onPress={handleNavigateToReviews}
+          />
+
+          <QuickAction
+            title="Validation des véhicules"
+            description="Approuver ou rejeter les demandes de véhicules"
+            icon="car-outline"
+            onPress={handleNavigateToVehicles}
           />
         </View>
 
