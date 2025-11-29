@@ -186,8 +186,13 @@ const HostBookingsScreen: React.FC = () => {
       bookingsByProperty.get(propertyId)!.push(booking);
     });
 
+    // Filtrer les doublons de propriétés (au cas où)
+    const uniqueProperties = Array.from(
+      new Map(allProperties.map(prop => [prop.id, prop])).values()
+    );
+
     // Créer la liste de toutes les propriétés avec leurs stats
-    const propertiesWithStats = allProperties.map(property => {
+    const propertiesWithStats = uniqueProperties.map(property => {
       const propertyBookings = bookingsByProperty.get(property.id) || [];
       
       const stats = {
@@ -487,7 +492,7 @@ const HostBookingsScreen: React.FC = () => {
           ) : (
             <FlatList
               data={propertiesWithBookings}
-              keyExtractor={(item) => item.property?.id || Math.random().toString()}
+              keyExtractor={(item, index) => item.property?.id ? `${item.property.id}-${index}` : `property-${index}`}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
