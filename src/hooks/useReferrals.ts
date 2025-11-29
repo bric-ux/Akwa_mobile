@@ -409,14 +409,37 @@ export const useReferrals = () => {
       }
 
       // Récupérer le profil du parrain
-      const { data: parrainProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('first_name, last_name')
-        .eq('user_id', referralCodeData.user_id)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('Error fetching referrer profile:', profileError);
+      let parrainProfile: { first_name: string | null; last_name: string | null } | null = null;
+      
+      try {
+        // Essayer d'abord via la fonction RPC get_public_profile_info
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_public_profile_info', { profile_user_id: referralCodeData.user_id });
+        
+        if (!rpcError && rpcData && rpcData.length > 0) {
+          parrainProfile = {
+            first_name: rpcData[0].first_name,
+            last_name: rpcData[0].last_name
+          };
+        } else {
+          // Fallback : essayer directement depuis profiles (avec la nouvelle politique)
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('user_id', referralCodeData.user_id)
+            .maybeSingle();
+          
+          if (!profileError && profileData) {
+            parrainProfile = {
+              first_name: profileData.first_name,
+              last_name: profileData.last_name
+            };
+          } else {
+            console.error('Error fetching referrer profile:', profileError || rpcError);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching referrer profile:', error);
         // Ne pas faire échouer la validation si on ne peut pas récupérer le profil
       }
 

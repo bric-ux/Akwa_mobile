@@ -27,7 +27,6 @@ import BecomeHostScreen from '../screens/BecomeHostScreen';
 import MyHostApplicationsScreen from '../screens/MyHostApplicationsScreen';
 import ApplicationDetailsScreen from '../screens/ApplicationDetailsScreen';
 import MyPropertiesScreen from '../screens/MyPropertiesScreen';
-import HostDashboardScreen from '../screens/HostDashboardScreen';
 import PropertyCalendarScreen from '../screens/PropertyCalendarScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import AdminApplicationsScreen from '../screens/AdminApplicationsScreen';
@@ -143,6 +142,8 @@ const HostTabNavigator = () => {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           } else if (route.name === 'HostStatsTab') {
             iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+          } else if (route.name === 'HostApplicationsTab') {
+            iconName = focused ? 'document-text' : 'document-text-outline';
           } else if (route.name === 'HostProfileTab') {
             iconName = focused ? 'person' : 'person-outline';
           } else {
@@ -175,6 +176,11 @@ const HostTabNavigator = () => {
         name="HostStatsTab" 
         component={HostStatsScreen}
         options={{ tabBarLabel: 'Statistiques' }}
+      />
+      <HostTab.Screen 
+        name="HostApplicationsTab" 
+        component={MyHostApplicationsScreen}
+        options={{ tabBarLabel: 'Candidatures' }}
       />
       <HostTab.Screen 
         name="HostProfileTab" 
@@ -392,14 +398,6 @@ const AppNavigator = () => {
               component={ApplicationDetailsScreen}
               options={{ 
                 title: 'Détails de la candidature',
-                headerShown: false 
-              }}
-            />
-            <Stack.Screen 
-              name="HostDashboard" 
-              component={HostDashboardScreen}
-              options={{ 
-                title: 'Tableau de bord hôte',
                 headerShown: false 
               }}
             />

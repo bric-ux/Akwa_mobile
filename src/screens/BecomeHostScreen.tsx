@@ -1054,76 +1054,89 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           );
 
           // Email de notification aux admins
-          const { data: adminUsers } = await supabase
+          const { data: adminUsers, error: adminError } = await supabase
             .from('profiles')
-            .select('email')
+            .select('email, first_name')
             .eq('role', 'admin');
 
+          if (adminError) {
+            console.error('❌ Erreur lors de la récupération des admins:', adminError);
+          }
+
           if (adminUsers && adminUsers.length > 0) {
+            console.log(`📧 ${adminUsers.length} admin(s) trouvé(s), envoi des emails...`);
             for (const admin of adminUsers) {
-              await sendHostApplicationReceived(
-                admin.email,
-                formData.hostFullName,
-                formData.hostEmail,
-                formData.title,
-                formData.propertyType,
-                formData.location,
-                parseInt(formData.price) || 0
-              );
-              
-              console.log('✅ Email envoyé à l\'admin:', admin.email);
-              
-              // Envoyer un email avec les informations de paiement
-              if (userPaymentInfo) {
-                await supabase.functions.invoke('send-email', {
+              try {
+                // Envoyer l'email principal avec toutes les informations
+                const emailResult = await supabase.functions.invoke('send-email', {
                   body: {
                     type: 'host_application_received',
                     to: admin.email,
                     data: {
                       hostName: formData.hostFullName,
                       hostEmail: formData.hostEmail,
+                      hostPhone: formData.hostPhone,
                       propertyTitle: formData.title,
                       propertyType: formData.propertyType,
                       location: formData.location,
                       pricePerNight: parseInt(formData.price) || 0,
+                      maxGuests: parseInt(formData.guests) || 1,
+                      bedrooms: parseInt(formData.bedrooms) || 1,
+                      bathrooms: parseInt(formData.bathrooms) || 1,
+                      description: formData.description,
+                      amenities: selectedAmenities,
                       paymentInfo: userPaymentInfo,
                       message: 'Nouvelle candidature soumise'
                     }
                   }
                 });
-                console.log('✅ Email avec infos de paiement envoyé à l\'admin:', admin.email);
+
+                if (emailResult.error) {
+                  console.error(`❌ Erreur lors de l'envoi à ${admin.email}:`, emailResult.error);
+                } else {
+                  console.log('✅ Email envoyé avec succès à l\'admin:', admin.email);
+                }
+                
+                // Délai pour éviter le rate limit
+                await new Promise(resolve => setTimeout(resolve, 600));
+              } catch (emailError) {
+                console.error(`❌ Erreur lors de l'envoi à ${admin.email}:`, emailError);
               }
             }
           } else {
             // Fallback vers l'email admin par défaut
-            await sendHostApplicationReceived(
-              'admin@akwahome.com',
-              formData.hostFullName,
-              formData.hostEmail,
-              formData.title,
-              formData.propertyType,
-              formData.location,
-              parseInt(formData.price) || 0
-            );
-            
-            // Envoyer un email avec les informations de paiement
-            if (userPaymentInfo) {
-              await supabase.functions.invoke('send-email', {
+            console.warn('⚠️ Aucun admin trouvé dans la base de données, envoi à admin@akwahome.com');
+            try {
+              const emailResult = await supabase.functions.invoke('send-email', {
                 body: {
                   type: 'host_application_received',
                   to: 'admin@akwahome.com',
                   data: {
                     hostName: formData.hostFullName,
                     hostEmail: formData.hostEmail,
+                    hostPhone: formData.hostPhone,
                     propertyTitle: formData.title,
                     propertyType: formData.propertyType,
                     location: formData.location,
                     pricePerNight: parseInt(formData.price) || 0,
+                    maxGuests: parseInt(formData.guests) || 1,
+                    bedrooms: parseInt(formData.bedrooms) || 1,
+                    bathrooms: parseInt(formData.bathrooms) || 1,
+                    description: formData.description,
+                    amenities: selectedAmenities,
                     paymentInfo: userPaymentInfo,
                     message: 'Nouvelle candidature soumise'
                   }
                 }
               });
+
+              if (emailResult.error) {
+                console.error('❌ Erreur lors de l\'envoi à admin@akwahome.com:', emailResult.error);
+              } else {
+                console.log('✅ Email envoyé avec succès à admin@akwahome.com');
+              }
+            } catch (emailError) {
+              console.error('❌ Erreur lors de l\'envoi à admin@akwahome.com:', emailError);
             }
           }
 
@@ -1137,8 +1150,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           'Candidature soumise !', 
           'Votre candidature a été soumise avec succès. Nous vous contacterons bientôt.',
           [{ text: 'OK', onPress: () => {
-            // Naviguer vers le tableau de bord hôte
-            navigation.navigate('HostDashboard');
+            // Naviguer vers l'espace hôte à l'onglet candidatures
+            navigation.navigate('HostSpace', { screen: 'HostApplicationsTab' });
           }}]
         );
       }

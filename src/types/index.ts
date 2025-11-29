@@ -189,7 +189,7 @@ export interface SearchFilters {
 // Types de navigation
 export type RootStackParamList = {
   Home: undefined;
-  HostSpace: undefined; // Navigation hôte avec onglets
+  HostSpace: { screen?: keyof HostTabParamList } | undefined; // Navigation hôte avec onglets
   Auth: undefined;
   EmailVerification: { email: string; firstName: string };
   Search: { destination?: string };
@@ -203,7 +203,6 @@ export type RootStackParamList = {
   MyHostApplications: undefined;
   ApplicationDetails: { applicationId: string };
   MyProperties: undefined;
-  HostDashboard: undefined;
   HostPaymentInfo: undefined;
   HostStats: undefined;
   GuestReferral: undefined; // Système de parrainage pour les voyageurs
@@ -251,6 +250,7 @@ export type HostTabParamList = {
   HostBookingsTab: undefined;
   HostMessagingTab: { conversationId?: string };
   HostStatsTab: undefined;
+  HostApplicationsTab: undefined;
   HostProfileTab: undefined;
 };
 

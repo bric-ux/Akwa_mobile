@@ -204,18 +204,51 @@ export const useHostBookings = () => {
       }
 
       // Récupérer séparément le profil de l'invité
-      const { data: guestProfile, error: guestError } = await supabase
-        .from('profiles')
-        .select('first_name, last_name, email, phone')
-        .eq('user_id', bookingData.guest_id)
-        .single();
-
-      if (guestError) {
-        console.error('❌ [useHostBookings] Erreur récupération profil invité:', guestError);
-        const errorMessage = guestError?.message || 'Erreur lors de la récupération du profil invité';
-        setError(errorMessage);
-        return { success: false, error: errorMessage };
+      let guestProfile: { first_name: string | null; last_name: string | null; email: string | null; phone: string | null } | null = null;
+      
+      try {
+        // Essayer d'abord via la fonction RPC get_public_profile_info
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_public_profile_info', { profile_user_id: bookingData.guest_id });
+        
+        if (!rpcError && rpcData && rpcData.length > 0) {
+          guestProfile = {
+            first_name: rpcData[0].first_name,
+            last_name: rpcData[0].last_name,
+            email: rpcData[0].email,
+            phone: null  // Phone non disponible via get_public_profile_info
+          };
+        } else {
+          // Fallback : essayer directement depuis profiles (avec la nouvelle politique)
+          const { data: fullProfile, error: fullProfileError } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email, phone')
+            .eq('user_id', bookingData.guest_id)
+            .maybeSingle();
+          
+          if (!fullProfileError && fullProfile) {
+            guestProfile = {
+              first_name: fullProfile.first_name || null,
+              last_name: fullProfile.last_name || null,
+              email: fullProfile.email || null,
+              phone: fullProfile.phone || null
+            };
+          } else {
+            console.error('❌ [useHostBookings] Erreur récupération profil invité:', fullProfileError || rpcError);
+            console.warn('⚠️ [useHostBookings] Profil invité non trouvé, continuation sans email');
+          }
+        }
+      } catch (error) {
+        console.error('❌ [useHostBookings] Erreur récupération profil invité:', error);
+        // Ne pas bloquer la mise à jour si le profil n'est pas trouvé
+        console.warn('⚠️ [useHostBookings] Profil invité non trouvé, continuation sans email');
       }
+
+      // Utiliser les données du profil si disponibles, sinon valeurs par défaut
+      const guestEmail = guestProfile?.email || null;
+      const guestFirstName = guestProfile?.first_name || '';
+      const guestLastName = guestProfile?.last_name || '';
+      const guestPhone = guestProfile?.phone || '';
 
       // Mettre à jour le statut
       const { error: updateError } = await supabase
@@ -236,7 +269,7 @@ export const useHostBookings = () => {
       // Envoyer les emails selon le statut
       try {
         // Vérifier que les données nécessaires existent
-        if (!guestProfile?.email) {
+        if (!guestEmail) {
           console.warn('⚠️ [useHostBookings] Email invité manquant, emails non envoyés');
           return { success: true };
         }
@@ -246,7 +279,7 @@ export const useHostBookings = () => {
           return { success: true };
         }
 
-        const guestName = `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim();
+        const guestName = `${guestFirstName} ${guestLastName}`.trim() || 'Invité';
         const hostName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim();
 
         if (status === 'confirmed') {
@@ -265,10 +298,10 @@ export const useHostBookings = () => {
               cancellation_policy: bookingData.properties.cancellation_policy || 'flexible'
             },
             guest: {
-              first_name: guestProfile.first_name || '',
-              last_name: guestProfile.last_name || '',
-              email: guestProfile.email,
-              phone: guestProfile.phone || ''
+              first_name: guestFirstName,
+              last_name: guestLastName,
+              email: guestEmail,
+              phone: guestPhone
             },
             host: {
               first_name: user.user_metadata?.first_name || '',
@@ -310,7 +343,7 @@ export const useHostBookings = () => {
               const { error: emailError } = await supabase.functions.invoke('send-email', {
                 body: {
                   type: 'booking_confirmed',
-                  to: guestProfile.email,
+                  to: guestEmail,
                   data: {
                     bookingId: bookingData.id,
                     guestName: guestName,
@@ -356,7 +389,7 @@ export const useHostBookings = () => {
               const { error: emailError } = await supabase.functions.invoke('send-email', {
                 body: {
                   type: 'booking_confirmed',
-                  to: guestProfile.email,
+                  to: guestEmail,
                   data: {
                     bookingId: bookingData.id,
                     guestName: guestName,
@@ -419,7 +452,7 @@ export const useHostBookings = () => {
         } else if (status === 'cancelled') {
           // Email d'annulation au voyageur
           await sendBookingResponse(
-            guestProfile.email,
+            guestEmail,
             guestName,
             bookingData.properties.title,
             bookingData.check_in_date,
