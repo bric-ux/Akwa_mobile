@@ -76,7 +76,8 @@ export const useHostBookings = () => {
     try {
       console.log('🔄 [useHostBookings] Chargement des réservations hôte pour:', user.id);
       
-      const { data, error } = await supabase
+      // Première requête : récupérer les réservations avec les propriétés
+      const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
           *,
@@ -100,16 +101,43 @@ export const useHostBookings = () => {
               category,
               display_order
             )
-          ),
-          guest_profile:profiles!bookings_guest_id_fkey(
-            first_name,
-            last_name,
-            email,
-            phone
           )
         `)
         .eq('properties.host_id', user.id)
         .order('created_at', { ascending: false });
+
+      if (bookingsError) {
+        console.error('❌ [useHostBookings] Erreur lors du chargement des réservations:', bookingsError);
+        setError('Erreur lors du chargement des réservations');
+        return [];
+      }
+
+      if (!bookingsData || bookingsData.length === 0) {
+        console.log('✅ [useHostBookings] Aucune réservation trouvée');
+        return [];
+      }
+
+      // Deuxième requête : récupérer les profils des invités
+      const guestIds = [...new Set(bookingsData.map(b => b.guest_id))];
+      const { data: guestProfiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, email, phone')
+        .in('user_id', guestIds);
+
+      if (profilesError) {
+        console.error('❌ [useHostBookings] Erreur lors du chargement des profils:', profilesError);
+        // Continuer même si les profils ne peuvent pas être chargés
+      }
+
+      // Combiner les données
+      const profilesMap = new Map(
+        (guestProfiles || []).map(p => [p.user_id, p])
+      );
+
+      const data = bookingsData.map(booking => ({
+        ...booking,
+        guest_profile: profilesMap.get(booking.guest_id) || null
+      }));
 
       if (error) {
         console.error('❌ [useHostBookings] Erreur lors du chargement:', error);

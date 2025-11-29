@@ -34,17 +34,26 @@ const HostBookingsScreen: React.FC = () => {
 
   const loadData = async () => {
     try {
+      console.log('🔄 [HostBookingsScreen] Début du chargement des données...');
+      
       // Charger toutes les propriétés de l'hôte
       const properties = await getMyProperties();
-      console.log('🏠 Propriétés chargées:', properties.length);
+      console.log('🏠 [HostBookingsScreen] Propriétés chargées:', properties.length);
       setAllProperties(properties);
 
       // Charger les réservations
       const hostBookings = await getHostBookings();
-      console.log('📦 Réservations chargées:', hostBookings.length);
+      console.log('📦 [HostBookingsScreen] Réservations chargées:', hostBookings.length);
       setBookings(hostBookings);
-    } catch (err) {
-      console.error('Erreur lors du chargement:', err);
+      
+      console.log('✅ [HostBookingsScreen] Chargement terminé avec succès');
+    } catch (err: any) {
+      console.error('❌ [HostBookingsScreen] Erreur lors du chargement:', err);
+      console.error('❌ [HostBookingsScreen] Détails de l\'erreur:', {
+        message: err?.message,
+        stack: err?.stack,
+        error: err
+      });
     }
   };
 
@@ -445,12 +454,12 @@ const HostBookingsScreen: React.FC = () => {
               <ActivityIndicator size="large" color="#e67e22" />
               <Text style={styles.loadingText}>{t('hostBookings.loading')}</Text>
             </View>
-          ) : propertiesWithBookings.length === 0 ? (
+          ) : error ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="alert-circle-outline" size={64} color="#ccc" />
+              <Ionicons name="alert-circle-outline" size={64} color="#e74c3c" />
               <Text style={styles.emptyTitle}>{t('hostBookings.loadingError')}</Text>
               <Text style={styles.emptySubtitle}>
-                {t('hostBookings.loadingErrorDesc')}
+                {error || t('hostBookings.loadingErrorDesc')}
               </Text>
               <TouchableOpacity
                 style={styles.retryButton}
@@ -458,6 +467,22 @@ const HostBookingsScreen: React.FC = () => {
               >
                 <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
               </TouchableOpacity>
+            </View>
+          ) : allProperties.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="home-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyTitle}>{t('hostBookings.noProperties') || 'Aucune propriété'}</Text>
+              <Text style={styles.emptySubtitle}>
+                {t('hostBookings.noPropertiesDesc') || 'Vous n\'avez pas encore de propriété. Ajoutez-en une pour commencer à recevoir des réservations.'}
+              </Text>
+            </View>
+          ) : propertiesWithBookings.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="calendar-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyTitle}>{t('hostBookings.noBookings') || 'Aucune réservation'}</Text>
+              <Text style={styles.emptySubtitle}>
+                {t('hostBookings.noBookingsDesc') || 'Vous n\'avez pas encore de réservation pour vos propriétés.'}
+              </Text>
             </View>
           ) : (
             <FlatList

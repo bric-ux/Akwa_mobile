@@ -596,6 +596,9 @@ export const translations: Record<string, Record<string, string>> = {
     'hostBookings.propertyAvailableDesc': 'Cette propriété n\'a pas encore de réservations. Elle est disponible pour les voyageurs.',
     'hostBookings.noBookingsForProperty': 'Aucune réservation pour cette propriété',
     'hostBookings.noBookingsForPropertyStatus': 'Aucune réservation {{status}} pour cette propriété',
+    'hostBookings.noProperties': 'Aucune propriété',
+    'hostBookings.noPropertiesDesc': 'Vous n\'avez pas encore de propriété. Ajoutez-en une pour commencer à recevoir des réservations.',
+    'hostBookings.noBookingsDesc': 'Vous n\'avez pas encore de réservation pour vos propriétés.',
     
     // Applications
     'applications.title': 'Mes candidatures',
@@ -1245,6 +1248,9 @@ export const translations: Record<string, Record<string, string>> = {
     'hostBookings.propertyAvailableDesc': 'This property has no bookings yet. It is available for travelers.',
     'hostBookings.noBookingsForProperty': 'No bookings for this property',
     'hostBookings.noBookingsForPropertyStatus': 'No {{status}} bookings for this property',
+    'hostBookings.noProperties': 'No properties',
+    'hostBookings.noPropertiesDesc': 'You don\'t have any properties yet. Add one to start receiving bookings.',
+    'hostBookings.noBookingsDesc': 'You don\'t have any bookings for your properties yet.',
     
     // Applications
     'applications.title': 'My Applications',

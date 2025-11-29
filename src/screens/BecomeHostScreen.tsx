@@ -891,9 +891,19 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       }
     }
 
+    // Valider que le propertyType est valide avant de soumettre
+    const validPropertyTypes = ['apartment', 'house', 'villa', 'studio', 'guesthouse', 'eco_lodge', 'other'];
+    if (!validPropertyTypes.includes(formData.propertyType)) {
+      Alert.alert(
+        'Type de propriété invalide',
+        `Le type de propriété "${formData.propertyType}" n'est pas valide. Veuillez en sélectionner un autre.`
+      );
+      return;
+    }
+
     const applicationPayload = {
       propertyType: formData.propertyType,
-      location: formData.location,
+      location: formData.location?.trim() || '',
       maxGuests: parseInt(formData.guests) || 1,
       bedrooms: parseInt(formData.bedrooms) || 1,
       bathrooms: parseInt(formData.bathrooms) || 1,
@@ -1127,9 +1137,46 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         );
       }
     } else {
-      Alert.alert('Erreur', isEditMode 
+      // Afficher le message d'erreur détaillé si disponible
+      const resultWithError = result as any;
+      const errorMessage = resultWithError?.error || (isEditMode 
         ? 'Une erreur est survenue lors de la modification de votre candidature.'
         : 'Une erreur est survenue lors de la soumission de votre candidature.');
+      
+      console.error('❌ Erreur lors de la soumission:', {
+        result,
+        formData: {
+          propertyType: formData.propertyType,
+          location: formData.location,
+          maxGuests: formData.guests,
+          bedrooms: formData.bedrooms,
+          bathrooms: formData.bathrooms,
+          title: formData.title,
+          description: formData.description,
+          price: formData.price,
+        },
+        applicationPayload: {
+          propertyType: applicationPayload.propertyType,
+          location: applicationPayload.location,
+          maxGuests: applicationPayload.maxGuests,
+          bedrooms: applicationPayload.bedrooms,
+          bathrooms: applicationPayload.bathrooms,
+        }
+      });
+      
+      Alert.alert(
+        'Erreur', 
+        errorMessage,
+        [
+          { text: 'OK' },
+          { 
+            text: 'Voir les détails', 
+            onPress: () => {
+              console.log('Détails de l\'erreur:', resultWithError?.errorDetails);
+            }
+          }
+        ]
+      );
     }
   };
 

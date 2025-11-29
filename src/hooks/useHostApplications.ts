@@ -81,30 +81,65 @@ export const useHostApplications = () => {
     setError(null);
 
     try {
+      // Valider les données avant l'insertion
+      console.log('📝 Données de candidature à soumettre:', {
+        propertyType: applicationData.propertyType,
+        location: applicationData.location,
+        maxGuests: applicationData.maxGuests,
+        bedrooms: applicationData.bedrooms,
+        bathrooms: applicationData.bathrooms,
+        title: applicationData.title,
+        description: applicationData.description,
+        pricePerNight: applicationData.pricePerNight,
+        fullName: applicationData.fullName,
+        email: applicationData.email,
+        phone: applicationData.phone,
+      });
+
+      // Vérifier que tous les champs requis sont présents
+      if (!applicationData.propertyType || !applicationData.location || !applicationData.title || 
+          !applicationData.description || !applicationData.pricePerNight || !applicationData.fullName ||
+          !applicationData.email || !applicationData.phone) {
+        const missingFields = [];
+        if (!applicationData.propertyType) missingFields.push('Type de propriété');
+        if (!applicationData.location) missingFields.push('Localisation');
+        if (!applicationData.title) missingFields.push('Titre');
+        if (!applicationData.description) missingFields.push('Description');
+        if (!applicationData.pricePerNight) missingFields.push('Prix par nuit');
+        if (!applicationData.fullName) missingFields.push('Nom complet');
+        if (!applicationData.email) missingFields.push('Email');
+        if (!applicationData.phone) missingFields.push('Téléphone');
+        
+        const errorMsg = `Champs manquants: ${missingFields.join(', ')}`;
+        console.error('❌', errorMsg);
+        setError(errorMsg);
+        return { success: false, error: errorMsg };
+      }
+
       // Permettre plusieurs candidatures même si une autre est en attente
       const { data, error } = await supabase
         .from('host_applications')
         .insert({
           user_id: user.id,
           property_type: applicationData.propertyType,
-          location: applicationData.location,
+          location: applicationData.location.trim(), // Nettoyer les espaces
           max_guests: applicationData.maxGuests,
           bedrooms: applicationData.bedrooms,
           bathrooms: applicationData.bathrooms,
-          title: applicationData.title,
-          description: applicationData.description,
+          title: applicationData.title.trim(),
+          description: applicationData.description.trim(),
           price_per_night: applicationData.pricePerNight,
-          full_name: applicationData.fullName,
-          email: applicationData.email,
-          phone: applicationData.phone,
-          experience: applicationData.experience,
+          full_name: applicationData.fullName.trim(),
+          email: applicationData.email.trim(),
+          phone: applicationData.phone.trim(),
+          experience: applicationData.experience?.trim() || null,
           images: applicationData.images || [],
           categorized_photos: applicationData.categorizedPhotos || null,
           amenities: applicationData.amenities || [],
           minimum_nights: applicationData.minimumNights || 1,
           auto_booking: applicationData.autoBooking || false,
           cancellation_policy: applicationData.cancellationPolicy || 'flexible',
-          host_guide: applicationData.hostGuide || null,
+          host_guide: applicationData.hostGuide?.trim() || null,
           discount_enabled: applicationData.discountEnabled || false,
           discount_min_nights: applicationData.discountMinNights || null,
           discount_percentage: applicationData.discountPercentage || null,
@@ -116,9 +151,17 @@ export const useHostApplications = () => {
         .single();
 
       if (error) {
-        console.error('Erreur Supabase:', error);
-        setError('Erreur lors de la soumission de la candidature');
-        return { success: false };
+        console.error('❌ Erreur Supabase détaillée:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          fullError: error
+        });
+        // Afficher un message d'erreur plus détaillé
+        const errorMessage = error.message || 'Erreur lors de la soumission de la candidature';
+        setError(errorMessage);
+        return { success: false, error: errorMessage, errorDetails: error } as any;
       }
 
       console.log('✅ Candidature soumise avec succès:', data);
