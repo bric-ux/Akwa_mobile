@@ -30,16 +30,22 @@ interface CitySearchInputProps {
   onChange: (result: SearchResult | null) => void;
   placeholder?: string;
   disabled?: boolean;
+  visible?: boolean;
+  onClose?: () => void;
+  onSelect?: (result: SearchResult) => void;
 }
 
 const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
   value = '',
   onChange,
   placeholder = 'Où allez-vous ?',
-  disabled = false
+  disabled = false,
+  visible: externalVisible,
+  onClose,
+  onSelect
 }) => {
   const [inputValue, setInputValue] = useState(value);
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(externalVisible || false);
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -71,6 +77,13 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
       setInputValue(value);
     }
   }, [value]);
+
+  // Synchroniser avec visible externe
+  useEffect(() => {
+    if (externalVisible !== undefined) {
+      setShowModal(externalVisible);
+    }
+  }, [externalVisible]);
 
   // Recherche et filtrage
   useEffect(() => {
@@ -150,6 +163,9 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
     console.log('❌ FERMETURE MODAL');
     setShowModal(false);
     setSearchQuery('');
+    if (onClose) {
+      onClose();
+    }
   };
 
   // Gérer la sélection
@@ -176,6 +192,9 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
     
     // Notifier le parent
     onChange(result);
+    if (onSelect) {
+      onSelect(result);
+    }
     
     // Réinitialiser l'état de sélection après un délai
     setTimeout(() => {
@@ -199,32 +218,40 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
     onChange(null);
   };
 
+  // Si visible est false et qu'on utilise le mode modal uniquement, ne rien afficher
+  if (externalVisible === false && !value) {
+    return null;
+  }
+
   return (
     <View style={styles.container}>
-      {/* Input principal */}
-      <TouchableOpacity 
-        style={styles.inputContainer}
-        onPress={openModal}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="location" size={20} color="#9ca3af" style={styles.searchIcon} />
-        <Text style={[styles.inputText, !inputValue && styles.placeholderText]}>
-          {inputValue || placeholder}
-        </Text>
-        {inputValue.length > 0 ? (
-          <TouchableOpacity 
-            onPress={(e) => {
-              e.stopPropagation();
-              handleClear();
-            }} 
-            style={styles.clearButton}
-          >
-            <Ionicons name="close-circle" size={20} color="#9ca3af" />
-          </TouchableOpacity>
-        ) : (
-          <Ionicons name="chevron-down" size={20} color="#9ca3af" />
-        )}
-      </TouchableOpacity>
+      {/* Input principal - seulement si on n'utilise pas le mode modal uniquement */}
+      {externalVisible === undefined && (
+        <TouchableOpacity 
+          style={styles.inputContainer}
+          onPress={openModal}
+          activeOpacity={0.7}
+          disabled={disabled}
+        >
+          <Ionicons name="location" size={20} color="#9ca3af" style={styles.searchIcon} />
+          <Text style={[styles.inputText, !inputValue && styles.placeholderText]}>
+            {inputValue || placeholder}
+          </Text>
+          {inputValue.length > 0 ? (
+            <TouchableOpacity 
+              onPress={(e) => {
+                e.stopPropagation();
+                handleClear();
+              }} 
+              style={styles.clearButton}
+            >
+              <Ionicons name="close-circle" size={20} color="#9ca3af" />
+            </TouchableOpacity>
+          ) : (
+            <Ionicons name="chevron-down" size={20} color="#9ca3af" />
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* Modal de recherche */}
       <Modal

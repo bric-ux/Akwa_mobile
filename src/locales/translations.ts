@@ -640,6 +640,18 @@ export const translations: Record<string, Record<string, string>> = {
     'modeTransition.loading': 'Chargement de votre espace...',
     'modeTransition.travelerMode': 'Mode Voyageur',
     'modeTransition.hostMode': 'Mode Hôte',
+    
+    // Véhicules
+    'vehicles.title': 'Location de véhicules',
+    'vehicles.noVehicles': 'Aucun véhicule disponible',
+    'vehicles.noVehiclesSubtext': 'Il n\'y a pas de véhicules disponibles pour le moment',
+    'vehicles.discover': 'Découvrir les véhicules',
+    'vehicles.addVehicle': 'Ajouter un véhicule',
+    'vehicles.filter': 'Filtrer',
+    'vehicles.book': 'Réserver',
+    'vehicles.pricePerDay': 'XOF/jour',
+    'vehicles.seats': 'places',
+    'vehicles.rating': 'avis',
   },
   en: {
     // Navigation
@@ -1277,5 +1289,17 @@ export const translations: Record<string, Record<string, string>> = {
     'modeTransition.loading': 'Loading your space...',
     'modeTransition.travelerMode': 'Traveler Mode',
     'modeTransition.hostMode': 'Host Mode',
+    
+    // Vehicles
+    'vehicles.title': 'Vehicle Rental',
+    'vehicles.noVehicles': 'No vehicles available',
+    'vehicles.noVehiclesSubtext': 'There are no vehicles available at the moment',
+    'vehicles.discover': 'Discover vehicles',
+    'vehicles.addVehicle': 'Add vehicle',
+    'vehicles.filter': 'Filter',
+    'vehicles.book': 'Book',
+    'vehicles.pricePerDay': 'XOF/day',
+    'vehicles.seats': 'seats',
+    'vehicles.rating': 'reviews',
   },
 };

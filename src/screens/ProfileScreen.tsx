@@ -21,6 +21,7 @@ import EmailVerificationModal from '../components/EmailVerificationModal';
 import { useHostApplications } from '../hooks/useHostApplications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useVehicles } from '../hooks/useVehicles';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -30,8 +31,10 @@ const ProfileScreen: React.FC = () => {
   const { verificationStatus, isVerified } = useIdentityVerification();
   const { isEmailVerified, generateVerificationCode, checkEmailVerificationStatus } = useEmailVerification();
   const { getApplications } = useHostApplications();
+  const { getMyVehicles } = useVehicles();
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [hasPendingApplications, setHasPendingApplications] = useState(false);
+  const [hasVehicles, setHasVehicles] = useState(false);
 
   // Rafraîchir le profil quand l'écran devient actif (seulement si connecté)
   useFocusEffect(
@@ -39,6 +42,7 @@ const ProfileScreen: React.FC = () => {
       if (user) {
         refreshProfile();
         checkPendingApplications();
+        checkVehicles();
         // Rafraîchir aussi le statut de vérification de l'email immédiatement
         // Vérifier immédiatement pour éviter l'affichage de "non vérifié" puis "vérifié"
         checkEmailVerificationStatus(true);
@@ -59,6 +63,18 @@ const ProfileScreen: React.FC = () => {
     } catch (error) {
       console.error('Erreur lors de la vérification des candidatures:', error);
       setHasPendingApplications(false);
+    }
+  };
+
+  const checkVehicles = async () => {
+    if (!user) return;
+    
+    try {
+      const vehicles = await getMyVehicles();
+      setHasVehicles(vehicles.length > 0);
+    } catch (error) {
+      console.error('Erreur lors de la vérification des véhicules:', error);
+      setHasVehicles(false);
     }
   };
 
@@ -237,6 +253,14 @@ const ProfileScreen: React.FC = () => {
     },
   };
 
+  // Élément pour mes véhicules (si l'utilisateur a des véhicules)
+  const myVehiclesItem = {
+    id: 'myVehicles',
+    title: 'Mes véhicules',
+    icon: 'car-outline',
+    onPress: () => navigation.navigate('MyVehicles' as never),
+  };
+
   // Éléments de menu communs
   const commonMenuItems = [
     {
@@ -266,6 +290,11 @@ const ProfileScreen: React.FC = () => {
   } else {
     // Ajouter "Devenir hôte" si pas encore hôte et pas de candidatures en cours
     menuItems.push(becomeHostItem);
+  }
+
+  // Ajouter "Mes véhicules" si l'utilisateur a des véhicules
+  if (hasVehicles) {
+    menuItems.push(myVehiclesItem);
   }
 
   // Ajouter les éléments communs

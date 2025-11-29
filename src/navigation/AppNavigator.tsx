@@ -56,6 +56,9 @@ import ConciergerieScreen from '../screens/ConciergerieScreen';
 import VehiclesScreen from '../screens/VehiclesScreen';
 import VehicleDetailsScreen from '../screens/VehicleDetailsScreen';
 import AddVehicleScreen from '../screens/AddVehicleScreen';
+import MyVehiclesScreen from '../screens/MyVehiclesScreen';
+import HostVehicleBookingsScreen from '../screens/HostVehicleBookingsScreen';
+import EditVehicleScreen from '../screens/EditVehicleScreen';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList } from '../types';
@@ -650,6 +653,30 @@ const AppNavigator = () => {
               component={AddVehicleScreen}
               options={{ 
                 title: 'Ajouter un véhicule',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="MyVehicles" 
+              component={MyVehiclesScreen}
+              options={{ 
+                title: 'Mes véhicules',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="EditVehicle" 
+              component={EditVehicleScreen}
+              options={{ 
+                title: 'Modifier le véhicule',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="HostVehicleBookings" 
+              component={HostVehicleBookingsScreen}
+              options={{ 
+                title: 'Réservations de véhicules',
                 headerShown: false 
               }}
             />

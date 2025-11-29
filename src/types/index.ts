@@ -234,6 +234,8 @@ export type RootStackParamList = {
   AddVehicle: undefined;
   MyVehicles: undefined;
   MyVehicleBookings: undefined;
+  EditVehicle: { vehicleId: string };
+  HostVehicleBookings: { vehicleId?: string };
 };
 
 export type TabParamList = {
