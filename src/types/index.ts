@@ -385,4 +385,5 @@ export interface VehicleFilters {
   startDate?: string;
   endDate?: string;
   features?: string[];
+  search?: string;
 }

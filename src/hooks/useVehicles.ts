@@ -75,6 +75,13 @@ export const useVehicles = () => {
         });
       }
 
+      // Recherche textuelle (marque, modèle, titre, description, localisation)
+      if (filters?.search && filters.search.trim()) {
+        const searchTerm = filters.search.trim().toLowerCase();
+        // Recherche dans plusieurs champs via OR
+        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%`);
+      }
+
       const { data, error: queryError } = await query
         .order('is_featured', { ascending: false })
         .order('rating', { ascending: false })
