@@ -309,12 +309,6 @@ const HostBookingsScreen: React.FC = () => {
               <Text style={styles.propertyTitle} numberOfLines={2}>
                 {item.properties?.title || t('messages.property')}
               </Text>
-              {isBookingInProgress(item) && (
-                <View style={styles.occupiedIndicator}>
-                  <Ionicons name="time" size={12} color="#fff" />
-                  <Text style={styles.occupiedIndicatorText}>{t('hostBookings.occupied')}</Text>
-                </View>
-              )}
             </View>
             <Text style={styles.propertyLocation}>
               {item.properties?.location?.name || item.properties?.locations?.name || t('hostBookings.unknownLocation')}

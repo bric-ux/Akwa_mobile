@@ -191,6 +191,49 @@ const HomeScreen: React.FC = () => {
         </ImageBackground>
       </View>
 
+      {/* Section Promotionnelle Conciergerie */}
+      <View style={styles.conciergeriePromoSection}>
+        <TouchableOpacity
+          style={styles.conciergeriePromoCard}
+          onPress={() => navigation.navigate('Conciergerie' as never)}
+          activeOpacity={0.9}
+        >
+          {/* Effets d'arrière-plan */}
+          <View style={styles.conciergeriePromoBackground}>
+            <View style={styles.conciergeriePromoGradient} />
+            <View style={styles.conciergeriePromoCircle1} />
+            <View style={styles.conciergeriePromoCircle2} />
+          </View>
+          
+          {/* Contenu */}
+          <View style={styles.conciergeriePromoContent}>
+            <View style={styles.conciergeriePromoLeft}>
+              <View style={styles.conciergeriePromoIconContainer}>
+                <Ionicons name="sparkles" size={32} color="#FFFFFF" />
+              </View>
+              <View style={styles.conciergeriePromoTextContainer}>
+                <View style={styles.conciergeriePromoBadgeRow}>
+                  <View style={styles.conciergeriePromoBadge}>
+                    <Text style={styles.conciergeriePromoBadgeText}>✨ NOUVEAUTÉ</Text>
+                  </View>
+                </View>
+                <Text style={styles.conciergeriePromoTitle}>
+                  Service de Conciergerie AkwaHome
+                </Text>
+                <Text style={styles.conciergeriePromoDescription}>
+                  Maximisez vos revenus de <Text style={styles.conciergeriePromoHighlight}>+65%</Text> sans effort • Support <Text style={styles.conciergeriePromoHighlight}>24h/7j</Text> • Satisfaction <Text style={styles.conciergeriePromoHighlight}>98%</Text>
+                </Text>
+              </View>
+            </View>
+            <View style={styles.conciergeriePromoRight}>
+              <View style={styles.conciergeriePromoArrowContainer}>
+                <Ionicons name="arrow-forward" size={24} color="#e67e22" />
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
+
       <PopularDestinations
         destinations={popularDestinations}
         onDestinationPress={handleDestinationPress}
@@ -482,6 +525,152 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
+  },
+  conciergeriePromoSection: {
+    marginHorizontal: 20,
+    marginVertical: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  conciergeriePromoCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#ff9800',
+  },
+  conciergeriePromoBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  conciergeriePromoGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#e67e22',
+  },
+  conciergeriePromoCircle1: {
+    position: 'absolute',
+    top: -80,
+    right: -80,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    opacity: 0.3,
+  },
+  conciergeriePromoCircle2: {
+    position: 'absolute',
+    bottom: -60,
+    left: -60,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 235, 59, 0.2)',
+    opacity: 0.3,
+  },
+  conciergeriePromoContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    minHeight: 140,
+  },
+  conciergeriePromoLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  conciergeriePromoIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  conciergeriePromoTextContainer: {
+    flex: 1,
+  },
+  conciergeriePromoBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  conciergeriePromoBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  conciergeriePromoBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  conciergeriePromoTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    lineHeight: 26,
+  },
+  conciergeriePromoDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.95)',
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  conciergeriePromoHighlight: {
+    fontWeight: 'bold',
+    color: '#FFD700',
+  },
+  conciergeriePromoRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 12,
+  },
+  conciergeriePromoArrowContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });
 

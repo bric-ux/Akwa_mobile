@@ -240,6 +240,12 @@ const ProfileScreen: React.FC = () => {
   // Éléments de menu communs
   const commonMenuItems = [
     {
+      id: 'conciergerie',
+      title: 'Conciergerie',
+      icon: 'sparkles-outline',
+      onPress: () => navigation.navigate('Conciergerie' as never),
+    },
+    {
       id: 'settings',
       title: t('settings.title'),
       icon: 'settings-outline',
