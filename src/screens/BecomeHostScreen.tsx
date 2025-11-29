@@ -408,6 +408,60 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     return true;
   };
 
+  // Fonction pour uploader une image vers Supabase Storage (comme sur le site web)
+  const uploadImageToStorage = async (uri: string): Promise<string> => {
+    try {
+      // Si l'URI est déjà une URL publique (http/https), la retourner directement
+      // (cas des images déjà uploadées lors de l'édition d'une candidature)
+      if (uri.startsWith('http://') || uri.startsWith('https://')) {
+        console.log('✅ Image déjà uploadée, utilisation de l\'URL existante:', uri);
+        return uri;
+      }
+      
+      // Sinon, uploader l'image locale
+      console.log('📤 Upload de l\'image locale:', uri);
+      
+      // Récupérer l'extension du fichier
+      const fileExt = uri.split('.').pop() || 'jpg';
+      
+      // Générer un nom de fichier unique (même format que le site web)
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      
+      // Lire le fichier depuis l'URI locale
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      // Convertir le blob en ArrayBuffer puis en Uint8Array pour React Native
+      const arrayBuffer = await blob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      // Upload vers Supabase Storage (même bucket que le site web)
+      const { error: uploadError } = await supabase.storage
+        .from('property-images')
+        .upload(fileName, uint8Array, {
+          contentType: blob.type || 'image/jpeg',
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Erreur upload image:', uploadError);
+        throw uploadError;
+      }
+
+      // Récupérer l'URL publique (même méthode que le site web)
+      const { data: { publicUrl } } = supabase.storage
+        .from('property-images')
+        .getPublicUrl(fileName);
+
+      console.log('✅ Image uploadée avec succès:', publicUrl);
+      return publicUrl;
+    } catch (error) {
+      console.error('Erreur lors de l\'upload de l\'image:', error);
+      throw error;
+    }
+  };
+
   const pickImage = async () => {
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
@@ -426,34 +480,68 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
+      // Afficher un indicateur de chargement
+      Alert.alert('Upload en cours', `Upload de ${result.assets.length} photo(s)...`);
+      
       const suggestedCategory = getSuggestedCategory();
-      const newImages = result.assets.map((asset, index) => ({
-        uri: asset.uri,
-        category: suggestedCategory,
-        displayOrder: selectedImages.length + index + 1,
-        isMain: selectedImages.length === 0 && index === 0 // Première photo est principale par défaut
-      }));
+      const newImages: any[] = [];
       
-      setSelectedImages(prev => {
-        const updated = [...prev, ...newImages];
-        // S'assurer qu'il n'y a qu'une seule photo principale
-        const hasMain = updated.some(img => img.isMain);
-        if (!hasMain && updated.length > 0) {
-          updated[0].isMain = true;
+      try {
+        // Uploader chaque image vers Supabase Storage
+        for (let i = 0; i < result.assets.length; i++) {
+          const asset = result.assets[i];
+          console.log(`📤 Upload de l'image ${i + 1}/${result.assets.length}...`);
+          
+          try {
+            // Uploader l'image et obtenir l'URL publique
+            const publicUrl = await uploadImageToStorage(asset.uri);
+            console.log(`✅ Image ${i + 1} uploadée:`, publicUrl);
+            
+            newImages.push({
+              uri: publicUrl, // Utiliser l'URL publique au lieu de l'URI locale
+              category: suggestedCategory,
+              displayOrder: selectedImages.length + i + 1,
+              isMain: selectedImages.length === 0 && i === 0 // Première photo est principale par défaut
+            });
+          } catch (error) {
+            console.error(`❌ Erreur upload image ${i + 1}:`, error);
+            Alert.alert(
+              'Erreur d\'upload',
+              `Impossible d'uploader l'image ${i + 1}. Veuillez réessayer.`
+            );
+            // Continuer avec les autres images même si une échoue
+          }
         }
-        return updated;
-      });
-      
-      // Si une seule photo a été ajoutée, proposer la catégorisation
-      if (newImages.length === 1) {
-        setTimeout(() => {
-          openCategoryModal(selectedImages.length);
-        }, 500);
-      } else {
+        
+        if (newImages.length > 0) {
+          setSelectedImages(prev => {
+            const updated = [...prev, ...newImages];
+            // S'assurer qu'il n'y a qu'une seule photo principale
+            const hasMain = updated.some(img => img.isMain);
+            if (!hasMain && updated.length > 0) {
+              updated[0].isMain = true;
+            }
+            return updated;
+          });
+          
+          // Si une seule photo a été ajoutée, proposer la catégorisation
+          if (newImages.length === 1) {
+            setTimeout(() => {
+              openCategoryModal(selectedImages.length);
+            }, 500);
+          } else {
+            Alert.alert(
+              `${newImages.length} photos ajoutées`,
+              'Vous pouvez maintenant catégoriser vos photos et définir la photo principale en appuyant sur chaque photo.',
+              [{ text: 'OK' }]
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'upload des images:', error);
         Alert.alert(
-          `${newImages.length} photos ajoutées`,
-          'Vous pouvez maintenant catégoriser vos photos et définir la photo principale en appuyant sur chaque photo.',
-          [{ text: 'OK' }]
+          'Erreur',
+          'Une erreur est survenue lors de l\'upload des images. Veuillez réessayer.'
         );
       }
     }
@@ -905,6 +993,20 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       return;
     }
 
+    // S'assurer que toutes les images sont uploadées (URI publique, pas locale)
+    // Les images devraient déjà être uploadées lors de la sélection, mais on vérifie quand même
+    const imagesToUpload = selectedImages.filter(img => 
+      img.uri && (img.uri.startsWith('http://') || img.uri.startsWith('https://'))
+    );
+    
+    if (imagesToUpload.length !== selectedImages.length) {
+      Alert.alert(
+        'Images non uploadées',
+        'Certaines images ne sont pas encore uploadées. Veuillez réessayer.'
+      );
+      return;
+    }
+
     const applicationPayload = {
       propertyType: formData.propertyType,
       location: formData.location?.trim() || '',
@@ -917,9 +1019,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       fullName: formData.hostFullName,
       email: formData.hostEmail,
       phone: formData.hostPhone,
-      images: selectedImages.map(img => img.uri),
+      // Format exact comme sur le site web
+      images: selectedImages.map(img => img.uri), // URLs publiques
       categorizedPhotos: selectedImages.map((img, index) => ({
-        url: img.uri,
+        url: img.uri, // URL publique
         category: img.category || 'autre',
         displayOrder: img.displayOrder ?? index,
         isMain: img.isMain || false

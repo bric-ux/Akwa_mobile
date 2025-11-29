@@ -42,34 +42,85 @@ export const useProperties = () => {
   // Cache simple pour éviter les requêtes répétées
   const [cache, setCache] = useState<Map<string, Property[]>>(new Map());
 
-  // Fonction pour mapper les équipements depuis la base de données
-  const mapAmenities = useCallback(async (amenityNames: string[] | null) => {
-    if (!amenityNames || !Array.isArray(amenityNames) || amenityNames.length === 0) {
+  // Cache pour les équipements (éviter de les charger à chaque fois)
+  const [amenitiesCache, setAmenitiesCache] = useState<Map<string, { id: string; name: string; icon: string }>>(new Map());
+
+  // Charger le cache des équipements une seule fois
+  useEffect(() => {
+    const loadAmenitiesCache = async () => {
+      try {
+        const { data: amenities, error } = await supabase
+          .from('property_amenities')
+          .select('id, name');
+        
+        if (error) throw error;
+        
+        if (amenities) {
+          const cache = new Map<string, { id: string; name: string; icon: string }>();
+          amenities.forEach(amenity => {
+            cache.set(amenity.id, {
+              id: amenity.id,
+              name: amenity.name,
+              icon: getAmenityIcon(amenity.name)
+            });
+          });
+          setAmenitiesCache(cache);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement du cache des équipements:', error);
+      }
+    };
+    
+    loadAmenitiesCache();
+  }, []);
+
+  // Fonction pour mapper les équipements depuis la base de données (par ID ou nom)
+  const mapAmenities = useCallback(async (amenityIdsOrNames: string[] | null) => {
+    if (!amenityIdsOrNames || !Array.isArray(amenityIdsOrNames) || amenityIdsOrNames.length === 0) {
       return [];
     }
 
     try {
-      const { data: amenities, error } = await supabase
-        .from('property_amenities')
-        .select('*');
+      // Si le cache n'est pas encore chargé, charger les équipements
+      if (amenitiesCache.size === 0) {
+        const { data: amenities, error } = await supabase
+          .from('property_amenities')
+          .select('id, name');
 
-      if (error) throw error;
+        if (error) throw error;
 
-      return amenityNames
-        .map(name => {
-          const amenity = amenities?.find(a => a.name === name);
-          return amenity ? {
-            id: amenity.id,
-            name: amenity.name,
-            icon: getAmenityIcon(amenity.name)
-          } : null;
+        if (amenities) {
+          const cache = new Map<string, { id: string; name: string; icon: string }>();
+          amenities.forEach(amenity => {
+            cache.set(amenity.id, {
+              id: amenity.id,
+              name: amenity.name,
+              icon: getAmenityIcon(amenity.name)
+            });
+          });
+          setAmenitiesCache(cache);
+        }
+      }
+
+      // Vérifier si c'est un UUID (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      return amenityIdsOrNames
+        .map(idOrName => {
+          // Si c'est un UUID, chercher dans le cache par ID
+          if (uuidRegex.test(idOrName)) {
+            return amenitiesCache.get(idOrName) || null;
+          }
+          // Sinon, chercher par nom
+          const amenity = Array.from(amenitiesCache.values()).find(a => a.name === idOrName);
+          return amenity || null;
         })
         .filter(Boolean) as { id: string; name: string; icon: string }[];
     } catch (err) {
       console.error('Erreur lors du chargement des équipements:', err);
       return [];
     }
-  }, []);
+  }, [amenitiesCache]);
 
   useEffect(() => {
     fetchProperties();
@@ -357,6 +408,12 @@ export const useProperties = () => {
             review_count: finalReviewCount, // Nombre d'avis final
             amenities: allAmenities,
             custom_amenities: property.custom_amenities || [],
+            // Inclure les champs de règles et horaires
+            house_rules: property.house_rules || '',
+            check_in_time: property.check_in_time || null,
+            check_out_time: property.check_out_time || null,
+            address_details: property.address_details || '',
+            host_guide: property.host_guide || '',
             // Extraire et mapper location
             location: location ? {
               id: location.id,
@@ -501,6 +558,18 @@ export const useProperties = () => {
         });
       }
 
+      // Debug pour vérifier les champs de règles et horaires
+      console.log('🔍 [getPropertyById] Données brutes de la propriété:', {
+        title: data.title,
+        house_rules: data.house_rules,
+        check_in_time: data.check_in_time,
+        check_out_time: data.check_out_time,
+        address_details: data.address_details,
+        host_guide: data.host_guide,
+        amenities: data.amenities,
+        custom_amenities: data.custom_amenities
+      });
+
       const transformedData = {
         ...data,
         images: finalImages, // Pour compatibilité avec l'ancien système
@@ -510,6 +579,12 @@ export const useProperties = () => {
         review_count: finalReviewCount, // Nombre d'avis final depuis la DB (mise à jour par trigger)
         amenities: allAmenities,
         custom_amenities: data.custom_amenities || [],
+        // Inclure les champs de règles et horaires (s'assurer qu'ils ne sont pas undefined)
+        house_rules: data.house_rules || '',
+        check_in_time: data.check_in_time || null,
+        check_out_time: data.check_out_time || null,
+        address_details: data.address_details || '',
+        host_guide: data.host_guide || '',
         // Extraire et mapper location
         location: location ? {
           id: location.id,
@@ -526,7 +601,13 @@ export const useProperties = () => {
         locations: location
       };
 
-      console.log('✅ Propriété transformée:', transformedData.title);
+      console.log('✅ Propriété transformée:', {
+        title: transformedData.title,
+        house_rules: transformedData.house_rules,
+        check_in_time: transformedData.check_in_time,
+        check_out_time: transformedData.check_out_time,
+        amenitiesCount: transformedData.amenities?.length || 0
+      });
       return transformedData;
     } catch (err: any) {
       console.error('❌ Erreur lors du chargement de la propriété:', err);

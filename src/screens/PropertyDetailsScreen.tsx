@@ -62,6 +62,18 @@ const PropertyDetailsScreen: React.FC = () => {
         }
         
         const propertyData = await getPropertyById(propertyId);
+        
+        // Debug pour vérifier les données récupérées
+        console.log('🔍 [PropertyDetailsScreen] Données de la propriété récupérées:', {
+          title: propertyData?.title,
+          house_rules: propertyData?.house_rules,
+          check_in_time: propertyData?.check_in_time,
+          check_out_time: propertyData?.check_out_time,
+          amenities: propertyData?.amenities,
+          amenitiesCount: propertyData?.amenities?.length || 0,
+          custom_amenities: propertyData?.custom_amenities
+        });
+        
         setProperty(propertyData);
         
         // Charger le profil de l'hôte
@@ -154,11 +166,8 @@ const PropertyDetailsScreen: React.FC = () => {
 
   const handleBookNow = () => {
     if (!user) {
-      // Rediriger vers la page de connexion avec un paramètre de retour
-      navigation.navigate('Auth', { 
-        returnTo: 'PropertyDetails', 
-        returnParams: { propertyId } 
-      });
+      // Rediriger vers la page de connexion
+      navigation.navigate('Auth' as never);
     } else {
       setShowBookingModal(true);
     }
@@ -300,46 +309,56 @@ const PropertyDetailsScreen: React.FC = () => {
         ) : null}
 
         {/* Règlement intérieur */}
-        {(property.check_in_time || property.check_out_time || property.house_rules) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('property.rules')}</Text>
-            
-            {/* Horaires */}
-            {(property.check_in_time || property.check_out_time) && (
-              <View style={styles.rulesCard}>
-                <View style={styles.rulesCardHeader}>
-                  <Ionicons name="time-outline" size={20} color="#e67e22" />
-                  <Text style={styles.rulesCardTitle}>{t('property.schedule')}</Text>
+        {(() => {
+          const hasRules = property.check_in_time || property.check_out_time || property.house_rules;
+          console.log('🔍 [PropertyDetailsScreen] Vérification des règles:', {
+            check_in_time: property.check_in_time,
+            check_out_time: property.check_out_time,
+            house_rules: property.house_rules,
+            hasRules
+          });
+          
+          return hasRules ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('property.rules')}</Text>
+              
+              {/* Horaires */}
+              {(property.check_in_time || property.check_out_time) && (
+                <View style={styles.rulesCard}>
+                  <View style={styles.rulesCardHeader}>
+                    <Ionicons name="time-outline" size={20} color="#e67e22" />
+                    <Text style={styles.rulesCardTitle}>{t('property.schedule')}</Text>
+                  </View>
+                  <View style={styles.rulesCardContent}>
+                    {property.check_in_time && (
+                      <Text style={styles.rulesText}>
+                        {t('property.checkInTime')} {property.check_in_time.substring(0, 5)}
+                      </Text>
+                    )}
+                    {property.check_out_time && (
+                      <Text style={styles.rulesText}>
+                        {t('property.checkOutTime')} {property.check_out_time.substring(0, 5)}
+                      </Text>
+                    )}
+                  </View>
                 </View>
-                <View style={styles.rulesCardContent}>
-                  {property.check_in_time && (
-                    <Text style={styles.rulesText}>
-                      {t('property.checkInTime')} {property.check_in_time.substring(0, 5)}
-                    </Text>
-                  )}
-                  {property.check_out_time && (
-                    <Text style={styles.rulesText}>
-                      {t('property.checkOutTime')} {property.check_out_time.substring(0, 5)}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            )}
+              )}
 
-            {/* Règles du logement */}
-            {property.house_rules && (
-              <View style={styles.rulesCard}>
-                <View style={styles.rulesCardHeader}>
-                  <Ionicons name="home-outline" size={20} color="#e67e22" />
-                  <Text style={styles.rulesCardTitle}>{t('property.houseRules')}</Text>
+              {/* Règles du logement */}
+              {property.house_rules && property.house_rules.trim() !== '' && (
+                <View style={styles.rulesCard}>
+                  <View style={styles.rulesCardHeader}>
+                    <Ionicons name="home-outline" size={20} color="#e67e22" />
+                    <Text style={styles.rulesCardTitle}>{t('property.houseRules')}</Text>
+                  </View>
+                  <View style={styles.rulesCardContent}>
+                    <Text style={styles.rulesText}>{property.house_rules}</Text>
+                  </View>
                 </View>
-                <View style={styles.rulesCardContent}>
-                  <Text style={styles.rulesText}>{property.house_rules}</Text>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
+              )}
+            </View>
+          ) : null;
+        })()}
 
         {/* Informations pratiques */}
         <View style={styles.section}>
@@ -378,7 +397,10 @@ const PropertyDetailsScreen: React.FC = () => {
             <Text style={styles.sectionTitle}>{t('property.yourHost')}</Text>
             <TouchableOpacity
               style={styles.hostCard}
-              onPress={() => navigation.navigate('HostProfile', { hostId: property.host_id })}
+              onPress={() => {
+                const nav = navigation as any;
+                nav.navigate('HostProfile', { hostId: property.host_id });
+              }}
               activeOpacity={0.7}
             >
               <View style={styles.hostInfo}>
