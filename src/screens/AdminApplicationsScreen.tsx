@@ -533,12 +533,6 @@ const AdminApplicationsScreen: React.FC = () => {
               <Text style={styles.detailsValue}>{selectedApp.phone}</Text>
             </View>
             
-            {selectedApp.experience && (
-              <View style={styles.detailsItem}>
-                <Text style={styles.detailsLabel}>Expérience:</Text>
-                <Text style={styles.detailsValue}>{selectedApp.experience}</Text>
-              </View>
-            )}
           </View>
 
           {/* Document d'identité */}

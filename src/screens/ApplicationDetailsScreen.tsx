@@ -362,12 +362,6 @@ const ApplicationDetailsScreen: React.FC = () => {
             <Text style={styles.infoValue}>{application.phone}</Text>
           </View>
 
-          {application.experience && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Expérience:</Text>
-              <Text style={styles.infoValue}>{application.experience}</Text>
-            </View>
-          )}
         </View>
 
         {/* Dates */}

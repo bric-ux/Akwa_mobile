@@ -14,7 +14,6 @@ export interface HostApplicationData {
   fullName: string;
   email: string;
   phone: string;
-  experience?: string;
   images?: string[];
   categorizedPhotos?: Array<{url: string, category: string, displayOrder: number}>;
   amenities?: string[];
@@ -28,6 +27,9 @@ export interface HostApplicationData {
   discountEnabled?: boolean;
   discountMinNights?: number;
   discountPercentage?: number;
+  longStayDiscountEnabled?: boolean;
+  longStayDiscountMinNights?: number;
+  longStayDiscountPercentage?: number;
 }
 
 export interface HostApplication {
@@ -44,7 +46,6 @@ export interface HostApplication {
   full_name: string;
   email: string;
   phone: string;
-  experience?: string;
   status: 'pending' | 'reviewing' | 'approved' | 'rejected';
   created_at: string;
   updated_at: string;
@@ -60,6 +61,9 @@ export interface HostApplication {
   discount_enabled?: boolean;
   discount_min_nights?: number;
   discount_percentage?: number;
+  long_stay_discount_enabled?: boolean;
+  long_stay_discount_min_nights?: number;
+  long_stay_discount_percentage?: number;
   cleaning_fee?: number;
   free_cleaning_min_days?: number;
   taxes?: number;
@@ -132,7 +136,6 @@ export const useHostApplications = () => {
           full_name: applicationData.fullName.trim(),
           email: applicationData.email.trim(),
           phone: applicationData.phone.trim(),
-          experience: applicationData.experience?.trim() || null,
           images: applicationData.images || [],
           categorized_photos: applicationData.categorizedPhotos || null,
           amenities: applicationData.amenities || [],
@@ -143,6 +146,9 @@ export const useHostApplications = () => {
           discount_enabled: applicationData.discountEnabled || false,
           discount_min_nights: applicationData.discountMinNights || null,
           discount_percentage: applicationData.discountPercentage || null,
+          long_stay_discount_enabled: applicationData.longStayDiscountEnabled || false,
+          long_stay_discount_min_nights: applicationData.longStayDiscountMinNights || null,
+          long_stay_discount_percentage: applicationData.longStayDiscountPercentage || null,
           cleaning_fee: applicationData.cleaningFee || 0,
           free_cleaning_min_days: applicationData.freeCleaningMinDays || null,
           taxes: applicationData.taxes || 0,
@@ -270,7 +276,6 @@ export const useHostApplications = () => {
           full_name: applicationData.fullName,
           email: applicationData.email,
           phone: applicationData.phone,
-          experience: applicationData.experience,
           images: applicationData.images || [],
           categorized_photos: applicationData.categorizedPhotos || null,
           amenities: applicationData.amenities || [],
@@ -281,6 +286,9 @@ export const useHostApplications = () => {
           discount_enabled: applicationData.discountEnabled || false,
           discount_min_nights: applicationData.discountMinNights || null,
           discount_percentage: applicationData.discountPercentage || null,
+          long_stay_discount_enabled: applicationData.longStayDiscountEnabled || false,
+          long_stay_discount_min_nights: applicationData.longStayDiscountMinNights || null,
+          long_stay_discount_percentage: applicationData.longStayDiscountPercentage || null,
           cleaning_fee: applicationData.cleaningFee || 0,
           taxes: applicationData.taxes || 0,
           status: 'reviewing',

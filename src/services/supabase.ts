@@ -163,7 +163,6 @@ export interface Database {
           full_name: string;
           email: string;
           phone: string;
-          experience: string | null;
           images: string[] | null;
           amenities: string[] | null;
           minimum_nights: number | null;
@@ -195,7 +194,6 @@ export interface Database {
           full_name: string;
           email: string;
           phone: string;
-          experience?: string | null;
           images?: string[] | null;
           amenities?: string[] | null;
           minimum_nights?: number | null;
@@ -227,7 +225,6 @@ export interface Database {
           full_name?: string;
           email?: string;
           phone?: string;
-          experience?: string | null;
           images?: string[] | null;
           amenities?: string[] | null;
           minimum_nights?: number | null;

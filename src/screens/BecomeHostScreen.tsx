@@ -127,7 +127,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     hostFullName: '',
     hostEmail: '',
     hostPhone: '',
-    experience: '',
     
     // Frais et règles
     cleaningFee: '',
@@ -149,6 +148,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     discountEnabled: false,
     discountMinNights: '',
     discountPercentage: '',
+    longStayDiscountEnabled: false,
+    longStayDiscountMinNights: '',
+    longStayDiscountPercentage: '',
     
     // Conditions
     agreeTerms: false
@@ -249,7 +251,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         hostFullName: application.full_name || '',
         hostEmail: application.email || '',
         hostPhone: application.phone || '',
-        experience: application.experience || '',
         cleaningFee: application.cleaning_fee?.toString() || '',
         freeCleaningMinDays: application.free_cleaning_min_days?.toString() || '',
         houseRules: '',
@@ -265,6 +266,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         discountEnabled: application.discount_enabled || false,
         discountMinNights: application.discount_min_nights?.toString() || '',
         discountPercentage: application.discount_percentage?.toString() || '',
+        longStayDiscountEnabled: application.long_stay_discount_enabled || false,
+        longStayDiscountMinNights: application.long_stay_discount_min_nights?.toString() || '',
+        longStayDiscountPercentage: application.long_stay_discount_percentage?.toString() || '',
         agreeTerms: false
       });
       
@@ -596,8 +600,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     const fieldOrder = [
       'propertyType', 'location', 'guests', 'bedrooms', 'bathrooms',
       'title', 'description', 'price', 'addressDetails',
-      'hostFullName', 'hostEmail', 'hostPhone', 'experience', 'hostGuide',
-      'cleaningFee', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage',
+      'hostFullName', 'hostEmail', 'hostPhone', 'hostGuide',
+      'cleaningFee', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage', 'longStayDiscountMinNights', 'longStayDiscountPercentage',
       'autoBooking', 'cancellationPolicy'
     ];
     
@@ -913,7 +917,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       fullName: formData.hostFullName,
       email: formData.hostEmail,
       phone: formData.hostPhone,
-      experience: formData.experience,
       images: selectedImages.map(img => img.uri),
       categorizedPhotos: selectedImages.map((img, index) => ({
         url: img.uri,
@@ -940,6 +943,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       discountEnabled: formData.discountEnabled,
       discountMinNights: formData.discountEnabled ? parseInt(formData.discountMinNights) || undefined : undefined,
       discountPercentage: formData.discountEnabled ? parseInt(formData.discountPercentage) || undefined : undefined,
+      longStayDiscountEnabled: formData.longStayDiscountEnabled,
+      longStayDiscountMinNights: formData.longStayDiscountEnabled ? parseInt(formData.longStayDiscountMinNights) || undefined : undefined,
+      longStayDiscountPercentage: formData.longStayDiscountEnabled ? parseInt(formData.longStayDiscountPercentage) || undefined : undefined,
       cleaningFee: parseInt(formData.cleaningFee) || 0,
       freeCleaningMinDays: formData.freeCleaningMinDays ? parseInt(formData.freeCleaningMinDays) || undefined : undefined,
     };
@@ -1494,23 +1500,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         />
       </View>
 
-      {/* Expérience */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Expérience en hébergement</Text>
-        <TextInput
-          ref={(ref) => { inputRefs.current['experience'] = ref; }}
-          style={[styles.input, styles.textArea]}
-          value={formData.experience}
-          onChangeText={(value) => handleInputChange('experience', value)}
-          placeholder="Parlez-nous de votre expérience..."
-          multiline
-          numberOfLines={3}
-          placeholderTextColor="#999"
-          returnKeyType="next"
-          onSubmitEditing={() => handleInputSubmit('experience')}
-        />
-      </View>
-
       {/* Guide de l'hôte */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Guide de l'hôte</Text>
@@ -1648,6 +1637,78 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             </View>
           )}
         </View>
+
+      {/* Section Réductions long séjour */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Réductions pour très long séjour</Text>
+        <Text style={styles.helpText}>
+          Offrez des réductions supplémentaires pour les séjours très longs (ex: 30+ nuits)
+        </Text>
+        
+        <View style={styles.discountContainer}>
+          <TouchableOpacity
+            style={styles.switchContainer}
+            onPress={() => handleInputChange('longStayDiscountEnabled', !formData.longStayDiscountEnabled)}
+          >
+            <View style={[styles.switch, formData.longStayDiscountEnabled && styles.switchActive]}>
+              <View style={[styles.switchThumb, formData.longStayDiscountEnabled && styles.switchThumbActive]} />
+            </View>
+            <Text style={styles.switchLabel}>Activer les réductions long séjour</Text>
+          </TouchableOpacity>
+          
+          {formData.longStayDiscountEnabled && (
+            <View style={styles.discountFields}>
+              <View style={styles.row}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Nuits minimum pour réduction long séjour</Text>
+                  <TextInput
+                    ref={(ref) => { inputRefs.current['longStayDiscountMinNights'] = ref; }}
+                    style={styles.input}
+                    value={formData.longStayDiscountMinNights}
+                    onChangeText={(value) => handleInputChange('longStayDiscountMinNights', value)}
+                    placeholder="30"
+                    keyboardType="numeric"
+                    placeholderTextColor="#999"
+                    returnKeyType="next"
+                    onSubmitEditing={() => handleInputSubmit('longStayDiscountMinNights')}
+                  />
+                </View>
+                
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Pourcentage de réduction long séjour</Text>
+                  <TextInput
+                    ref={(ref) => { inputRefs.current['longStayDiscountPercentage'] = ref; }}
+                    style={styles.input}
+                    value={formData.longStayDiscountPercentage}
+                    onChangeText={(value) => handleInputChange('longStayDiscountPercentage', value)}
+                    placeholder="25"
+                    keyboardType="numeric"
+                    placeholderTextColor="#999"
+                    returnKeyType="next"
+                    onSubmitEditing={() => handleInputSubmit('longStayDiscountPercentage')}
+                  />
+                </View>
+              </View>
+              
+              {/* Aperçu du calcul */}
+              {formData.price && formData.longStayDiscountMinNights && formData.longStayDiscountPercentage && (
+                <View style={styles.discountPreview}>
+                  <Text style={styles.discountPreviewTitle}>Aperçu de la réduction long séjour :</Text>
+                  <Text style={styles.discountPreviewText}>
+                    Prix normal : {parseInt(formData.price).toLocaleString()} FCFA/nuit
+                  </Text>
+                  <Text style={styles.discountPreviewText}>
+                    Réduction de {formData.longStayDiscountPercentage}% à partir de {formData.longStayDiscountMinNights} nuit{formData.longStayDiscountMinNights !== "1" ? "s" : ""}
+                  </Text>
+                  <Text style={styles.discountPreviewPrice}>
+                    Prix réduit : {Math.round(parseInt(formData.price) * (1 - parseInt(formData.longStayDiscountPercentage) / 100)).toLocaleString()} FCFA/nuit
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      </View>
       </View>
 
       {/* Horaires */}
