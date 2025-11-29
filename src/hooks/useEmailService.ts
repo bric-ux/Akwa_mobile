@@ -2,7 +2,7 @@
 import { supabase } from '../services/supabase';
 
 export interface EmailData {
-  type: 'welcome' | 'email_confirmation' | 'booking_request' | 'booking_request_sent' | 'booking_response' | 'booking_confirmed' | 'booking_confirmed_host' | 'booking_cancelled' | 'booking_cancelled_host' | 'booking_completed' | 'booking_completed_host' | 'password_reset' | 'new_message' | 'host_application_submitted' | 'host_application_received' | 'host_application_approved';
+  type: 'welcome' | 'email_confirmation' | 'booking_request' | 'booking_request_sent' | 'booking_response' | 'booking_confirmed' | 'booking_confirmed_host' | 'booking_cancelled' | 'booking_cancelled_host' | 'booking_completed' | 'booking_completed_host' | 'password_reset' | 'new_message' | 'host_application_submitted' | 'host_application_received' | 'host_application_approved' | 'conciergerie_request';
   to: string;
   data: any;
 }

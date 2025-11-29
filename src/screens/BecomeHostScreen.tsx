@@ -162,7 +162,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [identityUploadedInSession, setIdentityUploadedInSession] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
-  const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number}>>([]);
+  const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedImageForCategory, setSelectedImageForCategory] = useState<number | null>(null);
 
@@ -319,7 +319,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               const formattedPhoto = {
                 uri: photoUri,
                 category: photoCategory,
-                displayOrder: photoDisplayOrder
+                displayOrder: photoDisplayOrder,
+                isMain: photo.isMain || photo.is_main || (index === 0 && !photos.some((p: any) => p.isMain || p.is_main))
               };
               
               console.log(`📸 Photo ${index} formatée:`, formattedPhoto);
@@ -338,7 +339,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         const photos = application.images.map((url: string, index: number) => ({
           uri: url,
           category: 'autre',
-          displayOrder: index
+          displayOrder: index,
+          isMain: index === 0 // Première photo est principale par défaut
         }));
         setSelectedImages(photos as any);
       }
@@ -406,31 +408,76 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
+    const remainingSlots = 30 - selectedImages.length;
+    if (remainingSlots <= 0) {
+      Alert.alert('Limite atteinte', 'Vous pouvez ajouter jusqu\'à 30 photos maximum.');
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets[0]) {
+    if (!result.canceled && result.assets && result.assets.length > 0) {
       const suggestedCategory = getSuggestedCategory();
-      const newImage = {
-        uri: result.assets[0].uri,
+      const newImages = result.assets.map((asset, index) => ({
+        uri: asset.uri,
         category: suggestedCategory,
-        displayOrder: selectedImages.length + 1
-      };
-      setSelectedImages(prev => [...prev, newImage]);
+        displayOrder: selectedImages.length + index + 1,
+        isMain: selectedImages.length === 0 && index === 0 // Première photo est principale par défaut
+      }));
       
-      // Proposer directement la catégorisation de la nouvelle image
-      setTimeout(() => {
-        openCategoryModal(selectedImages.length);
-      }, 500);
+      setSelectedImages(prev => {
+        const updated = [...prev, ...newImages];
+        // S'assurer qu'il n'y a qu'une seule photo principale
+        const hasMain = updated.some(img => img.isMain);
+        if (!hasMain && updated.length > 0) {
+          updated[0].isMain = true;
+        }
+        return updated;
+      });
+      
+      // Si une seule photo a été ajoutée, proposer la catégorisation
+      if (newImages.length === 1) {
+        setTimeout(() => {
+          openCategoryModal(selectedImages.length);
+        }, 500);
+      } else {
+        Alert.alert(
+          `${newImages.length} photos ajoutées`,
+          'Vous pouvez maintenant catégoriser vos photos et définir la photo principale en appuyant sur chaque photo.',
+          [{ text: 'OK' }]
+        );
+      }
     }
   };
 
   const removeImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setSelectedImages(prev => {
+      const removed = prev[index];
+      const updated = prev.filter((_, i) => i !== index);
+      
+      // Si la photo supprimée était principale et qu'il reste des photos, définir la première comme principale
+      if (removed?.isMain && updated.length > 0) {
+        updated[0].isMain = true;
+      }
+      
+      // Réorganiser les displayOrder
+      return updated.map((img, i) => ({
+        ...img,
+        displayOrder: i + 1
+      }));
+    });
+  };
+
+  const setMainImage = (index: number) => {
+    setSelectedImages(prev => prev.map((img, i) => ({
+      ...img,
+      isMain: i === index
+    })));
   };
 
   const openCategoryModal = (index: number) => {
@@ -861,7 +908,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       categorizedPhotos: selectedImages.map((img, index) => ({
         url: img.uri,
         category: img.category || 'autre',
-        displayOrder: img.displayOrder ?? index
+        displayOrder: img.displayOrder ?? index,
+        isMain: img.isMain || false
       })),
       amenities: selectedAmenities,
       customAmenities: customAmenities.trim() 
@@ -1273,16 +1321,14 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       {/* Photos */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Photos de votre logement</Text>
-        <Text style={styles.helpText}>
         <Text style={styles.subtitle}>
-          Ajoutez jusqu'à 30 photos pour présenter votre logement
-        </Text>
+          Ajoutez jusqu'à 30 photos pour présenter votre logement. Vous pouvez sélectionner plusieurs photos à la fois et définir une photo principale.
         </Text>
         
         {/* Grille des images */}
         <View style={styles.imageGrid}>
           {selectedImages.map((image, index) => (
-            <View key={index} style={styles.imageContainer}>
+            <View key={index} style={[styles.imageContainer, image.isMain && styles.mainImageContainer]}>
               <Image
                 source={{ uri: image.uri }}
                 style={styles.selectedImage}
@@ -1294,6 +1340,25 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               >
                 <Ionicons name="close-circle" size={20} color="#ff4444" />
               </TouchableOpacity>
+              
+              {/* Badge photo principale */}
+              {image.isMain && (
+                <View style={styles.mainImageBadge}>
+                  <Ionicons name="star" size={16} color="#FFD700" />
+                  <Text style={styles.mainImageBadgeText}>Principale</Text>
+                </View>
+              )}
+              
+              {/* Bouton pour définir comme principale */}
+              {!image.isMain && (
+                <TouchableOpacity
+                  style={styles.setMainButton}
+                  onPress={() => setMainImage(index)}
+                >
+                  <Ionicons name="star-outline" size={18} color="#fff" />
+                  <Text style={styles.setMainButtonText}>Définir principale</Text>
+                </TouchableOpacity>
+              )}
               
               {/* Catégorie actuelle - plus visible */}
               <View style={styles.categoryOverlay}>
@@ -1312,17 +1377,18 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           {selectedImages.length < 30 && (
             <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
               <Ionicons name="camera" size={24} color="#666" />
-              <Text style={styles.addImageText}>Ajouter une photo</Text>
+              <Text style={styles.addImageText}>Ajouter des photos</Text>
+              <Text style={styles.addImageSubtext}>(Sélection multiple possible)</Text>
             </TouchableOpacity>
           )}
         </View>
         
-        {/* Instructions pour la catégorisation */}
+        {/* Instructions pour la catégorisation et photo principale */}
         {selectedImages.length > 0 && (
           <View style={styles.categoryInstructions}>
             <Ionicons name="information-circle" size={16} color="#007bff" />
             <Text style={styles.categoryInstructionsText}>
-              Appuyez sur la catégorie d'une photo pour la modifier
+              Appuyez sur la catégorie d'une photo pour la modifier. Appuyez sur "Définir principale" pour choisir la photo principale.
             </Text>
           </View>
         )}
@@ -2623,6 +2689,12 @@ const styles = StyleSheet.create({
     marginRight: 10,
     marginBottom: 10,
   },
+  mainImageContainer: {
+    borderWidth: 3,
+    borderColor: '#FFD700',
+    borderRadius: 8,
+    padding: 2,
+  },
   selectedImage: {
     width: 80,
     height: 80,
@@ -2635,6 +2707,44 @@ const styles = StyleSheet.create({
     right: -5,
     backgroundColor: '#fff',
     borderRadius: 10,
+    zIndex: 10,
+  },
+  mainImageBadge: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 12,
+    zIndex: 5,
+  },
+  mainImageBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  setMainButton: {
+    position: 'absolute',
+    bottom: 5,
+    left: 5,
+    right: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingVertical: 4,
+    borderRadius: 6,
+    zIndex: 5,
+  },
+  setMainButtonText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   addImageButton: {
     width: 80,
@@ -2653,6 +2763,13 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
     textAlign: 'center',
+  },
+  addImageSubtext: {
+    fontSize: 10,
+    color: '#999',
+    marginTop: 2,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   // Styles pour l'étape 5 - Informations de paiement
   paymentInfoContainer: {

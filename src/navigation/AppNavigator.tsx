@@ -266,6 +266,7 @@ const AppNavigator = () => {
           headerTitleStyle: {
             fontWeight: 'bold',
           },
+          headerBackTitle: 'Retour',
           // Animation de retour de gauche vers la droite (comme iOS)
           gestureDirection: 'horizontal',
           gestureEnabled: true,
@@ -322,12 +323,18 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="PropertyDetails" 
           component={PropertyDetailsScreen}
-          options={{ title: 'Détails de la propriété' }}
+          options={{ 
+            title: 'Détails de la propriété',
+            headerBackTitle: 'Retour'
+          }}
         />
         <Stack.Screen 
           name="Booking" 
           component={BookingScreen}
-          options={{ title: 'Réservation' }}
+          options={{ 
+            title: 'Réservation',
+            headerBackTitle: 'Retour'
+          }}
         />
         <Stack.Screen 
           name="HostProfile" 
@@ -444,7 +451,10 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="Messaging" 
           component={AuthScreen} // Placeholder
-          options={{ title: 'Messages' }}
+          options={{ 
+            title: 'Messages',
+            headerBackTitle: 'Retour'
+          }}
         />
             <Stack.Screen 
               name="Admin" 
@@ -577,7 +587,10 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="SupabaseTest" 
           component={SupabaseTestScreen}
-          options={{ title: 'Test Supabase' }}
+          options={{ 
+            title: 'Test Supabase',
+            headerBackTitle: 'Retour'
+          }}
         />
         <Stack.Screen 
           name="PdfViewer" 
@@ -603,7 +616,10 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="MessagingDebug" 
           component={MessagingDebugScreen}
-          options={{ title: 'Debug Messagerie' }}
+          options={{ 
+            title: 'Debug Messagerie',
+            headerBackTitle: 'Retour'
+          }}
         />
             <Stack.Screen 
               name="Conciergerie" 

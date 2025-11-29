@@ -90,7 +90,7 @@ const ConciergerieScreen: React.FC = () => {
       setLoading(true);
       
       await sendEmail({
-        type: 'booking_request',
+        type: 'conciergerie_request',
         to: 'support@akwahome.com',
         data: {
           subject: 'Nouvelle demande de consultation - Conciergerie AkwaHome',
@@ -198,8 +198,7 @@ const ConciergerieScreen: React.FC = () => {
                   key={index}
                   style={[
                     styles.planCard,
-                    plan.popular && styles.planCardPopular,
-                    isSelected && styles.planCardSelected,
+                    isSelected ? styles.planCardSelected : (plan.popular && !formData.selectedPlan && styles.planCardPopular),
                   ]}
                   onPress={() => {
                     setFormData({ ...formData, selectedPlan: plan.name });
@@ -209,7 +208,7 @@ const ConciergerieScreen: React.FC = () => {
                   }}
                   activeOpacity={0.8}
                 >
-                  {plan.popular && (
+                  {plan.popular && !isSelected && (
                     <View style={styles.popularBadge}>
                       <Text style={styles.popularBadgeText}>Le plus populaire</Text>
                     </View>
