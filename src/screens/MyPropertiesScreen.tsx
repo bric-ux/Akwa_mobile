@@ -118,10 +118,13 @@ const MyPropertiesScreen: React.FC = () => {
                 Alert.alert(t('common.success'), t('host.propertyDeleted'));
                 loadProperties(); // Recharger la liste
               } else {
-                Alert.alert(t('common.error'), t('host.deletePropertyError'));
+                // Afficher le message d'erreur détaillé
+                const errorMessage = result.error || t('host.deletePropertyError');
+                Alert.alert(t('common.error'), errorMessage);
               }
-            } catch (err) {
-              Alert.alert(t('common.error'), t('common.errorOccurred'));
+            } catch (err: any) {
+              const errorMessage = err?.message || t('common.errorOccurred');
+              Alert.alert(t('common.error'), errorMessage);
             }
           },
         },

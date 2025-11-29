@@ -151,10 +151,13 @@ const PropertyManagementScreen: React.FC = () => {
                 Alert.alert('Succès', 'Propriété supprimée avec succès');
                 navigation.goBack();
               } else {
-                Alert.alert('Erreur', 'Impossible de supprimer la propriété');
+                // Afficher le message d'erreur détaillé
+                const errorMessage = result.error || 'Impossible de supprimer la propriété';
+                Alert.alert('Erreur', errorMessage);
               }
-            } catch (err) {
-              Alert.alert('Erreur', 'Une erreur est survenue');
+            } catch (err: any) {
+              const errorMessage = err?.message || 'Une erreur est survenue';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
