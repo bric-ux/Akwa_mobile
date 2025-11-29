@@ -168,6 +168,7 @@ export const useProperties = () => {
             url,
             category,
             display_order,
+            is_main,
             created_at
           )
         `)
@@ -431,6 +432,7 @@ export const useProperties = () => {
             url,
             category,
             display_order,
+            is_main,
             created_at
           )
         `)
@@ -640,6 +642,7 @@ export const useProperties = () => {
             url,
             category,
             display_order,
+            is_main,
             created_at
           )
         `)

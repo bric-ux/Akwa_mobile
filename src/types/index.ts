@@ -15,6 +15,8 @@ export interface CategorizedPhoto {
   category: 'chambre' | 'salle_de_bain' | 'cuisine' | 'jardin' | 'salon' | 'exterieur' | 'terrasse' | 'balcon' | 'salle_a_manger' | 'cave' | 'toilette' | 'buanderie' | 'wc' | 'piscine' | 'autre';
   display_order: number | null;
   created_at: string | null;
+  is_main?: boolean;
+  isMain?: boolean; // Alias pour compatibilité
 }
 
 export interface Property {

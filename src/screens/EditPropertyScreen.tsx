@@ -112,7 +112,11 @@ const EditPropertyScreen: React.FC = () => {
 
         // Charger les photos
         if (propertyData.photos && propertyData.photos.length > 0) {
-          setPhotos(propertyData.photos);
+          const loadedPhotos = propertyData.photos.map((photo: any) => ({
+            ...photo,
+            is_main: photo.is_main || photo.isMain || false
+          }));
+          setPhotos(loadedPhotos);
         }
 
         // Charger les équipements sélectionnés
@@ -246,6 +250,7 @@ const EditPropertyScreen: React.FC = () => {
           url: photo.url,
           category: photo.category,
           display_order: index,
+          is_main: photo.is_main || photo.isMain || false,
         }));
 
         const { error: photosError } = await supabase
@@ -312,8 +317,18 @@ const EditPropertyScreen: React.FC = () => {
         category: 'autre' as const,
         display_order: photos.length + index,
         created_at: new Date().toISOString(),
+        is_main: photos.length === 0 && index === 0, // Première photo est principale par défaut
       }));
-      setPhotos([...photos, ...newPhotos]);
+      
+      setPhotos(prev => {
+        const updated = [...prev, ...newPhotos];
+        // S'assurer qu'il n'y a qu'une seule photo principale
+        const hasMain = updated.some(p => p.is_main || p.isMain);
+        if (!hasMain && updated.length > 0) {
+          updated[0].is_main = true;
+        }
+        return updated;
+      });
     }
   };
 
@@ -327,12 +342,27 @@ const EditPropertyScreen: React.FC = () => {
           text: 'Supprimer',
           style: 'destructive',
           onPress: () => {
+            const removed = photos[index];
             const newPhotos = photos.filter((_, i) => i !== index);
+            
+            // Si la photo supprimée était principale et qu'il reste des photos, définir la première comme principale
+            if ((removed?.is_main || removed?.isMain) && newPhotos.length > 0) {
+              newPhotos[0].is_main = true;
+            }
+            
             setPhotos(newPhotos);
           },
         },
       ]
     );
+  };
+
+  const setMainPhoto = (index: number) => {
+    setPhotos(prev => prev.map((photo, i) => ({
+      ...photo,
+      is_main: i === index,
+      isMain: i === index,
+    })));
   };
 
   const openCategoryModal = (index: number) => {
@@ -381,7 +411,7 @@ const EditPropertyScreen: React.FC = () => {
       
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
         {photos.map((photo, index) => (
-          <View key={photo.id || index} style={styles.photoContainer}>
+          <View key={photo.id || index} style={[styles.photoContainer, (photo.is_main || photo.isMain) && styles.mainPhotoContainer]}>
             <Image source={{ uri: photo.url }} style={styles.photo} />
             
             <TouchableOpacity
@@ -391,14 +421,36 @@ const EditPropertyScreen: React.FC = () => {
               <Ionicons name="close-circle" size={24} color="#ff4444" />
             </TouchableOpacity>
             
-            <TouchableOpacity
-              style={styles.categoryButton}
-              onPress={() => openCategoryModal(index)}
-            >
-              <Text style={styles.categoryText}>
-                {getCategoryLabel(photo.category)}
-              </Text>
-            </TouchableOpacity>
+            {/* Badge photo principale */}
+            {(photo.is_main || photo.isMain) && (
+              <View style={styles.mainPhotoBadge}>
+                <Ionicons name="star" size={14} color="#FFD700" />
+                <Text style={styles.mainPhotoBadgeText}>Principale</Text>
+              </View>
+            )}
+            
+            {/* Boutons d'action en bas */}
+            <View style={styles.photoActionsContainer}>
+              {/* Bouton pour définir comme principale */}
+              {!(photo.is_main || photo.isMain) && (
+                <TouchableOpacity
+                  style={styles.setMainPhotoButton}
+                  onPress={() => setMainPhoto(index)}
+                >
+                  <Ionicons name="star-outline" size={14} color="#fff" />
+                </TouchableOpacity>
+              )}
+              
+              {/* Bouton catégorie */}
+              <TouchableOpacity
+                style={[styles.categoryButton, (photo.is_main || photo.isMain) && styles.categoryButtonWithMain]}
+                onPress={() => openCategoryModal(index)}
+              >
+                <Text style={styles.categoryText} numberOfLines={1}>
+                  {getCategoryLabel(photo.category)}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ))}
         
@@ -1049,8 +1101,8 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   photoContainer: {
-    width: 120,
-    height: 120,
+    width: 150,
+    height: 150,
     marginRight: 10,
     borderRadius: 8,
     position: 'relative',
@@ -1068,14 +1120,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   categoryButton: {
-    position: 'absolute',
-    bottom: 5,
-    left: 5,
-    right: 5,
+    flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 4,
+    minHeight: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categoryText: {
     color: '#fff',
@@ -1084,8 +1136,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   addPhotoButton: {
-    width: 120,
-    height: 120,
+    width: 150,
+    height: 150,
     borderWidth: 2,
     borderColor: '#e0e0e0',
     borderStyle: 'dashed',

@@ -1341,7 +1341,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
                 <Ionicons name="close-circle" size={20} color="#ff4444" />
               </TouchableOpacity>
               
-              {/* Badge photo principale */}
+              {/* Badge photo principale - en haut à gauche */}
               {image.isMain && (
                 <View style={styles.mainImageBadge}>
                   <Ionicons name="star" size={16} color="#FFD700" />
@@ -1349,26 +1349,26 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
                 </View>
               )}
               
-              {/* Bouton pour définir comme principale */}
-              {!image.isMain && (
+              {/* Boutons d'action en bas - côte à côte */}
+              <View style={styles.imageActionsContainer}>
+                {/* Bouton pour définir comme principale */}
+                {!image.isMain && (
+                  <TouchableOpacity
+                    style={styles.setMainButtonSmall}
+                    onPress={() => setMainImage(index)}
+                  >
+                    <Ionicons name="star-outline" size={14} color="#fff" />
+                  </TouchableOpacity>
+                )}
+                
+                {/* Catégorie actuelle */}
                 <TouchableOpacity
-                  style={styles.setMainButton}
-                  onPress={() => setMainImage(index)}
-                >
-                  <Ionicons name="star-outline" size={18} color="#fff" />
-                  <Text style={styles.setMainButtonText}>Définir principale</Text>
-                </TouchableOpacity>
-              )}
-              
-              {/* Catégorie actuelle - plus visible */}
-              <View style={styles.categoryOverlay}>
-                <TouchableOpacity
-                  style={styles.categoryButton}
+                  style={[styles.categoryButtonSmall, image.isMain && styles.categoryButtonSmallWithMain]}
                   onPress={() => openCategoryModal(index)}
                 >
-                  <Text style={styles.categoryIcon}>{getCategoryIcon(image.category)}</Text>
-                  <Text style={styles.categoryLabel}>{getCategoryLabel(image.category)}</Text>
-                  <Ionicons name="pencil" size={12} color="#fff" style={styles.editIcon} />
+                  <Text style={styles.categoryIconSmall}>{getCategoryIcon(image.category)}</Text>
+                  <Text style={styles.categoryLabelSmall} numberOfLines={1}>{getCategoryLabel(image.category)}</Text>
+                  <Ionicons name="pencil" size={10} color="#fff" style={styles.editIconSmall} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -2696,59 +2696,93 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   selectedImage: {
-    width: 80,
-    height: 80,
+    width: 150,
+    height: 150,
     borderRadius: 8,
     backgroundColor: '#f3f4f6',
   },
   removeImageButton: {
     position: 'absolute',
-    top: -5,
-    right: -5,
+    top: -8,
+    right: -8,
     backgroundColor: '#fff',
-    borderRadius: 10,
+    borderRadius: 12,
+    padding: 2,
     zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 5,
   },
   mainImageBadge: {
     position: 'absolute',
-    top: 5,
-    left: 5,
+    top: 8,
+    left: 8,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 12,
     zIndex: 5,
   },
   mainImageBadgeText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 'bold',
     marginLeft: 4,
   },
-  setMainButton: {
+  imageActionsContainer: {
     position: 'absolute',
-    bottom: 5,
-    left: 5,
-    right: 5,
+    bottom: 8,
+    left: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    zIndex: 5,
+  },
+  setMainButtonSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  categoryButtonSmall: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     paddingVertical: 4,
+    paddingHorizontal: 6,
     borderRadius: 6,
-    zIndex: 5,
+    minHeight: 32,
   },
-  setMainButtonText: {
+  categoryButtonSmallWithMain: {
+    flex: 1,
+  },
+  categoryIconSmall: {
+    fontSize: 12,
+    marginRight: 4,
+  },
+  categoryLabelSmall: {
     color: '#fff',
     fontSize: 9,
     fontWeight: '600',
-    marginLeft: 4,
+    flex: 1,
+    marginRight: 2,
+  },
+  editIconSmall: {
+    marginLeft: 2,
   },
   addImageButton: {
-    width: 80,
-    height: 80,
+    width: 150,
+    height: 150,
     borderRadius: 8,
     backgroundColor: '#f9fafb',
     borderWidth: 2,
