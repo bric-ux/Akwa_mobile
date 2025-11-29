@@ -132,22 +132,54 @@ const HomeScreen: React.FC = () => {
     <>
       <HeroSection onSearchPress={handleSearchPress} />
 
-      {/* Section Location de véhicules */}
-      <View style={styles.vehiclesSection}>
-        <TouchableOpacity
-          style={styles.vehiclesButton}
-          onPress={() => navigation.navigate('Vehicles' as never)}
-        >
-          <Ionicons name="car" size={24} color="#fff" />
-          <View style={styles.vehiclesButtonTextContainer}>
-            <Text style={styles.vehiclesButtonTitle}>Location de véhicules</Text>
-            <Text style={styles.vehiclesButtonSubtitle}>Trouvez le véhicule parfait pour votre voyage</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
       <WeatherDateTimeWidget />
+
+      {/* Section Promotionnelle Location de véhicules */}
+      <View style={styles.vehiclesPromoSection}>
+        <View style={styles.vehiclesPromoContent}>
+          <View style={styles.vehiclesPromoLeft}>
+            <View style={styles.vehiclesPromoBadge}>
+              <Ionicons name="flash" size={16} color="#FFD700" />
+              <Text style={styles.vehiclesPromoBadgeText}>NOUVEAU</Text>
+            </View>
+            <Text style={styles.vehiclesPromoTitle}>
+              Location de véhicules
+            </Text>
+            <Text style={styles.vehiclesPromoSubtitle}>
+              Explorez la Côte d'Ivoire à votre rythme
+            </Text>
+            <Text style={styles.vehiclesPromoDescription}>
+              Trouvez le véhicule parfait pour votre voyage. Des voitures, SUV, motos et plus encore disponibles à la location.
+            </Text>
+            <TouchableOpacity
+              style={styles.vehiclesPromoButton}
+              onPress={() => navigation.navigate('Vehicles' as never)}
+            >
+              <Text style={styles.vehiclesPromoButtonText}>Découvrir les véhicules</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.vehiclesPromoRight}>
+            <View style={styles.vehiclesPromoIconContainer}>
+              <Ionicons name="car-sport" size={64} color="#2E7D32" />
+            </View>
+            <View style={styles.vehiclesPromoFeatures}>
+              <View style={styles.vehiclesPromoFeature}>
+                <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
+                <Text style={styles.vehiclesPromoFeatureText}>Large choix</Text>
+              </View>
+              <View style={styles.vehiclesPromoFeature}>
+                <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
+                <Text style={styles.vehiclesPromoFeatureText}>Prix compétitifs</Text>
+              </View>
+              <View style={styles.vehiclesPromoFeature}>
+                <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
+                <Text style={styles.vehiclesPromoFeatureText}>Réservation facile</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
 
       <PopularDestinations
         destinations={popularDestinations}
@@ -308,39 +340,115 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#dc3545',
   },
-  vehiclesSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+  vehiclesPromoSection: {
+    marginHorizontal: 20,
+    marginVertical: 20,
     backgroundColor: '#fff',
-  },
-  vehiclesButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2E7D32',
-    padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  vehiclesPromoContent: {
+    flexDirection: 'row',
+    padding: 20,
+    backgroundColor: 'linear-gradient(135deg, #f0f8f0 0%, #ffffff 100%)',
+    backgroundColor: '#f8fff8',
+  },
+  vehiclesPromoLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  vehiclesPromoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFF9E6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 12,
+    gap: 4,
+  },
+  vehiclesPromoBadgeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#FF8C00',
+    letterSpacing: 0.5,
+  },
+  vehiclesPromoTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  vehiclesPromoSubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2E7D32',
+    marginBottom: 12,
+  },
+  vehiclesPromoDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  vehiclesPromoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#2E7D32',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 8,
+    shadowColor: '#2E7D32',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
     elevation: 5,
   },
-  vehiclesButtonTextContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  vehiclesButtonTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  vehiclesPromoButtonText: {
     color: '#fff',
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: 'bold',
   },
-  vehiclesButtonSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+  vehiclesPromoRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 12,
+  },
+  vehiclesPromoIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#f0f8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  vehiclesPromoFeatures: {
+    gap: 8,
+  },
+  vehiclesPromoFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vehiclesPromoFeatureText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
 });
 
