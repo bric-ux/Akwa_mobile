@@ -119,18 +119,6 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
       }
     });
 
-    // Créer des communes uniques
-    const communes = neighborhoods
-      .filter(n => n.type === 'commune' && n.name.toLowerCase().includes(searchTerm))
-      .map(neighborhood => ({
-        id: neighborhood.id,
-        name: neighborhood.name,
-        type: 'commune' as const,
-        commune: neighborhood.name
-      }));
-
-    filteredResults.push(...communes);
-
     // Trier les résultats
     filteredResults.sort((a, b) => {
       const typeOrder = { commune: 0, neighborhood: 1, city: 2 };
@@ -140,7 +128,12 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
       return a.name.localeCompare(b.name);
     });
 
-    const finalResults = filteredResults.slice(0, 15);
+    // Filtrer les doublons par ID avant de limiter les résultats
+    const uniqueResults = Array.from(
+      new Map(filteredResults.map(item => [item.id, item])).values()
+    );
+    
+    const finalResults = uniqueResults.slice(0, 15);
     console.log('🔍 Résultats filtrés:', finalResults.length);
     console.log('🔍 Premiers résultats:', finalResults.slice(0, 3).map(r => r.name));
     setResults(finalResults);
@@ -295,7 +288,7 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
               {results.length > 0 ? (
                 <FlatList
                   data={results}
-                  keyExtractor={(item) => item.id}
+                  keyExtractor={(item, index) => item.id ? `${item.id}-${index}` : `result-${index}`}
                   renderItem={({ item }) => (
                     <TouchableOpacity
                       style={styles.resultItem}
