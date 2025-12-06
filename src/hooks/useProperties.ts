@@ -49,25 +49,39 @@ export const useProperties = () => {
   useEffect(() => {
     const loadAmenitiesCache = async () => {
       try {
+        console.log('🔄 [useProperties] Chargement initial du cache des équipements...');
         const { data: amenities, error } = await supabase
           .from('property_amenities')
           .select('id, name');
         
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [useProperties] Erreur lors du chargement du cache:', error);
+          throw error;
+        }
         
-        if (amenities) {
+        if (amenities && amenities.length > 0) {
           const cache = new Map<string, { id: string; name: string; icon: string }>();
           amenities.forEach(amenity => {
+            // Indexer par ID (UUID)
             cache.set(amenity.id, {
+              id: amenity.id,
+              name: amenity.name,
+              icon: getAmenityIcon(amenity.name)
+            });
+            // Aussi indexer par nom en minuscules pour faciliter la recherche
+            cache.set(amenity.name.toLowerCase(), {
               id: amenity.id,
               name: amenity.name,
               icon: getAmenityIcon(amenity.name)
             });
           });
           setAmenitiesCache(cache);
+          console.log('✅ [useProperties] Cache des équipements chargé:', amenities.length, 'équipements');
+        } else {
+          console.warn('⚠️ [useProperties] Aucun équipement trouvé dans property_amenities');
         }
       } catch (error) {
-        console.error('Erreur lors du chargement du cache des équipements:', error);
+        console.error('❌ [useProperties] Erreur lors du chargement du cache des équipements:', error);
       }
     };
     
@@ -76,20 +90,32 @@ export const useProperties = () => {
 
   // Fonction pour mapper les équipements depuis la base de données (par ID ou nom)
   const mapAmenities = useCallback(async (amenityIdsOrNames: string[] | null) => {
+    console.log('🔄 [mapAmenities] Input:', {
+      amenityIdsOrNames,
+      isArray: Array.isArray(amenityIdsOrNames),
+      length: Array.isArray(amenityIdsOrNames) ? amenityIdsOrNames.length : 'N/A',
+      type: typeof amenityIdsOrNames
+    });
+    
     if (!amenityIdsOrNames || !Array.isArray(amenityIdsOrNames) || amenityIdsOrNames.length === 0) {
+      console.log('⚠️ [mapAmenities] Input invalide ou vide, retour []');
       return [];
     }
 
     try {
-      // Si le cache n'est pas encore chargé, charger les équipements
+      // Toujours s'assurer que le cache est chargé (même s'il est vide, le recharger)
       if (amenitiesCache.size === 0) {
+        console.log('🔄 [mapAmenities] Chargement du cache des équipements...');
         const { data: amenities, error } = await supabase
           .from('property_amenities')
           .select('id, name');
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [mapAmenities] Erreur lors du chargement du cache:', error);
+          throw error;
+        }
 
-        if (amenities) {
+        if (amenities && amenities.length > 0) {
           const cache = new Map<string, { id: string; name: string; icon: string }>();
           amenities.forEach(amenity => {
             cache.set(amenity.id, {
@@ -97,28 +123,92 @@ export const useProperties = () => {
               name: amenity.name,
               icon: getAmenityIcon(amenity.name)
             });
+            // Aussi indexer par nom (insensible à la casse) pour faciliter la recherche
+            cache.set(amenity.name.toLowerCase(), {
+              id: amenity.id,
+              name: amenity.name,
+              icon: getAmenityIcon(amenity.name)
+            });
           });
           setAmenitiesCache(cache);
+          console.log('✅ [mapAmenities] Cache des équipements chargé:', cache.size / 2, 'équipements');
+        } else {
+          console.warn('⚠️ [mapAmenities] Aucun équipement trouvé dans property_amenities');
         }
       }
 
       // Vérifier si c'est un UUID (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-      return amenityIdsOrNames
+      const result = amenityIdsOrNames
         .map(idOrName => {
           // Si c'est un UUID, chercher dans le cache par ID
           if (uuidRegex.test(idOrName)) {
-            return amenitiesCache.get(idOrName) || null;
+            const cached = amenitiesCache.get(idOrName);
+            if (cached) {
+              return cached;
+            }
+            // UUID non trouvé dans le cache, ignorer
+            return null;
           }
-          // Sinon, chercher par nom
-          const amenity = Array.from(amenitiesCache.values()).find(a => a.name === idOrName);
-          return amenity || null;
+          
+          // Sinon, c'est un nom - chercher dans le cache par nom (insensible à la casse)
+          // D'abord essayer de trouver par la clé en minuscules (si on a indexé par nom)
+          const cachedByName = amenitiesCache.get(idOrName.toLowerCase());
+          if (cachedByName) {
+            console.log('✅ [mapAmenities] Trouvé dans cache par nom:', cachedByName);
+            return cachedByName;
+          }
+          
+          // Sinon, chercher dans les valeurs du cache
+          const amenity = Array.from(amenitiesCache.values()).find(a => 
+            a.name.toLowerCase() === idOrName.toLowerCase()
+          );
+          
+          if (amenity) {
+            console.log('✅ [mapAmenities] Trouvé dans cache par recherche:', amenity);
+            return amenity;
+          }
+          
+          // Si le nom n'est pas trouvé dans le cache, créer un objet équipement avec le nom
+          // (cas où les équipements sont déjà des noms après conversion dans la DB)
+          // IMPORTANT: Ne pas ignorer les équipements qui ne sont pas dans le cache
+          const trimmedName = idOrName.trim();
+          if (trimmedName) {
+            const createdAmenity = {
+              id: `name-${trimmedName}`,
+              name: trimmedName,
+              icon: getAmenityIcon(trimmedName)
+            };
+            console.log('✅ [mapAmenities] Créé équipement depuis nom (non trouvé dans cache):', createdAmenity);
+            return createdAmenity;
+          }
+          
+          return null;
         })
         .filter(Boolean) as { id: string; name: string; icon: string }[];
+      
+      console.log('✅ [mapAmenities] Résultat final:', {
+        inputCount: amenityIdsOrNames.length,
+        outputCount: result.length,
+        result: result
+      });
+      
+      return result;
     } catch (err) {
-      console.error('Erreur lors du chargement des équipements:', err);
-      return [];
+      console.error('❌ [mapAmenities] Erreur lors du chargement des équipements:', err);
+      // En cas d'erreur, essayer de retourner les noms directement comme équipements
+      if (!amenityIdsOrNames || !Array.isArray(amenityIdsOrNames)) {
+        return [];
+      }
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return amenityIdsOrNames
+        .filter(name => name && typeof name === 'string' && !uuidRegex.test(name))
+        .map(name => ({
+          id: `name-${name}`,
+          name: name.trim(),
+          icon: getAmenityIcon(name)
+        }));
     }
   }, [amenitiesCache]);
 
@@ -368,10 +458,10 @@ export const useProperties = () => {
 
           // Traiter les photos catégorisées
           const categorizedPhotos = property.property_photos || [];
-          const sortedPhotos = categorizedPhotos.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+          const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
           
           // Créer un tableau d'images pour la compatibilité avec l'ancien système
-          const imageUrls = sortedPhotos.map(photo => photo.url);
+          const imageUrls = sortedPhotos.map((photo: any) => photo.url);
           
           // Si pas de photos catégorisées, utiliser l'ancien système
           const fallbackImages = property.images || [];
@@ -523,17 +613,19 @@ export const useProperties = () => {
 
       // Traiter les photos catégorisées
       const categorizedPhotos = data.property_photos || [];
-      const sortedPhotos = categorizedPhotos.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+      const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
       
       // Créer un tableau d'images pour la compatibilité avec l'ancien système
-      const imageUrls = sortedPhotos.map(photo => photo.url);
+      const imageUrls = sortedPhotos.map((photo: any) => photo.url);
       
       // Si pas de photos catégorisées, utiliser l'ancien système
       const fallbackImages = data.images || [];
       const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
 
       // Transformer les données avec les équipements
+      console.log('🔄 [getPropertyById] Avant mapAmenities - amenities:', data.amenities);
       const mappedAmenities = await mapAmenities(data.amenities);
+      console.log('✅ [getPropertyById] Après mapAmenities - mappedAmenities:', mappedAmenities);
       const customAmenitiesList = data.custom_amenities && Array.isArray(data.custom_amenities)
         ? data.custom_amenities.map((name: string) => ({
             id: `custom-${name}`,
@@ -542,6 +634,7 @@ export const useProperties = () => {
           }))
         : [];
       const allAmenities = [...mappedAmenities, ...customAmenitiesList];
+      console.log('✅ [getPropertyById] Tous les équipements (standards + personnalisés):', allAmenities);
       
       // Extraire les coordonnées de location
       const location = (data as any).locations;
@@ -567,6 +660,9 @@ export const useProperties = () => {
         address_details: data.address_details,
         host_guide: data.host_guide,
         amenities: data.amenities,
+        amenitiesType: typeof data.amenities,
+        amenitiesIsArray: Array.isArray(data.amenities),
+        amenitiesLength: Array.isArray(data.amenities) ? data.amenities.length : 'N/A',
         custom_amenities: data.custom_amenities
       });
 
@@ -606,7 +702,8 @@ export const useProperties = () => {
         house_rules: transformedData.house_rules,
         check_in_time: transformedData.check_in_time,
         check_out_time: transformedData.check_out_time,
-        amenitiesCount: transformedData.amenities?.length || 0
+        amenitiesCount: transformedData.amenities?.length || 0,
+        amenities: transformedData.amenities
       });
       return transformedData;
     } catch (err: any) {
@@ -775,10 +872,10 @@ export const useProperties = () => {
 
           // Traiter les photos catégorisées
           const categorizedPhotos = property.property_photos || [];
-          const sortedPhotos = categorizedPhotos.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+          const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
           
           // Créer un tableau d'images pour la compatibilité avec l'ancien système
-          const imageUrls = sortedPhotos.map(photo => photo.url);
+          const imageUrls = sortedPhotos.map((photo: any) => photo.url);
           
           // Si pas de photos catégorisées, utiliser l'ancien système
           const fallbackImages = property.images || [];
