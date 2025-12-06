@@ -30,6 +30,10 @@ export interface HostApplicationData {
   longStayDiscountEnabled?: boolean;
   longStayDiscountMinNights?: number;
   longStayDiscountPercentage?: number;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
+  houseRules?: string | null;
+  customAmenities?: string[];
 }
 
 export interface HostApplication {
@@ -152,6 +156,10 @@ export const useHostApplications = () => {
           cleaning_fee: applicationData.cleaningFee || 0,
           free_cleaning_min_days: applicationData.freeCleaningMinDays || null,
           taxes: applicationData.taxes || 0,
+          check_in_time: applicationData.checkInTime || null,
+          check_out_time: applicationData.checkOutTime || null,
+          house_rules: applicationData.houseRules || null,
+          custom_amenities: applicationData.customAmenities || null,
         })
         .select()
         .single();
