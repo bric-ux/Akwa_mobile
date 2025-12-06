@@ -442,7 +442,10 @@ export const useProperties = () => {
           console.log(`💰 ${property.title} - Réductions:`, {
             discount_enabled: property.discount_enabled,
             discount_min_nights: property.discount_min_nights,
-            discount_percentage: property.discount_percentage
+            discount_percentage: property.discount_percentage,
+            long_stay_discount_enabled: property.long_stay_discount_enabled,
+            long_stay_discount_min_nights: property.long_stay_discount_min_nights,
+            long_stay_discount_percentage: property.long_stay_discount_percentage
           });
           
           // Calculer la vraie moyenne des avis et le nombre d'avis
@@ -504,6 +507,13 @@ export const useProperties = () => {
             check_out_time: property.check_out_time || null,
             address_details: property.address_details || '',
             host_guide: property.host_guide || '',
+            // Inclure les réductions (courte durée et long séjour)
+            discount_enabled: property.discount_enabled || false,
+            discount_min_nights: property.discount_min_nights || null,
+            discount_percentage: property.discount_percentage || null,
+            long_stay_discount_enabled: property.long_stay_discount_enabled || false,
+            long_stay_discount_min_nights: property.long_stay_discount_min_nights || null,
+            long_stay_discount_percentage: property.long_stay_discount_percentage || null,
             // Extraire et mapper location
             location: location ? {
               id: location.id,
@@ -663,7 +673,13 @@ export const useProperties = () => {
         amenitiesType: typeof data.amenities,
         amenitiesIsArray: Array.isArray(data.amenities),
         amenitiesLength: Array.isArray(data.amenities) ? data.amenities.length : 'N/A',
-        custom_amenities: data.custom_amenities
+        custom_amenities: data.custom_amenities,
+        long_stay_discount_enabled: data.long_stay_discount_enabled,
+        long_stay_discount_min_nights: data.long_stay_discount_min_nights,
+        long_stay_discount_percentage: data.long_stay_discount_percentage,
+        discount_enabled: data.discount_enabled,
+        discount_min_nights: data.discount_min_nights,
+        discount_percentage: data.discount_percentage
       });
 
       const transformedData = {
@@ -681,6 +697,13 @@ export const useProperties = () => {
         check_out_time: data.check_out_time || null,
         address_details: data.address_details || '',
         host_guide: data.host_guide || '',
+        // Inclure les réductions (courte durée et long séjour)
+        discount_enabled: data.discount_enabled || false,
+        discount_min_nights: data.discount_min_nights || null,
+        discount_percentage: data.discount_percentage || null,
+        long_stay_discount_enabled: data.long_stay_discount_enabled || false,
+        long_stay_discount_min_nights: data.long_stay_discount_min_nights || null,
+        long_stay_discount_percentage: data.long_stay_discount_percentage || null,
         // Extraire et mapper location
         location: location ? {
           id: location.id,
@@ -703,7 +726,13 @@ export const useProperties = () => {
         check_in_time: transformedData.check_in_time,
         check_out_time: transformedData.check_out_time,
         amenitiesCount: transformedData.amenities?.length || 0,
-        amenities: transformedData.amenities
+        amenities: transformedData.amenities,
+        long_stay_discount_enabled: transformedData.long_stay_discount_enabled,
+        long_stay_discount_min_nights: transformedData.long_stay_discount_min_nights,
+        long_stay_discount_percentage: transformedData.long_stay_discount_percentage,
+        discount_enabled: transformedData.discount_enabled,
+        discount_min_nights: transformedData.discount_min_nights,
+        discount_percentage: transformedData.discount_percentage
       });
       return transformedData;
     } catch (err: any) {
@@ -923,6 +952,19 @@ export const useProperties = () => {
             review_count: finalReviewCount, // Nombre d'avis final
             amenities: allAmenitiesForRefresh,
             custom_amenities: property.custom_amenities || [],
+            // Inclure les champs de règles et horaires
+            house_rules: property.house_rules || '',
+            check_in_time: property.check_in_time || null,
+            check_out_time: property.check_out_time || null,
+            address_details: property.address_details || '',
+            host_guide: property.host_guide || '',
+            // Inclure les réductions (courte durée et long séjour)
+            discount_enabled: property.discount_enabled || false,
+            discount_min_nights: property.discount_min_nights || null,
+            discount_percentage: property.discount_percentage || null,
+            long_stay_discount_enabled: property.long_stay_discount_enabled || false,
+            long_stay_discount_min_nights: property.long_stay_discount_min_nights || null,
+            long_stay_discount_percentage: property.long_stay_discount_percentage || null,
             // Extraire et mapper location
             location: location ? {
               id: location.id,

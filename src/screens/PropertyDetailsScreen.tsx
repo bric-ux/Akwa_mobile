@@ -71,7 +71,13 @@ const PropertyDetailsScreen: React.FC = () => {
           check_out_time: propertyData?.check_out_time,
           amenities: propertyData?.amenities,
           amenitiesCount: propertyData?.amenities?.length || 0,
-          custom_amenities: propertyData?.custom_amenities
+          custom_amenities: propertyData?.custom_amenities,
+          long_stay_discount_enabled: propertyData?.long_stay_discount_enabled,
+          long_stay_discount_min_nights: propertyData?.long_stay_discount_min_nights,
+          long_stay_discount_percentage: propertyData?.long_stay_discount_percentage,
+          discount_enabled: propertyData?.discount_enabled,
+          discount_min_nights: propertyData?.discount_min_nights,
+          discount_percentage: propertyData?.discount_percentage
         });
         
         setProperty(propertyData);
