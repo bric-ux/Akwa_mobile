@@ -390,11 +390,12 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const toggleAmenity = (amenityId: string) => {
+  const toggleAmenity = (amenityName: string) => {
+    // Utiliser les noms des équipements au lieu des UUIDs (comme sur le site web)
     setSelectedAmenities(prev => 
-      prev.includes(amenityId) 
-        ? prev.filter(id => id !== amenityId)
-        : [...prev, amenityId]
+      prev.includes(amenityName) 
+        ? prev.filter(name => name !== amenityName)
+        : [...prev, amenityName]
     );
   };
 
@@ -429,17 +430,24 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       
       // Lire le fichier depuis l'URI locale
       const response = await fetch(uri);
-      const blob = await response.blob();
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
+      }
       
-      // Convertir le blob en ArrayBuffer puis en Uint8Array pour React Native
-      const arrayBuffer = await blob.arrayBuffer();
+      // Utiliser directement arrayBuffer() pour React Native (pas besoin de blob())
+      const arrayBuffer = await response.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
+      
+      // Déterminer le content type depuis l'extension
+      const contentType = fileExt === 'png' ? 'image/png' : 
+                         fileExt === 'gif' ? 'image/gif' : 
+                         'image/jpeg';
       
       // Upload vers Supabase Storage (même bucket que le site web)
       const { error: uploadError } = await supabase.storage
         .from('property-images')
         .upload(fileName, uint8Array, {
-          contentType: blob.type || 'image/jpeg',
+          contentType: contentType,
           cacheControl: '3600',
           upsert: false
         });
@@ -1651,13 +1659,13 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               key={amenity.id}
               style={[
                 styles.amenityItem,
-                selectedAmenities.includes(amenity.id) && styles.amenityItemSelected
+                selectedAmenities.includes(amenity.name) && styles.amenityItemSelected
               ]}
-              onPress={() => toggleAmenity(amenity.id)}
+              onPress={() => toggleAmenity(amenity.name)}
             >
               <Text style={[
                 styles.amenityText,
-                selectedAmenities.includes(amenity.id) && styles.amenityTextSelected
+                selectedAmenities.includes(amenity.name) && styles.amenityTextSelected
               ]}>
                 {amenity.name}
               </Text>

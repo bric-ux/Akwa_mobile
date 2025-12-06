@@ -352,7 +352,9 @@ const PropertyDetailsScreen: React.FC = () => {
                     <Text style={styles.rulesCardTitle}>{t('property.houseRules')}</Text>
                   </View>
                   <View style={styles.rulesCardContent}>
-                    <Text style={styles.rulesText}>{property.house_rules}</Text>
+                    <Text style={styles.rulesText}>
+                      {property.house_rules}
+                    </Text>
                   </View>
                 </View>
               )}
@@ -671,6 +673,8 @@ const styles = StyleSheet.create({
     color: '#6c757d',
     lineHeight: 20,
     marginBottom: 4,
+    // Préserver les sauts de ligne
+    flexWrap: 'wrap',
   },
   infoGrid: {
     flexDirection: 'row',
