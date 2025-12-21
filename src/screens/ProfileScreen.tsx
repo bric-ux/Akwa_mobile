@@ -22,6 +22,7 @@ import { useHostApplications } from '../hooks/useHostApplications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicles } from '../hooks/useVehicles';
+import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -253,7 +254,38 @@ const ProfileScreen: React.FC = () => {
     },
   };
 
-  // Élément pour mes véhicules (si l'utilisateur a des véhicules)
+  // Élément pour l'espace véhicules (navigation complète avec onglets)
+  const vehicleSpaceItem = {
+    id: 'vehicleSpace',
+    title: 'Espace Véhicules',
+    icon: 'car-outline',
+    onPress: async () => {
+      Alert.alert(
+        'Espace Véhicules',
+        'Voulez-vous accéder à votre espace véhicules ?',
+        [
+          {
+            text: t('common.cancel'),
+            style: 'cancel',
+          },
+          {
+            text: t('common.continue'),
+            onPress: async () => {
+              // Naviguer vers la page de transition
+              navigation.navigate('ModeTransition' as never, {
+                targetMode: 'vehicle',
+                targetPath: 'VehicleOwnerSpace',
+                fromMode: 'traveler',
+              });
+            },
+            style: 'default',
+          },
+        ]
+      );
+    },
+  };
+
+  // Élément pour mes véhicules (si l'utilisateur a des véhicules mais qu'on n'est pas dans l'espace véhicule)
   const myVehiclesItem = {
     id: 'myVehicles',
     title: 'Mes véhicules',
@@ -292,9 +324,9 @@ const ProfileScreen: React.FC = () => {
     menuItems.push(becomeHostItem);
   }
 
-  // Ajouter "Mes véhicules" si l'utilisateur a des véhicules
+  // Ajouter "Espace Véhicules" si l'utilisateur a des véhicules (navigation complète)
   if (hasVehicles) {
-    menuItems.push(myVehiclesItem);
+    menuItems.push(vehicleSpaceItem);
   }
 
   // Ajouter les éléments communs
@@ -454,10 +486,32 @@ const ProfileScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Bouton Espace Véhicules (si applicable) */}
+        {hasVehicles && (
+          <View style={styles.vehicleSpaceContainer}>
+            <TouchableOpacity
+              style={styles.vehicleSpaceButton}
+              onPress={vehicleSpaceItem.onPress}
+              activeOpacity={0.8}
+            >
+              <View style={styles.vehicleSpaceContent}>
+                <View style={styles.vehicleSpaceIconContainer}>
+                  <Ionicons name="car" size={18} color="#fff" />
+                </View>
+                <View style={styles.vehicleSpaceTextContainer}>
+                  <Text style={styles.vehicleSpaceText}>Espace Véhicules</Text>
+                  <Text style={styles.vehicleSpaceSubtext}>Gérez vos véhicules et réservations</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Menu Items */}
         <View style={styles.menuContainer}>
           {menuItems
-            .filter(item => item.id !== 'hostSpace') // Exclure hostSpaceItem de la liste normale
+            .filter(item => item.id !== 'hostSpace' && item.id !== 'vehicleSpace') // Exclure hostSpaceItem et vehicleSpaceItem de la liste normale
             .map((item) => (
               <TouchableOpacity
                 key={item.id}
@@ -617,7 +671,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   hostSpaceButton: {
-    backgroundColor: '#e67e22',
+    backgroundColor: HOST_COLORS.primary,
     borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
@@ -653,6 +707,51 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   hostSpaceSubtext: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  vehicleSpaceContainer: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  vehicleSpaceButton: {
+    backgroundColor: VEHICLE_COLORS.primary,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  vehicleSpaceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  vehicleSpaceIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  vehicleSpaceTextContainer: {
+    flex: 1,
+  },
+  vehicleSpaceText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  vehicleSpaceSubtext: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
   },

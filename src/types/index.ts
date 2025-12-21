@@ -190,6 +190,7 @@ export interface SearchFilters {
 export type RootStackParamList = {
   Home: undefined;
   HostSpace: { screen?: keyof HostTabParamList } | undefined; // Navigation hôte avec onglets
+  VehicleOwnerSpace: { screen?: keyof VehicleOwnerTabParamList } | undefined; // Navigation propriétaire de véhicule avec onglets
   Auth: undefined;
   EmailVerification: { email: string; firstName: string };
   Search: { destination?: string };
@@ -221,7 +222,7 @@ export type RootStackParamList = {
   PropertyManagement: { propertyId: string }; // Gestion de propriété avec photos et options
   PropertyPricing: { propertyId: string }; // Tarification
   PropertyRules: { propertyId: string }; // Règlement intérieur
-  ModeTransition: { targetMode?: 'host' | 'traveler'; targetPath?: string; fromMode?: 'host' | 'traveler' }; // Page de transition entre modes
+  ModeTransition: { targetMode?: 'host' | 'traveler' | 'vehicle'; targetPath?: string; fromMode?: 'host' | 'traveler' | 'vehicle' }; // Page de transition entre modes
   MyBookings: undefined;
   Favorites: undefined;
   Messaging: undefined;
@@ -251,6 +252,14 @@ export type HostTabParamList = {
   HostMessagingTab: { conversationId?: string };
   HostStatsTab: undefined;
   HostProfileTab: undefined;
+};
+
+export type VehicleOwnerTabParamList = {
+  VehicleOwnerVehiclesTab: undefined;
+  VehicleOwnerBookingsTab: undefined;
+  VehicleOwnerMessagingTab: { conversationId?: string };
+  VehicleOwnerStatsTab: undefined;
+  VehicleOwnerProfileTab: undefined;
 };
 
 export interface AuthContextType {

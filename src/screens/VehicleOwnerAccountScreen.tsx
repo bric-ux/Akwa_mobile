@@ -17,37 +17,20 @@ import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useVehicles } from '../hooks/useVehicles';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
 
-const HostAccountScreen: React.FC = () => {
+const VehicleOwnerAccountScreen: React.FC = () => {
   const navigation = useNavigation();
   const { t } = useLanguage();
   const { user, signOut } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus } = useIdentityVerification();
-  const { getMyVehicles } = useVehicles();
-  const [hasVehicles, setHasVehicles] = useState(false);
-
-  // Vérifier si l'utilisateur a des véhicules
-  const checkVehicles = async () => {
-    if (!user) return;
-    
-    try {
-      const vehicles = await getMyVehicles();
-      setHasVehicles(vehicles.length > 0);
-    } catch (error) {
-      console.error('Erreur lors de la vérification des véhicules:', error);
-      setHasVehicles(false);
-    }
-  };
 
   // Rafraîchir le profil quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
       if (user) {
         refreshProfile();
-        checkVehicles();
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user])
@@ -93,8 +76,8 @@ const HostAccountScreen: React.FC = () => {
 
   const handleSwitchToTravelerMode = async () => {
     Alert.alert(
-      t('host.switchToTraveler'),
-      t('host.switchToTravelerConfirm'),
+      'Retour au mode voyageur',
+      'Voulez-vous retourner au mode voyageur ?',
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -104,7 +87,7 @@ const HostAccountScreen: React.FC = () => {
             navigation.navigate('ModeTransition' as never, {
               targetMode: 'traveler',
               targetPath: 'Home',
-              fromMode: 'host',
+              fromMode: 'vehicle',
             });
           },
         },
@@ -112,10 +95,10 @@ const HostAccountScreen: React.FC = () => {
     );
   };
 
-  const handleSwitchToVehicleMode = async () => {
+  const handleSwitchToHostMode = async () => {
     Alert.alert(
-      'Espace Véhicules',
-      'Voulez-vous accéder à votre espace véhicules ?',
+      'Espace Hôte',
+      'Voulez-vous accéder à votre espace hôte ?',
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -123,9 +106,9 @@ const HostAccountScreen: React.FC = () => {
           onPress: async () => {
             // Naviguer vers la page de transition
             navigation.navigate('ModeTransition' as never, {
-              targetMode: 'vehicle',
-              targetPath: 'VehicleOwnerSpace',
-              fromMode: 'host',
+              targetMode: 'host',
+              targetPath: 'HostSpace',
+              fromMode: 'vehicle',
             });
           },
         },
@@ -162,10 +145,10 @@ const HostAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
-      id: 'addProperty',
-      title: t('host.addProperty'),
+      id: 'addVehicle',
+      title: 'Ajouter un véhicule',
       icon: 'add-circle-outline',
-      onPress: () => navigation.navigate('BecomeHost' as never),
+      onPress: () => navigation.navigate('AddVehicle' as never),
     },
     {
       id: 'conciergerie',
@@ -197,6 +180,8 @@ const HostAccountScreen: React.FC = () => {
     });
   }
 
+  // Ne plus ajouter l'option Espace Hôte dans le menu car elle est maintenant dans les boutons de basculement
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -207,9 +192,9 @@ const HostAccountScreen: React.FC = () => {
               source={{ 
                 uri: profile?.avatar_url || 
                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                       (profile?.first_name || 'H') + 
+                       (profile?.first_name || 'V') + 
                        (profile?.last_name ? ' ' + profile.last_name : '')
-                     )}&background=2E7D32&color=FFFFFF&size=100`
+                     )}&background=475569&color=FFFFFF&size=100`
               }}
               style={styles.avatar}
             />
@@ -220,14 +205,14 @@ const HostAccountScreen: React.FC = () => {
             )}
           </View>
           <Text style={styles.userName}>
-            {profile?.first_name || 'Hôte'} {profile?.last_name || ''}
+            {profile?.first_name || 'Propriétaire'} {profile?.last_name || ''}
           </Text>
           <Text style={styles.userEmail}>{profile?.email}</Text>
           
-          {/* Badge Hôte */}
-          <View style={styles.hostBadge}>
-            <Ionicons name="home" size={16} color={HOST_COLORS.primary} />
-            <Text style={styles.hostBadgeText}>{t('host.verified')}</Text>
+          {/* Badge Propriétaire de véhicule */}
+          <View style={styles.vehicleOwnerBadge}>
+            <Ionicons name="car" size={16} color={VEHICLE_COLORS.primary} />
+            <Text style={styles.vehicleOwnerBadgeText}>Propriétaire de véhicule</Text>
           </View>
         </View>
 
@@ -243,27 +228,27 @@ const HostAccountScreen: React.FC = () => {
                 <Ionicons name="airplane-outline" size={18} color="#fff" />
               </View>
               <View style={styles.switchModeTextContainer}>
-                <Text style={styles.switchModeText}>{t('host.switchToTraveler')}</Text>
-                <Text style={styles.switchModeSubtext}>{t('host.switchToTravelerDesc')}</Text>
+                <Text style={styles.switchModeText}>Retour au mode voyageur</Text>
+                <Text style={styles.switchModeSubtext}>Revenir à l'exploration des hébergements</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#fff" />
             </View>
           </TouchableOpacity>
 
-          {/* Bouton Espace Véhicules si l'utilisateur a des véhicules */}
-          {hasVehicles && (
+          {/* Bouton Espace Hôte si l'utilisateur est hôte */}
+          {profile?.is_host && (
             <TouchableOpacity 
-              style={styles.switchModeButtonVehicle}
-              onPress={handleSwitchToVehicleMode}
+              style={styles.switchModeButtonHost}
+              onPress={handleSwitchToHostMode}
               activeOpacity={0.8}
             >
               <View style={styles.switchModeContent}>
-                <View style={styles.switchModeIconContainerVehicle}>
-                  <Ionicons name="car-outline" size={18} color="#fff" />
+                <View style={styles.switchModeIconContainerHost}>
+                  <Ionicons name="home-outline" size={18} color="#fff" />
                 </View>
                 <View style={styles.switchModeTextContainer}>
-                  <Text style={styles.switchModeText}>Espace Véhicules</Text>
-                  <Text style={styles.switchModeSubtext}>Gérez vos véhicules et réservations</Text>
+                  <Text style={styles.switchModeText}>Espace Hôte</Text>
+                  <Text style={styles.switchModeSubtext}>Gérez vos propriétés et réservations</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#fff" />
               </View>
@@ -303,7 +288,7 @@ const HostAccountScreen: React.FC = () => {
         <View style={styles.appInfo}>
           <Text style={styles.appVersion}>AkwaHome v1.0.0</Text>
           <Text style={styles.appDescription}>
-            Espace hôte - Gérez vos propriétés et réservations
+            Espace véhicules - Gérez vos véhicules et réservations
           </Text>
         </View>
       </ScrollView>
@@ -345,7 +330,7 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 3,
-    borderColor: HOST_COLORS.primary,
+    borderColor: VEHICLE_COLORS.primary,
   },
   userName: {
     fontSize: 24,
@@ -371,19 +356,19 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  hostBadge: {
+  vehicleOwnerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: HOST_COLORS.badge,
+    backgroundColor: VEHICLE_COLORS.badge,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     marginTop: 8,
   },
-  hostBadgeText: {
+  vehicleOwnerBadgeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: HOST_COLORS.badgeText,
+    color: VEHICLE_COLORS.badgeText,
     marginLeft: 6,
   },
   switchModeContainer: {
@@ -392,16 +377,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   switchModeButton: {
-    backgroundColor: HOST_COLORS.primary,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: HOST_COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  switchModeButtonVehicle: {
     backgroundColor: VEHICLE_COLORS.primary,
     borderRadius: 16,
     padding: 16,
@@ -411,7 +386,17 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  switchModeIconContainerVehicle: {
+  switchModeButtonHost: {
+    backgroundColor: HOST_COLORS.primary,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: HOST_COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  switchModeIconContainerHost: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -512,5 +497,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HostAccountScreen;
+export default VehicleOwnerAccountScreen;
 

@@ -275,16 +275,86 @@ export const useVehicleBookings = () => {
     }
   }, []);
 
+  const getAllOwnerBookings = useCallback(async (): Promise<VehicleBooking[]> => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('Utilisateur non connecté');
+      }
+
+      // Récupérer tous les véhicules du propriétaire
+      const { data: vehicles, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('owner_id', user.id);
+
+      if (vehiclesError) {
+        throw vehiclesError;
+      }
+
+      if (!vehicles || vehicles.length === 0) {
+        return [];
+      }
+
+      const vehicleIds = vehicles.map(v => v.id);
+
+      // Récupérer toutes les réservations pour ces véhicules
+      const { data, error: queryError } = await supabase
+        .from('vehicle_bookings')
+        .select(`
+          *,
+          vehicle:vehicles (
+            id,
+            title,
+            brand,
+            model,
+            images,
+            vehicle_photos (
+              id,
+              url,
+              is_main
+            )
+          ),
+          renter:profiles!renter_id (
+            first_name,
+            last_name,
+            email,
+            phone
+          )
+        `)
+        .in('vehicle_id', vehicleIds)
+        .order('created_at', { ascending: false });
+
+      if (queryError) {
+        throw queryError;
+      }
+
+      return (data || []) as VehicleBooking[];
+    } catch (err: any) {
+      console.error('Erreur lors du chargement des réservations:', err);
+      setError(err.message || 'Erreur lors du chargement des réservations');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
     createBooking,
     getMyBookings,
     getVehicleBookings,
+    getAllOwnerBookings,
     updateBookingStatus,
     cancelBooking,
   };
 };
+
+
 
 
 

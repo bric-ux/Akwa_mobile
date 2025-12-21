@@ -19,6 +19,7 @@ import { useAuth } from '../services/AuthContext';
 import { useReviews } from '../hooks/useReviews';
 import BookingCard from '../components/BookingCard';
 import ReviewModal from '../components/ReviewModal';
+import CancellationDialog from '../components/CancellationDialog';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -31,6 +32,8 @@ const MyBookingsScreen: React.FC = () => {
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
   const [canReviewMap, setCanReviewMap] = useState<Record<string, boolean>>({});
+  const [cancellationDialogVisible, setCancellationDialogVisible] = useState(false);
+  const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<Booking | null>(null);
 
   const isStayCompleted = (checkOutDate: string): boolean => {
     const today = new Date();
@@ -108,30 +111,9 @@ const MyBookingsScreen: React.FC = () => {
       return;
     }
 
-    Alert.alert(
-      'Annuler la réservation',
-      `Êtes-vous sûr de vouloir annuler votre réservation pour "${booking.properties?.title}" ?`,
-      [
-        { text: 'Non', style: 'cancel' },
-        {
-          text: 'Oui, annuler',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const result = await cancelBooking(booking.id);
-              if (result.success) {
-                Alert.alert('Succès', 'Réservation annulée avec succès');
-                loadBookings(); // Recharger la liste
-              } else {
-                Alert.alert('Erreur', result.error || 'Impossible d\'annuler la réservation');
-              }
-            } catch (err) {
-              Alert.alert('Erreur', 'Une erreur est survenue');
-            }
-          },
-        },
-      ]
-    );
+    // Ouvrir le dialogue d'annulation avec pénalité
+    setSelectedBookingForCancellation(booking);
+    setCancellationDialogVisible(true);
   };
 
   const handleViewProperty = (propertyId: string) => {
@@ -317,6 +299,31 @@ const MyBookingsScreen: React.FC = () => {
         bookingId={selectedBookingForReview?.id || ''}
         onReviewSubmitted={handleReviewSubmitted}
       />
+
+      {selectedBookingForCancellation && (
+        <CancellationDialog
+          visible={cancellationDialogVisible}
+          onClose={() => {
+            setCancellationDialogVisible(false);
+            setSelectedBookingForCancellation(null);
+          }}
+          booking={{
+            id: selectedBookingForCancellation.id,
+            check_in_date: selectedBookingForCancellation.check_in_date,
+            total_price: selectedBookingForCancellation.total_price,
+            status: selectedBookingForCancellation.status,
+            property: {
+              title: selectedBookingForCancellation.properties?.title || 'Propriété',
+              price_per_night: selectedBookingForCancellation.properties?.price_per_night || 0,
+            },
+          }}
+          onCancelled={() => {
+            loadBookings();
+            setCancellationDialogVisible(false);
+            setSelectedBookingForCancellation(null);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 };

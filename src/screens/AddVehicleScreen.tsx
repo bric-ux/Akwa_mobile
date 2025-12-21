@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,10 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
+import { useVehicleApplications } from '../hooks/useVehicleApplications';
 import { useAuth } from '../services/AuthContext';
 import { VehicleType, TransmissionType, FuelType } from '../types';
 import CitySearchInputModal from '../components/CitySearchInputModal';
 import { useLanguage } from '../contexts/LanguageContext';
+import { supabase } from '../services/supabase';
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
   { value: 'car', label: 'Voiture' },
@@ -58,11 +60,19 @@ const COMMON_FEATURES = [
   'Parking assisté',
 ];
 
+const VEHICLE_PHOTO_CATEGORIES = [
+  { value: 'exterior', label: 'Extérieur', icon: '🚗' },
+  { value: 'interior', label: 'Intérieur', icon: '🪑' },
+  { value: 'engine', label: 'Moteur', icon: '⚙️' },
+  { value: 'documents', label: 'Documents', icon: '📄' },
+  { value: 'other', label: 'Autre', icon: '📸' },
+];
+
 const AddVehicleScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { addVehicle, loading } = useVehicles();
   const { t } = useLanguage();
+  const { submitApplication, loading } = useVehicleApplications();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -85,15 +95,71 @@ const AddVehicleScreen: React.FC = () => {
     minimum_rental_days: '1',
     features: [] as string[],
     rules: [] as string[],
+    ownerFullName: '',
+    ownerEmail: '',
+    ownerPhone: '',
   });
 
-  const [images, setImages] = useState<string[]>([]);
+  const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [customFeature, setCustomFeature] = useState('');
   const [customRule, setCustomRule] = useState('');
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [selectedImageForCategory, setSelectedImageForCategory] = useState<number | null>(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Fonction pour uploader une image vers Supabase Storage
+  const uploadImageToStorage = async (uri: string): Promise<string | null> => {
+    if (uri.startsWith('http://') || uri.startsWith('https://')) {
+      console.log('Image déjà uploadée, skipping:', uri);
+      return uri; // Already a public URL
+    }
+
+    setUploadingImages(true);
+    try {
+      const response = await fetch(uri);
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      const fileExt = uri.split('.').pop() || 'jpg';
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `vehicle-images/${user?.id}/${fileName}`;
+
+      const contentType = fileExt === 'png' ? 'image/png' : 
+                         fileExt === 'gif' ? 'image/gif' : 
+                         'image/jpeg';
+
+      const { error: uploadError } = await supabase.storage
+        .from('property-images')
+        .upload(filePath, uint8Array, {
+          contentType: contentType,
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error('Error uploading image:', uploadError);
+        Alert.alert('Erreur d\'upload', `Impossible d'uploader l'image: ${uploadError.message}`);
+        return null;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('property-images')
+        .getPublicUrl(filePath);
+
+      console.log('Image uploaded successfully:', publicUrl);
+      return publicUrl;
+    } catch (error: any) {
+      console.error('Error in uploadImageToStorage:', error);
+      Alert.alert('Erreur d\'upload', `Une erreur est survenue lors de l'upload de l'image: ${error.message}`);
+      return null;
+    } finally {
+      setUploadingImages(false);
+    }
   };
 
   const pickImage = async () => {
@@ -103,20 +169,107 @@ const AddVehicleScreen: React.FC = () => {
       return;
     }
 
+    const remainingSlots = 30 - selectedImages.length;
+    if (remainingSlots <= 0) {
+      Alert.alert('Limite atteinte', 'Vous pouvez ajouter jusqu\'à 30 photos maximum.');
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets) {
-      const newImages = result.assets.map(asset => asset.uri);
-      setImages(prev => [...prev, ...newImages]);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setUploadingImages(true);
+      const uploadedUrls: { uri: string; category: string; displayOrder: number; isMain: boolean }[] = [];
+      const suggestedCategory = 'exterior';
+
+      for (const asset of result.assets) {
+        const publicUrl = await uploadImageToStorage(asset.uri);
+        if (publicUrl) {
+          uploadedUrls.push({
+            uri: publicUrl,
+            category: suggestedCategory,
+            displayOrder: selectedImages.length + uploadedUrls.length + 1,
+            isMain: selectedImages.length === 0 && uploadedUrls.length === 0 // First uploaded image is main if no others exist
+          });
+        }
+      }
+      setUploadingImages(false);
+
+      if (uploadedUrls.length > 0) {
+        setSelectedImages(prev => {
+          const updated = [...prev, ...uploadedUrls];
+          // Ensure only one main photo
+          const hasMain = updated.some(img => img.isMain);
+          if (!hasMain && updated.length > 0) {
+            updated[0].isMain = true;
+          }
+          return updated;
+        });
+
+        if (uploadedUrls.length === 1) {
+          setTimeout(() => {
+            openCategoryModal(selectedImages.length);
+          }, 500);
+        } else {
+          Alert.alert(
+            `${uploadedUrls.length} photos ajoutées`,
+            'Vous pouvez maintenant catégoriser vos photos et définir la photo principale en appuyant sur chaque photo.',
+            [{ text: 'OK' }]
+          );
+        }
+      }
     }
   };
 
   const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+    setSelectedImages(prev => {
+      const removed = prev[index];
+      const updated = prev.filter((_, i) => i !== index);
+      
+      // Si la photo supprimée était principale et qu'il reste des photos, définir la première comme principale
+      if (removed?.isMain && updated.length > 0) {
+        updated[0].isMain = true;
+      }
+      
+      return updated.map((img, i) => ({
+        ...img,
+        displayOrder: i + 1
+      }));
+    });
+  };
+
+  const setMainImage = (index: number) => {
+    setSelectedImages(prev => prev.map((img, i) => ({
+      ...img,
+      isMain: i === index
+    })));
+  };
+
+  const openCategoryModal = (index: number) => {
+    setSelectedImageForCategory(index);
+    setShowCategoryModal(true);
+  };
+
+  const setImageCategory = (category: string) => {
+    if (selectedImageForCategory !== null) {
+      setSelectedImages(prev => prev.map((img, index) => 
+        index === selectedImageForCategory 
+          ? { ...img, category }
+          : img
+      ));
+    }
+    setShowCategoryModal(false);
+    setSelectedImageForCategory(null);
+  };
+
+  const getCategoryLabel = (category: string) => {
+    const cat = VEHICLE_PHOTO_CATEGORIES.find(c => c.value === category);
+    return cat ? `${cat.icon} ${cat.label}` : '📸 Autre';
   };
 
   const toggleFeature = (feature: string) => {
@@ -164,7 +317,39 @@ const AddVehicleScreen: React.FC = () => {
     setShowLocationModal(false);
   };
 
+  const loadUserProfile = async () => {
+    if (!user) return;
+    
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, email, phone')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profile && !error) {
+        setFormData(prev => ({
+          ...prev,
+          ownerFullName: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || prev.ownerFullName,
+          ownerEmail: profile.email || prev.ownerEmail,
+          ownerPhone: profile.phone || prev.ownerPhone,
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadUserProfile();
+  }, [user]);
+
   const handleSubmit = async () => {
+    if (!user) {
+      Alert.alert('Connexion requise', 'Vous devez être connecté pour soumettre une candidature.');
+      return;
+    }
+
     // Validation
     if (!formData.title.trim()) {
       Alert.alert('Erreur', 'Veuillez saisir un titre');
@@ -190,38 +375,68 @@ const AddVehicleScreen: React.FC = () => {
       Alert.alert('Erreur', 'Veuillez saisir un prix par jour valide');
       return;
     }
-    if (images.length === 0) {
+    if (!formData.location_name) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une localisation');
+      return;
+    }
+    if (selectedImages.length === 0) {
       Alert.alert('Erreur', 'Veuillez ajouter au moins une photo');
       return;
     }
 
-    const result = await addVehicle({
-      title: formData.title.trim(),
-      description: formData.description.trim() || null,
-      vehicle_type: formData.vehicle_type,
+    // Ensure all selected images have been uploaded and have public URLs
+    const imagesToUpload = selectedImages.filter(img => !img.uri.startsWith('http'));
+    if (imagesToUpload.length > 0) {
+      Alert.alert('Images non uploadées', 'Veuillez attendre que toutes les images soient uploadées avant de soumettre.');
+      return;
+    }
+
+    // Get user profile info
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('first_name, last_name, email, phone')
+      .eq('user_id', user.id)
+      .single();
+
+    const applicationPayload = {
+      vehicleType: formData.vehicle_type,
       brand: formData.brand.trim(),
       model: formData.model.trim(),
       year: parseInt(formData.year),
-      plate_number: formData.plate_number.trim() || null,
+      plateNumber: formData.plate_number.trim() || undefined,
       seats: parseInt(formData.seats) || 5,
-      transmission: formData.transmission || null,
-      fuel_type: formData.fuel_type || null,
-      mileage: formData.mileage ? parseInt(formData.mileage) : null,
-      location_id: formData.location_id || null,
-      price_per_day: parseInt(formData.price_per_day),
-      price_per_week: formData.price_per_week ? parseInt(formData.price_per_week) : null,
-      price_per_month: formData.price_per_month ? parseInt(formData.price_per_month) : null,
-      security_deposit: parseInt(formData.security_deposit) || 0,
-      minimum_rental_days: parseInt(formData.minimum_rental_days) || 1,
-      images: images,
+      transmission: formData.transmission || undefined,
+      fuelType: formData.fuel_type || undefined,
+      mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
+      locationId: formData.location_id || undefined,
+      location: formData.location_name,
+      pricePerDay: parseInt(formData.price_per_day),
+      pricePerWeek: formData.price_per_week ? parseInt(formData.price_per_week) : undefined,
+      pricePerMonth: formData.price_per_month ? parseInt(formData.price_per_month) : undefined,
+      securityDeposit: parseInt(formData.security_deposit) || 0,
+      minimumRentalDays: parseInt(formData.minimum_rental_days) || 1,
+      title: formData.title.trim(),
+      description: formData.description.trim(),
       features: formData.features,
       rules: formData.rules,
-    });
+      images: selectedImages.map(img => img.uri),
+      categorizedPhotos: selectedImages.map((img, index) => ({
+        url: img.uri,
+        category: img.category || 'exterior',
+        displayOrder: img.displayOrder ?? index,
+        isMain: img.isMain || false
+      })),
+      fullName: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : formData.ownerFullName || '',
+      email: profile?.email || formData.ownerEmail || '',
+      phone: profile?.phone || formData.ownerPhone || '',
+    };
+
+    const result = await submitApplication(applicationPayload);
 
     if (result.success) {
       Alert.alert(
-        'Demande soumise',
-        'Votre demande de véhicule a été soumise avec succès !\n\nElle sera examinée par un administrateur et vous serez notifié une fois validée.',
+        'Candidature soumise',
+        'Votre candidature de véhicule a été soumise avec succès !\n\nElle sera examinée par un administrateur et vous serez notifié une fois validée.',
         [
           {
             text: 'OK',
@@ -465,22 +680,53 @@ const AddVehicleScreen: React.FC = () => {
           {/* Photos */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Photos *</Text>
-            <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
-              <Ionicons name="camera-outline" size={24} color="#2E7D32" />
-              <Text style={styles.addPhotoText}>Ajouter des photos</Text>
+            <TouchableOpacity 
+              style={styles.addPhotoButton} 
+              onPress={pickImage}
+              disabled={uploadingImages}
+            >
+              {uploadingImages ? (
+                <ActivityIndicator color="#2E7D32" />
+              ) : (
+                <>
+                  <Ionicons name="camera-outline" size={24} color="#2E7D32" />
+                  <Text style={styles.addPhotoText}>Ajouter des photos</Text>
+                </>
+              )}
             </TouchableOpacity>
-            {images.length > 0 && (
+            {selectedImages.length > 0 && (
               <View style={styles.imagesContainer}>
-                {images.map((uri, index) => (
-                  <View key={index} style={styles.imageWrapper}>
-                    <Image source={{ uri }} style={styles.image} />
+                {selectedImages.map((img, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.imageWrapper}
+                    onPress={() => openCategoryModal(index)}
+                  >
+                    <Image source={{ uri: img.uri }} style={styles.image} />
                     <TouchableOpacity
                       style={styles.removeImageButton}
                       onPress={() => removeImage(index)}
                     >
                       <Ionicons name="close-circle" size={24} color="#e74c3c" />
                     </TouchableOpacity>
-                  </View>
+                    {img.isMain && (
+                      <View style={styles.mainPhotoBadge}>
+                        <Ionicons name="star" size={14} color="#FFD700" />
+                        <Text style={styles.mainPhotoBadgeText}>Principale</Text>
+                      </View>
+                    )}
+                    <View style={styles.categoryBadge}>
+                      <Text style={styles.categoryBadgeText}>{getCategoryLabel(img.category)}</Text>
+                    </View>
+                    {!img.isMain && (
+                      <TouchableOpacity
+                        style={styles.setMainButton}
+                        onPress={() => setMainImage(index)}
+                      >
+                        <Ionicons name="star-outline" size={16} color="#fff" />
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
                 ))}
               </View>
             )}
@@ -571,6 +817,33 @@ const AddVehicleScreen: React.FC = () => {
           onClose={() => setShowLocationModal(false)}
           onSelect={handleLocationSelect}
         />
+
+        {/* Modal de catégorisation des photos */}
+        {showCategoryModal && selectedImageForCategory !== null && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Catégoriser la photo</Text>
+              {VEHICLE_PHOTO_CATEGORIES.map((category) => (
+                <TouchableOpacity
+                  key={category.value}
+                  style={styles.modalOption}
+                  onPress={() => setImageCategory(category.value)}
+                >
+                  <Text style={styles.modalOptionText}>{category.icon} {category.label}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowCategoryModal(false);
+                  setSelectedImageForCategory(null);
+                }}
+              >
+                <Text style={styles.modalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -792,6 +1065,88 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  mainPhotoBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+    gap: 4,
+  },
+  mainPhotoBadgeText: {
+    color: '#FFD700',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  categoryBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  categoryBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  setMainButton: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: '#2E7D32',
+    padding: 6,
+    borderRadius: 20,
+    opacity: 0.9,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalOption: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalOptionText: {
+    fontSize: 16,
+  },
+  modalCancelButton: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    color: '#666',
   },
 });
 

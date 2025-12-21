@@ -9,15 +9,19 @@ import {
   Dimensions,
   Modal,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CategorizedPhoto } from '../types';
+import { supabase } from '../services/supabase';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface PhotoCategoryDisplayProps {
   photos: CategorizedPhoto[];
   propertyTitle: string;
+  propertyId?: string;
+  onPhotoUpdate?: () => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -56,7 +60,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   autre: '#6b7280'
 };
 
-const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, propertyTitle }) => {
+const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, propertyTitle, propertyId, onPhotoUpdate }) => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showLightbox, setShowLightbox] = useState(false);
@@ -164,6 +168,57 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                     style={styles.photoImage}
                     resizeMode="cover"
                   />
+                  {/* Badge photo principale */}
+                  {(photo.is_main || photo.isMain) && (
+                    <View style={styles.mainPhotoBadge}>
+                      <Ionicons name="star" size={12} color="#FFD700" />
+                      <Text style={styles.mainPhotoBadgeText}>Principale</Text>
+                    </View>
+                  )}
+                  {/* Bouton pour définir comme principale */}
+                  {propertyId && !(photo.is_main || photo.isMain) && (
+                    <TouchableOpacity
+                      style={styles.setMainButton}
+                      onPress={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          // Désactiver toutes les autres photos principales
+                          await supabase
+                            .from('property_photos')
+                            .update({ is_main: false })
+                            .eq('property_id', propertyId)
+                            .eq('is_main', true);
+                          
+                          // Définir cette photo comme principale
+                          const { error } = await supabase
+                            .from('property_photos')
+                            .update({ is_main: true })
+                            .eq('id', photo.id);
+                          
+                          if (error) throw error;
+                          
+                          Alert.alert(
+                            'Photo principale définie',
+                            'Cette photo sera maintenant affichée en couverture.',
+                            [{ text: 'OK' }]
+                          );
+                          
+                          if (onPhotoUpdate) {
+                            onPhotoUpdate();
+                          }
+                        } catch (error: any) {
+                          console.error('Erreur lors de la définition de la photo principale:', error);
+                          Alert.alert(
+                            'Erreur',
+                            'Impossible de définir la photo principale.',
+                            [{ text: 'OK' }]
+                          );
+                        }
+                      }}
+                    >
+                      <Ionicons name="star-outline" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -197,6 +252,57 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                         style={styles.categoryPhotoImage}
                         resizeMode="cover"
                       />
+                      {/* Badge photo principale */}
+                      {(photo.is_main || photo.isMain) && (
+                        <View style={styles.mainPhotoBadge}>
+                          <Ionicons name="star" size={12} color="#FFD700" />
+                          <Text style={styles.mainPhotoBadgeText}>Principale</Text>
+                        </View>
+                      )}
+                      {/* Bouton pour définir comme principale */}
+                      {propertyId && !(photo.is_main || photo.isMain) && (
+                        <TouchableOpacity
+                          style={styles.setMainButton}
+                          onPress={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              // Désactiver toutes les autres photos principales
+                              await supabase
+                                .from('property_photos')
+                                .update({ is_main: false })
+                                .eq('property_id', propertyId)
+                                .eq('is_main', true);
+                              
+                              // Définir cette photo comme principale
+                              const { error } = await supabase
+                                .from('property_photos')
+                                .update({ is_main: true })
+                                .eq('id', photo.id);
+                              
+                              if (error) throw error;
+                              
+                              Alert.alert(
+                                'Photo principale définie',
+                                'Cette photo sera maintenant affichée en couverture.',
+                                [{ text: 'OK' }]
+                              );
+                              
+                              if (onPhotoUpdate) {
+                                onPhotoUpdate();
+                              }
+                            } catch (error: any) {
+                              console.error('Erreur lors de la définition de la photo principale:', error);
+                              Alert.alert(
+                                'Erreur',
+                                'Impossible de définir la photo principale.',
+                                [{ text: 'OK' }]
+                              );
+                            }
+                          }}
+                        >
+                          <Ionicons name="star-outline" size={16} color="#fff" />
+                        </TouchableOpacity>
+                      )}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -414,6 +520,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '500',
+  },
+  mainPhotoBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+    gap: 4,
+  },
+  mainPhotoBadgeText: {
+    color: '#FFD700',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  setMainButton: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: '#e67e22',
+    padding: 6,
+    borderRadius: 20,
+    opacity: 0.9,
   },
 });
 

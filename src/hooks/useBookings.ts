@@ -301,6 +301,7 @@ export const useBookings = () => {
             id,
             title,
             price_per_night,
+            host_id,
             images,
             property_photos (
               id,

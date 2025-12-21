@@ -85,7 +85,22 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
           <View style={styles.imageContainer}>
             <Image
               source={{ 
-                uri: property.images?.[0] || 'https://via.placeholder.com/300x200' 
+                uri: (() => {
+                  // Priorité 1: Photo principale (is_main = true)
+                  if (property.photos && Array.isArray(property.photos)) {
+                    const mainPhoto = property.photos.find((p: any) => p.is_main || p.isMain);
+                    if (mainPhoto) return mainPhoto.url;
+                  }
+                  // Priorité 2: Première photo triée par display_order
+                  if (property.photos && Array.isArray(property.photos) && property.photos.length > 0) {
+                    const sortedPhotos = [...property.photos].sort((a: any, b: any) => 
+                      (a.display_order || a.displayOrder || 0) - (b.display_order || b.displayOrder || 0)
+                    );
+                    return sortedPhotos[0].url;
+                  }
+                  // Priorité 3: Première image de l'ancien système
+                  return property.images?.[0] || 'https://via.placeholder.com/300x200';
+                })()
               }}
               style={styles.cardImage}
               resizeMode="cover"
@@ -154,7 +169,22 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
           <View style={styles.imageContainer}>
             <Image
               source={{
-                uri: property.images?.[0] || 'https://via.placeholder.com/300x200'
+                uri: (() => {
+                  // Priorité 1: Photo principale (is_main = true)
+                  if (property.photos && Array.isArray(property.photos)) {
+                    const mainPhoto = property.photos.find((p: any) => p.is_main || p.isMain);
+                    if (mainPhoto) return mainPhoto.url;
+                  }
+                  // Priorité 2: Première photo triée par display_order
+                  if (property.photos && Array.isArray(property.photos) && property.photos.length > 0) {
+                    const sortedPhotos = [...property.photos].sort((a: any, b: any) => 
+                      (a.display_order || a.displayOrder || 0) - (b.display_order || b.displayOrder || 0)
+                    );
+                    return sortedPhotos[0].url;
+                  }
+                  // Priorité 3: Première image de l'ancien système
+                  return property.images?.[0] || 'https://via.placeholder.com/300x200';
+                })()
               }}
               style={styles.image}
               resizeMode="cover"

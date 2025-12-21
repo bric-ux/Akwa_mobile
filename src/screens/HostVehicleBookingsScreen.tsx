@@ -15,6 +15,7 @@ import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navig
 import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { VehicleBooking } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { VEHICLE_COLORS } from '../constants/colors';
 
 type HostVehicleBookingsRouteParams = {
   vehicleId?: string;
@@ -25,7 +26,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const route = useRoute<RouteProp<{ HostVehicleBookings: HostVehicleBookingsRouteParams }, 'HostVehicleBookings'>>();
   const { vehicleId } = route.params || {};
   const { t } = useLanguage();
-  const { getVehicleBookings, updateBookingStatus, loading } = useVehicleBookings();
+  const { getVehicleBookings, getAllOwnerBookings, updateBookingStatus, loading } = useVehicleBookings();
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
@@ -37,8 +38,8 @@ const HostVehicleBookingsScreen: React.FC = () => {
         setBookings(data);
       } else {
         // Charger toutes les réservations de tous les véhicules du propriétaire
-        // TODO: Implémenter getAllOwnerBookings dans useVehicleBookings
-        setBookings([]);
+        const data = await getAllOwnerBookings();
+        setBookings(data);
       }
     } catch (err) {
       console.error('Erreur lors du chargement des réservations:', err);
@@ -272,7 +273,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
 
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#e67e22" />
+          <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
         </View>
       ) : (
         <FlatList
@@ -285,7 +286,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#e67e22"
+              tintColor={VEHICLE_COLORS.primary}
             />
           }
         />
@@ -334,7 +335,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   filterButtonActive: {
-    backgroundColor: '#e67e22',
+    backgroundColor: VEHICLE_COLORS.primary,
   },
   filterButtonText: {
     fontSize: 14,
@@ -468,6 +469,8 @@ const styles = StyleSheet.create({
 });
 
 export default HostVehicleBookingsScreen;
+
+
 
 
 

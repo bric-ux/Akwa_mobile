@@ -463,13 +463,67 @@ const PropertyDetailsScreen: React.FC = () => {
         )}
 
         {/* Localisation sur la carte */}
-        <PropertyMap
-          latitude={typeof property.location === 'object' && property.location !== null && 'latitude' in property.location ? (property.location as any).latitude : property.latitude || (property as any).locations?.latitude}
-          longitude={typeof property.location === 'object' && property.location !== null && 'longitude' in property.location ? (property.location as any).longitude : property.longitude || (property as any).locations?.longitude}
-          locationName={typeof property.location === 'object' && property.location !== null && 'name' in property.location ? (property.location as any).name : typeof property.location === 'string' ? property.location : (property as any).locations?.name}
-          cityName={typeof property.location === 'object' && property.location !== null && 'type' in property.location && (property.location as any).type === 'city' ? (property.location as any).name : undefined}
-          neighborhoodName={typeof property.location === 'object' && property.location !== null && 'type' in property.location && (property.location as any).type === 'neighborhood' ? (property.location as any).name : typeof property.location === 'object' && property.location !== null && 'type' in property.location && (property.location as any).type === 'commune' ? (property.location as any).name : undefined}
-        />
+        {(() => {
+          // Extraire les coordonnées avec priorité: property.latitude/longitude > location.latitude/longitude > locations.latitude/longitude
+          const location = typeof property.location === 'object' && property.location !== null 
+            ? property.location 
+            : (property as any).locations;
+          
+          const lat = property.latitude 
+            || (location && 'latitude' in location ? (location as any).latitude : null)
+            || (property as any).locations?.latitude
+            || (property as any).neighborhood?.latitude
+            || (property as any).city?.latitude;
+          
+          const lng = property.longitude 
+            || (location && 'longitude' in location ? (location as any).longitude : null)
+            || (property as any).locations?.longitude
+            || (property as any).neighborhood?.longitude
+            || (property as any).city?.longitude;
+          
+          // Extraire le nom de la localisation
+          const locationName = location && 'name' in location 
+            ? (location as any).name 
+            : typeof property.location === 'string' 
+            ? property.location 
+            : (property as any).locations?.name
+            || (property as any).neighborhood?.name
+            || (property as any).neighborhood?.commune
+            || (property as any).city?.name;
+          
+          // Déterminer cityName et neighborhoodName
+          const locationType = location && 'type' in location ? (location as any).type : null;
+          const cityName = locationType === 'city' ? (location as any).name : undefined;
+          const neighborhoodName = locationType === 'neighborhood' || locationType === 'commune' 
+            ? (location as any).name 
+            : undefined;
+          
+          // Log pour déboguer
+          console.log('🗺️ [PropertyDetailsScreen] Coordonnées extraites:', {
+            propertyLatitude: property.latitude,
+            propertyLongitude: property.longitude,
+            locationLatitude: location && 'latitude' in location ? (location as any).latitude : null,
+            locationLongitude: location && 'longitude' in location ? (location as any).longitude : null,
+            locationsLatitude: (property as any).locations?.latitude,
+            locationsLongitude: (property as any).locations?.longitude,
+            finalLatitude: lat,
+            finalLongitude: lng,
+            locationName,
+            locationType,
+            cityName,
+            neighborhoodName
+          });
+          
+          return (
+            <PropertyMap
+              latitude={lat}
+              longitude={lng}
+              locationName={locationName}
+              cityName={cityName}
+              neighborhoodName={neighborhoodName}
+            />
+          );
+        })()}
 
         {/* Boutons d'action */}
         <View style={styles.actionButtons}>

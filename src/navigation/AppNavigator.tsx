@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
+import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -58,14 +59,17 @@ import AddVehicleScreen from '../screens/AddVehicleScreen';
 import MyVehiclesScreen from '../screens/MyVehiclesScreen';
 import HostVehicleBookingsScreen from '../screens/HostVehicleBookingsScreen';
 import EditVehicleScreen from '../screens/EditVehicleScreen';
+import VehicleOwnerAccountScreen from '../screens/VehicleOwnerAccountScreen';
+import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
 
 // Types
-import { RootStackParamList, TabParamList, HostTabParamList } from '../types';
+import { RootStackParamList, TabParamList, HostTabParamList, VehicleOwnerTabParamList } from '../types';
 import HostAccountScreen from '../screens/HostAccountScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 const HostTab = createBottomTabNavigator<HostTabParamList>();
+const VehicleOwnerTab = createBottomTabNavigator<VehicleOwnerTabParamList>();
 
 // Tab Navigator
 const TabNavigator = () => {
@@ -150,7 +154,7 @@ const HostTabNavigator = () => {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#e67e22',
+        tabBarActiveTintColor: HOST_COLORS.primary,
         tabBarInactiveTintColor: 'gray',
         headerShown: false,
       })}
@@ -181,6 +185,65 @@ const HostTabNavigator = () => {
         options={{ tabBarLabel: 'Mon compte' }}
       />
     </HostTab.Navigator>
+  );
+};
+
+// Vehicle Owner Tab Navigator (pour les propriétaires de véhicules)
+const VehicleOwnerTabNavigator = () => {
+  return (
+    <VehicleOwnerTab.Navigator
+      initialRouteName="VehicleOwnerVehiclesTab"
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+
+          if (route.name === 'VehicleOwnerVehiclesTab') {
+            iconName = focused ? 'car' : 'car-outline';
+          } else if (route.name === 'VehicleOwnerBookingsTab') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'VehicleOwnerMessagingTab') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          } else if (route.name === 'VehicleOwnerStatsTab') {
+            iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+          } else if (route.name === 'VehicleOwnerProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else {
+            iconName = 'car-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: VEHICLE_COLORS.primary,
+        tabBarInactiveTintColor: 'gray',
+        headerShown: false,
+      })}
+    >
+      <VehicleOwnerTab.Screen 
+        name="VehicleOwnerVehiclesTab" 
+        component={MyVehiclesScreen}
+        options={{ tabBarLabel: 'Véhicules' }}
+      />
+      <VehicleOwnerTab.Screen
+        name="VehicleOwnerBookingsTab"
+        component={HostVehicleBookingsScreen}
+        options={{ tabBarLabel: 'Réservations' }}
+      />
+      <VehicleOwnerTab.Screen 
+        name="VehicleOwnerMessagingTab" 
+        component={MessagingScreen}
+        options={{ tabBarLabel: 'Messages' }}
+      />
+      <VehicleOwnerTab.Screen 
+        name="VehicleOwnerStatsTab" 
+        component={VehicleOwnerStatsScreen}
+        options={{ tabBarLabel: 'Statistiques' }}
+      />
+      <VehicleOwnerTab.Screen 
+        name="VehicleOwnerProfileTab" 
+        component={VehicleOwnerAccountScreen}
+        options={{ tabBarLabel: 'Mon compte' }}
+      />
+    </VehicleOwnerTab.Navigator>
   );
 };
 
@@ -238,6 +301,25 @@ const AppNavigator = () => {
                     // L'utilisateur n'est pas hôte, réinitialiser le mode préféré
                     await AsyncStorage.setItem('preferredMode', 'traveler');
                   }
+                } else if (preferredMode === 'vehicle') {
+                  // Vérifier si l'utilisateur a des véhicules
+                  const { data: vehicles } = await supabase
+                    .from('vehicles')
+                    .select('id')
+                    .eq('owner_id', user.id)
+                    .limit(1);
+
+                  if (vehicles && vehicles.length > 0) {
+                    navigationRef.dispatch(
+                      CommonActions.reset({
+                        index: 0,
+                        routes: [{ name: 'VehicleOwnerSpace' }],
+                      })
+                    );
+                  } else {
+                    // L'utilisateur n'a pas de véhicules, réinitialiser le mode préféré
+                    await AsyncStorage.setItem('preferredMode', 'traveler');
+                  }
                 }
               } catch (error) {
                 console.error('Error checking preferred mode:', error);
@@ -262,7 +344,7 @@ const AppNavigator = () => {
         initialRouteName="Home"
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#e67e22',
+            backgroundColor: HOST_COLORS.primary,
           },
           headerTintColor: '#fff',
           headerTitleStyle: {
@@ -296,6 +378,11 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="HostSpace" 
           component={HostTabNavigator}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="VehicleOwnerSpace" 
+          component={VehicleOwnerTabNavigator}
           options={{ headerShown: false }}
         />
         <Stack.Screen 

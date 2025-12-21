@@ -204,7 +204,7 @@ const AuthScreen: React.FC = () => {
             navigation.replace(returnTo as any);
           }
         } else {
-          // Vérifier le mode préféré sauvegardé et que l'utilisateur est bien hôte
+          // Vérifier le mode préféré sauvegardé
           try {
             const preferredMode = await AsyncStorage.getItem('preferredMode');
             if (preferredMode === 'host' && currentUser) {
@@ -230,6 +230,27 @@ const AuthScreen: React.FC = () => {
                 });
               } else {
                 // L'utilisateur n'est pas hôte, réinitialiser le mode préféré
+                await AsyncStorage.setItem('preferredMode', 'traveler');
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+              }
+            } else if (preferredMode === 'vehicle' && currentUser) {
+              // Vérifier si l'utilisateur a des véhicules
+              const { data: vehicles } = await supabase
+                .from('vehicles')
+                .select('id')
+                .eq('owner_id', currentUser.id)
+                .limit(1);
+
+              if (vehicles && vehicles.length > 0) {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'VehicleOwnerSpace' }],
+                });
+              } else {
+                // L'utilisateur n'a pas de véhicules, réinitialiser le mode préféré
                 await AsyncStorage.setItem('preferredMode', 'traveler');
                 navigation.reset({
                   index: 0,

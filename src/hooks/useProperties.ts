@@ -648,17 +648,39 @@ export const useProperties = () => {
       
       // Extraire les coordonnées de location
       const location = (data as any).locations;
-      const latitude = location?.latitude || data.latitude;
-      const longitude = location?.longitude || data.longitude;
+      let latitude = location?.latitude || data.latitude;
+      let longitude = location?.longitude || data.longitude;
+      
+      // Si pas de coordonnées et qu'on a un location_id, utiliser la fonction RPC pour remonter la hiérarchie
+      if ((!latitude || !longitude) && data.location_id) {
+        try {
+          console.log(`🔄 [getPropertyById] Récupération des coordonnées via RPC pour location_id: ${data.location_id}`);
+          const { data: coords, error: coordsError } = await supabase
+            .rpc('get_location_coordinates', { location_uuid: data.location_id });
+          
+          if (coordsError) {
+            console.warn('⚠️ [getPropertyById] Erreur lors de la récupération des coordonnées via RPC:', coordsError);
+          } else if (coords && coords.length > 0 && coords[0].latitude && coords[0].longitude) {
+            latitude = coords[0].latitude;
+            longitude = coords[0].longitude;
+            console.log(`✅ [getPropertyById] Coordonnées récupérées via RPC: [${latitude}, ${longitude}]`);
+          }
+        } catch (error) {
+          console.warn('⚠️ [getPropertyById] Erreur lors de la récupération des coordonnées via RPC:', error);
+        }
+      }
       
       // Debug pour vérifier les coordonnées
       if (!latitude && !longitude) {
         console.log(`⚠️ [getPropertyById] Propriété "${data.title}" sans coordonnées:`, {
           hasLocation: !!location,
           locationData: location,
+          locationId: data.location_id,
           propertyLatitude: data.latitude,
           propertyLongitude: data.longitude
         });
+      } else {
+        console.log(`✅ [getPropertyById] Coordonnées finales pour "${data.title}": [${latitude}, ${longitude}]`);
       }
 
       // Debug pour vérifier les champs de règles et horaires

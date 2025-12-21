@@ -7,7 +7,12 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { Booking } from '../hooks/useBookings';
+import { useMessaging } from '../hooks/useMessaging';
+import { useAuth } from '../services/AuthContext';
+import { supabase } from '../services/supabase';
+import { Alert } from 'react-native';
 
 interface BookingCardProps {
   booking: Booking;
@@ -24,6 +29,52 @@ const BookingCard: React.FC<BookingCardProps> = ({
   onLeaveReview,
   canReview = false,
 }) => {
+  const navigation = useNavigation();
+  const { user } = useAuth();
+  const { createOrGetConversation } = useMessaging();
+
+  const handleContactHost = async () => {
+    if (!user || !booking.properties?.host_id || !booking.properties?.id) {
+      Alert.alert('Erreur', 'Impossible de contacter l\'hôte. Informations manquantes.');
+      return;
+    }
+
+    try {
+      // Récupérer les infos de l'hôte
+      const { data: hostProfile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('user_id', booking.properties.host_id)
+        .single();
+      
+      const hostName = hostProfile 
+        ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte'
+        : 'Hôte';
+      
+      const conversationId = await createOrGetConversation(
+        booking.properties.id,
+        booking.properties.host_id, // host_id
+        user.id                     // guest_id
+      );
+
+      if (conversationId) {
+        (navigation as any).navigate('Home', { 
+          screen: 'MessagingTab',
+          params: { 
+            conversationId, 
+            propertyId: booking.properties.id,
+            bookingId: booking.id,
+            recipientName: hostName
+          }
+        });
+      } else {
+        Alert.alert('Erreur', 'Impossible de créer la conversation');
+      }
+    } catch (error: any) {
+      console.error('Erreur lors du contact de l\'hôte:', error);
+      Alert.alert('Erreur', 'Impossible de contacter l\'hôte');
+    }
+  };
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('fr-FR', {
@@ -194,8 +245,21 @@ const BookingCard: React.FC<BookingCardProps> = ({
           onPress={() => onViewProperty(booking.property_id)}
         >
           <Ionicons name="eye-outline" size={16} color="#2E7D32" />
-          <Text style={styles.actionButtonText}>Voir la propriété</Text>
+          <Text style={styles.actionButtonText}>Voir</Text>
         </TouchableOpacity>
+
+        {/* Bouton Contacter l'hôte - disponible pour toutes les réservations sauf annulées */}
+        {booking.status !== 'cancelled' && booking.properties?.host_id && booking.properties?.id && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.contactButton]}
+            onPress={handleContactHost}
+          >
+            <Ionicons name="chatbubble-outline" size={16} color="#e67e22" />
+            <Text style={[styles.actionButtonText, styles.contactButtonText]}>
+              Contacter
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {canReview && onLeaveReview && (booking.status === 'confirmed' || booking.status === 'completed') && isStayCompleted() && (
           <TouchableOpacity
@@ -204,7 +268,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           >
             <Ionicons name="star-outline" size={16} color="#FFD700" />
             <Text style={[styles.actionButtonText, styles.reviewButtonText]}>
-              Laisser un avis
+              Avis
             </Text>
           </TouchableOpacity>
         )}
@@ -344,17 +408,28 @@ const styles = StyleSheet.create({
   },
   bookingActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#2E7D32',
     backgroundColor: '#fff',
+    flex: 1,
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  contactButton: {
+    borderColor: '#e67e22',
+  },
+  contactButtonText: {
+    color: '#e67e22',
   },
   cancelButton: {
     borderColor: '#e74c3c',

@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS } from '../constants/colors';
 
 type ModeTransitionRouteProp = RouteProp<RootStackParamList, 'ModeTransition'>;
 
@@ -43,12 +44,47 @@ const ModeTransitionScreen: React.FC = () => {
   const arrowOpacity = useState(new Animated.Value(0))[0];
 
   const isToHost = targetMode === 'host';
-  const currentColor = isToHost ? '#2563eb' : '#e67e22';
-  const nextColor = isToHost ? '#e67e22' : '#2563eb';
-  const currentIcon = isToHost ? 'airplane-outline' : 'home-outline';
-  const nextIcon = isToHost ? 'home-outline' : 'airplane-outline';
-  const currentText = isToHost ? 'Mode Voyageur' : 'Mode Hôte';
-  const nextText = isToHost ? 'Mode Hôte' : 'Mode Voyageur';
+  const isToVehicle = targetMode === 'vehicle';
+  const isFromVehicle = fromMode === 'vehicle';
+  
+  // Déterminer les couleurs et icônes selon les modes
+  let currentColor = TRAVELER_COLORS.primary;
+  let nextColor = HOST_COLORS.primary;
+  let currentIcon = 'airplane-outline';
+  let nextIcon = 'home-outline';
+  let currentText = 'Mode Voyageur';
+  let nextText = 'Mode Hôte';
+
+  if (isToHost) {
+    currentColor = TRAVELER_COLORS.primary;
+    nextColor = HOST_COLORS.primary;
+    currentIcon = 'airplane-outline';
+    nextIcon = 'home-outline';
+    currentText = 'Mode Voyageur';
+    nextText = 'Mode Hôte';
+  } else if (isToVehicle) {
+    currentColor = isFromVehicle ? VEHICLE_COLORS.primary : (fromMode === 'host' ? HOST_COLORS.primary : TRAVELER_COLORS.primary);
+    nextColor = VEHICLE_COLORS.primary;
+    currentIcon = isFromVehicle ? 'car-outline' : (fromMode === 'host' ? 'home-outline' : 'airplane-outline');
+    nextIcon = 'car-outline';
+    currentText = isFromVehicle ? 'Espace Véhicules' : (fromMode === 'host' ? 'Mode Hôte' : 'Mode Voyageur');
+    nextText = 'Espace Véhicules';
+  } else if (isFromVehicle) {
+    currentColor = VEHICLE_COLORS.primary;
+    nextColor = targetMode === 'host' ? HOST_COLORS.primary : TRAVELER_COLORS.primary;
+    currentIcon = 'car-outline';
+    nextIcon = targetMode === 'host' ? 'home-outline' : 'airplane-outline';
+    currentText = 'Espace Véhicules';
+    nextText = targetMode === 'host' ? 'Mode Hôte' : 'Mode Voyageur';
+  } else {
+    // Retour au mode voyageur depuis le mode hôte
+    currentColor = HOST_COLORS.primary;
+    nextColor = TRAVELER_COLORS.primary;
+    currentIcon = 'home-outline';
+    nextIcon = 'airplane-outline';
+    currentText = 'Mode Hôte';
+    nextText = 'Mode Voyageur';
+  }
 
   useEffect(() => {
     // Animation en 3 étapes
@@ -115,6 +151,8 @@ const ModeTransitionScreen: React.FC = () => {
           // Sauvegarder le mode préféré
           if (targetMode === 'host') {
             await AsyncStorage.setItem('preferredMode', 'host');
+          } else if (targetMode === 'vehicle') {
+            await AsyncStorage.setItem('preferredMode', 'vehicle');
           } else {
             await AsyncStorage.setItem('preferredMode', 'traveler');
           }
@@ -124,6 +162,11 @@ const ModeTransitionScreen: React.FC = () => {
             navigation.reset({
               index: 0,
               routes: [{ name: 'HostSpace' }],
+            });
+          } else if (targetPath === 'VehicleOwnerSpace') {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'VehicleOwnerSpace' }],
             });
           } else if (targetPath === 'BecomeHost') {
             // Si la destination est BecomeHost, naviguer directement sans reset

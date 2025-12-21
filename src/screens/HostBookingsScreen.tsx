@@ -19,6 +19,8 @@ import { useAuth } from '../services/AuthContext';
 import { useMyProperties } from '../hooks/useMyProperties';
 import { supabase } from '../services/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
+import CancellationDialog from '../components/CancellationDialog';
+import BookingContactButton from '../components/BookingContactButton';
 
 const HostBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -31,6 +33,8 @@ const HostBookingsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
+  const [cancellationDialogVisible, setCancellationDialogVisible] = useState(false);
+  const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<HostBooking | null>(null);
 
   const loadData = async () => {
     try {
@@ -77,8 +81,14 @@ const HostBookingsScreen: React.FC = () => {
   };
 
   const handleStatusUpdate = async (booking: HostBooking, status: 'confirmed' | 'cancelled') => {
-    const actionKey = status === 'confirmed' ? 'confirm' : 'cancel';
+    if (status === 'cancelled' && booking.status === 'confirmed') {
+      // Pour les réservations confirmées, utiliser le dialogue d'annulation avec pénalité
+      setSelectedBookingForCancellation(booking);
+      setCancellationDialogVisible(true);
+      return;
+    }
     
+    // Pour les confirmations ou les refus de réservations pending, utiliser l'ancien système
     Alert.alert(
       status === 'confirmed' ? t('hostBookings.confirmBooking') : t('hostBookings.cancelBooking'),
       status === 'confirmed' ? t('hostBookings.confirmBookingConfirm') : t('hostBookings.cancelBookingConfirm'),
@@ -368,6 +378,21 @@ const HostBookingsScreen: React.FC = () => {
         <View style={styles.messageContainer}>
           <Text style={styles.messageLabel}>{t('hostBookings.guestMessage')}</Text>
           <Text style={styles.messageText}>{item.message_to_host}</Text>
+        </View>
+      )}
+
+      {/* Bouton Contacter le voyageur - disponible pour toutes les réservations sauf annulées */}
+      {item.status !== 'cancelled' && item.guest_id && item.properties?.id && (
+        <View style={styles.contactButtonContainer}>
+          <BookingContactButton
+            bookingId={item.id}
+            propertyId={item.properties.id}
+            otherParticipantId={item.guest_id}
+            otherParticipantName={item.guest_profile ? `${item.guest_profile.first_name} ${item.guest_profile.last_name}` : undefined}
+            isHost={false}
+            variant="outline"
+            size="small"
+          />
         </View>
       )}
 
@@ -696,6 +721,31 @@ const HostBookingsScreen: React.FC = () => {
           )}
         </>
       )}
+
+      {selectedBookingForCancellation && (
+        <CancellationDialog
+          visible={cancellationDialogVisible}
+          onClose={() => {
+            setCancellationDialogVisible(false);
+            setSelectedBookingForCancellation(null);
+          }}
+          booking={{
+            id: selectedBookingForCancellation.id,
+            check_in_date: selectedBookingForCancellation.check_in_date,
+            total_price: selectedBookingForCancellation.total_price,
+            status: selectedBookingForCancellation.status,
+            property: {
+              title: selectedBookingForCancellation.properties?.title || 'Propriété',
+              price_per_night: selectedBookingForCancellation.properties?.price_per_night || 0,
+            },
+          }}
+          onCancelled={() => {
+            loadBookings();
+            setCancellationDialogVisible(false);
+            setSelectedBookingForCancellation(null);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -886,6 +936,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     lineHeight: 20,
+  },
+  contactButtonContainer: {
+    marginBottom: 12,
   },
   actionButtons: {
     flexDirection: 'row',

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,8 @@ import { Vehicle, VehicleFilters } from '../types';
 import VehicleCard from '../components/VehicleCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import VehicleFiltersModal from '../components/VehicleFiltersModal';
+import LocationSearchInput from '../components/LocationSearchInput';
+import { LocationResult } from '../hooks/useLocationSearch';
 
 const VehiclesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -26,9 +29,10 @@ const VehiclesScreen: React.FC = () => {
   const [filters, setFilters] = useState<VehicleFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedLocationName, setSelectedLocationName] = useState('');
 
+  // Appliquer les filtres quand ils changent
   useEffect(() => {
-    // Appliquer la recherche dans les filtres
     const searchFilters: VehicleFilters = {
       ...filters,
       search: searchQuery.trim() || undefined,
@@ -50,6 +54,37 @@ const VehiclesScreen: React.FC = () => {
     setFilters(newFilters);
   };
 
+  const handleLocationSelect = (location: LocationResult) => {
+    setSelectedLocationName(location.name);
+    setFilters({
+      ...filters,
+      locationId: location.id,
+    });
+  };
+
+  const handleSearch = () => {
+    const searchFilters: VehicleFilters = {
+      ...filters,
+      search: searchQuery.trim() || undefined,
+    };
+    fetchVehicles(searchFilters);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({});
+    setSearchQuery('');
+    setSelectedLocationName('');
+  };
+
+  const removeFilter = (filterKey: keyof VehicleFilters) => {
+    const newFilters = { ...filters };
+    delete newFilters[filterKey];
+    setFilters(newFilters);
+    if (filterKey === 'locationId') {
+      setSelectedLocationName('');
+    }
+  };
+
   const getActiveFiltersCount = () => {
     let count = 0;
     if (filters.vehicleType) count++;
@@ -61,7 +96,24 @@ const VehiclesScreen: React.FC = () => {
     if (filters.priceMax) count++;
     if (filters.locationId) count++;
     if (filters.features && filters.features.length > 0) count++;
+    if (filters.search) count++;
     return count;
+  };
+
+  const getTransmissionLabel = (transmission: string | null) => {
+    if (!transmission) return null;
+    return transmission === 'automatic' ? 'Auto' : 'Manuel';
+  };
+
+  const getFuelLabel = (fuel: string | null) => {
+    if (!fuel) return null;
+    const labels: Record<string, string> = {
+      essence: 'Essence',
+      diesel: 'Diesel',
+      electric: 'Électrique',
+      hybrid: 'Hybride',
+    };
+    return labels[fuel] || fuel;
   };
 
   const renderVehicle = ({ item }: { item: Vehicle }) => (
@@ -113,17 +165,6 @@ const VehiclesScreen: React.FC = () => {
         </Text>
         <View style={styles.headerButtons}>
           <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setShowFilters(true)}
-          >
-            <Ionicons name="filter-outline" size={24} color="#2E7D32" />
-            {getActiveFiltersCount() > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
             style={styles.addButton}
             onPress={() => navigation.navigate('AddVehicle' as never)}
           >
@@ -132,23 +173,163 @@ const VehiclesScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Barre de recherche */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Rechercher un véhicule (marque, modèle, ville)..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor="#999"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity
-            onPress={() => setSearchQuery('')}
-            style={styles.clearSearchButton}
+      {/* Barre de recherche améliorée */}
+      <View style={styles.searchSection}>
+        <View style={styles.searchBarContainer}>
+          {/* Recherche textuelle */}
+          <View style={styles.searchInputContainer}>
+            <Ionicons name="car-outline" size={20} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Marque, modèle, titre..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#999"
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                style={styles.clearButton}
+              >
+                <Ionicons name="close-circle" size={18} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Localisation */}
+          <View style={styles.locationInputContainer}>
+            <LocationSearchInput
+              value={selectedLocationName}
+              onChangeText={setSelectedLocationName}
+              onLocationSelect={handleLocationSelect}
+              placeholder="Où ?"
+              style={styles.locationInput}
+            />
+          </View>
+
+          {/* Actions */}
+          <View style={styles.searchActions}>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowFilters(true)}
+            >
+              <Ionicons name="filter-outline" size={20} color="#2E7D32" />
+              {getActiveFiltersCount() > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.searchButton}
+              onPress={handleSearch}
+            >
+              <Ionicons name="search" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Filtres actifs */}
+        {getActiveFiltersCount() > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.activeFiltersContainer}
+            contentContainerStyle={styles.activeFiltersContent}
           >
-            <Ionicons name="close-circle" size={20} color="#999" />
-          </TouchableOpacity>
+            {filters.vehicleType && (
+              <View style={styles.activeFilter}>
+                <Text style={styles.activeFilterText}>Type: {filters.vehicleType}</Text>
+                <TouchableOpacity onPress={() => removeFilter('vehicleType')}>
+                  <Ionicons name="close-circle" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {filters.transmission && (
+              <View style={styles.activeFilter}>
+                <Text style={styles.activeFilterText}>
+                  {getTransmissionLabel(filters.transmission)}
+                </Text>
+                <TouchableOpacity onPress={() => removeFilter('transmission')}>
+                  <Ionicons name="close-circle" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {filters.fuelType && (
+              <View style={styles.activeFilter}>
+                <Text style={styles.activeFilterText}>
+                  {getFuelLabel(filters.fuelType)}
+                </Text>
+                <TouchableOpacity onPress={() => removeFilter('fuelType')}>
+                  <Ionicons name="close-circle" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {filters.seats && (
+              <View style={styles.activeFilter}>
+                <Text style={styles.activeFilterText}>{filters.seats}+ places</Text>
+                <TouchableOpacity onPress={() => removeFilter('seats')}>
+                  <Ionicons name="close-circle" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {(filters.priceMin || filters.priceMax) && (
+              <View style={styles.activeFilter}>
+                <Text style={styles.activeFilterText}>
+                  Prix: {filters.priceMin || '0'} - {filters.priceMax || 'Max'}
+                </Text>
+                <TouchableOpacity onPress={() => {
+                  const newFilters = { ...filters };
+                  delete newFilters.priceMin;
+                  delete newFilters.priceMax;
+                  setFilters(newFilters);
+                }}>
+                  <Ionicons name="close-circle" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {filters.locationId && (
+              <View style={styles.activeFilter}>
+                <Text style={styles.activeFilterText}>
+                  Lieu: {selectedLocationName || 'Sélectionné'}
+                </Text>
+                <TouchableOpacity onPress={() => removeFilter('locationId')}>
+                  <Ionicons name="close-circle" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {filters.search && (
+              <View style={styles.activeFilter}>
+                <Text style={styles.activeFilterText}>
+                  Recherche: "{filters.search}"
+                </Text>
+                <TouchableOpacity onPress={() => {
+                  setSearchQuery('');
+                  removeFilter('search');
+                }}>
+                  <Ionicons name="close-circle" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {filters.features && filters.features.length > 0 && (
+              <View style={styles.activeFilter}>
+                <Text style={styles.activeFilterText}>
+                  Équipements: {filters.features.length}
+                </Text>
+                <TouchableOpacity onPress={() => removeFilter('features')}>
+                  <Ionicons name="close-circle" size={16} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.resetFiltersButton}
+              onPress={handleResetFilters}
+            >
+              <Text style={styles.resetFiltersText}>Réinitialiser</Text>
+            </TouchableOpacity>
+          </ScrollView>
         )}
       </View>
 
@@ -217,50 +398,136 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
   },
   filterButton: {
-    padding: 8,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
     position: 'relative',
   },
   filterBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: -4,
+    right: -4,
     backgroundColor: '#e67e22',
     borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   filterBadgeText: {
     color: '#fff',
     fontSize: 10,
     fontWeight: '600',
   },
-  searchContainer: {
+  searchSection: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  searchBarContainer: {
+    gap: 10,
+  },
+  searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
+  locationInputContainer: {
+    marginTop: 0,
+  },
+  locationInput: {
+    marginTop: 0,
+  },
   searchIcon: {
-    marginRight: 12,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: '#333',
   },
-  clearSearchButton: {
+  clearButton: {
     marginLeft: 8,
     padding: 4,
+  },
+  searchActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    position: 'relative',
+  },
+  searchButton: {
+    backgroundColor: '#2E7D32',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeFiltersContainer: {
+    marginTop: 12,
+    maxHeight: 50,
+  },
+  activeFiltersContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 8,
+  },
+  activeFilter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5e9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  activeFilterText: {
+    fontSize: 12,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  resetFiltersButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#fff3e0',
+  },
+  resetFiltersText: {
+    fontSize: 12,
+    color: '#e67e22',
+    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,

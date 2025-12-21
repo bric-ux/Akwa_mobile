@@ -65,6 +65,7 @@ const PropertyManagementScreen: React.FC = () => {
             url,
             category,
             display_order,
+            is_main,
             created_at
           )
         `)
@@ -95,6 +96,7 @@ const PropertyManagementScreen: React.FC = () => {
         url: photo.url,
         category: photo.category || 'autre',
         displayOrder: photo.display_order || 0,
+        isMain: photo.is_main || false,
         createdAt: photo.created_at,
       }));
     }
@@ -219,7 +221,12 @@ const PropertyManagementScreen: React.FC = () => {
         {/* Section Photos */}
         <View style={[styles.section, styles.photosSection]}>
           {photos.length > 0 ? (
-            <PhotoCategoryDisplay photos={photos} propertyTitle={property.title} />
+            <PhotoCategoryDisplay 
+              photos={photos} 
+              propertyTitle={property.title}
+              propertyId={propertyId}
+              onPhotoUpdate={loadProperty}
+            />
           ) : (
             <View style={styles.emptyPhotosContainer}>
               <Ionicons name="images-outline" size={48} color="#ccc" />

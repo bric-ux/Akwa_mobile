@@ -164,3 +164,5 @@ COMMENT ON FUNCTION get_identity_verification_stats() IS 'Fonction pour obtenir 
 
 
 
+
+

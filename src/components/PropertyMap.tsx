@@ -18,13 +18,23 @@ const PropertyMap: React.FC<PropertyMapProps> = ({
   cityName,
   neighborhoodName,
 }) => {
-  const defaultLatitude = 7.5399;
-  const defaultLongitude = -5.5471;
+  // Coordonnées par défaut: Abidjan (centre de la Côte d'Ivoire)
+  const defaultLatitude = 5.3600;
+  const defaultLongitude = -4.0083;
   
   const mapLatitude = latitude || defaultLatitude;
   const mapLongitude = longitude || defaultLongitude;
   
-  console.log('🗺️ Coordonnées de la carte:', { latitude, longitude, mapLatitude, mapLongitude });
+  console.log('🗺️ Coordonnées de la carte:', { 
+    latitude, 
+    longitude, 
+    mapLatitude, 
+    mapLongitude,
+    locationName,
+    cityName,
+    neighborhoodName,
+    usingDefault: !latitude || !longitude
+  });
   
   const getFullAddress = () => {
     const parts = [];

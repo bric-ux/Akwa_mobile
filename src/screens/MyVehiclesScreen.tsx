@@ -16,6 +16,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
 import { Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { VEHICLE_COLORS } from '../constants/colors';
 
 const MyVehiclesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -128,13 +129,13 @@ const MyVehiclesScreen: React.FC = () => {
             style={styles.actionButton}
             onPress={() => navigation.navigate('EditVehicle' as never, { vehicleId: item.id } as never)}
           >
-            <Ionicons name="create-outline" size={20} color="#e67e22" />
+            <Ionicons name="create-outline" size={20} color={VEHICLE_COLORS.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => navigation.navigate('HostVehicleBookings' as never, { vehicleId: item.id } as never)}
           >
-            <Ionicons name="calendar-outline" size={20} color="#e67e22" />
+            <Ionicons name="calendar-outline" size={20} color={VEHICLE_COLORS.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}
@@ -179,20 +180,20 @@ const MyVehiclesScreen: React.FC = () => {
             style={styles.headerButton}
             onPress={() => navigation.navigate('HostVehicleBookings' as never)}
           >
-            <Ionicons name="calendar-outline" size={24} color="#e67e22" />
+            <Ionicons name="calendar-outline" size={24} color={VEHICLE_COLORS.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() => navigation.navigate('AddVehicle' as never)}
           >
-            <Ionicons name="add" size={24} color="#e67e22" />
+            <Ionicons name="add" size={24} color={VEHICLE_COLORS.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#e67e22" />
+          <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
         </View>
       ) : (
         <FlatList
@@ -205,7 +206,7 @@ const MyVehiclesScreen: React.FC = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#e67e22"
+              tintColor={VEHICLE_COLORS.primary}
             />
           }
         />
@@ -330,7 +331,7 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#e67e22',
+    color: VEHICLE_COLORS.primary,
   },
   priceUnit: {
     fontSize: 14,
@@ -375,7 +376,7 @@ const styles = StyleSheet.create({
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e67e22',
+    backgroundColor: VEHICLE_COLORS.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
