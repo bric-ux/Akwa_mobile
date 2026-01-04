@@ -10,19 +10,20 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { useEmailService } from '../hooks/useEmailService';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { supabase } from '../services/supabase';
 
 const ConciergerieScreen: React.FC = () => {
   const navigation = useNavigation();
   const scrollViewRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
-  const { sendEmail } = useEmailService();
+  const [showPlanModal, setShowPlanModal] = useState(false);
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile();
 
@@ -109,20 +110,37 @@ const ConciergerieScreen: React.FC = () => {
     try {
       setLoading(true);
       
-      await sendEmail({
-        type: 'conciergerie_request',
-        to: 'jeanbrice270@gmail.com',
-        data: {
-          subject: 'Nouvelle demande de consultation - Conciergerie AkwaHome',
-          clientName: formData.name,
-          clientEmail: formData.email,
-          clientPhone: formData.phone,
-          propertyType: formData.propertyType,
-          selectedPlan: formData.selectedPlan,
-          needs: formData.needs,
-          message: formData.message,
-        },
+      // Utiliser la même structure que le site web
+      const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email', {
+        body: {
+          type: 'conciergerie_request',
+          to: 'jeanbrice270@gmail.com',
+          data: {
+            clientName: formData.name,
+            clientEmail: formData.email,
+            clientPhone: formData.phone,
+            propertyType: formData.propertyType || 'Non spécifié',
+            selectedPlan: formData.selectedPlan || 'Non spécifié',
+            needs: formData.needs || 'Aucun besoin spécifié',
+            message: formData.message || 'Aucun message',
+            submittedAt: new Date().toLocaleString('fr-FR'),
+            requestId: null
+          }
+        }
       });
+
+      // Vérifier les erreurs (peuvent être dans error ou dans data.error)
+      if (emailError) {
+        console.error('❌ Erreur envoi email (error):', emailError);
+        throw new Error(`Erreur lors de l'envoi de l'email: ${emailError.message || JSON.stringify(emailError)}`);
+      }
+
+      if (emailData?.error) {
+        console.error('❌ Erreur envoi email (data.error):', emailData.error);
+        throw new Error(`Erreur lors de l'envoi de l'email: ${emailData.error.message || JSON.stringify(emailData.error)}`);
+      }
+
+      console.log('✅ Email envoyé avec succès:', emailData);
 
       Alert.alert(
         'Demande envoyée !',
@@ -140,8 +158,9 @@ const ConciergerieScreen: React.FC = () => {
         selectedPlan: '',
       });
     } catch (error: any) {
-      console.error('Erreur lors de l\'envoi:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue lors de l\'envoi. Veuillez réessayer.');
+      console.error('❌ Erreur complète:', error);
+      const errorMessage = error?.message || error?.error?.message || error?.error || "Une erreur est survenue lors de l'envoi. Veuillez réessayer.";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -327,19 +346,27 @@ const ConciergerieScreen: React.FC = () => {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Formule souhaitée</Text>
-                <View style={styles.selectedPlanDisplay}>
-                  <Text style={formData.selectedPlan ? styles.selectedPlanText : styles.selectedPlanTextEmpty}>
-                    {formData.selectedPlan || 'Aucune formule sélectionnée'}
+                <TouchableOpacity
+                  style={styles.planSelectorButton}
+                  onPress={() => setShowPlanModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={formData.selectedPlan ? styles.planSelectorText : styles.planSelectorPlaceholder}>
+                    {formData.selectedPlan 
+                      ? `${formData.selectedPlan} - ${plans.find(p => p.name === formData.selectedPlan)?.price} des revenus`
+                      : 'Sélectionner une formule'
+                    }
                   </Text>
-                  {formData.selectedPlan && (
-                    <TouchableOpacity
-                      onPress={() => setFormData({ ...formData, selectedPlan: '' })}
-                      style={styles.clearPlanButton}
-                    >
-                      <Ionicons name="close-circle" size={20} color="#666" />
-                    </TouchableOpacity>
-                  )}
-                </View>
+                  <Ionicons name="chevron-down" size={20} color="#666" />
+                </TouchableOpacity>
+                {formData.selectedPlan && (
+                  <View style={styles.selectedPlanInfo}>
+                    <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                    <Text style={styles.selectedPlanInfoText}>
+                      Formule sélectionnée : {formData.selectedPlan}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -384,6 +411,72 @@ const ConciergerieScreen: React.FC = () => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal de sélection de formule */}
+      <Modal
+        visible={showPlanModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPlanModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Choisir une formule</Text>
+              <TouchableOpacity
+                onPress={() => setShowPlanModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+              {plans.map((plan, index) => {
+                const isSelected = formData.selectedPlan === plan.name;
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.modalPlanCard,
+                      isSelected && styles.modalPlanCardSelected,
+                    ]}
+                    onPress={() => {
+                      setFormData({ ...formData, selectedPlan: plan.name });
+                      setShowPlanModal(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.modalPlanHeader}>
+                      <View style={styles.modalPlanTitleContainer}>
+                        <Text style={styles.modalPlanName}>{plan.name}</Text>
+                        <Text style={styles.modalPlanPrice}>{plan.price} des revenus</Text>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                      )}
+                    </View>
+                    <Text style={styles.modalPlanDescription}>{plan.description}</Text>
+                    {plan.popular && (
+                      <View style={styles.modalPopularBadge}>
+                        <Text style={styles.modalPopularBadgeText}>Le plus populaire</Text>
+                      </View>
+                    )}
+                    <View style={styles.modalPlanFeatures}>
+                      {plan.features.map((feature, idx) => (
+                        <View key={idx} style={styles.modalPlanFeatureItem}>
+                          <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                          <Text style={styles.modalPlanFeatureText}>{feature}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -651,13 +744,136 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
   },
-  selectedPlanTextEmpty: {
+  planSelectorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    minHeight: 50,
+  },
+  planSelectorText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  planSelectorPlaceholder: {
     fontSize: 16,
     color: '#999',
     flex: 1,
   },
-  clearPlanButton: {
+  selectedPlanInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 8,
+    gap: 6,
+  },
+  selectedPlanInfoText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalCloseButton: {
     padding: 4,
+  },
+  modalScrollView: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  modalPlanCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+  },
+  modalPlanCardSelected: {
+    borderColor: '#e67e22',
+    backgroundColor: '#fff3e0',
+  },
+  modalPlanHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  modalPlanTitleContainer: {
+    flex: 1,
+  },
+  modalPlanName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  modalPlanPrice: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#e67e22',
+  },
+  modalPlanDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+  },
+  modalPopularBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  modalPopularBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalPlanFeatures: {
+    gap: 8,
+  },
+  modalPlanFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  modalPlanFeatureText: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+    lineHeight: 20,
   },
   formCard: {
     backgroundColor: '#f8f9fa',
