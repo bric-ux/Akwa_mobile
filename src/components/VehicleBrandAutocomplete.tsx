@@ -2,16 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   TouchableOpacity,
+  StyleSheet,
   FlatList,
-  Keyboard,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-// Liste des marques de véhicules populaires (identique au site web)
-export const VEHICLE_BRANDS = [
+// Liste des marques de véhicules populaires
+const VEHICLE_BRANDS = [
   'Audi', 'BMW', 'Chevrolet', 'Citroën', 'Dacia', 'Fiat', 'Ford', 'Honda',
   'Hyundai', 'Jaguar', 'Jeep', 'Kia', 'Land Rover', 'Lexus', 'Mazda',
   'Mercedes-Benz', 'Mini', 'Mitsubishi', 'Nissan', 'Opel', 'Peugeot',
@@ -22,8 +24,8 @@ export const VEHICLE_BRANDS = [
   'McLaren', 'Rolls-Royce', 'Saab', 'Lancia', 'Hummer', 'Isuzu'
 ];
 
-// Modèles populaires par marque (identique au site web)
-export const VEHICLE_MODELS: Record<string, string[]> = {
+// Modèles populaires par marque
+const VEHICLE_MODELS: Record<string, string[]> = {
   'Toyota': ['Camry', 'Corolla', 'RAV4', 'Land Cruiser', 'Hilux', 'Yaris', 'Prado', 'C-HR', 'Fortuner', 'Avalon'],
   'Mercedes-Benz': ['Classe C', 'Classe E', 'Classe S', 'GLA', 'GLC', 'GLE', 'GLS', 'Classe A', 'AMG GT', 'Maybach'],
   'BMW': ['Série 3', 'Série 5', 'Série 7', 'X1', 'X3', 'X5', 'X6', 'X7', 'M3', 'M5'],
@@ -55,12 +57,13 @@ interface VehicleBrandAutocompleteProps {
 const VehicleBrandAutocomplete: React.FC<VehicleBrandAutocompleteProps> = ({
   value,
   onChange,
-  placeholder = "Marque, modèle, titre...",
+  placeholder = 'Marque, modèle...',
   style,
   mode = 'brand',
   selectedBrand,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const inputRef = useRef<TextInput>(null);
 
@@ -78,82 +81,120 @@ const VehicleBrandAutocomplete: React.FC<VehicleBrandAutocompleteProps> = ({
   // Filter suggestions
   useEffect(() => {
     const list = getList();
-    if (!value.trim()) {
-      setSuggestions(list.slice(0, 10));
+    if (!searchQuery.trim()) {
+      setSuggestions(list.slice(0, 15));
       return;
     }
     
     const filtered = list.filter(item =>
-      item.toLowerCase().includes(value.toLowerCase())
-    ).slice(0, 10);
+      item.toLowerCase().includes(searchQuery.toLowerCase())
+    ).slice(0, 15);
     
     setSuggestions(filtered);
-  }, [value, mode, selectedBrand]);
+  }, [searchQuery, mode, selectedBrand]);
 
   const handleSelect = (item: string) => {
     onChange(item);
-    setIsOpen(false);
-    Keyboard.dismiss();
+    setShowModal(false);
+    setSearchQuery('');
   };
 
-  const handleFocus = () => {
-    setIsOpen(true);
+  const openModal = () => {
+    setShowModal(true);
+    setSearchQuery(value);
+    const list = getList();
+    setSuggestions(list.slice(0, 15));
   };
 
-  const handleBlur = () => {
-    // Délai pour permettre le clic sur une suggestion
-    setTimeout(() => setIsOpen(false), 200);
+  const closeModal = () => {
+    setShowModal(false);
+    setSearchQuery('');
   };
 
   return (
     <View style={[styles.container, style]}>
-      <View style={styles.inputContainer}>
-        <Ionicons name="car-outline" size={20} color="#666" style={styles.icon} />
-        <TextInput
-          ref={inputRef}
-          style={styles.input}
-          value={value}
-          onChangeText={onChange}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          placeholder={placeholder}
-          placeholderTextColor="#999"
-          returnKeyType="search"
-        />
-        {value.length > 0 && (
-          <TouchableOpacity
-            onPress={() => {
-              onChange('');
-              setIsOpen(false);
-            }}
-            style={styles.clearButton}
-          >
-            <Ionicons name="close-circle" size={18} color="#999" />
-          </TouchableOpacity>
-        )}
-      </View>
-      
-      {isOpen && suggestions.length > 0 && (
-        <View style={styles.suggestionsContainer}>
-          <FlatList
-            data={suggestions}
-            keyExtractor={(item, index) => `${item}-${index}`}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.suggestionItem,
-                  item.toLowerCase() === value.toLowerCase() && styles.suggestionItemActive
-                ]}
-                onPress={() => handleSelect(item)}
-              >
-                <Text style={styles.suggestionText}>{item}</Text>
+      <TouchableOpacity
+        style={styles.inputContainer}
+        onPress={openModal}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="car" size={18} color="#64748b" style={styles.icon} />
+        <Text style={[styles.input, !value && styles.placeholder]}>
+          {value || placeholder}
+        </Text>
+        <Ionicons name="chevron-down" size={18} color="#64748b" />
+      </TouchableOpacity>
+
+      <Modal
+        visible={showModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {mode === 'brand' ? 'Sélectionner une marque' : 'Sélectionner un modèle'}
+              </Text>
+              <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#0f172a" />
               </TouchableOpacity>
-            )}
-            keyboardShouldPersistTaps="handled"
-            style={styles.suggestionsList}
-          />
-        </View>
-      )}
+            </View>
+
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={18} color="#64748b" style={styles.searchIcon} />
+              <TextInput
+                ref={inputRef}
+                style={styles.searchInput}
+                placeholder="Rechercher..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+                placeholderTextColor="#94a3b8"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <FlatList
+              data={suggestions}
+              keyExtractor={(item, index) => `${item}-${index}`}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.suggestionItem}
+                  onPress={() => handleSelect(item)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="car-sport" size={20} color="#2563eb" />
+                  <Text style={styles.suggestionText}>{item}</Text>
+                  {item.toLowerCase() === value.toLowerCase() && (
+                    <Ionicons name="checkmark-circle" size={20} color="#2563eb" />
+                  )}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                searchQuery.length >= 2 ? (
+                  <View style={styles.emptyContainer}>
+                    <Ionicons name="search" size={48} color="#cbd5e1" />
+                    <Text style={styles.emptyText}>
+                      Aucun résultat pour "{searchQuery}"
+                    </Text>
+                  </View>
+                ) : null
+              }
+              style={styles.suggestionsList}
+              keyboardShouldPersistTaps="handled"
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 };
@@ -161,65 +202,117 @@ const VehicleBrandAutocomplete: React.FC<VehicleBrandAutocompleteProps> = ({
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
-    zIndex: 1,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    gap: 12,
   },
   icon: {
-    marginRight: 8,
+    marginRight: 0,
   },
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: '#0f172a',
+    fontWeight: '500',
   },
-  clearButton: {
-    marginLeft: 8,
-    padding: 4,
+  placeholder: {
+    color: '#94a3b8',
+    fontWeight: '400',
   },
-  suggestionsContainer: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    marginTop: 4,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    maxHeight: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
-    zIndex: 1000,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-  suggestionsList: {
-    maxHeight: 200,
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    minHeight: '50%',
   },
-  suggestionItem: {
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f1f5f9',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    margin: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    gap: 12,
   },
-  suggestionItemActive: {
-    backgroundColor: '#f0f0f0',
+  searchIcon: {
+    marginRight: 0,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#0f172a',
+    fontWeight: '500',
+  },
+  suggestionsList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    gap: 12,
   },
   suggestionText: {
-    fontSize: 14,
-    color: '#333',
+    flex: 1,
+    fontSize: 16,
+    color: '#0f172a',
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: '#64748b',
+    marginTop: 16,
+    textAlign: 'center',
   },
 });
 
+export { VEHICLE_BRANDS, VEHICLE_MODELS };
 export default VehicleBrandAutocomplete;
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,12 @@ import {
   RefreshControl,
   TextInput,
   ScrollView,
+  Animated,
+  Dimensions,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,19 +25,25 @@ import VehicleCard from '../components/VehicleCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import VehicleFiltersModal from '../components/VehicleFiltersModal';
 import LocationSearchInput from '../components/LocationSearchInput';
+import VehicleBrandAutocomplete from '../components/VehicleBrandAutocomplete';
 import { LocationResult } from '../hooks/useLocationSearch';
+import { useCurrency } from '../hooks/useCurrency';
+
+const { width } = Dimensions.get('window');
 
 const VehiclesScreen: React.FC = () => {
   const navigation = useNavigation();
   const { vehicles, loading, error, fetchVehicles, refetch } = useVehicles();
   const { t } = useLanguage();
+  const { formatPrice } = useCurrency();
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState<VehicleFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocationName, setSelectedLocationName] = useState('');
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  // Appliquer les filtres quand ils changent
   useEffect(() => {
     const searchFilters: VehicleFilters = {
       ...filters,
@@ -116,6 +128,18 @@ const VehiclesScreen: React.FC = () => {
     return labels[fuel] || fuel;
   };
 
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const searchTranslateY = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, -60],
+    extrapolate: 'clamp',
+  });
+
   const renderVehicle = ({ item }: { item: Vehicle }) => (
     <VehicleCard
       vehicle={item}
@@ -126,448 +150,685 @@ const VehiclesScreen: React.FC = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons name="car-outline" size={64} color="#ccc" />
-      <Text style={styles.emptyStateText}>
-        {t('vehicles.noVehicles') || 'Aucun véhicule disponible'}
+      <View style={styles.emptyIcon}>
+        <Ionicons name="car-outline" size={80} color="#cbd5e1" />
+      </View>
+      <Text style={styles.emptyTitle}>Aucun véhicule</Text>
+      <Text style={styles.emptyText}>
+        Modifiez vos critères de recherche
       </Text>
-      <Text style={styles.emptyStateSubtext}>
-        {t('vehicles.noVehiclesSubtext') || 'Il n\'y a pas de véhicules disponibles pour le moment'}
-      </Text>
+      {getActiveFiltersCount() > 0 && (
+        <TouchableOpacity style={styles.resetBtn} onPress={handleResetFilters}>
+          <Text style={styles.resetBtnText}>Réinitialiser</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
   if (loading && vehicles.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>
-            {t('vehicles.title') || 'Location de véhicules'}
-          </Text>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2E7D32" />
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color="#2563eb" />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#2c3e50" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {t('vehicles.title') || 'Location de véhicules'}
-        </Text>
-        <View style={styles.headerButtons}>
+    <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        {/* Header minimaliste */}
+        <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
           <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => navigation.navigate('AddVehicle' as never)}
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
           >
-            <Ionicons name="add-circle-outline" size={24} color="#2E7D32" />
+            <Ionicons name="arrow-back" size={22} color="#0f172a" />
           </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Barre de recherche améliorée */}
-      <View style={styles.searchSection}>
-        <View style={styles.searchBarContainer}>
-          {/* Recherche textuelle */}
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="car-outline" size={20} color="#666" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Marque, modèle, titre..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor="#999"
-              onSubmitEditing={handleSearch}
-              returnKeyType="search"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setSearchQuery('')}
-                style={styles.clearButton}
-              >
-                <Ionicons name="close-circle" size={18} color="#999" />
-              </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Véhicules</Text>
+            {vehicles.length > 0 && (
+              <Text style={styles.headerCount}>{vehicles.length} disponible{vehicles.length > 1 ? 's' : ''}</Text>
             )}
           </View>
+          <TouchableOpacity
+            style={styles.filterBtn}
+            onPress={() => setShowFilters(true)}
+          >
+            <Ionicons name="filter" size={22} color="#2563eb" />
+            {getActiveFiltersCount() > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{getActiveFiltersCount()}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
 
-          {/* Localisation */}
-          <View style={styles.locationInputContainer}>
-            <LocationSearchInput
-              value={selectedLocationName}
-              onChangeText={setSelectedLocationName}
-              onLocationSelect={handleLocationSelect}
-              placeholder="Où ?"
-              style={styles.locationInput}
-            />
-          </View>
-
-          {/* Actions */}
-          <View style={styles.searchActions}>
-            <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => setShowFilters(true)}
-            >
-              <Ionicons name="filter-outline" size={20} color="#2E7D32" />
-              {getActiveFiltersCount() > 0 && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
-                </View>
+        {/* Barre de recherche flottante ultra-minimaliste */}
+        <Animated.View
+          style={[
+            styles.searchWrapper,
+            { transform: [{ translateY: searchTranslateY }] },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.searchBar}
+            activeOpacity={0.7}
+            onPress={() => setShowSearchModal(true)}
+          >
+            <Ionicons name="search" size={18} color="#64748b" />
+            <View style={styles.searchTextWrapper}>
+              {searchQuery ? (
+                <Text style={styles.searchText} numberOfLines={1}>
+                  {searchQuery}
+                </Text>
+              ) : selectedLocationName ? (
+                <Text style={styles.searchText} numberOfLines={1}>
+                  {selectedLocationName}
+                </Text>
+              ) : (
+                <Text style={styles.searchPlaceholder}>
+                  Rechercher un véhicule...
+                </Text>
               )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.searchButton}
-              onPress={handleSearch}
-            >
-              <Ionicons name="search" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </View>
+            </View>
+            {getActiveFiltersCount() > 0 && (
+              <View style={styles.filterDot}>
+                <View style={styles.filterDotInner} />
+              </View>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+      </SafeAreaView>
 
-        {/* Filtres actifs */}
-        {getActiveFiltersCount() > 0 && (
+      {/* Filtres actifs - style ultra-minimal */}
+      {getActiveFiltersCount() > 0 && (
+        <View style={styles.filtersRow}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.activeFiltersContainer}
-            contentContainerStyle={styles.activeFiltersContent}
+            contentContainerStyle={styles.filtersContent}
           >
             {filters.vehicleType && (
-              <View style={styles.activeFilter}>
-                <Text style={styles.activeFilterText}>Type: {filters.vehicleType}</Text>
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>{filters.vehicleType}</Text>
                 <TouchableOpacity onPress={() => removeFilter('vehicleType')}>
-                  <Ionicons name="close-circle" size={16} color="#666" />
+                  <Ionicons name="close" size={12} color="#2563eb" />
                 </TouchableOpacity>
               </View>
             )}
             {filters.transmission && (
-              <View style={styles.activeFilter}>
-                <Text style={styles.activeFilterText}>
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>
                   {getTransmissionLabel(filters.transmission)}
                 </Text>
                 <TouchableOpacity onPress={() => removeFilter('transmission')}>
-                  <Ionicons name="close-circle" size={16} color="#666" />
+                  <Ionicons name="close" size={12} color="#2563eb" />
                 </TouchableOpacity>
               </View>
             )}
             {filters.fuelType && (
-              <View style={styles.activeFilter}>
-                <Text style={styles.activeFilterText}>
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>
                   {getFuelLabel(filters.fuelType)}
                 </Text>
                 <TouchableOpacity onPress={() => removeFilter('fuelType')}>
-                  <Ionicons name="close-circle" size={16} color="#666" />
+                  <Ionicons name="close" size={12} color="#2563eb" />
                 </TouchableOpacity>
               </View>
             )}
             {filters.seats && (
-              <View style={styles.activeFilter}>
-                <Text style={styles.activeFilterText}>{filters.seats}+ places</Text>
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>{filters.seats}+ places</Text>
                 <TouchableOpacity onPress={() => removeFilter('seats')}>
-                  <Ionicons name="close-circle" size={16} color="#666" />
+                  <Ionicons name="close" size={12} color="#2563eb" />
                 </TouchableOpacity>
               </View>
             )}
             {(filters.priceMin || filters.priceMax) && (
-              <View style={styles.activeFilter}>
-                <Text style={styles.activeFilterText}>
-                  Prix: {filters.priceMin || '0'} - {filters.priceMax || 'Max'}
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>
+                  {formatPrice(filters.priceMin || 0)} - {formatPrice(filters.priceMax || 999999)}
                 </Text>
-                <TouchableOpacity onPress={() => {
-                  const newFilters = { ...filters };
-                  delete newFilters.priceMin;
-                  delete newFilters.priceMax;
-                  setFilters(newFilters);
-                }}>
-                  <Ionicons name="close-circle" size={16} color="#666" />
+                <TouchableOpacity
+                  onPress={() => {
+                    const newFilters = { ...filters };
+                    delete newFilters.priceMin;
+                    delete newFilters.priceMax;
+                    setFilters(newFilters);
+                  }}
+                >
+                  <Ionicons name="close" size={12} color="#2563eb" />
                 </TouchableOpacity>
               </View>
             )}
             {filters.locationId && (
-              <View style={styles.activeFilter}>
-                <Text style={styles.activeFilterText}>
-                  Lieu: {selectedLocationName || 'Sélectionné'}
+              <View style={styles.chip}>
+                <Text style={styles.chipText} numberOfLines={1}>
+                  {selectedLocationName || 'Lieu'}
                 </Text>
                 <TouchableOpacity onPress={() => removeFilter('locationId')}>
-                  <Ionicons name="close-circle" size={16} color="#666" />
+                  <Ionicons name="close" size={12} color="#2563eb" />
                 </TouchableOpacity>
               </View>
             )}
             {filters.search && (
-              <View style={styles.activeFilter}>
-                <Text style={styles.activeFilterText}>
-                  Recherche: "{filters.search}"
-                </Text>
-                <TouchableOpacity onPress={() => {
-                  setSearchQuery('');
-                  removeFilter('search');
-                }}>
-                  <Ionicons name="close-circle" size={16} color="#666" />
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>"{filters.search}"</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setSearchQuery('');
+                    removeFilter('search');
+                  }}
+                >
+                  <Ionicons name="close" size={12} color="#2563eb" />
                 </TouchableOpacity>
               </View>
             )}
             {filters.features && filters.features.length > 0 && (
-              <View style={styles.activeFilter}>
-                <Text style={styles.activeFilterText}>
-                  Équipements: {filters.features.length}
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>
+                  {filters.features.length} équipement{filters.features.length > 1 ? 's' : ''}
                 </Text>
                 <TouchableOpacity onPress={() => removeFilter('features')}>
-                  <Ionicons name="close-circle" size={16} color="#666" />
+                  <Ionicons name="close" size={12} color="#2563eb" />
                 </TouchableOpacity>
               </View>
             )}
-            <TouchableOpacity
-              style={styles.resetFiltersButton}
-              onPress={handleResetFilters}
-            >
-              <Text style={styles.resetFiltersText}>Réinitialiser</Text>
+            <TouchableOpacity style={styles.clearBtn} onPress={handleResetFilters}>
+              <Text style={styles.clearText}>Tout effacer</Text>
             </TouchableOpacity>
           </ScrollView>
-        )}
-      </View>
+        </View>
+      )}
+
+      {/* Modal de recherche */}
+      <Modal
+        visible={showSearchModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSearchModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.searchModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <TouchableOpacity
+            style={styles.searchModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowSearchModal(false)}
+          >
+            <TouchableWithoutFeedback>
+              <View style={styles.searchModalContent}>
+                <View style={styles.searchModalHeader}>
+                  <Text style={styles.searchModalTitle}>Rechercher un véhicule</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowSearchModal(false)}
+                    style={styles.closeBtn}
+                  >
+                    <Ionicons name="close" size={24} color="#0f172a" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  style={styles.searchModalScroll}
+                  contentContainerStyle={styles.searchModalScrollContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <View style={styles.searchInputs}>
+                    <View style={styles.searchFieldContainer}>
+                      <Text style={styles.searchFieldLabel}>Marque ou modèle</Text>
+                      <VehicleBrandAutocomplete
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder="Ex: Toyota, Mercedes, BMW..."
+                        style={styles.brandAutocomplete}
+                      />
+                    </View>
+
+                    <View style={styles.searchFieldContainer}>
+                      <Text style={styles.searchFieldLabel}>Localisation</Text>
+                      <LocationSearchInput
+                        value={selectedLocationName}
+                        onChangeText={setSelectedLocationName}
+                        onLocationSelect={handleLocationSelect}
+                        placeholder="Ville, commune ou quartier"
+                        style={styles.modalLocationInput}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.searchModalActions}>
+                    <TouchableOpacity
+                      style={styles.modalFilterBtn}
+                      onPress={() => {
+                        setShowSearchModal(false);
+                        setShowFilters(true);
+                      }}
+                    >
+                      <Ionicons name="options-outline" size={20} color="#2563eb" />
+                      <Text style={styles.modalFilterBtnText}>Filtres avancés</Text>
+                      {getActiveFiltersCount() > 0 && (
+                        <View style={styles.modalBadge}>
+                          <Text style={styles.modalBadgeText}>{getActiveFiltersCount()}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.modalSearchBtn}
+                      onPress={() => {
+                        handleSearch();
+                        setShowSearchModal(false);
+                      }}
+                    >
+                      <Ionicons name="search" size={20} color="#ffffff" />
+                      <Text style={styles.modalSearchBtnText}>Rechercher</Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {error && (
-        <View style={styles.errorContainer}>
+        <View style={styles.error}>
+          <Ionicons name="alert-circle" size={18} color="#ef4444" />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
 
-      <FlatList
+      <Animated.FlatList
         data={vehicles}
         renderItem={renderVehicle}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={styles.list}
         ListEmptyComponent={!loading ? renderEmptyState : null}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#2E7D32']}
+            colors={['#2563eb']}
+            tintColor="#2563eb"
           />
         }
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
       />
 
-      {/* Modal de filtres */}
       <VehicleFiltersModal
         visible={showFilters}
         onClose={() => setShowFilters(false)}
         onApply={handleFilterChange}
         initialFilters={filters}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ffffff',
+  },
+  safeArea: {
+    backgroundColor: '#ffffff',
+  },
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e2e8f0',
   },
-  backButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  addButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-  },
-  filterButton: {
-    flex: 1,
-    flexDirection: 'row',
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+  },
+  headerCenter: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -1,
+  },
+  headerCount: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  filterBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
   },
-  filterBadge: {
+  badge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#e67e22',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    top: -2,
+    right: -2,
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: '#ffffff',
   },
-  filterBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '700',
   },
-  searchSection: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  searchBarContainer: {
-    gap: 10,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  locationInputContainer: {
-    marginTop: 0,
-  },
-  locationInput: {
-    marginTop: 0,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-  },
-  clearButton: {
-    marginLeft: 8,
-    padding: 4,
-  },
-  searchActions: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
-  filterButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    position: 'relative',
-  },
-  searchButton: {
-    backgroundColor: '#2E7D32',
-    paddingVertical: 12,
+  searchWrapper: {
     paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: 12,
+    paddingBottom: 16,
+    backgroundColor: '#ffffff',
   },
-  activeFiltersContainer: {
-    marginTop: 12,
-    maxHeight: 50,
-  },
-  activeFiltersContent: {
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingBottom: 8,
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 12,
   },
-  activeFilter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e8f5e9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  activeFilterText: {
-    fontSize: 12,
-    color: '#2E7D32',
-    fontWeight: '500',
-  },
-  resetFiltersButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#fff3e0',
-  },
-  resetFiltersText: {
-    fontSize: 12,
-    color: '#e67e22',
-    fontWeight: '500',
-  },
-  loadingContainer: {
+  searchTextWrapper: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  listContent: {
-    paddingTop: 10,
+  searchText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  searchPlaceholder: {
+    fontSize: 15,
+    color: '#94a3b8',
+  },
+  filterDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#2563eb',
+  },
+  filterDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#2563eb',
+  },
+  filtersRow: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e2e8f0',
+  },
+  filtersContent: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  clearBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  clearText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ef4444',
+  },
+  list: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 20,
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 120,
     paddingHorizontal: 40,
   },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
-    marginTop: 16,
-    textAlign: 'center',
+  emptyIcon: {
+    marginBottom: 20,
   },
-  emptyStateSubtext: {
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 8,
+  },
+  emptyText: {
     fontSize: 14,
-    color: '#999',
-    marginTop: 8,
+    color: '#64748b',
     textAlign: 'center',
+    marginBottom: 24,
   },
-  errorContainer: {
-    backgroundColor: '#ffebee',
-    padding: 12,
+  resetBtn: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  resetBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  error: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#fef2f2',
+    padding: 14,
     marginHorizontal: 20,
-    marginTop: 10,
-    borderRadius: 8,
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
   },
   errorText: {
-    color: '#c62828',
-    fontSize: 14,
+    flex: 1,
+    color: '#dc2626',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  searchModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  searchModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  searchModalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '90%',
+    minHeight: '75%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 20,
+  },
+  searchModalScroll: {
+    flex: 1,
+  },
+  searchModalScrollContent: {
+    paddingBottom: 40,
+  },
+  searchModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  searchModalTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f1f5f9',
+  },
+  searchInputs: {
+    gap: 24,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 8,
+  },
+  searchFieldContainer: {
+    gap: 10,
+  },
+  searchFieldLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 4,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    gap: 12,
+  },
+  inputIcon: {
+    marginRight: 0,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#0f172a',
+    fontWeight: '500',
+  },
+  brandAutocomplete: {
+    width: '100%',
+  },
+  modalLocationInput: {
+    width: '100%',
+  },
+  searchModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 8,
+  },
+  modalFilterBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 8,
+    position: 'relative',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+  },
+  modalFilterBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  modalBadge: {
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    position: 'absolute',
+    top: -4,
+    right: -4,
+  },
+  modalBadgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  modalSearchBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2563eb',
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  modalSearchBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });
 

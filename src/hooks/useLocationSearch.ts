@@ -32,10 +32,9 @@ export const useLocationSearch = () => {
   };
 
   // Fonction de calcul de score de pertinence
-  const calculateRelevanceScore = (item: any, query: string, type: 'city' | 'neighborhood'): number => {
+  const calculateRelevanceScore = (item: any, query: string, type: 'city' | 'neighborhood' | 'commune'): number => {
     const normalizedQuery = normalizeText(query);
     const normalizedName = normalizeText(item.name);
-    const normalizedRegion = type === 'city' ? normalizeText(item.region) : normalizeText(item.commune);
     
     let score = 0;
     
@@ -50,10 +49,6 @@ export const useLocationSearch = () => {
     // Score pour inclusion dans le nom (60 points)
     else if (normalizedName.includes(normalizedQuery)) {
       score += 60;
-    }
-    // Score pour correspondance dans la région/commune (40 points)
-    else if (normalizedRegion.includes(normalizedQuery)) {
-      score += 40;
     }
     // Score pour correspondance partielle (20 points)
     else {
@@ -72,11 +67,6 @@ export const useLocationSearch = () => {
       }
     }
     
-    // Bonus pour les villes (10 points)
-    if (type === 'city') {
-      score += 10;
-    }
-    
     return score;
   };
 
@@ -92,69 +82,103 @@ export const useLocationSearch = () => {
       const searchLower = query.toLowerCase().trim();
       const results: Array<LocationResult & { score: number }> = [];
 
+      console.log('🔍 [useLocationSearch] Recherche pour:', query);
 
-      // Recherche intelligente dans les villes avec score
-      cities.forEach(city => {
-        const score = calculateRelevanceScore(city, query, 'city');
-        if (score > 0) {
-          results.push({
-            id: city.id,
-            name: city.name,
-            type: 'city' as const,
-            region: city.region,
-            latitude: city.latitude,
-            longitude: city.longitude,
-            score
-          });
-        }
-      });
+      // Recherche directe dans la base de données pour garantir les résultats
+      // 1. Rechercher les villes
+      const { data: citiesData, error: citiesError } = await supabase
+        .from('locations')
+        .select('id, name, latitude, longitude, type')
+        .eq('type', 'city')
+        .ilike('name', `%${query}%`)
+        .limit(10);
 
-      // Recherche intelligente dans les quartiers avec score
-      neighborhoods.forEach(neighborhood => {
-        const score = calculateRelevanceScore(neighborhood, query, 'neighborhood');
-        if (score > 0) {
-          results.push({
-            id: neighborhood.id,
-            name: neighborhood.name,
-            type: 'neighborhood' as const,
-            commune: neighborhood.type === 'commune' ? neighborhood.name : undefined,
-            city_id: neighborhood.parent_id,
-            latitude: neighborhood.latitude,
-            longitude: neighborhood.longitude,
-            score
-          });
-        }
-      });
+      if (!citiesError && citiesData) {
+        citiesData.forEach(city => {
+          const score = calculateRelevanceScore(city, query, 'city');
+          if (score > 0) {
+            results.push({
+              id: city.id,
+              name: city.name,
+              type: 'city' as const,
+              latitude: city.latitude,
+              longitude: city.longitude,
+              score: score + 100 // Bonus pour les villes
+            });
+          }
+        });
+      }
 
-      // Recherche intelligente dans les communes avec score
-      const communeMap = new Map<string, { score: number; location: any }>();
-      
-      neighborhoods.forEach(location => {
-        if (location.type === 'commune') {
-          const communeScore = calculateRelevanceScore(location, query, 'commune');
-          if (communeScore > 0) {
-            const communeName = location.name;
-            // Garder le meilleur score pour chaque commune
-            if (!communeMap.has(communeName) || communeMap.get(communeName)!.score < communeScore) {
-              communeMap.set(communeName, { score: communeScore, location });
-            }
+      // 2. Rechercher les communes
+      const { data: communesData, error: communesError } = await supabase
+        .from('locations')
+        .select('id, name, latitude, longitude, type, parent_id')
+        .eq('type', 'commune')
+        .ilike('name', `%${query}%`)
+        .limit(10);
+
+      if (!communesError && communesData) {
+        communesData.forEach(commune => {
+          const score = calculateRelevanceScore(commune, query, 'commune');
+          if (score > 0) {
+            results.push({
+              id: commune.id,
+              name: commune.name,
+              type: 'commune' as const,
+              commune: commune.name,
+              city_id: commune.parent_id,
+              latitude: commune.latitude,
+              longitude: commune.longitude,
+              score: score + 50 // Bonus pour les communes
+            });
+          }
+        });
+      }
+
+      // 3. Rechercher les quartiers
+      const { data: neighborhoodsData, error: neighborhoodsError } = await supabase
+        .from('locations')
+        .select('id, name, latitude, longitude, type, parent_id')
+        .eq('type', 'neighborhood')
+        .ilike('name', `%${query}%`)
+        .limit(10);
+
+      if (!neighborhoodsError && neighborhoodsData) {
+        // Récupérer les noms des communes parentes pour l'affichage
+        const parentIds = neighborhoodsData.map(n => n.parent_id).filter(Boolean) as string[];
+        let parentNames: { [key: string]: string } = {};
+        
+        if (parentIds.length > 0) {
+          const { data: parents } = await supabase
+            .from('locations')
+            .select('id, name, type')
+            .in('id', parentIds);
+          
+          if (parents) {
+            parentNames = parents.reduce((acc, p) => {
+              acc[p.id] = p.name;
+              return acc;
+            }, {} as { [key: string]: string });
           }
         }
-      });
 
-      // Ajouter les communes uniques avec leur meilleur score
-      communeMap.forEach(({ score, location }) => {
-        results.push({
-          id: location.id,
-          name: location.name,
-          type: 'commune' as const,
-          commune: location.name,
-          city_id: location.parent_id,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          score
+        neighborhoodsData.forEach(neighborhood => {
+          const score = calculateRelevanceScore(neighborhood, query, 'neighborhood');
+          if (score > 0) {
+            const communeName = neighborhood.parent_id ? parentNames[neighborhood.parent_id] : undefined;
+            results.push({
+              id: neighborhood.id,
+              name: neighborhood.name,
+              type: 'neighborhood' as const,
+              commune: communeName,
+              city_id: neighborhood.parent_id,
+              latitude: neighborhood.latitude,
+              longitude: neighborhood.longitude,
+              score
+            });
+          }
         });
-      });
+      }
 
       // Trier par score décroissant, puis par type, puis par nom
       results.sort((a, b) => {
@@ -175,6 +199,9 @@ export const useLocationSearch = () => {
 
       // Supprimer le score des résultats finaux
       const finalResults = results.map(({ score, ...result }) => result);
+
+      console.log('✅ [useLocationSearch] Résultats trouvés:', finalResults.length);
+      console.log('📋 [useLocationSearch] Premiers résultats:', finalResults.slice(0, 5).map(r => `${r.name} (${r.type})`));
 
       // Limiter à 20 résultats pour les performances
       return finalResults.slice(0, 20);

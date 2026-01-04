@@ -206,15 +206,20 @@ const LocationSearchInput: React.FC<LocationSearchInputProps> = ({
                     >
                       <View style={styles.resultContent}>
                         <Ionicons
-                          name={item.type === 'city' ? 'location' : 'home'}
+                          name={item.type === 'city' ? 'location' : item.type === 'commune' ? 'map' : 'home'}
                           size={20}
-                          color={item.type === 'city' ? '#007bff' : '#28a745'}
+                          color={item.type === 'city' ? '#2563eb' : item.type === 'commune' ? '#10b981' : '#64748b'}
                         />
                         <View style={styles.resultText}>
                           <Text style={styles.resultName}>{item.name}</Text>
                           {item.type === 'city' && item.region && (
                             <Text style={styles.resultSubtitle}>
                               {item.region} • Ville
+                            </Text>
+                          )}
+                          {item.type === 'commune' && (
+                            <Text style={styles.resultSubtitle}>
+                              Commune
                             </Text>
                           )}
                           {item.type === 'neighborhood' && item.commune && (
@@ -241,7 +246,7 @@ const LocationSearchInput: React.FC<LocationSearchInputProps> = ({
                 <View style={styles.noResultsContainer}>
                   <Ionicons name="location" size={48} color="#ccc" />
                   <Text style={styles.noResultsText}>
-                    Tapez pour rechercher une ville ou un quartier
+                    Tapez pour rechercher une ville, commune ou quartier
                   </Text>
                 </View>
               )}

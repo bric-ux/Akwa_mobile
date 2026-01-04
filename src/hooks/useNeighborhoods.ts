@@ -7,6 +7,8 @@ export interface Neighborhood {
   commune?: string;
   parent_id?: string;
   type?: 'neighborhood' | 'commune';
+  latitude?: number;
+  longitude?: number;
 }
 
 export const useNeighborhoods = () => {
@@ -22,7 +24,7 @@ export const useNeighborhoods = () => {
 
         const { data, error } = await supabase
           .from("locations")
-          .select("id, name, type, parent_id")
+          .select("id, name, type, parent_id, latitude, longitude")
           .in("type", ["neighborhood", "commune"])
           .order("name", { ascending: true });
 

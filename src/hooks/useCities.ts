@@ -5,6 +5,8 @@ export interface City {
   id: string;
   name: string;
   region?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export const useCities = () => {
@@ -20,7 +22,7 @@ export const useCities = () => {
 
         const { data, error } = await supabase
           .from('locations')
-          .select('id, name')
+          .select('id, name, latitude, longitude')
           .eq('type', 'city')
           .order('name');
         
