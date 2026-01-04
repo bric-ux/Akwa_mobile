@@ -33,7 +33,7 @@ export const useMessaging = () => {
 
       console.log('✅ [useMessaging] Requête simple réussie:', simpleData?.length || 0, 'conversations');
 
-      // Ensuite, testons la requête complète
+      // Ensuite, testons la requête complète (comme sur le site web)
       console.log('🔄 [useMessaging] Test requête complète...');
       const { data, error } = await supabase
         .from('conversations')
@@ -42,6 +42,13 @@ export const useMessaging = () => {
           property:properties(
             id,
             title,
+            images
+          ),
+          vehicle:vehicles(
+            id,
+            brand,
+            model,
+            year,
             images
           ),
           host_profile:profiles!conversations_host_id_fkey(
@@ -96,14 +103,39 @@ export const useMessaging = () => {
           })
         );
 
+        // Filtrer les conversations sans messages
+        const conversationsWithMessages = conversationsWithProfiles.filter(conv => conv.last_message !== null);
+        
+        // Supprimer les conversations vides de la base de données
+        const emptyConversationIds = conversationsWithProfiles
+          .filter(conv => conv.last_message === null)
+          .map(conv => conv.id);
+        
+        if (emptyConversationIds.length > 0) {
+          console.log('🗑️ [useMessaging] Suppression de', emptyConversationIds.length, 'conversations vides');
+          // Supprimer en arrière-plan sans bloquer
+          supabase
+            .from('conversations')
+            .delete()
+            .in('id', emptyConversationIds)
+            .then(({ error }) => {
+              if (error) {
+                console.error('❌ [useMessaging] Erreur lors de la suppression des conversations vides:', error);
+              } else {
+                console.log('✅ [useMessaging] Conversations vides supprimées');
+              }
+            });
+        }
+
         // Trier les conversations par date du dernier message (les plus récentes en haut)
-        conversationsWithProfiles.sort((a, b) => {
+        conversationsWithMessages.sort((a, b) => {
           const dateA = a.last_message?.created_at || a.updated_at || '';
           const dateB = b.last_message?.created_at || b.updated_at || '';
           return new Date(dateB).getTime() - new Date(dateA).getTime();
         });
 
-        setConversations(conversationsWithProfiles);
+        console.log('✅ [useMessaging] Conversations avec messages (filtrées):', conversationsWithMessages.length, 'sur', conversationsWithProfiles.length);
+        setConversations(conversationsWithMessages);
         return;
       }
 
@@ -170,15 +202,39 @@ export const useMessaging = () => {
         })
       );
 
+      // Filtrer les conversations sans messages
+      const conversationsWithMessages = conversationsWithLastMessages.filter(conv => conv.last_message !== null);
+      
+      // Supprimer les conversations vides de la base de données
+      const emptyConversationIds = conversationsWithLastMessages
+        .filter(conv => conv.last_message === null)
+        .map(conv => conv.id);
+      
+      if (emptyConversationIds.length > 0) {
+        console.log('🗑️ [useMessaging] Suppression de', emptyConversationIds.length, 'conversations vides');
+        // Supprimer en arrière-plan sans bloquer
+        supabase
+          .from('conversations')
+          .delete()
+          .in('id', emptyConversationIds)
+          .then(({ error }) => {
+            if (error) {
+              console.error('❌ [useMessaging] Erreur lors de la suppression des conversations vides:', error);
+            } else {
+              console.log('✅ [useMessaging] Conversations vides supprimées');
+            }
+          });
+      }
+
       // Trier les conversations par date du dernier message (les plus récentes en haut)
-      conversationsWithLastMessages.sort((a, b) => {
+      conversationsWithMessages.sort((a, b) => {
         const dateA = a.last_message?.created_at || a.updated_at || '';
         const dateB = b.last_message?.created_at || b.updated_at || '';
         return new Date(dateB).getTime() - new Date(dateA).getTime();
       });
 
-      console.log('✅ [useMessaging] Conversations avec derniers messages (triées):', conversationsWithLastMessages);
-      setConversations(conversationsWithLastMessages);
+      console.log('✅ [useMessaging] Conversations avec messages (filtrées et triées):', conversationsWithMessages.length, 'sur', conversationsWithLastMessages.length);
+      setConversations(conversationsWithMessages);
     } catch (err) {
       console.error('❌ [useMessaging] Erreur lors du chargement des conversations:', err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
@@ -321,18 +377,35 @@ export const useMessaging = () => {
     }
   }, []);
 
-  // Créer ou récupérer une conversation
+  // Créer ou récupérer une conversation (comme sur le site web)
   const createOrGetConversation = useCallback(async (
-    propertyId: string,
-    hostId: string,
-    guestId: string
+    propertyId?: string,
+    hostId?: string,
+    guestId?: string,
+    vehicleId?: string
   ) => {
     try {
-      // Vérifier si une conversation existe déjà
-      const { data: existing, error: fetchError } = await supabase
+      // Vérifier qu'on a au moins propertyId ou vehicleId
+      if (!propertyId && !vehicleId) {
+        throw new Error('propertyId ou vehicleId requis');
+      }
+
+      if (!hostId || !guestId) {
+        throw new Error('hostId et guestId requis');
+      }
+
+      // Chercher une conversation existante (comme sur le site web)
+      let existingQuery = supabase
         .from('conversations')
-        .select('id')
-        .eq('property_id', propertyId)
+        .select('id');
+      
+      if (propertyId) {
+        existingQuery = existingQuery.eq('property_id', propertyId);
+      } else if (vehicleId) {
+        existingQuery = existingQuery.eq('vehicle_id', vehicleId);
+      }
+      
+      const { data: existing, error: fetchError } = await existingQuery
         .or(`and(guest_id.eq.${guestId},host_id.eq.${hostId}),and(guest_id.eq.${hostId},host_id.eq.${guestId})`)
         .maybeSingle();
 
@@ -341,27 +414,39 @@ export const useMessaging = () => {
       }
 
       if (existing) {
+        console.log('✅ [useMessaging] Conversation existante trouvée:', existing.id);
         return existing.id;
       }
 
-      // Créer une nouvelle conversation
+      // Créer une nouvelle conversation (comme sur le site web)
+      const insertData: any = {
+        guest_id: guestId,
+        host_id: hostId
+      };
+      
+      if (propertyId) {
+        insertData.property_id = propertyId;
+      } else if (vehicleId) {
+        insertData.vehicle_id = vehicleId;
+      }
+
+      console.log('🟡 [useMessaging] Création nouvelle conversation avec:', insertData);
+      
       const { data: newConversation, error: createError } = await supabase
         .from('conversations')
-        .insert({
-          property_id: propertyId,
-          guest_id: guestId,
-          host_id: hostId
-        })
+        .insert(insertData)
         .select('id')
         .single();
 
       if (createError) {
+        console.error('❌ [useMessaging] Erreur création conversation:', createError);
         throw createError;
       }
 
+      console.log('✅ [useMessaging] Nouvelle conversation créée:', newConversation.id);
       return newConversation.id;
     } catch (err) {
-      console.error('Erreur lors de la création/récupération de conversation:', err);
+      console.error('❌ [useMessaging] Erreur lors de la création/récupération de conversation:', err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');
       throw err;
     }

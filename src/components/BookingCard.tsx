@@ -54,9 +54,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
         : 'Hôte';
       
       const conversationId = await createOrGetConversation(
-        booking.properties.id,
-        booking.properties.host_id, // host_id
-        user.id                     // guest_id
+        booking.properties.id, // propertyId
+        booking.properties.host_id, // hostId
+        user.id, // guestId
+        undefined // vehicleId (pas de véhicule ici)
       );
 
       if (conversationId) {

@@ -112,7 +112,8 @@ export interface Amenity {
 
 export interface Conversation {
   id: string;
-  property_id: string;
+  property_id?: string;
+  vehicle_id?: string;
   guest_id: string;
   host_id: string;
   created_at: string;
@@ -120,8 +121,16 @@ export interface Conversation {
   last_message?: Message;
   unread_count?: number;
   property?: {
+    id: string;
     title: string;
     images: string[];
+  };
+  vehicle?: {
+    id: string;
+    brand: string;
+    model: string;
+    year?: number;
+    images?: string[];
   };
   host_profile?: {
     first_name: string;

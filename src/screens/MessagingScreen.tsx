@@ -34,6 +34,7 @@ const MessagingScreen: React.FC = () => {
   // Récupérer l'ID de conversation et de propriété depuis les paramètres de navigation
   const conversationId = (route.params as any)?.conversationId;
   const propertyId = (route.params as any)?.propertyId;
+  const vehicleId = (route.params as any)?.vehicleId;
   const {
     conversations,
     messages,
@@ -225,6 +226,11 @@ const MessagingScreen: React.FC = () => {
       (navigation as any).navigate('PropertyDetails', { propertyId });
       return;
     }
+    // Si la conversation a été ouverte depuis un véhicule, naviguer vers le véhicule
+    if (openedFromParam && vehicleId) {
+      (navigation as any).navigate('VehicleDetails', { vehicleId });
+      return;
+    }
     // Sinon, retourner à la liste locale des conversations
     setSelectedConversation(null);
     setShowConversations(true);
@@ -333,7 +339,11 @@ const MessagingScreen: React.FC = () => {
               {getOtherUserName(selectedConversation)}
             </Text>
             <Text style={styles.chatSubtitle} numberOfLines={1}>
-              {String(selectedConversation.property?.title ?? t('messages.property'))}
+              {selectedConversation.property?.title 
+                ? selectedConversation.property.title
+                : selectedConversation.vehicle
+                  ? `${selectedConversation.vehicle.brand} ${selectedConversation.vehicle.model}${selectedConversation.vehicle.year ? ` (${selectedConversation.vehicle.year})` : ''}`
+                  : t('messages.property')}
             </Text>
           </View>
         </View>

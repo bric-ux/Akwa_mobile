@@ -79,9 +79,10 @@ const BookingContactButton: React.FC<BookingContactButtonProps> = ({
       });
 
       const conversationId = await createOrGetConversation(
-        propertyId,
-        isHost ? otherParticipantId : user.id, // host_id
-        isHost ? user.id : otherParticipantId   // guest_id
+        propertyId, // propertyId
+        isHost ? otherParticipantId : user.id, // hostId
+        isHost ? user.id : otherParticipantId, // guestId
+        undefined // vehicleId (pas de véhicule ici)
       );
 
       if (conversationId) {

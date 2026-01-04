@@ -10,18 +10,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useMessaging } from '../hooks/useMessaging';
-import { Property } from '../types';
+import { Vehicle } from '../types';
 
-interface ContactHostButtonProps {
-  property: Property;
+interface ContactOwnerButtonProps {
+  vehicle: Vehicle;
   variant?: 'primary' | 'secondary' | 'outline';
   size?: 'small' | 'medium' | 'large';
   showIcon?: boolean;
   style?: any;
 }
 
-const ContactHostButton: React.FC<ContactHostButtonProps> = ({
-  property,
+const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
+  vehicle,
   variant = 'primary',
   size = 'medium',
   showIcon = true,
@@ -32,11 +32,11 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
   const { createOrGetConversation } = useMessaging();
   const [loading, setLoading] = useState(false);
 
-  const handleContactHost = async () => {
+  const handleContactOwner = async () => {
     if (!user) {
       Alert.alert(
         'Connexion requise',
-        'Vous devez être connecté pour contacter l\'hôte',
+        'Vous devez être connecté pour contacter le propriétaire',
         [
           { text: 'Annuler', style: 'cancel' },
           { text: 'Se connecter', onPress: () => navigation.navigate('Auth' as never) }
@@ -45,13 +45,13 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
       return;
     }
 
-    if (!property) {
-      Alert.alert('Erreur', 'Propriété introuvable');
+    if (!vehicle) {
+      Alert.alert('Erreur', 'Véhicule introuvable');
       return;
     }
 
     // L'utilisateur ne peut pas se contacter lui-même
-    if (user.id === property.host_id) {
+    if (user.id === vehicle.owner_id) {
       Alert.alert(
         'Action impossible',
         'Vous ne pouvez pas vous contacter vous-même'
@@ -61,33 +61,33 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
 
     setLoading(true);
     try {
-      console.log('🟡 [ContactHostButton] Contact de l\'hôte:', {
-        propertyId: property.id,
-        hostId: property.host_id,
+      console.log('🟡 [ContactOwnerButton] Contact du propriétaire:', {
+        vehicleId: vehicle.id,
+        ownerId: vehicle.owner_id,
         guestId: user.id
       });
 
       const conversationId = await createOrGetConversation(
-        property.id, // propertyId
-        property.host_id, // hostId
-        user.id, // guestId
-        undefined // vehicleId (pas de véhicule ici)
+        undefined, // propertyId (pas de propriété ici)
+        vehicle.owner_id, // hostId (le propriétaire est l'hôte)
+        user.id, // guestId (l'utilisateur est l'invité)
+        vehicle.id // vehicleId
       );
 
       if (conversationId) {
-        console.log('✅ [ContactHostButton] Conversation créée:', conversationId);
+        console.log('✅ [ContactOwnerButton] Conversation créée:', conversationId);
         
         Alert.alert(
           'Conversation créée',
-          'Vous pouvez maintenant discuter avec l\'hôte',
+          'Vous pouvez maintenant discuter avec le propriétaire',
           [
             {
               text: 'Ouvrir la conversation',
               onPress: () => {
-                // Navigation vers l'onglet de messagerie avec l'ID de conversation et la propriété
+                // Navigation vers l'onglet de messagerie avec l'ID de conversation et le véhicule
                 (navigation as any).navigate('Home', { 
                   screen: 'MessagingTab',
-                  params: { conversationId, propertyId: property.id }
+                  params: { conversationId, vehicleId: vehicle.id }
                 });
               }
             }
@@ -97,10 +97,10 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
         throw new Error('Impossible de créer la conversation');
       }
     } catch (error: any) {
-      console.error('❌ [ContactHostButton] Erreur:', error);
+      console.error('❌ [ContactOwnerButton] Erreur:', error);
       Alert.alert(
         'Erreur',
-        error.message || 'Impossible de contacter l\'hôte'
+        error.message || 'Impossible de contacter le propriétaire'
       );
     } finally {
       setLoading(false);
@@ -189,8 +189,8 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
   return (
     <TouchableOpacity
       style={getButtonStyle()}
-      onPress={handleContactHost}
-      disabled={loading || !user || user.id === property.host_id}
+      onPress={handleContactOwner}
+      disabled={loading || !user || user.id === vehicle.owner_id}
       activeOpacity={0.7}
     >
       {loading ? (
@@ -209,7 +209,7 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
             />
           )}
           <Text style={getTextStyle()}>
-            Contacter l'hôte
+            Contacter le propriétaire
           </Text>
         </>
       )}
@@ -279,4 +279,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ContactHostButton;
+export default ContactOwnerButton;
+

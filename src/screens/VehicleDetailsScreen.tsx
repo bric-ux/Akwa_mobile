@@ -18,6 +18,7 @@ import { Vehicle } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../services/AuthContext';
+import ContactOwnerButton from '../components/ContactOwnerButton';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -208,9 +209,15 @@ const VehicleDetailsScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Bouton de réservation */}
+      {/* Boutons d'action */}
       {!isOwner && (
         <View style={styles.footer}>
+          <ContactOwnerButton
+            vehicle={vehicle}
+            variant="outline"
+            size="medium"
+            style={styles.contactButton}
+          />
           <TouchableOpacity
             style={styles.bookButton}
             onPress={handleBookVehicle}
@@ -403,6 +410,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+    gap: 12,
+  },
+  contactButton: {
+    marginBottom: 8,
   },
   bookButton: {
     backgroundColor: '#2E7D32',
