@@ -36,26 +36,41 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   const [calendarMode, setCalendarMode] = useState<'checkIn' | 'checkOut'>('checkIn');
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  // Synchroniser les valeurs temporaires avec les props seulement au montage initial
+  // Synchroniser les valeurs temporaires avec les props quand elles changent depuis l'extérieur
+  // Utiliser un ref pour éviter les boucles infinies
+  const prevPropsRef = React.useRef({ checkIn, checkOut, adults, children, babies });
+  
   React.useEffect(() => {
-    // Synchroniser seulement au montage initial
-    if (checkIn !== undefined && tempCheckIn === undefined) {
-      setTempCheckIn(checkIn);
+    // Synchroniser seulement si les props ont changé depuis l'extérieur (pas depuis nos propres mises à jour)
+    const propsChanged = 
+      prevPropsRef.current.checkIn !== checkIn ||
+      prevPropsRef.current.checkOut !== checkOut ||
+      prevPropsRef.current.adults !== adults ||
+      prevPropsRef.current.children !== children ||
+      prevPropsRef.current.babies !== babies;
+    
+    if (propsChanged) {
+      // Mettre à jour les valeurs temporaires seulement si les props ont changé depuis l'extérieur
+      if (checkIn !== undefined && checkIn !== tempCheckIn) {
+        setTempCheckIn(checkIn);
+      }
+      if (checkOut !== undefined && checkOut !== tempCheckOut) {
+        setTempCheckOut(checkOut);
+      }
+      if (adults !== undefined && adults !== tempAdults) {
+        setTempAdults(adults);
+      }
+      if (children !== undefined && children !== tempChildren) {
+        setTempChildren(children);
+      }
+      if (babies !== undefined && babies !== tempBabies) {
+        setTempBabies(babies);
+      }
+      
+      // Mettre à jour la référence
+      prevPropsRef.current = { checkIn, checkOut, adults, children, babies };
     }
-    if (checkOut !== undefined && tempCheckOut === undefined) {
-      setTempCheckOut(checkOut);
-    }
-    if (adults !== undefined && tempAdults === undefined) {
-      setTempAdults(adults);
-    }
-    if (children !== undefined && tempChildren === undefined) {
-      setTempChildren(children);
-    }
-    if (babies !== undefined && tempBabies === undefined) {
-      setTempBabies(babies);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Seulement au montage
+  }, [checkIn, checkOut, adults, children, babies, tempCheckIn, tempCheckOut, tempAdults, tempChildren, tempBabies]);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Choisir';
@@ -126,6 +141,13 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   };
 
   const openCalendar = (mode: 'checkIn' | 'checkOut') => {
+    // Réinitialiser les valeurs temporaires avec les props actuelles quand on ouvre le calendrier
+    if (checkIn !== undefined) {
+      setTempCheckIn(checkIn);
+    }
+    if (checkOut !== undefined) {
+      setTempCheckOut(checkOut);
+    }
     setCalendarMode(mode);
     setShowCalendar(true);
   };
