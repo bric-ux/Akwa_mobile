@@ -19,7 +19,8 @@ import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import { formatPrice } from '../utils/priceCalculator';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateGuestsSelector from '../components/DateGuestsSelector';
+import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 
 type VehicleBookingRouteProp = RouteProp<RootStackParamList, 'VehicleBooking'>;
 
@@ -31,13 +32,12 @@ const VehicleBookingScreen: React.FC = () => {
   const { getVehicleById } = useVehicles();
   const { createBooking, loading } = useVehicleBookings();
   const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
+  const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
 
   const [vehicle, setVehicle] = useState<any>(null);
   const [loadingVehicle, setLoadingVehicle] = useState(true);
-  const [startDate, setStartDate] = useState<Date>(new Date());
-  const [endDate, setEndDate] = useState<Date>(new Date(Date.now() + 86400000)); // Demain
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [startDate, setStartDate] = useState<string>(searchDates.checkIn || '');
+  const [endDate, setEndDate] = useState<string>(searchDates.checkOut || '');
   const [message, setMessage] = useState('');
   const [hasLicense, setHasLicense] = useState(false);
   const [licenseYears, setLicenseYears] = useState('');
@@ -63,6 +63,16 @@ const VehicleBookingScreen: React.FC = () => {
     loadVehicle();
   }, [vehicleId]);
 
+  // Initialiser les dates depuis le contexte si disponibles
+  useEffect(() => {
+    if (searchDates.checkIn) {
+      setStartDate(searchDates.checkIn);
+    }
+    if (searchDates.checkOut) {
+      setEndDate(searchDates.checkOut);
+    }
+  }, [searchDates.checkIn, searchDates.checkOut]);
+
   const requiresLicense = vehicle?.requires_license !== false;
   const minLicenseYears = vehicle?.min_license_years || 0;
   const withDriver = vehicle?.with_driver || false;
@@ -70,9 +80,29 @@ const VehicleBookingScreen: React.FC = () => {
 
   const calculateRentalDays = () => {
     if (!startDate || !endDate) return 0;
-    const diffTime = endDate.getTime() - startDate.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = end.getTime() - start.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays > 0 ? diffDays : 0;
+  };
+
+  const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
+    // Pour les véhicules, on utilise seulement les dates
+    if (dates.checkIn) {
+      setStartDate(dates.checkIn);
+    }
+    if (dates.checkOut) {
+      setEndDate(dates.checkOut);
+    }
+    // Sauvegarder les dates dans le contexte
+    saveSearchDates({
+      checkIn: dates.checkIn,
+      checkOut: dates.checkOut,
+      adults: guests.adults,
+      children: guests.children,
+      babies: guests.babies,
+    });
   };
 
   const rentalDays = calculateRentalDays();
@@ -116,7 +146,9 @@ const VehicleBookingScreen: React.FC = () => {
       return;
     }
 
-    if (rentalDays <= 0) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (end <= start) {
       Alert.alert('Erreur', 'La date de fin doit être après la date de début');
       return;
     }
@@ -144,8 +176,8 @@ const VehicleBookingScreen: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
+      const startDateStr = startDate;
+      const endDateStr = endDate;
 
       const result = await createBooking({
         vehicleId: vehicle.id,
@@ -258,40 +290,14 @@ const VehicleBookingScreen: React.FC = () => {
         {/* Dates */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Dates de location</Text>
-          <View style={styles.dateRow}>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowStartPicker(true)}
-            >
-              <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
-              <View style={styles.dateButtonContent}>
-                <Text style={styles.dateLabel}>Date de début</Text>
-                <Text style={styles.dateValue}>
-                  {startDate.toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                  })}
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowEndPicker(true)}
-            >
-              <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
-              <View style={styles.dateButtonContent}>
-                <Text style={styles.dateLabel}>Date de fin</Text>
-                <Text style={styles.dateValue}>
-                  {endDate.toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                  })}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+          <DateGuestsSelector
+            checkIn={startDate}
+            checkOut={endDate}
+            adults={1}
+            children={0}
+            babies={0}
+            onDateGuestsChange={handleDateGuestsChange}
+          />
           {rentalDays > 0 && (
             <Text style={styles.rentalDaysText}>
               {rentalDays} jour{rentalDays > 1 ? 's' : ''} de location
@@ -427,40 +433,6 @@ const VehicleBookingScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Date Pickers */}
-      {showStartPicker && (
-        <DateTimePicker
-          value={startDate}
-          mode="date"
-          display="default"
-          minimumDate={new Date()}
-          onChange={(event, selectedDate) => {
-            setShowStartPicker(false);
-            if (selectedDate) {
-              setStartDate(selectedDate);
-              if (selectedDate >= endDate) {
-                const newEndDate = new Date(selectedDate);
-                newEndDate.setDate(newEndDate.getDate() + 1);
-                setEndDate(newEndDate);
-              }
-            }
-          }}
-        />
-      )}
-      {showEndPicker && (
-        <DateTimePicker
-          value={endDate}
-          mode="date"
-          display="default"
-          minimumDate={startDate}
-          onChange={(event, selectedDate) => {
-            setShowEndPicker(false);
-            if (selectedDate) {
-              setEndDate(selectedDate);
-            }
-          }}
-        />
-      )}
     </SafeAreaView>
   );
 };

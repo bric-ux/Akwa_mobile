@@ -29,6 +29,7 @@ import VehicleBrandAutocomplete from '../components/VehicleBrandAutocomplete';
 import { LocationResult } from '../hooks/useLocationSearch';
 import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
+import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 
 const { width } = Dimensions.get('window');
 
@@ -37,15 +38,26 @@ const VehiclesScreen: React.FC = () => {
   const { vehicles, loading, error, fetchVehicles, refetch } = useVehicles();
   const { t } = useLanguage();
   const { formatPrice } = useCurrency();
+  const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState<VehicleFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocationName, setSelectedLocationName] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>(searchDates.checkIn || '');
+  const [endDate, setEndDate] = useState<string>(searchDates.checkOut || '');
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Synchroniser avec le contexte quand il change
+  useEffect(() => {
+    if (searchDates.checkIn !== undefined && searchDates.checkIn !== startDate) {
+      setStartDate(searchDates.checkIn);
+    }
+    if (searchDates.checkOut !== undefined && searchDates.checkOut !== endDate) {
+      setEndDate(searchDates.checkOut);
+    }
+  }, [searchDates.checkIn, searchDates.checkOut]);
 
   useEffect(() => {
     const searchFilters: VehicleFilters = {
@@ -95,6 +107,14 @@ const VehiclesScreen: React.FC = () => {
     // Pour les véhicules, on utilise seulement les dates (pas les voyageurs)
     setStartDate(dates.checkIn || '');
     setEndDate(dates.checkOut || '');
+    // Sauvegarder les dates dans le contexte
+    saveSearchDates({
+      checkIn: dates.checkIn,
+      checkOut: dates.checkOut,
+      adults: guests.adults,
+      children: guests.children,
+      babies: guests.babies,
+    });
   };
 
   const handleResetFilters = () => {
