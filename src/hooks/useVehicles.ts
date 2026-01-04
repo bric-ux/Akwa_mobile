@@ -64,8 +64,103 @@ export const useVehicles = () => {
         query = query.gte('seats', filters.seats);
       }
 
-      if (filters?.locationId) {
-        query = query.eq('location_id', filters.locationId);
+      // Recherche hiérarchique par localisation (comme pour les propriétés)
+      let locationIds: string[] | null = null;
+      
+      if (filters?.locationName) {
+        const searchTerm = filters.locationName.trim();
+        
+        // Recherche par ville
+        const { data: cityData } = await supabase
+          .from('locations')
+          .select('id')
+          .eq('type', 'city')
+          .ilike('name', `%${searchTerm}%`);
+        
+        if (cityData && cityData.length > 0) {
+          // C'est une ville, récupérer tous les enfants (communes, quartiers)
+          const cityIds = cityData.map(c => c.id);
+          
+          // Étape 1: Récupérer les communes (enfants directs de la ville)
+          const { data: communeLocations } = await supabase
+            .from('locations')
+            .select('id')
+            .in('parent_id', cityIds)
+            .eq('type', 'commune');
+          
+          const communeIds = (communeLocations || []).map(l => l.id);
+          
+          // Étape 2: Récupérer les quartiers (enfants des communes)
+          let neighborhoodIds: string[] = [];
+          if (communeIds.length > 0) {
+            const { data: neighborhoodLocations } = await supabase
+              .from('locations')
+              .select('id')
+              .in('parent_id', communeIds)
+              .eq('type', 'neighborhood');
+            
+            neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
+          }
+          
+          // Inclure les villes, les communes ET les quartiers
+          locationIds = [...cityIds, ...communeIds, ...neighborhoodIds];
+          
+          console.log(`✅ [useVehicles] Ville trouvée: ${cityIds.length} ville(s), ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
+        } else {
+          // Chercher dans les communes
+          const { data: communeData } = await supabase
+            .from('locations')
+            .select('id, type, parent_id')
+            .eq('type', 'commune')
+            .ilike('name', `%${searchTerm}%`);
+          
+          if (communeData && communeData.length > 0) {
+            // C'est une commune, récupérer la commune ET tous ses quartiers
+            const communeIds = communeData.map(c => c.id);
+            
+            const { data: neighborhoodLocations } = await supabase
+              .from('locations')
+              .select('id')
+              .in('parent_id', communeIds)
+              .eq('type', 'neighborhood');
+            
+            const neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
+            
+            // Inclure les communes ET les quartiers
+            locationIds = [...communeIds, ...neighborhoodIds];
+            
+            console.log(`✅ [useVehicles] Commune trouvée: ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
+          } else {
+            // Chercher dans les quartiers
+            const { data: neighborhoodData } = await supabase
+              .from('locations')
+              .select('id')
+              .eq('type', 'neighborhood')
+              .ilike('name', `%${searchTerm}%`);
+            
+            if (neighborhoodData && neighborhoodData.length > 0) {
+              locationIds = neighborhoodData.map(l => l.id);
+              console.log(`✅ [useVehicles] Quartier trouvé: ${locationIds.length} quartier(s) pour "${searchTerm}"`);
+            }
+          }
+        }
+        
+        if (!locationIds || locationIds.length === 0) {
+          console.log(`❌ [useVehicles] Aucune localisation trouvée pour "${searchTerm}"`);
+          setVehicles([]);
+          setLoading(false);
+          return;
+        }
+      } else if (filters?.locationId) {
+        // Filtre direct par ID (pour compatibilité)
+        locationIds = [filters.locationId];
+      }
+
+      // Appliquer le filtre location_id si présent
+      if (locationIds && locationIds.length > 0) {
+        query = query
+          .in('location_id', locationIds)
+          .not('location_id', 'is', null);
       }
 
       if (filters?.features && filters.features.length > 0) {
@@ -87,12 +182,68 @@ export const useVehicles = () => {
         .order('rating', { ascending: false })
         .order('created_at', { ascending: false });
 
+      // Filtrer par dates de disponibilité si startDate et endDate sont fournis
+      let availableVehicles = data || [];
+      if (filters?.startDate && filters?.endDate) {
+        const startDate = filters.startDate;
+        const endDate = filters.endDate;
+        
+        console.log(`🔍 [useVehicles] Filtrage par dates: ${startDate} - ${endDate}`);
+        
+        // Récupérer tous les IDs de véhicules pour vérifier leur disponibilité
+        const vehicleIds = availableVehicles.map(v => v.id);
+        
+        if (vehicleIds.length > 0) {
+          // Récupérer les réservations qui chevauchent les dates sélectionnées
+          const { data: conflictingBookings, error: bookingsError } = await supabase
+            .from('vehicle_bookings')
+            .select('vehicle_id')
+            .in('vehicle_id', vehicleIds)
+            .in('status', ['pending', 'confirmed', 'completed'])
+            .or(`and(start_date.lte.${endDate},end_date.gte.${startDate})`);
+          
+          if (bookingsError) {
+            console.error('❌ [useVehicles] Erreur lors de la vérification des réservations:', bookingsError);
+          }
+          
+          // Récupérer les dates bloquées qui chevauchent les dates sélectionnées
+          const { data: blockedDates, error: blockedError } = await supabase
+            .from('vehicle_blocked_dates')
+            .select('vehicle_id')
+            .in('vehicle_id', vehicleIds)
+            .or(`and(start_date.lte.${endDate},end_date.gte.${startDate})`);
+          
+          if (blockedError) {
+            console.error('❌ [useVehicles] Erreur lors de la vérification des dates bloquées:', blockedError);
+          }
+          
+          // Créer un Set des IDs de véhicules indisponibles
+          const unavailableVehicleIds = new Set<string>();
+          
+          (conflictingBookings || []).forEach((booking: any) => {
+            unavailableVehicleIds.add(booking.vehicle_id);
+          });
+          
+          (blockedDates || []).forEach((blocked: any) => {
+            unavailableVehicleIds.add(blocked.vehicle_id);
+          });
+          
+          // Filtrer les véhicules disponibles
+          availableVehicles = availableVehicles.filter((vehicle: any) => {
+            return !unavailableVehicleIds.has(vehicle.id);
+          });
+          
+          console.log(`✅ [useVehicles] ${availableVehicles.length} véhicule(s) disponible(s) sur ${data?.length || 0} après filtrage par dates`);
+        }
+      }
+
       if (queryError) {
         throw queryError;
       }
 
-      // Transformer les données
-      const transformedVehicles: Vehicle[] = (data || []).map((vehicle: any) => {
+      // Transformer les données (utiliser availableVehicles au lieu de data si filtrage par dates)
+      const vehiclesToTransform = (filters?.startDate && filters?.endDate) ? availableVehicles : (data || []);
+      const transformedVehicles: Vehicle[] = vehiclesToTransform.map((vehicle: any) => {
         // Extraire la première image principale ou la première image
         const photos = vehicle.vehicle_photos || [];
         const mainPhoto = photos.find((p: any) => p.is_main) || photos[0];

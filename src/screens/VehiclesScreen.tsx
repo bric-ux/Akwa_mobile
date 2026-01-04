@@ -28,6 +28,7 @@ import LocationSearchInput from '../components/LocationSearchInput';
 import VehicleBrandAutocomplete from '../components/VehicleBrandAutocomplete';
 import { LocationResult } from '../hooks/useLocationSearch';
 import { useCurrency } from '../hooks/useCurrency';
+import DateGuestsSelector from '../components/DateGuestsSelector';
 
 const { width } = Dimensions.get('window');
 
@@ -42,6 +43,8 @@ const VehiclesScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocationName, setSelectedLocationName] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -70,7 +73,8 @@ const VehiclesScreen: React.FC = () => {
     setSelectedLocationName(location.name);
     setFilters({
       ...filters,
-      locationId: location.id,
+      locationName: location.name, // Utiliser le nom pour la recherche hiérarchique
+      locationId: undefined, // Ne plus utiliser locationId pour la recherche hiérarchique
     });
   };
 
@@ -78,21 +82,34 @@ const VehiclesScreen: React.FC = () => {
     const searchFilters: VehicleFilters = {
       ...filters,
       search: searchQuery.trim() || undefined,
+      // Si on a une localisation sélectionnée, utiliser son nom pour la recherche hiérarchique
+      locationName: selectedLocationName || filters.locationName,
+      // Ajouter les dates si sélectionnées
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
     };
     fetchVehicles(searchFilters);
+  };
+
+  const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
+    // Pour les véhicules, on utilise seulement les dates (pas les voyageurs)
+    setStartDate(dates.checkIn || '');
+    setEndDate(dates.checkOut || '');
   };
 
   const handleResetFilters = () => {
     setFilters({});
     setSearchQuery('');
     setSelectedLocationName('');
+    setStartDate('');
+    setEndDate('');
   };
 
   const removeFilter = (filterKey: keyof VehicleFilters) => {
     const newFilters = { ...filters };
     delete newFilters[filterKey];
     setFilters(newFilters);
-    if (filterKey === 'locationId') {
+    if (filterKey === 'locationId' || filterKey === 'locationName') {
       setSelectedLocationName('');
     }
   };
@@ -106,9 +123,11 @@ const VehiclesScreen: React.FC = () => {
     if (filters.seats) count++;
     if (filters.priceMin) count++;
     if (filters.priceMax) count++;
-    if (filters.locationId) count++;
+    if (filters.locationId || filters.locationName) count++;
     if (filters.features && filters.features.length > 0) count++;
     if (filters.search) count++;
+    if (filters.startDate) count++;
+    if (filters.endDate) count++;
     return count;
   };
 
@@ -318,12 +337,16 @@ const VehiclesScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
             )}
-            {filters.locationId && (
+            {(filters.locationId || filters.locationName) && (
               <View style={styles.chip}>
                 <Text style={styles.chipText} numberOfLines={1}>
-                  {selectedLocationName || 'Lieu'}
+                  {selectedLocationName || filters.locationName || 'Lieu'}
                 </Text>
-                <TouchableOpacity onPress={() => removeFilter('locationId')}>
+                <TouchableOpacity onPress={() => {
+                  removeFilter('locationId');
+                  removeFilter('locationName');
+                  setSelectedLocationName('');
+                }}>
                   <Ionicons name="close" size={12} color="#2563eb" />
                 </TouchableOpacity>
               </View>
@@ -335,6 +358,25 @@ const VehiclesScreen: React.FC = () => {
                   onPress={() => {
                     setSearchQuery('');
                     removeFilter('search');
+                  }}
+                >
+                  <Ionicons name="close" size={12} color="#2563eb" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {(filters.startDate || filters.endDate) && (
+              <View style={styles.chip}>
+                <Text style={styles.chipText} numberOfLines={1}>
+                  {filters.startDate && filters.endDate
+                    ? `${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
+                    : filters.startDate
+                    ? `À partir du ${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
+                    : `Jusqu'au ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    removeFilter('startDate');
+                    removeFilter('endDate');
                   }}
                 >
                   <Ionicons name="close" size={12} color="#2563eb" />
@@ -379,17 +421,15 @@ const VehiclesScreen: React.FC = () => {
             >
               <TouchableWithoutFeedback>
                 <View style={styles.searchModalContent}>
-                  <SafeAreaView edges={['top']} style={styles.searchModalHeaderSafeArea}>
-                    <View style={styles.searchModalHeader}>
-                      <Text style={styles.searchModalTitle}>Rechercher un véhicule</Text>
-                      <TouchableOpacity
-                        onPress={() => setShowSearchModal(false)}
-                        style={styles.closeBtn}
-                      >
-                        <Ionicons name="close" size={24} color="#0f172a" />
-                      </TouchableOpacity>
-                    </View>
-                  </SafeAreaView>
+                  <View style={styles.searchModalHeader}>
+                    <Text style={styles.searchModalTitle}>Rechercher un véhicule</Text>
+                    <TouchableOpacity
+                      onPress={() => setShowSearchModal(false)}
+                      style={styles.closeBtn}
+                    >
+                      <Ionicons name="close" size={24} color="#0f172a" />
+                    </TouchableOpacity>
+                  </View>
 
                 <ScrollView
                   style={styles.searchModalScroll}
@@ -398,6 +438,19 @@ const VehiclesScreen: React.FC = () => {
                   keyboardShouldPersistTaps="handled"
                 >
                   <View style={styles.searchInputs}>
+                    {/* Dates de location - en premier pour plus de visibilité */}
+                    <View style={styles.searchFieldContainer}>
+                      <Text style={styles.searchFieldLabel}>Dates de location</Text>
+                      <DateGuestsSelector
+                        checkIn={startDate}
+                        checkOut={endDate}
+                        adults={1}
+                        children={0}
+                        babies={0}
+                        onDateGuestsChange={handleDateGuestsChange}
+                      />
+                    </View>
+
                     <View style={styles.searchFieldContainer}>
                       <Text style={styles.searchFieldLabel}>Marque ou modèle</Text>
                       <VehicleBrandAutocomplete
@@ -451,11 +504,11 @@ const VehiclesScreen: React.FC = () => {
                   </View>
                 </ScrollView>
               </View>
-                </TouchableWithoutFeedback>
-              </TouchableOpacity>
-            </KeyboardAvoidingView>
-          </SafeAreaView>
-        </Modal>
+            </TouchableWithoutFeedback>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
 
       {error && (
         <View style={styles.error}>
@@ -754,10 +807,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 12,
+    paddingTop: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    backgroundColor: '#ffffff',
   },
   searchModalTitle: {
     fontSize: 26,

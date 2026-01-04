@@ -8,9 +8,11 @@ import {
   ScrollView,
   TextInput,
   Switch,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { VehicleFilters, VehicleType, TransmissionType, FuelType } from '../types';
 
 interface VehicleFiltersModalProps {
@@ -67,6 +69,16 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
   const [priceMin, setPriceMin] = useState(initialFilters.priceMin?.toString() || '');
   const [priceMax, setPriceMax] = useState(initialFilters.priceMax?.toString() || '');
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>(initialFilters.features || []);
+  
+  // Dates
+  const [startDate, setStartDate] = useState<Date | null>(
+    initialFilters.startDate ? new Date(initialFilters.startDate) : null
+  );
+  const [endDate, setEndDate] = useState<Date | null>(
+    initialFilters.endDate ? new Date(initialFilters.endDate) : null
+  );
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -74,6 +86,8 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
       setPriceMin(initialFilters.priceMin?.toString() || '');
       setPriceMax(initialFilters.priceMax?.toString() || '');
       setSelectedFeatures(initialFilters.features || []);
+      setStartDate(initialFilters.startDate ? new Date(initialFilters.startDate) : null);
+      setEndDate(initialFilters.endDate ? new Date(initialFilters.endDate) : null);
     }
   }, [visible, initialFilters]);
 
@@ -83,6 +97,8 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
       priceMin: priceMin ? parseInt(priceMin, 10) : undefined,
       priceMax: priceMax ? parseInt(priceMax, 10) : undefined,
       features: selectedFeatures.length > 0 ? selectedFeatures : undefined,
+      startDate: startDate ? startDate.toISOString().split('T')[0] : undefined,
+      endDate: endDate ? endDate.toISOString().split('T')[0] : undefined,
     };
     onApply(appliedFilters);
     onClose();
@@ -94,6 +110,8 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
     setPriceMin('');
     setPriceMax('');
     setSelectedFeatures([]);
+    setStartDate(null);
+    setEndDate(null);
     onApply(resetFilters);
     onClose();
   };
@@ -116,7 +134,18 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
     if (priceMin) count++;
     if (priceMax) count++;
     if (selectedFeatures.length > 0) count++;
+    if (startDate) count++;
+    if (endDate) count++;
     return count;
+  };
+
+  const formatDate = (date: Date | null) => {
+    if (!date) return 'Sélectionner';
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
   const activeFiltersCount = getActiveFiltersCount();
@@ -268,6 +297,38 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
               </View>
             </View>
 
+            {/* Dates de location */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Dates de location</Text>
+              <View style={styles.dateContainer}>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowStartPicker(true)}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="#2563eb" />
+                  <View style={styles.dateButtonContent}>
+                    <Text style={styles.dateLabel}>Date de début</Text>
+                    <Text style={styles.dateValue}>{formatDate(startDate)}</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowEndPicker(true)}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="#2563eb" />
+                  <View style={styles.dateButtonContent}>
+                    <Text style={styles.dateLabel}>Date de fin</Text>
+                    <Text style={styles.dateValue}>{formatDate(endDate)}</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+              {startDate && endDate && (
+                <Text style={styles.dateInfo}>
+                  {Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} jour(s) de location
+                </Text>
+              )}
+            </View>
+
             {/* Prix */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Prix par jour (XOF)</Text>
@@ -336,6 +397,43 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
           </View>
         </View>
       </SafeAreaView>
+
+      {/* Date Pickers */}
+      {showStartPicker && (
+        <DateTimePicker
+          value={startDate || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          minimumDate={new Date()}
+          onChange={(event, selectedDate) => {
+            setShowStartPicker(Platform.OS === 'ios');
+            if (selectedDate) {
+              setStartDate(selectedDate);
+              // Si la date de fin est avant la nouvelle date de début, la mettre à jour
+              if (endDate && selectedDate >= endDate) {
+                const newEndDate = new Date(selectedDate);
+                newEndDate.setDate(newEndDate.getDate() + 1);
+                setEndDate(newEndDate);
+              }
+            }
+          }}
+        />
+      )}
+
+      {showEndPicker && (
+        <DateTimePicker
+          value={endDate || startDate || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          minimumDate={startDate || new Date()}
+          onChange={(event, selectedDate) => {
+            setShowEndPicker(Platform.OS === 'ios');
+            if (selectedDate) {
+              setEndDate(selectedDate);
+            }
+          }}
+        />
+      )}
     </Modal>
   );
 };
@@ -488,6 +586,40 @@ const styles = StyleSheet.create({
   },
   checkIcon: {
     marginLeft: 4,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    gap: 12,
+  },
+  dateButtonContent: {
+    flex: 1,
+  },
+  dateLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  dateValue: {
+    fontSize: 15,
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+  dateInfo: {
+    fontSize: 13,
+    color: '#2563eb',
+    marginTop: 8,
+    fontWeight: '500',
   },
   footer: {
     flexDirection: 'row',

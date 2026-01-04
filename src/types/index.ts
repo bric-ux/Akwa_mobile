@@ -410,6 +410,7 @@ export interface VehicleFilters {
   fuelType?: FuelType;
   seats?: number;
   locationId?: string;
+  locationName?: string; // Nom de la localisation pour recherche hiérarchique
   startDate?: string;
   endDate?: string;
   features?: string[];
