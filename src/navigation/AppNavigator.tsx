@@ -58,6 +58,8 @@ import VehicleDetailsScreen from '../screens/VehicleDetailsScreen';
 import AddVehicleScreen from '../screens/AddVehicleScreen';
 import MyVehiclesScreen from '../screens/MyVehiclesScreen';
 import HostVehicleBookingsScreen from '../screens/HostVehicleBookingsScreen';
+import MyVehicleBookingsScreen from '../screens/MyVehicleBookingsScreen';
+import VehicleBookingScreen from '../screens/VehicleBookingScreen';
 import EditVehicleScreen from '../screens/EditVehicleScreen';
 import VehicleOwnerAccountScreen from '../screens/VehicleOwnerAccountScreen';
 import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
@@ -737,6 +739,14 @@ const AppNavigator = () => {
               }}
             />
             <Stack.Screen 
+              name="VehicleBooking" 
+              component={VehicleBookingScreen}
+              options={{ 
+                title: 'Réservation véhicule',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
               name="AddVehicle" 
               component={AddVehicleScreen}
               options={{ 
@@ -765,6 +775,14 @@ const AppNavigator = () => {
               component={HostVehicleBookingsScreen}
               options={{ 
                 title: 'Réservations de véhicules',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="MyVehicleBookings" 
+              component={MyVehicleBookingsScreen}
+              options={{ 
+                title: 'Mes réservations véhicules',
                 headerShown: false 
               }}
             />

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { VehicleBooking, VehicleBookingStatus } from '../types';
+import { useIdentityVerification } from './useIdentityVerification';
 
 export interface VehicleBookingData {
   vehicleId: string;
@@ -15,6 +16,7 @@ export interface VehicleBookingData {
 export const useVehicleBookings = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
 
   const createBooking = useCallback(async (bookingData: VehicleBookingData) => {
     try {
@@ -26,12 +28,28 @@ export const useVehicleBookings = () => {
         throw new Error('Vous devez être connecté pour effectuer une réservation');
       }
 
-      // Calculer le nombre de jours
+      // Vérifier si l'identité est vérifiée (même logique que le site web)
+      if (identityLoading) {
+        setError('Vérification de l\'identité en cours...');
+        return { success: false, error: 'Vérification de l\'identité en cours...' };
+      }
+
+      if (!hasUploadedIdentity) {
+        setError('IDENTITY_REQUIRED');
+        return { success: false, error: 'IDENTITY_REQUIRED' };
+      }
+
+      if (!isVerified) {
+        setError('IDENTITY_NOT_VERIFIED');
+        return { success: false, error: 'IDENTITY_NOT_VERIFIED' };
+      }
+
+      // Calculer le nombre de jours (comme sur le site web: différence + 1)
       const start = new Date(bookingData.startDate);
       const end = new Date(bookingData.endDate);
-      const rentalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      const rentalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-      if (rentalDays <= 0) {
+      if (rentalDays <= 1) {
         throw new Error('La date de fin doit être après la date de début');
       }
 
@@ -50,20 +68,58 @@ export const useVehicleBookings = () => {
         throw new Error(`La location minimum est de ${vehicle.minimum_rental_days || 1} jour(s)`);
       }
 
-      // Vérifier la disponibilité
+      // Vérifier la disponibilité (pending, confirmed, completed - comme sur le site web)
       const { data: existingBookings, error: availabilityError } = await supabase
         .from('vehicle_bookings')
-        .select('id')
+        .select('id, start_date, end_date, status')
         .eq('vehicle_id', bookingData.vehicleId)
-        .in('status', ['pending', 'confirmed'])
-        .or(`start_date.lte.${bookingData.endDate},end_date.gte.${bookingData.startDate}`);
+        .in('status', ['pending', 'confirmed', 'completed'])
+        .gte('end_date', new Date().toISOString().split('T')[0]);
 
       if (availabilityError) {
         throw availabilityError;
       }
 
-      if (existingBookings && existingBookings.length > 0) {
+      // Vérifier les dates bloquées manuellement
+      const { data: blockedDates, error: blockedError } = await supabase
+        .from('vehicle_blocked_dates')
+        .select('start_date, end_date, reason')
+        .eq('vehicle_id', bookingData.vehicleId)
+        .gte('end_date', new Date().toISOString().split('T')[0]);
+
+      if (blockedError) {
+        console.error('Blocked dates check error:', blockedError);
+      }
+
+      // Vérifier les conflits avec les réservations existantes
+      const bookingStart = new Date(bookingData.startDate);
+      const bookingEnd = new Date(bookingData.endDate);
+      
+      const hasBookingConflict = existingBookings?.some(booking => {
+        const existingStart = new Date(booking.start_date);
+        const existingEnd = new Date(booking.end_date);
+        
+        return (
+          (bookingStart <= existingEnd && bookingEnd >= existingStart)
+        );
+      });
+
+      if (hasBookingConflict) {
         throw new Error('Ce véhicule n\'est pas disponible pour ces dates');
+      }
+
+      // Vérifier les conflits avec les dates bloquées
+      const hasBlockedConflict = blockedDates?.some(({ start_date, end_date }) => {
+        const blockedStart = new Date(start_date);
+        const blockedEnd = new Date(end_date);
+        
+        return (
+          (bookingStart <= blockedEnd && bookingEnd >= blockedStart)
+        );
+      });
+
+      if (hasBlockedConflict) {
+        throw new Error('Ces dates sont bloquées par le propriétaire');
       }
 
       // Calculer le prix total
@@ -111,7 +167,7 @@ export const useVehicleBookings = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [hasUploadedIdentity, isVerified, identityLoading]);
 
   const getMyBookings = useCallback(async (): Promise<VehicleBooking[]> => {
     try {
@@ -133,6 +189,10 @@ export const useVehicleBookings = () => {
             brand,
             model,
             images,
+            location:locations (
+              id,
+              name
+            ),
             vehicle_photos (
               id,
               url,

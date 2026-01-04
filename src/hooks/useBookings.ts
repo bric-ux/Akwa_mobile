@@ -127,36 +127,56 @@ export const useBookings = () => {
         return { success: false, error: 'Erreur lors de la récupération des informations de la propriété' };
       }
 
-      // Vérification de la disponibilité des dates
+      // Vérification de la disponibilité des dates (uniquement réservations CONFIRMÉES + dates bloquées)
+      // Les réservations pending ne bloquent pas les dates (comme sur le site web)
       const { data: existingBookings, error: checkError } = await supabase
         .from('bookings')
-        .select('check_in_date, check_out_date, status')
+        .select('id, check_in_date, check_out_date')
         .eq('property_id', bookingData.propertyId)
-        .in('status', ['pending', 'confirmed']);
+        .eq('status', 'confirmed')
+        .or(`and(check_in_date.lte.${bookingData.checkInDate},check_out_date.gt.${bookingData.checkInDate}),and(check_in_date.lt.${bookingData.checkOutDate},check_out_date.gte.${bookingData.checkOutDate}),and(check_in_date.gte.${bookingData.checkInDate},check_out_date.lte.${bookingData.checkOutDate})`);
 
       if (checkError) {
         console.error('Availability check error:', checkError);
-        setError('Erreur lors de la vérification de la disponibilité');
-        return { success: false, error: 'Erreur lors de la vérification de la disponibilité' };
+        setError('Erreur lors de la vérification de disponibilité');
+        return { success: false, error: 'Erreur lors de la vérification de disponibilité' };
       }
 
-      // Vérifier les conflits de dates
-      const hasConflict = existingBookings?.some(booking => {
-        const existingCheckIn = new Date(booking.check_in_date);
-        const existingCheckOut = new Date(booking.check_out_date);
-        const newCheckIn = new Date(bookingData.checkInDate);
-        const newCheckOut = new Date(bookingData.checkOutDate);
+      // Vérifier aussi les dates bloquées manuellement
+      const { data: blockedDates, error: blockedError } = await supabase
+        .from('blocked_dates')
+        .select('start_date, end_date')
+        .eq('property_id', bookingData.propertyId);
 
+      if (blockedError) {
+        console.error('Blocked dates check error:', blockedError);
+        setError('Erreur lors de la vérification des dates bloquées');
+        return { success: false, error: 'Erreur lors de la vérification des dates bloquées' };
+      }
+
+      // Vérifier les conflits avec les réservations confirmées
+      if (existingBookings && existingBookings.length > 0) {
+        setError('Ces dates sont déjà réservées');
+        return { success: false, error: 'Ces dates sont déjà réservées' };
+      }
+
+      // Vérifier les conflits avec les dates bloquées
+      const hasBlockedConflict = blockedDates?.some(({ start_date, end_date }) => {
+        const blockedStart = new Date(start_date);
+        const blockedEnd = new Date(end_date);
+        const bookingStart = new Date(bookingData.checkInDate);
+        const bookingEnd = new Date(bookingData.checkOutDate);
+        
         return (
-          (newCheckIn >= existingCheckIn && newCheckIn < existingCheckOut) ||
-          (newCheckOut > existingCheckIn && newCheckOut <= existingCheckOut) ||
-          (newCheckIn <= existingCheckIn && newCheckOut >= existingCheckOut)
+          (bookingStart >= blockedStart && bookingStart < blockedEnd) ||
+          (bookingEnd > blockedStart && bookingEnd <= blockedEnd) ||
+          (bookingStart <= blockedStart && bookingEnd >= blockedEnd)
         );
       });
 
-      if (hasConflict) {
-        setError('Ces dates ne sont pas disponibles');
-        return { success: false, error: 'Ces dates ne sont pas disponibles' };
+      if (hasBlockedConflict) {
+        setError('Ces dates sont bloquées par le propriétaire');
+        return { success: false, error: 'Ces dates sont bloquées par le propriétaire' };
       }
 
       // Vérifier le nombre minimum de nuits

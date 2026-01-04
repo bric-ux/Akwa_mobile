@@ -275,6 +275,16 @@ const MyBookingsScreen: React.FC = () => {
         <View style={styles.placeholder} />
       </View>
 
+      {/* Lien vers les réservations de véhicules */}
+      <TouchableOpacity
+        style={styles.vehicleBookingsLink}
+        onPress={() => navigation.navigate('MyVehicleBookings' as never)}
+      >
+        <Ionicons name="car-outline" size={20} color="#2E7D32" />
+        <Text style={styles.vehicleBookingsLinkText}>Voir mes réservations de véhicules</Text>
+        <Ionicons name="chevron-forward" size={20} color="#666" />
+      </TouchableOpacity>
+
       {/* Filtres */}
       <View style={styles.filtersContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -482,6 +492,24 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#fff',
     textAlign: 'center',
+    fontWeight: '500',
+  },
+  vehicleBookingsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    marginBottom: 8,
+  },
+  vehicleBookingsLinkText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#333',
     fontWeight: '500',
   },
 });
