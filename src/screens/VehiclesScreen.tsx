@@ -364,9 +364,9 @@ const VehiclesScreen: React.FC = () => {
         transparent
         animationType="slide"
         onRequestClose={() => setShowSearchModal(false)}
-        statusBarTranslucent
+        statusBarTranslucent={false}
       >
-        <SafeAreaView edges={['top']} style={styles.searchModalSafeArea}>
+        <SafeAreaView edges={['top', 'bottom']} style={styles.searchModalSafeArea}>
           <KeyboardAvoidingView
             style={styles.searchModalOverlay}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -379,15 +379,17 @@ const VehiclesScreen: React.FC = () => {
             >
               <TouchableWithoutFeedback>
                 <View style={styles.searchModalContent}>
-                  <View style={styles.searchModalHeader}>
-                    <Text style={styles.searchModalTitle}>Rechercher un véhicule</Text>
-                    <TouchableOpacity
-                      onPress={() => setShowSearchModal(false)}
-                      style={styles.closeBtn}
-                    >
-                      <Ionicons name="close" size={24} color="#0f172a" />
-                    </TouchableOpacity>
-                  </View>
+                  <SafeAreaView edges={['top']} style={styles.searchModalHeaderSafeArea}>
+                    <View style={styles.searchModalHeader}>
+                      <Text style={styles.searchModalTitle}>Rechercher un véhicule</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowSearchModal(false)}
+                        style={styles.closeBtn}
+                      >
+                        <Ionicons name="close" size={24} color="#0f172a" />
+                      </TouchableOpacity>
+                    </View>
+                  </SafeAreaView>
 
                 <ScrollView
                   style={styles.searchModalScroll}
@@ -426,8 +428,10 @@ const VehiclesScreen: React.FC = () => {
                         setShowFilters(true);
                       }}
                     >
-                      <Ionicons name="options-outline" size={20} color="#2563eb" />
-                      <Text style={styles.modalFilterBtnText}>Filtres avancés</Text>
+                      <Ionicons name="options-outline" size={18} color="#2563eb" />
+                      <Text style={styles.modalFilterBtnText} numberOfLines={1} ellipsizeMode="tail">
+                        Filtres
+                      </Text>
                       {getActiveFiltersCount() > 0 && (
                         <View style={styles.modalBadge}>
                           <Text style={styles.modalBadgeText}>{getActiveFiltersCount()}</Text>
@@ -734,6 +738,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 20,
+    overflow: 'hidden',
+  },
+  searchModalHeaderSafeArea: {
+    backgroundColor: '#ffffff',
   },
   searchModalScroll: {
     flex: 1,
@@ -746,7 +754,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
@@ -820,16 +828,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#f1f5f9',
     paddingVertical: 16,
+    paddingHorizontal: 12,
     borderRadius: 16,
-    gap: 8,
+    gap: 6,
     position: 'relative',
     borderWidth: 1.5,
     borderColor: '#e2e8f0',
+    overflow: 'visible',
+    minWidth: 0, // Permet au flex de fonctionner correctement
   },
   modalFilterBtnText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#2563eb',
+    flexShrink: 1,
+    numberOfLines: 1,
   },
   modalBadge: {
     backgroundColor: '#ef4444',
@@ -838,10 +851,11 @@ const styles = StyleSheet.create({
     height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
     position: 'absolute',
-    top: -4,
-    right: -4,
+    top: -2,
+    right: -2,
+    zIndex: 10,
   },
   modalBadgeText: {
     color: '#ffffff',

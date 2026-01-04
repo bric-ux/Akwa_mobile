@@ -59,6 +59,7 @@ const MessagingScreen: React.FC = () => {
   
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
+  const hasOpenedConversationRef = useRef<string | null>(null);
 
   // Charger les conversations au montage
   useEffect(() => {
@@ -70,22 +71,23 @@ const MessagingScreen: React.FC = () => {
 
   // Ouvrir automatiquement une conversation si un ID est fourni
   useEffect(() => {
-    if (conversationId && conversations.length > 0) {
+    if (conversationId && conversations.length > 0 && hasOpenedConversationRef.current !== conversationId) {
       const conversation = conversations.find(conv => conv.id === conversationId);
       if (conversation) {
         console.log('🎯 [MessagingScreen] Ouverture automatique de la conversation:', conversationId);
-        setSelectedConversation(conversation);
-        setShowConversations(false);
-        // Charger les messages de cette conversation
-        loadMessages(conversationId);
-        // Marquer comme lu
-        if (user) {
-          markMessagesAsRead(conversationId, user.id);
-        }
+        hasOpenedConversationRef.current = conversationId;
+        // Réinitialiser le dernier chargé pour forcer le rechargement
+        lastLoadedConversationId.current = null;
         // Vérifier si on vient d'un paramètre (propertyId ou vehicleId)
         if (propertyId || vehicleId) {
           setOpenedFromParam(true);
         }
+        // Mettre à jour les états de manière synchrone pour éviter les tremblements
+        setShowConversations(false);
+        // Utiliser requestAnimationFrame pour éviter les conflits de state
+        requestAnimationFrame(() => {
+          setSelectedConversation(conversation);
+        });
       } else {
         console.log('⚠️ [MessagingScreen] Conversation non trouvée dans la liste, rechargement...');
         // Recharger les conversations si la conversation n'est pas trouvée
@@ -94,7 +96,7 @@ const MessagingScreen: React.FC = () => {
         }
       }
     }
-  }, [conversationId, conversations, propertyId, vehicleId, user, loadMessages, markMessagesAsRead, loadConversations]);
+  }, [conversationId, conversations, propertyId, vehicleId, user, loadConversations]);
 
   // Réinitialiser openedFromParam quand on revient à la liste des conversations
   useEffect(() => {
@@ -127,17 +129,24 @@ const MessagingScreen: React.FC = () => {
     }
   }, [user, setupRealtimeSubscription]);
 
-  // Charger les messages quand une conversation est sélectionnée
+  // Charger les messages quand une conversation est sélectionnée (une seule fois)
+  const lastLoadedConversationId = useRef<string | null>(null);
   useEffect(() => {
-    if (selectedConversation && user) {
-      const loadAndMark = async () => {
-        await loadMessages(selectedConversation.id);
-        // Marquer comme lus après avoir chargé les messages
-        await markMessagesAsRead(selectedConversation.id, user.id);
-      };
-      loadAndMark();
+    if (selectedConversation && user && selectedConversation.id) {
+      const conversationId = selectedConversation.id;
+      // Ne charger que si ce n'est pas déjà chargé
+      if (lastLoadedConversationId.current !== conversationId) {
+        lastLoadedConversationId.current = conversationId;
+        const loadAndMark = async () => {
+          console.log('📨 [MessagingScreen] Chargement des messages pour:', conversationId);
+          await loadMessages(conversationId);
+          // Marquer comme lus après avoir chargé les messages
+          await markMessagesAsRead(conversationId, user.id);
+        };
+        loadAndMark();
+      }
     }
-  }, [selectedConversation, user, loadMessages, markMessagesAsRead]);
+  }, [selectedConversation?.id, user, loadMessages, markMessagesAsRead]);
 
   // Auto-scroll vers le bas quand de nouveaux messages arrivent
   useEffect(() => {
