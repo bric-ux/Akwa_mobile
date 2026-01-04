@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   ActivityIndicator,
   TextInput,
   Image,
+  Dimensions,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +24,11 @@ import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import { formatPrice } from '../utils/priceCalculator';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
+import { calculateTotalPrice, calculateFees, DiscountConfig } from '../hooks/usePricing';
+import { getCommissionRates } from '../lib/commissions';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import { supabase } from '../services/supabase';
 
 type VehicleBookingRouteProp = RouteProp<RootStackParamList, 'VehicleBooking'>;
 
@@ -42,8 +50,13 @@ const VehicleBookingScreen: React.FC = () => {
   const [hasLicense, setHasLicense] = useState(false);
   const [licenseYears, setLicenseYears] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
+  const [licenseDocumentUrl, setLicenseDocumentUrl] = useState<string | null>(null);
+  const [uploadingLicense, setUploadingLicense] = useState(false);
+  const [showLicenseYearsPicker, setShowLicenseYearsPicker] = useState(false);
   const [useDriver, setUseDriver] = useState<boolean | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     const loadVehicle = async () => {
@@ -76,7 +89,9 @@ const VehicleBookingScreen: React.FC = () => {
   const requiresLicense = vehicle?.requires_license !== false;
   const minLicenseYears = vehicle?.min_license_years || 0;
   const withDriver = vehicle?.with_driver || false;
-  const isLicenseRequired = (!withDriver && requiresLicense) || (withDriver && useDriver === false && requiresLicense);
+  // Le permis est TOUJOURS requis si le locataire ne prend pas de chauffeur (impératif)
+  // Sinon, il est requis si le véhicule le nécessite et qu'il n'y a pas de chauffeur
+  const isLicenseRequired = (withDriver && useDriver === false) || (!withDriver && requiresLicense);
 
   const calculateRentalDays = () => {
     if (!startDate || !endDate) return 0;
@@ -105,9 +120,132 @@ const VehicleBookingScreen: React.FC = () => {
     });
   };
 
+  // Fonction pour uploader le document du permis
+  const uploadLicenseDocument = async (uri: string, fileName: string, mimeType: string): Promise<string> => {
+    setUploadingLicense(true);
+    try {
+      // Lire le fichier
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      // Générer un nom de fichier unique
+      const fileExt = fileName.split('.').pop() || 'jpg';
+      const uniqueFileName = `${user?.id}/${Date.now()}.${fileExt}`;
+
+      // Upload vers Supabase Storage dans le bucket license-documents
+      const { data, error } = await supabase.storage
+        .from('license-documents')
+        .upload(uniqueFileName, blob, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: mimeType,
+        });
+
+      if (error) {
+        console.error('Erreur upload permis:', error);
+        throw error;
+      }
+
+      // Obtenir l'URL publique
+      const { data: { publicUrl } } = supabase.storage
+        .from('license-documents')
+        .getPublicUrl(uniqueFileName);
+
+      return publicUrl;
+    } finally {
+      setUploadingLicense(false);
+    }
+  };
+
+  const pickLicenseImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission requise', 'Nous avons besoin de l\'accès à votre galerie pour envoyer votre permis.');
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const fileName = `license-${Date.now()}.jpg`;
+        const url = await uploadLicenseDocument(asset.uri, fileName, 'image/jpeg');
+        setLicenseDocumentUrl(url);
+      }
+    } catch (error: any) {
+      console.error('Erreur lors de la sélection de l\'image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+    }
+  };
+
+  const pickLicenseDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const url = await uploadLicenseDocument(asset.uri, asset.name, asset.mimeType || 'application/pdf');
+        setLicenseDocumentUrl(url);
+      }
+    } catch (error: any) {
+      console.error('Erreur lors de la sélection du document:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner le document');
+    }
+  };
+
+  const showLicenseFilePicker = () => {
+    Alert.alert(
+      'Télécharger votre permis',
+      'Choisissez le type de fichier à envoyer',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel'
+        },
+        {
+          text: 'Photo',
+          onPress: pickLicenseImage
+        },
+        {
+          text: 'PDF',
+          onPress: pickLicenseDocument
+        }
+      ]
+    );
+  };
+
   const rentalDays = calculateRentalDays();
   const dailyRate = vehicle?.price_per_day || 0;
-  const totalPrice = dailyRate * rentalDays;
+  
+  // Calculer le prix avec réductions (comme sur le site web)
+  const discountConfig: DiscountConfig = {
+    enabled: vehicle?.discount_enabled || false,
+    minNights: vehicle?.discount_min_days || null,
+    percentage: vehicle?.discount_percentage || null
+  };
+  
+  const longStayDiscountConfig: DiscountConfig | undefined = vehicle?.long_stay_discount_enabled ? {
+    enabled: vehicle?.long_stay_discount_enabled || false,
+    minNights: vehicle?.long_stay_discount_min_days || null,
+    percentage: vehicle?.long_stay_discount_percentage || null
+  } : undefined;
+  
+  const pricing = calculateTotalPrice(dailyRate, rentalDays, discountConfig, longStayDiscountConfig);
+  const basePrice = pricing.totalPrice; // Prix après réduction
+  
+  // Calculer les frais de service (10% du prix après réduction pour les véhicules)
+  const fees = calculateFees(basePrice, rentalDays, 'vehicle');
+  const totalPrice = basePrice + fees.serviceFee;
+  
   const securityDeposit = vehicle?.security_deposit || 0;
 
   const handleSubmit = async () => {
@@ -160,7 +298,10 @@ const VehicleBookingScreen: React.FC = () => {
 
     if (isLicenseRequired) {
       if (!hasLicense) {
-        Alert.alert('Permis requis', 'Vous devez posséder un permis de conduire pour réserver ce véhicule.');
+        const message = (withDriver && useDriver === false) 
+          ? 'Le permis de conduire est obligatoire lorsque vous conduisez vous-même. Veuillez cocher la case pour confirmer que vous possédez un permis.'
+          : 'Vous devez posséder un permis de conduire pour réserver ce véhicule.';
+        Alert.alert('Permis requis', message);
         return;
       }
       if (!licenseYears || licenseYears.trim() === '') {
@@ -170,6 +311,14 @@ const VehicleBookingScreen: React.FC = () => {
       const licenseYearsNum = parseInt(licenseYears);
       if (isNaN(licenseYearsNum) || licenseYearsNum < minLicenseYears) {
         Alert.alert('Permis insuffisant', `Ce véhicule nécessite au moins ${minLicenseYears} an(s) de permis.`);
+        return;
+      }
+      // Le document du permis est OBLIGATOIRE
+      if (!licenseDocumentUrl) {
+        Alert.alert(
+          'Document requis',
+          'Vous devez télécharger votre permis de conduire pour réserver ce véhicule.'
+        );
         return;
       }
     }
@@ -184,6 +333,7 @@ const VehicleBookingScreen: React.FC = () => {
         startDate: startDateStr,
         endDate: endDateStr,
         messageToOwner: message.trim() || undefined,
+        licenseDocumentUrl: licenseDocumentUrl || undefined,
       });
 
       if (result.success) {
@@ -254,7 +404,9 @@ const VehicleBookingScreen: React.FC = () => {
     );
   }
 
-  const vehicleImage = vehicle.images?.[0] || vehicle.vehicle_photos?.[0]?.url || null;
+  // Récupérer toutes les images du véhicule
+  const vehicleImages = vehicle.images || vehicle.vehicle_photos?.map((p: any) => p.url) || [];
+  const hasMultipleImages = vehicleImages.length > 1;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -272,8 +424,42 @@ const VehicleBookingScreen: React.FC = () => {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Véhicule */}
         <View style={styles.vehicleCard}>
-          {vehicleImage ? (
-            <Image source={{ uri: vehicleImage }} style={styles.vehicleImage} resizeMode="cover" />
+          {vehicleImages.length > 0 ? (
+            <View style={styles.imageContainer}>
+              <ScrollView
+                ref={scrollViewRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(event) => {
+                  const index = Math.round(event.nativeEvent.contentOffset.x / 100);
+                  setCurrentImageIndex(index);
+                }}
+                style={styles.imageScrollView}
+              >
+                {vehicleImages.map((imageUrl: string, index: number) => (
+                  <Image
+                    key={index}
+                    source={{ uri: imageUrl }}
+                    style={styles.vehicleImage}
+                    resizeMode="cover"
+                  />
+                ))}
+              </ScrollView>
+              {hasMultipleImages && (
+                <View style={styles.imageIndicators}>
+                  {vehicleImages.map((_: string, index: number) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.indicator,
+                        index === currentImageIndex && styles.activeIndicator,
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
           ) : (
             <View style={[styles.vehicleImage, styles.vehicleImagePlaceholder]}>
               <Ionicons name="car-outline" size={48} color="#ccc" />
@@ -345,7 +531,14 @@ const VehicleBookingScreen: React.FC = () => {
         {/* Permis de conduire */}
         {isLicenseRequired && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Permis de conduire</Text>
+            <Text style={styles.sectionTitle}>
+              Permis de conduire {(withDriver && useDriver === false) ? '(Obligatoire)' : ''}
+            </Text>
+            {(withDriver && useDriver === false) && (
+              <Text style={styles.requiredNote}>
+                Le permis de conduire est obligatoire lorsque vous conduisez vous-même.
+              </Text>
+            )}
             <TouchableOpacity
               style={styles.checkboxRow}
               onPress={() => setHasLicense(!hasLicense)}
@@ -353,25 +546,84 @@ const VehicleBookingScreen: React.FC = () => {
               <Ionicons
                 name={hasLicense ? 'checkbox' : 'square-outline'}
                 size={24}
-                color={hasLicense ? '#2E7D32' : '#ccc'}
+                color={hasLicense ? '#2E7D32' : ((withDriver && useDriver === false) ? '#ef4444' : '#ccc')}
               />
-              <Text style={styles.checkboxLabel}>Je possède un permis de conduire</Text>
+              <Text style={[
+                styles.checkboxLabel,
+                (withDriver && useDriver === false) && !hasLicense && styles.requiredLabel
+              ]}>
+                Je possède un permis de conduire {(withDriver && useDriver === false) ? '*' : ''}
+              </Text>
             </TouchableOpacity>
             {hasLicense && (
               <>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Nombre d'années de permis"
-                  value={licenseYears}
-                  onChangeText={setLicenseYears}
-                  keyboardType="numeric"
-                />
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>
+                    Depuis combien d'années avez-vous votre permis ? *
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.selectButton}
+                    onPress={() => setShowLicenseYearsPicker(true)}
+                  >
+                    <Text style={[styles.selectButtonText, !licenseYears && styles.selectButtonPlaceholder]}>
+                      {licenseYears ? (
+                        licenseYears === '1' ? 'Moins d\'1 an' :
+                        licenseYears === '2' ? '1-2 ans' :
+                        licenseYears === '3' ? '2-3 ans' :
+                        licenseYears === '5' ? '3-5 ans' :
+                        licenseYears === '10' ? 'Plus de 5 ans' :
+                        `${licenseYears} an(s)`
+                      ) : 'Sélectionnez *'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#666" />
+                  </TouchableOpacity>
+                </View>
                 <TextInput
                   style={styles.input}
                   placeholder="Numéro de permis (optionnel)"
                   value={licenseNumber}
                   onChangeText={setLicenseNumber}
                 />
+                
+                {/* Upload du document du permis - OBLIGATOIRE */}
+                <View style={styles.uploadSection}>
+                  <Text style={styles.uploadLabel}>
+                    Télécharger votre permis de conduire {(withDriver && useDriver === false) ? '*' : ''}
+                  </Text>
+                  {licenseDocumentUrl ? (
+                    <View style={styles.uploadedFile}>
+                      <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                      <Text style={styles.uploadedFileText}>Document téléchargé</Text>
+                      <TouchableOpacity
+                        onPress={() => setLicenseDocumentUrl(null)}
+                        style={styles.removeFileButton}
+                      >
+                        <Ionicons name="close-circle" size={20} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.uploadButton}
+                      onPress={showLicenseFilePicker}
+                      disabled={uploadingLicense}
+                    >
+                      {uploadingLicense ? (
+                        <>
+                          <ActivityIndicator size="small" color="#2E7D32" />
+                          <Text style={styles.uploadButtonText}>Upload en cours...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="cloud-upload-outline" size={20} color="#2E7D32" />
+                          <Text style={styles.uploadButtonText}>Télécharger le document</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  <Text style={styles.uploadHint}>
+                    Formats acceptés : JPG, PNG ou PDF (max 5MB)
+                  </Text>
+                </View>
               </>
             )}
           </View>
@@ -402,6 +654,26 @@ const VehicleBookingScreen: React.FC = () => {
             <Text style={styles.summaryLabel}>Nombre de jours</Text>
             <Text style={styles.summaryValue}>{rentalDays}</Text>
           </View>
+          {pricing.discountApplied && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>
+                Réduction {pricing.discountType === 'long_stay' ? 'séjour long' : ''}
+              </Text>
+              <Text style={[styles.summaryValue, { color: '#2E7D32' }]}>
+                -{formatPrice(pricing.discountAmount)}
+              </Text>
+            </View>
+          )}
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Sous-total</Text>
+            <Text style={styles.summaryValue}>{formatPrice(basePrice)}</Text>
+          </View>
+          {fees.serviceFee > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Frais de service</Text>
+              <Text style={styles.summaryValue}>{formatPrice(fees.serviceFee)}</Text>
+            </View>
+          )}
           <View style={[styles.summaryRow, styles.summaryTotal]}>
             <Text style={styles.summaryTotalLabel}>Total</Text>
             <Text style={styles.summaryTotalValue}>{formatPrice(totalPrice)}</Text>
@@ -433,6 +705,59 @@ const VehicleBookingScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
+      {/* Modal pour sélectionner le nombre d'années de permis */}
+      <Modal
+        visible={showLicenseYearsPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowLicenseYearsPicker(false)}
+      >
+        <View style={styles.pickerModalOverlay}>
+          <View style={styles.pickerModalContent}>
+            <View style={styles.pickerModalHeader}>
+              <Text style={styles.pickerModalTitle}>Nombre d'années de permis</Text>
+              <TouchableOpacity
+                onPress={() => setShowLicenseYearsPicker(false)}
+                style={styles.pickerModalClose}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={[
+                { value: '1', label: 'Moins d\'1 an' },
+                { value: '2', label: '1-2 ans' },
+                { value: '3', label: '2-3 ans' },
+                { value: '5', label: '3-5 ans' },
+                { value: '10', label: 'Plus de 5 ans' },
+              ]}
+              keyExtractor={(item) => item.value}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.pickerOption,
+                    licenseYears === item.value && styles.pickerOptionSelected
+                  ]}
+                  onPress={() => {
+                    setLicenseYears(item.value);
+                    setShowLicenseYearsPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.pickerOptionText,
+                    licenseYears === item.value && styles.pickerOptionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {licenseYears === item.value && (
+                    <Ionicons name="checkmark" size={20} color="#2E7D32" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -503,11 +828,43 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  vehicleImage: {
+  imageContainer: {
     width: 100,
     height: 100,
     borderRadius: 8,
     marginRight: 16,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  imageScrollView: {
+    width: 100,
+    height: 100,
+  },
+  vehicleImage: {
+    width: 100,
+    height: 100,
+  },
+  imageIndicators: {
+    position: 'absolute',
+    bottom: 8,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  indicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  activeIndicator: {
+    backgroundColor: '#fff',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   vehicleImagePlaceholder: {
     backgroundColor: '#f0f0f0',
@@ -609,6 +966,142 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 16,
     color: '#333',
+  },
+  requiredLabel: {
+    color: '#ef4444',
+    fontWeight: '600',
+  },
+  requiredNote: {
+    fontSize: 14,
+    color: '#ef4444',
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  uploadSection: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  uploadLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2E7D32',
+    borderStyle: 'dashed',
+    gap: 8,
+  },
+  uploadButtonText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '600',
+  },
+  uploadedFile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#e8f5e9',
+    borderRadius: 8,
+    gap: 8,
+  },
+  uploadedFileText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  removeFileButton: {
+    padding: 4,
+  },
+  uploadHint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  inputContainer: {
+    marginBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  selectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  selectButtonText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  selectButtonPlaceholder: {
+    color: '#999',
+  },
+  pickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  pickerModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '50%',
+  },
+  pickerModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  pickerModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  pickerModalClose: {
+    padding: 4,
+  },
+  pickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  pickerOptionSelected: {
+    backgroundColor: '#e8f5e9',
+  },
+  pickerOptionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  pickerOptionTextSelected: {
+    color: '#2E7D32',
+    fontWeight: '600',
   },
   input: {
     backgroundColor: '#f8f9fa',

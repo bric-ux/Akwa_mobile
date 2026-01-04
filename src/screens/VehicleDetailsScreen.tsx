@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -36,6 +36,7 @@ const VehicleDetailsScreen: React.FC = () => {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     const loadVehicle = async () => {
@@ -86,11 +87,26 @@ const VehicleDetailsScreen: React.FC = () => {
       {/* Images */}
       {vehicle.images && vehicle.images.length > 0 && (
         <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: vehicle.images[currentImageIndex] }}
-            style={styles.mainImage}
-            resizeMode="cover"
-          />
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(event) => {
+              const index = Math.round(event.nativeEvent.contentOffset.x / width);
+              setCurrentImageIndex(index);
+            }}
+            style={styles.imageScrollView}
+          >
+            {vehicle.images.map((imageUrl, index) => (
+              <Image
+                key={index}
+                source={{ uri: imageUrl }}
+                style={styles.mainImage}
+                resizeMode="cover"
+              />
+            ))}
+          </ScrollView>
           {vehicle.images.length > 1 && (
             <View style={styles.imageIndicators}>
               {vehicle.images.map((_, index) => (
@@ -257,9 +273,13 @@ const styles = StyleSheet.create({
     height: 300,
     position: 'relative',
   },
+  imageScrollView: {
+    width: width,
+    height: 300,
+  },
   mainImage: {
-    width: '100%',
-    height: '100%',
+    width: width,
+    height: 300,
   },
   imageIndicators: {
     position: 'absolute',

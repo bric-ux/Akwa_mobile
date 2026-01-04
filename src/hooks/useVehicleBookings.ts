@@ -11,6 +11,7 @@ export interface VehicleBookingData {
   dropoffLocation?: string;
   messageToOwner?: string;
   specialRequests?: string;
+  licenseDocumentUrl?: string;
 }
 
 export const useVehicleBookings = () => {
@@ -141,6 +142,7 @@ export const useVehicleBookings = () => {
           dropoff_location: bookingData.dropoffLocation || null,
           message_to_owner: bookingData.messageToOwner || null,
           special_requests: bookingData.specialRequests || null,
+          license_document_url: bookingData.licenseDocumentUrl || null,
           status: 'pending',
         })
         .select(`

@@ -1,3 +1,5 @@
+import { getCommissionRates } from '../lib/commissions';
+
 export interface DiscountConfig {
   enabled: boolean;
   minNights: number | null;
@@ -111,10 +113,12 @@ export function calculateTotalPrice(
 
 /**
  * Calcule les frais supplémentaires en utilisant les vrais frais de la propriété
+ * IMPORTANT: Le serviceFee est calculé comme 12% du prix APRÈS réduction (comme sur le site web)
  */
 export function calculateFees(
-  basePrice: number, 
+  priceAfterDiscount: number, // Prix APRÈS application des réductions
   nights: number, 
+  serviceType: 'property' | 'vehicle' = 'property',
   propertyFees?: {
     cleaning_fee?: number | null;
     service_fee?: number | null;
@@ -132,7 +136,12 @@ export function calculateFees(
   // Calculer les frais de ménage (gratuit si nights >= free_cleaning_min_days)
   const isFreeCleaningApplicable = propertyFees?.free_cleaning_min_days && nights >= propertyFees.free_cleaning_min_days;
   const cleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
-  const serviceFee = propertyFees?.service_fee || 0;
+  
+  // Calculer les frais de service comme un pourcentage du prix APRÈS réduction
+  // Pour les propriétés: 12%, pour les véhicules: 10%
+  const commissionRates = getCommissionRates(serviceType);
+  const serviceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+  
   const taxes = propertyFees?.taxes || 0;
   
   const totalFees = cleaningFee + serviceFee + taxes;
@@ -158,14 +167,16 @@ export function calculateFinalPrice(
     taxes?: number | null;
     free_cleaning_min_days?: number | null;
   },
-  longStayDiscountConfig?: DiscountConfig
+  longStayDiscountConfig?: DiscountConfig,
+  serviceType: 'property' | 'vehicle' = 'property'
 ): {
   pricing: ReturnType<typeof calculateTotalPrice>;
   fees: ReturnType<typeof calculateFees>;
   finalTotal: number;
 } {
   const pricing = calculateTotalPrice(basePrice, nights, discountConfig, longStayDiscountConfig);
-  const fees = calculateFees(basePrice, nights, propertyFees);
+  // Passer le prix APRÈS réduction (pricing.totalPrice) au lieu de basePrice
+  const fees = calculateFees(pricing.totalPrice, nights, serviceType, propertyFees);
   const finalTotal = pricing.totalPrice + fees.totalFees;
   
   return {

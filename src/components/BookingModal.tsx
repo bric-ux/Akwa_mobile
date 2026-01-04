@@ -374,7 +374,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       service_fee: property.service_fee,
       taxes: property.taxes,
       free_cleaning_min_days: property.free_cleaning_min_days
-    }, longStayDiscountConfig);
+    }, longStayDiscountConfig, 'property');
     
     // Appliquer la réduction du code promotionnel si valide
     let finalTotal = pricing.finalTotal;
