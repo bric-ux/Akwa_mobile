@@ -364,28 +364,30 @@ const VehiclesScreen: React.FC = () => {
         transparent
         animationType="slide"
         onRequestClose={() => setShowSearchModal(false)}
+        statusBarTranslucent
       >
-        <KeyboardAvoidingView
-          style={styles.searchModalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        >
-          <TouchableOpacity
-            style={styles.searchModalBackdrop}
-            activeOpacity={1}
-            onPress={() => setShowSearchModal(false)}
+        <SafeAreaView edges={['top']} style={styles.searchModalSafeArea}>
+          <KeyboardAvoidingView
+            style={styles.searchModalOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
           >
-            <TouchableWithoutFeedback>
-              <View style={styles.searchModalContent}>
-                <View style={styles.searchModalHeader}>
-                  <Text style={styles.searchModalTitle}>Rechercher un véhicule</Text>
-                  <TouchableOpacity
-                    onPress={() => setShowSearchModal(false)}
-                    style={styles.closeBtn}
-                  >
-                    <Ionicons name="close" size={24} color="#0f172a" />
-                  </TouchableOpacity>
-                </View>
+            <TouchableOpacity
+              style={styles.searchModalBackdrop}
+              activeOpacity={1}
+              onPress={() => setShowSearchModal(false)}
+            >
+              <TouchableWithoutFeedback>
+                <View style={styles.searchModalContent}>
+                  <View style={styles.searchModalHeader}>
+                    <Text style={styles.searchModalTitle}>Rechercher un véhicule</Text>
+                    <TouchableOpacity
+                      onPress={() => setShowSearchModal(false)}
+                      style={styles.closeBtn}
+                    >
+                      <Ionicons name="close" size={24} color="#0f172a" />
+                    </TouchableOpacity>
+                  </View>
 
                 <ScrollView
                   style={styles.searchModalScroll}
@@ -445,10 +447,11 @@ const VehiclesScreen: React.FC = () => {
                   </View>
                 </ScrollView>
               </View>
-            </TouchableWithoutFeedback>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
+                </TouchableWithoutFeedback>
+              </TouchableOpacity>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        </Modal>
 
       {error && (
         <View style={styles.error}>
@@ -707,6 +710,10 @@ const styles = StyleSheet.create({
     color: '#dc2626',
     fontSize: 13,
     fontWeight: '500',
+  },
+  searchModalSafeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   searchModalOverlay: {
     flex: 1,
