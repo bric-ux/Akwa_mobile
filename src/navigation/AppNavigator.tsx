@@ -17,6 +17,8 @@ import MessagingScreen from '../screens/MessagingScreen';
 import PropertyDetailsScreen from '../screens/PropertyDetailsScreen';
 import BookingScreen from '../screens/BookingScreen';
 import MyBookingsScreen from '../screens/MyBookingsScreen';
+import PropertyBookingDetailsScreen from '../screens/PropertyBookingDetailsScreen';
+import VehicleBookingDetailsScreen from '../screens/VehicleBookingDetailsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import HostProfileScreen from '../screens/HostProfileScreen';
@@ -530,6 +532,22 @@ const AppNavigator = () => {
           component={MyBookingsScreen}
           options={{ 
             title: 'Mes réservations',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen
+          name="PropertyBookingDetails"
+          component={PropertyBookingDetailsScreen}
+          options={{ 
+            title: 'Détails de réservation',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen
+          name="VehicleBookingDetails"
+          component={VehicleBookingDetailsScreen}
+          options={{ 
+            title: 'Détails de réservation',
             headerShown: false 
           }}
         />

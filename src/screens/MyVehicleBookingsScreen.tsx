@@ -184,6 +184,15 @@ const MyVehicleBookingsScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => {
+              (navigation as any).navigate('VehicleBookingDetails', { bookingId: booking.id });
+            }}
+          >
+            <Ionicons name="receipt-outline" size={18} color="#2563eb" />
+            <Text style={styles.actionButtonText}>Voir détails</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
               if (vehicle?.id) {
                 navigation.navigate('VehicleDetails' as never, { vehicleId: vehicle.id } as never);
               }

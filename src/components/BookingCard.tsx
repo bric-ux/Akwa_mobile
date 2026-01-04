@@ -173,10 +173,14 @@ const BookingCard: React.FC<BookingCardProps> = ({
     return 'https://via.placeholder.com/300x200';
   };
 
+  const handleViewDetails = () => {
+    (navigation as any).navigate('PropertyBookingDetails', { bookingId: booking.id });
+  };
+
   return (
     <TouchableOpacity
       style={styles.bookingCard}
-      onPress={() => onViewProperty(booking.property_id)}
+      onPress={handleViewDetails}
       activeOpacity={0.8}
     >
       <View style={styles.bookingHeader}>
@@ -245,10 +249,17 @@ const BookingCard: React.FC<BookingCardProps> = ({
       <View style={styles.bookingActions}>
         <TouchableOpacity
           style={styles.actionButton}
+          onPress={handleViewDetails}
+        >
+          <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
+          <Text style={styles.actionButtonText}>Voir détails</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionButton}
           onPress={() => onViewProperty(booking.property_id)}
         >
           <Ionicons name="eye-outline" size={16} color="#2E7D32" />
-          <Text style={styles.actionButtonText}>Voir</Text>
+          <Text style={styles.actionButtonText}>Voir propriété</Text>
         </TouchableOpacity>
 
         {/* Bouton Contacter l'hôte - disponible pour toutes les réservations sauf annulées */}

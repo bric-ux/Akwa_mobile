@@ -243,6 +243,8 @@ export type RootStackParamList = {
   PropertyRules: { propertyId: string }; // Règlement intérieur
   ModeTransition: { targetMode?: 'host' | 'traveler' | 'vehicle'; targetPath?: string; fromMode?: 'host' | 'traveler' | 'vehicle' }; // Page de transition entre modes
   MyBookings: undefined;
+  PropertyBookingDetails: { bookingId: string };
+  VehicleBookingDetails: { bookingId: string };
   Favorites: undefined;
   Messaging: undefined;
   MessagingDebug: undefined;
