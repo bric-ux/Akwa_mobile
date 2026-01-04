@@ -1,96 +1,150 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
+interface Announcement {
+  icon: string;
+  label: string;
+  color: string;
+  accentColor: string;
+  action: () => void;
+}
+
 export const InfoBanner: React.FC = () => {
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const navigation = useNavigation();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const translateX = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const announcements: Announcement[] = [
+    {
+      icon: 'sparkles',
+      label: 'Conciergerie',
+      color: '#10b981',
+      accentColor: 'rgba(16, 185, 129, 0.1)',
+      action: () => navigation.navigate('Conciergerie' as never),
+    },
+    {
+      icon: 'car-sport',
+      label: 'Véhicules',
+      color: '#3b82f6',
+      accentColor: 'rgba(59, 130, 246, 0.1)',
+      action: () => navigation.navigate('Vehicles' as never),
+    },
+  ];
 
   useEffect(() => {
-    // Animation de défilement continue
-    const startAnimation = () => {
-      Animated.loop(
-        Animated.timing(scrollX, {
-          toValue: -width * 1.2, // Ajuster selon la nouvelle largeur
-          duration: 20000, // Ralentir l'animation (20 secondes au lieu de 15)
-          useNativeDriver: true,
-        })
-      ).start();
-    };
+    const interval = setInterval(() => {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(scaleAnim, {
+            toValue: 0.95,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateX, {
+            toValue: -20,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.spring(translateX, {
+            toValue: 0,
+            tension: 50,
+            friction: 7,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
 
-    startAnimation();
-  }, [scrollX]);
+      setCurrentIndex((prev) => (prev + 1) % announcements.length);
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, [currentIndex, announcements.length]);
+
+  const current = announcements[currentIndex];
 
   return (
     <View style={styles.container}>
-      <View style={styles.banner}>
+      <TouchableOpacity
+        onPress={current.action}
+        activeOpacity={0.85}
+        style={styles.touchable}
+      >
         <Animated.View
           style={[
-            styles.scrollContent,
+            styles.content,
             {
-              transform: [{ translateX: scrollX }],
+              transform: [
+                { translateX },
+                { scale: scaleAnim },
+              ],
             },
           ]}
         >
-          <View style={styles.contentRow}>
-            <View style={styles.iconTextContainer}>
-              <Ionicons name="sparkles" size={14} color="#F97316" />
-              <Text style={styles.highlightText}>Nouveautés</Text>
-            </View>
-            
-            <View style={styles.separator} />
-            
-            <View style={styles.featuresContainer}>
-              <View style={styles.featureItem}>
-                <Ionicons name="notifications" size={14} color="#22C55E" />
-                <Text style={styles.featureText}>Conciergerie</Text>
-              </View>
-              
-              <View style={styles.featureSeparator} />
-              
-              <View style={styles.featureItem}>
-                <Ionicons name="car" size={14} color="#F97316" />
-                <Text style={styles.featureText}>Véhicules</Text>
-              </View>
-            </View>
-            
-            <View style={styles.separator} />
-            
-            <Text style={styles.comingSoonText}>
-              Bientôt disponible
-            </Text>
+          {/* Icon with glow effect */}
+          <View style={[styles.iconContainer, { backgroundColor: current.accentColor }]}>
+            <Ionicons name={current.icon as any} size={16} color={current.color} />
           </View>
 
-          <View style={styles.contentRow}>
-            <View style={styles.iconTextContainer}>
-              <Ionicons name="sparkles" size={14} color="#F97316" />
-              <Text style={styles.highlightText}>Nouveautés</Text>
+          {/* Text */}
+          <View style={styles.textContainer}>
+            <Text style={styles.label}>{current.label}</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Nouveau</Text>
             </View>
-            
-            <View style={styles.separator} />
-            
-            <View style={styles.featuresContainer}>
-              <View style={styles.featureItem}>
-                <Ionicons name="notifications" size={14} color="#22C55E" />
-                <Text style={styles.featureText}>Conciergerie</Text>
-              </View>
-              
-              <View style={styles.featureSeparator} />
-              
-              <View style={styles.featureItem}>
-                <Ionicons name="car" size={14} color="#F97316" />
-                <Text style={styles.featureText}>Véhicules</Text>
-              </View>
-            </View>
-            
-            <View style={styles.separator} />
-            
-            <Text style={styles.comingSoonText}>
-              Bientôt disponible
-            </Text>
           </View>
+
+          {/* Arrow */}
+          <Ionicons
+            name="chevron-forward"
+            size={14}
+            color="rgba(255, 255, 255, 0.4)"
+            style={styles.arrow}
+          />
         </Animated.View>
+      </TouchableOpacity>
+
+      {/* Minimal indicators */}
+      <View style={styles.indicators}>
+        {announcements.map((_, index) => (
+          <TouchableOpacity
+            key={index}
+            onPress={() => {
+              setCurrentIndex(index);
+              translateX.setValue(0);
+              scaleAnim.setValue(1);
+            }}
+            activeOpacity={0.7}
+          >
+            <View
+              style={[
+                styles.indicator,
+                index === currentIndex && [
+                  styles.indicatorActive,
+                  { backgroundColor: current.color },
+                ],
+              ]}
+            />
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );
@@ -98,71 +152,79 @@ export const InfoBanner: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(249, 115, 22, 0.1)', // orange-primary/10
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(249, 115, 22, 0.2)', // orange-primary/20
+    backgroundColor: '#0a0e1a',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  touchable: {
+    borderRadius: 8,
     overflow: 'hidden',
-    marginTop: 0, // Supprimer la marge en haut
   },
-  banner: {
-    height: 40,
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  iconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  scrollContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  contentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: width * 1.2, // Augmenter la largeur pour éviter le chevauchement
-    paddingHorizontal: 15,
-    justifyContent: 'space-around', // Utiliser space-around au lieu de space-between
-  },
-  iconTextContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexShrink: 0,
-  },
-  highlightText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#F97316', // orange-primary
-    marginLeft: 6,
-  },
-  separator: {
-    width: 1,
-    height: 14,
-    backgroundColor: 'rgba(249, 115, 22, 0.3)',
-    marginHorizontal: 12,
-  },
-  featuresContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  textContainer: {
     flex: 1,
-    justifyContent: 'center',
-  },
-  featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
   },
-  featureText: {
-    fontSize: 12,
-    color: '#6B7280', // muted-foreground
-    marginLeft: 6,
-  },
-  featureSeparator: {
-    width: 1,
-    height: 14,
-    backgroundColor: 'rgba(107, 114, 128, 0.3)',
-    marginHorizontal: 16,
-  },
-  comingSoonText: {
-    fontSize: 10,
-    color: '#6B7280', // muted-foreground
+  label: {
+    color: '#fff',
+    fontSize: 13,
     fontWeight: '600',
-    flexShrink: 0,
+    letterSpacing: -0.2,
+  },
+  badge: {
+    backgroundColor: 'rgba(249, 115, 22, 0.2)',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+    borderWidth: 0.5,
+    borderColor: 'rgba(249, 115, 22, 0.4)',
+  },
+  badgeText: {
+    color: '#f97316',
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  arrow: {
+    marginLeft: 'auto',
+  },
+  indicators: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 4,
+  },
+  indicator: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  indicatorActive: {
+    width: 16,
+    borderRadius: 1.5,
   },
 });
