@@ -244,15 +244,34 @@ export const useProperties = () => {
           .ilike('name', `%${searchTerm}%`);
         
         if (cityData && cityData.length > 0) {
-          // Récupérer tous les enfants (communes, quartiers) de ces villes
+          // C'est une ville, récupérer tous les enfants (communes, quartiers)
           const cityIds = cityData.map(c => c.id);
-          const { data: childLocations } = await supabase
+          
+          // Étape 1: Récupérer les communes (enfants directs de la ville)
+          const { data: communeLocations } = await supabase
             .from('locations')
             .select('id')
-            .in('parent_id', cityIds);
+            .in('parent_id', cityIds)
+            .eq('type', 'commune');
           
-          // Inclure les villes ET leurs enfants
-          locationIds = [...cityIds, ...(childLocations || []).map(l => l.id)];
+          const communeIds = (communeLocations || []).map(l => l.id);
+          
+          // Étape 2: Récupérer les quartiers (enfants des communes)
+          let neighborhoodIds: string[] = [];
+          if (communeIds.length > 0) {
+            const { data: neighborhoodLocations } = await supabase
+              .from('locations')
+              .select('id')
+              .in('parent_id', communeIds)
+              .eq('type', 'neighborhood');
+            
+            neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
+          }
+          
+          // Inclure les villes, les communes ET les quartiers
+          locationIds = [...cityIds, ...communeIds, ...neighborhoodIds];
+          
+          console.log(`✅ Ville trouvée: ${cityIds.length} ville(s), ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
         } else {
           // Chercher dans les communes
           const { data: communeData } = await supabase
@@ -262,13 +281,21 @@ export const useProperties = () => {
             .ilike('name', `%${searchTerm}%`);
           
           if (communeData && communeData.length > 0) {
+            // C'est une commune, récupérer la commune ET tous ses quartiers
             const communeIds = communeData.map(c => c.id);
-            const { data: childLocations } = await supabase
+            
+            const { data: neighborhoodLocations } = await supabase
               .from('locations')
               .select('id')
-              .in('parent_id', communeIds);
+              .in('parent_id', communeIds)
+              .eq('type', 'neighborhood');
             
-            locationIds = [...communeIds, ...(childLocations || []).map(l => l.id)];
+            const neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
+            
+            // Inclure les communes ET les quartiers
+            locationIds = [...communeIds, ...neighborhoodIds];
+            
+            console.log(`✅ Commune trouvée: ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
           } else {
             // Chercher dans les quartiers
             const { data: neighborhoodData } = await supabase
@@ -279,12 +306,13 @@ export const useProperties = () => {
             
             if (neighborhoodData && neighborhoodData.length > 0) {
               locationIds = neighborhoodData.map(l => l.id);
+              console.log(`✅ Quartier trouvé: ${locationIds.length} quartier(s) pour "${searchTerm}"`);
             }
           }
         }
         
         if (!locationIds || locationIds.length === 0) {
-          console.log(`⚠️ Aucune location trouvée pour "${searchTerm}"`);
+          console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
           setProperties([]);
           setLoading(false);
           return;
@@ -806,15 +834,34 @@ export const useProperties = () => {
           .ilike('name', `%${searchTerm}%`);
         
         if (cityData && cityData.length > 0) {
-          // Récupérer tous les enfants (communes, quartiers) de ces villes
+          // C'est une ville, récupérer tous les enfants (communes, quartiers)
           const cityIds = cityData.map(c => c.id);
-          const { data: childLocations } = await supabase
+          
+          // Étape 1: Récupérer les communes (enfants directs de la ville)
+          const { data: communeLocations } = await supabase
             .from('locations')
             .select('id')
-            .in('parent_id', cityIds);
+            .in('parent_id', cityIds)
+            .eq('type', 'commune');
           
-          // Inclure les villes ET leurs enfants
-          locationIds = [...cityIds, ...(childLocations || []).map(l => l.id)];
+          const communeIds = (communeLocations || []).map(l => l.id);
+          
+          // Étape 2: Récupérer les quartiers (enfants des communes)
+          let neighborhoodIds: string[] = [];
+          if (communeIds.length > 0) {
+            const { data: neighborhoodLocations } = await supabase
+              .from('locations')
+              .select('id')
+              .in('parent_id', communeIds)
+              .eq('type', 'neighborhood');
+            
+            neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
+          }
+          
+          // Inclure les villes, les communes ET les quartiers
+          locationIds = [...cityIds, ...communeIds, ...neighborhoodIds];
+          
+          console.log(`✅ Ville trouvée: ${cityIds.length} ville(s), ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
         } else {
           // Chercher dans les communes
           const { data: communeData } = await supabase
@@ -824,13 +871,21 @@ export const useProperties = () => {
             .ilike('name', `%${searchTerm}%`);
           
           if (communeData && communeData.length > 0) {
+            // C'est une commune, récupérer la commune ET tous ses quartiers
             const communeIds = communeData.map(c => c.id);
-            const { data: childLocations } = await supabase
+            
+            const { data: neighborhoodLocations } = await supabase
               .from('locations')
               .select('id')
-              .in('parent_id', communeIds);
+              .in('parent_id', communeIds)
+              .eq('type', 'neighborhood');
             
-            locationIds = [...communeIds, ...(childLocations || []).map(l => l.id)];
+            const neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
+            
+            // Inclure les communes ET les quartiers
+            locationIds = [...communeIds, ...neighborhoodIds];
+            
+            console.log(`✅ Commune trouvée: ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
           } else {
             // Chercher dans les quartiers
             const { data: neighborhoodData } = await supabase
@@ -841,12 +896,13 @@ export const useProperties = () => {
             
             if (neighborhoodData && neighborhoodData.length > 0) {
               locationIds = neighborhoodData.map(l => l.id);
+              console.log(`✅ Quartier trouvé: ${locationIds.length} quartier(s) pour "${searchTerm}"`);
             }
           }
         }
         
         if (!locationIds || locationIds.length === 0) {
-          console.log(`⚠️ Aucune location trouvée pour "${searchTerm}"`);
+          console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
           setProperties([]);
           setLoading(false);
           return;
