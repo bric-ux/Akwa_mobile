@@ -50,6 +50,10 @@ export interface Booking {
     id: string;
     title: string;
     price_per_night: number;
+    host_id: string;
+    max_guests?: number;
+    cleaning_fee?: number;
+    service_fee?: number;
     images: string[];
     property_photos?: {
       id: string;
@@ -58,6 +62,14 @@ export interface Booking {
       display_order: number;
     }[];
     locations?: {
+      id: string;
+      name: string;
+      type: string;
+      latitude?: number;
+      longitude?: number;
+      parent_id?: string;
+    };
+    location?: {
       id: string;
       name: string;
       type: string;
@@ -302,6 +314,9 @@ export const useBookings = () => {
             title,
             price_per_night,
             host_id,
+            max_guests,
+            cleaning_fee,
+            service_fee,
             images,
             property_photos (
               id,

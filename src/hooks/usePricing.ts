@@ -6,6 +6,12 @@ export interface DiscountConfig {
 
 /**
  * Détermine quelle réduction (normale ou long séjour) doit être appliquée
+ * 
+ * Logique de priorité :
+ * 1. Si le seuil de réduction séjour long est atteint → toujours appliquer la réduction séjour long
+ * 2. Sinon, appliquer la réduction normale si son seuil est atteint
+ * 
+ * La réduction séjour long est prioritaire car elle est destinée aux séjours plus longs
  */
 export function getBestDiscount(
   nights: number, 
@@ -15,15 +21,12 @@ export function getBestDiscount(
   const canApplyNormal = shouldApplyDiscount(nights, discountConfig);
   const canApplyLongStay = longStayDiscountConfig ? shouldApplyDiscount(nights, longStayDiscountConfig) : false;
   
-  // Appliquer la meilleure réduction (la plus avantageuse)
+  // Priorité absolue à la réduction séjour long si son seuil est atteint
   if (canApplyLongStay && longStayDiscountConfig) {
-    if (!canApplyNormal) return longStayDiscountConfig;
-    // Comparer et retourner la meilleure
-    return (longStayDiscountConfig.percentage! > discountConfig.percentage!) 
-      ? longStayDiscountConfig 
-      : discountConfig;
+    return longStayDiscountConfig;
   }
   
+  // Sinon, appliquer la réduction normale si applicable
   return canApplyNormal ? discountConfig : null;
 }
 

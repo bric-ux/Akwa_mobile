@@ -19,6 +19,7 @@ interface BookingCardProps {
   onViewProperty: (propertyId: string) => void;
   onCancelBooking: (booking: Booking) => void;
   onLeaveReview?: (booking: Booking) => void;
+  onModifyBooking?: (booking: Booking) => void;
   canReview?: boolean;
 }
 
@@ -27,6 +28,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
   onViewProperty,
   onCancelBooking,
   onLeaveReview,
+  onModifyBooking,
   canReview = false,
 }) => {
   const navigation = useNavigation();
@@ -274,15 +276,28 @@ const BookingCard: React.FC<BookingCardProps> = ({
         )}
 
         {(booking.status === 'pending' || booking.status === 'confirmed') && !isBookingPast(booking.check_out_date) && !hasAlreadyStarted() && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.cancelButton]}
-            onPress={() => onCancelBooking(booking)}
-          >
-            <Ionicons name="close-outline" size={16} color="#e74c3c" />
-            <Text style={[styles.actionButtonText, styles.cancelButtonText]}>
-              Annuler
-            </Text>
-          </TouchableOpacity>
+          <>
+            {onModifyBooking && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.modifyButton]}
+                onPress={() => onModifyBooking(booking)}
+              >
+                <Ionicons name="create-outline" size={16} color="#3498db" />
+                <Text style={[styles.actionButtonText, styles.modifyButtonText]}>
+                  Modifier
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.actionButton, styles.cancelButton]}
+              onPress={() => onCancelBooking(booking)}
+            >
+              <Ionicons name="close-outline" size={16} color="#e74c3c" />
+              <Text style={[styles.actionButtonText, styles.cancelButtonText]}>
+                Annuler
+              </Text>
+            </TouchableOpacity>
+          </>
         )}
       </View>
     </TouchableOpacity>
@@ -448,6 +463,12 @@ const styles = StyleSheet.create({
   },
   reviewButtonText: {
     color: '#FFD700',
+  },
+  modifyButton: {
+    borderColor: '#3498db',
+  },
+  modifyButtonText: {
+    color: '#3498db',
   },
 });
 

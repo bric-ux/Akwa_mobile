@@ -29,6 +29,9 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const { amenities, loading: amenitiesLoading } = useAmenities();
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<string>(initialFilters.sortBy || '');
+  const [minPriceInput, setMinPriceInput] = useState<string>(initialFilters.priceMin?.toString() || '');
+  const [maxPriceInput, setMaxPriceInput] = useState<string>(initialFilters.priceMax?.toString() || '');
 
   const propertyTypes = [
     { key: 'apartment', label: 'Appartement' },
@@ -38,30 +41,57 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     { key: 'other', label: 'Autre' },
   ];
 
-  const priceRanges = [
-    { min: 0, max: 10000, label: 'Moins de 10k FCFA' },
-    { min: 10000, max: 25000, label: '10k - 25k FCFA' },
-    { min: 25000, max: 50000, label: '25k - 50k FCFA' },
-    { min: 50000, max: 100000, label: '50k - 100k FCFA' },
-    { min: 100000, max: undefined, label: 'Plus de 100k FCFA' },
+  // Gammes de prix rapides améliorées (alignées avec le site web)
+  const quickPriceRanges = [
+    { label: 'Économique', min: 0, max: 25000 },
+    { label: 'Moyen', min: 25000, max: 50000 },
+    { label: 'Confort', min: 50000, max: 100000 },
+    { label: 'Premium', min: 100000, max: 200000 },
   ];
 
-  // Initialiser les équipements sélectionnés depuis les filtres
+  // Options de tri (alignées avec le site web)
+  const sortOptions = [
+    { value: '', label: 'Par défaut' },
+    { value: 'price_asc', label: 'Prix croissant' },
+    { value: 'price_desc', label: 'Prix décroissant' },
+    { value: 'recent', label: 'Plus récents' },
+    { value: 'rating_desc', label: 'Meilleures notes' },
+    { value: 'popular', label: 'Plus populaires' },
+  ];
+
+  // Initialiser les filtres depuis initialFilters
   useEffect(() => {
     if (initialFilters.amenities) {
       setSelectedAmenities(initialFilters.amenities);
     }
+    if (initialFilters.sortBy) {
+      setSortBy(initialFilters.sortBy);
+    }
+    if (initialFilters.priceMin !== undefined) {
+      setMinPriceInput(initialFilters.priceMin.toString());
+    }
+    if (initialFilters.priceMax !== undefined) {
+      setMaxPriceInput(initialFilters.priceMax.toString());
+    }
   }, [initialFilters]);
 
   const handleApply = () => {
+    const priceMin = minPriceInput ? parseInt(minPriceInput) : undefined;
+    const priceMax = maxPriceInput ? parseInt(maxPriceInput) : undefined;
+    
     onApply({
       ...filters,
+      priceMin,
+      priceMax,
       amenities: selectedAmenities.length > 0 ? selectedAmenities : undefined,
+      sortBy: sortBy || undefined,
     });
     onClose();
   };
 
-  const handlePriceRangeSelect = (range: { min: number; max?: number }) => {
+  const handlePriceRangeSelect = (range: { min: number; max: number }) => {
+    setMinPriceInput(range.min.toString());
+    setMaxPriceInput(range.max.toString());
     setFilters({
       ...filters,
       priceMin: range.min,
@@ -72,6 +102,9 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   const clearFilters = () => {
     setFilters({});
     setSelectedAmenities([]);
+    setSortBy('');
+    setMinPriceInput('');
+    setMaxPriceInput('');
   };
 
   const toggleAmenity = (amenityName: string) => {
@@ -117,54 +150,132 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
         </View>
 
         <ScrollView style={styles.modalContent}>
-          {/* Prix */}
+          {/* Tri */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Prix par nuit</Text>
-            <View style={styles.priceRange}>
-              <TextInput
-                style={styles.priceInput}
-                placeholder="Min"
-                value={filters.priceMin?.toString() || ''}
-                onChangeText={(text) => setFilters({ ...filters, priceMin: parseInt(text) || undefined })}
-                keyboardType="numeric"
-              />
-              <Text style={styles.priceSeparator}>-</Text>
-              <TextInput
-                style={styles.priceInput}
-                placeholder="Max"
-                value={filters.priceMax?.toString() || ''}
-                onChangeText={(text) => setFilters({ ...filters, priceMax: parseInt(text) || undefined })}
-                keyboardType="numeric"
-              />
+            <View style={styles.sectionHeader}>
+              <Ionicons name="sparkles" size={18} color="#2E7D32" />
+              <Text style={styles.sectionTitle}>Trier par</Text>
             </View>
-            
-            {/* Gammes de prix rapides */}
-            <View style={styles.priceRanges}>
-              {priceRanges.map((range, index) => (
+            <View style={styles.sortContainer}>
+              {sortOptions.map((option) => (
                 <TouchableOpacity
-                  key={index}
+                  key={option.value || 'default'}
                   style={[
-                    styles.priceRangeButton,
-                    filters.priceMin === range.min && filters.priceMax === range.max && styles.priceRangeButtonActive,
+                    styles.sortOption,
+                    sortBy === option.value && styles.sortOptionActive,
                   ]}
-                  onPress={() => handlePriceRangeSelect(range)}
+                  onPress={() => setSortBy(option.value)}
                 >
                   <Text
                     style={[
-                      styles.priceRangeText,
-                      filters.priceMin === range.min && filters.priceMax === range.max && styles.priceRangeTextActive,
+                      styles.sortOptionText,
+                      sortBy === option.value && styles.sortOptionTextActive,
                     ]}
                   >
-                    {range.label}
+                    {option.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
 
+          {/* Prix */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="cash" size={18} color="#2E7D32" />
+              <Text style={styles.sectionTitle}>Prix par nuit</Text>
+            </View>
+            <View style={styles.priceRange}>
+              <View style={styles.priceInputContainer}>
+                <Text style={styles.priceLabel}>Minimum</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  placeholder="0"
+                  value={minPriceInput}
+                  onChangeText={(text) => {
+                    setMinPriceInput(text);
+                    const value = parseInt(text) || 0;
+                    const maxValue = parseInt(maxPriceInput) || 200000;
+                    const clamped = Math.min(Math.max(value, 0), maxValue);
+                    if (text === '' || !isNaN(clamped)) {
+                      setFilters({ ...filters, priceMin: text === '' ? undefined : clamped });
+                    }
+                  }}
+                  onBlur={() => {
+                    const value = parseInt(minPriceInput) || 0;
+                    const maxValue = parseInt(maxPriceInput) || 200000;
+                    const clamped = Math.min(Math.max(value, 0), maxValue);
+                    setMinPriceInput(clamped.toString());
+                    setFilters({ ...filters, priceMin: clamped });
+                  }}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.priceUnit}>FCFA</Text>
+              </View>
+              <Text style={styles.priceSeparator}>-</Text>
+              <View style={styles.priceInputContainer}>
+                <Text style={styles.priceLabel}>Maximum</Text>
+                <TextInput
+                  style={styles.priceInput}
+                  placeholder="200000"
+                  value={maxPriceInput}
+                  onChangeText={(text) => {
+                    setMaxPriceInput(text);
+                    const value = parseInt(text) || 200000;
+                    const minValue = parseInt(minPriceInput) || 0;
+                    const clamped = Math.max(Math.min(value, 200000), minValue);
+                    if (text === '' || !isNaN(clamped)) {
+                      setFilters({ ...filters, priceMax: text === '' ? undefined : clamped });
+                    }
+                  }}
+                  onBlur={() => {
+                    const value = parseInt(maxPriceInput) || 200000;
+                    const minValue = parseInt(minPriceInput) || 0;
+                    const clamped = Math.max(Math.min(value, 200000), minValue);
+                    setMaxPriceInput(clamped.toString());
+                    setFilters({ ...filters, priceMax: clamped });
+                  }}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.priceUnit}>FCFA</Text>
+              </View>
+            </View>
+            
+            {/* Gammes de prix rapides améliorées */}
+            <View style={styles.priceRanges}>
+              {quickPriceRanges.map((range, index) => {
+                const isActive = 
+                  (filters.priceMin === range.min || parseInt(minPriceInput) === range.min) &&
+                  (filters.priceMax === range.max || parseInt(maxPriceInput) === range.max);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.priceRangeButton,
+                      isActive && styles.priceRangeButtonActive,
+                    ]}
+                    onPress={() => handlePriceRangeSelect(range)}
+                  >
+                    <Text
+                      style={[
+                        styles.priceRangeText,
+                        isActive && styles.priceRangeTextActive,
+                      ]}
+                    >
+                      {range.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
           {/* Type de logement */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Type de logement</Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="home" size={18} color="#2E7D32" />
+              <Text style={styles.sectionTitle}>Type de logement</Text>
+            </View>
             <View style={styles.propertyTypes}>
               {propertyTypes.map((type) => (
                 <TouchableOpacity
@@ -218,7 +329,10 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
 
           {/* Équipements */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Équipements</Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="options" size={18} color="#2E7D32" />
+              <Text style={styles.sectionTitle}>Équipements</Text>
+            </View>
             {amenitiesLoading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Chargement des équipements...</Text>
@@ -296,15 +410,62 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 25,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 15,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 15,
+  },
+  sortContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  sortOption: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    backgroundColor: '#fff',
+  },
+  sortOptionActive: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  sortOptionText: {
+    fontSize: 14,
+    color: '#6c757d',
+  },
+  sortOptionTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  priceInputContainer: {
+    flex: 1,
+  },
+  priceLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 5,
+  },
+  priceUnit: {
+    position: 'absolute',
+    right: 8,
+    top: 28,
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
   priceRange: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    gap: 10,
     marginBottom: 15,
   },
   priceInput: {
@@ -312,6 +473,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
     padding: 12,
+    paddingRight: 50,
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#e9ecef',

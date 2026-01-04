@@ -184,6 +184,8 @@ export interface SearchFilters {
   centerLat?: number; // Latitude du centre de recherche
   centerLng?: number; // Longitude du centre de recherche
   radiusKm?: number; // Rayon de recherche en kilomètres
+  // Tri des résultats
+  sortBy?: 'popular' | 'price_asc' | 'price_desc' | 'rating_desc' | 'recent' | '';
 }
 
 // Types de navigation
@@ -217,6 +219,7 @@ export type RootStackParamList = {
   AdminNotifications: undefined;
   AdminReviews: undefined;
   AdminVehicles: undefined;
+  AdminPenalties: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
   PropertyManagement: { propertyId: string }; // Gestion de propriété avec photos et options
@@ -236,6 +239,7 @@ export type RootStackParamList = {
   MyVehicleBookings: undefined;
   EditVehicle: { vehicleId: string };
   HostVehicleBookings: { vehicleId?: string };
+  Penalties: undefined;
 };
 
 export type TabParamList = {

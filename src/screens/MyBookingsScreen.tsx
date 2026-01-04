@@ -20,6 +20,7 @@ import { useReviews } from '../hooks/useReviews';
 import BookingCard from '../components/BookingCard';
 import ReviewModal from '../components/ReviewModal';
 import CancellationDialog from '../components/CancellationDialog';
+import BookingModificationModal from '../components/BookingModificationModal';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -34,6 +35,8 @@ const MyBookingsScreen: React.FC = () => {
   const [canReviewMap, setCanReviewMap] = useState<Record<string, boolean>>({});
   const [cancellationDialogVisible, setCancellationDialogVisible] = useState(false);
   const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<Booking | null>(null);
+  const [modificationModalVisible, setModificationModalVisible] = useState(false);
+  const [selectedBookingForModification, setSelectedBookingForModification] = useState<Booking | null>(null);
 
   const isStayCompleted = (checkOutDate: string): boolean => {
     const today = new Date();
@@ -125,6 +128,33 @@ const MyBookingsScreen: React.FC = () => {
     setReviewModalVisible(true);
   };
 
+  const handleModifyBooking = (booking: Booking) => {
+    // Vérifier si la réservation peut être modifiée
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkInDate = new Date(booking.check_in_date);
+    checkInDate.setHours(0, 0, 0, 0);
+
+    if (booking.status === 'completed' || booking.status === 'cancelled') {
+      Alert.alert('Impossible de modifier', 'Cette réservation ne peut plus être modifiée.');
+      return;
+    }
+
+    if (checkInDate <= today) {
+      Alert.alert('Impossible de modifier', 'Vous ne pouvez modifier que les réservations futures.');
+      return;
+    }
+
+    setSelectedBookingForModification(booking);
+    setModificationModalVisible(true);
+  };
+
+  const handleModificationRequested = () => {
+    loadBookings();
+    setModificationModalVisible(false);
+    setSelectedBookingForModification(null);
+  };
+
   const handleReviewSubmitted = () => {
     loadBookings(); // Recharger pour mettre à jour l'état
   };
@@ -171,6 +201,7 @@ const MyBookingsScreen: React.FC = () => {
       onViewProperty={handleViewProperty}
       onCancelBooking={handleCancelBooking}
       onLeaveReview={handleLeaveReview}
+      onModifyBooking={handleModifyBooking}
       canReview={canReviewMap[booking.id] || false}
     />
   );
@@ -322,6 +353,18 @@ const MyBookingsScreen: React.FC = () => {
             setCancellationDialogVisible(false);
             setSelectedBookingForCancellation(null);
           }}
+        />
+      )}
+
+      {selectedBookingForModification && (
+        <BookingModificationModal
+          visible={modificationModalVisible}
+          onClose={() => {
+            setModificationModalVisible(false);
+            setSelectedBookingForModification(null);
+          }}
+          booking={selectedBookingForModification}
+          onModificationRequested={handleModificationRequested}
         />
       )}
     </SafeAreaView>

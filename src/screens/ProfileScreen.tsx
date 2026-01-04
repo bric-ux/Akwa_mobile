@@ -329,6 +329,16 @@ const ProfileScreen: React.FC = () => {
     menuItems.push(vehicleSpaceItem);
   }
 
+  // Ajouter les pénalités si l'utilisateur est hôte ou a des véhicules
+  if (profile?.is_host || hasVehicles) {
+    menuItems.push({
+      id: 'penalties',
+      title: 'Remboursements & Pénalités',
+      icon: 'alert-circle-outline',
+      onPress: () => navigation.navigate('Penalties' as never),
+    });
+  }
+
   // Ajouter les éléments communs
   menuItems = [...menuItems, ...commonMenuItems];
 

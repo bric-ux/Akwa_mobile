@@ -61,6 +61,8 @@ import HostVehicleBookingsScreen from '../screens/HostVehicleBookingsScreen';
 import EditVehicleScreen from '../screens/EditVehicleScreen';
 import VehicleOwnerAccountScreen from '../screens/VehicleOwnerAccountScreen';
 import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
+import PenaltiesScreen from '../screens/PenaltiesScreen';
+import AdminPenaltiesScreen from '../screens/AdminPenaltiesScreen';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList, VehicleOwnerTabParamList } from '../types';
@@ -617,6 +619,14 @@ const AppNavigator = () => {
                 headerShown: false
               }}
             />
+            <Stack.Screen
+              name="AdminPenalties"
+              component={AdminPenaltiesScreen}
+              options={{
+                title: 'Gestion des pénalités',
+                headerShown: false
+              }}
+            />
             <Stack.Screen 
               name="EditProperty" 
               component={EditPropertyScreen}
@@ -755,6 +765,14 @@ const AppNavigator = () => {
               component={HostVehicleBookingsScreen}
               options={{ 
                 title: 'Réservations de véhicules',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="Penalties" 
+              component={PenaltiesScreen}
+              options={{ 
+                title: 'Remboursements & Pénalités',
                 headerShown: false 
               }}
             />

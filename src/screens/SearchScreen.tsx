@@ -37,7 +37,8 @@ const SearchScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState(route.params?.destination || '');
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>('popular');
+  // Utiliser sortBy des filtres, avec fallback sur 'popular'
+  const sortBy = (filters.sortBy || 'popular') as SortOption;
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
@@ -298,7 +299,23 @@ const SearchScreen: React.FC = () => {
 
   const handleSortChange = (newSort: SortOption) => {
     console.log('🔄 Changement de tri:', newSort);
-    setSortBy(newSort);
+    const updatedFilters = {
+      ...filters,
+      sortBy: newSort as any
+    };
+    setFilters(updatedFilters);
+    // Relancer la recherche avec le nouveau tri
+    const searchFilters = { 
+      ...updatedFilters, 
+      city: searchQuery,
+      checkIn,
+      checkOut,
+      adults,
+      children,
+      babies,
+      guests: adults + children + babies
+    };
+    fetchProperties(searchFilters);
   };
 
   const getActiveFiltersCount = (): number => {

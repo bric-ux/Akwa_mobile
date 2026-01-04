@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { Property } from '../types';
 
-export type SortOption = 'popular' | 'price_asc' | 'price_desc' | 'rating' | 'newest';
+export type SortOption = 'popular' | 'price_asc' | 'price_desc' | 'rating' | 'rating_desc' | 'newest' | 'recent' | '';
 
-export const usePropertySorting = (properties: Property[], sortBy: SortOption) => {
+export const usePropertySorting = (properties: Property[], sortBy: SortOption | string) => {
   const sortedProperties = useMemo(() => {
     if (!properties || properties.length === 0) return [];
 
@@ -36,6 +36,7 @@ export const usePropertySorting = (properties: Property[], sortBy: SortOption) =
         return sortedDesc;
       
       case 'rating':
+      case 'rating_desc':
         return sorted.sort((a, b) => {
           const ratingA = a.rating || 0;
           const ratingB = b.rating || 0;
@@ -47,6 +48,7 @@ export const usePropertySorting = (properties: Property[], sortBy: SortOption) =
         });
       
       case 'newest':
+      case 'recent':
         return sorted.sort((a, b) => {
           const dateA = new Date(a.created_at || 0).getTime();
           const dateB = new Date(b.created_at || 0).getTime();

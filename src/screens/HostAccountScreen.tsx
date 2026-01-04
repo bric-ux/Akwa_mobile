@@ -180,6 +180,12 @@ const HostAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('GuestReferral' as never),
     },
     {
+      id: 'penalties',
+      title: 'Remboursements & Pénalités',
+      icon: 'alert-circle-outline',
+      onPress: () => navigation.navigate('Penalties' as never),
+    },
+    {
       id: 'settings',
       title: t('settings.title'),
       icon: 'settings-outline',

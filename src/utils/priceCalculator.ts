@@ -156,3 +156,29 @@ export const getDynamicPrices = async (propertyId: string) => {
   }
 };
 
+/**
+ * Formate un prix en FCFA avec séparateurs de milliers
+ * Compatible avec le site web : formate directement sans division
+ * @param price - Prix en FCFA (integer) - comme sur le site web
+ * @returns Prix formaté (ex: "15 000 FCFA")
+ */
+export const formatPrice = (price: number): string => {
+  if (price === null || price === undefined) return '0 FCFA';
+  // Formatage direct comme sur le site web (pas de division par 100)
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'XOF',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(price);
+};
+
+/**
+ * Formate un montant déjà en FCFA (alias de formatPrice pour compatibilité)
+ * @param amount - Montant en FCFA (integer)
+ * @returns Montant formaté (ex: "18 000 FCFA")
+ */
+export const formatAmount = (amount: number): string => {
+  return formatPrice(amount);
+};
+

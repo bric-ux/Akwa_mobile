@@ -62,18 +62,8 @@ const ConciergerieScreen: React.FC = () => {
       features: [
         'Gestion des entrées et sorties',
         'Communication avec le voyageur H24',
-      ],
-      popular: false,
-    },
-    {
-      name: 'Essentiel',
-      price: '12%',
-      description: 'Parfait pour débuter',
-      features: [
-        'Tout l\'offre Basique',
-        'Assure la visibilité des propriétés',
+        'Assure la visibilité des propriétés sur akwahome',
         'Gestion de calendrier',
-        'Gestion de Ménage en cours de séjour / après séjour',
       ],
       popular: false,
     },
@@ -82,9 +72,9 @@ const ConciergerieScreen: React.FC = () => {
       price: '18%',
       description: 'Le plus populaire',
       features: [
-        'Tout l\'offre de l\'Essentiel',
+        'Gestion de Ménage en cours de séjour / après séjour',
+        'Tout l\'offre basique',
         'Optimisation des prix',
-        'Photographie professionnelle',
         'Rapport mensuel détaillé',
       ],
       popular: true,
@@ -96,6 +86,7 @@ const ConciergerieScreen: React.FC = () => {
       features: [
         'Tout l\'offre Premium',
         'Décoration et staging',
+        'Photographie professionnelle',
         'Gestionnaire dédié',
         'Démarche administrative liée à la réglementation',
         'Assistance des voyageurs sur place',
@@ -120,7 +111,7 @@ const ConciergerieScreen: React.FC = () => {
       
       await sendEmail({
         type: 'conciergerie_request',
-        to: 'support@akwahome.com',
+        to: 'jeanbrice270@gmail.com',
         data: {
           subject: 'Nouvelle demande de consultation - Conciergerie AkwaHome',
           clientName: formData.name,

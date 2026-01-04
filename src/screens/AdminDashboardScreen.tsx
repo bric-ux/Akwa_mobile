@@ -148,6 +148,10 @@ const AdminDashboardScreen: React.FC = () => {
     navigation.navigate('AdminVehicles');
   };
 
+  const handleNavigateToPenalties = () => {
+    navigation.navigate('AdminPenalties');
+  };
+
   const handleTestEmail = () => {
     setShowEmailModal(true);
   };
@@ -414,6 +418,13 @@ const AdminDashboardScreen: React.FC = () => {
             description="Approuver ou rejeter les demandes de véhicules"
             icon="car-outline"
             onPress={handleNavigateToVehicles}
+          />
+
+          <QuickAction
+            title="Gestion des pénalités"
+            description="Suivre et gérer les pénalités d'annulation"
+            icon="alert-circle-outline"
+            onPress={handleNavigateToPenalties}
           />
         </View>
 
