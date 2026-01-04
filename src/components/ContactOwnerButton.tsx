@@ -29,7 +29,7 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
 }) => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { createOrGetConversation } = useMessaging();
+  const { createOrGetConversation, loadConversations } = useMessaging();
   const [loading, setLoading] = useState(false);
 
   const handleContactOwner = async () => {
@@ -79,7 +79,14 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
       if (conversationId) {
         console.log('✅ [ContactOwnerButton] Conversation créée:', conversationId);
         
-        // Navigation directe vers la conversation sans alerte
+        // Recharger les conversations pour s'assurer qu'elle est dans la liste
+        console.log('🔄 [ContactOwnerButton] Rechargement des conversations...');
+        await loadConversations(user.id);
+        
+        // Attendre un peu pour que les conversations soient chargées
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Navigation directe vers la conversation
         console.log('🚀 [ContactOwnerButton] Navigation vers la conversation:', conversationId);
         (navigation as any).navigate('Home', { 
           screen: 'MessagingTab',

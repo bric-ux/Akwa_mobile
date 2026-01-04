@@ -71,32 +71,74 @@ const MessagingScreen: React.FC = () => {
 
   // Ouvrir automatiquement une conversation si un ID est fourni
   useEffect(() => {
-    if (conversationId && conversations.length > 0 && hasOpenedConversationRef.current !== conversationId) {
-      const conversation = conversations.find(conv => conv.id === conversationId);
-      if (conversation) {
-        console.log('🎯 [MessagingScreen] Ouverture automatique de la conversation:', conversationId);
+    if (conversationId && hasOpenedConversationRef.current !== conversationId) {
+      // Si on a des conversations, chercher dedans
+      if (conversations.length > 0) {
+        const conversation = conversations.find(conv => conv.id === conversationId);
+        if (conversation) {
+          console.log('🎯 [MessagingScreen] Ouverture automatique de la conversation:', conversationId);
+          hasOpenedConversationRef.current = conversationId;
+          // Réinitialiser le dernier chargé pour forcer le rechargement
+          lastLoadedConversationId.current = null;
+          // Vérifier si on vient d'un paramètre (propertyId ou vehicleId)
+          if (propertyId || vehicleId) {
+            setOpenedFromParam(true);
+          }
+          // Mettre à jour les états de manière synchrone pour éviter les tremblements
+          setShowConversations(false);
+          // Utiliser requestAnimationFrame pour éviter les conflits de state
+          requestAnimationFrame(() => {
+            setSelectedConversation(conversation);
+          });
+          return;
+        }
+      }
+      
+      // Si la conversation n'est pas trouvée, créer une conversation temporaire
+      console.log('⚠️ [MessagingScreen] Conversation non trouvée dans la liste, création temporaire...');
+      if (user) {
+        // Créer une conversation temporaire pour permettre l'ouverture immédiate
+        const tempConversation: Conversation = {
+          id: conversationId,
+          guest_id: user.id,
+          host_id: '', // Sera mis à jour après le rechargement
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        
+        if (vehicleId) {
+          (tempConversation as any).vehicle_id = vehicleId;
+        }
+        if (propertyId) {
+          (tempConversation as any).property_id = propertyId;
+        }
+        
         hasOpenedConversationRef.current = conversationId;
-        // Réinitialiser le dernier chargé pour forcer le rechargement
-        lastLoadedConversationId.current = null;
-        // Vérifier si on vient d'un paramètre (propertyId ou vehicleId)
         if (propertyId || vehicleId) {
           setOpenedFromParam(true);
         }
-        // Mettre à jour les états de manière synchrone pour éviter les tremblements
         setShowConversations(false);
-        // Utiliser requestAnimationFrame pour éviter les conflits de state
         requestAnimationFrame(() => {
-          setSelectedConversation(conversation);
+          setSelectedConversation(tempConversation as Conversation);
         });
-      } else {
-        console.log('⚠️ [MessagingScreen] Conversation non trouvée dans la liste, rechargement...');
-        // Recharger les conversations si la conversation n'est pas trouvée
-        if (user) {
-          loadConversations(user.id);
-        }
+        
+        // Recharger les conversations en arrière-plan pour obtenir les vraies données
+        loadConversations(user.id);
       }
     }
   }, [conversationId, conversations, propertyId, vehicleId, user, loadConversations]);
+
+  // Mettre à jour la conversation sélectionnée si elle est chargée après une création temporaire
+  useEffect(() => {
+    if (selectedConversation && conversationId && selectedConversation.id === conversationId && conversations.length > 0) {
+      const realConversation = conversations.find(conv => conv.id === conversationId);
+      if (realConversation && (!selectedConversation.host_id || selectedConversation.host_id === '')) {
+        // Mettre à jour avec la vraie conversation si elle est maintenant disponible
+        console.log('🔄 [MessagingScreen] Mise à jour de la conversation temporaire avec les vraies données');
+        setSelectedConversation(realConversation);
+      }
+    }
+  }, [conversations, selectedConversation, conversationId]);
 
   // Réinitialiser openedFromParam quand on revient à la liste des conversations
   useEffect(() => {
