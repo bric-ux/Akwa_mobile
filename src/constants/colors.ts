@@ -3,32 +3,32 @@
  * Permet de différencier visuellement chaque mode
  */
 
-// Mode Voyageur (par défaut)
+// Mode Voyageur (par défaut) - Orange comme sur le site web
 export const TRAVELER_COLORS = {
-  primary: '#2563eb', // Bleu
-  secondary: '#3b82f6',
-  light: '#dbeafe',
-  dark: '#1e40af',
-};
-
-// Mode Hôte
-export const HOST_COLORS = {
-  primary: '#e67e22', // Orange
-  secondary: '#f97316',
+  primary: '#e67e22', // Orange (#e67e22)
+  secondary: '#f97316', // Orange-500
   light: '#fff5e6',
-  dark: '#d66a1a',
-  badge: '#fff5e6',
-  badgeText: '#e67e22',
+  dark: '#d66a1a', // Hover color
 };
 
-// Mode Véhicules
+// Mode Hôte - Vert comme sur le site web
+export const HOST_COLORS = {
+  primary: '#16a34a', // Green-600
+  secondary: '#22c55e', // Green-500
+  light: '#dcfce7',
+  dark: '#15803d', // Green-700 (hover)
+  badge: '#dcfce7',
+  badgeText: '#16a34a',
+};
+
+// Mode Véhicules - Bleu comme sur le site web
 export const VEHICLE_COLORS = {
-  primary: '#475569', // Slate/Gris foncé
-  secondary: '#64748b',
-  light: '#f1f5f9',
-  dark: '#334155',
-  badge: '#f1f5f9',
-  badgeText: '#475569',
+  primary: '#2563eb', // Blue-600
+  secondary: '#3b82f6', // Blue-500
+  light: '#dbeafe',
+  dark: '#1d4ed8', // Blue-700 (hover)
+  badge: '#dbeafe',
+  badgeText: '#2563eb',
 };
 
 // Couleurs communes

@@ -681,15 +681,15 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   hostSpaceButton: {
-    backgroundColor: HOST_COLORS.primary,
+    backgroundColor: '#16a34a', // Vert pour mode hôte (comme sur le site web)
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: '#16a34a',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
@@ -726,15 +726,15 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   vehicleSpaceButton: {
-    backgroundColor: VEHICLE_COLORS.primary,
+    backgroundColor: '#2563eb', // Bleu pour mode véhicule (comme sur le site web)
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: '#2563eb',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },

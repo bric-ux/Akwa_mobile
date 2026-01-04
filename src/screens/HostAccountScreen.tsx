@@ -398,20 +398,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   switchModeButton: {
-    backgroundColor: HOST_COLORS.primary,
+    backgroundColor: '#e67e22', // Orange pour mode voyageur (comme sur le site web)
     borderRadius: 16,
     padding: 16,
-    shadowColor: HOST_COLORS.primary,
+    shadowColor: '#e67e22',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
   switchModeButtonVehicle: {
-    backgroundColor: VEHICLE_COLORS.primary,
+    backgroundColor: '#2563eb', // Bleu pour mode véhicule (comme sur le site web)
     borderRadius: 16,
     padding: 16,
-    shadowColor: VEHICLE_COLORS.primary,
+    shadowColor: '#2563eb',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
