@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/services/AuthContext';
 import { CurrencyProvider } from './src/contexts/CurrencyContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
+import { SearchDatesProvider } from './src/contexts/SearchDatesContext';
 import AppNavigator from './src/navigation/AppNavigator';
 
 const queryClient = new QueryClient();
@@ -15,11 +16,13 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <LanguageProvider>
           <CurrencyProvider>
-            <AuthProvider>
-              <AuthGate>
-                <AppNavigator />
-              </AuthGate>
-            </AuthProvider>
+            <SearchDatesProvider>
+              <AuthProvider>
+                <AuthGate>
+                  <AppNavigator />
+                </AuthGate>
+              </AuthProvider>
+            </SearchDatesProvider>
           </CurrencyProvider>
         </LanguageProvider>
       </QueryClientProvider>

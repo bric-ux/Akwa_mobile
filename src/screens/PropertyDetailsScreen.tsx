@@ -28,6 +28,7 @@ import { supabase } from '../services/supabase';
 import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
 import PropertyReviews from '../components/PropertyReviews';
+import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -35,12 +36,13 @@ const PropertyDetailsScreen: React.FC = () => {
   const route = useRoute<PropertyDetailsRouteProp>();
   const navigation = useNavigation();
   const { t } = useLanguage();
-  const { propertyId } = route.params;
+  const { propertyId, checkIn: routeCheckIn, checkOut: routeCheckOut, adults: routeAdults, children: routeChildren, babies: routeBabies } = route.params;
   const { getPropertyById } = useProperties();
   const { user } = useAuth();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { requireAuthForFavorites } = useAuthRedirect();
   const { hostProfile, getHostProfile } = useHostProfile();
+  const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -48,7 +50,47 @@ const PropertyDetailsScreen: React.FC = () => {
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
   
+  // Utiliser les dates de la route si disponibles, sinon utiliser les dates du context
+  // Utiliser useMemo pour recalculer quand les valeurs changent
+  const checkIn = React.useMemo(() => routeCheckIn || searchDates.checkIn, [routeCheckIn, searchDates.checkIn]);
+  const checkOut = React.useMemo(() => routeCheckOut || searchDates.checkOut, [routeCheckOut, searchDates.checkOut]);
+  const adults = React.useMemo(() => routeAdults !== undefined ? routeAdults : (searchDates.adults || 1), [routeAdults, searchDates.adults]);
+  const children = React.useMemo(() => routeChildren !== undefined ? routeChildren : (searchDates.children || 0), [routeChildren, searchDates.children]);
+  const babies = React.useMemo(() => routeBabies !== undefined ? routeBabies : (searchDates.babies || 0), [routeBabies, searchDates.babies]);
+  
   const isHost = property && user?.id === property.host_id;
+
+  // Log pour déboguer
+  useEffect(() => {
+    console.log('📅 PropertyDetailsScreen - Dates calculées:', {
+      routeCheckIn,
+      routeCheckOut,
+      searchDatesCheckIn: searchDates.checkIn,
+      searchDatesCheckOut: searchDates.checkOut,
+      searchDatesFull: searchDates,
+      finalCheckIn: checkIn,
+      finalCheckOut: checkOut,
+      finalAdults: adults,
+      finalChildren: children,
+      finalBabies: babies,
+    });
+  }, [routeCheckIn, routeCheckOut, searchDates, checkIn, checkOut, adults, children, babies]);
+
+  // Sauvegarder les dates de la route dans le context si elles existent (une seule fois)
+  const hasSavedRouteDates = React.useRef(false);
+  useEffect(() => {
+    if (!hasSavedRouteDates.current && (routeCheckIn || routeCheckOut || routeAdults !== undefined || routeChildren !== undefined || routeBabies !== undefined)) {
+      hasSavedRouteDates.current = true;
+      saveSearchDates({
+        checkIn: routeCheckIn,
+        checkOut: routeCheckOut,
+        adults: routeAdults,
+        children: routeChildren,
+        babies: routeBabies,
+      });
+    }
+  }, [routeCheckIn, routeCheckOut, routeAdults, routeChildren, routeBabies]);
+
 
   useEffect(() => {
     const loadProperty = async () => {
@@ -171,6 +213,14 @@ const PropertyDetailsScreen: React.FC = () => {
   };
 
   const handleBookNow = () => {
+    console.log('📅 PropertyDetailsScreen - handleBookNow appelé avec dates:', {
+      checkIn,
+      checkOut,
+      adults,
+      children,
+      babies,
+      searchDates,
+    });
     if (!user) {
       // Rediriger vers la page de connexion
       navigation.navigate('Auth' as never);
@@ -547,6 +597,15 @@ const PropertyDetailsScreen: React.FC = () => {
           visible={showBookingModal}
           onClose={() => setShowBookingModal(false)}
           property={property}
+          initialCheckIn={checkIn}
+          initialCheckOut={checkOut}
+          initialAdults={adults}
+          initialChildren={children}
+          initialBabies={babies}
+          onDatesChange={(dates) => {
+            // Sauvegarder les dates dans le context (qui les sauvegarde aussi dans AsyncStorage)
+            saveSearchDates(dates);
+          }}
         />
       )}
       

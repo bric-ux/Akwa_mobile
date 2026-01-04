@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,19 +23,37 @@ import { supabase } from '../services/supabase';
 import AvailabilityCalendar from './AvailabilityCalendar';
 import { getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 
 interface BookingModalProps {
   visible: boolean;
   onClose: () => void;
   property: Property;
+  initialCheckIn?: string;
+  initialCheckOut?: string;
+  initialAdults?: number;
+  initialChildren?: number;
+  initialBabies?: number;
+  onDatesChange?: (dates: { checkIn?: string; checkOut?: string; adults?: number; children?: number; babies?: number }) => void;
 }
 
-const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property }) => {
+const BookingModal: React.FC<BookingModalProps> = ({ 
+  visible, 
+  onClose, 
+  property,
+  initialCheckIn,
+  initialCheckOut,
+  initialAdults,
+  initialChildren,
+  initialBabies,
+  onDatesChange,
+}) => {
   const { user } = useAuth();
   const { t } = useLanguage();
   const { createBooking, loading } = useBookings();
   const { sendBookingRequestSent, sendBookingRequest } = useEmailService();
   const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
+  const { dates: contextDates, setDates: saveSearchDates } = useSearchDatesContext();
   
   const [checkIn, setCheckIn] = useState<Date | null>(null);
   const [checkOut, setCheckOut] = useState<Date | null>(null);
@@ -75,6 +93,115 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
     return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   };
 
+  // Initialiser les valeurs depuis les props OU le context quand le modal s'ouvre
+  // Priorité aux props (dates de la route), sinon utiliser le context
+  useEffect(() => {
+    if (visible) {
+      // Utiliser les props en priorité, sinon le context
+      const checkInToUse = initialCheckIn || contextDates.checkIn;
+      const checkOutToUse = initialCheckOut || contextDates.checkOut;
+      const adultsToUse = initialAdults !== undefined ? initialAdults : (contextDates.adults || 1);
+      const childrenToUse = initialChildren !== undefined ? initialChildren : (contextDates.children || 0);
+      const babiesToUse = initialBabies !== undefined ? initialBabies : (contextDates.babies || 0);
+      
+      console.log('📅 BookingModal - useEffect déclenché:', { 
+        visible,
+        initialCheckIn, 
+        initialCheckOut,
+        initialAdults,
+        initialChildren,
+        initialBabies,
+        contextCheckIn: contextDates.checkIn,
+        contextCheckOut: contextDates.checkOut,
+        contextAdults: contextDates.adults,
+        contextChildren: contextDates.children,
+        contextBabies: contextDates.babies,
+        checkInToUse,
+        checkOutToUse,
+        adultsToUse,
+        childrenToUse,
+        babiesToUse,
+      });
+      
+      // Initialiser avec les valeurs finales
+      if (checkInToUse) {
+        try {
+          const initialDate = new Date(checkInToUse);
+          if (!isNaN(initialDate.getTime())) {
+            setCheckIn(initialDate);
+            console.log('✅ CheckIn initialisé:', initialDate);
+          } else {
+            console.log('❌ Date checkIn invalide:', checkInToUse);
+            setCheckIn(null);
+          }
+        } catch (e) {
+          console.error('❌ Erreur parsing checkIn:', e);
+          setCheckIn(null);
+        }
+      } else {
+        console.log('⚠️ Pas de checkIn disponible');
+        setCheckIn(null);
+      }
+      
+      if (checkOutToUse) {
+        try {
+          const initialDate = new Date(checkOutToUse);
+          if (!isNaN(initialDate.getTime())) {
+            setCheckOut(initialDate);
+            console.log('✅ CheckOut initialisé:', initialDate);
+          } else {
+            console.log('❌ Date checkOut invalide:', checkOutToUse);
+            setCheckOut(null);
+          }
+        } catch (e) {
+          console.error('❌ Erreur parsing checkOut:', e);
+          setCheckOut(null);
+        }
+      } else {
+        console.log('⚠️ Pas de checkOut disponible');
+        setCheckOut(null);
+      }
+      
+      setAdults(adultsToUse);
+      setChildren(childrenToUse);
+      setInfants(babiesToUse);
+      console.log('✅ Voyageurs initialisés:', { adultsToUse, childrenToUse, babiesToUse });
+    }
+  }, [visible, initialCheckIn, initialCheckOut, initialAdults, initialChildren, initialBabies, contextDates.checkIn, contextDates.checkOut, contextDates.adults, contextDates.children, contextDates.babies]);
+
+  // Fonction helper pour sauvegarder les dates
+  const saveDates = useCallback((checkInDate?: Date | null, checkOutDate?: Date | null, adultsCount?: number, childrenCount?: number, babiesCount?: number) => {
+    const checkInStr = checkInDate ? checkInDate.toISOString().split('T')[0] : undefined;
+    const checkOutStr = checkOutDate ? checkOutDate.toISOString().split('T')[0] : undefined;
+    
+    const datesToSave = {
+      checkIn: checkInStr,
+      checkOut: checkOutStr,
+      adults: adultsCount !== undefined ? adultsCount : adults,
+      children: childrenCount !== undefined ? childrenCount : children,
+      babies: babiesCount !== undefined ? babiesCount : infants,
+    };
+    
+    console.log('📅 BookingModal - saveDates appelé avec:', {
+      checkInDate,
+      checkOutDate,
+      checkInStr,
+      checkOutStr,
+      datesToSave,
+    });
+    
+    // Sauvegarder dans AsyncStorage
+    saveSearchDates(datesToSave);
+    
+    // Notifier le parent (PropertyDetailsScreen)
+    if (onDatesChange) {
+      console.log('📅 BookingModal - Appel de onDatesChange avec:', datesToSave);
+      onDatesChange(datesToSave);
+    } else {
+      console.log('⚠️ BookingModal - onDatesChange n\'est pas défini!');
+    }
+  }, [adults, children, infants, saveSearchDates, onDatesChange]);
+
   // Charger le prix effectif quand les dates changent
   useEffect(() => {
     const loadEffectivePrice = async () => {
@@ -101,6 +228,39 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
 
     loadEffectivePrice();
   }, [checkIn, checkOut, property.id, property.price_per_night]);
+
+  // Sauvegarder les dates et voyageurs quand ils changent
+  // Utiliser un ref pour éviter les sauvegardes multiples
+  const lastSavedRef = useRef<string>('');
+  
+  useEffect(() => {
+    // Ne sauvegarder que si on a au moins une date ET que le modal est visible
+    if (visible && (checkIn || checkOut)) {
+      const key = `${checkIn?.toISOString() || ''}_${checkOut?.toISOString() || ''}_${adults}_${children}_${infants}`;
+      
+      // Ne sauvegarder que si les valeurs ont changé
+      if (lastSavedRef.current !== key) {
+        console.log('📅 BookingModal - Sauvegarde des dates (valeurs changées)');
+        lastSavedRef.current = key;
+        
+        // Sauvegarder directement sans passer par saveDates pour éviter la boucle
+        const checkInStr = checkIn ? checkIn.toISOString().split('T')[0] : undefined;
+        const checkOutStr = checkOut ? checkOut.toISOString().split('T')[0] : undefined;
+        const datesToSave = {
+          checkIn: checkInStr,
+          checkOut: checkOutStr,
+          adults,
+          children,
+          babies: infants,
+        };
+        saveSearchDates(datesToSave);
+        if (onDatesChange) {
+          onDatesChange(datesToSave);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkIn, checkOut, adults, children, infants, visible]);
 
   // Fonction pour valider le code promotionnel
   const validateVoucherCode = async (code: string) => {
@@ -1339,6 +1499,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ visible, onClose, property 
             onDateSelect={(checkInDate, checkOutDate) => {
               setCheckIn(checkInDate);
               setCheckOut(checkOutDate);
+              // La sauvegarde sera faite automatiquement par le useEffect
             }}
             onClose={() => setShowCalendar(false)}
           />

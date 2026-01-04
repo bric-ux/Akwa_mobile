@@ -196,7 +196,14 @@ export type RootStackParamList = {
   Auth: undefined;
   EmailVerification: { email: string; firstName: string };
   Search: { destination?: string };
-  PropertyDetails: { propertyId: string };
+  PropertyDetails: { 
+    propertyId: string;
+    checkIn?: string;
+    checkOut?: string;
+    adults?: number;
+    children?: number;
+    babies?: number;
+  };
   Booking: { propertyId: string };
   HostProfile: { hostId: string };
   HostBookings: undefined;

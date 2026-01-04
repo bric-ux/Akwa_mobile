@@ -36,6 +36,27 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   const [calendarMode, setCalendarMode] = useState<'checkIn' | 'checkOut'>('checkIn');
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
+  // Synchroniser les valeurs temporaires avec les props seulement au montage initial
+  React.useEffect(() => {
+    // Synchroniser seulement au montage initial
+    if (checkIn !== undefined && tempCheckIn === undefined) {
+      setTempCheckIn(checkIn);
+    }
+    if (checkOut !== undefined && tempCheckOut === undefined) {
+      setTempCheckOut(checkOut);
+    }
+    if (adults !== undefined && tempAdults === undefined) {
+      setTempAdults(adults);
+    }
+    if (children !== undefined && tempChildren === undefined) {
+      setTempChildren(children);
+    }
+    if (babies !== undefined && tempBabies === undefined) {
+      setTempBabies(babies);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Seulement au montage
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Choisir';
     const date = new Date(dateString);
@@ -161,16 +182,34 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
     const selectedDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toISOString().split('T')[0];
     
     if (calendarMode === 'checkIn') {
-      setTempCheckIn(selectedDate);
+      const newCheckIn = selectedDate;
+      setTempCheckIn(newCheckIn);
       // Si la date de départ est antérieure à la date d'arrivée, la réinitialiser
-      if (tempCheckOut && selectedDate >= tempCheckOut) {
+      if (tempCheckOut && newCheckIn >= tempCheckOut) {
         setTempCheckOut(undefined);
       }
+      // Passer automatiquement à la sélection de la date de départ
+      setCalendarMode('checkOut');
+      // Ne pas fermer le calendrier, continuer avec la sélection de checkOut
     } else {
-      setTempCheckOut(selectedDate);
+      const newCheckOut = selectedDate;
+      setTempCheckOut(newCheckOut);
+      // Fermer le calendrier après avoir sélectionné checkOut
+      setShowCalendar(false);
+      
+      // Sauvegarder automatiquement quand les deux dates sont sélectionnées
+      // Utiliser les valeurs temporaires actuelles
+      const finalCheckIn = tempCheckIn;
+      if (finalCheckIn && newCheckOut) {
+        // Utiliser setTimeout pour s'assurer que setTempCheckOut est terminé
+        setTimeout(() => {
+          onDateGuestsChange(
+            { checkIn: finalCheckIn, checkOut: newCheckOut },
+            { adults: tempAdults, children: tempChildren, babies: tempBabies }
+          );
+        }, 0);
+      }
     }
-    
-    setShowCalendar(false);
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -240,7 +279,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
           onPress={() => openCalendar('checkIn')}
         >
           <Text style={styles.label}>Arrivée</Text>
-          <Text style={styles.value}>{formatDate(tempCheckIn)}</Text>
+          <Text style={styles.value}>{formatDate(tempCheckIn || checkIn)}</Text>
         </TouchableOpacity>
 
         {/* Séparateur */}
@@ -252,7 +291,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
           onPress={() => openCalendar('checkOut')}
         >
           <Text style={styles.label}>Départ</Text>
-          <Text style={styles.value}>{formatDate(tempCheckOut)}</Text>
+          <Text style={styles.value}>{formatDate(tempCheckOut || checkOut)}</Text>
         </TouchableOpacity>
 
         {/* Séparateur */}

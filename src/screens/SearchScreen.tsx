@@ -27,6 +27,7 @@ import DateGuestsSelector from '../components/DateGuestsSelector';
 import SearchButton from '../components/SearchButton';
 import SearchResultsView from '../components/SearchResultsView';
 import { supabase } from '../services/supabase';
+import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 
@@ -47,13 +48,41 @@ const SearchScreen: React.FC = () => {
   
   const { properties, loading, error, fetchProperties } = useProperties();
   const sortedProperties = usePropertySorting(properties, sortBy);
+  const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   
-  // États pour les dates et voyageurs
-  const [checkIn, setCheckIn] = useState<string>();
-  const [checkOut, setCheckOut] = useState<string>();
-  const [adults, setAdults] = useState(1);
-  const [children, setChildren] = useState(0);
-  const [babies, setBabies] = useState(0);
+  // États pour les dates et voyageurs (initialiser depuis le context)
+  const [checkIn, setCheckIn] = useState<string>(searchDates.checkIn);
+  const [checkOut, setCheckOut] = useState<string>(searchDates.checkOut);
+  const [adults, setAdults] = useState(searchDates.adults || 1);
+  const [children, setChildren] = useState(searchDates.children || 0);
+  const [babies, setBabies] = useState(searchDates.babies || 0);
+
+  // Synchroniser avec le context quand il change
+  useEffect(() => {
+    // Toujours synchroniser avec le context, même si les valeurs sont vides
+    // Cela garantit que les dates sauvegardées sont toujours affichées
+    if (searchDates.checkIn !== undefined && searchDates.checkIn !== checkIn) {
+      console.log('📅 SearchScreen - Synchronisation checkIn depuis context:', searchDates.checkIn);
+      setCheckIn(searchDates.checkIn);
+    }
+    if (searchDates.checkOut !== undefined && searchDates.checkOut !== checkOut) {
+      console.log('📅 SearchScreen - Synchronisation checkOut depuis context:', searchDates.checkOut);
+      setCheckOut(searchDates.checkOut);
+    }
+    if (searchDates.adults !== undefined && searchDates.adults !== adults) {
+      console.log('📅 SearchScreen - Synchronisation adults depuis context:', searchDates.adults);
+      setAdults(searchDates.adults);
+    }
+    if (searchDates.children !== undefined && searchDates.children !== children) {
+      console.log('📅 SearchScreen - Synchronisation children depuis context:', searchDates.children);
+      setChildren(searchDates.children);
+    }
+    if (searchDates.babies !== undefined && searchDates.babies !== babies) {
+      console.log('📅 SearchScreen - Synchronisation babies depuis context:', searchDates.babies);
+      setBabies(searchDates.babies);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchDates.checkIn, searchDates.checkOut, searchDates.adults, searchDates.children, searchDates.babies]);
 
 
   useEffect(() => {
@@ -208,7 +237,28 @@ const SearchScreen: React.FC = () => {
 
 
   const handlePropertyPress = (property: Property) => {
-    navigation.navigate('PropertyDetails', { propertyId: property.id });
+    // Toujours passer les dates actuelles (même si undefined) ET les dates du context
+    // PropertyDetailsScreen utilisera les dates de la route en priorité, sinon celles du context
+    const datesToPass = {
+      checkIn: checkIn || searchDates.checkIn,
+      checkOut: checkOut || searchDates.checkOut,
+      adults: adults || searchDates.adults || 1,
+      children: children || searchDates.children || 0,
+      babies: babies || searchDates.babies || 0,
+    };
+    
+    console.log('📅 SearchScreen - handlePropertyPress avec dates:', {
+      localCheckIn: checkIn,
+      localCheckOut: checkOut,
+      contextCheckIn: searchDates.checkIn,
+      contextCheckOut: searchDates.checkOut,
+      datesToPass,
+    });
+    
+    navigation.navigate('PropertyDetails', { 
+      propertyId: property.id,
+      ...datesToPass,
+    });
   };
 
   const handleFilterChange = (newFilters: SearchFilters) => {
@@ -273,11 +323,25 @@ const SearchScreen: React.FC = () => {
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
+    console.log('📅 SearchScreen - handleDateGuestsChange appelé:', { dates, guests });
+    
     setCheckIn(dates.checkIn);
     setCheckOut(dates.checkOut);
     setAdults(guests.adults);
     setChildren(guests.children);
     setBabies(guests.babies);
+    
+    // Sauvegarder les dates dans le context (qui les sauvegarde aussi dans AsyncStorage)
+    const datesToSave = {
+      checkIn: dates.checkIn,
+      checkOut: dates.checkOut,
+      adults: guests.adults,
+      children: guests.children,
+      babies: guests.babies,
+    };
+    
+    console.log('📅 SearchScreen - Appel de saveSearchDates avec:', datesToSave);
+    saveSearchDates(datesToSave);
     
     // Mettre à jour les filtres et relancer la recherche
     const newFilters = {
