@@ -209,6 +209,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
   }
 
   const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'in_progress';
+  const isCancelled = booking.status === 'cancelled';
   const nights = Math.ceil(
     (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) 
     / (1000 * 60 * 60 * 24)
@@ -318,7 +319,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
         )}
 
         {/* Message si la réservation n'est pas confirmée */}
-        {!isConfirmed && (
+        {!isConfirmed && booking.status !== 'cancelled' && (
           <View style={styles.section}>
             <Text style={styles.infoNote}>
               Les coordonnées de l'hôte seront disponibles après confirmation de la réservation
@@ -326,8 +327,55 @@ const PropertyBookingDetailsScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Facture */}
-        {isConfirmed && (
+        {/* Informations d'annulation */}
+        {booking.status === 'cancelled' && (
+          <View style={styles.section}>
+            <View style={styles.cancellationHeader}>
+              <Ionicons name="close-circle-outline" size={24} color="#e74c3c" />
+              <Text style={styles.cancellationTitle}>Réservation annulée</Text>
+            </View>
+            
+            {booking.cancellation_penalty !== undefined && booking.cancellation_penalty > 0 && (
+              <View style={styles.cancellationInfo}>
+                <Text style={styles.cancellationLabel}>Pénalité d'annulation :</Text>
+                <Text style={styles.cancellationPenalty}>
+                  {formatPrice(booking.cancellation_penalty)}
+                </Text>
+              </View>
+            )}
+            
+            {booking.cancellation_penalty !== undefined && (
+              <View style={styles.cancellationInfo}>
+                <Text style={styles.cancellationLabel}>Remboursement :</Text>
+                <Text style={styles.cancellationRefund}>
+                  {formatPrice(booking.total_price - (booking.cancellation_penalty || 0))}
+                </Text>
+              </View>
+            )}
+            
+            {booking.cancellation_reason && (
+              <View style={styles.cancellationReason}>
+                <Text style={styles.cancellationReasonLabel}>Raison de l'annulation :</Text>
+                <Text style={styles.cancellationReasonText}>{booking.cancellation_reason}</Text>
+              </View>
+            )}
+            
+            {booking.cancelled_at && (
+              <Text style={styles.cancellationDate}>
+                Annulée le {new Date(booking.cancelled_at).toLocaleDateString('fr-FR', {
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Facture - Afficher aussi pour les réservations annulées */}
+        {(isConfirmed || isCancelled) && (
           <>
             <View style={styles.section}>
               <InvoiceDisplay
@@ -533,6 +581,64 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
     fontSize: 16,
     fontWeight: '600',
+  },
+  cancellationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 10,
+  },
+  cancellationTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#e74c3c',
+  },
+  cancellationInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  cancellationLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  cancellationPenalty: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#e74c3c',
+  },
+  cancellationRefund: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  cancellationReason: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  cancellationReasonLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  cancellationReasonText: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  cancellationDate: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 12,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });
 

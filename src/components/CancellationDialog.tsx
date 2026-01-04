@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,9 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useBookingCancellation } from '../hooks/useBookingCancellation';
+import { useBookingCancellation, CancellationInfo } from '../hooks/useBookingCancellation';
 import { useAuth } from '../services/AuthContext';
+import { formatPrice } from '../utils/priceCalculator';
 
 interface CancellationDialogProps {
   visible: boolean;
@@ -20,15 +21,34 @@ interface CancellationDialogProps {
   booking: {
     id: string;
     check_in_date: string;
+    check_out_date: string;
     total_price: number;
     status?: string;
-    property: {
+    properties?: {
       title: string;
       price_per_night: number;
+      cancellation_policy?: string | null;
+    };
+    property?: {
+      title: string;
+      price_per_night: number;
+      cancellation_policy?: string | null;
     };
   };
   onCancelled: () => void;
 }
+
+const cancellationReasons = [
+  { value: 'change_plans', label: 'Changement de plans' },
+  { value: 'emergency', label: 'Urgence personnelle' },
+  { value: 'property_issue', label: 'Problème avec la propriété' },
+  { value: 'found_alternative', label: 'J\'ai trouvé une alternative' },
+  { value: 'travel_restrictions', label: 'Restrictions de voyage' },
+  { value: 'financial_reasons', label: 'Raisons financières' },
+  { value: 'family_emergency', label: 'Urgence familiale' },
+  { value: 'weather', label: 'Conditions météorologiques' },
+  { value: 'other', label: 'Autre raison' }
+];
 
 const CancellationDialog: React.FC<CancellationDialogProps> = ({
   visible,
@@ -36,45 +56,188 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
   booking,
   onCancelled,
 }) => {
+  const [selectedReason, setSelectedReason] = useState<string>('');
   const [reason, setReason] = useState('');
   const [isConfirming, setIsConfirming] = useState(false);
-  const { cancelBooking, calculatePenalty, loading } = useBookingCancellation();
+  const [cancellationInfo, setCancellationInfo] = useState<CancellationInfo | null>(null);
+  const [loadingInfo, setLoadingInfo] = useState(false);
+  const { cancelBooking, calculateCancellationInfo, loading } = useBookingCancellation();
   const { user } = useAuth();
 
-  // Pas de pénalité pour les réservations pending
-  const isPending = booking.status === 'pending';
-  const penaltyAmount = isPending ? 0 : calculatePenalty(booking.check_in_date, booking.property.price_per_night);
-  const isWithin48Hours = penaltyAmount > 0;
-  const refundAmount = booking.total_price - penaltyAmount;
+  const property = booking.properties || booking.property;
+  const cancellationPolicy = property?.cancellation_policy || null;
+  const pricePerNight = property?.price_per_night || 0;
 
-  const formatPrice = (price: number) => {
-    return `${price.toLocaleString('fr-FR')} FCFA`;
+  useEffect(() => {
+    if (visible && booking && user) {
+      loadCancellationInfo();
+    }
+  }, [visible, booking]);
+
+  const loadCancellationInfo = async () => {
+    if (!booking || !user) return;
+    
+    setLoadingInfo(true);
+    try {
+      const info = await calculateCancellationInfo(
+        booking.id,
+        booking.check_in_date,
+        booking.check_out_date,
+        booking.total_price,
+        pricePerNight,
+        cancellationPolicy,
+        booking.status || 'pending'
+      );
+      setCancellationInfo(info);
+    } catch (error) {
+      console.error('Error loading cancellation info:', error);
+    } finally {
+      setLoadingInfo(false);
+    }
   };
 
   const handleCancel = async () => {
-    if (!reason.trim() || !user) {
-      Alert.alert('Erreur', 'Veuillez indiquer une raison pour l\'annulation');
+    if (!selectedReason || !user || !cancellationInfo?.canCancel) {
+      Alert.alert('Raison requise', 'Veuillez sélectionner une cause d\'annulation');
       return;
     }
 
     setIsConfirming(true);
     
+    const reasonLabel = cancellationReasons.find(r => r.value === selectedReason)?.label || selectedReason;
+    const fullReason = reason.trim() 
+      ? `${reasonLabel}: ${reason.trim()}`
+      : reasonLabel;
+    
     const result = await cancelBooking(
       booking.id,
       user.id,
-      reason.trim(),
-      booking.property.price_per_night,
-      booking.check_in_date
+      fullReason,
+      booking.check_in_date,
+      booking.check_out_date,
+      booking.total_price,
+      pricePerNight,
+      cancellationPolicy,
+      booking.status || 'pending'
     );
 
     if (result.success) {
       onCancelled();
       onClose();
+      setSelectedReason('');
       setReason('');
     }
     
     setIsConfirming(false);
   };
+
+  const getPolicyLabel = (policy: string | null) => {
+    switch (policy) {
+      case 'flexible':
+        return 'Flexible';
+      case 'moderate':
+        return 'Modérée';
+      case 'strict':
+        return 'Stricte';
+      case 'non_refundable':
+        return 'Non remboursable';
+      default:
+        return 'Flexible';
+    }
+  };
+
+  const getPolicyDescription = (policy: string | null) => {
+    switch (policy) {
+      case 'flexible':
+        return '100% remboursés au moins 1 jour avant l\'arrivée. Remboursement partiel (50%) moins de 1 jour avant.';
+      case 'moderate':
+        return '100% remboursés au moins 5 jours avant l\'arrivée. Remboursement partiel (50%) moins de 5 jours avant.';
+      case 'strict':
+        return '100% remboursés au moins 7 jours avant l\'arrivée. Remboursement partiel (50%) moins de 7 jours avant.';
+      case 'non_refundable':
+        return 'Aucun remboursement en cas d\'annulation';
+      default:
+        return '100% remboursés au moins 1 jour avant l\'arrivée. Remboursement partiel (50%) moins de 1 jour avant.';
+    }
+  };
+
+  if (!cancellationInfo && loadingInfo) {
+    return (
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <View style={styles.overlay}>
+          <View style={styles.container}>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2E7D32" />
+              <Text style={styles.loadingText}>Calcul des informations d'annulation...</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (!cancellationInfo?.canCancel) {
+    return (
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <View style={styles.overlay}>
+          <View style={styles.container}>
+            <View style={styles.header}>
+              <View style={styles.headerTitleContainer}>
+                <Ionicons name="alert-circle-outline" size={24} color="#e74c3c" />
+                <Text style={styles.title}>Annulation non autorisée</Text>
+              </View>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+              <View style={[styles.alert, styles.alertError]}>
+                <Ionicons name="alert-circle-outline" size={20} color="#e74c3c" />
+                <View style={styles.alertContent}>
+                  <Text style={styles.alertTitle}>Annulation non autorisée</Text>
+                  <Text style={styles.alertText}>
+                    Selon la politique d'annulation "{getPolicyLabel(cancellationPolicy)}" de cette propriété, vous ne pouvez plus annuler cette réservation.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.bookingInfo}>
+                <Text style={styles.bookingTitle}>{property?.title || 'Propriété'}</Text>
+                <View style={styles.bookingDetails}>
+                  <Text style={styles.bookingDetailText}>
+                    Arrivée : {new Date(booking.check_in_date).toLocaleDateString('fr-FR')}
+                  </Text>
+                  <Text style={styles.bookingDetailText}>
+                    Politique : {getPolicyLabel(cancellationPolicy)}
+                  </Text>
+                  <Text style={styles.policyDescription}>
+                    {getPolicyDescription(cancellationPolicy)}
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={[styles.button, styles.closeButtonStyle]}
+                onPress={onClose}
+              >
+                <Text style={styles.closeButtonText}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  const { refundPercentage, isInProgress, remainingNights, remainingNightsAmount, penaltyAmount, refundAmount } = cancellationInfo;
+  const isPending = booking.status === 'pending';
+  const finalRefundAmount = refundAmount || (isInProgress && remainingNightsAmount !== undefined
+    ? remainingNightsAmount
+    : (booking.total_price * refundPercentage) / 100);
+  const finalPenaltyAmount = penaltyAmount || (booking.total_price - finalRefundAmount);
 
   return (
     <Modal
@@ -98,7 +261,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Informations de la réservation */}
             <View style={styles.bookingInfo}>
-              <Text style={styles.bookingTitle}>{booking.property.title}</Text>
+              <Text style={styles.bookingTitle}>{property?.title || 'Propriété'}</Text>
               <View style={styles.bookingDetails}>
                 <Text style={styles.bookingDetailText}>
                   Arrivée : {new Date(booking.check_in_date).toLocaleDateString('fr-FR')}
@@ -106,28 +269,41 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                 <Text style={styles.bookingDetailText}>
                   Prix total : {formatPrice(booking.total_price)}
                 </Text>
+                <Text style={styles.bookingDetailText}>
+                  Politique : {getPolicyLabel(cancellationPolicy)}
+                </Text>
               </View>
             </View>
 
-            {/* Alerte de pénalité */}
+            {/* Alerte de remboursement */}
             {isPending ? (
               <View style={[styles.alert, styles.alertInfo]}>
                 <Ionicons name="time-outline" size={20} color="#2196F3" />
                 <View style={styles.alertContent}>
                   <Text style={styles.alertTitle}>Réservation en attente</Text>
-                  <Text style={styles.alertText}>Aucune pénalité applicable</Text>
+                  <Text style={styles.alertText}>Aucune pénalité applicable. Remboursement intégral.</Text>
                 </View>
               </View>
-            ) : isWithin48Hours ? (
+            ) : isInProgress ? (
               <View style={[styles.alert, styles.alertWarning]}>
-                <Ionicons name="time-outline" size={20} color="#e67e22" />
+                <Ionicons name="calendar-outline" size={20} color="#e67e22" />
+                <View style={styles.alertContent}>
+                  <Text style={styles.alertTitle}>Réservation en cours</Text>
+                  <Text style={styles.alertText}>
+                    {remainingNights} nuitée{remainingNights !== 1 ? 's' : ''} restante{remainingNights !== 1 ? 's' : ''} seront remboursées
+                  </Text>
+                </View>
+              </View>
+            ) : finalPenaltyAmount > 0 ? (
+              <View style={[styles.alert, styles.alertWarning]}>
+                <Ionicons name="alert-circle-outline" size={20} color="#e67e22" />
                 <View style={styles.alertContent}>
                   <Text style={styles.alertTitle}>Pénalité appliquée</Text>
                   <Text style={styles.alertText}>
-                    Annulation moins de 48h avant l'arrivée
+                    Remboursement de {refundPercentage}% selon la politique "{getPolicyLabel(cancellationPolicy)}"
                   </Text>
                   <Text style={styles.alertAmount}>
-                    Montant de la pénalité : {formatPrice(penaltyAmount)}
+                    Montant de la pénalité : {formatPrice(finalPenaltyAmount)}
                   </Text>
                 </View>
               </View>
@@ -137,7 +313,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                 <View style={styles.alertContent}>
                   <Text style={styles.alertTitle}>Annulation gratuite</Text>
                   <Text style={styles.alertText}>
-                    Plus de 48h avant l'arrivée
+                    Remboursement intégral selon la politique "{getPolicyLabel(cancellationPolicy)}"
                   </Text>
                 </View>
               </View>
@@ -150,33 +326,60 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                 <Text style={styles.financialValue}>{formatPrice(booking.total_price)}</Text>
               </View>
               
-              {penaltyAmount > 0 && (
+              {finalPenaltyAmount > 0 && (
                 <View style={styles.financialRow}>
                   <Text style={[styles.financialLabel, styles.penaltyLabel]}>
                     Pénalité d'annulation :
                   </Text>
                   <Text style={[styles.financialValue, styles.penaltyValue]}>
-                    -{formatPrice(penaltyAmount)}
+                    -{formatPrice(finalPenaltyAmount)}
                   </Text>
                 </View>
               )}
               
               <View style={[styles.financialRow, styles.refundRow]}>
                 <Text style={styles.refundLabel}>Remboursement :</Text>
-                <Text style={styles.refundValue}>{formatPrice(refundAmount)}</Text>
+                <Text style={styles.refundValue}>{formatPrice(finalRefundAmount)}</Text>
               </View>
+            </View>
+
+            {/* Description de la politique */}
+            <View style={styles.policySection}>
+              <Text style={styles.policyTitle}>Politique d'annulation</Text>
+              <Text style={styles.policyText}>{getPolicyDescription(cancellationPolicy)}</Text>
             </View>
 
             {/* Raison de l'annulation */}
             <View style={styles.reasonSection}>
-              <Text style={styles.reasonLabel}>Raison de l'annulation *</Text>
+              <Text style={styles.reasonLabel}>Cause de l'annulation *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reasonsScroll}>
+                {cancellationReasons.map((reasonOption) => (
+                  <TouchableOpacity
+                    key={reasonOption.value}
+                    style={[
+                      styles.reasonChip,
+                      selectedReason === reasonOption.value && styles.reasonChipSelected
+                    ]}
+                    onPress={() => setSelectedReason(reasonOption.value)}
+                  >
+                    <Text style={[
+                      styles.reasonChipText,
+                      selectedReason === reasonOption.value && styles.reasonChipTextSelected
+                    ]}>
+                      {reasonOption.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              
+              <Text style={styles.reasonLabel}>Détails (optionnel)</Text>
               <TextInput
                 style={styles.reasonInput}
-                placeholder="Expliquez pourquoi vous annulez cette réservation..."
+                placeholder="Expliquez davantage votre raison d'annulation..."
                 value={reason}
                 onChangeText={setReason}
                 multiline
-                numberOfLines={4}
+                numberOfLines={3}
                 textAlignVertical="top"
               />
             </View>
@@ -194,7 +397,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
             <TouchableOpacity
               style={[styles.button, styles.confirmButton]}
               onPress={handleCancel}
-              disabled={!reason.trim() || loading || isConfirming}
+              disabled={!selectedReason || loading || isConfirming}
             >
               {loading || isConfirming ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -246,6 +449,15 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
   },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#666',
+  },
   bookingInfo: {
     backgroundColor: '#f5f5f5',
     padding: 15,
@@ -264,6 +476,12 @@ const styles = StyleSheet.create({
   bookingDetailText: {
     fontSize: 14,
     color: '#666',
+  },
+  policyDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   alert: {
     flexDirection: 'row',
@@ -287,6 +505,11 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#4CAF50',
   },
+  alertError: {
+    backgroundColor: '#FFEBEE',
+    borderLeftWidth: 4,
+    borderLeftColor: '#e74c3c',
+  },
   alertContent: {
     flex: 1,
   },
@@ -294,6 +517,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     marginBottom: 4,
+    color: '#333',
   },
   alertText: {
     fontSize: 14,
@@ -349,6 +573,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#4CAF50',
   },
+  policySection: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  policyTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  policyText: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 18,
+  },
   reasonSection: {
     marginBottom: 15,
   },
@@ -358,13 +599,37 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 8,
   },
+  reasonsScroll: {
+    marginBottom: 12,
+  },
+  reasonChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginRight: 8,
+  },
+  reasonChipSelected: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  reasonChipText: {
+    fontSize: 13,
+    color: '#666',
+  },
+  reasonChipTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   reasonInput: {
     borderWidth: 1,
     borderColor: '#e0e0e0',
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
-    minHeight: 100,
+    minHeight: 80,
     textAlignVertical: 'top',
   },
   footer: {
@@ -392,6 +657,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#666',
   },
+  closeButtonStyle: {
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#666',
+  },
   confirmButton: {
     backgroundColor: '#e74c3c',
   },
@@ -403,12 +678,3 @@ const styles = StyleSheet.create({
 });
 
 export default CancellationDialog;
-
-
-
-
-
-
-
-
-

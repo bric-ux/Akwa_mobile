@@ -54,6 +54,7 @@ export interface Booking {
     max_guests?: number;
     cleaning_fee?: number;
     service_fee?: number;
+    cancellation_policy?: string | null;
     images: string[];
     property_photos?: {
       id: string;
@@ -337,6 +338,7 @@ export const useBookings = () => {
             max_guests,
             cleaning_fee,
             service_fee,
+            cancellation_policy,
             images,
             property_photos (
               id,

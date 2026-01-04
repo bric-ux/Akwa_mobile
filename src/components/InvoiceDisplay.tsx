@@ -244,38 +244,57 @@ const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Votre versement</Text>
           
-          {/* Montant de la réservation */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Montant de la réservation</Text>
-            <Text style={styles.rowValue}>{formatPrice(priceAfterDiscount)}</Text>
-          </View>
+          {booking.status === 'cancelled' ? (
+            <>
+              <View style={styles.cancelledNotice}>
+                <Text style={styles.cancelledNoticeText}>
+                  Cette réservation a été annulée. Vous ne recevez aucun versement.
+                </Text>
+              </View>
+              <View style={styles.separator} />
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Vous recevez</Text>
+                <Text style={[styles.totalValue, styles.netAmountText]}>
+                  {formatPrice(0)}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              {/* Montant de la réservation */}
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Montant de la réservation</Text>
+                <Text style={styles.rowValue}>{formatPrice(priceAfterDiscount)}</Text>
+              </View>
 
-          {/* Info réduction */}
-          {discountAmount > 0 && (
-            <Text style={styles.discountNote}>
-              (Réduction de {formatPrice(discountAmount)} déjà déduite)
-            </Text>
+              {/* Info réduction */}
+              {discountAmount > 0 && (
+                <Text style={styles.discountNote}>
+                  (Réduction de {formatPrice(discountAmount)} déjà déduite)
+                </Text>
+              )}
+
+              {/* Commission Akwahome */}
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>
+                  Commission Akwahome ({commissionRates.hostFeePercent}%)
+                </Text>
+                <Text style={[styles.rowValue, styles.commissionText]}>
+                  -{formatPrice(hostCommission)}
+                </Text>
+              </View>
+
+              <View style={styles.separator} />
+
+              {/* Gain net */}
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Vous recevez</Text>
+                <Text style={[styles.totalValue, styles.netAmountText]}>
+                  {formatPrice(hostNetAmount)}
+                </Text>
+              </View>
+            </>
           )}
-
-          {/* Commission Akwahome */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>
-              Commission Akwahome ({commissionRates.hostFeePercent}%)
-            </Text>
-            <Text style={[styles.rowValue, styles.commissionText]}>
-              -{formatPrice(hostCommission)}
-            </Text>
-          </View>
-
-          <View style={styles.separator} />
-
-          {/* Gain net */}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Vous recevez</Text>
-            <Text style={[styles.totalValue, styles.netAmountText]}>
-              {formatPrice(hostNetAmount)}
-            </Text>
-          </View>
 
           {/* Mode de paiement */}
           <View style={styles.paymentMethodContainer}>
@@ -470,6 +489,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#333',
+  },
+  cancelledNotice: {
+    backgroundColor: '#FFEBEE',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#e74c3c',
+  },
+  cancelledNoticeText: {
+    fontSize: 14,
+    color: '#e74c3c',
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 

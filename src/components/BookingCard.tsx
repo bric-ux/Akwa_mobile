@@ -246,6 +246,47 @@ const BookingCard: React.FC<BookingCardProps> = ({
         </View>
       )}
 
+      {/* Informations d'annulation */}
+      {booking.status === 'cancelled' && (
+        <View style={styles.cancellationContainer}>
+          <View style={styles.cancellationHeader}>
+            <Ionicons name="close-circle-outline" size={20} color="#e74c3c" />
+            <Text style={styles.cancellationTitle}>Réservation annulée</Text>
+          </View>
+          {booking.cancellation_penalty !== undefined && booking.cancellation_penalty > 0 && (
+            <View style={styles.cancellationInfo}>
+              <Text style={styles.cancellationLabel}>Pénalité d'annulation :</Text>
+              <Text style={styles.cancellationPenalty}>
+                {formatPrice(booking.cancellation_penalty)}
+              </Text>
+            </View>
+          )}
+          {booking.cancellation_penalty !== undefined && booking.cancellation_penalty >= 0 && (
+            <View style={styles.cancellationInfo}>
+              <Text style={styles.cancellationLabel}>Remboursement :</Text>
+              <Text style={styles.cancellationRefund}>
+                {formatPrice(booking.total_price - (booking.cancellation_penalty || 0))}
+              </Text>
+            </View>
+          )}
+          {booking.cancellation_reason && (
+            <View style={styles.cancellationReason}>
+              <Text style={styles.cancellationReasonLabel}>Raison :</Text>
+              <Text style={styles.cancellationReasonText}>{booking.cancellation_reason}</Text>
+            </View>
+          )}
+          {booking.cancelled_at && (
+            <Text style={styles.cancellationDate}>
+              Annulée le {new Date(booking.cancelled_at).toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </Text>
+          )}
+        </View>
+      )}
+
       <View style={styles.bookingActions}>
         <TouchableOpacity
           style={styles.actionButton}
