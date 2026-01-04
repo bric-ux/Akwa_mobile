@@ -284,22 +284,12 @@ const MessagingScreen: React.FC = () => {
   const handleBackToConversations = () => {
     console.log('🔙 [MessagingScreen] handleBackToConversations appelé', { openedFromParam, propertyId, vehicleId });
     
-    // Si la conversation a été ouverte depuis une propriété, naviguer vers la propriété
-    if (openedFromParam && propertyId) {
-      console.log('🔙 [MessagingScreen] Retour vers PropertyDetails:', propertyId);
-      navigation.goBack();
-      return;
-    }
-    // Si la conversation a été ouverte depuis un véhicule, naviguer vers le véhicule
-    if (openedFromParam && vehicleId) {
-      console.log('🔙 [MessagingScreen] Retour vers VehicleDetails:', vehicleId);
-      navigation.goBack();
-      return;
-    }
-    // Sinon, retourner à la liste locale des conversations
+    // Toujours retourner à la liste locale des conversations
+    // Si on est dans l'onglet MessagingTab, on reste dans l'onglet
     console.log('🔙 [MessagingScreen] Retour à la liste des conversations');
     setSelectedConversation(null);
     setShowConversations(true);
+    setOpenedFromParam(false); // Réinitialiser le flag
   };
 
   const handleRefresh = async () => {
