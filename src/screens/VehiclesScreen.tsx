@@ -179,33 +179,45 @@ const VehiclesScreen: React.FC = () => {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         {/* Header minimaliste */}
-        <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={22} color="#0f172a" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Véhicules</Text>
-            {vehicles.length > 0 && (
-              <Text style={styles.headerCount}>{vehicles.length} disponible{vehicles.length > 1 ? 's' : ''}</Text>
-            )}
+        <Animated.View 
+          style={[styles.header, { opacity: headerOpacity }]}
+        >
+          <View style={styles.headerContent}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => {
+                console.log('🔙 Bouton retour cliqué');
+                navigation.goBack();
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={22} color="#0f172a" />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>Véhicules</Text>
+              {vehicles.length > 0 && (
+                <Text style={styles.headerCount}>{vehicles.length} disponible{vehicles.length > 1 ? 's' : ''}</Text>
+              )}
+            </View>
+            <TouchableOpacity
+              style={styles.filterBtn}
+              onPress={() => {
+                console.log('🔍 Bouton filtre cliqué');
+                setShowFilters(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="filter" size={22} color="#2563eb" />
+              {getActiveFiltersCount() > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{getActiveFiltersCount()}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.filterBtn}
-            onPress={() => setShowFilters(true)}
-          >
-            <Ionicons name="filter" size={22} color="#2563eb" />
-            {getActiveFiltersCount() > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{getActiveFiltersCount()}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
         </Animated.View>
 
-        {/* Barre de recherche flottante ultra-minimaliste */}
+        {/* Barre de recherche flottante */}
         <Animated.View
           style={[
             styles.searchWrapper,
@@ -215,7 +227,10 @@ const VehiclesScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.searchBar}
             activeOpacity={0.7}
-            onPress={() => setShowSearchModal(true)}
+            onPress={() => {
+              console.log('🔍 Barre de recherche cliquée');
+              setShowSearchModal(true);
+            }}
           >
             <Ionicons name="search" size={18} color="#64748b" />
             <View style={styles.searchTextWrapper}>
@@ -462,6 +477,10 @@ const VehiclesScreen: React.FC = () => {
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
+        style={styles.flatList}
+        contentInsetAdjustmentBehavior="automatic"
+        scrollEnabled={true}
+        nestedScrollEnabled={true}
       />
 
       <VehicleFiltersModal
@@ -488,13 +507,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    paddingVertical: 16,
+    zIndex: 1000,
+    elevation: 5, // Pour Android
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#e2e8f0',
+    minHeight: 60, // Hauteur minimale du header
   },
   backBtn: {
     width: 36,
@@ -550,6 +574,10 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 16,
     backgroundColor: '#ffffff',
+    zIndex: 999,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    elevation: 4, // Pour Android
   },
   searchBar: {
     flexDirection: 'row',
@@ -621,9 +649,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ef4444',
   },
+  flatList: {
+    zIndex: 1,
+  },
   list: {
     paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingTop: 20, // Margin après la barre de recherche
     paddingBottom: 20,
   },
   emptyState: {

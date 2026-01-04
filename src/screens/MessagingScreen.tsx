@@ -70,21 +70,31 @@ const MessagingScreen: React.FC = () => {
 
   // Ouvrir automatiquement une conversation si un ID est fourni
   useEffect(() => {
-    if (conversationId && !openedFromParam && conversations.length > 0) {
+    if (conversationId && conversations.length > 0) {
       const conversation = conversations.find(conv => conv.id === conversationId);
       if (conversation) {
         console.log('🎯 [MessagingScreen] Ouverture automatique de la conversation:', conversationId);
         setSelectedConversation(conversation);
         setShowConversations(false);
-        setOpenedFromParam(true);
-        // Nettoyer le param conversationId pour éviter les réouvertures ultérieures
-        // Mais garder propertyId pour le retour
-        try {
-          (navigation as any).setParams({ conversationId: undefined });
-        } catch {}
+        // Charger les messages de cette conversation
+        loadMessages(conversationId);
+        // Marquer comme lu
+        if (user) {
+          markMessagesAsRead(conversationId, user.id);
+        }
+        // Vérifier si on vient d'un paramètre (propertyId ou vehicleId)
+        if (propertyId || vehicleId) {
+          setOpenedFromParam(true);
+        }
+      } else {
+        console.log('⚠️ [MessagingScreen] Conversation non trouvée dans la liste, rechargement...');
+        // Recharger les conversations si la conversation n'est pas trouvée
+        if (user) {
+          loadConversations(user.id);
+        }
       }
     }
-  }, [conversationId, conversations, openedFromParam, navigation]);
+  }, [conversationId, conversations, propertyId, vehicleId, user, loadMessages, markMessagesAsRead, loadConversations]);
 
   // Réinitialiser openedFromParam quand on revient à la liste des conversations
   useEffect(() => {
@@ -221,17 +231,22 @@ const MessagingScreen: React.FC = () => {
   };
 
   const handleBackToConversations = () => {
+    console.log('🔙 [MessagingScreen] handleBackToConversations appelé', { openedFromParam, propertyId, vehicleId });
+    
     // Si la conversation a été ouverte depuis une propriété, naviguer vers la propriété
     if (openedFromParam && propertyId) {
-      (navigation as any).navigate('PropertyDetails', { propertyId });
+      console.log('🔙 [MessagingScreen] Retour vers PropertyDetails:', propertyId);
+      navigation.goBack();
       return;
     }
     // Si la conversation a été ouverte depuis un véhicule, naviguer vers le véhicule
     if (openedFromParam && vehicleId) {
-      (navigation as any).navigate('VehicleDetails', { vehicleId });
+      console.log('🔙 [MessagingScreen] Retour vers VehicleDetails:', vehicleId);
+      navigation.goBack();
       return;
     }
     // Sinon, retourner à la liste locale des conversations
+    console.log('🔙 [MessagingScreen] Retour à la liste des conversations');
     setSelectedConversation(null);
     setShowConversations(true);
   };

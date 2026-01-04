@@ -73,26 +73,22 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
         user.id, // guestId (l'utilisateur est l'invité)
         vehicle.id // vehicleId
       );
+      
+      console.log('✅ [ContactOwnerButton] Conversation ID obtenu:', conversationId);
 
       if (conversationId) {
         console.log('✅ [ContactOwnerButton] Conversation créée:', conversationId);
         
-        Alert.alert(
-          'Conversation créée',
-          'Vous pouvez maintenant discuter avec le propriétaire',
-          [
-            {
-              text: 'Ouvrir la conversation',
-              onPress: () => {
-                // Navigation vers l'onglet de messagerie avec l'ID de conversation et le véhicule
-                (navigation as any).navigate('Home', { 
-                  screen: 'MessagingTab',
-                  params: { conversationId, vehicleId: vehicle.id }
-                });
-              }
-            }
-          ]
-        );
+        // Navigation directe vers la conversation sans alerte
+        console.log('🚀 [ContactOwnerButton] Navigation vers la conversation:', conversationId);
+        (navigation as any).navigate('Home', { 
+          screen: 'MessagingTab',
+          params: { 
+            conversationId, 
+            vehicleId: vehicle.id,
+            openedFromParam: true
+          }
+        });
       } else {
         throw new Error('Impossible de créer la conversation');
       }

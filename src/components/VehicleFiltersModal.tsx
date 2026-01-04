@@ -12,8 +12,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { VehicleFilters, VehicleType, TransmissionType, FuelType } from '../types';
-import { useCities } from '../hooks/useCities';
-import { useNeighborhoods } from '../hooks/useNeighborhoods';
 
 interface VehicleFiltersModalProps {
   visible: boolean;
@@ -64,13 +62,10 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
   onApply,
   initialFilters = {},
 }) => {
-  const { cities } = useCities();
-  const { neighborhoods } = useNeighborhoods();
 
   const [filters, setFilters] = useState<VehicleFilters>(initialFilters);
   const [priceMin, setPriceMin] = useState(initialFilters.priceMin?.toString() || '');
   const [priceMax, setPriceMax] = useState(initialFilters.priceMax?.toString() || '');
-  const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>(initialFilters.locationId);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>(initialFilters.features || []);
 
   useEffect(() => {
@@ -78,7 +73,6 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
       setFilters(initialFilters);
       setPriceMin(initialFilters.priceMin?.toString() || '');
       setPriceMax(initialFilters.priceMax?.toString() || '');
-      setSelectedLocationId(initialFilters.locationId);
       setSelectedFeatures(initialFilters.features || []);
     }
   }, [visible, initialFilters]);
@@ -88,7 +82,6 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
       ...filters,
       priceMin: priceMin ? parseInt(priceMin, 10) : undefined,
       priceMax: priceMax ? parseInt(priceMax, 10) : undefined,
-      locationId: selectedLocationId,
       features: selectedFeatures.length > 0 ? selectedFeatures : undefined,
     };
     onApply(appliedFilters);
@@ -100,7 +93,6 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
     setFilters(resetFilters);
     setPriceMin('');
     setPriceMax('');
-    setSelectedLocationId(undefined);
     setSelectedFeatures([]);
     onApply(resetFilters);
     onClose();
@@ -123,7 +115,6 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
     if (filters.seats) count++;
     if (priceMin) count++;
     if (priceMax) count++;
-    if (selectedLocationId) count++;
     if (selectedFeatures.length > 0) count++;
     return count;
   };
@@ -304,52 +295,6 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
               </View>
             </View>
 
-            {/* Localisation */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Localisation</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.locationScroll}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.locationOption,
-                    !selectedLocationId && styles.locationOptionSelected,
-                  ]}
-                  onPress={() => setSelectedLocationId(undefined)}
-                >
-                  <Text
-                    style={[
-                      styles.locationOptionText,
-                      !selectedLocationId && styles.locationOptionTextSelected,
-                    ]}
-                  >
-                    Toutes
-                  </Text>
-                </TouchableOpacity>
-                {cities.map(city => (
-                  <TouchableOpacity
-                    key={city.id}
-                    style={[
-                      styles.locationOption,
-                      selectedLocationId === city.id && styles.locationOptionSelected,
-                    ]}
-                    onPress={() => setSelectedLocationId(city.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.locationOptionText,
-                        selectedLocationId === city.id && styles.locationOptionTextSelected,
-                      ]}
-                    >
-                      {city.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-
             {/* Équipements */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Équipements</Text>
@@ -403,29 +348,37 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     maxHeight: '90%',
-    minHeight: '60%',
+    minHeight: '70%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#e2e8f0',
   },
   closeButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
   },
   badge: {
-    backgroundColor: '#e67e22',
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -441,15 +394,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   section: {
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#f1f5f9',
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 16,
+    letterSpacing: -0.3,
   },
   optionsContainer: {
     flexDirection: 'row',
@@ -457,20 +412,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   option: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    marginRight: 8,
+    marginBottom: 8,
   },
   optionSelected: {
-    backgroundColor: '#e67e22',
-    borderColor: '#e67e22',
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
   },
   optionText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '500',
   },
   optionTextSelected: {
     color: '#fff',
@@ -489,36 +447,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   priceInput: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 14,
     fontSize: 16,
-    backgroundColor: '#fff',
-  },
-  locationScroll: {
-    marginTop: 8,
-  },
-  locationOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    marginRight: 8,
-  },
-  locationOptionSelected: {
-    backgroundColor: '#e67e22',
-    borderColor: '#e67e22',
-  },
-  locationOptionText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  locationOptionTextSelected: {
-    color: '#fff',
-    fontWeight: '600',
+    backgroundColor: '#f8fafc',
+    color: '#0f172a',
+    fontWeight: '500',
   },
   featuresContainer: {
     flexDirection: 'row',
@@ -528,20 +464,23 @@ const styles = StyleSheet.create({
   featureTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 16,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    marginRight: 8,
+    marginBottom: 8,
   },
   featureTagSelected: {
-    backgroundColor: '#e67e22',
-    borderColor: '#e67e22',
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
   },
   featureText: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
+    fontWeight: '500',
   },
   featureTextSelected: {
     color: '#fff',
@@ -552,33 +491,43 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 32,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#e2e8f0',
     gap: 12,
+    backgroundColor: '#fff',
   },
   resetButton: {
     flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: '#f8fafc',
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
   },
   resetButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: '#64748b',
   },
   applyButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: '#e67e22',
+    flex: 2,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: '#2563eb',
     alignItems: 'center',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   applyButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
   },
 });
