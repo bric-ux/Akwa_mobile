@@ -101,7 +101,11 @@ const VehicleDetailsScreen: React.FC = () => {
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle} numberOfLines={1}>
-              {vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`}
+              {(() => {
+                if (vehicle.title) return String(vehicle.title);
+                const parts = [vehicle.brand, vehicle.model].filter(Boolean);
+                return parts.length > 0 ? parts.join(' ') : 'Véhicule';
+              })()}
             </Text>
           </View>
           <View style={styles.headerPlaceholder} />
@@ -153,7 +157,7 @@ const VehicleDetailsScreen: React.FC = () => {
             {vehicle.images.length > 1 && (
               <View style={styles.photoCountBadge}>
                 <Ionicons name="images" size={14} color="#fff" />
-                <Text style={styles.photoCountText}>{currentImageIndex + 1}/{vehicle.images.length}</Text>
+                <Text style={styles.photoCountText}>{String(currentImageIndex + 1)}/{String(vehicle.images.length)}</Text>
               </View>
             )}
           </View>
@@ -165,11 +169,14 @@ const VehicleDetailsScreen: React.FC = () => {
             <View style={styles.titleRow}>
               <View style={styles.titleContainer}>
                 <Text style={styles.title}>
-                  {vehicle.brand || ''} {vehicle.model || ''} {vehicle.year || ''}
+                  {(() => {
+                    const parts = [vehicle.brand, vehicle.model, vehicle.year].filter(Boolean);
+                    return parts.length > 0 ? parts.join(' ') : 'Véhicule';
+                  })()}
                 </Text>
-                {vehicle.title && (
-                  <Text style={styles.subtitle}>{vehicle.title}</Text>
-                )}
+                {vehicle.title ? (
+                  <Text style={styles.subtitle}>{String(vehicle.title)}</Text>
+                ) : null}
               </View>
             </View>
             
@@ -179,55 +186,55 @@ const VehicleDetailsScreen: React.FC = () => {
                 <View>
                   <Text style={styles.priceLabel}>Prix par jour</Text>
                   <View style={styles.priceValueRow}>
-                    <Text style={styles.price}>{formatPrice(vehicle.price_per_day)}</Text>
+                    <Text style={styles.price}>{formatPrice(vehicle.price_per_day) || '0 FCFA'}</Text>
                     <Text style={styles.priceUnit}>/jour</Text>
                   </View>
                 </View>
-                {(vehicle.rating > 0) && (
+                {(vehicle.rating > 0) ? (
                   <View style={styles.ratingBadge}>
                     <Ionicons name="star" size={16} color="#FFD700" />
-                    <Text style={styles.ratingText}>{vehicle.rating.toFixed(1)}</Text>
-                    {vehicle.review_count > 0 && (
-                      <Text style={styles.reviewCountText}>({vehicle.review_count})</Text>
-                    )}
+                    <Text style={styles.ratingText}>{vehicle.rating && vehicle.rating > 0 ? String(vehicle.rating.toFixed(1)) : '0.0'}</Text>
+                    {(vehicle.review_count || 0) > 0 ? (
+                      <Text style={styles.reviewCountText}>({String(vehicle.review_count || 0)})</Text>
+                    ) : null}
                   </View>
-                )}
+                ) : null}
               </View>
               
               {/* Prix alternatifs */}
-              {(vehicle.price_per_week || vehicle.price_per_month) && (
+              {((vehicle.price_per_week && vehicle.price_per_week > 0) || (vehicle.price_per_month && vehicle.price_per_month > 0)) ? (
                 <View style={styles.altPricesRow}>
-                  {vehicle.price_per_week && vehicle.price_per_week > 0 && (
+                  {vehicle.price_per_week && vehicle.price_per_week > 0 ? (
                     <View style={styles.altPriceItem}>
-                      <Text style={styles.altPriceValue}>{formatPrice(vehicle.price_per_week)}</Text>
+                      <Text style={styles.altPriceValue}>{formatPrice(vehicle.price_per_week) || '0 FCFA'}</Text>
                       <Text style={styles.altPriceLabel}>/semaine</Text>
                     </View>
-                  )}
-                  {vehicle.price_per_month && vehicle.price_per_month > 0 && (
+                  ) : null}
+                  {vehicle.price_per_month && vehicle.price_per_month > 0 ? (
                     <View style={styles.altPriceItem}>
-                      <Text style={styles.altPriceValue}>{formatPrice(vehicle.price_per_month)}</Text>
+                      <Text style={styles.altPriceValue}>{formatPrice(vehicle.price_per_month) || '0 FCFA'}</Text>
                       <Text style={styles.altPriceLabel}>/mois</Text>
                     </View>
-                  )}
+                  ) : null}
                 </View>
-              )}
+              ) : null}
             </View>
 
             {/* Localisation et note */}
             <View style={styles.metaRow}>
-              {vehicle.location && (
+              {vehicle.location ? (
                 <View style={styles.metaItem}>
                   <Ionicons name="location" size={16} color={VEHICLE_COLORS.primary} />
-                  <Text style={styles.metaText}>{vehicle.location.name}</Text>
+                  <Text style={styles.metaText}>{vehicle.location?.name || 'Localisation non spécifiée'}</Text>
                 </View>
-              )}
+              ) : null}
             </View>
           </View>
 
           {/* Réductions disponibles - Design amélioré */}
-          {(vehicle.discount_enabled || vehicle.long_stay_discount_enabled) && (
+          {((vehicle.discount_enabled === true) || (vehicle.long_stay_discount_enabled === true)) ? (
             <View style={styles.discountSection}>
-              {vehicle.discount_enabled && vehicle.discount_min_days && vehicle.discount_percentage && (
+              {((vehicle.discount_enabled === true) && vehicle.discount_min_days && vehicle.discount_min_days > 0 && vehicle.discount_percentage) ? (
                 <View style={[styles.discountCard, styles.discountCardGreen]}>
                   <View style={styles.discountIconContainer}>
                     <Ionicons name="pricetag" size={20} color="#10b981" />
@@ -235,12 +242,12 @@ const VehicleDetailsScreen: React.FC = () => {
                   <View style={styles.discountContent}>
                     <Text style={styles.discountTitle}>Réduction disponible</Text>
                     <Text style={styles.discountDescription}>
-                      {vehicle.discount_percentage || 0}% de réduction à partir de {vehicle.discount_min_days || 0} jour{(vehicle.discount_min_days || 0) > 1 ? 's' : ''}
+                      {`${String(vehicle.discount_percentage || 0)}% de réduction à partir de ${String(vehicle.discount_min_days || 0)} jour${((vehicle.discount_min_days || 0) > 1) ? 's' : ''}`}
                     </Text>
                   </View>
                 </View>
-              )}
-              {vehicle.long_stay_discount_enabled && vehicle.long_stay_discount_min_days && vehicle.long_stay_discount_percentage && (
+              ) : null}
+              {((vehicle.long_stay_discount_enabled === true) && vehicle.long_stay_discount_min_days && vehicle.long_stay_discount_min_days > 0 && vehicle.long_stay_discount_percentage) ? (
                 <View style={[styles.discountCard, styles.discountCardBlue]}>
                   <View style={styles.discountIconContainer}>
                     <Ionicons name="calendar" size={20} color="#3b82f6" />
@@ -248,20 +255,20 @@ const VehicleDetailsScreen: React.FC = () => {
                   <View style={styles.discountContent}>
                     <Text style={styles.discountTitle}>Réduction longue durée</Text>
                     <Text style={styles.discountDescription}>
-                      {vehicle.long_stay_discount_percentage || 0}% de réduction à partir de {vehicle.long_stay_discount_min_days || 0} jour{(vehicle.long_stay_discount_min_days || 0) > 1 ? 's' : ''}
+                      {`${String(vehicle.long_stay_discount_percentage || 0)}% de réduction à partir de ${String(vehicle.long_stay_discount_min_days || 0)} jour${((vehicle.long_stay_discount_min_days || 0) > 1) ? 's' : ''}`}
                     </Text>
                   </View>
                 </View>
-              )}
+              ) : null}
             </View>
-          )}
+          ) : null}
 
           {/* Options spéciales - Design moderne */}
-          {((vehicle as any).with_driver || (vehicle as any).has_insurance || (vehicle as any).requires_license) && (
+          {(((vehicle as any).with_driver === true) || ((vehicle as any).has_insurance === true) || ((vehicle as any).requires_license === true)) ? (
             <View style={styles.optionsSection}>
               <Text style={styles.sectionTitle}>Options & Conditions</Text>
               <View style={styles.optionsGrid}>
-                {(vehicle as any).with_driver && (
+                {((vehicle as any).with_driver === true) ? (
                   <View style={styles.optionCard}>
                     <View style={[styles.optionIconContainer, { backgroundColor: '#dbeafe' }]}>
                       <Ionicons name="person" size={24} color="#3b82f6" />
@@ -269,21 +276,21 @@ const VehicleDetailsScreen: React.FC = () => {
                     <Text style={styles.optionTitle}>Chauffeur</Text>
                     <Text style={styles.optionDescription}>Disponible</Text>
                   </View>
-                )}
-                {(vehicle as any).has_insurance && (
+                ) : null}
+                {((vehicle as any).has_insurance === true) ? (
                   <View style={styles.optionCard}>
                     <View style={[styles.optionIconContainer, { backgroundColor: '#d1fae5' }]}>
                       <Ionicons name="shield-checkmark" size={24} color="#10b981" />
                     </View>
                     <Text style={styles.optionTitle}>Assuré</Text>
-                    {(vehicle as any).insurance_details && (
+                    {(vehicle as any).insurance_details ? (
                       <Text style={styles.optionDescription} numberOfLines={2}>
-                        {(vehicle as any).insurance_details}
+                        {String((vehicle as any).insurance_details || '')}
                       </Text>
-                    )}
+                    ) : null}
                   </View>
-                )}
-                {(vehicle as any).requires_license && (
+                ) : null}
+                {((vehicle as any).requires_license === true) ? (
                   <View style={styles.optionCard}>
                     <View style={[styles.optionIconContainer, { backgroundColor: '#fef3c7' }]}>
                       <Ionicons name="document-text" size={24} color="#f59e0b" />
@@ -291,14 +298,14 @@ const VehicleDetailsScreen: React.FC = () => {
                     <Text style={styles.optionTitle}>Permis requis</Text>
                     <Text style={styles.optionDescription} numberOfLines={2}>
                       {((vehicle as any).min_license_years || 0) > 0 
-                        ? `${(vehicle as any).min_license_years || 0} an(s) minimum`
+                        ? `${String((vehicle as any).min_license_years || 0)} an(s) minimum`
                         : 'Permis valide requis'}
                     </Text>
                   </View>
-                )}
+                ) : null}
               </View>
             </View>
-          )}
+          ) : null}
 
           {/* Caractéristiques principales - Design moderne amélioré */}
           <View style={styles.featuresSection}>
@@ -310,103 +317,103 @@ const VehicleDetailsScreen: React.FC = () => {
                     <Ionicons name="people" size={24} color={VEHICLE_COLORS.primary} />
                   </View>
                   <View style={styles.featureInfo}>
-                    <Text style={styles.featureValue}>{vehicle.seats || 0}</Text>
+                    <Text style={styles.featureValue}>{String(vehicle.seats || 0)}</Text>
                     <Text style={styles.featureLabel}>Places</Text>
                   </View>
                 </View>
-                {vehicle.transmission && (
+                {vehicle.transmission ? (
                   <View style={styles.featureItem}>
                     <View style={styles.featureIconWrapper}>
                       <Ionicons name="settings" size={24} color={VEHICLE_COLORS.primary} />
                     </View>
                     <View style={styles.featureInfo}>
                       <Text style={styles.featureValue}>
-                        {vehicle.transmission === 'automatic' ? 'Automatique' : 'Manuelle'}
+                        {vehicle.transmission === 'automatic' ? 'Automatique' : vehicle.transmission === 'manual' ? 'Manuelle' : String(vehicle.transmission || '')}
                       </Text>
                       <Text style={styles.featureLabel}>Transmission</Text>
                     </View>
                   </View>
-                )}
+                ) : null}
               </View>
               <View style={styles.featureRow}>
-                {vehicle.fuel_type && (
+                {vehicle.fuel_type ? (
                   <View style={styles.featureItem}>
                     <View style={styles.featureIconWrapper}>
                       <Ionicons name="flash" size={24} color={VEHICLE_COLORS.primary} />
                     </View>
                     <View style={styles.featureInfo}>
                       <Text style={styles.featureValue} numberOfLines={1}>
-                        {vehicle.fuel_type || ''}
+                        {vehicle.fuel_type ? String(vehicle.fuel_type) : 'Non spécifié'}
                       </Text>
                       <Text style={styles.featureLabel}>Carburant</Text>
                     </View>
                   </View>
-                )}
-                {vehicle.year && (
+                ) : null}
+                {vehicle.year && vehicle.year > 0 ? (
                   <View style={styles.featureItem}>
                     <View style={styles.featureIconWrapper}>
                       <Ionicons name="calendar" size={24} color={VEHICLE_COLORS.primary} />
                     </View>
                     <View style={styles.featureInfo}>
-                      <Text style={styles.featureValue}>{vehicle.year || ''}</Text>
+                      <Text style={styles.featureValue}>{String(vehicle.year)}</Text>
                       <Text style={styles.featureLabel}>Année</Text>
                     </View>
                   </View>
-                )}
-                {vehicle.mileage && vehicle.mileage > 0 && (
+                ) : null}
+                {vehicle.mileage && vehicle.mileage > 0 ? (
                   <View style={styles.featureItem}>
                     <View style={styles.featureIconWrapper}>
                       <Ionicons name="speedometer" size={24} color={VEHICLE_COLORS.primary} />
                     </View>
                     <View style={styles.featureInfo}>
                       <Text style={styles.featureValue}>
-                        {vehicle.mileage.toLocaleString('fr-FR')}
+                        {vehicle.mileage && vehicle.mileage > 0 ? String(vehicle.mileage.toLocaleString('fr-FR')) : '0'}
                       </Text>
                       <Text style={styles.featureLabel}>Kilométrage</Text>
                     </View>
                   </View>
-                )}
+                ) : null}
               </View>
             </View>
           </View>
 
           {/* Description */}
-          {vehicle.description && (
+          {vehicle.description ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Description</Text>
-              <Text style={styles.description}>{vehicle.description}</Text>
+              <Text style={styles.description}>{String(vehicle.description || '')}</Text>
             </View>
-          )}
+          ) : null}
 
           {/* Équipements */}
-          {vehicle.features && vehicle.features.length > 0 && (
+          {vehicle.features && vehicle.features.length > 0 ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Équipements</Text>
               <View style={styles.featuresList}>
                 {vehicle.features.map((feature, index) => (
                   <View key={index} style={styles.featureTag}>
                     <Ionicons name="checkmark-circle" size={18} color={VEHICLE_COLORS.primary} />
-                    <Text style={styles.featureTagText}>{feature || ''}</Text>
+                    <Text style={styles.featureTagText}>{String(feature || '')}</Text>
                   </View>
                 ))}
               </View>
             </View>
-          )}
+          ) : null}
 
           {/* Règles */}
-          {vehicle.rules && vehicle.rules.length > 0 && (
+          {vehicle.rules && vehicle.rules.length > 0 ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Règles de location</Text>
               <View style={styles.rulesList}>
                 {vehicle.rules.map((rule, index) => (
                   <View key={index} style={styles.ruleItem}>
                     <Ionicons name="information-circle" size={18} color="#64748b" />
-                    <Text style={styles.ruleText}>{rule || ''}</Text>
+                    <Text style={styles.ruleText}>{String(rule || '')}</Text>
                   </View>
                 ))}
               </View>
             </View>
-          )}
+          ) : null}
         </View>
       </ScrollView>
 
@@ -425,10 +432,10 @@ const VehicleDetailsScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.bookButton}
                 onPress={handleBookVehicle}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
                 <Text style={styles.bookButtonText}>Réserver</Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" />
+                <Ionicons name="arrow-forward-circle" size={22} color="#fff" />
               </TouchableOpacity>
             </View>
           </SafeAreaView>
@@ -888,52 +895,52 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopWidth: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 10,
   },
   footerSafeArea: {
     backgroundColor: '#fff',
   },
   footer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingTop: 16,
+    paddingBottom: 20,
     alignItems: 'stretch',
+    backgroundColor: '#fff',
   },
   contactButtonWrapper: {
     flex: 1,
-    minHeight: 56,
+    minHeight: 60,
     justifyContent: 'center',
   },
   bookButton: {
-    flex: 2,
+    flex: 1.5,
     backgroundColor: VEHICLE_COLORS.primary,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    minHeight: 56,
+    gap: 10,
+    minHeight: 60,
     shadowColor: VEHICLE_COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
   },
   bookButtonText: {
     color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });
 

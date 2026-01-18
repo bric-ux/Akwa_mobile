@@ -470,7 +470,7 @@ const VehicleBookingScreen: React.FC = () => {
                   />
                 ))}
               </ScrollView>
-              {hasMultipleImages && (
+              {hasMultipleImages ? (
                 <View style={styles.imageIndicators}>
                   {vehicleImages.map((_: string, index: number) => (
                     <View
@@ -482,7 +482,7 @@ const VehicleBookingScreen: React.FC = () => {
                     />
                   ))}
                 </View>
-              )}
+              ) : null}
             </View>
           ) : (
             <View style={[styles.vehicleImage, styles.vehicleImagePlaceholder]}>
@@ -498,16 +498,16 @@ const VehicleBookingScreen: React.FC = () => {
                 ? formatPrice(basePricePerDay) + ' / jour (tarif préférentiel)'
                 : formatPrice(vehicle.price_per_day || 0) + ' / jour'}
             </Text>
-            {vehicle.price_per_week && vehicle.price_per_week > 0 && (
+            {vehicle.price_per_week && vehicle.price_per_week > 0 ? (
               <Text style={styles.vehiclePriceAlt}>
                 {formatPrice(vehicle.price_per_week)} / semaine
               </Text>
-            )}
-            {vehicle.price_per_month && vehicle.price_per_month > 0 && (
+            ) : null}
+            {vehicle.price_per_month && vehicle.price_per_month > 0 ? (
               <Text style={styles.vehiclePriceAlt}>
                 {formatPrice(vehicle.price_per_month)} / mois
               </Text>
-            )}
+            ) : null}
           </View>
         </View>
 
@@ -522,15 +522,15 @@ const VehicleBookingScreen: React.FC = () => {
             babies={0}
             onDateGuestsChange={handleDateGuestsChange}
           />
-          {rentalDays > 0 && (
+          {rentalDays > 0 ? (
             <Text style={styles.rentalDaysText}>
               {rentalDays} jour{rentalDays > 1 ? 's' : ''} de location
             </Text>
-          )}
+          ) : null}
         </View>
 
         {/* Choix du chauffeur */}
-        {withDriver && (
+        {withDriver ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Service de chauffeur</Text>
             <View style={styles.driverOptions}>
@@ -564,19 +564,19 @@ const VehicleBookingScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           </View>
-        )}
+        ) : null}
 
         {/* Permis de conduire */}
-        {isLicenseRequired && (
+        {isLicenseRequired ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
               Permis de conduire {(withDriver && useDriver === false) ? '(Obligatoire)' : ''}
             </Text>
-            {(withDriver && useDriver === false) && (
+            {(withDriver && useDriver === false) ? (
               <Text style={styles.requiredNote}>
                 Le permis de conduire est obligatoire lorsque vous conduisez vous-même.
               </Text>
-            )}
+            ) : null}
             <TouchableOpacity
               style={styles.checkboxRow}
               onPress={() => setHasLicense(!hasLicense)}
@@ -593,7 +593,7 @@ const VehicleBookingScreen: React.FC = () => {
                 Je possède un permis de conduire {(withDriver && useDriver === false) ? '*' : ''}
               </Text>
             </TouchableOpacity>
-            {hasLicense && (
+            {hasLicense ? (
               <>
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>
@@ -663,9 +663,9 @@ const VehicleBookingScreen: React.FC = () => {
                   </Text>
                 </View>
               </>
-            )}
+            ) : null}
           </View>
-        )}
+        ) : null}
 
         {/* Message */}
         <View style={styles.section}>
@@ -696,7 +696,7 @@ const VehicleBookingScreen: React.FC = () => {
             <Text style={styles.summaryLabel}>Nombre de jours</Text>
             <Text style={styles.summaryValue}>{rentalDays}</Text>
           </View>
-          {basePricePerDay !== vehicle.price_per_day && (
+          {basePricePerDay !== vehicle.price_per_day ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Tarif préférentiel appliqué</Text>
               <Text style={[styles.summaryValue, { color: '#2E7D32' }]}>
@@ -707,8 +707,8 @@ const VehicleBookingScreen: React.FC = () => {
                   : 'Tarif préférentiel'}
               </Text>
             </View>
-          )}
-          {pricing.discountApplied && (
+          ) : null}
+          {pricing.discountApplied ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
                 Réduction {pricing.discountType === 'long_stay' ? 'séjour long' : ''} ({pricing.discountType === 'long_stay' 
@@ -719,34 +719,34 @@ const VehicleBookingScreen: React.FC = () => {
                 -{formatPrice(pricing.discountAmount)}
               </Text>
             </View>
-          )}
+          ) : null}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Sous-total</Text>
             <Text style={styles.summaryValue}>
-              {pricing.discountApplied && (
+              {pricing.discountApplied ? (
                 <Text style={{ textDecorationLine: 'line-through', color: '#999', fontSize: 14 }}>
                   {formatPrice(pricing.originalTotal)}{' '}
                 </Text>
-              )}
+              ) : null}
               {formatPrice(basePrice)}
             </Text>
           </View>
-          {fees.serviceFee > 0 && (
+          {fees.serviceFee > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Frais de service</Text>
               <Text style={styles.summaryValue}>{formatPrice(fees.serviceFee)}</Text>
             </View>
-          )}
+          ) : null}
           <View style={[styles.summaryRow, styles.summaryTotal]}>
             <Text style={styles.summaryTotalLabel}>Total</Text>
             <Text style={styles.summaryTotalValue}>{formatPrice(totalPrice)}</Text>
           </View>
-          {securityDeposit > 0 && (
+          {securityDeposit > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Caution</Text>
               <Text style={styles.summaryValue}>{formatPrice(securityDeposit)}</Text>
             </View>
-          )}
+          ) : null}
         </View>
       </ScrollView>
 
@@ -812,9 +812,9 @@ const VehicleBookingScreen: React.FC = () => {
                   ]}>
                     {item.label}
                   </Text>
-                  {licenseYears === item.value && (
+                  {licenseYears === item.value ? (
                     <Ionicons name="checkmark" size={20} color="#2E7D32" />
-                  )}
+                  ) : null}
                 </TouchableOpacity>
               )}
             />

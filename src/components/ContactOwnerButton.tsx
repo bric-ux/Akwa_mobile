@@ -194,25 +194,24 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
       style={getButtonStyle()}
       onPress={handleContactOwner}
       disabled={loading || !user || user.id === vehicle.owner_id}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
       {loading ? (
         <ActivityIndicator 
           size="small" 
-          color={variant === 'outline' ? '#007AFF' : '#fff'} 
+          color={variant === 'outline' ? '#2563eb' : '#fff'} 
         />
       ) : (
         <>
           {showIcon && (
             <Ionicons
-              name="chatbubble-outline"
+              name="chatbubble-ellipses"
               size={getIconSize()}
-              color={variant === 'outline' ? '#007AFF' : '#fff'}
-              style={styles.icon}
+              color={variant === 'outline' ? '#2563eb' : '#fff'}
             />
           )}
           <Text style={getTextStyle()}>
-            Contacter le propriétaire
+            Contacter
           </Text>
         </>
       )}
@@ -225,39 +224,52 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  primaryButton: {
-    backgroundColor: '#007AFF',
-  },
-  secondaryButton: {
-    backgroundColor: '#6c757d',
-  },
-  outlineButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#007AFF',
-  },
-  smallButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  mediumButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  largeButton: {
+    borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 16,
+    gap: 8,
+    minHeight: 56,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  primaryButton: {
+    backgroundColor: '#2563eb',
+  },
+  secondaryButton: {
+    backgroundColor: '#64748b',
+  },
+  outlineButton: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 2,
+    borderColor: '#2563eb',
+    shadowOpacity: 0.08,
+    elevation: 2,
+  },
+  smallButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 10,
+    minHeight: 44,
+  },
+  mediumButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderRadius: 14,
+    minHeight: 60,
+  },
+  largeButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 18,
+    borderRadius: 14,
+    minHeight: 64,
   },
   buttonText: {
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   primaryText: {
     color: '#fff',
@@ -266,7 +278,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   outlineText: {
-    color: '#007AFF',
+    color: '#2563eb',
   },
   smallText: {
     fontSize: 14,
@@ -278,7 +290,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   icon: {
-    marginRight: 8,
+    marginRight: 0,
   },
 });
 
