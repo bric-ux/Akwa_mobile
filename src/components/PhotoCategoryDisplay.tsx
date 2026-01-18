@@ -250,13 +250,6 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                       {CATEGORY_LABELS[photo.category]}
                     </Text>
                   </View>
-                  {/* Badge photo principale */}
-                  {(photo.is_main || photo.isMain) && (
-                    <View style={styles.mainPhotoBadge}>
-                      <Ionicons name="star" size={12} color="#FFD700" />
-                      <Text style={styles.mainPhotoBadgeText}>Principale</Text>
-                    </View>
-                  )}
                   {/* Bouton pour définir comme principale */}
                   {propertyId && !(photo.is_main || photo.isMain) && (
                     <TouchableOpacity
@@ -336,13 +329,6 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                     style={styles.photoImage}
                     resizeMode="cover"
                   />
-                  {/* Badge photo principale */}
-                  {(photo.is_main || photo.isMain) && (
-                    <View style={styles.mainPhotoBadge}>
-                      <Ionicons name="star" size={12} color="#FFD700" />
-                      <Text style={styles.mainPhotoBadgeText}>Principale</Text>
-                    </View>
-                  )}
                   {/* Bouton pour définir comme principale */}
                   {propertyId && !(photo.is_main || photo.isMain) && (
                     <TouchableOpacity
@@ -418,17 +404,10 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                       <Image
                         source={{ uri: photo.url }}
                         style={styles.categoryPhotoImage}
-                        resizeMode="cover"
-                      />
-                      {/* Badge photo principale */}
-                      {(photo.is_main || photo.isMain) && (
-                        <View style={styles.mainPhotoBadge}>
-                          <Ionicons name="star" size={12} color="#FFD700" />
-                          <Text style={styles.mainPhotoBadgeText}>Principale</Text>
-                        </View>
-                      )}
-                      {/* Bouton pour définir comme principale */}
-                      {propertyId && !(photo.is_main || photo.isMain) && (
+                    resizeMode="cover"
+                  />
+                  {/* Bouton pour définir comme principale */}
+                  {propertyId && !(photo.is_main || photo.isMain) && (
                         <TouchableOpacity
                           style={styles.setMainButton}
                           onPress={async (e) => {
