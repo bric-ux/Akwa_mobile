@@ -164,6 +164,140 @@ export const useVehicleBookings = () => {
         throw bookingError;
       }
 
+      // Envoyer les emails après création de la réservation
+      try {
+        // Récupérer les informations du véhicule et du propriétaire
+        const { data: vehicleInfo, error: vehicleInfoError } = await supabase
+          .from('vehicles')
+          .select(`
+            title,
+            brand,
+            model,
+            auto_booking,
+            owner_id,
+            profiles!vehicles_owner_id_fkey(
+              first_name,
+              last_name,
+              email,
+              phone
+            )
+          `)
+          .eq('id', bookingData.vehicleId)
+          .single();
+
+        if (!vehicleInfoError && vehicleInfo) {
+          const ownerProfile = vehicleInfo.profiles;
+          const renterProfile = user.user_metadata || {};
+          const renterName = `${renterProfile.first_name || ''} ${renterProfile.last_name || ''}`.trim() || 'Locataire';
+          const ownerName = `${ownerProfile?.first_name || ''} ${ownerProfile?.last_name || ''}`.trim() || 'Propriétaire';
+          const vehicleTitle = vehicleInfo.title || `${vehicleInfo.brand || ''} ${vehicleInfo.model || ''}`.trim();
+
+          const isAutoBooking = initialStatus === 'confirmed';
+
+          if (isAutoBooking) {
+            // Réservation automatique - Envoyer les emails de confirmation immédiatement
+            const emailData = {
+              bookingId: booking.id,
+              vehicleTitle: vehicleTitle,
+              vehicleBrand: vehicleInfo.brand || '',
+              vehicleModel: vehicleInfo.model || '',
+              renterName: renterName,
+              renterEmail: user.email || '',
+              renterPhone: renterProfile.phone || '',
+              ownerName: ownerName,
+              ownerEmail: ownerProfile?.email || '',
+              ownerPhone: ownerProfile?.phone || '',
+              startDate: bookingData.startDate,
+              endDate: bookingData.endDate,
+              rentalDays: rentalDays,
+              totalPrice: totalPrice,
+              securityDeposit: booking.security_deposit || 0,
+              pickupLocation: bookingData.pickupLocation || '',
+              isInstantBooking: true,
+            };
+
+            // Email au locataire avec PDF
+            if (user.email) {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'vehicle_booking_confirmed_renter',
+                  to: user.email,
+                  data: emailData
+                }
+              });
+            }
+
+            // Email au propriétaire avec PDF
+            if (ownerProfile?.email) {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'vehicle_booking_confirmed_owner',
+                  to: ownerProfile.email,
+                  data: emailData
+                }
+              });
+            }
+
+            // Email à l'admin
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'vehicle_booking_confirmed_admin',
+                to: 'contact@akwahome.com',
+                data: emailData
+              }
+            });
+          } else {
+            // Réservation sur demande - Envoyer les emails de demande
+            const emailData = {
+              bookingId: booking.id,
+              vehicleTitle: vehicleTitle,
+              vehicleBrand: vehicleInfo.brand || '',
+              vehicleModel: vehicleInfo.model || '',
+              renterName: renterName,
+              renterEmail: user.email || '',
+              renterPhone: renterProfile.phone || '',
+              ownerName: ownerName,
+              ownerEmail: ownerProfile?.email || '',
+              ownerPhone: ownerProfile?.phone || '',
+              startDate: bookingData.startDate,
+              endDate: bookingData.endDate,
+              rentalDays: rentalDays,
+              totalPrice: totalPrice,
+              securityDeposit: booking.security_deposit || 0,
+              message: bookingData.messageToOwner || '',
+              isInstantBooking: false,
+            };
+
+            // Email au locataire (demande envoyée)
+            if (user.email) {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'vehicle_booking_request_sent',
+                  to: user.email,
+                  data: emailData
+                }
+              });
+            }
+
+            // Email au propriétaire (nouvelle demande)
+            if (ownerProfile?.email) {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'vehicle_booking_request',
+                  to: ownerProfile.email,
+                  data: emailData
+                }
+              });
+            }
+          }
+
+          console.log('✅ [useVehicleBookings] Emails de réservation envoyés');
+        }
+      } catch (emailError) {
+        console.error('❌ [useVehicleBookings] Erreur envoi email:', emailError);
+        // Ne pas faire échouer la réservation si l'email échoue
+      }
+
       return { success: true, booking };
     } catch (err: any) {
       console.error('Erreur lors de la création de la réservation:', err);
@@ -285,7 +419,37 @@ export const useVehicleBookings = () => {
       setLoading(true);
       setError(null);
 
-      const { data, error: updateError } = await supabase
+      // Récupérer la réservation avec toutes les informations nécessaires
+      const { data: booking, error: fetchError } = await supabase
+        .from('vehicle_bookings')
+        .select(`
+          *,
+          vehicle:vehicles (
+            id,
+            title,
+            brand,
+            model,
+            year,
+            fuel_type,
+            owner_id
+          ),
+          renter:profiles!renter_id (
+            user_id,
+            first_name,
+            last_name,
+            email,
+            phone
+          )
+        `)
+        .eq('id', bookingId)
+        .single();
+
+      if (fetchError || !booking) {
+        throw fetchError || new Error('Réservation introuvable');
+      }
+
+      // Mettre à jour le statut
+      const { data: updatedBooking, error: updateError } = await supabase
         .from('vehicle_bookings')
         .update({ status })
         .eq('id', bookingId)
@@ -296,7 +460,93 @@ export const useVehicleBookings = () => {
         throw updateError;
       }
 
-      return { success: true, booking: data };
+      // Si la réservation est confirmée, envoyer les emails
+      if (status === 'confirmed') {
+        try {
+          // Récupérer les informations du propriétaire
+          const { data: ownerProfile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email, phone')
+            .eq('user_id', (booking.vehicle as any).owner_id)
+            .single();
+
+          const vehicle = booking.vehicle as any;
+          const renter = booking.renter as any;
+          const vehicleTitle = vehicle?.title || `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim();
+          const renterName = `${renter?.first_name || ''} ${renter?.last_name || ''}`.trim() || 'Locataire';
+          const ownerName = `${ownerProfile?.first_name || ''} ${ownerProfile?.last_name || ''}`.trim() || 'Propriétaire';
+
+          const formatDate = (dateString: string) => {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('fr-FR', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            });
+          };
+
+          const emailData = {
+            bookingId: booking.id,
+            vehicleTitle: vehicleTitle,
+            vehicleBrand: vehicle?.brand || '',
+            vehicleModel: vehicle?.model || '',
+            vehicleYear: vehicle?.year || '',
+            fuelType: vehicle?.fuel_type || '',
+            renterName: renterName,
+            renterEmail: renter?.email || '',
+            renterPhone: renter?.phone || '',
+            ownerName: ownerName,
+            ownerEmail: ownerProfile?.email || '',
+            ownerPhone: ownerProfile?.phone || '',
+            startDate: formatDate(booking.start_date),
+            endDate: formatDate(booking.end_date),
+            rentalDays: booking.rental_days,
+            dailyRate: booking.daily_rate,
+            totalPrice: booking.total_price,
+            securityDeposit: booking.security_deposit || 0,
+            pickupLocation: booking.pickup_location || '',
+            isInstantBooking: false, // Confirmation manuelle = pas instantanée
+          };
+
+          // Email au locataire avec PDF
+          if (renter?.email) {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'vehicle_booking_confirmed_renter',
+                to: renter.email,
+                data: emailData
+              }
+            });
+          }
+
+          // Email au propriétaire avec PDF
+          if (ownerProfile?.email) {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'vehicle_booking_confirmed_owner',
+                to: ownerProfile.email,
+                data: emailData
+              }
+            });
+          }
+
+          // Email à l'admin
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'vehicle_booking_confirmed_admin',
+              to: 'contact@akwahome.com',
+              data: emailData
+            }
+          });
+
+          console.log('✅ [useVehicleBookings] Emails de confirmation envoyés');
+        } catch (emailError) {
+          console.error('❌ [useVehicleBookings] Erreur envoi email:', emailError);
+          // Ne pas faire échouer la mise à jour si l'email échoue
+        }
+      }
+
+      return { success: true, booking: updatedBooking };
     } catch (err: any) {
       console.error('Erreur lors de la mise à jour du statut:', err);
       setError(err.message || 'Erreur lors de la mise à jour du statut');

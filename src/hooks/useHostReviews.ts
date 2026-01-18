@@ -36,13 +36,16 @@ export interface HostPropertyReview {
 
 export interface HostReview {
   id: string;
-  property_id: string;
+  property_id?: string;
+  vehicle_id?: string;
   reviewer_id: string;
   rating: number;
   comment: string | null;
   created_at: string;
   reviewer_name?: string;
   property_title?: string;
+  vehicle_title?: string;
+  review_type: 'property' | 'vehicle';
 }
 
 export const useHostReviews = () => {
@@ -54,66 +57,123 @@ export const useHostReviews = () => {
   const getHostReviews = useCallback(async (hostId: string): Promise<void> => {
     setLoading(true);
     try {
-      // First get host's properties
+      const allReviews: HostReview[] = [];
+
+      // 1. Get reviews for properties
       const { data: properties, error: propError } = await supabase
         .from('properties')
         .select('id')
         .eq('host_id', hostId);
 
-      if (propError || !properties?.length) {
-        setReviews([]);
-        return;
+      if (!propError && properties?.length) {
+        const propertyIds = properties.map(p => p.id);
+
+        const { data: reviewsData, error: reviewsError } = await supabase
+          .from('reviews')
+          .select(`
+            id,
+            property_id,
+            reviewer_id,
+            rating,
+            comment,
+            created_at,
+            profiles!reviewer_id(first_name, last_name),
+            properties!property_id(title)
+          `)
+          .in('property_id', propertyIds)
+          .eq('approved', true)
+          .order('created_at', { ascending: false });
+
+        if (!reviewsError && reviewsData) {
+          const propertyReviews: HostReview[] = reviewsData.map((review: any) => {
+            const reviewer = review.profiles || review.profiles_reviewer_id || null;
+            const property = review.properties || review.properties_property_id || null;
+            
+            const reviewerName = reviewer 
+              ? `${reviewer.first_name || ''} ${reviewer.last_name || ''}`.trim() || 'Anonyme'
+              : 'Anonyme';
+            
+            const propertyTitle = property?.title || 'Propriété';
+            
+            return {
+              id: review.id,
+              property_id: review.property_id,
+              reviewer_id: review.reviewer_id,
+              rating: review.rating || 0,
+              comment: review.comment || null,
+              created_at: review.created_at,
+              reviewer_name: reviewerName,
+              property_title: propertyTitle,
+              review_type: 'property' as const,
+            };
+          });
+
+          allReviews.push(...propertyReviews);
+        }
       }
 
-      const propertyIds = properties.map(p => p.id);
+      // 2. Get reviews for vehicles
+      const { data: vehicles, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('owner_id', hostId);
 
-      // Get reviews for these properties
-      const { data: reviewsData, error: reviewsError } = await supabase
-        .from('reviews')
-        .select(`
-          id,
-          property_id,
-          reviewer_id,
-          rating,
-          comment,
-          created_at,
-          profiles!reviewer_id(first_name, last_name),
-          properties!property_id(title)
-        `)
-        .in('property_id', propertyIds)
-        .eq('approved', true)
-        .order('created_at', { ascending: false });
+      if (!vehicleError && vehicles?.length) {
+        const vehicleIds = vehicles.map(v => v.id);
 
-      if (reviewsError) {
-        console.error('Error fetching reviews:', reviewsError);
-        setReviews([]);
-        return;
+        const { data: vehicleReviewsData, error: vehicleReviewsError } = await (supabase as any)
+          .from('vehicle_reviews')
+          .select(`
+            id,
+            vehicle_id,
+            reviewer_id,
+            rating,
+            comment,
+            created_at,
+            profiles!vehicle_reviews_reviewer_id_fkey(first_name, last_name),
+            vehicles!vehicle_reviews_vehicle_id_fkey(brand, model, title)
+          `)
+          .in('vehicle_id', vehicleIds)
+          .eq('approved', true)
+          .order('created_at', { ascending: false });
+
+        if (!vehicleReviewsError && vehicleReviewsData) {
+          const vehicleReviews: HostReview[] = vehicleReviewsData.map((review: any) => {
+            const reviewer = review.profiles || review.profiles_vehicle_reviews_reviewer_id_fkey || null;
+            const vehicle = review.vehicles || review.vehicles_vehicle_reviews_vehicle_id_fkey || null;
+            
+            const reviewerName = reviewer 
+              ? `${reviewer.first_name || ''} ${reviewer.last_name || ''}`.trim() || 'Anonyme'
+              : 'Anonyme';
+            
+            const vehicleTitle = vehicle?.title || 
+              (vehicle?.brand && vehicle?.model 
+                ? `${vehicle.brand} ${vehicle.model}` 
+                : 'Véhicule');
+            
+            return {
+              id: review.id,
+              vehicle_id: review.vehicle_id,
+              reviewer_id: review.reviewer_id,
+              rating: review.rating || 0,
+              comment: review.comment || null,
+              created_at: review.created_at,
+              reviewer_name: reviewerName,
+              vehicle_title: vehicleTitle,
+              review_type: 'vehicle' as const,
+            };
+          });
+
+          allReviews.push(...vehicleReviews);
+        }
       }
 
-      const formattedReviews: HostReview[] = (reviewsData || []).map((review: any) => {
-        // Gérer différents formats de données de Supabase
-        const reviewer = review.profiles || review.profiles_reviewer_id || null;
-        const property = review.properties || review.properties_property_id || null;
-        
-        const reviewerName = reviewer 
-          ? `${reviewer.first_name || ''} ${reviewer.last_name || ''}`.trim() || 'Anonyme'
-          : 'Anonyme';
-        
-        const propertyTitle = property?.title || 'Propriété';
-        
-        return {
-          id: review.id,
-          property_id: review.property_id,
-          reviewer_id: review.reviewer_id,
-          rating: review.rating || 0,
-          comment: review.comment || null,
-          created_at: review.created_at,
-          reviewer_name: reviewerName,
-          property_title: propertyTitle,
-        };
-      });
+      // Sort all reviews by date (most recent first)
+      allReviews.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
-      setReviews(formattedReviews);
+      setReviews(allReviews);
     } catch (error) {
       console.error('Error in getHostReviews:', error);
       setReviews([]);

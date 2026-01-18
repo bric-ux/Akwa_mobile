@@ -31,6 +31,16 @@ export const useVehicles = () => {
             is_main,
             display_order,
             created_at
+          ),
+          owner:profiles!owner_id (
+            user_id,
+            first_name,
+            last_name,
+            avatar_url,
+            identity_verified,
+            city,
+            country,
+            bio
           )
         `)
         .eq('is_active', true);
@@ -281,6 +291,16 @@ export const useVehicles = () => {
           } : undefined,
           photos: photos,
           images: images.length > 0 ? images : vehicle.images || [],
+          owner: vehicle.owner ? {
+            user_id: vehicle.owner.user_id,
+            first_name: vehicle.owner.first_name,
+            last_name: vehicle.owner.last_name,
+            avatar_url: vehicle.owner.avatar_url,
+            identity_verified: vehicle.owner.identity_verified,
+            city: vehicle.owner.city,
+            country: vehicle.owner.country,
+            bio: vehicle.owner.bio,
+          } : undefined,
         };
       });
 
@@ -318,6 +338,16 @@ export const useVehicles = () => {
             is_main,
             display_order,
             created_at
+          ),
+          owner:profiles!owner_id (
+            user_id,
+            first_name,
+            last_name,
+            avatar_url,
+            identity_verified,
+            city,
+            country,
+            bio
           )
         `)
         .eq('id', vehicleId)
@@ -348,6 +378,16 @@ export const useVehicles = () => {
         } : undefined,
         photos: photos,
         images: images,
+        owner: data.owner ? {
+          user_id: data.owner.user_id,
+          first_name: data.owner.first_name,
+          last_name: data.owner.last_name,
+          avatar_url: data.owner.avatar_url,
+          identity_verified: data.owner.identity_verified,
+          city: data.owner.city,
+          country: data.owner.country,
+          bio: data.owner.bio,
+        } : undefined,
       };
     } catch (err: any) {
       console.error('Erreur lors du chargement du véhicule:', err);
@@ -680,6 +720,7 @@ export const useVehicles = () => {
       if (vehicleData.price_per_month !== undefined) updateData.price_per_month = vehicleData.price_per_month;
       if (vehicleData.security_deposit !== undefined) updateData.security_deposit = vehicleData.security_deposit;
       if (vehicleData.minimum_rental_days !== undefined) updateData.minimum_rental_days = vehicleData.minimum_rental_days;
+      if (vehicleData.auto_booking !== undefined) updateData.auto_booking = vehicleData.auto_booking;
       if (vehicleData.features !== undefined) updateData.features = vehicleData.features;
       if (vehicleData.rules !== undefined) updateData.rules = vehicleData.rules;
       if (vehicleData.is_active !== undefined) updateData.is_active = vehicleData.is_active;

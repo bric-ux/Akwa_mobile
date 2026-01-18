@@ -349,6 +349,16 @@ export interface Vehicle {
   admin_notes?: string;
   reviewed_by?: string;
   reviewed_at?: string;
+  owner?: {
+    user_id: string;
+    first_name?: string;
+    last_name?: string;
+    avatar_url?: string;
+    identity_verified?: boolean;
+    city?: string;
+    country?: string;
+    bio?: string;
+  };
 }
 
 export interface VehiclePhoto {

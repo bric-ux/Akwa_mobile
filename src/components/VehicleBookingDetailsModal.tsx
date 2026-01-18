@@ -77,6 +77,17 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
+      // Vérifier si le véhicule a auto_booking pour déterminer le type de réservation
+      let isInstantBooking = false;
+      if (vehicle?.id) {
+        const { data: vehicleData } = await supabase
+          .from('vehicles')
+          .select('auto_booking')
+          .eq('id', vehicle.id)
+          .single();
+        isInstantBooking = vehicleData?.auto_booking === true;
+      }
+
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
           type: isOwner ? 'vehicle_generate_owner_pdf' : 'vehicle_generate_renter_pdf',
@@ -100,6 +111,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
             ownerEmail: owner?.email,
             ownerPhone: owner?.phone || '',
             pickupLocation: booking.pickup_location,
+            isInstantBooking: isInstantBooking,
           }
         }
       });

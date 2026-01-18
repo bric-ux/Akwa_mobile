@@ -20,6 +20,7 @@ import { useCurrency } from '../hooks/useCurrency';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../services/AuthContext';
 import ContactOwnerButton from '../components/ContactOwnerButton';
+import HostProfileModal from '../components/HostProfileModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '../utils/navigation';
 import { VEHICLE_COLORS } from '../constants/colors';
@@ -40,6 +41,7 @@ const VehicleDetailsScreen: React.FC = () => {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showHostProfile, setShowHostProfile] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -231,6 +233,36 @@ const VehicleDetailsScreen: React.FC = () => {
             </View>
           </View>
 
+          {/* Bouton voir profil propriétaire - Placé en haut pour plus de visibilité */}
+          {(vehicle.owner?.user_id || vehicle.owner_id) && !isOwner && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.ownerProfileButton}
+                onPress={() => setShowHostProfile(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.ownerProfileButtonContent}>
+                  <View style={styles.ownerProfileIconContainer}>
+                    <Ionicons name="person-circle-outline" size={24} color="#2563eb" />
+                  </View>
+                  <View style={styles.ownerProfileButtonTextContainer}>
+                    <Text style={styles.ownerProfileButtonTitle}>Voir le profil du propriétaire</Text>
+                    {vehicle.owner && (vehicle.owner.first_name || vehicle.owner.last_name) ? (
+                      <Text style={styles.ownerProfileButtonSubtitle}>
+                        {vehicle.owner.first_name || ''} {vehicle.owner.last_name || ''}
+                      </Text>
+                    ) : (
+                      <Text style={styles.ownerProfileButtonSubtitle}>
+                        En savoir plus sur le propriétaire
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#2563eb" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Réductions disponibles - Design amélioré */}
           {((vehicle.discount_enabled === true) || (vehicle.long_stay_discount_enabled === true)) ? (
             <View style={styles.discountSection}>
@@ -414,8 +446,15 @@ const VehicleDetailsScreen: React.FC = () => {
               </View>
             </View>
           ) : null}
+
         </View>
       </ScrollView>
+
+      <HostProfileModal
+        visible={showHostProfile}
+        onClose={() => setShowHostProfile(false)}
+        hostId={vehicle.owner?.user_id || vehicle.owner_id || ''}
+      />
 
       {/* Boutons d'action - Design moderne */}
       {!isOwner && (
@@ -892,6 +931,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#475569',
     lineHeight: 20,
+  },
+  ownerProfileButton: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#bfdbfe',
+    overflow: 'hidden',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  ownerProfileButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  ownerProfileIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#dbeafe',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ownerProfileButtonTextContainer: {
+    flex: 1,
+  },
+  ownerProfileButtonTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e40af',
+    marginBottom: 4,
+  },
+  ownerProfileButtonSubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
   },
   footerContainer: {
     backgroundColor: '#fff',
