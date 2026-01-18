@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Vehicle } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { useLanguage } from '../contexts/LanguageContext';
-import HostProfileModal from './HostProfileModal';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -21,7 +20,6 @@ interface VehicleCardProps {
 const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = 'list' }) => {
   const { formatPrice } = useCurrency();
   const { t } = useLanguage();
-  const [showHostProfile, setShowHostProfile] = useState(false);
 
   const getVehicleTypeIcon = (type: string) => {
     switch (type) {
@@ -119,28 +117,8 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
               </Text>
             </View>
           )}
-
-          {/* Bouton voir profil propriétaire */}
-          {(vehicle.owner?.user_id || vehicle.owner_id) && (
-            <TouchableOpacity
-              style={styles.ownerButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                setShowHostProfile(true);
-              }}
-            >
-              <Ionicons name="person-outline" size={14} color="#2563eb" />
-              <Text style={styles.ownerButtonText}>Voir profil propriétaire</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
-
-      <HostProfileModal
-        visible={showHostProfile}
-        onClose={() => setShowHostProfile(false)}
-        hostId={vehicle.owner?.user_id || vehicle.owner_id || ''}
-      />
     </TouchableOpacity>
   );
 };
@@ -259,23 +237,6 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: 14,
     color: '#666',
-  },
-  ownerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#eff6ff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-  },
-  ownerButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2563eb',
   },
 });
 
