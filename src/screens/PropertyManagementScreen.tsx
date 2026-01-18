@@ -183,6 +183,10 @@ const PropertyManagementScreen: React.FC = () => {
     navigation.navigate('PropertyRules', { propertyId } as never);
   };
 
+  const handleOpenReviews = () => {
+    navigation.navigate('PropertyReviews', { propertyId } as never);
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -235,13 +239,13 @@ const PropertyManagementScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Options d'action */}
+        {/* Options d'action - Ligne 1 */}
         <View style={styles.actionsSection}>
           <TouchableOpacity
             style={styles.actionButton}
             onPress={handleOpenCalendar}
           >
-            <Ionicons name="calendar-outline" size={20} color="#3498db" />
+            <Ionicons name="calendar-outline" size={24} color="#3498db" />
             <Text style={styles.actionButtonText}>Calendrier</Text>
           </TouchableOpacity>
 
@@ -249,7 +253,7 @@ const PropertyManagementScreen: React.FC = () => {
             style={styles.actionButton}
             onPress={handleEditProperty}
           >
-            <Ionicons name="create-outline" size={20} color="#f39c12" />
+            <Ionicons name="create-outline" size={24} color="#f39c12" />
             <Text style={styles.actionButtonText}>Modifier</Text>
           </TouchableOpacity>
 
@@ -259,7 +263,7 @@ const PropertyManagementScreen: React.FC = () => {
           >
             <Ionicons 
               name={property.is_active ? "eye-off-outline" : "eye-outline"} 
-              size={20} 
+              size={24} 
               color="#3498db" 
             />
             <Text style={styles.actionButtonText}>
@@ -274,7 +278,7 @@ const PropertyManagementScreen: React.FC = () => {
             style={styles.actionButton}
             onPress={handleOpenPricing}
           >
-            <Ionicons name="pricetag-outline" size={20} color="#e67e22" />
+            <Ionicons name="pricetag-outline" size={24} color="#e67e22" />
             <Text style={styles.actionButtonText}>Tarification</Text>
           </TouchableOpacity>
 
@@ -282,8 +286,16 @@ const PropertyManagementScreen: React.FC = () => {
             style={styles.actionButton}
             onPress={handleOpenRules}
           >
-            <Ionicons name="document-text-outline" size={20} color="#e67e22" />
-            <Text style={styles.actionButtonText}>Règlement intérieur</Text>
+            <Ionicons name="document-text-outline" size={24} color="#e67e22" />
+            <Text style={styles.actionButtonText}>Règlement</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleOpenReviews}
+          >
+            <Ionicons name="star-outline" size={24} color="#fbbf24" />
+            <Text style={styles.actionButtonText}>Avis</Text>
           </TouchableOpacity>
         </View>
 
@@ -390,25 +402,26 @@ const styles = StyleSheet.create({
     borderTopColor: '#e9ecef',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
+    gap: 8,
   },
   actionButton: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
     borderRadius: 8,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
     flex: 1,
-    marginHorizontal: 4,
+    minHeight: 80,
+    gap: 8,
   },
   actionButtonText: {
     fontSize: 12,
     color: '#333',
-    marginLeft: 6,
     fontWeight: '500',
     textAlign: 'center',
-    flexShrink: 1,
+    marginTop: 4,
   },
   deleteSection: {
     paddingHorizontal: 20,

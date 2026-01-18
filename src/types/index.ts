@@ -216,6 +216,7 @@ export type RootStackParamList = {
   Booking: { propertyId: string };
   HostProfile: { hostId: string };
   HostBookings: undefined;
+  HostReviews: undefined;
   Settings: undefined;
   EditProfile: undefined;
   BecomeHost: undefined;
@@ -241,8 +242,10 @@ export type RootStackParamList = {
   PropertyManagement: { propertyId: string }; // Gestion de propriété avec photos et options
   PropertyPricing: { propertyId: string }; // Tarification
   PropertyRules: { propertyId: string }; // Règlement intérieur
+  PropertyReviews: { propertyId: string }; // Avis pour une propriété spécifique
   ModeTransition: { targetMode?: 'host' | 'traveler' | 'vehicle'; targetPath?: string; fromMode?: 'host' | 'traveler' | 'vehicle' }; // Page de transition entre modes
   MyBookings: undefined;
+  MyGuestReviews: undefined;
   PropertyBookingDetails: { bookingId: string };
   VehicleBookingDetails: { bookingId: string };
   Favorites: undefined;

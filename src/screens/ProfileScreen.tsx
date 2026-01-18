@@ -194,6 +194,12 @@ const ProfileScreen: React.FC = () => {
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
+      id: 'myGuestReviews',
+      title: 'Mes avis reçus',
+      icon: 'star-outline',
+      onPress: () => navigation.navigate('MyGuestReviews' as never),
+    },
+    {
       id: 'referral',
       title: t('profile.referral'),
       icon: 'gift-outline',

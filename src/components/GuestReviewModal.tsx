@@ -41,7 +41,7 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
   const [communicationRating, setCommunicationRating] = useState(0);
   const [respectRulesRating, setRespectRulesRating] = useState(0);
   const [comment, setComment] = useState('');
-  const [hoveredRating, setHoveredRating] = useState<{ category: string; value: number } | null>(null);
+  const [hoveredRatings, setHoveredRatings] = useState<Record<string, number>>({});
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -93,12 +93,17 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
   const StarRating = ({ 
     value, 
     onChange, 
-    label 
+    label,
+    categoryId
   }: { 
     value: number; 
     onChange: (value: number) => void; 
     label: string;
+    categoryId: string;
   }) => {
+    const hoveredValue = hoveredRatings[categoryId] || 0;
+    const displayValue = hoveredValue || value;
+
     return (
       <View style={styles.ratingCategory}>
         <Text style={styles.ratingLabel}>{label}</Text>
@@ -107,14 +112,18 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
             <TouchableOpacity
               key={star}
               onPress={() => onChange(star)}
-              onPressIn={() => setHoveredRating({ category: label, value: star })}
-              onPressOut={() => setHoveredRating(null)}
+              onPressIn={() => setHoveredRatings(prev => ({ ...prev, [categoryId]: star }))}
+              onPressOut={() => setHoveredRatings(prev => {
+                const newState = { ...prev };
+                delete newState[categoryId];
+                return newState;
+              })}
               style={styles.starButton}
             >
               <Ionicons
-                name={star <= (hoveredRating?.category === label ? hoveredRating.value : value) ? 'star' : 'star-outline'}
+                name={star <= displayValue ? 'star' : 'star-outline'}
                 size={28}
-                color={star <= (hoveredRating?.category === label ? hoveredRating.value : value) ? '#FFD700' : '#ccc'}
+                color={star <= displayValue ? '#FFD700' : '#ccc'}
               />
             </TouchableOpacity>
           ))}
@@ -169,16 +178,19 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
                 value={cleanlinessRating}
                 onChange={setCleanlinessRating}
                 label="Propreté (état du logement après le départ)"
+                categoryId="cleanliness"
               />
               <StarRating
                 value={communicationRating}
                 onChange={setCommunicationRating}
                 label="Communication"
+                categoryId="communication"
               />
               <StarRating
                 value={respectRulesRating}
                 onChange={setRespectRulesRating}
                 label="Respect des règles de la maison"
+                categoryId="respectRules"
               />
 
               {/* Commentaire */}

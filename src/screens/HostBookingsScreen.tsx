@@ -22,6 +22,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import CancellationDialog from '../components/CancellationDialog';
 import BookingContactButton from '../components/BookingContactButton';
 import GuestReviewModal from '../components/GuestReviewModal';
+import GuestProfileModal from '../components/GuestProfileModal';
 import { useGuestReviews } from '../hooks/useGuestReviews';
 
 const HostBookingsScreen: React.FC = () => {
@@ -41,6 +42,8 @@ const HostBookingsScreen: React.FC = () => {
   const [guestReviewModalVisible, setGuestReviewModalVisible] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<HostBooking | null>(null);
   const [canReview, setCanReview] = useState<Record<string, boolean>>({});
+  const [guestProfileModalVisible, setGuestProfileModalVisible] = useState(false);
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -409,6 +412,16 @@ const HostBookingsScreen: React.FC = () => {
             variant="outline"
             size="small"
           />
+          <TouchableOpacity
+            style={styles.viewProfileButton}
+            onPress={() => {
+              setSelectedGuestId(item.guest_id);
+              setGuestProfileModalVisible(true);
+            }}
+          >
+            <Ionicons name="person-outline" size={16} color="#2563eb" />
+            <Text style={styles.viewProfileButtonText}>Voir profil</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -802,6 +815,15 @@ const HostBookingsScreen: React.FC = () => {
           }}
         />
       )}
+
+      <GuestProfileModal
+        visible={guestProfileModalVisible}
+        onClose={() => {
+          setGuestProfileModalVisible(false);
+          setSelectedGuestId(null);
+        }}
+        guestId={selectedGuestId || ''}
+      />
     </SafeAreaView>
   );
 };
@@ -994,7 +1016,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   contactButtonContainer: {
-    marginBottom: 12,
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  viewProfileButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+    gap: 6,
+  },
+  viewProfileButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563eb',
   },
   actionButtons: {
     flexDirection: 'row',

@@ -70,6 +70,9 @@ import VehicleOwnerAccountScreen from '../screens/VehicleOwnerAccountScreen';
 import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
 import PenaltiesScreen from '../screens/PenaltiesScreen';
 import AdminPenaltiesScreen from '../screens/AdminPenaltiesScreen';
+import HostReviewsScreen from '../screens/HostReviewsScreen';
+import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
+import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList, VehicleOwnerTabParamList } from '../types';
@@ -451,6 +454,14 @@ const AppNavigator = () => {
           }}
         />
         <Stack.Screen 
+          name="HostReviews" 
+          component={HostReviewsScreen}
+          options={{ 
+            title: 'Avis reçus',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen 
           name="Settings" 
           component={SettingsScreen}
           options={{ 
@@ -535,6 +546,14 @@ const AppNavigator = () => {
           component={MyBookingsScreen}
           options={{ 
             title: 'Mes réservations',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen 
+          name="MyGuestReviews" 
+          component={MyGuestReviewsScreen}
+          options={{ 
+            title: 'Mes avis reçus',
             headerShown: false 
           }}
         />
@@ -687,6 +706,14 @@ const AppNavigator = () => {
               component={PropertyRulesScreen}
               options={{ 
                 title: 'Règlement intérieur',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="PropertyReviews" 
+              component={PropertyReviewsScreen}
+              options={{ 
+                title: 'Avis reçus',
                 headerShown: false 
               }}
             />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { Alert } from 'react-native';
 
 export interface ReviewResponse {
   id: string;
@@ -13,7 +14,6 @@ export interface ReviewResponse {
 
 export const useReviewResponses = () => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
   const getReviewResponse = async (reviewId: string): Promise<ReviewResponse | null> => {
@@ -26,20 +26,19 @@ export const useReviewResponses = () => {
 
       if (error) throw error;
       return data;
-    } catch (err) {
-      console.error('Error fetching review response:', err);
+    } catch (error) {
+      console.error('Error fetching review response:', error);
       return null;
     }
   };
 
   const submitResponse = async (reviewId: string, response: string) => {
     if (!user) {
-      setError('Vous devez être connecté');
+      Alert.alert('Erreur', 'Vous devez être connecté');
       return { success: false };
     }
 
     setLoading(true);
-    setError(null);
     try {
       const { error } = await supabase
         .from('review_responses')
@@ -50,11 +49,12 @@ export const useReviewResponses = () => {
         });
 
       if (error) throw error;
+      Alert.alert('Succès', 'Réponse publiée avec succès');
       return { success: true };
-    } catch (err: any) {
-      console.error('Error submitting response:', err);
-      setError(err.message || 'Erreur lors de la publication de la réponse');
-      return { success: false, error: err.message };
+    } catch (error: any) {
+      console.error('Error submitting response:', error);
+      Alert.alert('Erreur', error.message || 'Erreur lors de la publication de la réponse');
+      return { success: false };
     } finally {
       setLoading(false);
     }
@@ -62,12 +62,11 @@ export const useReviewResponses = () => {
 
   const updateResponse = async (reviewId: string, response: string) => {
     if (!user) {
-      setError('Vous devez être connecté');
+      Alert.alert('Erreur', 'Vous devez être connecté');
       return { success: false };
     }
 
     setLoading(true);
-    setError(null);
     try {
       const { error } = await supabase
         .from('review_responses')
@@ -76,11 +75,12 @@ export const useReviewResponses = () => {
         .eq('host_id', user.id);
 
       if (error) throw error;
+      Alert.alert('Succès', 'Réponse mise à jour avec succès');
       return { success: true };
-    } catch (err: any) {
-      console.error('Error updating response:', err);
-      setError(err.message || 'Erreur lors de la mise à jour de la réponse');
-      return { success: false, error: err.message };
+    } catch (error: any) {
+      console.error('Error updating response:', error);
+      Alert.alert('Erreur', error.message || 'Erreur lors de la mise à jour de la réponse');
+      return { success: false };
     } finally {
       setLoading(false);
     }
@@ -88,12 +88,11 @@ export const useReviewResponses = () => {
 
   const deleteResponse = async (reviewId: string) => {
     if (!user) {
-      setError('Vous devez être connecté');
+      Alert.alert('Erreur', 'Vous devez être connecté');
       return { success: false };
     }
 
     setLoading(true);
-    setError(null);
     try {
       const { error } = await supabase
         .from('review_responses')
@@ -102,11 +101,12 @@ export const useReviewResponses = () => {
         .eq('host_id', user.id);
 
       if (error) throw error;
+      Alert.alert('Succès', 'Réponse supprimée avec succès');
       return { success: true };
-    } catch (err: any) {
-      console.error('Error deleting response:', err);
-      setError(err.message || 'Erreur lors de la suppression de la réponse');
-      return { success: false, error: err.message };
+    } catch (error: any) {
+      console.error('Error deleting response:', error);
+      Alert.alert('Erreur', error.message || 'Erreur lors de la suppression de la réponse');
+      return { success: false };
     } finally {
       setLoading(false);
     }
@@ -114,7 +114,6 @@ export const useReviewResponses = () => {
 
   return {
     loading,
-    error,
     getReviewResponse,
     submitResponse,
     updateResponse,

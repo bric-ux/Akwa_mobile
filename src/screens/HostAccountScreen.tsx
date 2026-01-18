@@ -168,6 +168,12 @@ const HostAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('BecomeHost' as never),
     },
     {
+      id: 'reviews',
+      title: 'Avis reçus',
+      icon: 'star-outline',
+      onPress: () => navigation.navigate('HostReviews' as never),
+    },
+    {
       id: 'conciergerie',
       title: 'Conciergerie',
       icon: 'sparkles-outline',

@@ -1,80 +1,110 @@
-// Hook pour récupérer les avis des propriétés d'un hôte
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { supabase } from '../services/supabase';
+import { useAuth } from '../services/AuthContext';
 
-export interface Review {
+export interface HostPropertyReview {
   id: string;
+  booking_id: string;
   property_id: string;
   reviewer_id: string;
-  booking_id: string;
   rating: number;
-  comment?: string;
+  cleanliness_rating: number | null;
+  communication_rating: number | null;
+  location_rating: number | null;
+  value_rating: number | null;
+  comment: string | null;
+  approved: boolean | null;
   created_at: string;
-  reviewer_name?: string;
-  property_title?: string;
+  response_deadline: string | null;
+  reviewer?: {
+    first_name: string | null;
+    last_name: string | null;
+    avatar_url: string | null;
+  };
+  property?: {
+    id: string;
+    title: string;
+  };
+  response?: {
+    id: string;
+    response: string;
+    created_at: string;
+  };
+  has_response?: boolean;
+  is_deadline_passed?: boolean;
 }
 
 export const useHostReviews = () => {
-  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
-  const getHostReviews = useCallback(async (hostId: string) => {
+  // Get all reviews for properties owned by the host
+  const getReviewsForHostProperties = async (): Promise<HostPropertyReview[]> => {
+    if (!user) return [];
+
     setLoading(true);
-    setError(null);
-    
     try {
-      console.log('🔍 [useHostReviews] Récupération des avis pour hostId:', hostId);
-      
-      // Récupérer les avis approuvés des propriétés de l'hôte
-      const { data, error } = await supabase
+      // First get host's properties
+      const { data: properties, error: propError } = await supabase
+        .from('properties')
+        .select('id')
+        .eq('host_id', user.id);
+
+      if (propError || !properties?.length) {
+        return [];
+      }
+
+      const propertyIds = properties.map(p => p.id);
+
+      // Get reviews for these properties
+      const { data: reviews, error: reviewsError } = await supabase
         .from('reviews')
         .select(`
           *,
-          properties!inner(
-            id,
-            title,
-            host_id
-          ),
-          profiles!reviewer_id(
-            first_name,
-            last_name
-          )
+          profiles!reviewer_id(first_name, last_name, avatar_url),
+          properties!property_id(id, title)
         `)
-        .eq('properties.host_id', hostId)
+        .in('property_id', propertyIds)
         .eq('approved', true)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('❌ [useHostReviews] Erreur lors du chargement des avis:', error);
-        throw error;
+      if (reviewsError) {
+        console.error('Error fetching reviews:', reviewsError);
+        return [];
       }
 
-      const enrichedReviews = (data || []).map(review => ({
-        ...review,
-        reviewer_name: review.profiles ? 
-          `${review.profiles.first_name || ''} ${review.profiles.last_name || ''}`.trim() || 'Utilisateur' 
-          : 'Utilisateur',
-        property_title: review.properties?.title || 'Propriété'
-      }));
+      // Get responses for these reviews
+      const reviewIds = (reviews || []).map((r: any) => r.id);
+      const { data: responses } = await supabase
+        .from('review_responses')
+        .select('*')
+        .in('review_id', reviewIds);
 
-      console.log('✅ [useHostReviews] Avis chargés:', enrichedReviews.length);
-      setReviews(enrichedReviews);
-      return enrichedReviews;
-    } catch (err) {
-      console.error('❌ [useHostReviews] Erreur lors du chargement des avis:', err);
-      setError(err instanceof Error ? err.message : 'Erreur inconnue');
+      const now = new Date();
+
+      return (reviews || []).map((review: any) => {
+        const response = (responses || []).find((r: any) => r.review_id === review.id);
+        const deadline = review.response_deadline ? new Date(review.response_deadline) : null;
+        
+        return {
+          ...review,
+          reviewer: review.profiles,
+          property: review.properties,
+          response,
+          has_response: !!response,
+          is_deadline_passed: deadline ? deadline < now : false
+        };
+      });
+    } catch (error) {
+      console.error('Error in getReviewsForHostProperties:', error);
       return [];
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   return {
-    reviews,
     loading,
-    error,
-    getHostReviews,
+    getReviewsForHostProperties,
   };
 };
-
