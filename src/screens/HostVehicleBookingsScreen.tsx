@@ -8,6 +8,7 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +22,9 @@ import { getCommissionRates } from '../lib/commissions';
 import { Image } from 'react-native';
 import { ScrollView } from 'react-native';
 import { safeGoBack } from '../utils/navigation';
+import VehicleBookingDetailsModal from '../components/VehicleBookingDetailsModal';
+import SimpleMessageModal from '../components/SimpleMessageModal';
+import VehicleCancellationModal from '../components/VehicleCancellationModal';
 
 type HostVehicleBookingsRouteParams = {
   vehicleId?: string;
@@ -38,6 +42,16 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'in_progress'>('all');
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(vehicleId || null);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<VehicleBooking | null>(null);
+  const [messageModalVisible, setMessageModalVisible] = useState(false);
+  const [messageModalData, setMessageModalData] = useState<{
+    bookingId: string;
+    vehicleId: string;
+    otherParticipant: { id: string; name: string; isHost: boolean } | null;
+  } | null>(null);
+  const [cancellationModalVisible, setCancellationModalVisible] = useState(false);
+  const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<VehicleBooking | null>(null);
 
   const loadBookings = async () => {
     try {
@@ -320,23 +334,88 @@ const HostVehicleBookingsScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Action buttons */}
+        <View style={styles.actionButtonsRow}>
+          {/* Détails - toujours visible */}
+          <TouchableOpacity
+            style={[styles.actionButtonSmall, styles.detailsButton]}
+            onPress={() => {
+              setSelectedBookingForDetails(item);
+              setDetailsModalVisible(true);
+            }}
+          >
+            <Ionicons name="document-text-outline" size={16} color={VEHICLE_COLORS.primary} />
+            <Text style={styles.actionButtonSmallText}>Détails</Text>
+          </TouchableOpacity>
+
+          {/* Contacter - si le locataire existe */}
+          {item.renter?.user_id && (
+            <TouchableOpacity
+              style={[styles.actionButtonSmall, styles.contactButton]}
+              onPress={() => {
+                const renterName = `${item.renter?.first_name || ''} ${item.renter?.last_name || ''}`.trim() || 'Locataire';
+                setMessageModalData({
+                  bookingId: item.id,
+                  vehicleId: item.vehicle?.id || '',
+                  otherParticipant: {
+                    id: item.renter.user_id,
+                    name: renterName,
+                    isHost: false,
+                  },
+                });
+                setMessageModalVisible(true);
+              }}
+            >
+              <Ionicons name="chatbubble-outline" size={16} color="#3b82f6" />
+              <Text style={[styles.actionButtonSmallText, { color: '#3b82f6' }]}>Contacter</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Téléphone - si le locataire a un téléphone */}
+          {item.renter?.phone && (
+            <TouchableOpacity
+              style={[styles.actionButtonSmall, styles.phoneButton]}
+              onPress={() => {
+                Linking.openURL(`tel:${item.renter.phone}`);
+              }}
+            >
+              <Ionicons name="call-outline" size={16} color="#10b981" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Accepter/Refuser pour pending */}
         {item.status === 'pending' && (
-          <View style={styles.actions}>
+          <View style={styles.pendingActions}>
             <TouchableOpacity
               style={[styles.actionButton, styles.confirmButton]}
               onPress={() => handleStatusUpdate(item, 'confirmed')}
             >
               <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Confirmer</Text>
+              <Text style={styles.actionButtonText}>Accepter</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionButton, styles.cancelButton]}
+              style={[styles.actionButton, styles.rejectButton]}
               onPress={() => handleStatusUpdate(item, 'cancelled')}
             >
               <Ionicons name="close-circle-outline" size={20} color="#fff" />
               <Text style={styles.actionButtonText}>Refuser</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* Annuler pour confirmed ou in_progress */}
+        {(item.status === 'confirmed' || displayStatus === 'in_progress') && !completed && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.cancelBookingButton]}
+            onPress={() => {
+              setSelectedBookingForCancellation(item);
+              setCancellationModalVisible(true);
+            }}
+          >
+            <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+            <Text style={[styles.actionButtonText, { color: '#ef4444' }]}>Annuler la réservation</Text>
+          </TouchableOpacity>
         )}
       </View>
     );
@@ -443,19 +522,18 @@ const HostVehicleBookingsScreen: React.FC = () => {
       ) : (
         // Vue détaillée des réservations d'un véhicule
         <>
-          {/* En-tête */}
-          <View style={styles.header}>
+          {/* En-tête avec bouton retour */}
+          <View style={styles.detailHeader}>
             <TouchableOpacity
-              style={styles.backButton}
+              style={styles.backToVehiclesButton}
               onPress={() => {
                 setSelectedVehicleId(null);
                 setSelectedFilter('all');
               }}
             >
-              <Ionicons name="arrow-back" size={24} color="#333" />
+              <Ionicons name="arrow-back" size={20} color="#334155" />
+              <Text style={styles.backToVehiclesText}>Retour aux véhicules</Text>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Réservations</Text>
-            <View style={styles.placeholder} />
           </View>
 
           {/* Informations du véhicule */}
@@ -536,6 +614,45 @@ const HostVehicleBookingsScreen: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Modals */}
+      <VehicleBookingDetailsModal
+        visible={detailsModalVisible}
+        onClose={() => {
+          setDetailsModalVisible(false);
+          setSelectedBookingForDetails(null);
+        }}
+        booking={selectedBookingForDetails}
+        isOwner={true}
+      />
+
+      {messageModalData && (
+        <SimpleMessageModal
+          visible={messageModalVisible}
+          onClose={() => {
+            setMessageModalVisible(false);
+            setMessageModalData(null);
+          }}
+          bookingId={messageModalData.bookingId}
+          vehicleId={messageModalData.vehicleId}
+          otherParticipant={messageModalData.otherParticipant}
+        />
+      )}
+
+      <VehicleCancellationModal
+        visible={cancellationModalVisible}
+        onClose={() => {
+          setCancellationModalVisible(false);
+          setSelectedBookingForCancellation(null);
+        }}
+        booking={selectedBookingForCancellation}
+        isOwner={true}
+        onCancelled={() => {
+          loadBookings();
+          setCancellationModalVisible(false);
+          setSelectedBookingForCancellation(null);
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -568,10 +685,10 @@ const styles = StyleSheet.create({
   filters: {
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#e9ecef',
   },
   filtersContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     gap: 12,
     flexDirection: 'row',
@@ -727,6 +844,57 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  actionButtonSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    flex: 1,
+    minWidth: 100,
+  },
+  actionButtonSmallText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: VEHICLE_COLORS.primary,
+  },
+  detailsButton: {
+    borderColor: VEHICLE_COLORS.primary,
+    backgroundColor: '#fff',
+  },
+  contactButton: {
+    borderColor: '#3b82f6',
+    backgroundColor: '#fff',
+  },
+  phoneButton: {
+    borderColor: '#10b981',
+    backgroundColor: '#fff',
+    minWidth: 44,
+    flex: 0,
+  },
+  pendingActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  rejectButton: {
+    backgroundColor: '#F44336',
+  },
+  cancelBookingButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    marginTop: 12,
+  },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -838,6 +1006,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  detailHeader: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
   backToVehiclesButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -845,32 +1020,32 @@ const styles = StyleSheet.create({
   },
   backToVehiclesText: {
     fontSize: 16,
-    color: '#333',
     fontWeight: '600',
+    color: '#334155',
   },
   selectedVehicleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    padding: 16,
-    flexDirection: 'row',
-    gap: 12,
+    borderBottomColor: '#e9ecef',
+    gap: 16,
   },
   selectedVehicleImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
+    width: 96,
+    height: 96,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
   },
   selectedVehicleDetails: {
     flex: 1,
-    justifyContent: 'center',
   },
   selectedVehicleTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   selectedVehicleYear: {
     fontSize: 14,

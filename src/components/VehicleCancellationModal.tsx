@@ -1,0 +1,420 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { VehicleBooking } from '../types';
+import { useVehicleBookings } from '../hooks/useVehicleBookings';
+import { useAuth } from '../services/AuthContext';
+import { supabase } from '../services/supabase';
+
+interface VehicleCancellationModalProps {
+  visible: boolean;
+  onClose: () => void;
+  booking: VehicleBooking | null;
+  isOwner: boolean;
+  onCancelled: () => void;
+}
+
+const cancellationReasons = [
+  { value: 'change_plans', label: 'Changement de plans' },
+  { value: 'vehicle_unavailable', label: 'Véhicule non disponible' },
+  { value: 'maintenance', label: 'Maintenance du véhicule' },
+  { value: 'emergency', label: 'Urgence' },
+  { value: 'found_alternative', label: "J'ai trouvé une alternative" },
+  { value: 'financial_reasons', label: 'Raisons financières' },
+  { value: 'family_emergency', label: 'Urgence familiale' },
+  { value: 'other', label: 'Autre raison' },
+];
+
+const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
+  visible,
+  onClose,
+  booking,
+  isOwner,
+  onCancelled,
+}) => {
+  const { user } = useAuth();
+  const { updateBookingStatus } = useVehicleBookings();
+  const [selectedReason, setSelectedReason] = useState<string>('');
+  const [reason, setReason] = useState('');
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  if (!booking) return null;
+
+  const isBookingCompleted = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(booking.end_date);
+    endDate.setHours(0, 0, 0, 0);
+    return endDate < today;
+  };
+
+  const bookingIsCompleted = isBookingCompleted();
+
+  const calculatePenalty = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(booking.start_date);
+    startDate.setHours(0, 0, 0, 0);
+    const daysUntilStart = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
+
+    if (isOwner) {
+      // Propriétaire annule
+      if (daysUntilStart >= 7) {
+        return { penalty: 0, penaltyDescription: 'Aucune pénalité (annulation 7+ jours avant)', refundAmount: basePrice };
+      } else if (daysUntilStart >= 3) {
+        const penalty = Math.round(basePrice * 0.1);
+        return { penalty, penaltyDescription: 'Pénalité de 10%', refundAmount: basePrice - penalty };
+      } else {
+        const penalty = Math.round(basePrice * 0.2);
+        return { penalty, penaltyDescription: 'Pénalité de 20%', refundAmount: basePrice - penalty };
+      }
+    } else {
+      // Locataire annule
+      if (daysUntilStart >= 7) {
+        return { penalty: 0, penaltyDescription: 'Remboursement complet', refundAmount: basePrice };
+      } else if (daysUntilStart >= 3) {
+        const penalty = Math.round(basePrice * 0.1);
+        return { penalty, penaltyDescription: 'Pénalité de 10%', refundAmount: basePrice - penalty };
+      } else {
+        const penalty = Math.round(basePrice * 0.2);
+        return { penalty, penaltyDescription: 'Pénalité de 20%', refundAmount: basePrice - penalty };
+      }
+    }
+  };
+
+  const { penalty, penaltyDescription, refundAmount } = calculatePenalty();
+
+  const handleCancel = async () => {
+    if (bookingIsCompleted) {
+      Alert.alert('Annulation impossible', 'Cette réservation est terminée et ne peut plus être annulée.');
+      return;
+    }
+
+    if (!selectedReason || !user) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une cause d\'annulation');
+      return;
+    }
+
+    setIsConfirming(true);
+
+    try {
+      const reasonLabel = cancellationReasons.find((r) => r.value === selectedReason)?.label || selectedReason;
+      const fullReason = reason.trim() ? `${reasonLabel}: ${reason.trim()}` : reasonLabel;
+
+      // Mettre à jour le statut via Supabase directement
+      const { error: updateError } = await supabase
+        .from('vehicle_bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: user.id,
+          cancellation_reason: `[Annulé par ${isOwner ? 'le propriétaire' : 'le locataire'}] ${fullReason}`,
+          cancellation_penalty: penalty,
+        })
+        .eq('id', booking.id);
+
+      if (updateError) throw updateError;
+
+      Alert.alert('Succès', 'La réservation a été annulée avec succès.');
+      onCancelled();
+      onClose();
+      setSelectedReason('');
+      setReason('');
+    } catch (error: any) {
+      console.error('Erreur annulation:', error);
+      Alert.alert('Erreur', error.message || "Impossible d'annuler la réservation");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        <View style={styles.modalContainer}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTitleContainer}>
+              <Ionicons name="alert-circle-outline" size={24} color="#ef4444" />
+              <Text style={styles.headerTitle}>Annuler la réservation</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color="#1e293b" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {bookingIsCompleted ? (
+              <View style={styles.warningContainer}>
+                <Ionicons name="information-circle" size={48} color="#ef4444" />
+                <Text style={styles.warningText}>
+                  Cette réservation est terminée et ne peut plus être annulée.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Informations */}
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoTitle}>Informations</Text>
+                  <Text style={styles.infoText}>
+                    {penalty > 0 ? (
+                      <>
+                        En annulant cette réservation, une pénalité de {penalty.toLocaleString()} XOF sera appliquée.
+                        {'\n\n'}
+                        Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
+                      </>
+                    ) : (
+                      <>
+                        Aucune pénalité ne sera appliquée.
+                        {'\n\n'}
+                        Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
+                      </>
+                    )}
+                  </Text>
+                </View>
+
+                {/* Raison */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Raison de l'annulation *</Text>
+                  {cancellationReasons.map((reasonOption) => (
+                    <TouchableOpacity
+                      key={reasonOption.value}
+                      style={[
+                        styles.reasonOption,
+                        selectedReason === reasonOption.value && styles.reasonOptionSelected,
+                      ]}
+                      onPress={() => setSelectedReason(reasonOption.value)}
+                    >
+                      <View style={styles.reasonRadio}>
+                        {selectedReason === reasonOption.value && (
+                          <View style={styles.reasonRadioSelected} />
+                        )}
+                      </View>
+                      <Text style={styles.reasonLabel}>{reasonOption.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Détails supplémentaires */}
+                {selectedReason && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Détails supplémentaires (optionnel)</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={reason}
+                      onChangeText={setReason}
+                      placeholder="Ajoutez des détails sur la raison de l'annulation..."
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                    />
+                  </View>
+                )}
+              </>
+            )}
+          </ScrollView>
+
+          {/* Footer */}
+          {!bookingIsCompleted && (
+            <View style={styles.footer}>
+              <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+                <Text style={styles.cancelButtonText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmButton, !selectedReason && styles.confirmButtonDisabled]}
+                onPress={handleCancel}
+                disabled={!selectedReason || isConfirming}
+              >
+                {isConfirming ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="close-circle" size={20} color="#fff" />
+                    <Text style={styles.confirmButtonText}>Confirmer l'annulation</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+  },
+  warningContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  warningText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  infoCard: {
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#991b1b',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#991b1b',
+    lineHeight: 20,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  reasonOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  reasonOptionSelected: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#3b82f6',
+  },
+  reasonRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#9ca3af',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reasonRadioSelected: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#3b82f6',
+  },
+  reasonLabel: {
+    fontSize: 14,
+    color: '#1e293b',
+    flex: 1,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  footer: {
+    flexDirection: 'row',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  confirmButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#ef4444',
+    gap: 8,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+});
+
+export default VehicleCancellationModal;
+
