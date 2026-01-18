@@ -256,6 +256,9 @@ export type RootStackParamList = {
   MyVehicles: undefined;
   MyVehicleBookings: undefined;
   EditVehicle: { vehicleId: string };
+  VehicleManagement: { vehicleId: string };
+  VehicleCalendar: { vehicleId: string };
+  VehiclePricing: { vehicleId: string };
   HostVehicleBookings: { vehicleId?: string };
   Penalties: undefined;
 };

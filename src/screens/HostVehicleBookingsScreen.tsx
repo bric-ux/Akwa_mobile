@@ -13,9 +13,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useVehicleBookings } from '../hooks/useVehicleBookings';
+import { useVehicles } from '../hooks/useVehicles';
 import { VehicleBooking } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { VEHICLE_COLORS } from '../constants/colors';
+import { getCommissionRates } from '../lib/commissions';
+import { Image } from 'react-native';
+import { ScrollView } from 'react-native';
+import { safeGoBack } from '../utils/navigation';
 
 type HostVehicleBookingsRouteParams = {
   vehicleId?: string;
@@ -27,14 +32,22 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const { vehicleId } = route.params || {};
   const { t } = useLanguage();
   const { getVehicleBookings, getAllOwnerBookings, updateBookingStatus, loading } = useVehicleBookings();
+  const { getMyVehicles } = useVehicles();
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'in_progress'>('all');
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(vehicleId || null);
 
   const loadBookings = async () => {
     try {
-      if (vehicleId) {
-        const data = await getVehicleBookings(vehicleId);
+      // Charger les véhicules
+      const vehiclesData = await getMyVehicles();
+      setVehicles(vehiclesData);
+      
+      // Charger les réservations
+      if (selectedVehicleId) {
+        const data = await getVehicleBookings(selectedVehicleId);
         setBookings(data);
       } else {
         // Charger toutes les réservations de tous les véhicules du propriétaire
@@ -49,7 +62,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
   useFocusEffect(
     React.useCallback(() => {
       loadBookings();
-    }, [vehicleId])
+    }, [selectedVehicleId])
   );
 
   const handleRefresh = async () => {
@@ -121,30 +134,167 @@ const HostVehicleBookingsScreen: React.FC = () => {
         return 'Annulée';
       case 'completed':
         return 'Terminée';
+      case 'in_progress':
+        return 'En cours';
       default:
         return status;
     }
   };
 
+  const isBookingInProgress = (booking: VehicleBooking) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(booking.start_date);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(booking.end_date);
+    endDate.setHours(0, 0, 0, 0);
+    
+    return booking.status === 'confirmed' && startDate <= today && endDate >= today;
+  };
+
+  const isBookingCompleted = (booking: VehicleBooking) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(booking.end_date);
+    endDate.setHours(0, 0, 0, 0);
+    
+    return endDate < today;
+  };
+
+  // Calculer les gains nets pour une réservation
+  const calculateNetEarnings = (booking: VehicleBooking) => {
+    if (booking.status === 'cancelled') return 0;
+    
+    // Prix de base = daily_rate × rental_days
+    const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
+    const commissionRates = getCommissionRates('vehicle');
+    const ownerCommission = commissionRates.hostFeePercent / 100; // 2%
+    return Math.round(basePrice * (1 - ownerCommission));
+  };
+
   const filteredBookings = bookings.filter(booking => {
     if (selectedFilter === 'all') return true;
+    if (selectedFilter === 'in_progress') return isBookingInProgress(booking);
+    if (selectedFilter === 'completed') {
+      return isBookingCompleted(booking) && booking.status !== 'cancelled';
+    }
     return booking.status === selectedFilter;
   });
 
+  // Obtenir les véhicules avec leurs réservations et statistiques
+  const getVehiclesWithBookings = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const bookingsByVehicle = new Map<string, VehicleBooking[]>();
+    bookings.forEach(booking => {
+      if (!booking.vehicle?.id) return;
+      const vid = booking.vehicle.id;
+      if (!bookingsByVehicle.has(vid)) {
+        bookingsByVehicle.set(vid, []);
+      }
+      bookingsByVehicle.get(vid)!.push(booking);
+    });
+
+    const vehiclesWithStats = vehicles.map(vehicle => {
+      const vehicleBookings = bookingsByVehicle.get(vehicle.id) || [];
+      
+      const stats = {
+        total: vehicleBookings.length,
+        pending: 0,
+        confirmed: 0,
+        cancelled: 0,
+        completed: 0,
+        inProgress: 0,
+      };
+
+      let isCurrentlyRented = false;
+
+      vehicleBookings.forEach(booking => {
+        if (booking.status === 'pending') stats.pending++;
+        if (booking.status === 'confirmed') stats.confirmed++;
+        if (booking.status === 'cancelled') stats.cancelled++;
+        if (isBookingCompleted(booking) && booking.status !== 'cancelled') stats.completed++;
+        
+        if (isBookingInProgress(booking)) {
+          stats.inProgress++;
+          isCurrentlyRented = true;
+        }
+      });
+
+      return {
+        vehicle,
+        bookings: vehicleBookings,
+        stats,
+        isCurrentlyRented,
+        isAvailable: vehicleBookings.length === 0,
+      };
+    });
+
+    return vehiclesWithStats.sort((a, b) => {
+      if (a.isCurrentlyRented && !b.isCurrentlyRented) return -1;
+      if (!a.isCurrentlyRented && b.isCurrentlyRented) return 1;
+      if (a.stats.total > 0 && b.stats.total === 0) return -1;
+      if (a.stats.total === 0 && b.stats.total > 0) return 1;
+      return b.stats.total - a.stats.total;
+    });
+  };
+
+  const vehiclesWithBookings = getVehiclesWithBookings();
+  const selectedVehicle = vehiclesWithBookings.find(v => v.vehicle?.id === selectedVehicleId);
+
+  const getVehicleMainImageUrl = (vehicle: any): string => {
+    if (!vehicle) return 'https://via.placeholder.com/150';
+    if (vehicle.images && Array.isArray(vehicle.images) && vehicle.images.length > 0) {
+      return vehicle.images[0];
+    }
+    if (vehicle.vehicle_photos && Array.isArray(vehicle.vehicle_photos) && vehicle.vehicle_photos.length > 0) {
+      return vehicle.vehicle_photos[0].url;
+    }
+    return 'https://via.placeholder.com/150';
+  };
+
   const renderBooking = ({ item }: { item: VehicleBooking }) => {
-    const statusColor = getStatusColor(item.status);
-    const statusText = getStatusText(item.status);
+    const inProgress = isBookingInProgress(item);
+    const completed = isBookingCompleted(item);
+    
+    // Déterminer le statut à afficher
+    let displayStatus = item.status;
+    if (completed && item.status !== 'cancelled') {
+      displayStatus = 'completed';
+    } else if (inProgress) {
+      displayStatus = 'in_progress';
+    }
+    
+    const statusColor = getStatusColor(displayStatus);
+    const statusText = getStatusText(displayStatus);
+    const netEarnings = calculateNetEarnings(item);
 
     return (
       <View style={styles.bookingCard}>
         <View style={styles.bookingHeader}>
-          <View style={styles.bookingTitleRow}>
-            <Text style={styles.vehicleTitle}>
-              {item.vehicle?.title || `${item.vehicle?.brand} ${item.vehicle?.model}`}
-            </Text>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-              <Text style={styles.statusText}>{statusText}</Text>
+          <View style={styles.renterInfo}>
+            {item.renter?.avatar_url ? (
+              <Image 
+                source={{ uri: item.renter.avatar_url }} 
+                style={styles.renterAvatar}
+              />
+            ) : (
+              <View style={styles.renterAvatarPlaceholder}>
+                <Ionicons name="person" size={20} color="#666" />
+              </View>
+            )}
+            <View style={styles.renterDetails}>
+              <Text style={styles.renterName}>
+                {item.renter?.first_name || 'Locataire'} {item.renter?.last_name || ''}
+              </Text>
+              {item.renter?.email && (
+                <Text style={styles.renterEmail}>{item.renter.email}</Text>
+              )}
             </View>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+            <Text style={styles.statusText}>{statusText}</Text>
           </View>
         </View>
 
@@ -152,50 +302,21 @@ const HostVehicleBookingsScreen: React.FC = () => {
           <View style={styles.detailRow}>
             <Ionicons name="calendar-outline" size={16} color="#666" />
             <Text style={styles.detailText}>
-              {formatDate(item.start_date)} - {formatDate(item.end_date)}
+              {formatDate(item.start_date)} → {formatDate(item.end_date)}
             </Text>
           </View>
           <View style={styles.detailRow}>
-            <Ionicons name="time-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>{item.rental_days} jour{item.rental_days > 1 ? 's' : ''}</Text>
+            <Ionicons name="cash-outline" size={16} color="#10b981" />
+            <Text style={[styles.detailText, styles.netEarnings]}>
+              Gain net : {netEarnings.toLocaleString()} FCFA
+            </Text>
           </View>
-          <View style={styles.detailRow}>
-            <Ionicons name="cash-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>{item.total_price.toLocaleString()} XOF</Text>
-          </View>
-          {item.renter && (
-            <View style={styles.detailRow}>
-              <Ionicons name="person-outline" size={16} color="#666" />
-              <Text style={styles.detailText}>
-                {item.renter.first_name} {item.renter.last_name}
-              </Text>
-            </View>
-          )}
-          {item.renter?.email && (
-            <View style={styles.detailRow}>
-              <Ionicons name="mail-outline" size={16} color="#666" />
-              <Text style={styles.detailText}>{item.renter.email}</Text>
-            </View>
-          )}
-          {item.renter?.phone && (
-            <View style={styles.detailRow}>
-              <Ionicons name="call-outline" size={16} color="#666" />
-              <Text style={styles.detailText}>{item.renter.phone}</Text>
-            </View>
-          )}
         </View>
 
         {item.message_to_owner && (
           <View style={styles.messageSection}>
             <Text style={styles.messageLabel}>Message:</Text>
             <Text style={styles.messageText}>{item.message_to_owner}</Text>
-          </View>
-        )}
-
-        {item.special_requests && (
-          <View style={styles.messageSection}>
-            <Text style={styles.messageLabel}>Demandes spéciales:</Text>
-            <Text style={styles.messageText}>{item.special_requests}</Text>
           </View>
         )}
 
@@ -235,61 +356,185 @@ const HostVehicleBookingsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Réservations de véhicules</Text>
-        <View style={styles.placeholder} />
-      </View>
+      {!selectedVehicleId ? (
+        // Vue liste des véhicules
+        <>
+          <View style={styles.header}>
+            <View style={styles.placeholder} />
+            <Text style={styles.headerTitle}>Réservations de véhicules</Text>
+            <View style={styles.placeholder} />
+          </View>
 
-      <View style={styles.filters}>
-        {(['all', 'pending', 'confirmed', 'completed', 'cancelled'] as const).map((filter) => (
-          <TouchableOpacity
-            key={filter}
-            style={[
-              styles.filterButton,
-              selectedFilter === filter && styles.filterButtonActive,
-            ]}
-            onPress={() => setSelectedFilter(filter)}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                selectedFilter === filter && styles.filterButtonTextActive,
-              ]}
-            >
-              {filter === 'all' ? 'Toutes' : 
-               filter === 'pending' ? 'En attente' :
-               filter === 'confirmed' ? 'Confirmées' :
-               filter === 'completed' ? 'Terminées' : 'Annulées'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={filteredBookings}
-          renderItem={renderBooking}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={filteredBookings.length === 0 ? styles.emptyContainer : styles.listContainer}
-          ListEmptyComponent={renderEmptyState}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={VEHICLE_COLORS.primary}
+          {vehiclesWithBookings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="car-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyTitle}>Aucun véhicule</Text>
+              <Text style={styles.emptySubtitle}>
+                Vous n'avez pas encore ajouté de véhicule.
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={vehiclesWithBookings}
+              keyExtractor={(item) => item.vehicle.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.vehicleCard,
+                    item.isCurrentlyRented && styles.vehicleCardRented
+                  ]}
+                  onPress={() => setSelectedVehicleId(item.vehicle.id)}
+                >
+                  <Image
+                    source={{ uri: getVehicleMainImageUrl(item.vehicle) }}
+                    style={styles.vehicleCardImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.vehicleCardContent}>
+                    <View style={styles.vehicleCardHeader}>
+                      <Text style={styles.vehicleCardTitle} numberOfLines={2}>
+                        {item.vehicle.brand} {item.vehicle.model}
+                      </Text>
+                      {item.isCurrentlyRented ? (
+                        <View style={styles.rentedBadge}>
+                          <Text style={styles.rentedBadgeText}>En location</Text>
+                        </View>
+                      ) : item.isAvailable ? (
+                        <View style={styles.availableBadge}>
+                          <Text style={styles.availableBadgeText}>Disponible</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.unavailableBadge}>
+                          <Text style={styles.unavailableBadgeText}>Indisponible</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.vehicleCardYear}>{item.vehicle.year}</Text>
+                    <View style={styles.vehicleCardStats}>
+                      <Text style={styles.vehicleCardStatText}>
+                        Total: {item.stats.total}
+                      </Text>
+                      {item.stats.pending > 0 && (
+                        <Text style={[styles.vehicleCardStatText, { color: '#FFA500' }]}>
+                          En attente: {item.stats.pending}
+                        </Text>
+                      )}
+                      {item.stats.confirmed > 0 && (
+                        <Text style={[styles.vehicleCardStatText, { color: '#4CAF50' }]}>
+                          Confirmées: {item.stats.confirmed}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#ccc" />
+                </TouchableOpacity>
+              )}
+              contentContainerStyle={styles.listContainer}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  tintColor={VEHICLE_COLORS.primary}
+                />
+              }
             />
-          }
-        />
+          )}
+        </>
+      ) : (
+        // Vue détaillée des réservations d'un véhicule
+        <>
+          {/* En-tête */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                setSelectedVehicleId(null);
+                setSelectedFilter('all');
+              }}
+            >
+              <Ionicons name="arrow-back" size={24} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Réservations</Text>
+            <View style={styles.placeholder} />
+          </View>
+
+          {/* Informations du véhicule */}
+          {selectedVehicle && (
+            <View style={styles.selectedVehicleInfo}>
+              <Image
+                source={{ uri: getVehicleMainImageUrl(selectedVehicle.vehicle) }}
+                style={styles.selectedVehicleImage}
+                resizeMode="cover"
+              />
+              <View style={styles.selectedVehicleDetails}>
+                <Text style={styles.selectedVehicleTitle}>
+                  {selectedVehicle.vehicle.brand} {selectedVehicle.vehicle.model}
+                </Text>
+                <Text style={styles.selectedVehicleYear}>
+                  {selectedVehicle.vehicle.year} - {selectedVehicle.vehicle.fuel_type}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Filtres */}
+          <View style={styles.filters}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={styles.filtersContent}
+            >
+              {[
+                { key: 'all', label: 'Toutes' },
+                { key: 'in_progress', label: 'En cours' },
+                { key: 'pending', label: 'En attente' },
+                { key: 'confirmed', label: 'Confirmées' },
+                { key: 'cancelled', label: 'Annulées' },
+                { key: 'completed', label: 'Terminées' },
+              ].map((filter) => (
+                <TouchableOpacity
+                  key={filter.key}
+                  style={[
+                    styles.filterButton,
+                    selectedFilter === filter.key && styles.filterButtonActive,
+                  ]}
+                  onPress={() => setSelectedFilter(filter.key as any)}
+                >
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      selectedFilter === filter.key && styles.filterButtonTextActive,
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Liste des réservations */}
+          {loading && !refreshing ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={filteredBookings}
+              renderItem={renderBooking}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={filteredBookings.length === 0 ? styles.emptyContainer : styles.listContainer}
+              ListEmptyComponent={renderEmptyState}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  tintColor={VEHICLE_COLORS.primary}
+                />
+              }
+            />
+          )}
+        </>
       )}
     </SafeAreaView>
   );
@@ -321,29 +566,35 @@ const styles = StyleSheet.create({
     width: 40,
   },
   filters: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 8,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  filtersContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    flexDirection: 'row',
   },
   filterButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8f9fa',
+    marginRight: 0,
   },
   filterButtonActive: {
-    backgroundColor: VEHICLE_COLORS.primary,
+    backgroundColor: '#1e293b', // slate-800 comme sur le site web
   },
   filterButtonText: {
     fontSize: 14,
     color: '#666',
+    fontWeight: '500',
   },
   filterButtonTextActive: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '500',
+    fontSize: 14,
   },
   loadingContainer: {
     flex: 1,
@@ -368,18 +619,46 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   bookingHeader: {
-    marginBottom: 12,
-  },
-  bookingTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  renterInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  renterAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  renterAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  vehicleTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+  renterDetails: {
     flex: 1,
+  },
+  renterName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  renterEmail: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  netEarnings: {
+    color: '#10b981',
+    fontWeight: '600',
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -465,6 +744,137 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+  },
+  vehicleCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+    flexDirection: 'row',
+  },
+  vehicleCardRented: {
+    borderWidth: 2,
+    borderColor: '#FFA500',
+  },
+  vehicleCardImage: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+  },
+  vehicleCardContent: {
+    flex: 1,
+    padding: 12,
+  },
+  vehicleCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    gap: 8,
+  },
+  vehicleCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  rentedBadge: {
+    backgroundColor: '#1e293b', // slate-800 comme sur le site web
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  rentedBadgeText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  availableBadge: {
+    backgroundColor: '#22c55e', // green-500 comme sur le site web
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  availableBadgeText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  unavailableBadge: {
+    backgroundColor: '#f97316', // orange-500 comme sur le site web
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  unavailableBadgeText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  vehicleCardYear: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 6,
+  },
+  vehicleCardStats: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  vehicleCardStatText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  propertyHeader: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backToVehiclesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backToVehiclesText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '600',
+  },
+  selectedVehicleInfo: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    padding: 16,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  selectedVehicleImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  selectedVehicleDetails: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  selectedVehicleTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  selectedVehicleYear: {
+    fontSize: 14,
+    color: '#666',
   },
 });
 

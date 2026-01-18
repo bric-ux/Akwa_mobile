@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,8 @@ const VehicleCalendarScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<VehicleCalendarRouteProp>();
   const { vehicleId } = route.params;
+  const scrollViewRef = useRef<ScrollView>(null);
+  const blockedDatesSectionRef = useRef<View>(null);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
@@ -99,14 +101,19 @@ const VehicleCalendarScreen: React.FC = () => {
 
       if (error) throw error;
 
+      setSelectedStartDate(null);
+      setSelectedEndDate(null);
+      await loadBlockedDates();
+      
+      // Scroll vers la liste des périodes bloquées après un court délai
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
+
       Alert.alert(
         'Succès',
         `Les dates du ${formatDate(selectedStartDate)} au ${formatDate(selectedEndDate)} ont été bloquées.`
       );
-
-      setSelectedStartDate(null);
-      setSelectedEndDate(null);
-      await loadBlockedDates();
     } catch (error: any) {
       console.error('Erreur lors du blocage des dates:', error);
       Alert.alert('Erreur', error.message || 'Impossible de bloquer les dates');
@@ -161,7 +168,12 @@ const VehicleCalendarScreen: React.FC = () => {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Légende */}
         <View style={styles.legendCard}>
           <View style={styles.legendItem}>
@@ -237,8 +249,8 @@ const VehicleCalendarScreen: React.FC = () => {
 
         {/* Liste des périodes bloquées */}
         {blockedDates.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Périodes bloquées</Text>
+          <View ref={blockedDatesSectionRef} style={styles.section}>
+            <Text style={styles.sectionTitle}>Périodes bloquées ({blockedDates.length})</Text>
             {blockedDates.map((blocked) => (
               <View key={blocked.id} style={styles.blockedItem}>
                 <View style={styles.blockedItemContent}>
@@ -335,6 +347,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   legendCard: {
     backgroundColor: '#fff',

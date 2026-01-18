@@ -134,7 +134,79 @@ const VehicleDetailsScreen: React.FC = () => {
             <Text style={styles.price}>{formatPrice(vehicle.price_per_day)}</Text>
             <Text style={styles.priceUnit}>/jour</Text>
           </View>
+          {vehicle.price_per_week && vehicle.price_per_week > 0 && (
+            <Text style={styles.priceAlt}>
+              {formatPrice(vehicle.price_per_week)} / semaine
+            </Text>
+          )}
+          {vehicle.price_per_month && vehicle.price_per_month > 0 && (
+            <Text style={styles.priceAlt}>
+              {formatPrice(vehicle.price_per_month)} / mois
+            </Text>
+          )}
         </View>
+
+        {/* Réductions disponibles */}
+        {(vehicle.discount_enabled || vehicle.long_stay_discount_enabled) && (
+          <View style={styles.discountSection}>
+            {vehicle.discount_enabled && vehicle.discount_min_days && vehicle.discount_percentage && (
+              <View style={styles.discountBadge}>
+                <Ionicons name="pricetag" size={18} color="#10b981" />
+                <Text style={styles.discountText}>
+                  Réduction de {vehicle.discount_percentage}% à partir de {vehicle.discount_min_days} jour{vehicle.discount_min_days > 1 ? 's' : ''}
+                </Text>
+              </View>
+            )}
+            {vehicle.long_stay_discount_enabled && vehicle.long_stay_discount_min_days && vehicle.long_stay_discount_percentage && (
+              <View style={[styles.discountBadge, styles.longStayDiscountBadge]}>
+                <Ionicons name="pricetag" size={18} color="#3b82f6" />
+                <Text style={styles.discountText}>
+                  Réduction longue durée: {vehicle.long_stay_discount_percentage}% à partir de {vehicle.long_stay_discount_min_days} jour{vehicle.long_stay_discount_min_days > 1 ? 's' : ''}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Options spéciales */}
+        {((vehicle as any).with_driver || (vehicle as any).has_insurance || (vehicle as any).requires_license) && (
+          <View style={styles.optionsSection}>
+            <Text style={styles.sectionTitle}>Options & Conditions</Text>
+            {(vehicle as any).with_driver && (
+              <View style={styles.optionCard}>
+                <Ionicons name="person" size={20} color="#3b82f6" />
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>Chauffeur disponible</Text>
+                  <Text style={styles.optionDescription}>Ce véhicule peut être loué avec chauffeur</Text>
+                </View>
+              </View>
+            )}
+            {(vehicle as any).has_insurance && (
+              <View style={styles.optionCard}>
+                <Ionicons name="shield-checkmark" size={20} color="#10b981" />
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>Véhicule assuré</Text>
+                  {(vehicle as any).insurance_details && (
+                    <Text style={styles.optionDescription}>{(vehicle as any).insurance_details}</Text>
+                  )}
+                </View>
+              </View>
+            )}
+            {(vehicle as any).requires_license && (
+              <View style={styles.optionCard}>
+                <Ionicons name="document-text" size={20} color="#f59e0b" />
+                <View style={styles.optionContent}>
+                  <Text style={styles.optionTitle}>Permis de conduire requis</Text>
+                  <Text style={styles.optionDescription}>
+                    {(vehicle as any).min_license_years > 0 
+                      ? `Minimum ${(vehicle as any).min_license_years} an(s) de permis requis`
+                      : 'Un permis de conduire valide est requis'}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Localisation */}
         {vehicle.location && (
@@ -333,6 +405,61 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginLeft: 4,
+  },
+  priceAlt: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  discountSection: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  discountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#10b981',
+    gap: 8,
+  },
+  longStayDiscountBadge: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#3b82f6',
+  },
+  discountText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#065f46',
+    fontWeight: '500',
+  },
+  optionsSection: {
+    marginBottom: 24,
+  },
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  optionDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
   },
   locationRow: {
     flexDirection: 'row',

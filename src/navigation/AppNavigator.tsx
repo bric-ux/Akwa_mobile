@@ -63,6 +63,9 @@ import HostVehicleBookingsScreen from '../screens/HostVehicleBookingsScreen';
 import MyVehicleBookingsScreen from '../screens/MyVehicleBookingsScreen';
 import VehicleBookingScreen from '../screens/VehicleBookingScreen';
 import EditVehicleScreen from '../screens/EditVehicleScreen';
+import VehicleManagementScreen from '../screens/VehicleManagementScreen';
+import VehicleCalendarScreen from '../screens/VehicleCalendarScreen';
+import VehiclePricingScreen from '../screens/VehiclePricingScreen';
 import VehicleOwnerAccountScreen from '../screens/VehicleOwnerAccountScreen';
 import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
 import PenaltiesScreen from '../screens/PenaltiesScreen';
@@ -785,6 +788,30 @@ const AppNavigator = () => {
               component={EditVehicleScreen}
               options={{ 
                 title: 'Modifier le véhicule',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="VehicleManagement" 
+              component={VehicleManagementScreen}
+              options={{ 
+                title: 'Gestion du véhicule',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="VehicleCalendar" 
+              component={VehicleCalendarScreen}
+              options={{ 
+                title: 'Calendrier du véhicule',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="VehiclePricing" 
+              component={VehiclePricingScreen}
+              options={{ 
+                title: 'Tarification du véhicule',
                 headerShown: false 
               }}
             />

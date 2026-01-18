@@ -2187,7 +2187,13 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               {verificationStatus !== 'pending' && (
                 <TouchableOpacity 
                   style={styles.identityAlertButton}
-                  onPress={() => navigation.goBack()}
+                  onPress={() => {
+                    if (navigation.canGoBack()) {
+                      navigation.goBack();
+                    } else {
+                      navigation.navigate('ProfileTab' as never);
+                    }
+                  }}
                 >
                   <Text style={styles.identityAlertButtonText}>
                     {verificationStatus === 'rejected' ? 'Envoyer un nouveau document' :

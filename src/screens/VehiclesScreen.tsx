@@ -30,6 +30,7 @@ import { LocationResult } from '../hooks/useLocationSearch';
 import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
+import { useAuth } from '../services/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -39,6 +40,7 @@ const VehiclesScreen: React.FC = () => {
   const { t } = useLanguage();
   const { formatPrice } = useCurrency();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState<VehicleFilters>({});
   const [showFilters, setShowFilters] = useState(false);
@@ -217,208 +219,251 @@ const VehiclesScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        {/* Header minimaliste */}
-        <Animated.View 
-          style={[styles.header, { opacity: headerOpacity }]}
-        >
-          <View style={styles.headerContent}>
-            <TouchableOpacity
-              style={styles.backBtn}
-              onPress={() => {
-                console.log('🔙 Bouton retour cliqué');
-                navigation.goBack();
-              }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={22} color="#0f172a" />
-            </TouchableOpacity>
-            <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>Véhicules</Text>
-              {vehicles.length > 0 && (
-                <Text style={styles.headerCount}>{vehicles.length} disponible{vehicles.length > 1 ? 's' : ''}</Text>
-              )}
+        {/* Hero Section avec gradient - FIXE */}
+        <View style={styles.heroSection}>
+          <View style={styles.heroContent}>
+            <View style={styles.heroBadge}>
+              <Ionicons name="car" size={14} color="#fff" />
+              <Text style={styles.heroBadgeText}>Location de véhicules</Text>
             </View>
+            <Text style={styles.heroTitle}>Trouvez le véhicule parfait</Text>
+            <Text style={styles.heroSubtitle}>
+              SUV, berlines, motos et plus encore. Paiement en espèces uniquement.
+            </Text>
+          </View>
+
+          {/* Barre de recherche intégrée */}
+          <View style={styles.searchBarContainer}>
             <TouchableOpacity
-              style={styles.filterBtn}
-              onPress={() => {
-                console.log('🔍 Bouton filtre cliqué');
-                setShowFilters(true);
-              }}
+              style={styles.searchBar}
               activeOpacity={0.7}
+              onPress={() => setShowSearchModal(true)}
             >
-              <Ionicons name="filter" size={22} color="#2563eb" />
-              {getActiveFiltersCount() > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{getActiveFiltersCount()}</Text>
-                </View>
-              )}
+              <Ionicons name="search" size={18} color="#64748b" />
+              <View style={styles.searchTextWrapper}>
+                {searchQuery ? (
+                  <Text style={styles.searchText} numberOfLines={1}>
+                    {searchQuery}
+                  </Text>
+                ) : selectedLocationName ? (
+                  <Text style={styles.searchText} numberOfLines={1}>
+                    {selectedLocationName}
+                  </Text>
+                ) : (
+                  <Text style={styles.searchPlaceholder}>
+                    Marque, modèle, titre...
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowFilters(true)}
+                style={styles.filterIconBtn}
+              >
+                <Ionicons name="options-outline" size={20} color="#2563eb" />
+                {getActiveFiltersCount() > 0 && (
+                  <View style={styles.filterBadge}>
+                    <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSearch}
+                style={styles.searchIconBtn}
+              >
+                <Ionicons name="search" size={20} color="#fff" />
+              </TouchableOpacity>
             </TouchableOpacity>
           </View>
-        </Animated.View>
-
-        {/* Barre de recherche flottante */}
-        <Animated.View
-          style={[
-            styles.searchWrapper,
-            { transform: [{ translateY: searchTranslateY }] },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.searchBar}
-            activeOpacity={0.7}
-            onPress={() => {
-              console.log('🔍 Barre de recherche cliquée');
-              setShowSearchModal(true);
-            }}
-          >
-            <Ionicons name="search" size={18} color="#64748b" />
-            <View style={styles.searchTextWrapper}>
-              {searchQuery ? (
-                <Text style={styles.searchText} numberOfLines={1}>
-                  {searchQuery}
-                </Text>
-              ) : selectedLocationName ? (
-                <Text style={styles.searchText} numberOfLines={1}>
-                  {selectedLocationName}
-                </Text>
-              ) : (
-                <Text style={styles.searchPlaceholder}>
-                  Rechercher un véhicule...
-                </Text>
-              )}
-            </View>
-            {getActiveFiltersCount() > 0 && (
-              <View style={styles.filterDot}>
-                <View style={styles.filterDotInner} />
-              </View>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
+        </View>
       </SafeAreaView>
 
-      {/* Filtres actifs - style ultra-minimal */}
-      {getActiveFiltersCount() > 0 && (
-        <View style={styles.filtersRow}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtersContent}
-          >
-            {filters.vehicleType && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>{filters.vehicleType}</Text>
-                <TouchableOpacity onPress={() => removeFilter('vehicleType')}>
-                  <Ionicons name="close" size={12} color="#2563eb" />
-                </TouchableOpacity>
-              </View>
-            )}
-            {filters.transmission && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>
-                  {getTransmissionLabel(filters.transmission)}
-                </Text>
-                <TouchableOpacity onPress={() => removeFilter('transmission')}>
-                  <Ionicons name="close" size={12} color="#2563eb" />
-                </TouchableOpacity>
-              </View>
-            )}
-            {filters.fuelType && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>
-                  {getFuelLabel(filters.fuelType)}
-                </Text>
-                <TouchableOpacity onPress={() => removeFilter('fuelType')}>
-                  <Ionicons name="close" size={12} color="#2563eb" />
-                </TouchableOpacity>
-              </View>
-            )}
-            {filters.seats && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>{filters.seats}+ places</Text>
-                <TouchableOpacity onPress={() => removeFilter('seats')}>
-                  <Ionicons name="close" size={12} color="#2563eb" />
-                </TouchableOpacity>
-              </View>
-            )}
-            {(filters.priceMin || filters.priceMax) && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>
-                  {formatPrice(filters.priceMin || 0)} - {formatPrice(filters.priceMax || 999999)}
-                </Text>
+      {/* Liste des véhicules avec header */}
+      <FlatList
+        data={vehicles}
+        renderItem={renderVehicle}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        ListEmptyComponent={!loading ? renderEmptyState : null}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#2563eb']}
+            tintColor="#2563eb"
+          />
+        }
+        showsVerticalScrollIndicator={false}
+        style={styles.flatList}
+        ListHeaderComponent={
+          <View style={styles.listHeader}>
+            {/* Section contenu */}
+            <View style={styles.contentSection}>
+              {/* En-tête avec titre et bouton */}
+              <View style={styles.contentHeader}>
+                <View style={styles.contentHeaderLeft}>
+                  <Text style={styles.contentTitle}>Véhicules disponibles</Text>
+                  <Text style={styles.contentSubtitle}>
+                    Trouvez le véhicule qui correspond à vos besoins
+                  </Text>
+                </View>
                 <TouchableOpacity
+                  style={styles.addVehicleBtn}
                   onPress={() => {
-                    const newFilters = { ...filters };
-                    delete newFilters.priceMin;
-                    delete newFilters.priceMax;
-                    setFilters(newFilters);
+                    if (user) {
+                      navigation.navigate('AddVehicle' as never);
+                    } else {
+                      navigation.navigate('Auth' as never, { redirect: '/add-vehicle' } as never);
+                    }
                   }}
                 >
-                  <Ionicons name="close" size={12} color="#2563eb" />
+                  <Ionicons name="add" size={20} color="#fff" />
+                  <Text style={styles.addVehicleBtnText}>Proposer mon véhicule</Text>
                 </TouchableOpacity>
               </View>
-            )}
-            {(filters.locationId || filters.locationName) && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText} numberOfLines={1}>
-                  {selectedLocationName || filters.locationName || 'Lieu'}
-                </Text>
-                <TouchableOpacity onPress={() => {
-                  removeFilter('locationId');
-                  removeFilter('locationName');
-                  setSelectedLocationName('');
-                }}>
-                  <Ionicons name="close" size={12} color="#2563eb" />
-                </TouchableOpacity>
+
+              {/* Filtres actifs */}
+              {getActiveFiltersCount() > 0 && (
+                <View style={styles.filtersRow}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filtersContent}
+                  >
+                    {filters.vehicleType && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>{filters.vehicleType}</Text>
+                        <TouchableOpacity onPress={() => removeFilter('vehicleType')}>
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {filters.transmission && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>
+                          {getTransmissionLabel(filters.transmission)}
+                        </Text>
+                        <TouchableOpacity onPress={() => removeFilter('transmission')}>
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {filters.fuelType && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>
+                          {getFuelLabel(filters.fuelType)}
+                        </Text>
+                        <TouchableOpacity onPress={() => removeFilter('fuelType')}>
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {filters.seats && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>{filters.seats}+ places</Text>
+                        <TouchableOpacity onPress={() => removeFilter('seats')}>
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {(filters.priceMin || filters.priceMax) && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>
+                          {formatPrice(filters.priceMin || 0)} - {formatPrice(filters.priceMax || 999999)}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            const newFilters = { ...filters };
+                            delete newFilters.priceMin;
+                            delete newFilters.priceMax;
+                            setFilters(newFilters);
+                          }}
+                        >
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {(filters.locationId || filters.locationName) && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText} numberOfLines={1}>
+                          {selectedLocationName || filters.locationName || 'Lieu'}
+                        </Text>
+                        <TouchableOpacity onPress={() => {
+                          removeFilter('locationId');
+                          removeFilter('locationName');
+                          setSelectedLocationName('');
+                        }}>
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {filters.search && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>"{filters.search}"</Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setSearchQuery('');
+                            removeFilter('search');
+                          }}
+                        >
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {(filters.startDate || filters.endDate) && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText} numberOfLines={1}>
+                          {filters.startDate && filters.endDate
+                            ? `${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
+                            : filters.startDate
+                            ? `À partir du ${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
+                            : `Jusqu'au ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            removeFilter('startDate');
+                            removeFilter('endDate');
+                          }}
+                        >
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {filters.features && filters.features.length > 0 && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>
+                          {filters.features.length} équipement{filters.features.length > 1 ? 's' : ''}
+                        </Text>
+                        <TouchableOpacity onPress={() => removeFilter('features')}>
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    <TouchableOpacity style={styles.clearBtn} onPress={handleResetFilters}>
+                      <Text style={styles.clearText}>Tout effacer</Text>
+                    </TouchableOpacity>
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Nombre de résultats */}
+              {vehicles && vehicles.length > 0 && (
+                <View style={styles.resultsCount}>
+                  <Text style={styles.resultsCountText}>
+                    <Text style={styles.resultsCountBold}>{vehicles.length}</Text> véhicule{vehicles.length > 1 ? 's' : ''} disponible{vehicles.length > 1 ? 's' : ''}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {error && (
+              <View style={styles.error}>
+                <Ionicons name="alert-circle" size={18} color="#ef4444" />
+                <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
-            {filters.search && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>"{filters.search}"</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setSearchQuery('');
-                    removeFilter('search');
-                  }}
-                >
-                  <Ionicons name="close" size={12} color="#2563eb" />
-                </TouchableOpacity>
-              </View>
-            )}
-            {(filters.startDate || filters.endDate) && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText} numberOfLines={1}>
-                  {filters.startDate && filters.endDate
-                    ? `${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
-                    : filters.startDate
-                    ? `À partir du ${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
-                    : `Jusqu'au ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    removeFilter('startDate');
-                    removeFilter('endDate');
-                  }}
-                >
-                  <Ionicons name="close" size={12} color="#2563eb" />
-                </TouchableOpacity>
-              </View>
-            )}
-            {filters.features && filters.features.length > 0 && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>
-                  {filters.features.length} équipement{filters.features.length > 1 ? 's' : ''}
-                </Text>
-                <TouchableOpacity onPress={() => removeFilter('features')}>
-                  <Ionicons name="close" size={12} color="#2563eb" />
-                </TouchableOpacity>
-              </View>
-            )}
-            <TouchableOpacity style={styles.clearBtn} onPress={handleResetFilters}>
-              <Text style={styles.clearText}>Tout effacer</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      )}
+          </View>
+        }
+      />
 
       {/* Modal de recherche */}
       <Modal
@@ -530,38 +575,6 @@ const VehiclesScreen: React.FC = () => {
         </SafeAreaView>
       </Modal>
 
-      {error && (
-        <View style={styles.error}>
-          <Ionicons name="alert-circle" size={18} color="#ef4444" />
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
-
-      <Animated.FlatList
-        data={vehicles}
-        renderItem={renderVehicle}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={!loading ? renderEmptyState : null}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#2563eb']}
-            tintColor="#2563eb"
-          />
-        }
-        showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
-        style={styles.flatList}
-        contentInsetAdjustmentBehavior="automatic"
-        scrollEnabled={true}
-        nestedScrollEnabled={true}
-      />
 
       <VehicleFiltersModal
         visible={showFilters}
@@ -576,10 +589,163 @@ const VehiclesScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f8f9fa',
   },
   safeArea: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
+    flex: 0,
+  },
+  heroSection: {
+    backgroundColor: '#1e293b', // slate-900
+    paddingTop: 20,
+    paddingBottom: 80,
+    paddingHorizontal: 20,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  heroContent: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 16,
+    gap: 6,
+  },
+  heroBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  heroTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  heroSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+  },
+  searchBarContainer: {
+    marginTop: 24,
+    paddingHorizontal: 0,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    gap: 12,
+  },
+  searchTextWrapper: {
+    flex: 1,
+  },
+  searchText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  searchPlaceholder: {
+    fontSize: 15,
+    color: '#94a3b8',
+  },
+  filterIconBtn: {
+    padding: 8,
+    position: 'relative',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  searchIconBtn: {
+    backgroundColor: '#2563eb',
+    padding: 10,
+    borderRadius: 12,
+  },
+  contentSection: {
+    backgroundColor: '#f8f9fa',
+    paddingTop: 24,
+    paddingHorizontal: 20,
+  },
+  contentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  contentHeaderLeft: {
+    flex: 1,
+    minWidth: 200,
+  },
+  contentTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  contentSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  addVehicleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  addVehicleBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  resultsCount: {
+    marginBottom: 16,
+  },
+  resultsCountText: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  resultsCountBold: {
+    fontWeight: '600',
+    color: '#0f172a',
   },
   loading: {
     flex: 1,

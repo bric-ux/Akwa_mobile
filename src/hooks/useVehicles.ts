@@ -345,8 +345,24 @@ export const useVehicles = () => {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.error('❌ [getMyVehicles] Utilisateur non connecté');
         throw new Error('Utilisateur non connecté');
       }
+
+      console.log('🔍 [getMyVehicles] Récupération des véhicules pour user:', user.id);
+
+      // Test simple d'abord pour voir si on récupère des données
+      const { data: testData, error: testError } = await supabase
+        .from('vehicles')
+        .select('id, title, owner_id')
+        .eq('owner_id', user.id)
+        .limit(5);
+      
+      console.log('🧪 [getMyVehicles] Test simple:', {
+        count: testData?.length || 0,
+        error: testError,
+        data: testData
+      });
 
       const { data, error: queryError } = await supabase
         .from('vehicles')
@@ -373,13 +389,26 @@ export const useVehicles = () => {
         .order('created_at', { ascending: false });
 
       if (queryError) {
+        console.error('❌ [getMyVehicles] Erreur Supabase:', queryError);
+        console.error('❌ [getMyVehicles] Détails de l\'erreur:', JSON.stringify(queryError, null, 2));
         throw queryError;
+      }
+
+      console.log(`✅ [getMyVehicles] ${data?.length || 0} véhicule(s) trouvé(s)`);
+      if (data && data.length > 0) {
+        console.log('📋 [getMyVehicles] Premier véhicule:', JSON.stringify(data[0], null, 2));
       }
 
       const transformedVehicles: Vehicle[] = (data || []).map((vehicle: any) => {
         const photos = vehicle.vehicle_photos || [];
-        const images = photos.length > 0 
-          ? photos.map((p: any) => p.url)
+        // Trier les photos : is_main en premier, puis par display_order
+        const sortedPhotos = photos.sort((a: any, b: any) => {
+          if (a.is_main && !b.is_main) return -1;
+          if (!a.is_main && b.is_main) return 1;
+          return (a.display_order || 0) - (b.display_order || 0);
+        });
+        const images = sortedPhotos.length > 0 
+          ? sortedPhotos.map((p: any) => p.url)
           : (vehicle.images || []);
 
         return {
@@ -392,14 +421,15 @@ export const useVehicles = () => {
             longitude: vehicle.locations.longitude,
             parent_id: vehicle.locations.parent_id,
           } : undefined,
-          photos: photos,
+          photos: sortedPhotos,
           images: images,
         };
       });
 
+      console.log(`✅ [getMyVehicles] ${transformedVehicles.length} véhicule(s) transformé(s)`);
       return transformedVehicles;
     } catch (err: any) {
-      console.error('Erreur lors du chargement de mes véhicules:', err);
+      console.error('❌ [getMyVehicles] Erreur lors du chargement de mes véhicules:', err);
       setError(err.message || 'Erreur lors du chargement de mes véhicules');
       return [];
     } finally {
@@ -421,6 +451,7 @@ export const useVehicles = () => {
         throw new Error('Utilisateur non connecté');
       }
 
+      // New vehicles are pending approval by default (comme sur le site web)
       const { data, error: insertError } = await supabase
         .from('vehicles')
         .insert({
@@ -446,15 +477,72 @@ export const useVehicles = () => {
           documents: vehicleData.documents || [],
           features: vehicleData.features || [],
           rules: vehicleData.rules || [],
-          is_active: false, // En attente de validation admin
-          admin_approved: false,
-          admin_rejected: false,
+          // Nouveaux champs du site web
+          with_driver: (vehicleData as any).with_driver || false,
+          has_insurance: (vehicleData as any).has_insurance || false,
+          insurance_details: (vehicleData as any).insurance_details || null,
+          requires_license: (vehicleData as any).requires_license !== false,
+          min_license_years: (vehicleData as any).min_license_years || 0,
+          discount_enabled: (vehicleData as any).discount_enabled || false,
+          discount_min_days: (vehicleData as any).discount_min_days || 7,
+          discount_percentage: (vehicleData as any).discount_percentage || 10,
+          long_stay_discount_enabled: (vehicleData as any).long_stay_discount_enabled || false,
+          long_stay_discount_min_days: (vehicleData as any).long_stay_discount_min_days || 30,
+          long_stay_discount_percentage: (vehicleData as any).long_stay_discount_percentage || 20,
+          // Statut d'approbation (comme sur le site web)
+          is_approved: false,
+          approval_status: 'pending',
         })
         .select()
         .single();
 
       if (insertError) {
         throw insertError;
+      }
+
+      // Send notification emails (comme sur le site web)
+      try {
+        const { data: ownerProfile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name, email, phone')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (ownerProfile) {
+          const emailData = {
+            ownerName: `${ownerProfile.first_name || ''} ${ownerProfile.last_name || ''}`.trim() || 'Propriétaire',
+            ownerEmail: ownerProfile.email,
+            ownerPhone: ownerProfile.phone,
+            vehicleTitle: vehicleData.title,
+            vehicleBrand: vehicleData.brand,
+            vehicleModel: vehicleData.model,
+            vehicleYear: vehicleData.year,
+            pricePerDay: vehicleData.price_per_day,
+          };
+          
+          // Email au propriétaire du véhicule
+          if (ownerProfile.email) {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'vehicle_application_submitted',
+                to: ownerProfile.email,
+                data: emailData
+              }
+            });
+          }
+          
+          // Email à l'admin
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'vehicle_submitted',
+              to: 'contact@akwahome.com',
+              data: emailData
+            }
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending vehicle submission email:', emailError);
+        // Ne pas bloquer la création si l'email échoue
       }
 
       // Si des photos sont fournies, les uploader et créer les entrées vehicle_photos

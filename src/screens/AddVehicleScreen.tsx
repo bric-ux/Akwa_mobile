@@ -440,7 +440,13 @@ const AddVehicleScreen: React.FC = () => {
         [
           {
             text: 'OK',
-            onPress: () => navigation.goBack(),
+            onPress: () => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('MyVehicles' as never);
+              }
+            },
           },
         ]
       );
@@ -456,7 +462,15 @@ const AddVehicleScreen: React.FC = () => {
         style={styles.keyboardView}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity 
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('MyVehicles' as never);
+              }
+            }}
+          >
             <Ionicons name="arrow-back" size={24} color="#2c3e50" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ajouter un véhicule</Text>

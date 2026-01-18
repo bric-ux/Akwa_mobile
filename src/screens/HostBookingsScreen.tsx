@@ -21,6 +21,8 @@ import { supabase } from '../services/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import CancellationDialog from '../components/CancellationDialog';
 import BookingContactButton from '../components/BookingContactButton';
+import GuestReviewModal from '../components/GuestReviewModal';
+import { useGuestReviews } from '../hooks/useGuestReviews';
 
 const HostBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -28,6 +30,7 @@ const HostBookingsScreen: React.FC = () => {
   const { user } = useAuth();
   const { getHostBookings, updateBookingStatus, loading, error } = useHostBookings();
   const { getMyProperties } = useMyProperties();
+  const { canReviewGuest } = useGuestReviews();
   const [bookings, setBookings] = useState<HostBooking[]>([]);
   const [allProperties, setAllProperties] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,6 +38,9 @@ const HostBookingsScreen: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
   const [cancellationDialogVisible, setCancellationDialogVisible] = useState(false);
   const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<HostBooking | null>(null);
+  const [guestReviewModalVisible, setGuestReviewModalVisible] = useState(false);
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState<HostBooking | null>(null);
+  const [canReview, setCanReview] = useState<Record<string, boolean>>({});
 
   const loadData = async () => {
     try {
@@ -49,6 +55,16 @@ const HostBookingsScreen: React.FC = () => {
       const hostBookings = await getHostBookings();
       console.log('📦 [HostBookingsScreen] Réservations chargées:', hostBookings.length);
       setBookings(hostBookings);
+      
+      // Vérifier quelles réservations peuvent être évaluées
+      const reviewChecks: Record<string, boolean> = {};
+      for (const booking of hostBookings) {
+        if (booking.status === 'completed' && booking.guest_id && booking.properties?.id) {
+          const canReview = await canReviewGuest(booking.id);
+          reviewChecks[booking.id] = canReview;
+        }
+      }
+      setCanReview(reviewChecks);
       
       console.log('✅ [HostBookingsScreen] Chargement terminé avec succès');
     } catch (err: any) {
@@ -442,6 +458,25 @@ const HostBookingsScreen: React.FC = () => {
           </View>
         );
       })()}
+
+      {/* Bouton Évaluer l'invité (seulement pour les réservations terminées) */}
+      {item.status === 'completed' && 
+       item.guest_id && 
+       item.properties?.id && 
+       canReview[item.id] && (
+        <View style={styles.reviewButtonContainer}>
+          <TouchableOpacity
+            style={styles.reviewButton}
+            onPress={() => {
+              setSelectedBookingForReview(item);
+              setGuestReviewModalVisible(true);
+            }}
+          >
+            <Ionicons name="star" size={16} color="#FFA500" />
+            <Text style={styles.reviewButtonText}>Évaluer l'invité</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 
@@ -743,6 +778,27 @@ const HostBookingsScreen: React.FC = () => {
             loadBookings();
             setCancellationDialogVisible(false);
             setSelectedBookingForCancellation(null);
+          }}
+        />
+      )}
+
+      {selectedBookingForReview && (
+        <GuestReviewModal
+          visible={guestReviewModalVisible}
+          onClose={() => {
+            setGuestReviewModalVisible(false);
+            setSelectedBookingForReview(null);
+          }}
+          bookingId={selectedBookingForReview.id}
+          guestId={selectedBookingForReview.guest_id}
+          guestName={selectedBookingForReview.guest_profile 
+            ? `${selectedBookingForReview.guest_profile.first_name} ${selectedBookingForReview.guest_profile.last_name}`.trim() 
+            : 'Invité'}
+          propertyId={selectedBookingForReview.properties?.id || ''}
+          onReviewSubmitted={() => {
+            loadBookings();
+            setGuestReviewModalVisible(false);
+            setSelectedBookingForReview(null);
           }}
         />
       )}
@@ -1122,6 +1178,26 @@ const styles = StyleSheet.create({
   chevronIcon: {
     marginRight: 12,
     alignSelf: 'center',
+  },
+  reviewButtonContainer: {
+    marginTop: 12,
+  },
+  reviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFA500',
+    backgroundColor: '#fff',
+    gap: 8,
+  },
+  reviewButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFA500',
   },
   propertyHeader: {
     backgroundColor: '#fff',

@@ -224,7 +224,31 @@ const VehicleBookingScreen: React.FC = () => {
   };
 
   const rentalDays = calculateRentalDays();
-  const dailyRate = vehicle?.price_per_day || 0;
+  
+  // Calculer le prix de base par jour (en tenant compte des tarifs hebdomadaires/mensuels)
+  const getBasePricePerDay = () => {
+    if (!rentalDays || !vehicle) return vehicle?.price_per_day || 0;
+    
+    // Si on a un tarif mensuel et que la durée >= 30 jours
+    if (vehicle.price_per_month && rentalDays >= 30) {
+      const months = Math.floor(rentalDays / 30);
+      const remainingDays = rentalDays % 30;
+      const totalPrice = (months * vehicle.price_per_month) + (remainingDays * vehicle.price_per_day);
+      return totalPrice / rentalDays; // Prix moyen par jour
+    }
+    
+    // Si on a un tarif hebdomadaire et que la durée >= 7 jours
+    if (vehicle.price_per_week && rentalDays >= 7) {
+      const weeks = Math.floor(rentalDays / 7);
+      const remainingDays = rentalDays % 7;
+      const totalPrice = (weeks * vehicle.price_per_week) + (remainingDays * vehicle.price_per_day);
+      return totalPrice / rentalDays; // Prix moyen par jour
+    }
+    
+    return vehicle.price_per_day || 0;
+  };
+
+  const basePricePerDay = getBasePricePerDay();
   
   // Calculer le prix avec réductions (comme sur le site web)
   const discountConfig: DiscountConfig = {
@@ -239,7 +263,7 @@ const VehicleBookingScreen: React.FC = () => {
     percentage: vehicle?.long_stay_discount_percentage || null
   } : undefined;
   
-  const pricing = calculateTotalPrice(dailyRate, rentalDays, discountConfig, longStayDiscountConfig);
+  const pricing = calculateTotalPrice(basePricePerDay, rentalDays, discountConfig, longStayDiscountConfig);
   const basePrice = pricing.totalPrice; // Prix après réduction
   
   // Calculer les frais de service (10% du prix après réduction pour les véhicules)
@@ -469,7 +493,21 @@ const VehicleBookingScreen: React.FC = () => {
             <Text style={styles.vehicleTitle}>
               {vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`.trim()}
             </Text>
-            <Text style={styles.vehiclePrice}>{formatPrice(dailyRate)} / jour</Text>
+            <Text style={styles.vehiclePrice}>
+              {rentalDays > 0 && basePricePerDay !== vehicle.price_per_day 
+                ? formatPrice(basePricePerDay) + ' / jour (tarif préférentiel)'
+                : formatPrice(vehicle.price_per_day || 0) + ' / jour'}
+            </Text>
+            {vehicle.price_per_week && vehicle.price_per_week > 0 && (
+              <Text style={styles.vehiclePriceAlt}>
+                {formatPrice(vehicle.price_per_week)} / semaine
+              </Text>
+            )}
+            {vehicle.price_per_month && vehicle.price_per_month > 0 && (
+              <Text style={styles.vehiclePriceAlt}>
+                {formatPrice(vehicle.price_per_month)} / mois
+              </Text>
+            )}
           </View>
         </View>
 
@@ -648,16 +686,34 @@ const VehicleBookingScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Résumé</Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Prix par jour</Text>
-            <Text style={styles.summaryValue}>{formatPrice(dailyRate)}</Text>
+            <Text style={styles.summaryValue}>
+              {basePricePerDay !== vehicle.price_per_day 
+                ? `${formatPrice(vehicle.price_per_day)} → ${formatPrice(basePricePerDay)}`
+                : formatPrice(basePricePerDay)}
+            </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Nombre de jours</Text>
             <Text style={styles.summaryValue}>{rentalDays}</Text>
           </View>
+          {basePricePerDay !== vehicle.price_per_day && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Tarif préférentiel appliqué</Text>
+              <Text style={[styles.summaryValue, { color: '#2E7D32' }]}>
+                {vehicle.price_per_month && rentalDays >= 30 
+                  ? 'Tarif mensuel'
+                  : vehicle.price_per_week && rentalDays >= 7
+                  ? 'Tarif hebdomadaire'
+                  : 'Tarif préférentiel'}
+              </Text>
+            </View>
+          )}
           {pricing.discountApplied && (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
-                Réduction {pricing.discountType === 'long_stay' ? 'séjour long' : ''}
+                Réduction {pricing.discountType === 'long_stay' ? 'séjour long' : ''} ({pricing.discountType === 'long_stay' 
+                  ? longStayDiscountConfig?.percentage 
+                  : discountConfig.percentage}%)
               </Text>
               <Text style={[styles.summaryValue, { color: '#2E7D32' }]}>
                 -{formatPrice(pricing.discountAmount)}
@@ -666,7 +722,14 @@ const VehicleBookingScreen: React.FC = () => {
           )}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Sous-total</Text>
-            <Text style={styles.summaryValue}>{formatPrice(basePrice)}</Text>
+            <Text style={styles.summaryValue}>
+              {pricing.discountApplied && (
+                <Text style={{ textDecorationLine: 'line-through', color: '#999', fontSize: 14 }}>
+                  {formatPrice(pricing.originalTotal)}{' '}
+                </Text>
+              )}
+              {formatPrice(basePrice)}
+            </Text>
           </View>
           {fees.serviceFee > 0 && (
             <View style={styles.summaryRow}>
@@ -885,6 +948,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2E7D32',
     fontWeight: '600',
+  },
+  vehiclePriceAlt: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
   },
   section: {
     backgroundColor: '#fff',

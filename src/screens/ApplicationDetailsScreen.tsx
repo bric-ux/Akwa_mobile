@@ -46,7 +46,11 @@ const ApplicationDetailsScreen: React.FC = () => {
         setApplication(data);
       } else {
         Alert.alert('Erreur', 'Impossible de charger les détails de la candidature');
-        navigation.goBack();
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate('Home' as never);
+        }
       }
     } catch (error) {
       console.error('Erreur chargement détails:', error);
@@ -73,7 +77,16 @@ const ApplicationDetailsScreen: React.FC = () => {
               const result = await deleteApplication(application.id);
               if (result.success) {
                 Alert.alert('Succès', 'Candidature supprimée avec succès', [
-                  { text: 'OK', onPress: () => navigation.goBack() }
+                  { 
+                    text: 'OK', 
+                    onPress: () => {
+                      if (navigation.canGoBack()) {
+                        navigation.goBack();
+                      } else {
+                        navigation.navigate('Home' as never);
+                      }
+                    }
+                  }
                 ]);
               } else {
                 Alert.alert('Erreur', result.error || 'Erreur lors de la suppression');
@@ -136,7 +149,15 @@ const ApplicationDetailsScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity 
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('Home' as never);
+              }
+            }}
+          >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Détails</Text>

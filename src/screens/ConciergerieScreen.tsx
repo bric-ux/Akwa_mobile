@@ -145,7 +145,16 @@ const ConciergerieScreen: React.FC = () => {
       Alert.alert(
         'Demande envoyée !',
         'Notre équipe vous contactera dans les 24h pour discuter de vos besoins.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Home' as never);
+            }
+          }
+        }]
       );
 
       setFormData({
@@ -169,7 +178,16 @@ const ConciergerieScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity 
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Home' as never);
+            }
+          }} 
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Conciergerie</Text>
