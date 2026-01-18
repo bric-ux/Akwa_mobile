@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  LinearGradient,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
@@ -21,6 +22,7 @@ import { useAuth } from '../services/AuthContext';
 import ContactOwnerButton from '../components/ContactOwnerButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '../utils/navigation';
+import { VEHICLE_COLORS } from '../constants/colors';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -68,7 +70,7 @@ const VehicleDetailsScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2E7D32" />
+        <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
       </View>
     );
   }
@@ -85,264 +87,389 @@ const VehicleDetailsScreen: React.FC = () => {
   const isOwner = user?.id === vehicle.owner_id;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      {/* Header avec bouton retour */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => safeGoBack(navigation, 'Vehicles')}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {vehicle.title || `${vehicle.brand} ${vehicle.model}`}
-          </Text>
-        </View>
-        <View style={styles.headerPlaceholder} />
-      </View>
-
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Images */}
-      {vehicle.images && vehicle.images.length > 0 && (
-        <View style={styles.imageContainer}>
-          <ScrollView
-            ref={scrollViewRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(event) => {
-              const index = Math.round(event.nativeEvent.contentOffset.x / width);
-              setCurrentImageIndex(index);
-            }}
-            style={styles.imageScrollView}
+    <View style={styles.safeArea}>
+      {/* Header moderne avec gradient */}
+      <SafeAreaView style={styles.headerContainer} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => safeGoBack(navigation, 'Vehicles')}
           >
-            {vehicle.images.map((imageUrl, index) => (
-              <Image
-                key={index}
-                source={{ uri: imageUrl }}
-                style={styles.mainImage}
-                resizeMode="cover"
-              />
-            ))}
-          </ScrollView>
-          {vehicle.images.length > 1 && (
-            <View style={styles.imageIndicators}>
-              {vehicle.images.map((_, index) => (
-                <View
+            <View style={styles.backButtonCircle}>
+              <Ionicons name="arrow-back" size={20} color="#1a1a1a" />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`}
+            </Text>
+          </View>
+          <View style={styles.headerPlaceholder} />
+        </View>
+      </SafeAreaView>
+
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Images avec overlay gradient */}
+        {vehicle.images && vehicle.images.length > 0 && (
+          <View style={styles.imageContainer}>
+            <ScrollView
+              ref={scrollViewRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(event) => {
+                const index = Math.round(event.nativeEvent.contentOffset.x / width);
+                setCurrentImageIndex(index);
+              }}
+              style={styles.imageScrollView}
+            >
+              {vehicle.images.map((imageUrl, index) => (
+                <Image
                   key={index}
-                  style={[
-                    styles.indicator,
-                    index === currentImageIndex && styles.activeIndicator,
-                  ]}
+                  source={{ uri: imageUrl }}
+                  style={styles.mainImage}
+                  resizeMode="cover"
                 />
               ))}
-            </View>
-          )}
-        </View>
-      )}
-
-      <View style={styles.content}>
-        {/* Titre et prix */}
-        <View style={styles.titleHeader}>
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>{vehicle.brand} {vehicle.model} {vehicle.year}</Text>
-            <Text style={styles.subtitle}>{vehicle.title}</Text>
-          </View>
-          <View style={styles.priceContainer}>
-            <Text style={styles.price}>{formatPrice(vehicle.price_per_day)}</Text>
-            <Text style={styles.priceUnit}>/jour</Text>
-          </View>
-          {vehicle.price_per_week && vehicle.price_per_week > 0 && (
-            <Text style={styles.priceAlt}>
-              {formatPrice(vehicle.price_per_week)} / semaine
-            </Text>
-          )}
-          {vehicle.price_per_month && vehicle.price_per_month > 0 && (
-            <Text style={styles.priceAlt}>
-              {formatPrice(vehicle.price_per_month)} / mois
-            </Text>
-          )}
-        </View>
-
-        {/* Réductions disponibles */}
-        {(vehicle.discount_enabled || vehicle.long_stay_discount_enabled) && (
-          <View style={styles.discountSection}>
-            {vehicle.discount_enabled && vehicle.discount_min_days && vehicle.discount_percentage && (
-              <View style={styles.discountBadge}>
-                <Ionicons name="pricetag" size={18} color="#10b981" />
-                <Text style={styles.discountText}>
-                  Réduction de {vehicle.discount_percentage}% à partir de {vehicle.discount_min_days} jour{vehicle.discount_min_days > 1 ? 's' : ''}
-                </Text>
+            </ScrollView>
+            {vehicle.images.length > 1 && (
+              <View style={styles.imageIndicators}>
+                {vehicle.images.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.indicator,
+                      index === currentImageIndex && styles.activeIndicator,
+                    ]}
+                  />
+                ))}
               </View>
             )}
-            {vehicle.long_stay_discount_enabled && vehicle.long_stay_discount_min_days && vehicle.long_stay_discount_percentage && (
-              <View style={[styles.discountBadge, styles.longStayDiscountBadge]}>
-                <Ionicons name="pricetag" size={18} color="#3b82f6" />
-                <Text style={styles.discountText}>
-                  Réduction longue durée: {vehicle.long_stay_discount_percentage}% à partir de {vehicle.long_stay_discount_min_days} jour{vehicle.long_stay_discount_min_days > 1 ? 's' : ''}
-                </Text>
+            {/* Badge nombre de photos */}
+            {vehicle.images.length > 1 && (
+              <View style={styles.photoCountBadge}>
+                <Ionicons name="images" size={14} color="#fff" />
+                <Text style={styles.photoCountText}>{currentImageIndex + 1}/{vehicle.images.length}</Text>
               </View>
             )}
           </View>
         )}
 
-        {/* Options spéciales */}
-        {((vehicle as any).with_driver || (vehicle as any).has_insurance || (vehicle as any).requires_license) && (
-          <View style={styles.optionsSection}>
-            <Text style={styles.sectionTitle}>Options & Conditions</Text>
-            {(vehicle as any).with_driver && (
-              <View style={styles.optionCard}>
-                <Ionicons name="person" size={20} color="#3b82f6" />
-                <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Chauffeur disponible</Text>
-                  <Text style={styles.optionDescription}>Ce véhicule peut être loué avec chauffeur</Text>
-                </View>
+        <View style={styles.content}>
+          {/* Titre et prix - Design moderne */}
+          <View style={styles.titleSection}>
+            <View style={styles.titleRow}>
+              <View style={styles.titleContainer}>
+                <Text style={styles.title}>
+                  {vehicle.brand || ''} {vehicle.model || ''} {vehicle.year || ''}
+                </Text>
+                {vehicle.title && (
+                  <Text style={styles.subtitle}>{vehicle.title}</Text>
+                )}
               </View>
-            )}
-            {(vehicle as any).has_insurance && (
-              <View style={styles.optionCard}>
-                <Ionicons name="shield-checkmark" size={20} color="#10b981" />
-                <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Véhicule assuré</Text>
-                  {(vehicle as any).insurance_details && (
-                    <Text style={styles.optionDescription}>{(vehicle as any).insurance_details}</Text>
+            </View>
+            
+            {/* Prix avec design moderne */}
+            <View style={styles.priceCard}>
+              <View style={styles.priceRow}>
+                <View>
+                  <Text style={styles.priceLabel}>Prix par jour</Text>
+                  <View style={styles.priceValueRow}>
+                    <Text style={styles.price}>{formatPrice(vehicle.price_per_day)}</Text>
+                    <Text style={styles.priceUnit}>/jour</Text>
+                  </View>
+                </View>
+                {(vehicle.rating > 0) && (
+                  <View style={styles.ratingBadge}>
+                    <Ionicons name="star" size={16} color="#FFD700" />
+                    <Text style={styles.ratingText}>{vehicle.rating.toFixed(1)}</Text>
+                    {vehicle.review_count > 0 && (
+                      <Text style={styles.reviewCountText}>({vehicle.review_count})</Text>
+                    )}
+                  </View>
+                )}
+              </View>
+              
+              {/* Prix alternatifs */}
+              {(vehicle.price_per_week || vehicle.price_per_month) && (
+                <View style={styles.altPricesRow}>
+                  {vehicle.price_per_week && vehicle.price_per_week > 0 && (
+                    <View style={styles.altPriceItem}>
+                      <Text style={styles.altPriceValue}>{formatPrice(vehicle.price_per_week)}</Text>
+                      <Text style={styles.altPriceLabel}>/semaine</Text>
+                    </View>
+                  )}
+                  {vehicle.price_per_month && vehicle.price_per_month > 0 && (
+                    <View style={styles.altPriceItem}>
+                      <Text style={styles.altPriceValue}>{formatPrice(vehicle.price_per_month)}</Text>
+                      <Text style={styles.altPriceLabel}>/mois</Text>
+                    </View>
                   )}
                 </View>
-              </View>
-            )}
-            {(vehicle as any).requires_license && (
-              <View style={styles.optionCard}>
-                <Ionicons name="document-text" size={20} color="#f59e0b" />
-                <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Permis de conduire requis</Text>
-                  <Text style={styles.optionDescription}>
-                    {(vehicle as any).min_license_years > 0 
-                      ? `Minimum ${(vehicle as any).min_license_years} an(s) de permis requis`
-                      : 'Un permis de conduire valide est requis'}
-                  </Text>
+              )}
+            </View>
+
+            {/* Localisation et note */}
+            <View style={styles.metaRow}>
+              {vehicle.location && (
+                <View style={styles.metaItem}>
+                  <Ionicons name="location" size={16} color={VEHICLE_COLORS.primary} />
+                  <Text style={styles.metaText}>{vehicle.location.name}</Text>
                 </View>
+              )}
+            </View>
+          </View>
+
+          {/* Réductions disponibles - Design amélioré */}
+          {(vehicle.discount_enabled || vehicle.long_stay_discount_enabled) && (
+            <View style={styles.discountSection}>
+              {vehicle.discount_enabled && vehicle.discount_min_days && vehicle.discount_percentage && (
+                <View style={[styles.discountCard, styles.discountCardGreen]}>
+                  <View style={styles.discountIconContainer}>
+                    <Ionicons name="pricetag" size={20} color="#10b981" />
+                  </View>
+                  <View style={styles.discountContent}>
+                    <Text style={styles.discountTitle}>Réduction disponible</Text>
+                    <Text style={styles.discountDescription}>
+                      {vehicle.discount_percentage || 0}% de réduction à partir de {vehicle.discount_min_days || 0} jour{(vehicle.discount_min_days || 0) > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              {vehicle.long_stay_discount_enabled && vehicle.long_stay_discount_min_days && vehicle.long_stay_discount_percentage && (
+                <View style={[styles.discountCard, styles.discountCardBlue]}>
+                  <View style={styles.discountIconContainer}>
+                    <Ionicons name="calendar" size={20} color="#3b82f6" />
+                  </View>
+                  <View style={styles.discountContent}>
+                    <Text style={styles.discountTitle}>Réduction longue durée</Text>
+                    <Text style={styles.discountDescription}>
+                      {vehicle.long_stay_discount_percentage || 0}% de réduction à partir de {vehicle.long_stay_discount_min_days || 0} jour{(vehicle.long_stay_discount_min_days || 0) > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Options spéciales - Design moderne */}
+          {((vehicle as any).with_driver || (vehicle as any).has_insurance || (vehicle as any).requires_license) && (
+            <View style={styles.optionsSection}>
+              <Text style={styles.sectionTitle}>Options & Conditions</Text>
+              <View style={styles.optionsGrid}>
+                {(vehicle as any).with_driver && (
+                  <View style={styles.optionCard}>
+                    <View style={[styles.optionIconContainer, { backgroundColor: '#dbeafe' }]}>
+                      <Ionicons name="person" size={24} color="#3b82f6" />
+                    </View>
+                    <Text style={styles.optionTitle}>Chauffeur</Text>
+                    <Text style={styles.optionDescription}>Disponible</Text>
+                  </View>
+                )}
+                {(vehicle as any).has_insurance && (
+                  <View style={styles.optionCard}>
+                    <View style={[styles.optionIconContainer, { backgroundColor: '#d1fae5' }]}>
+                      <Ionicons name="shield-checkmark" size={24} color="#10b981" />
+                    </View>
+                    <Text style={styles.optionTitle}>Assuré</Text>
+                    {(vehicle as any).insurance_details && (
+                      <Text style={styles.optionDescription} numberOfLines={2}>
+                        {(vehicle as any).insurance_details}
+                      </Text>
+                    )}
+                  </View>
+                )}
+                {(vehicle as any).requires_license && (
+                  <View style={styles.optionCard}>
+                    <View style={[styles.optionIconContainer, { backgroundColor: '#fef3c7' }]}>
+                      <Ionicons name="document-text" size={24} color="#f59e0b" />
+                    </View>
+                    <Text style={styles.optionTitle}>Permis requis</Text>
+                    <Text style={styles.optionDescription} numberOfLines={2}>
+                      {((vehicle as any).min_license_years || 0) > 0 
+                        ? `${(vehicle as any).min_license_years || 0} an(s) minimum`
+                        : 'Permis valide requis'}
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-        )}
-
-        {/* Localisation */}
-        {vehicle.location && (
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={18} color="#666" />
-            <Text style={styles.location}>{vehicle.location.name}</Text>
-          </View>
-        )}
-
-        {/* Note */}
-        {vehicle.rating > 0 && (
-          <View style={styles.ratingRow}>
-            <Ionicons name="star" size={18} color="#FFD700" />
-            <Text style={styles.rating}>
-              {vehicle.rating.toFixed(1)} ({vehicle.review_count} avis)
-            </Text>
-          </View>
-        )}
-
-        {/* Caractéristiques principales */}
-        <View style={styles.featuresGrid}>
-          <View style={styles.featureCard}>
-            <Ionicons name="people-outline" size={24} color="#2E7D32" />
-            <Text style={styles.featureLabel}>Places</Text>
-            <Text style={styles.featureValue}>{vehicle.seats}</Text>
-          </View>
-          {vehicle.transmission && (
-            <View style={styles.featureCard}>
-              <Ionicons name="settings-outline" size={24} color="#2E7D32" />
-              <Text style={styles.featureLabel}>Transmission</Text>
-              <Text style={styles.featureValue}>
-                {vehicle.transmission === 'automatic' ? 'Automatique' : 'Manuelle'}
-              </Text>
             </View>
           )}
-          {vehicle.fuel_type && (
-            <View style={styles.featureCard}>
-              <Ionicons name="flash-outline" size={24} color="#2E7D32" />
-              <Text style={styles.featureLabel}>Carburant</Text>
-              <Text style={styles.featureValue}>{vehicle.fuel_type}</Text>
+
+          {/* Caractéristiques principales - Design moderne amélioré */}
+          <View style={styles.featuresSection}>
+            <Text style={styles.sectionTitle}>Caractéristiques</Text>
+            <View style={styles.featuresContainer}>
+              <View style={styles.featureRow}>
+                <View style={styles.featureItem}>
+                  <View style={styles.featureIconWrapper}>
+                    <Ionicons name="people" size={24} color={VEHICLE_COLORS.primary} />
+                  </View>
+                  <View style={styles.featureInfo}>
+                    <Text style={styles.featureValue}>{vehicle.seats || 0}</Text>
+                    <Text style={styles.featureLabel}>Places</Text>
+                  </View>
+                </View>
+                {vehicle.transmission && (
+                  <View style={styles.featureItem}>
+                    <View style={styles.featureIconWrapper}>
+                      <Ionicons name="settings" size={24} color={VEHICLE_COLORS.primary} />
+                    </View>
+                    <View style={styles.featureInfo}>
+                      <Text style={styles.featureValue}>
+                        {vehicle.transmission === 'automatic' ? 'Automatique' : 'Manuelle'}
+                      </Text>
+                      <Text style={styles.featureLabel}>Transmission</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+              <View style={styles.featureRow}>
+                {vehicle.fuel_type && (
+                  <View style={styles.featureItem}>
+                    <View style={styles.featureIconWrapper}>
+                      <Ionicons name="flash" size={24} color={VEHICLE_COLORS.primary} />
+                    </View>
+                    <View style={styles.featureInfo}>
+                      <Text style={styles.featureValue} numberOfLines={1}>
+                        {vehicle.fuel_type || ''}
+                      </Text>
+                      <Text style={styles.featureLabel}>Carburant</Text>
+                    </View>
+                  </View>
+                )}
+                {vehicle.year && (
+                  <View style={styles.featureItem}>
+                    <View style={styles.featureIconWrapper}>
+                      <Ionicons name="calendar" size={24} color={VEHICLE_COLORS.primary} />
+                    </View>
+                    <View style={styles.featureInfo}>
+                      <Text style={styles.featureValue}>{vehicle.year || ''}</Text>
+                      <Text style={styles.featureLabel}>Année</Text>
+                    </View>
+                  </View>
+                )}
+                {vehicle.mileage && vehicle.mileage > 0 && (
+                  <View style={styles.featureItem}>
+                    <View style={styles.featureIconWrapper}>
+                      <Ionicons name="speedometer" size={24} color={VEHICLE_COLORS.primary} />
+                    </View>
+                    <View style={styles.featureInfo}>
+                      <Text style={styles.featureValue}>
+                        {vehicle.mileage.toLocaleString('fr-FR')}
+                      </Text>
+                      <Text style={styles.featureLabel}>Kilométrage</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Description */}
+          {vehicle.description && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.description}>{vehicle.description}</Text>
             </View>
           )}
-          {vehicle.year && (
-            <View style={styles.featureCard}>
-              <Ionicons name="calendar-outline" size={24} color="#2E7D32" />
-              <Text style={styles.featureLabel}>Année</Text>
-              <Text style={styles.featureValue}>{vehicle.year}</Text>
+
+          {/* Équipements */}
+          {vehicle.features && vehicle.features.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Équipements</Text>
+              <View style={styles.featuresList}>
+                {vehicle.features.map((feature, index) => (
+                  <View key={index} style={styles.featureTag}>
+                    <Ionicons name="checkmark-circle" size={18} color={VEHICLE_COLORS.primary} />
+                    <Text style={styles.featureTagText}>{feature || ''}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Règles */}
+          {vehicle.rules && vehicle.rules.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Règles de location</Text>
+              <View style={styles.rulesList}>
+                {vehicle.rules.map((rule, index) => (
+                  <View key={index} style={styles.ruleItem}>
+                    <Ionicons name="information-circle" size={18} color="#64748b" />
+                    <Text style={styles.ruleText}>{rule || ''}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
         </View>
+      </ScrollView>
 
-        {/* Description */}
-        {vehicle.description && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.description}>{vehicle.description}</Text>
-          </View>
-        )}
-
-        {/* Équipements */}
-        {vehicle.features && vehicle.features.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Équipements</Text>
-            <View style={styles.featuresList}>
-              {vehicle.features.map((feature, index) => (
-                <View key={index} style={styles.featureTag}>
-                  <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                  <Text style={styles.featureTagText}>{feature}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Règles */}
-        {vehicle.rules && vehicle.rules.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Règles de location</Text>
-            <View style={styles.rulesList}>
-              {vehicle.rules.map((rule, index) => (
-                <View key={index} style={styles.ruleItem}>
-                  <Ionicons name="information-circle-outline" size={16} color="#666" />
-                  <Text style={styles.ruleText}>{rule}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Boutons d'action */}
+      {/* Boutons d'action - Design moderne */}
       {!isOwner && (
-        <View style={styles.footer}>
-          <ContactOwnerButton
-            vehicle={vehicle}
-            variant="outline"
-            size="medium"
-            style={styles.contactButton}
-          />
-          <TouchableOpacity
-            style={styles.bookButton}
-            onPress={handleBookVehicle}
-          >
-            <Text style={styles.bookButtonText}>Réserver ce véhicule</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
-          </TouchableOpacity>
+        <View style={styles.footerContainer}>
+          <SafeAreaView style={styles.footerSafeArea} edges={['bottom']}>
+            <View style={styles.footer}>
+              <View style={styles.contactButtonWrapper}>
+                <ContactOwnerButton
+                  vehicle={vehicle}
+                  variant="outline"
+                  size="medium"
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.bookButton}
+                onPress={handleBookVehicle}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.bookButtonText}>Réserver</Text>
+                <Ionicons name="arrow-forward" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
         </View>
       )}
-      </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: '#fff',
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#666',
+    marginTop: 16,
+    fontWeight: '500',
+  },
+  headerContainer: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 4,
   },
   header: {
     flexDirection: 'row',
@@ -351,17 +478,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    minHeight: 56,
   },
   backButton: {
-    padding: 8,
-    marginLeft: -8,
+    zIndex: 10,
+  },
+  backButtonCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitleContainer: {
     flex: 1,
@@ -369,49 +497,37 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.3,
   },
   headerPlaceholder: {
     width: 40,
   },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  errorText: {
-    fontSize: 18,
-    color: '#666',
-    marginTop: 16,
+  scrollContent: {
+    paddingBottom: 100,
   },
   imageContainer: {
     width: width,
-    height: 300,
+    height: 280,
     position: 'relative',
+    backgroundColor: '#000',
   },
   imageScrollView: {
     width: width,
-    height: 300,
+    height: 280,
   },
   mainImage: {
     width: width,
-    height: 300,
+    height: 280,
   },
   imageIndicators: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 20,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -422,177 +538,334 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
   activeIndicator: {
     backgroundColor: '#fff',
     width: 24,
   },
+  photoCountBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+  },
+  photoCountText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   content: {
     padding: 20,
   },
-  titleHeader: {
+  titleSection: {
+    marginBottom: 24,
+  },
+  titleRow: {
     marginBottom: 16,
   },
   titleContainer: {
-    marginBottom: 8,
+    marginBottom: 4,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 4,
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: '#64748b',
+    fontWeight: '500',
   },
-  priceContainer: {
+  priceCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  priceLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  priceValueRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: 8,
   },
   price: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2E7D32',
+    fontSize: 32,
+    fontWeight: '800',
+    color: VEHICLE_COLORS.primary,
+    letterSpacing: -1,
   },
   priceUnit: {
     fontSize: 16,
-    color: '#666',
-    marginLeft: 4,
+    color: '#64748b',
+    marginLeft: 6,
+    fontWeight: '500',
   },
-  priceAlt: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  discountSection: {
-    marginBottom: 16,
-    gap: 8,
-  },
-  discountBadge: {
+  ratingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ecfdf5',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#10b981',
-    gap: 8,
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 4,
   },
-  longStayDiscountBadge: {
+  ratingText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  reviewCountText: {
+    fontSize: 12,
+    color: '#92400e',
+    marginLeft: 2,
+  },
+  altPricesRow: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  altPriceItem: {
+    flex: 1,
+  },
+  altPriceValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 2,
+  },
+  altPriceLabel: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 12,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  metaText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  discountSection: {
+    marginBottom: 24,
+    gap: 12,
+  },
+  discountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  discountCardGreen: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+  },
+  discountCardBlue: {
     backgroundColor: '#eff6ff',
-    borderColor: '#3b82f6',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  discountIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  discountContent: {
+    flex: 1,
+  },
+  discountTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  discountDescription: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 18,
   },
   discountText: {
+    fontSize: 13,
+    color: '#475569',
     flex: 1,
-    fontSize: 14,
-    color: '#065f46',
-    fontWeight: '500',
   },
   optionsSection: {
     marginBottom: 24,
   },
-  optionCard: {
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 16,
+    letterSpacing: -0.3,
+  },
+  optionsGrid: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#f8f9fa',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    flexWrap: 'wrap',
     gap: 12,
+  },
+  optionCard: {
+    flex: 1,
+    minWidth: '30%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  optionIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   optionContent: {
     flex: 1,
   },
   optionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#2c3e50',
+    color: '#0f172a',
+    textAlign: 'center',
     marginBottom: 4,
   },
   optionDescription: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 16,
   },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 6,
-  },
-  location: {
-    fontSize: 14,
-    color: '#666',
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    gap: 6,
-  },
-  rating: {
-    fontSize: 16,
-    color: '#666',
-  },
-  featuresGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+  featuresSection: {
     marginBottom: 24,
   },
-  featureCard: {
+  featuresContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  featureItem: {
     flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 12,
+  },
+  featureIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f0fdf4',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureInfo: {
+    flex: 1,
+  },
+  featureValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 2,
   },
   featureLabel: {
     fontSize: 12,
-    color: '#666',
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  featureValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2c3e50',
+    color: '#64748b',
+    fontWeight: '500',
   },
   section: {
     marginBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 12,
-  },
   description: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: '#475569',
     lineHeight: 24,
   },
   featuresList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
   featureTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f8f0',
-    paddingHorizontal: 12,
+    backgroundColor: '#f0fdf4',
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
     gap: 6,
   },
   featureTagText: {
     fontSize: 14,
-    color: '#2E7D32',
+    color: '#166534',
+    fontWeight: '500',
   },
   rulesList: {
     gap: 12,
@@ -600,43 +873,68 @@ const styles = StyleSheet.create({
   ruleItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    backgroundColor: '#fff',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 12,
   },
   ruleText: {
     flex: 1,
     fontSize: 14,
-    color: '#666',
+    color: '#475569',
     lineHeight: 20,
   },
-  footer: {
-    padding: 20,
+  footerContainer: {
     backgroundColor: '#fff',
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    gap: 12,
+    borderTopColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  contactButton: {
-    marginBottom: 8,
+  footerSafeArea: {
+    backgroundColor: '#fff',
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
+    alignItems: 'stretch',
+  },
+  contactButtonWrapper: {
+    flex: 1,
+    minHeight: 56,
+    justifyContent: 'center',
   },
   bookButton: {
-    backgroundColor: '#2E7D32',
-    padding: 16,
+    flex: 2,
+    backgroundColor: VEHICLE_COLORS.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
+    minHeight: 56,
+    shadowColor: VEHICLE_COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   bookButtonText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });
 
 export default VehicleDetailsScreen;
-
-
-
-
-

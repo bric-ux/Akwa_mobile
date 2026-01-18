@@ -61,19 +61,21 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
           {/* Badge type de véhicule */}
           <View style={styles.typeBadge}>
             <Ionicons name={getVehicleTypeIcon(vehicle.vehicle_type) as any} size={16} color="#fff" />
-            <Text style={styles.typeText}>{vehicle.vehicle_type.toUpperCase()}</Text>
+            <Text style={styles.typeText}>{vehicle.vehicle_type?.toUpperCase() || 'VEHICULE'}</Text>
           </View>
         </View>
         
         {/* Contenu de la carte */}
         <View style={styles.cardContent}>
           <Text style={styles.cardTitle} numberOfLines={1}>
-            {vehicle.brand} {vehicle.model} {vehicle.year}
+            {vehicle.brand || ''} {vehicle.model || ''} {vehicle.year || ''}
           </Text>
           
-          <Text style={styles.cardSubtitle} numberOfLines={1}>
-            {vehicle.title}
-          </Text>
+          {vehicle.title && (
+            <Text style={styles.cardSubtitle} numberOfLines={1}>
+              {vehicle.title}
+            </Text>
+          )}
           
           {vehicle.location && (
             <View style={styles.locationRow}>
@@ -88,7 +90,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
           <View style={styles.featuresRow}>
             <View style={styles.featureItem}>
               <Ionicons name="people-outline" size={14} color="#666" />
-              <Text style={styles.featureText}>{vehicle.seats} places</Text>
+              <Text style={styles.featureText}>{vehicle.seats || 0} places</Text>
             </View>
             {vehicle.transmission && (
               <View style={styles.featureItem}>
@@ -101,7 +103,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
             {vehicle.fuel_type && (
               <View style={styles.featureItem}>
                 <Ionicons name="flash-outline" size={14} color="#666" />
-                <Text style={styles.featureText}>{vehicle.fuel_type}</Text>
+                <Text style={styles.featureText}>{vehicle.fuel_type || ''}</Text>
               </View>
             )}
           </View>

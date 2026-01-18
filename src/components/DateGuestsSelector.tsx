@@ -73,12 +73,17 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   }, [checkIn, checkOut, adults, children, babies, tempCheckIn, tempCheckOut, tempAdults, tempChildren, tempBabies]);
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Choisir';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'short',
-    });
+    if (!dateString || dateString === '') return 'Choisir';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Choisir';
+      return date.toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+      });
+    } catch {
+      return 'Choisir';
+    }
   };
 
   const getTotalGuests = () => {

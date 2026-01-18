@@ -32,6 +32,7 @@ import DateGuestsSelector from '../components/DateGuestsSelector';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { useAuth } from '../services/AuthContext';
 import { safeGoBack } from '../utils/navigation';
+import { VEHICLE_COLORS } from '../constants/colors';
 
 const { width } = Dimensions.get('window');
 
@@ -54,13 +55,24 @@ const VehiclesScreen: React.FC = () => {
 
   // Synchroniser avec le contexte quand il change
   useEffect(() => {
-    if (searchDates.checkIn !== undefined && searchDates.checkIn !== startDate) {
+    // Ne synchroniser que si les dates sont explicitement définies (non vides)
+    if (searchDates.checkIn !== undefined && searchDates.checkIn !== '' && searchDates.checkIn !== startDate) {
       setStartDate(searchDates.checkIn);
+    } else if (searchDates.checkIn === undefined || searchDates.checkIn === '') {
+      // Si la date n'est pas définie dans le contexte, la réinitialiser
+      if (startDate !== '') {
+        setStartDate('');
+      }
     }
-    if (searchDates.checkOut !== undefined && searchDates.checkOut !== endDate) {
+    if (searchDates.checkOut !== undefined && searchDates.checkOut !== '' && searchDates.checkOut !== endDate) {
       setEndDate(searchDates.checkOut);
+    } else if (searchDates.checkOut === undefined || searchDates.checkOut === '') {
+      // Si la date n'est pas définie dans le contexte, la réinitialiser
+      if (endDate !== '') {
+        setEndDate('');
+      }
     }
-  }, [searchDates.checkIn, searchDates.checkOut]);
+  }, [searchDates.checkIn, searchDates.checkOut, startDate, endDate]);
 
   useEffect(() => {
     const searchFilters: VehicleFilters = {
@@ -158,12 +170,12 @@ const VehiclesScreen: React.FC = () => {
   };
 
   const getTransmissionLabel = (transmission: string | null) => {
-    if (!transmission) return null;
+    if (!transmission) return '';
     return transmission === 'automatic' ? 'Auto' : 'Manuel';
   };
 
   const getFuelLabel = (fuel: string | null) => {
-    if (!fuel) return null;
+    if (!fuel) return '';
     const labels: Record<string, string> = {
       essence: 'Essence',
       diesel: 'Diesel',
@@ -229,11 +241,11 @@ const VehiclesScreen: React.FC = () => {
             style={styles.backButton}
             onPress={() => safeGoBack(navigation, 'Home')}
           >
-            <Ionicons name="arrow-back" size={24} color="#333" />
+            <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <View style={styles.headerTitleRow}>
-              <Ionicons name="car-outline" size={20} color="#333" />
+              <Ionicons name="car-outline" size={20} color="#fff" />
               <Text style={styles.topHeaderTitle}>Location de véhicules</Text>
             </View>
           </View>
@@ -249,6 +261,19 @@ const VehiclesScreen: React.FC = () => {
             <Text style={styles.heroSubtitle}>
               SUV, berlines, motos et plus encore. Paiement en espèces uniquement.
             </Text>
+            <TouchableOpacity
+              style={styles.heroAddVehicleBtn}
+              onPress={() => {
+                if (user) {
+                  navigation.navigate('AddVehicle' as never);
+                } else {
+                  navigation.navigate('Auth' as never, { redirect: '/add-vehicle' } as never);
+                }
+              }}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.heroAddVehicleBtnText}>Proposer mon véhicule</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Barre de recherche intégrée */}
@@ -317,7 +342,7 @@ const VehiclesScreen: React.FC = () => {
           <View style={styles.listHeader}>
             {/* Section contenu */}
             <View style={styles.contentSection}>
-              {/* En-tête avec titre et bouton */}
+              {/* En-tête avec titre */}
               <View style={styles.contentHeader}>
                 <View style={styles.contentHeaderLeft}>
                   <Text style={styles.contentTitle}>Véhicules disponibles</Text>
@@ -325,19 +350,6 @@ const VehiclesScreen: React.FC = () => {
                     Trouvez le véhicule qui correspond à vos besoins
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.addVehicleBtn}
-                  onPress={() => {
-                    if (user) {
-                      navigation.navigate('AddVehicle' as never);
-                    } else {
-                      navigation.navigate('Auth' as never, { redirect: '/add-vehicle' } as never);
-                    }
-                  }}
-                >
-                  <Ionicons name="add" size={20} color="#fff" />
-                  <Text style={styles.addVehicleBtnText}>Proposer mon véhicule</Text>
-                </TouchableOpacity>
               </View>
 
               {/* Filtres actifs */}
@@ -435,7 +447,9 @@ const VehiclesScreen: React.FC = () => {
                             ? `${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
                             : filters.startDate
                             ? `À partir du ${new Date(filters.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
-                            : `Jusqu'au ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`}
+                            : filters.endDate
+                            ? `Jusqu'au ${new Date(filters.endDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
+                            : ''}
                         </Text>
                         <TouchableOpacity
                           onPress={() => {
@@ -611,9 +625,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
   },
   headerContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1e293b', // slate-900 - même couleur que heroSection
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#334155',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -626,7 +640,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: '#1e293b',
   },
   backButton: {
     padding: 8,
@@ -645,7 +659,7 @@ const styles = StyleSheet.create({
   topHeaderTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#fff',
   },
   headerPlaceholder: {
     width: 40,
@@ -656,15 +670,15 @@ const styles = StyleSheet.create({
   },
   heroSection: {
     backgroundColor: '#1e293b', // slate-900
-    paddingTop: 20,
-    paddingBottom: 80,
+    paddingTop: 16,
+    paddingBottom: 40,
     paddingHorizontal: 20,
     position: 'relative',
     overflow: 'hidden',
   },
   heroContent: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   heroBadge: {
     flexDirection: 'row',
@@ -692,6 +706,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
+  },
+  heroAddVehicleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: VEHICLE_COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  heroAddVehicleBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   searchBarContainer: {
     marginTop: 24,

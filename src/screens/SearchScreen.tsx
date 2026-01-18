@@ -50,24 +50,34 @@ const SearchScreen: React.FC = () => {
   const sortedProperties = usePropertySorting(properties, sortBy);
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   
-  // États pour les dates et voyageurs (initialiser depuis le context)
-  const [checkIn, setCheckIn] = useState<string>(searchDates.checkIn);
-  const [checkOut, setCheckOut] = useState<string>(searchDates.checkOut);
+  // États pour les dates et voyageurs (initialiser depuis le context, mais seulement si définis)
+  const [checkIn, setCheckIn] = useState<string>(searchDates.checkIn || '');
+  const [checkOut, setCheckOut] = useState<string>(searchDates.checkOut || '');
   const [adults, setAdults] = useState(searchDates.adults || 1);
   const [children, setChildren] = useState(searchDates.children || 0);
   const [babies, setBabies] = useState(searchDates.babies || 0);
 
   // Synchroniser avec le context quand il change
   useEffect(() => {
-    // Toujours synchroniser avec le context, même si les valeurs sont vides
-    // Cela garantit que les dates sauvegardées sont toujours affichées
-    if (searchDates.checkIn !== undefined && searchDates.checkIn !== checkIn) {
+    // Synchroniser seulement si les dates sont définies dans le contexte
+    // Ne pas afficher de dates par défaut si elles ne sont pas explicitement définies
+    if (searchDates.checkIn !== undefined && searchDates.checkIn !== '' && searchDates.checkIn !== checkIn) {
       console.log('📅 SearchScreen - Synchronisation checkIn depuis context:', searchDates.checkIn);
       setCheckIn(searchDates.checkIn);
+    } else if (searchDates.checkIn === undefined || searchDates.checkIn === '') {
+      // Si la date n'est pas définie dans le contexte, la réinitialiser
+      if (checkIn !== '') {
+        setCheckIn('');
+      }
     }
-    if (searchDates.checkOut !== undefined && searchDates.checkOut !== checkOut) {
+    if (searchDates.checkOut !== undefined && searchDates.checkOut !== '' && searchDates.checkOut !== checkOut) {
       console.log('📅 SearchScreen - Synchronisation checkOut depuis context:', searchDates.checkOut);
       setCheckOut(searchDates.checkOut);
+    } else if (searchDates.checkOut === undefined || searchDates.checkOut === '') {
+      // Si la date n'est pas définie dans le contexte, la réinitialiser
+      if (checkOut !== '') {
+        setCheckOut('');
+      }
     }
     if (searchDates.adults !== undefined && searchDates.adults !== adults) {
       console.log('📅 SearchScreen - Synchronisation adults depuis context:', searchDates.adults);

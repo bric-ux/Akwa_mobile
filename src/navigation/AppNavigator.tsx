@@ -783,7 +783,7 @@ const AppNavigator = () => {
               component={VehicleDetailsScreen}
               options={{ 
                 title: 'Détails du véhicule',
-                headerShown: true 
+                headerShown: false 
               }}
             />
             <Stack.Screen 

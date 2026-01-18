@@ -29,27 +29,62 @@ export const SearchDatesProvider: React.FC<{ children: ReactNode }> = ({ childre
       console.log('📅 SearchDatesContext - Données brutes récupérées:', saved);
       if (saved) {
         const parsed = JSON.parse(saved);
-        setDatesState(parsed);
-        console.log('✅ SearchDatesContext - Dates chargées depuis AsyncStorage:', parsed);
+        // Vérifier que les dates chargées sont valides et non vides
+        const hasValidDates = (parsed.checkIn && parsed.checkIn.trim() !== '') || 
+                              (parsed.checkOut && parsed.checkOut.trim() !== '');
+        if (hasValidDates) {
+          setDatesState(parsed);
+          console.log('✅ SearchDatesContext - Dates chargées depuis AsyncStorage:', parsed);
+        } else {
+          // Si les dates sont vides, les supprimer
+          await AsyncStorage.removeItem(SEARCH_DATES_KEY);
+          setDatesState({});
+          console.log('⚠️ SearchDatesContext - Dates vides trouvées, suppression de AsyncStorage');
+        }
       } else {
         console.log('⚠️ SearchDatesContext - Aucune date trouvée dans AsyncStorage');
+        setDatesState({});
       }
     } catch (error) {
       console.error('❌ Erreur chargement dates:', error);
+      setDatesState({});
     }
   }, []);
 
   const setDates = useCallback(async (newDates: SearchDates) => {
     try {
       console.log('📅 SearchDatesContext - setDates appelé avec:', newDates);
-      setDatesState(newDates);
-      const jsonString = JSON.stringify(newDates);
-      await AsyncStorage.setItem(SEARCH_DATES_KEY, jsonString);
-      console.log('✅ SearchDatesContext - Dates sauvegardées dans AsyncStorage:', newDates);
       
-      // Vérifier que c'est bien sauvegardé
-      const verify = await AsyncStorage.getItem(SEARCH_DATES_KEY);
-      console.log('✅ SearchDatesContext - Vérification sauvegarde:', verify);
+      // Filtrer les dates vides avant de sauvegarder
+      const filteredDates: SearchDates = {};
+      if (newDates.checkIn && newDates.checkIn.trim() !== '') {
+        filteredDates.checkIn = newDates.checkIn;
+      }
+      if (newDates.checkOut && newDates.checkOut.trim() !== '') {
+        filteredDates.checkOut = newDates.checkOut;
+      }
+      if (newDates.adults !== undefined) {
+        filteredDates.adults = newDates.adults;
+      }
+      if (newDates.children !== undefined) {
+        filteredDates.children = newDates.children;
+      }
+      if (newDates.babies !== undefined) {
+        filteredDates.babies = newDates.babies;
+      }
+      
+      setDatesState(filteredDates);
+      
+      // Ne sauvegarder que si au moins une date est définie
+      if (filteredDates.checkIn || filteredDates.checkOut) {
+        const jsonString = JSON.stringify(filteredDates);
+        await AsyncStorage.setItem(SEARCH_DATES_KEY, jsonString);
+        console.log('✅ SearchDatesContext - Dates sauvegardées dans AsyncStorage:', filteredDates);
+      } else {
+        // Si aucune date n'est définie, supprimer de AsyncStorage
+        await AsyncStorage.removeItem(SEARCH_DATES_KEY);
+        console.log('📅 SearchDatesContext - Dates vides, suppression de AsyncStorage');
+      }
     } catch (error) {
       console.error('❌ Erreur sauvegarde dates:', error);
     }

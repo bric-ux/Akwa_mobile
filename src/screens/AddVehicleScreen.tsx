@@ -23,6 +23,7 @@ import { VehicleType, TransmissionType, FuelType } from '../types';
 import CitySearchInputModal from '../components/CitySearchInputModal';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
   { value: 'car', label: 'Voiture' },
@@ -98,6 +99,9 @@ const AddVehicleScreen: React.FC = () => {
     ownerFullName: '',
     ownerEmail: '',
     ownerPhone: '',
+    has_insurance: false,
+    insurance_expiration_date: null as Date | null,
+    insurance_details: '',
   });
 
   const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
@@ -107,6 +111,7 @@ const AddVehicleScreen: React.FC = () => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedImageForCategory, setSelectedImageForCategory] = useState<number | null>(null);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [showInsuranceDatePicker, setShowInsuranceDatePicker] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -383,6 +388,22 @@ const AddVehicleScreen: React.FC = () => {
       Alert.alert('Erreur', 'Veuillez ajouter au moins une photo');
       return;
     }
+    if (!formData.has_insurance) {
+      Alert.alert(
+        'Assurance requise',
+        'Nous acceptons uniquement les véhicules possédant une assurance valide. Veuillez cocher la case "Véhicule assuré" et renseigner les informations d\'assurance.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    if (formData.has_insurance && !formData.insurance_expiration_date) {
+      Alert.alert('Erreur', 'Veuillez renseigner la date d\'expiration de l\'assurance');
+      return;
+    }
+    if (formData.has_insurance && formData.insurance_expiration_date && formData.insurance_expiration_date < new Date()) {
+      Alert.alert('Erreur', 'La date d\'expiration de l\'assurance ne peut pas être dans le passé');
+      return;
+    }
 
     // Ensure all selected images have been uploaded and have public URLs
     const imagesToUpload = selectedImages.filter(img => !img.uri.startsWith('http'));
@@ -429,6 +450,9 @@ const AddVehicleScreen: React.FC = () => {
       fullName: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : formData.ownerFullName || '',
       email: profile?.email || formData.ownerEmail || '',
       phone: profile?.phone || formData.ownerPhone || '',
+      has_insurance: formData.has_insurance,
+      insurance_expiration_date: formData.insurance_expiration_date ? formData.insurance_expiration_date.toISOString().split('T')[0] : null,
+      insurance_details: formData.insurance_details || '',
     };
 
     const result = await submitApplication(applicationPayload);
@@ -689,6 +713,95 @@ const AddVehicleScreen: React.FC = () => {
               onChangeText={(value) => handleInputChange('minimum_rental_days', value)}
               keyboardType="numeric"
             />
+          </View>
+
+          {/* Assurance */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Assurance *</Text>
+            
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => {
+                const newValue = !formData.has_insurance;
+                setFormData(prev => ({
+                  ...prev,
+                  has_insurance: newValue,
+                  insurance_expiration_date: newValue ? prev.insurance_expiration_date : null,
+                  insurance_details: newValue ? prev.insurance_details : '',
+                }));
+              }}
+            >
+              <View style={[styles.checkbox, formData.has_insurance && styles.checkboxChecked]}>
+                {formData.has_insurance && (
+                  <Ionicons name="checkmark" size={20} color="#fff" />
+                )}
+              </View>
+              <View style={styles.checkboxLabelContainer}>
+                <Text style={styles.checkboxLabel}>Véhicule assuré</Text>
+                <Text style={styles.checkboxDescription}>
+                  Ce véhicule dispose d'une assurance valide
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {!formData.has_insurance && (
+              <View style={styles.warningContainer}>
+                <Ionicons name="warning-outline" size={20} color="#ef4444" />
+                <Text style={styles.warningText}>
+                  Nous acceptons uniquement les véhicules possédant une assurance valide.
+                </Text>
+              </View>
+            )}
+
+            {formData.has_insurance && (
+              <View style={styles.insuranceDetailsContainer}>
+                <Text style={styles.label}>Date d'expiration de l'assurance *</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowInsuranceDatePicker(true)}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
+                  <Text style={[styles.dateButtonText, !formData.insurance_expiration_date && styles.dateButtonTextPlaceholder]}>
+                    {formData.insurance_expiration_date
+                      ? formData.insurance_expiration_date.toLocaleDateString('fr-FR', {
+                          day: '2-digit',
+                          month: 'long',
+                          year: 'numeric',
+                        })
+                      : 'Sélectionner la date d\'expiration'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={20} color="#666" />
+                </TouchableOpacity>
+
+                {showInsuranceDatePicker && (
+                  <DateTimePicker
+                    value={formData.insurance_expiration_date || new Date()}
+                    mode="date"
+                    display="default"
+                    minimumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowInsuranceDatePicker(Platform.OS === 'ios');
+                      if (selectedDate) {
+                        setFormData(prev => ({
+                          ...prev,
+                          insurance_expiration_date: selectedDate,
+                        }));
+                      }
+                    }}
+                  />
+                )}
+
+                <Text style={styles.label}>Détails de l'assurance (optionnel)</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Ex: Assurance tous risques NSIA, valide jusqu'au..."
+                  value={formData.insurance_details}
+                  onChangeText={(value) => handleInputChange('insurance_details', value)}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            )}
           </View>
 
           {/* Photos */}
@@ -1161,6 +1274,82 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 16,
     color: '#666',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#2E7D32',
+    borderRadius: 4,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#2E7D32',
+  },
+  checkboxLabelContainer: {
+    flex: 1,
+  },
+  checkboxLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  checkboxDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    marginTop: 8,
+  },
+  warningText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#dc2626',
+  },
+  insuranceDetailsContainer: {
+    marginTop: 16,
+    paddingLeft: 16,
+    borderLeftWidth: 2,
+    borderLeftColor: '#2E7D32',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 16,
+  },
+  dateButtonText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  dateButtonTextPlaceholder: {
+    color: '#999',
   },
 });
 
