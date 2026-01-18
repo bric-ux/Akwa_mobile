@@ -26,7 +26,8 @@ const HostProfileScreen: React.FC = () => {
       getHostProfile(hostId);
       getHostReviews(hostId);
     }
-  }, [hostId, getHostProfile, getHostReviews]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostId]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -103,20 +104,20 @@ const HostProfileScreen: React.FC = () => {
           
           <Text style={styles.hostTitle}>Hôte sur AkwaHome</Text>
           
-          {hostProfile.created_at && (
+          {hostProfile.created_at ? (
             <Text style={styles.memberSince}>
               Membre depuis {formatDate(hostProfile.created_at)}
             </Text>
-          )}
+          ) : null}
         </View>
 
         {/* Bio */}
-        {hostProfile.bio && (
+        {hostProfile.bio ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>À propos</Text>
             <Text style={styles.bioText}>{hostProfile.bio}</Text>
           </View>
-        )}
+        ) : null}
 
         {/* Statistiques de l'hôte */}
         <View style={styles.section}>
@@ -140,7 +141,7 @@ const HostProfileScreen: React.FC = () => {
         </View>
 
         {/* Avis reçus */}
-        {reviews.length > 0 && (
+        {reviews.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Avis reçus ({reviews.length})</Text>
             {reviewsLoading ? (
@@ -157,7 +158,7 @@ const HostProfileScreen: React.FC = () => {
                           </Text>
                         </View>
                         <View>
-                          <Text style={styles.reviewerName}>{review.reviewer_name}</Text>
+                          <Text style={styles.reviewerName}>{review.reviewer_name || 'Anonyme'}</Text>
                           <Text style={styles.reviewDate}>
                             {formatDate(review.created_at)}
                           </Text>
@@ -174,21 +175,21 @@ const HostProfileScreen: React.FC = () => {
                         ))}
                       </View>
                     </View>
-                    {review.comment && (
+                    {review.comment ? (
                       <Text style={styles.reviewComment}>{review.comment}</Text>
-                    )}
-                    <Text style={styles.propertyTitle}>Propriété: {review.property_title}</Text>
+                    ) : null}
+                    <Text style={styles.propertyTitle}>Propriété: {review.property_title || 'Propriété'}</Text>
                   </View>
                 ))}
-                {reviews.length > 3 && (
+                {reviews.length > 3 ? (
                   <Text style={styles.moreReviews}>
                     +{reviews.length - 3} autres avis...
                   </Text>
-                )}
+                ) : null}
               </View>
             )}
           </View>
-        )}
+        ) : null}
 
         {/* Informations de contact */}
         <View style={styles.section}>
@@ -198,12 +199,12 @@ const HostProfileScreen: React.FC = () => {
               <Ionicons name="mail-outline" size={20} color="#2E7D32" />
               <Text style={styles.contactText}>{hostProfile.email}</Text>
             </View>
-            {hostProfile.phone && (
+            {hostProfile.phone ? (
               <View style={styles.contactItem}>
                 <Ionicons name="call-outline" size={20} color="#2E7D32" />
                 <Text style={styles.contactText}>{hostProfile.phone}</Text>
               </View>
-            )}
+            ) : null}
           </View>
         </View>
 

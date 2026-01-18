@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 
@@ -34,9 +34,93 @@ export interface HostPropertyReview {
   is_deadline_passed?: boolean;
 }
 
+export interface HostReview {
+  id: string;
+  property_id: string;
+  reviewer_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  reviewer_name?: string;
+  property_title?: string;
+}
+
 export const useHostReviews = () => {
   const [loading, setLoading] = useState(false);
+  const [reviews, setReviews] = useState<HostReview[]>([]);
   const { user } = useAuth();
+
+  // Get reviews for a specific host by hostId (for public profile view)
+  const getHostReviews = useCallback(async (hostId: string): Promise<void> => {
+    setLoading(true);
+    try {
+      // First get host's properties
+      const { data: properties, error: propError } = await supabase
+        .from('properties')
+        .select('id')
+        .eq('host_id', hostId);
+
+      if (propError || !properties?.length) {
+        setReviews([]);
+        return;
+      }
+
+      const propertyIds = properties.map(p => p.id);
+
+      // Get reviews for these properties
+      const { data: reviewsData, error: reviewsError } = await supabase
+        .from('reviews')
+        .select(`
+          id,
+          property_id,
+          reviewer_id,
+          rating,
+          comment,
+          created_at,
+          profiles!reviewer_id(first_name, last_name),
+          properties!property_id(title)
+        `)
+        .in('property_id', propertyIds)
+        .eq('approved', true)
+        .order('created_at', { ascending: false });
+
+      if (reviewsError) {
+        console.error('Error fetching reviews:', reviewsError);
+        setReviews([]);
+        return;
+      }
+
+      const formattedReviews: HostReview[] = (reviewsData || []).map((review: any) => {
+        // Gérer différents formats de données de Supabase
+        const reviewer = review.profiles || review.profiles_reviewer_id || null;
+        const property = review.properties || review.properties_property_id || null;
+        
+        const reviewerName = reviewer 
+          ? `${reviewer.first_name || ''} ${reviewer.last_name || ''}`.trim() || 'Anonyme'
+          : 'Anonyme';
+        
+        const propertyTitle = property?.title || 'Propriété';
+        
+        return {
+          id: review.id,
+          property_id: review.property_id,
+          reviewer_id: review.reviewer_id,
+          rating: review.rating || 0,
+          comment: review.comment || null,
+          created_at: review.created_at,
+          reviewer_name: reviewerName,
+          property_title: propertyTitle,
+        };
+      });
+
+      setReviews(formattedReviews);
+    } catch (error) {
+      console.error('Error in getHostReviews:', error);
+      setReviews([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Get all reviews for properties owned by the host
   const getReviewsForHostProperties = async (): Promise<HostPropertyReview[]> => {
@@ -104,7 +188,9 @@ export const useHostReviews = () => {
   };
 
   return {
+    reviews,
     loading,
+    getHostReviews,
     getReviewsForHostProperties,
   };
 };
