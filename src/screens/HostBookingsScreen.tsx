@@ -20,9 +20,11 @@ import { useMyProperties } from '../hooks/useMyProperties';
 import { supabase } from '../services/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import CancellationDialog from '../components/CancellationDialog';
+import HostCancellationDialog from '../components/HostCancellationDialog';
 import BookingContactButton from '../components/BookingContactButton';
 import GuestReviewModal from '../components/GuestReviewModal';
 import GuestProfileModal from '../components/GuestProfileModal';
+import HostBookingDetailsModal from '../components/HostBookingDetailsModal';
 import { useGuestReviews } from '../hooks/useGuestReviews';
 
 const HostBookingsScreen: React.FC = () => {
@@ -39,11 +41,15 @@ const HostBookingsScreen: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
   const [cancellationDialogVisible, setCancellationDialogVisible] = useState(false);
   const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<HostBooking | null>(null);
+  const [hostCancellationDialogVisible, setHostCancellationDialogVisible] = useState(false);
+  const [selectedBookingForHostCancellation, setSelectedBookingForHostCancellation] = useState<HostBooking | null>(null);
   const [guestReviewModalVisible, setGuestReviewModalVisible] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<HostBooking | null>(null);
   const [canReview, setCanReview] = useState<Record<string, boolean>>({});
   const [guestProfileModalVisible, setGuestProfileModalVisible] = useState(false);
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
+  const [bookingDetailsModalVisible, setBookingDetailsModalVisible] = useState(false);
+  const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<HostBooking | null>(null);
 
   const loadData = async () => {
     try {
@@ -100,10 +106,10 @@ const HostBookingsScreen: React.FC = () => {
   };
 
   const handleStatusUpdate = async (booking: HostBooking, status: 'confirmed' | 'cancelled') => {
-    if (status === 'cancelled' && booking.status === 'confirmed') {
-      // Pour les réservations confirmées, utiliser le dialogue d'annulation avec pénalité
-      setSelectedBookingForCancellation(booking);
-      setCancellationDialogVisible(true);
+    if (status === 'cancelled' && (booking.status === 'confirmed' || booking.status === 'in_progress')) {
+      // Pour les réservations confirmées ou en cours, utiliser le dialogue d'annulation avec pénalité pour hôte
+      setSelectedBookingForHostCancellation(booking);
+      setHostCancellationDialogVisible(true);
       return;
     }
     
@@ -400,30 +406,45 @@ const HostBookingsScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Bouton Contacter le voyageur - disponible pour toutes les réservations sauf annulées */}
-      {item.status !== 'cancelled' && item.guest_id && item.properties?.id && (
-        <View style={styles.contactButtonContainer}>
-          <BookingContactButton
-            bookingId={item.id}
-            propertyId={item.properties.id}
-            otherParticipantId={item.guest_id}
-            otherParticipantName={item.guest_profile ? `${item.guest_profile.first_name} ${item.guest_profile.last_name}` : undefined}
-            isHost={false}
-            variant="outline"
-            size="small"
-          />
-          <TouchableOpacity
-            style={styles.viewProfileButton}
-            onPress={() => {
-              setSelectedGuestId(item.guest_id);
-              setGuestProfileModalVisible(true);
-            }}
-          >
-            <Ionicons name="person-outline" size={16} color="#2563eb" />
-            <Text style={styles.viewProfileButtonText}>Voir profil</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Boutons d'action */}
+      <View style={styles.actionButtonsContainer}>
+        {/* Bouton Détails */}
+        <TouchableOpacity
+          style={styles.detailsButton}
+          onPress={() => {
+            setSelectedBookingForDetails(item);
+            setBookingDetailsModalVisible(true);
+          }}
+        >
+          <Ionicons name="document-text-outline" size={16} color="#e67e22" />
+          <Text style={styles.detailsButtonText}>Détails</Text>
+        </TouchableOpacity>
+
+        {/* Bouton Contacter le voyageur - disponible pour toutes les réservations sauf annulées */}
+        {item.status !== 'cancelled' && item.guest_id && item.properties?.id && (
+          <>
+            <BookingContactButton
+              bookingId={item.id}
+              propertyId={item.properties.id}
+              otherParticipantId={item.guest_id}
+              otherParticipantName={item.guest_profile ? `${item.guest_profile.first_name} ${item.guest_profile.last_name}` : undefined}
+              isHost={false}
+              variant="outline"
+              size="small"
+            />
+            <TouchableOpacity
+              style={styles.viewProfileButton}
+              onPress={() => {
+                setSelectedGuestId(item.guest_id);
+                setGuestProfileModalVisible(true);
+              }}
+            >
+              <Ionicons name="person-outline" size={16} color="#2563eb" />
+              <Text style={styles.viewProfileButtonText}>Voir profil</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
 
       {(() => {
         // Vérifier si le séjour a déjà commencé
@@ -471,6 +492,22 @@ const HostBookingsScreen: React.FC = () => {
           </View>
         );
       })()}
+
+      {/* Bouton Annuler pour les réservations confirmées ou en cours */}
+      {(item.status === 'confirmed' || item.status === 'in_progress') && (
+        <View style={styles.cancelButtonContainer}>
+          <TouchableOpacity
+            style={styles.cancelBookingButton}
+            onPress={() => {
+              setSelectedBookingForHostCancellation(item);
+              setHostCancellationDialogVisible(true);
+            }}
+          >
+            <Ionicons name="close-circle-outline" size={18} color="#e74c3c" />
+            <Text style={styles.cancelBookingButtonText}>Annuler la réservation</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Bouton Évaluer l'invité (seulement pour les réservations terminées) */}
       {item.status === 'completed' && 
@@ -823,6 +860,29 @@ const HostBookingsScreen: React.FC = () => {
           setSelectedGuestId(null);
         }}
         guestId={selectedGuestId || ''}
+      />
+
+      <HostBookingDetailsModal
+        visible={bookingDetailsModalVisible}
+        onClose={() => {
+          setBookingDetailsModalVisible(false);
+          setSelectedBookingForDetails(null);
+        }}
+        booking={selectedBookingForDetails}
+      />
+
+      <HostCancellationDialog
+        visible={hostCancellationDialogVisible}
+        onClose={() => {
+          setHostCancellationDialogVisible(false);
+          setSelectedBookingForHostCancellation(null);
+        }}
+        booking={selectedBookingForHostCancellation}
+        onCancelled={() => {
+          loadBookings();
+          setHostCancellationDialogVisible(false);
+          setSelectedBookingForHostCancellation(null);
+        }}
       />
     </SafeAreaView>
   );
@@ -1240,6 +1300,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFA500',
+  },
+  cancelButtonContainer: {
+    marginTop: 12,
+  },
+  cancelBookingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e74c3c',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  cancelBookingButtonText: {
+    color: '#e74c3c',
+    fontSize: 14,
+    fontWeight: '600',
   },
   propertyHeader: {
     backgroundColor: '#fff',

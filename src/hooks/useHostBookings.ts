@@ -493,9 +493,144 @@ export const useHostBookings = () => {
     }
   }, [user, sendBookingResponse, sendBookingConfirmedHost, sendBookingCancelledHost]);
 
+  const cancelBooking = useCallback(async (
+    bookingId: string,
+    cancellationReason?: string,
+    penaltyPaymentMethod?: 'deduct_from_next_booking' | 'pay_directly'
+  ) => {
+    if (!user) {
+      setError('Vous devez être connecté');
+      return { success: false };
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Récupérer les détails de la réservation
+      const { data: booking, error: fetchError } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          properties!inner(
+            price_per_night,
+            host_id,
+            title
+          )
+        `)
+        .eq('id', bookingId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      
+      if (booking.properties.host_id !== user.id) {
+        setError('Vous n\'êtes pas autorisé à annuler cette réservation');
+        return { success: false };
+      }
+
+      // Calculer la pénalité basée sur le délai d'annulation
+      const checkInDate = new Date(booking.check_in_date);
+      const checkOutDate = booking.check_out_date ? new Date(booking.check_out_date) : null;
+      const now = new Date();
+      const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+      
+      const totalNights = checkOutDate 
+        ? Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
+        : 1;
+      
+      const baseReservationAmount = booking.properties.price_per_night * totalNights;
+      
+      let penalty = 0;
+      
+      if (hoursUntilCheckIn <= 48) {
+        penalty = Math.round(baseReservationAmount * 0.40);
+      } else if (daysUntilCheckIn > 2 && daysUntilCheckIn <= 28) {
+        penalty = Math.round(baseReservationAmount * 0.20);
+      } else if (daysUntilCheckIn > 28 && totalNights > 30) {
+        penalty = 0;
+      } else if (daysUntilCheckIn > 28) {
+        penalty = 0;
+      }
+
+      const updateData: any = {
+        status: 'cancelled',
+        cancellation_penalty: penalty,
+        cancelled_by: user.id,
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: cancellationReason || 'Annulation par l\'hôte'
+      };
+      
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update(updateData)
+        .eq('id', bookingId);
+
+      if (updateError) throw updateError;
+
+      // Si une pénalité existe, créer une entrée dans penalty_tracking
+      if (penalty > 0) {
+        try {
+          await supabase
+            .from('penalty_tracking')
+            .insert({
+              booking_id: bookingId,
+              user_id: user.id,
+              penalty_amount: penalty,
+              penalty_type: 'host_cancellation',
+              payment_method: penaltyPaymentMethod || null,
+              status: 'pending',
+            });
+        } catch (penaltyError) {
+          console.error('Erreur lors de la création de la pénalité:', penaltyError);
+          // Ne pas faire échouer l'annulation si la pénalité ne peut pas être créée
+        }
+      }
+
+      // Envoyer les emails de notification
+      try {
+        const { data: guestProfile } = await supabase
+          .from('profiles')
+          .select('email, first_name, last_name')
+          .eq('user_id', booking.guest_id)
+          .single();
+
+        if (guestProfile?.email) {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'booking_cancelled_by_host',
+              to: guestProfile.email,
+              data: {
+                guestName: `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim(),
+                propertyTitle: booking.properties.title,
+                checkIn: booking.check_in_date,
+                checkOut: booking.check_out_date,
+                refundAmount: booking.total_price,
+                penaltyAmount: penalty,
+                reason: cancellationReason,
+              }
+            }
+          });
+        }
+      } catch (emailError) {
+        console.error('Erreur lors de l\'envoi de l\'email:', emailError);
+        // Ne pas faire échouer l'annulation si l'email échoue
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Erreur lors de l\'annulation:', error);
+      setError(error?.message || 'Impossible d\'annuler la réservation');
+      return { success: false, error: error?.message || 'Impossible d\'annuler la réservation' };
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
   return {
     getHostBookings,
     updateBookingStatus,
+    cancelBooking,
     loading,
     error,
   };

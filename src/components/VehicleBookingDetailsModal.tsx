@@ -16,6 +16,8 @@ import { VehicleBooking } from '../types';
 import { getCommissionRates } from '../lib/commissions';
 import { supabase } from '../services/supabase';
 import { VEHICLE_COLORS } from '../constants/colors';
+import InvoiceDisplay from './InvoiceDisplay';
+import VehicleCancellationModal from './VehicleCancellationModal';
 
 interface VehicleBookingDetailsModalProps {
   visible: boolean;
@@ -31,6 +33,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   isOwner = true,
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [cancellationModalVisible, setCancellationModalVisible] = useState(false);
 
   if (!booking) return null;
 
@@ -333,65 +336,35 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               </View>
             )}
 
-            {/* Récapitulatif financier */}
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Ionicons name="cash-outline" size={20} color="#1e293b" />
-                <Text style={styles.cardTitle}>Récapitulatif financier</Text>
+            {/* Facture */}
+            {(booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'in_progress') && (
+              <View style={styles.card}>
+                <InvoiceDisplay
+                  type={isOwner ? 'host' : 'traveler'}
+                  serviceType="vehicle"
+                  booking={{
+                    id: booking.id,
+                    start_date: booking.start_date,
+                    end_date: booking.end_date,
+                    total_price: booking.total_price,
+                    created_at: booking.created_at,
+                    discount_amount: booking.discount_amount,
+                    discount_applied: booking.discount_applied,
+                    payment_method: booking.payment_method,
+                    status: booking.status,
+                  }}
+                  pricePerUnit={booking.daily_rate || 0}
+                  paymentMethod={booking.payment_method}
+                  travelerName={isOwner ? undefined : `${renter?.first_name || ''} ${renter?.last_name || ''}`.trim()}
+                  travelerEmail={isOwner ? undefined : renter?.email}
+                  travelerPhone={isOwner ? undefined : renter?.phone}
+                  hostName={isOwner ? `${owner?.first_name || ''} ${owner?.last_name || ''}`.trim() : undefined}
+                  hostEmail={isOwner ? owner?.email : undefined}
+                  hostPhone={isOwner ? owner?.phone : undefined}
+                  propertyOrVehicleTitle={`${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim()}
+                />
               </View>
-              {isOwner ? (
-                <>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>
-                      {booking.daily_rate?.toLocaleString()} XOF × {booking.rental_days} jours
-                    </Text>
-                    <Text style={styles.priceValue}>{basePrice.toLocaleString()} XOF</Text>
-                  </View>
-                  <View style={styles.separator} />
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>
-                      Commission Akwahome ({commissionRates.hostFeePercent}%)
-                    </Text>
-                    <Text style={[styles.priceValue, styles.commissionText]}>
-                      -{ownerCommission.toLocaleString()} XOF
-                    </Text>
-                  </View>
-                  <View style={styles.separator} />
-                  <View style={styles.netRow}>
-                    <Text style={styles.netLabel}>Votre gain net</Text>
-                    <Text style={styles.netValue}>{ownerNetAmount.toLocaleString()} XOF</Text>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>
-                      {booking.daily_rate?.toLocaleString()} XOF × {booking.rental_days} jours
-                    </Text>
-                    <Text style={styles.priceValue}>{basePrice.toLocaleString()} XOF</Text>
-                  </View>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>Frais de service Akwahome</Text>
-                    <Text style={styles.priceValue}>{renterServiceFee.toLocaleString()} XOF</Text>
-                  </View>
-                  {booking.security_deposit > 0 && (
-                    <View style={styles.priceRow}>
-                      <Text style={styles.priceLabel}>Caution (remboursable)</Text>
-                      <Text style={styles.priceValue}>
-                        {booking.security_deposit?.toLocaleString()} XOF
-                      </Text>
-                    </View>
-                  )}
-                  <View style={styles.separator} />
-                  <View style={styles.netRow}>
-                    <Text style={styles.netLabel}>Total</Text>
-                    <Text style={styles.netValue}>
-                      {(basePrice + renterServiceFee + (booking.security_deposit || 0)).toLocaleString()} XOF
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
+            )}
 
             {/* Bouton télécharger PDF - uniquement pour les réservations confirmées/terminées */}
             {(booking.status === 'confirmed' || booking.status === 'completed') && (
@@ -410,6 +383,17 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                 )}
               </TouchableOpacity>
             )}
+
+            {/* Bouton Annuler pour le propriétaire - réservations confirmées ou en cours */}
+            {isOwner && (booking.status === 'confirmed' || booking.status === 'in_progress') && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setCancellationModalVisible(true)}
+              >
+                <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+                <Text style={styles.cancelButtonText}>Annuler la réservation</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
 
           {/* Footer */}
@@ -420,6 +404,20 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
           </View>
         </View>
       </View>
+
+      {/* Modal d'annulation */}
+      {booking && (
+        <VehicleCancellationModal
+          visible={cancellationModalVisible}
+          onClose={() => setCancellationModalVisible(false)}
+          booking={booking}
+          isOwner={isOwner}
+          onCancelled={() => {
+            setCancellationModalVisible(false);
+            onClose();
+          }}
+        />
+      )}
     </Modal>
   );
 };
@@ -695,6 +693,25 @@ const styles = StyleSheet.create({
   },
   downloadButtonDisabled: {
     opacity: 0.5,
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    gap: 8,
+  },
+  cancelButtonText: {
+    color: '#ef4444',
+    fontSize: 16,
+    fontWeight: '600',
   },
   downloadButtonText: {
     fontSize: 14,
