@@ -451,6 +451,103 @@ export const useProperties = () => {
       
       filteredData = propertiesWithDistance;
 
+      // Filtrer par disponibilité si des dates sont spécifiées
+      if (filters?.checkIn && filters?.checkOut && filteredData.length > 0) {
+        console.log(`📅 Filtrage par disponibilité: ${filters.checkIn} - ${filters.checkOut}`);
+        
+        // Normaliser les dates au format YYYY-MM-DD
+        const normalizeDate = (date: string | Date | null | undefined): string => {
+          if (!date) return '';
+          if (typeof date === 'string') {
+            // Si c'est déjà au format YYYY-MM-DD, le retourner tel quel
+            if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+            // Sinon, essayer de parser
+            return new Date(date).toISOString().split('T')[0];
+          }
+          return new Date(date).toISOString().split('T')[0];
+        };
+        
+        const normalizedCheckIn = normalizeDate(filters.checkIn);
+        const normalizedCheckOut = normalizeDate(filters.checkOut);
+        
+        console.log(`📅 Dates normalisées: ${normalizedCheckIn} - ${normalizedCheckOut}`);
+        
+        const availableProperties = [];
+        
+        for (const property of filteredData) {
+          try {
+            // Récupérer les réservations qui bloquent les dates (pending, confirmed, completed)
+            const { data: bookings, error: bookingsError } = await supabase
+              .from('bookings')
+              .select('check_in_date, check_out_date, status')
+              .eq('property_id', property.id)
+              .in('status', ['pending', 'confirmed', 'completed'])
+              .gte('check_out_date', new Date().toISOString().split('T')[0]);
+            
+            if (bookingsError) {
+              console.error(`❌ Erreur lors de la vérification des réservations pour ${property.id}:`, bookingsError);
+              // En cas d'erreur, inclure la propriété pour ne pas la masquer par erreur
+              availableProperties.push(property);
+              continue;
+            }
+            
+            // Récupérer les dates bloquées manuellement
+            const { data: blockedDates, error: blockedError } = await supabase
+              .from('blocked_dates')
+              .select('start_date, end_date, reason')
+              .eq('property_id', property.id);
+            
+            if (blockedError) {
+              console.error(`❌ Erreur lors de la vérification des dates bloquées pour ${property.id}:`, blockedError);
+            }
+            
+            // Combiner toutes les périodes indisponibles
+            const unavailableDates = [
+              ...(bookings || []).map(booking => ({
+                start_date: booking.check_in_date,
+                end_date: booking.check_out_date,
+                reason: 'Réservé'
+              })),
+              ...(blockedDates || []).map(blocked => ({
+                start_date: blocked.start_date,
+                end_date: blocked.end_date,
+                reason: blocked.reason || 'Bloqué manuellement'
+              }))
+            ];
+            
+            // Vérifier si les dates demandées chevauchent une période indisponible
+            // Formule standard de chevauchement: checkIn < end_date ET checkOut > start_date
+            const hasConflict = unavailableDates.some(({ start_date, end_date }) => {
+              const normalizedStart = normalizeDate(start_date);
+              const normalizedEnd = normalizeDate(end_date);
+              
+              // Deux plages se chevauchent si: checkIn < end_date ET checkOut > start_date
+              const hasOverlap = normalizedCheckIn < normalizedEnd && normalizedCheckOut > normalizedStart;
+              
+              if (hasOverlap) {
+                console.log(`🚫 Propriété ${property.id} (${property.title}) indisponible:`, {
+                  requested: { checkIn: normalizedCheckIn, checkOut: normalizedCheckOut },
+                  blocked: { start_date: normalizedStart, end_date: normalizedEnd }
+                });
+              }
+              
+              return hasOverlap;
+            });
+            
+            if (!hasConflict) {
+              availableProperties.push(property);
+            }
+          } catch (error) {
+            console.error(`❌ Erreur lors de la vérification de disponibilité pour ${property.id}:`, error);
+            // En cas d'erreur, inclure la propriété pour ne pas la masquer par erreur
+            availableProperties.push(property);
+          }
+        }
+        
+        console.log(`📅 Filtrage par disponibilité: ${filteredData.length} → ${availableProperties.length} propriétés disponibles`);
+        filteredData = availableProperties;
+      }
+
       // Transformer les données avec les équipements
       const transformedProperties = await Promise.all(
         (filteredData || []).map(async (property) => {
