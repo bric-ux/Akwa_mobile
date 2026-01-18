@@ -1,67 +1,139 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { supabase } from '../services/supabase';
+import { useAuth } from '../services/AuthContext';
+import { Alert } from 'react-native';
 
 export interface VehicleReview {
   id: string;
   vehicle_id: string;
   booking_id: string;
-  renter_id: string;
+  reviewer_id: string;
   rating: number;
   comment: string | null;
-  condition_rating: number | null;
   cleanliness_rating: number | null;
-  value_rating: number | null;
   communication_rating: number | null;
-  approved: boolean;
+  condition_rating: number | null;
+  value_rating: number | null;
+  approved: boolean | null;
   created_at: string;
-  reviewer_name?: string;
-  reviewer_avatar?: string;
 }
 
 export const useVehicleReviews = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  const getVehicleReviews = useCallback(async (vehicleId: string): Promise<VehicleReview[]> => {
+  // Get reviews for a vehicle
+  const getVehicleReviews = async (vehicleId: string): Promise<VehicleReview[]> => {
     try {
-      setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('vehicle_reviews')
-        .select(`
-          *,
-          renter:profiles!vehicle_reviews_renter_id_fkey(
-            first_name,
-            last_name,
-            avatar_url
-          )
-        `)
+        .select('*')
         .eq('vehicle_id', vehicleId)
         .eq('approved', true)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching vehicle reviews:', error);
+        return [];
+      }
 
-      return (data || []).map((review: any) => ({
-        ...review,
-        reviewer_name: review.renter
-          ? `${review.renter.first_name || ''} ${review.renter.last_name || ''}`.trim() || 'Anonyme'
-          : 'Anonyme',
-        reviewer_avatar: review.renter?.avatar_url,
-      }));
-    } catch (error: any) {
-      console.error('Erreur lors du chargement des avis:', error);
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching vehicle reviews:', error);
       return [];
+    }
+  };
+
+  // Check if user can review a vehicle booking
+  const canReviewVehicle = async (bookingId: string): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      // Check if booking is completed
+      const { data: booking } = await supabase
+        .from('vehicle_bookings')
+        .select('status, renter_id, end_date')
+        .eq('id', bookingId)
+        .single();
+
+      if (!booking) return false;
+      if (booking.renter_id !== user.id) return false;
+      
+      // Check if booking is completed or end_date has passed
+      if (booking.status !== 'completed') {
+        const endDate = new Date(booking.end_date);
+        const today = new Date();
+        if (endDate > today) return false;
+      }
+
+      // Check if already reviewed
+      const { data: existingReview } = await (supabase as any)
+        .from('vehicle_reviews')
+        .select('id')
+        .eq('booking_id', bookingId)
+        .maybeSingle();
+
+      return !existingReview;
+    } catch (error) {
+      console.error('Error checking if can review vehicle:', error);
+      return false;
+    }
+  };
+
+  // Create review
+  const createReview = async (reviewData: {
+    vehicle_id: string;
+    booking_id: string;
+    rating: number;
+    comment?: string;
+    condition_rating?: number;
+    cleanliness_rating?: number;
+    communication_rating?: number;
+    value_rating?: number;
+  }): Promise<{ success: boolean; error?: string }> => {
+    if (!user) {
+      Alert.alert('Erreur', 'Vous devez être connecté');
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('vehicle_reviews')
+        .insert({
+          vehicle_id: reviewData.vehicle_id,
+          booking_id: reviewData.booking_id,
+          reviewer_id: user.id,
+          rating: reviewData.rating,
+          condition_rating: reviewData.condition_rating || null,
+          cleanliness_rating: reviewData.cleanliness_rating || null,
+          communication_rating: reviewData.communication_rating || null,
+          value_rating: reviewData.value_rating || null,
+          comment: reviewData.comment?.trim() || null,
+          approved: false, // Needs admin approval
+        });
+
+      if (error) {
+        console.error('Error creating vehicle review:', error);
+        Alert.alert('Erreur', error.message || "Impossible de soumettre l'avis");
+        return { success: false, error: error.message };
+      }
+
+      Alert.alert('Avis envoyé', 'Votre avis sera publié après validation par notre équipe');
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error creating vehicle review:', error);
+      Alert.alert('Erreur', error.message || "Impossible de soumettre l'avis");
+      return { success: false, error: error.message };
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   return {
-    getVehicleReviews,
     loading,
+    getVehicleReviews,
+    canReviewVehicle,
+    createReview,
   };
 };
-
-
-
-
-

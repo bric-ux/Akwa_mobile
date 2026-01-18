@@ -31,6 +31,7 @@ import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { useAuth } from '../services/AuthContext';
+import { safeGoBack } from '../utils/navigation';
 
 const { width } = Dimensions.get('window');
 
@@ -65,9 +66,12 @@ const VehiclesScreen: React.FC = () => {
     const searchFilters: VehicleFilters = {
       ...filters,
       search: searchQuery.trim() || undefined,
+      // Inclure les dates si sélectionnées
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
     };
     fetchVehicles(searchFilters);
-  }, [filters, searchQuery]);
+  }, [filters, searchQuery, startDate, endDate]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -218,14 +222,29 @@ const VehiclesScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
+      {/* Header avec bouton retour */}
+      <SafeAreaView style={styles.headerContainer} edges={['top']}>
+        <View style={styles.topHeader}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => safeGoBack(navigation, 'Home')}
+          >
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <View style={styles.headerTitleRow}>
+              <Ionicons name="car-outline" size={20} color="#333" />
+              <Text style={styles.topHeaderTitle}>Location de véhicules</Text>
+            </View>
+          </View>
+          <View style={styles.headerPlaceholder} />
+        </View>
+      </SafeAreaView>
+
+      <SafeAreaView edges={[]} style={styles.safeArea}>
         {/* Hero Section avec gradient - FIXE */}
         <View style={styles.heroSection}>
           <View style={styles.heroContent}>
-            <View style={styles.heroBadge}>
-              <Ionicons name="car" size={14} color="#fff" />
-              <Text style={styles.heroBadgeText}>Location de véhicules</Text>
-            </View>
             <Text style={styles.heroTitle}>Trouvez le véhicule parfait</Text>
             <Text style={styles.heroSubtitle}>
               SUV, berlines, motos et plus encore. Paiement en espèces uniquement.
@@ -590,6 +609,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  headerContainer: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  topHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  headerPlaceholder: {
+    width: 40,
   },
   safeArea: {
     backgroundColor: '#1e293b',

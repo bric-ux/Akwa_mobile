@@ -18,14 +18,23 @@ import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { useAuth } from '../services/AuthContext';
 import { VehicleBooking } from '../types';
 import { formatPrice } from '../utils/priceCalculator';
+import VehicleCancellationModal from '../components/VehicleCancellationModal';
+import VehicleReviewModal from '../components/VehicleReviewModal';
+import { useVehicleReviews } from '../hooks/useVehicleReviews';
 
 const MyVehicleBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { getMyBookings, loading } = useVehicleBookings();
+  const { canReviewVehicle } = useVehicleReviews();
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
+  const [cancellationModalVisible, setCancellationModalVisible] = useState(false);
+  const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<VehicleBooking | null>(null);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState<VehicleBooking | null>(null);
+  const [canReview, setCanReview] = useState<{ [key: string]: boolean }>({});
 
   const getBookingStatus = (booking: VehicleBooking): string => {
     if (booking.status === 'cancelled') return 'cancelled';
@@ -202,6 +211,34 @@ const MyVehicleBookingsScreen: React.FC = () => {
             <Text style={styles.actionButtonText}>Voir véhicule</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Bouton Annuler pour les réservations en attente */}
+        {status === 'pending' && (
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => {
+              setSelectedBookingForCancellation(booking);
+              setCancellationModalVisible(true);
+            }}
+          >
+            <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+            <Text style={styles.cancelButtonText}>Annuler la demande</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Bouton Évaluer le véhicule pour les réservations terminées */}
+        {status === 'completed' && canReview[booking.id] && (
+          <TouchableOpacity
+            style={styles.reviewButton}
+            onPress={() => {
+              setSelectedBookingForReview(booking);
+              setReviewModalVisible(true);
+            }}
+          >
+            <Ionicons name="star-outline" size={18} color="#fbbf24" />
+            <Text style={styles.reviewButtonText}>Évaluer le véhicule</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -313,6 +350,43 @@ const MyVehicleBookingsScreen: React.FC = () => {
           }
           ListEmptyComponent={renderEmptyState}
           showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      {/* Modal d'annulation */}
+      {selectedBookingForCancellation && (
+        <VehicleCancellationModal
+          visible={cancellationModalVisible}
+          onClose={() => {
+            setCancellationModalVisible(false);
+            setSelectedBookingForCancellation(null);
+          }}
+          booking={selectedBookingForCancellation}
+          isOwner={false}
+          onCancelled={() => {
+            loadBookings();
+            setCancellationModalVisible(false);
+            setSelectedBookingForCancellation(null);
+          }}
+        />
+      )}
+
+      {/* Modal d'avis */}
+      {selectedBookingForReview && selectedBookingForReview.vehicle && (
+        <VehicleReviewModal
+          visible={reviewModalVisible}
+          onClose={() => {
+            setReviewModalVisible(false);
+            setSelectedBookingForReview(null);
+          }}
+          vehicleId={selectedBookingForReview.vehicle.id}
+          bookingId={selectedBookingForReview.id}
+          vehicleTitle={selectedBookingForReview.vehicle.title || `${selectedBookingForReview.vehicle.brand || ''} ${selectedBookingForReview.vehicle.model || ''}`.trim() || 'Véhicule'}
+          onReviewSubmitted={() => {
+            loadBookings();
+            setReviewModalVisible(false);
+            setSelectedBookingForReview(null);
+          }}
         />
       )}
     </SafeAreaView>
@@ -518,6 +592,42 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
     fontWeight: '600',
     marginLeft: 6,
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    backgroundColor: '#fff',
+    gap: 8,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    color: '#ef4444',
+    fontWeight: '600',
+  },
+  reviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#fbbf24',
+    marginTop: 12,
+  },
+  reviewButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fbbf24',
   },
   emptyContainer: {
     flex: 1,

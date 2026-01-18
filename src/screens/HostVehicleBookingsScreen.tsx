@@ -25,6 +25,9 @@ import { safeGoBack } from '../utils/navigation';
 import VehicleBookingDetailsModal from '../components/VehicleBookingDetailsModal';
 import SimpleMessageModal from '../components/SimpleMessageModal';
 import VehicleCancellationModal from '../components/VehicleCancellationModal';
+import GuestProfileModal from '../components/GuestProfileModal';
+import VehicleRenterReviewModal from '../components/VehicleRenterReviewModal';
+import { useGuestReviews } from '../hooks/useGuestReviews';
 
 type HostVehicleBookingsRouteParams = {
   vehicleId?: string;
@@ -37,6 +40,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const { t } = useLanguage();
   const { getVehicleBookings, getAllOwnerBookings, updateBookingStatus, loading } = useVehicleBookings();
   const { getMyVehicles } = useVehicles();
+  const { canReviewGuest } = useGuestReviews();
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,6 +56,11 @@ const HostVehicleBookingsScreen: React.FC = () => {
   } | null>(null);
   const [cancellationModalVisible, setCancellationModalVisible] = useState(false);
   const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<VehicleBooking | null>(null);
+  const [guestProfileModalVisible, setGuestProfileModalVisible] = useState(false);
+  const [selectedRenterId, setSelectedRenterId] = useState<string | null>(null);
+  const [renterReviewModalVisible, setRenterReviewModalVisible] = useState(false);
+  const [selectedBookingForRenterReview, setSelectedBookingForRenterReview] = useState<VehicleBooking | null>(null);
+  const [canReviewRenter, setCanReviewRenter] = useState<{ [key: string]: boolean }>({});
 
   const loadBookings = async () => {
     try {
@@ -60,14 +69,24 @@ const HostVehicleBookingsScreen: React.FC = () => {
       setVehicles(vehiclesData);
       
       // Charger les réservations
+      let data: VehicleBooking[];
       if (selectedVehicleId) {
-        const data = await getVehicleBookings(selectedVehicleId);
-        setBookings(data);
+        data = await getVehicleBookings(selectedVehicleId);
       } else {
         // Charger toutes les réservations de tous les véhicules du propriétaire
-        const data = await getAllOwnerBookings();
-        setBookings(data);
+        data = await getAllOwnerBookings();
       }
+      setBookings(data);
+      
+      // Vérifier pour chaque réservation terminée si le propriétaire peut noter le locataire
+      const canReviewMap: { [key: string]: boolean } = {};
+      for (const booking of data) {
+        const completed = isBookingCompleted(booking);
+        if (completed && booking.status !== 'cancelled' && booking.renter?.user_id && booking.vehicle?.id) {
+          canReviewMap[booking.id] = await canReviewGuest(booking.id, booking.renter.user_id, booking.vehicle.id);
+        }
+      }
+      setCanReviewRenter(canReviewMap);
     } catch (err) {
       console.error('Erreur lors du chargement des réservations:', err);
     }
@@ -382,6 +401,20 @@ const HostVehicleBookingsScreen: React.FC = () => {
               <Ionicons name="call-outline" size={16} color="#10b981" />
             </TouchableOpacity>
           )}
+
+          {/* Voir profil - si le locataire existe */}
+          {item.renter?.user_id && (
+            <TouchableOpacity
+              style={[styles.actionButtonSmall, styles.viewProfileButton]}
+              onPress={() => {
+                setSelectedRenterId(item.renter.user_id);
+                setGuestProfileModalVisible(true);
+              }}
+            >
+              <Ionicons name="person-outline" size={16} color="#2563eb" />
+              <Text style={[styles.actionButtonSmallText, { color: '#2563eb' }]}>Profil</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Accepter/Refuser pour pending */}
@@ -415,6 +448,20 @@ const HostVehicleBookingsScreen: React.FC = () => {
           >
             <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
             <Text style={[styles.actionButtonText, { color: '#ef4444' }]}>Annuler la réservation</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Évaluer le locataire pour les réservations terminées */}
+        {completed && item.status !== 'cancelled' && canReviewRenter[item.id] && item.renter?.user_id && item.vehicle?.id && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.reviewButton]}
+            onPress={() => {
+              setSelectedBookingForRenterReview(item);
+              setRenterReviewModalVisible(true);
+            }}
+          >
+            <Ionicons name="star-outline" size={18} color="#fbbf24" />
+            <Text style={[styles.actionButtonText, { color: '#fbbf24' }]}>Évaluer le locataire</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -653,6 +700,34 @@ const HostVehicleBookingsScreen: React.FC = () => {
           setSelectedBookingForCancellation(null);
         }}
       />
+
+      <GuestProfileModal
+        visible={guestProfileModalVisible}
+        onClose={() => {
+          setGuestProfileModalVisible(false);
+          setSelectedRenterId(null);
+        }}
+        guestId={selectedRenterId || ''}
+      />
+
+      {selectedBookingForRenterReview && selectedBookingForRenterReview.renter && selectedBookingForRenterReview.vehicle && (
+        <VehicleRenterReviewModal
+          visible={renterReviewModalVisible}
+          onClose={() => {
+            setRenterReviewModalVisible(false);
+            setSelectedBookingForRenterReview(null);
+          }}
+          bookingId={selectedBookingForRenterReview.id}
+          renterId={selectedBookingForRenterReview.renter.user_id}
+          renterName={`${selectedBookingForRenterReview.renter.first_name || ''} ${selectedBookingForRenterReview.renter.last_name || ''}`.trim() || 'Locataire'}
+          vehicleId={selectedBookingForRenterReview.vehicle.id}
+          onReviewSubmitted={() => {
+            loadBookings();
+            setRenterReviewModalVisible(false);
+            setSelectedBookingForRenterReview(null);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -880,6 +955,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     minWidth: 44,
     flex: 0,
+  },
+  viewProfileButton: {
+    borderColor: '#2563eb',
+    backgroundColor: '#fff',
   },
   pendingActions: {
     flexDirection: 'row',

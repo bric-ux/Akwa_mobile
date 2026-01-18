@@ -195,12 +195,13 @@ export const useVehicles = () => {
         
         if (vehicleIds.length > 0) {
           // Récupérer les réservations qui chevauchent les dates sélectionnées
+          // On inclut 'pending', 'confirmed' et 'completed' mais on vérifie que la date de fin n'est pas passée
           const { data: conflictingBookings, error: bookingsError } = await supabase
             .from('vehicle_bookings')
-            .select('vehicle_id')
+            .select('vehicle_id, start_date, end_date, status')
             .in('vehicle_id', vehicleIds)
             .in('status', ['pending', 'confirmed', 'completed'])
-            .or(`and(start_date.lte.${endDate},end_date.gte.${startDate})`);
+            .gte('end_date', startDate); // Seulement les réservations qui se terminent après le début de la recherche
           
           if (bookingsError) {
             console.error('❌ [useVehicles] Erreur lors de la vérification des réservations:', bookingsError);
@@ -209,9 +210,9 @@ export const useVehicles = () => {
           // Récupérer les dates bloquées qui chevauchent les dates sélectionnées
           const { data: blockedDates, error: blockedError } = await supabase
             .from('vehicle_blocked_dates')
-            .select('vehicle_id')
+            .select('vehicle_id, start_date, end_date')
             .in('vehicle_id', vehicleIds)
-            .or(`and(start_date.lte.${endDate},end_date.gte.${startDate})`);
+            .gte('end_date', startDate); // Seulement les dates bloquées qui se terminent après le début de la recherche
           
           if (blockedError) {
             console.error('❌ [useVehicles] Erreur lors de la vérification des dates bloquées:', blockedError);
@@ -220,12 +221,31 @@ export const useVehicles = () => {
           // Créer un Set des IDs de véhicules indisponibles
           const unavailableVehicleIds = new Set<string>();
           
+          // Vérifier les chevauchements pour les réservations
           (conflictingBookings || []).forEach((booking: any) => {
-            unavailableVehicleIds.add(booking.vehicle_id);
+            const bookingStart = new Date(booking.start_date);
+            const bookingEnd = new Date(booking.end_date);
+            const searchStart = new Date(startDate);
+            const searchEnd = new Date(endDate);
+            
+            // Vérifier si les dates se chevauchent
+            // Deux plages se chevauchent si: searchStart < bookingEnd ET searchEnd > bookingStart
+            if (searchStart < bookingEnd && searchEnd > bookingStart) {
+              unavailableVehicleIds.add(booking.vehicle_id);
+            }
           });
           
+          // Vérifier les chevauchements pour les dates bloquées
           (blockedDates || []).forEach((blocked: any) => {
-            unavailableVehicleIds.add(blocked.vehicle_id);
+            const blockedStart = new Date(blocked.start_date);
+            const blockedEnd = new Date(blocked.end_date);
+            const searchStart = new Date(startDate);
+            const searchEnd = new Date(endDate);
+            
+            // Vérifier si les dates se chevauchent
+            if (searchStart < blockedEnd && searchEnd > blockedStart) {
+              unavailableVehicleIds.add(blocked.vehicle_id);
+            }
           });
           
           // Filtrer les véhicules disponibles

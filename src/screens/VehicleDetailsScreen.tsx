@@ -19,6 +19,8 @@ import { useCurrency } from '../hooks/useCurrency';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../services/AuthContext';
 import ContactOwnerButton from '../components/ContactOwnerButton';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '../utils/navigation';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -83,7 +85,24 @@ const VehicleDetailsScreen: React.FC = () => {
   const isOwner = user?.id === vehicle.owner_id;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {/* Header avec bouton retour */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => safeGoBack(navigation, 'Vehicles')}
+        >
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {vehicle.title || `${vehicle.brand} ${vehicle.model}`}
+          </Text>
+        </View>
+        <View style={styles.headerPlaceholder} />
+      </View>
+
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Images */}
       {vehicle.images && vehicle.images.length > 0 && (
         <View style={styles.imageContainer}>
@@ -125,7 +144,7 @@ const VehicleDetailsScreen: React.FC = () => {
 
       <View style={styles.content}>
         {/* Titre et prix */}
-        <View style={styles.header}>
+        <View style={styles.titleHeader}>
           <View style={styles.titleContainer}>
             <Text style={styles.title}>{vehicle.brand} {vehicle.model} {vehicle.year}</Text>
             <Text style={styles.subtitle}>{vehicle.title}</Text>
@@ -315,11 +334,48 @@ const VehicleDetailsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  headerPlaceholder: {
+    width: 40,
+  },
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -375,7 +431,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
   },
-  header: {
+  titleHeader: {
     marginBottom: 16,
   },
   titleContainer: {

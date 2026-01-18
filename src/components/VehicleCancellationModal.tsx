@@ -61,6 +61,15 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   const bookingIsCompleted = isBookingCompleted();
 
   const calculatePenalty = () => {
+    // Pour les demandes en attente (pending), pas de pénalité car le paiement n'a pas encore été effectué
+    if (booking.status === 'pending') {
+      return { 
+        penalty: 0, 
+        penaltyDescription: 'Aucune pénalité (demande en attente)', 
+        refundAmount: 0 
+      };
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const startDate = new Date(booking.start_date);
@@ -173,21 +182,27 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                 {/* Informations */}
                 <View style={styles.infoCard}>
                   <Text style={styles.infoTitle}>Informations</Text>
-                  <Text style={styles.infoText}>
-                    {penalty > 0 ? (
-                      <>
-                        En annulant cette réservation, une pénalité de {penalty.toLocaleString()} XOF sera appliquée.
-                        {'\n\n'}
-                        Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
-                      </>
-                    ) : (
-                      <>
-                        Aucune pénalité ne sera appliquée.
-                        {'\n\n'}
-                        Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
-                      </>
-                    )}
-                  </Text>
+                  {booking.status === 'pending' ? (
+                    <Text style={styles.infoText}>
+                      Cette demande est en attente de confirmation. L'annulation est gratuite car aucun paiement n'a encore été effectué.
+                    </Text>
+                  ) : (
+                    <Text style={styles.infoText}>
+                      {penalty > 0 ? (
+                        <>
+                          En annulant cette réservation, une pénalité de {penalty.toLocaleString()} XOF sera appliquée.
+                          {'\n\n'}
+                          Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
+                        </>
+                      ) : (
+                        <>
+                          Aucune pénalité ne sera appliquée.
+                          {'\n\n'}
+                          Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
+                        </>
+                      )}
+                    </Text>
+                  )}
                 </View>
 
                 {/* Raison */}
