@@ -10,6 +10,10 @@ import {
   Modal,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +21,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useGuestReviews, GuestReview } from '../hooks/useGuestReviews';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const MyGuestReviewsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -309,9 +315,16 @@ const MyGuestReviewsScreen: React.FC = () => {
         animationType="slide"
         transparent={true}
         onRequestClose={() => setResponseModalVisible(false)}
+        statusBarTranslucent={true}
       >
+        <StatusBar backgroundColor="rgba(0, 0, 0, 0.5)" barStyle="light-content" />
         <View style={styles.modalOverlay}>
-          <SafeAreaView style={styles.modalContainer}>
+          <TouchableOpacity 
+            style={styles.overlayTouchable}
+            activeOpacity={1}
+            onPress={() => setResponseModalVisible(false)}
+          />
+          <View style={[styles.modalContainer, { paddingTop: StatusBar.currentHeight || 0 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {selectedReview?.response ? 'Modifier votre réponse' : 'Répondre à l\'avis'}
@@ -327,33 +340,44 @@ const MyGuestReviewsScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalContent}>
-              {selectedReview && (
-                <View style={styles.reviewPreview}>
-                  <View style={styles.reviewPreviewHeader}>
-                    <Text style={styles.reviewPreviewProperty}>
-                      {selectedReview.property?.title}
-                    </Text>
-                    {renderStars(selectedReview.rating)}
-                  </View>
-                  {selectedReview.comment && (
-                    <Text style={styles.reviewPreviewComment}>
-                      {selectedReview.comment}
-                    </Text>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.keyboardAvoidingView}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            >
+              <ScrollView 
+                style={styles.modalContent}
+                contentContainerStyle={styles.modalContentContainer}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+              >
+                  {selectedReview && (
+                    <View style={styles.reviewPreview}>
+                      <View style={styles.reviewPreviewHeader}>
+                        <Text style={styles.reviewPreviewProperty}>
+                          {selectedReview.property?.title}
+                        </Text>
+                        {renderStars(selectedReview.rating)}
+                      </View>
+                      {selectedReview.comment && (
+                        <Text style={styles.reviewPreviewComment}>
+                          {selectedReview.comment}
+                        </Text>
+                      )}
+                    </View>
                   )}
-                </View>
-              )}
 
-              <TextInput
-                style={styles.responseInput}
-                value={responseText}
-                onChangeText={setResponseText}
-                placeholder="Écrivez votre réponse..."
-                multiline
-                numberOfLines={6}
-                textAlignVertical="top"
-              />
-            </ScrollView>
+                  <TextInput
+                    style={styles.responseInput}
+                    value={responseText}
+                    onChangeText={setResponseText}
+                    placeholder="Écrivez votre réponse..."
+                    multiline
+                    numberOfLines={10}
+                    textAlignVertical="top"
+                  />
+              </ScrollView>
+            </KeyboardAvoidingView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
@@ -381,7 +405,7 @@ const MyGuestReviewsScreen: React.FC = () => {
                 )}
               </TouchableOpacity>
             </View>
-          </SafeAreaView>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -630,34 +654,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
+  overlayTouchable: {
+    flex: 1,
+  },
   modalContainer: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    height: SCREEN_HEIGHT * 0.85,
+    maxHeight: SCREEN_HEIGHT * 0.9,
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    backgroundColor: '#fff',
+    minHeight: 60,
+    zIndex: 10,
+    minHeight: 60,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+    flex: 1,
   },
   modalContent: {
     flex: 1,
+  },
+  modalContentContainer: {
     padding: 20,
+    paddingBottom: 10,
   },
   reviewPreview: {
     backgroundColor: '#f9fafb',
@@ -687,7 +732,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: '#333',
-    minHeight: 150,
+    minHeight: 200,
     backgroundColor: '#f8f9fa',
   },
   modalFooter: {
@@ -696,6 +741,7 @@ const styles = StyleSheet.create({
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+    backgroundColor: '#fff',
   },
   modalCancelButton: {
     flex: 1,
@@ -704,6 +750,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 50,
   },
   modalCancelButtonText: {
     fontSize: 16,
@@ -717,6 +764,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2E7D32',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 50,
   },
   modalSubmitButtonDisabled: {
     backgroundColor: '#ccc',

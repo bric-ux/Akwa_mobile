@@ -9,11 +9,17 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useReviewResponses } from '../hooks/useReviewResponses';
 import { useLanguage } from '../contexts/LanguageContext';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface ReviewResponseModalProps {
   visible: boolean;
@@ -103,15 +109,24 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
     );
   };
 
+  const statusBarHeight = StatusBar.currentHeight || 0;
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
+      <StatusBar backgroundColor="rgba(0, 0, 0, 0.5)" barStyle="light-content" />
       <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.container}>
+        <TouchableOpacity 
+          style={styles.overlayTouchable}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <View style={[styles.container, { paddingTop: statusBarHeight }]}>
           <View style={styles.header}>
             <Text style={styles.title}>
               {existingResponse ? (t('review.editResponse') || 'Modifier votre réponse') : (t('review.respond') || 'Répondre à cet avis')}
@@ -121,26 +136,37 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <View style={styles.section}>
-              <Text style={styles.label}>
-                {t('review.yourResponse') || 'Votre réponse'}
-              </Text>
-              <TextInput
-                style={styles.responseInput}
-                value={responseText}
-                onChangeText={setResponseText}
-                placeholder={t('review.responsePlaceholder') || 'Écrivez votre réponse à cet avis...'}
-                multiline
-                numberOfLines={6}
-                maxLength={1000}
-                textAlignVertical="top"
-              />
-              <Text style={styles.charCount}>
-                {responseText.length}/1000 {t('review.characters')}
-              </Text>
-            </View>
-          </ScrollView>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.keyboardAvoidingView}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          >
+            <ScrollView 
+              style={styles.content} 
+              contentContainerStyle={styles.contentContainer}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+            >
+                <View style={styles.section}>
+                  <Text style={styles.label}>
+                    {t('review.yourResponse') || 'Votre réponse'}
+                  </Text>
+                  <TextInput
+                    style={styles.responseInput}
+                    value={responseText}
+                    onChangeText={setResponseText}
+                    placeholder={t('review.responsePlaceholder') || 'Écrivez votre réponse à cet avis...'}
+                    multiline
+                    numberOfLines={10}
+                    maxLength={1000}
+                    textAlignVertical="top"
+                  />
+                  <Text style={styles.charCount}>
+                    {responseText.length}/1000 {t('review.characters')}
+                  </Text>
+                </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
 
           <View style={styles.footer}>
             {existingResponse && (
@@ -180,45 +206,65 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
               )}
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
-  container: {
+  overlayTouchable: {
     flex: 1,
+  },
+  container: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    height: SCREEN_HEIGHT * 0.85,
+    maxHeight: SCREEN_HEIGHT * 0.9,
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    backgroundColor: '#fff',
+    minHeight: 60,
+    zIndex: 10,
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+    flex: 1,
   },
   closeButton: {
     padding: 4,
+    marginLeft: 12,
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 20,
+    paddingBottom: 10,
   },
   section: {
     marginBottom: 24,
@@ -236,7 +282,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: '#333',
-    minHeight: 150,
+    minHeight: 200,
     backgroundColor: '#f8f9fa',
   },
   charCount: {
@@ -259,6 +305,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 50,
   },
   cancelButton: {
     backgroundColor: '#f0f0f0',

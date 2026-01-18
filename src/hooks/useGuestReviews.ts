@@ -85,7 +85,7 @@ export const useGuestReviews = () => {
         query = query.eq('is_published', true);
       }
       
-      const { data, error: fetchError } = await query.order('created_at', { ascending: false });
+      const { data: reviews, error: fetchError } = await query.order('created_at', { ascending: false });
 
       if (fetchError) {
         console.error('Error fetching reviews for guest:', fetchError);
@@ -93,7 +93,39 @@ export const useGuestReviews = () => {
         return [];
       }
 
-      return data || [];
+      if (!reviews || reviews.length === 0) {
+        return [];
+      }
+
+      // Récupérer les réponses pour ces avis
+      const reviewIds = reviews.map((r: any) => r.id);
+      const { data: responses, error: responsesError } = await (supabase as any)
+        .from('guest_review_responses')
+        .select('*')
+        .in('guest_review_id', reviewIds);
+
+      if (responsesError) {
+        console.error('Error fetching responses:', responsesError);
+        // Continuer même si les réponses ne peuvent pas être chargées
+      }
+
+      // Créer un map des réponses par review_id
+      const responsesMap = new Map();
+      (responses || []).forEach((resp: any) => {
+        responsesMap.set(resp.guest_review_id, {
+          id: resp.id,
+          response: resp.response,
+          created_at: resp.created_at,
+        });
+      });
+
+      // Ajouter les réponses aux avis
+      const reviewsWithResponses = reviews.map((review: any) => ({
+        ...review,
+        response: responsesMap.get(review.id),
+      }));
+
+      return reviewsWithResponses;
     } catch (err) {
       console.error('Error fetching reviews for guest:', err);
       setError('Erreur lors du chargement des avis');
