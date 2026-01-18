@@ -340,6 +340,7 @@ export interface Vehicle {
   review_count: number;
   features: string[];
   rules: string[];
+  auto_booking?: boolean;
   created_at: string;
   updated_at: string;
   photos?: VehiclePhoto[];
@@ -383,10 +384,12 @@ export interface VehicleBooking {
   updated_at: string;
   vehicle?: Vehicle;
   renter?: {
+    user_id: string;
     first_name: string;
     last_name: string;
     email: string;
     phone: string;
+    avatar_url?: string | null;
   };
 }
 

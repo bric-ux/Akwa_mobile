@@ -11,6 +11,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -92,6 +93,7 @@ const EditVehicleScreen: React.FC = () => {
     price_per_month: '',
     security_deposit: '0',
     minimum_rental_days: '1',
+    auto_booking: false,
     features: [] as string[],
     rules: [] as string[],
   });
@@ -143,6 +145,7 @@ const EditVehicleScreen: React.FC = () => {
           price_per_month: vehicleData.price_per_month?.toString() || '',
           security_deposit: vehicleData.security_deposit?.toString() || '0',
           minimum_rental_days: vehicleData.minimum_rental_days?.toString() || '1',
+          auto_booking: vehicleData.auto_booking || false,
           features: vehicleData.features || [],
           rules: vehicleData.rules || [],
         });
@@ -274,6 +277,7 @@ const EditVehicleScreen: React.FC = () => {
       price_per_month: formData.price_per_month ? parseInt(formData.price_per_month) : null,
       security_deposit: parseInt(formData.security_deposit) || 0,
       minimum_rental_days: parseInt(formData.minimum_rental_days) || 1,
+      auto_booking: formData.auto_booking,
       images: images,
       features: formData.features,
       rules: formData.rules,
@@ -549,6 +553,25 @@ const EditVehicleScreen: React.FC = () => {
               onChangeText={(value) => handleInputChange('minimum_rental_days', value)}
               keyboardType="numeric"
             />
+          </View>
+
+          {/* Réservation automatique */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Type de réservation</Text>
+            <View style={styles.switchContainer}>
+              <View style={styles.switchInfo}>
+                <Text style={styles.switchLabel}>Réservation instantanée</Text>
+                <Text style={styles.switchDescription}>
+                  Si activé, les réservations seront automatiquement confirmées. Sinon, elles nécessiteront votre approbation.
+                </Text>
+              </View>
+              <Switch
+                value={formData.auto_booking}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, auto_booking: value }))}
+                trackColor={{ false: '#e0e0e0', true: '#2E7D32' }}
+                thumbColor={formData.auto_booking ? '#fff' : '#f4f3f4'}
+              />
+            </View>
           </View>
 
           {/* Photos */}
@@ -919,6 +942,27 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  switchInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  switchLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  switchDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
   },
 });
 

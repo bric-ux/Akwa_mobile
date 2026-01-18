@@ -57,7 +57,7 @@ export const useVehicleBookings = () => {
       // Récupérer les informations du véhicule pour calculer le prix
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('price_per_day, minimum_rental_days')
+        .select('price_per_day, minimum_rental_days, auto_booking')
         .eq('id', bookingData.vehicleId)
         .single();
 
@@ -127,6 +127,9 @@ export const useVehicleBookings = () => {
       const dailyRate = vehicle.price_per_day;
       const totalPrice = dailyRate * rentalDays;
 
+      // Déterminer le statut initial en fonction de auto_booking
+      const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
+
       // Créer la réservation
       const { data: booking, error: bookingError } = await supabase
         .from('vehicle_bookings')
@@ -143,7 +146,7 @@ export const useVehicleBookings = () => {
           message_to_owner: bookingData.messageToOwner || null,
           special_requests: bookingData.specialRequests || null,
           license_document_url: bookingData.licenseDocumentUrl || null,
-          status: 'pending',
+          status: initialStatus,
         })
         .select(`
           *,
@@ -249,10 +252,12 @@ export const useVehicleBookings = () => {
         .select(`
           *,
           renter:profiles!renter_id (
+            user_id,
             first_name,
             last_name,
             email,
-            phone
+            phone,
+            avatar_url
           )
         `)
         .eq('vehicle_id', vehicleId)
@@ -381,10 +386,12 @@ export const useVehicleBookings = () => {
             )
           ),
           renter:profiles!renter_id (
+            user_id,
             first_name,
             last_name,
             email,
-            phone
+            phone,
+            avatar_url
           )
         `)
         .in('vehicle_id', vehicleIds)

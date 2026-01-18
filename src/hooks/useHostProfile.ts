@@ -124,13 +124,39 @@ export const useHostProfile = () => {
         console.log('🔍 [useHostProfile] Détails des propriétés:', properties);
       }
       
-      // Calculer les statistiques des propriétés
+      // Récupérer tous les avis approuvés pour toutes les propriétés de l'hôte
       const propertiesList = properties || [];
+      const propertyIds = propertiesList.map(p => p.id);
+      
+      let totalReviews = 0;
+      let averageRating = 0;
+      
+      if (propertyIds.length > 0) {
+        const { data: reviews, error: reviewsError } = await supabase
+          .from('reviews')
+          .select('rating, approved')
+          .in('property_id', propertyIds)
+          .eq('approved', true);
+        
+        if (reviewsError) {
+          console.error('❌ [useHostProfile] Erreur lors du chargement des avis:', reviewsError);
+          // Fallback sur les données des propriétés si les avis ne peuvent pas être chargés
+          totalReviews = propertiesList.reduce((sum, prop) => sum + (prop.review_count || 0), 0);
+          const propertiesWithRating = propertiesList.filter(prop => prop.rating && prop.rating > 0);
+          averageRating = propertiesWithRating.length > 0
+            ? propertiesWithRating.reduce((sum, prop) => sum + (prop.rating || 0), 0) / propertiesWithRating.length
+            : 0;
+        } else {
+          // Calculer à partir des avis réels
+          const approvedReviews = reviews || [];
+          totalReviews = approvedReviews.length;
+          averageRating = totalReviews > 0
+            ? approvedReviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
+            : 0;
+        }
+      }
+      
       const totalProperties = propertiesList.length;
-      const totalReviews = propertiesList.reduce((sum, prop) => sum + (prop.review_count || 0), 0);
-      const averageRating = propertiesList.length > 0 
-        ? propertiesList.reduce((sum, prop) => sum + (prop.rating || 0), 0) / propertiesList.length 
-        : 0;
 
       const enrichedProfile = {
         ...data,

@@ -403,11 +403,11 @@ const HostVehicleBookingsScreen: React.FC = () => {
           )}
 
           {/* Voir profil - si le locataire existe */}
-          {item.renter?.user_id && (
+          {(item.renter?.user_id || item.renter_id) && (
             <TouchableOpacity
               style={[styles.actionButtonSmall, styles.viewProfileButton]}
               onPress={() => {
-                setSelectedRenterId(item.renter.user_id);
+                setSelectedRenterId(item.renter?.user_id || item.renter_id);
                 setGuestProfileModalVisible(true);
               }}
             >
