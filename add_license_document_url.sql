@@ -6,3 +6,4 @@ ADD COLUMN IF NOT EXISTS license_document_url TEXT;
 
 COMMENT ON COLUMN vehicle_bookings.license_document_url IS 'URL du document du permis de conduire uploadé par le locataire';
 
+

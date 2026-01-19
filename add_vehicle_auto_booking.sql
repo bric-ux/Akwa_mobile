@@ -7,3 +7,4 @@ ADD COLUMN IF NOT EXISTS auto_booking BOOLEAN DEFAULT false;
 -- Commenter la colonne
 COMMENT ON COLUMN vehicles.auto_booking IS 'Si true, les réservations sont automatiquement confirmées. Si false, elles nécessitent l''approbation du propriétaire.';
 
+

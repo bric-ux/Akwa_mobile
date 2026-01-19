@@ -199,6 +199,38 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     return formatPriceWithCurrency(price);
   };
 
+  // Grouper les propriétés par coordonnées (tolérance de 0.0001 degrés ≈ 11 mètres)
+  const groupPropertiesByCoordinates = useCallback((props: Property[]) => {
+    const groups: Map<string, Property[]> = new Map();
+    const TOLERANCE = 0.0001; // Environ 11 mètres
+    
+    props.forEach(property => {
+      const lat = property.location?.latitude || property.locations?.latitude || property.latitude || 0;
+      const lng = property.location?.longitude || property.locations?.longitude || property.longitude || 0;
+      
+      // Trouver un groupe existant avec des coordonnées proches
+      let foundGroup = false;
+      for (const [key, groupProps] of groups.entries()) {
+        const [groupLat, groupLng] = key.split(',').map(Number);
+        const latDiff = Math.abs(lat - groupLat);
+        const lngDiff = Math.abs(lng - groupLng);
+        
+        if (latDiff < TOLERANCE && lngDiff < TOLERANCE) {
+          groupProps.push(property);
+          foundGroup = true;
+          break;
+        }
+      }
+      
+      if (!foundGroup) {
+        const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+        groups.set(key, [property]);
+      }
+    });
+    
+    return groups;
+  }, []);
+
   // Créer le HTML pour la carte Leaflet avec marqueurs de prix
   const createMapHTML = useCallback(() => {
     const validProperties = properties.filter(
@@ -207,28 +239,45 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
         (p.location?.longitude || p.locations?.longitude || p.longitude)
     );
 
-    const markers = validProperties.map((property) => {
-      const lat = property.location?.latitude || property.locations?.latitude || property.latitude || 0;
-      const lng = property.location?.longitude || property.locations?.longitude || property.longitude || 0;
-      // Utiliser le prix dynamique si disponible, sinon le prix de base
-      const price = propertyPrices.get(property.id) || property.price_per_night || 0;
-      const title = property.title || 'Propriété';
+    // Grouper les propriétés par coordonnées
+    const propertyGroups = groupPropertiesByCoordinates(validProperties);
+    
+    // Créer les marqueurs (un par groupe)
+    const markers: string[] = [];
+    
+    propertyGroups.forEach((groupProps) => {
+      const firstProp = groupProps[0];
+      const lat = firstProp.location?.latitude || firstProp.locations?.latitude || firstProp.latitude || 0;
+      const lng = firstProp.location?.longitude || firstProp.locations?.longitude || firstProp.longitude || 0;
+      
+      // Préparer les données de toutes les propriétés du groupe
+      const groupData = groupProps.map(property => {
+        const price = propertyPrices.get(property.id) || property.price_per_night || 0;
+        const title = property.title || 'Propriété';
+        const distance = property.distance;
 
-      let convertedPrice = price;
-      if (currency !== 'XOF') {
-        const result = convert(price);
-        convertedPrice = result.converted;
-      }
-
-        return `{
+        let convertedPrice = price;
+        if (currency !== 'XOF') {
+          const result = convert(price);
+          convertedPrice = result.converted;
+        }
+        
+        return {
+          id: property.id,
+          title: title,
+          price: price,
+          convertedPrice: convertedPrice,
+          image: property.images?.[0] || '',
+          distance: distance || null
+        };
+      });
+      
+      // Créer un marqueur pour ce groupe
+      markers.push(`{
         position: [${lat}, ${lng}],
-        price: ${price},
-        convertedPrice: ${convertedPrice},
-        title: ${JSON.stringify(title)},
-        id: "${property.id}",
-        image: "${property.images?.[0] || ''}",
-        distance: ${property.distance || 'null'}
-      }`;
+        count: ${groupProps.length},
+        properties: ${JSON.stringify(groupData)}
+      }`);
     });
 
     // Si pas de marqueurs, on centre quand même sur la Côte d'Ivoire
@@ -261,6 +310,50 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     .price-marker:hover {
       background: rgba(231, 76, 60, 0.95);
       color: white;
+    }
+    .cluster-marker {
+      background: rgba(46, 125, 50, 0.95);
+      border: 2px solid #2E7D32;
+      border-radius: 20px;
+      padding: 8px 14px;
+      font-weight: 700;
+      font-size: 14px;
+      color: white;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+      cursor: pointer;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 50px;
+    }
+    .cluster-marker:hover {
+      background: rgba(46, 125, 50, 1);
+      transform: scale(1.05);
+    }
+    .cluster-count {
+      background: white;
+      color: #2E7D32;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 6px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .property-list-item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+    .property-list-item:hover {
+      background: #f5f5f5;
+    }
+    .property-list-item:last-child {
+      border-bottom: none;
     }
   </style>
 </head>
@@ -330,62 +423,123 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     }).addTo(map);
     ` : ''}
 
-    const properties = ${hasMarkers ? `[${markers.join(',\n          ')}]` : '[]'};
+    const markers = ${hasMarkers ? `[${markers.join(',\n          ')}]` : '[]'};
     const currentCurrency = '${currency}';
     const currentCurrencySymbol = '${currencySymbol}';
 
     // Attendre que la carte soit prête avant d'ajouter les marqueurs
     if (typeof map !== 'undefined') {
       map.whenReady(function() {
-        if (properties.length > 0) {
+        if (markers.length > 0) {
           // Créer tous les marqueurs
-          const markers = [];
-          properties.forEach((prop) => {
-            const divIcon = L.divIcon({
-              className: 'custom-marker',
-              html: '<div class="price-marker">' + (
+          const leafletMarkers = [];
+          markers.forEach((markerData) => {
+            const isCluster = markerData.count > 1;
+            
+            let divIcon;
+            let popupContent;
+            
+            if (isCluster) {
+              // Marqueur de cluster avec compteur
+              divIcon = L.divIcon({
+                className: 'custom-cluster-marker',
+                html: '<div class="cluster-marker">' + 
+                  (markerData.properties[0].convertedPrice !== undefined && currentCurrency !== 'XOF'
+                    ? markerData.properties[0].convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                    : markerData.properties[0].price.toLocaleString('fr-FR')
+                  ) + ' ' + (
+                    markerData.properties[0].convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
+                  ) + '<span class="cluster-count">' + markerData.count + '</span></div>',
+                iconSize: [120, 40],
+                iconAnchor: [60, 40]
+              });
+              
+              // Popup avec liste de toutes les propriétés
+              let propertiesList = '';
+              markerData.properties.forEach((prop) => {
+                const displayPrice = (
+                  prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
+                    ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                    : prop.price.toLocaleString('fr-FR')
+                );
+                const displayCurrency = prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA';
+                const distanceText = prop.distance !== null && prop.distance !== undefined 
+                  ? ' <span style="color: #666; font-size: 11px;">(' + prop.distance.toFixed(1) + ' km)</span>' 
+                  : '';
+                propertiesList += '<div class="property-list-item" onclick="selectProperty(\\'' + prop.id + '\\')">' +
+                  '<strong style="font-size: 13px;">' + prop.title.replace(/"/g, '') + '</strong><br/>' +
+                  '<span style="color: #e74c3c; font-weight: bold; font-size: 12px;">' + displayPrice + ' ' + displayCurrency + '/nuit</span>' + distanceText +
+                  '</div>';
+              });
+              
+              popupContent = '<div style="max-width: 250px; max-height: 300px; overflow-y: auto;">' +
+                '<div style="padding: 8px; background: #2E7D32; color: white; font-weight: bold; margin: -10px -10px 10px -10px; border-radius: 4px 4px 0 0;">' +
+                markerData.count + ' propriété' + (markerData.count > 1 ? 's' : '') + ' à cet endroit' +
+                '</div>' +
+                propertiesList +
+                '</div>';
+            } else {
+              // Marqueur simple pour une seule propriété
+              const prop = markerData.properties[0];
+              divIcon = L.divIcon({
+                className: 'custom-marker',
+                html: '<div class="price-marker">' + (
+                  prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
+                    ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                    : prop.price.toLocaleString('fr-FR')
+                ) + ' ' + (
+                  prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
+                ) + '</div>',
+                iconSize: [100, 36],
+                iconAnchor: [50, 36]
+              });
+              
+              // Popup pour une seule propriété
+              const distanceText = prop.distance !== null && prop.distance !== undefined 
+                ? '<br/><span style="color: #666; font-size: 12px;">📍 ' + prop.distance.toFixed(1) + ' km</span>' 
+                : '';
+              popupContent = '<div style="max-width: 200px;"><strong>' + prop.title.replace(/"/g, '') + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 14px;">' + (
                 prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
                   ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
                   : prop.price.toLocaleString('fr-FR')
               ) + ' ' + (
                 prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
-              ) + '</div>',
-              iconSize: [100, 36],
-              iconAnchor: [50, 36]
-            });
+              ) + '/nuit</span>' + distanceText + '</div>';
+            }
 
-            const marker = L.marker(prop.position, { 
-              icon: divIcon,
-              propertyId: prop.id
+            const marker = L.marker(markerData.position, { 
+              icon: divIcon
             }).addTo(map);
 
-            markers.push(marker);
-            
-            // Popup avec distance si disponible
-            const distanceText = prop.distance !== null && prop.distance !== undefined 
-              ? '<br/><span style="color: #666; font-size: 12px;">📍 ' + prop.distance.toFixed(1) + ' km</span>' 
-              : '';
-            const popupContent = '<div style="max-width: 200px;"><strong>' + prop.title + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 14px;">' + (
-              prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
-                ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                : prop.price.toLocaleString('fr-FR')
-            ) + ' ' + (
-              prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
-            ) + '/nuit</span>' + distanceText + '</div>';
             marker.bindPopup(popupContent);
 
+            // Gérer le clic sur le marqueur
             marker.on('click', function() {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'propertySelected',
-                propertyId: prop.id
-              }));
+              // Si c'est un cluster, ne pas sélectionner automatiquement
+              // L'utilisateur doit choisir dans le popup
+              if (!isCluster && markerData.properties[0]) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'propertySelected',
+                  propertyId: markerData.properties[0].id
+                }));
+              }
             });
+            
+            leafletMarkers.push(marker);
           });
+          
+          // Fonction pour sélectionner une propriété depuis le popup
+          window.selectProperty = function(propertyId) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'propertySelected',
+              propertyId: propertyId
+            }));
+          };
 
           // Ajuster la vue pour afficher tous les marqueurs avec un padding
-          if (markers.length > 0) {
+          if (leafletMarkers.length > 0) {
             try {
-              const group = new L.featureGroup(markers);
+              const group = new L.featureGroup(leafletMarkers);
               map.fitBounds(group.getBounds().pad(0.1), {
                 maxZoom: 16, // Limiter le zoom max pour ne pas être trop proche
                 animate: true
@@ -401,7 +555,7 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
 </body>
 </html>
     `;
-  }, [properties, propertyPrices, currency, currencySymbol, convert, mapBounds, searchCenter, searchRadius]);
+  }, [properties, propertyPrices, currency, currencySymbol, convert, mapBounds, searchCenter, searchRadius, groupPropertiesByCoordinates]);
 
   const handleMessage = (event: any) => {
     try {
