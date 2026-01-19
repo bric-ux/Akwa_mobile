@@ -18,6 +18,7 @@ import { supabase } from '../services/supabase';
 import { VEHICLE_COLORS } from '../constants/colors';
 import InvoiceDisplay from './InvoiceDisplay';
 import VehicleCancellationModal from './VehicleCancellationModal';
+import VehicleModificationModal from './VehicleModificationModal';
 
 interface VehicleBookingDetailsModalProps {
   visible: boolean;
@@ -34,6 +35,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [cancellationModalVisible, setCancellationModalVisible] = useState(false);
+  const [modificationModalVisible, setModificationModalVisible] = useState(false);
 
   if (!booking) return null;
 
@@ -396,6 +398,17 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               </TouchableOpacity>
             )}
 
+            {/* Bouton Modifier pour le locataire - réservations en attente, confirmées ou en cours */}
+            {!isOwner && (booking.status === 'pending' || booking.status === 'confirmed' || booking.status === 'in_progress') && (
+              <TouchableOpacity
+                style={styles.modifyButton}
+                onPress={() => setModificationModalVisible(true)}
+              >
+                <Ionicons name="create-outline" size={18} color="#2563eb" />
+                <Text style={styles.modifyButtonText}>Modifier les dates</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Bouton Annuler pour le propriétaire - réservations confirmées ou en cours */}
             {isOwner && (booking.status === 'confirmed' || booking.status === 'in_progress') && (
               <TouchableOpacity
@@ -404,6 +417,19 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               >
                 <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
                 <Text style={styles.cancelButtonText}>Annuler la réservation</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Bouton Annuler pour le locataire - réservations en attente, confirmées ou en cours */}
+            {!isOwner && (booking.status === 'pending' || booking.status === 'confirmed' || booking.status === 'in_progress') && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setCancellationModalVisible(true)}
+              >
+                <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+                <Text style={styles.cancelButtonText}>
+                  {booking.status === 'pending' ? 'Annuler la demande' : 'Annuler la réservation'}
+                </Text>
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -426,6 +452,19 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
           isOwner={isOwner}
           onCancelled={() => {
             setCancellationModalVisible(false);
+            onClose();
+          }}
+        />
+      )}
+
+      {/* Modal de modification */}
+      {booking && !isOwner && (
+        <VehicleModificationModal
+          visible={modificationModalVisible}
+          onClose={() => setModificationModalVisible(false)}
+          booking={booking}
+          onModified={() => {
+            setModificationModalVisible(false);
             onClose();
           }}
         />
@@ -722,6 +761,25 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#ef4444',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    gap: 8,
+  },
+  modifyButtonText: {
+    color: '#2563eb',
     fontSize: 16,
     fontWeight: '600',
   },

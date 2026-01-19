@@ -19,6 +19,7 @@ import { useAuth } from '../services/AuthContext';
 import { VehicleBooking } from '../types';
 import { formatPrice } from '../utils/priceCalculator';
 import VehicleCancellationModal from '../components/VehicleCancellationModal';
+import VehicleModificationModal from '../components/VehicleModificationModal';
 import VehicleReviewModal from '../components/VehicleReviewModal';
 import { useVehicleReviews } from '../hooks/useVehicleReviews';
 
@@ -32,6 +33,8 @@ const MyVehicleBookingsScreen: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
   const [cancellationModalVisible, setCancellationModalVisible] = useState(false);
   const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<VehicleBooking | null>(null);
+  const [modificationModalVisible, setModificationModalVisible] = useState(false);
+  const [selectedBookingForModification, setSelectedBookingForModification] = useState<VehicleBooking | null>(null);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<VehicleBooking | null>(null);
   const [canReview, setCanReview] = useState<{ [key: string]: boolean }>({});
@@ -212,8 +215,8 @@ const MyVehicleBookingsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Bouton Annuler pour les réservations en attente */}
-        {status === 'pending' && (
+        {/* Bouton Annuler pour les réservations en attente, confirmées ou en cours */}
+        {(status === 'pending' || status === 'confirmed' || status === 'in_progress') && (
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => {
@@ -222,7 +225,23 @@ const MyVehicleBookingsScreen: React.FC = () => {
             }}
           >
             <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
-            <Text style={styles.cancelButtonText}>Annuler la demande</Text>
+            <Text style={styles.cancelButtonText}>
+              {status === 'pending' ? 'Annuler la demande' : 'Annuler la réservation'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Bouton Modifier pour les réservations en attente, confirmées ou en cours */}
+        {(status === 'pending' || status === 'confirmed' || status === 'in_progress') && (
+          <TouchableOpacity
+            style={styles.modifyButton}
+            onPress={() => {
+              setSelectedBookingForModification(booking);
+              setModificationModalVisible(true);
+            }}
+          >
+            <Ionicons name="create-outline" size={18} color="#2563eb" />
+            <Text style={styles.modifyButtonText}>Modifier les dates</Text>
           </TouchableOpacity>
         )}
 
@@ -367,6 +386,23 @@ const MyVehicleBookingsScreen: React.FC = () => {
             loadBookings();
             setCancellationModalVisible(false);
             setSelectedBookingForCancellation(null);
+          }}
+        />
+      )}
+
+      {/* Modal de modification */}
+      {selectedBookingForModification && (
+        <VehicleModificationModal
+          visible={modificationModalVisible}
+          onClose={() => {
+            setModificationModalVisible(false);
+            setSelectedBookingForModification(null);
+          }}
+          booking={selectedBookingForModification}
+          onModified={() => {
+            loadBookings();
+            setModificationModalVisible(false);
+            setSelectedBookingForModification(null);
           }}
         />
       )}
@@ -609,6 +645,24 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 14,
     color: '#ef4444',
+    fontWeight: '600',
+  },
+  modifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    backgroundColor: '#fff',
+    gap: 8,
+  },
+  modifyButtonText: {
+    fontSize: 14,
+    color: '#2563eb',
     fontWeight: '600',
   },
   reviewButton: {
