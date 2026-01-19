@@ -61,6 +61,19 @@ const MyVehicleBookingsScreen: React.FC = () => {
     try {
       const userBookings = await getMyBookings();
       setBookings(userBookings);
+      
+      // Vérifier pour chaque réservation terminée si l'utilisateur peut noter le véhicule
+      const canReviewMap: { [key: string]: boolean } = {};
+      for (const booking of userBookings) {
+        const status = getBookingStatus(booking);
+        if (status === 'completed' && booking.status !== 'cancelled') {
+          // Vérifier si peut noter le véhicule
+          if (booking.vehicle?.id && booking.id) {
+            canReviewMap[booking.id] = await canReviewVehicle(booking.id);
+          }
+        }
+      }
+      setCanReview(canReviewMap);
     } catch (err) {
       console.error('Erreur lors du chargement des réservations:', err);
     }

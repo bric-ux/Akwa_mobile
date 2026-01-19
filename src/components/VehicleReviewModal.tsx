@@ -120,18 +120,23 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
               <Ionicons name="star-outline" size={20} color={VEHICLE_COLORS.primary} />
-              <Text style={styles.headerTitle}>Votre avis sur {vehicleTitle}</Text>
+              <Text style={styles.headerTitle} numberOfLines={2}>Votre avis sur {vehicleTitle}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={styles.scrollViewContent}
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Note globale */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Note globale *</Text>
@@ -202,6 +207,10 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
               />
             </View>
 
+          </ScrollView>
+
+          {/* Footer avec bouton fixe */}
+          <View style={styles.footer}>
             <TouchableOpacity
               style={[styles.submitButton, (rating === 0 || loading) && styles.submitButtonDisabled]}
               onPress={handleSubmit}
@@ -213,7 +222,7 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
                 <Text style={styles.submitButtonText}>Envoyer mon avis</Text>
               )}
             </TouchableOpacity>
-          </ScrollView>
+          </View>
         </SafeAreaView>
       </View>
     </Modal>
@@ -230,7 +239,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '95%',
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -257,6 +267,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollViewContent: {
+    paddingBottom: 20,
   },
   section: {
     padding: 16,
@@ -304,13 +317,21 @@ const styles = StyleSheet.create({
     minHeight: 100,
     backgroundColor: '#f9fafb',
   },
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: 20,
+  },
   submitButton: {
     backgroundColor: VEHICLE_COLORS.primary,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    margin: 16,
-    marginTop: 8,
+    justifyContent: 'center',
+    minHeight: 50,
   },
   submitButtonDisabled: {
     backgroundColor: '#d1d5db',

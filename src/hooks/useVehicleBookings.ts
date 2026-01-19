@@ -353,6 +353,7 @@ export const useVehicleBookings = () => {
             brand,
             model,
             images,
+            owner_id,
             location:locations (
               id,
               name
@@ -361,7 +362,30 @@ export const useVehicleBookings = () => {
               id,
               url,
               is_main
+            ),
+            owner:profiles!owner_id (
+              user_id,
+              first_name,
+              last_name,
+              email,
+              phone,
+              avatar_url
             )
+          ),
+          renter:profiles!renter_id (
+            user_id,
+            first_name,
+            last_name,
+            email,
+            phone,
+            avatar_url
+          ),
+          license_documents (
+            id,
+            document_url,
+            document_type,
+            verified,
+            verified_at
           )
         `)
         .eq('renter_id', user.id)

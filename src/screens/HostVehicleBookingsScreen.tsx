@@ -27,7 +27,7 @@ import SimpleMessageModal from '../components/SimpleMessageModal';
 import VehicleCancellationModal from '../components/VehicleCancellationModal';
 import GuestProfileModal from '../components/GuestProfileModal';
 import VehicleRenterReviewModal from '../components/VehicleRenterReviewModal';
-import { useGuestReviews } from '../hooks/useGuestReviews';
+import { useVehicleRenterReviews } from '../hooks/useVehicleRenterReviews';
 
 type HostVehicleBookingsRouteParams = {
   vehicleId?: string;
@@ -40,7 +40,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const { t } = useLanguage();
   const { getVehicleBookings, getAllOwnerBookings, updateBookingStatus, loading } = useVehicleBookings();
   const { getMyVehicles } = useVehicles();
-  const { canReviewGuest } = useGuestReviews();
+  const { canReviewBooking } = useVehicleRenterReviews();
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -83,7 +83,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
       for (const booking of data) {
         const completed = isBookingCompleted(booking);
         if (completed && booking.status !== 'cancelled' && booking.renter?.user_id && booking.vehicle?.id) {
-          canReviewMap[booking.id] = await canReviewGuest(booking.id, booking.renter.user_id, booking.vehicle.id);
+          canReviewMap[booking.id] = await canReviewBooking(booking.id);
         }
       }
       setCanReviewRenter(canReviewMap);

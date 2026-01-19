@@ -13,7 +13,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { HostBooking } from '../types';
 import InvoiceDisplay from './InvoiceDisplay';
 import { supabase } from '../services/supabase';
-import { Share, Linking } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { Linking } from 'react-native';
 import HostCancellationDialog from './HostCancellationDialog';
 
 interface HostBookingDetailsModalProps {
@@ -56,6 +58,12 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
   const handleDownloadPDF = async () => {
     if (!booking) return;
     
+    // Empêcher le téléchargement pour les réservations annulées
+    if (booking.status === 'cancelled') {
+      Alert.alert('Erreur', 'Impossible de télécharger la facture pour une réservation annulée.');
+      return;
+    }
+    
     setDownloadingPDF(true);
     try {
       const { data, error } = await supabase.functions.invoke('send-email', {
@@ -85,21 +93,25 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
       if (error) throw error;
 
       if (data?.pdf) {
-        const byteCharacters = atob(data.pdf);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
+        // Sauvegarder le PDF dans un fichier temporaire
+        const fileName = `justificatif-${booking.id.substring(0, 8)}.pdf`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
         
-        await Share.share({
-          message: `Justificatif de réservation ${booking.id.substring(0, 8)}`,
-          url: url,
+        await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
+          encoding: FileSystem.EncodingType.Base64,
         });
         
-        Alert.alert('Succès', 'Le justificatif a été généré. Vous pouvez le partager ou l\'enregistrer.');
+        // Partager le PDF
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Partager le justificatif',
+          });
+          Alert.alert('Succès', 'Le justificatif a été généré. Vous pouvez le partager ou l\'enregistrer.');
+        } else {
+          Alert.alert('Succès', 'Le justificatif a été sauvegardé.');
+        }
       } else {
         const pdfUrl = `https://hqzgndjbxzgsyfoictgo.supabase.co/storage/v1/object/public/invoices/host_${booking.id}.pdf`;
         const canOpen = await Linking.canOpenURL(pdfUrl);

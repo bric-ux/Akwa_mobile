@@ -8,8 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
-  Share,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -38,6 +39,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
     phone?: string;
   } | null>(null);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [payment, setPayment] = useState<any>(null);
 
   useEffect(() => {
     loadBookingDetails();
@@ -59,8 +61,15 @@ const VehicleBookingDetailsScreen: React.FC = () => {
       
       setBooking(foundBooking);
 
-      // Charger les infos du propriétaire
-      if (foundBooking.vehicle?.owner_id) {
+      // Utiliser les infos du propriétaire déjà chargées dans la réservation
+      if (foundBooking.vehicle?.owner) {
+        setOwnerInfo({
+          first_name: foundBooking.vehicle.owner.first_name,
+          last_name: foundBooking.vehicle.owner.last_name,
+          phone: foundBooking.vehicle.owner.phone,
+        });
+      } else if (foundBooking.vehicle?.owner_id) {
+        // Fallback: charger les infos du propriétaire si elles ne sont pas dans la réservation
         const { data: ownerData } = await supabase
           .from('profiles')
           .select('first_name, last_name, phone')
@@ -68,6 +77,16 @@ const VehicleBookingDetailsScreen: React.FC = () => {
           .single();
         setOwnerInfo(ownerData);
       }
+
+      // Charger les infos de paiement
+      const { data: paymentData } = await supabase
+        .from('vehicle_payments')
+        .select('*')
+        .eq('booking_id', bookingId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setPayment(paymentData);
     } catch (error) {
       console.error('Erreur lors du chargement des détails:', error);
       Alert.alert('Erreur', 'Impossible de charger les détails de la réservation');
@@ -78,6 +97,12 @@ const VehicleBookingDetailsScreen: React.FC = () => {
 
   const handleDownloadPDF = async () => {
     if (!booking) return;
+    
+    // Empêcher le téléchargement pour les réservations annulées
+    if (booking.status === 'cancelled') {
+      Alert.alert('Erreur', 'Impossible de télécharger la facture pour une réservation annulée.');
+      return;
+    }
     
     setDownloadingPDF(true);
     try {
@@ -107,6 +132,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
             ownerEmail: ownerInfo?.phone,
             ownerPhone: ownerInfo?.phone || '',
             pickupLocation: booking.pickup_location,
+            paymentMethod: payment?.payment_method || booking.payment_method,
           }
         }
       });
@@ -114,25 +140,25 @@ const VehicleBookingDetailsScreen: React.FC = () => {
       if (error) throw error;
 
       if (data?.pdf) {
-        // Décoder le PDF base64 et le partager
-        const byteCharacters = atob(data.pdf);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        // Sauvegarder le PDF dans un fichier temporaire
+        const fileName = `facture-vehicule-${booking.id.substring(0, 8)}.pdf`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
         
-        // Créer une URL temporaire pour le PDF
-        const url = URL.createObjectURL(blob);
-        
-        // Partager le PDF
-        await Share.share({
-          message: `Facture de réservation véhicule ${booking.id.substring(0, 8)}`,
-          url: url,
+        await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
+          encoding: FileSystem.EncodingType.Base64,
         });
         
-        Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
+        // Partager le PDF
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Partager la facture',
+          });
+          Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
+        } else {
+          Alert.alert('Succès', 'La facture a été sauvegardée.');
+        }
       } else {
         Alert.alert('Erreur', 'Impossible de générer le PDF');
       }
@@ -222,22 +248,22 @@ const VehicleBookingDetailsScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Détails de la réservation</Text>
           
           {/* Véhicule */}
-          {booking.vehicle && (
-            <View style={styles.infoRow}>
-              <Ionicons name="car-outline" size={20} color="#666" />
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Véhicule</Text>
-                <Text style={styles.infoValue}>
-                  {booking.vehicle.brand} {booking.vehicle.model}
+          <View style={styles.infoRow}>
+            <Ionicons name="car-outline" size={20} color="#666" />
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Véhicule</Text>
+              <Text style={styles.infoValue}>
+                {booking.vehicle?.brand && booking.vehicle?.model
+                  ? `${booking.vehicle.brand} ${booking.vehicle.model}`
+                  : booking.vehicle?.title || 'Véhicule'}
+              </Text>
+              {booking.vehicle?.location?.name && (
+                <Text style={styles.infoSubtext}>
+                  📍 {booking.vehicle.location.name}
                 </Text>
-                {booking.vehicle.location?.name && (
-                  <Text style={styles.infoSubtext}>
-                    📍 {booking.vehicle.location.name}
-                  </Text>
-                )}
-              </View>
+              )}
             </View>
-          )}
+          </View>
 
           {/* Dates */}
           <View style={styles.infoRow}>
@@ -277,23 +303,32 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         </View>
 
         {/* Contact du propriétaire */}
-        {isConfirmed && ownerInfo && (
+        {isConfirmed && (ownerInfo || booking.vehicle?.owner) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Contact du propriétaire</Text>
             <View style={styles.infoRow}>
               <Ionicons name="person-outline" size={20} color="#666" />
               <View style={styles.infoContent}>
                 <Text style={styles.infoValue}>
-                  {ownerInfo.first_name} {ownerInfo.last_name}
+                  {ownerInfo 
+                    ? `${ownerInfo.first_name || ''} ${ownerInfo.last_name || ''}`.trim()
+                    : booking.vehicle?.owner
+                    ? `${booking.vehicle.owner.first_name || ''} ${booking.vehicle.owner.last_name || ''}`.trim()
+                    : 'Propriétaire'}
                 </Text>
-                {ownerInfo.phone && (
+                {(ownerInfo?.phone || booking.vehicle?.owner?.phone) && (
                   <TouchableOpacity
-                    onPress={() => Linking.openURL(`tel:${ownerInfo.phone}`)}
+                    onPress={() => Linking.openURL(`tel:${ownerInfo?.phone || booking.vehicle?.owner?.phone || ''}`)}
                   >
                     <Text style={styles.phoneLink}>
-                      📞 {ownerInfo.phone}
+                      📞 {ownerInfo?.phone || booking.vehicle?.owner?.phone}
                     </Text>
                   </TouchableOpacity>
+                )}
+                {(ownerInfo?.email || booking.vehicle?.owner?.email) && (
+                  <Text style={styles.infoSubtext}>
+                    ✉️ {ownerInfo?.email || booking.vehicle?.owner?.email}
+                  </Text>
                 )}
               </View>
             </View>
@@ -309,8 +344,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Facture */}
-        {isConfirmed && (
+        {/* Facture - uniquement pour les réservations confirmées ou terminées (pas annulées) */}
+        {isConfirmed && booking.status !== 'cancelled' && (
           <>
             <View style={styles.section}>
               <InvoiceDisplay
@@ -321,11 +356,12 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                   start_date: booking.start_date,
                   end_date: booking.end_date,
                   total_price: booking.total_price,
-                  payment_method: booking.payment_method,
+                  payment_method: payment?.payment_method || booking.payment_method,
                   status: booking.status,
                 }}
                 pricePerUnit={booking.daily_rate}
                 cleaningFee={0}
+                paymentMethod={payment?.payment_method || booking.payment_method}
                 propertyOrVehicleTitle={`${booking.vehicle?.brand || ''} ${booking.vehicle?.model || ''}`.trim()}
               />
             </View>

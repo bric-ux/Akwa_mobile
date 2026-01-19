@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { VehicleBooking } from '../types';
 import { getCommissionRates } from '../lib/commissions';
 import { supabase } from '../services/supabase';
@@ -36,6 +38,29 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [cancellationModalVisible, setCancellationModalVisible] = useState(false);
   const [modificationModalVisible, setModificationModalVisible] = useState(false);
+  const [payment, setPayment] = useState<any>(null);
+
+  useEffect(() => {
+    if (booking) {
+      loadPayment();
+    }
+  }, [booking]);
+
+  const loadPayment = async () => {
+    if (!booking) return;
+    try {
+      const { data } = await supabase
+        .from('vehicle_payments')
+        .select('*')
+        .eq('booking_id', booking.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setPayment(data);
+    } catch (error) {
+      console.error('Erreur lors du chargement du paiement:', error);
+    }
+  };
 
   if (!booking) return null;
 
@@ -77,6 +102,12 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const ownerNetAmount = basePrice - ownerCommission;
 
   const handleDownloadPDF = async () => {
+    // Empêcher le téléchargement pour les réservations annulées
+    if (booking.status === 'cancelled') {
+      Alert.alert('Erreur', 'Impossible de télécharger la facture pour une réservation annulée.');
+      return;
+    }
+    
     setIsDownloading(true);
     try {
       // Vérifier si le véhicule a auto_booking pour déterminer le type de réservation
@@ -114,6 +145,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
             ownerPhone: owner?.phone || '',
             pickupLocation: booking.pickup_location,
             isInstantBooking: isInstantBooking,
+            paymentMethod: payment?.payment_method || booking.payment_method,
           }
         }
       });
@@ -121,11 +153,34 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
       if (error) throw error;
 
       if (data?.pdf) {
-        // Pour mobile, on ouvre le PDF dans le navigateur
-        const base64Data = data.pdf;
-        const pdfUrl = `data:application/pdf;base64,${base64Data}`;
-        await Linking.openURL(pdfUrl);
-        Alert.alert('Succès', 'La facture a été ouverte.');
+        // Décoder le PDF base64
+        const byteCharacters = atob(data.pdf);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        
+        // Sauvegarder le PDF dans un fichier temporaire
+        const fileName = `facture-vehicule-${booking.id.substring(0, 8)}.pdf`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        
+        await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        // Partager le PDF
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Partager la facture',
+          });
+          Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
+        } else {
+          // Fallback: ouvrir avec Linking si Sharing n'est pas disponible
+          Alert.alert('Succès', 'La facture a été sauvegardée.');
+        }
       }
     } catch (error: any) {
       console.error('Erreur téléchargement PDF:', error);
@@ -350,8 +405,8 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               </View>
             )}
 
-            {/* Facture */}
-            {(booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'in_progress') && (
+            {/* Facture - uniquement pour les réservations confirmées ou terminées (pas annulées) */}
+            {(booking.status === 'confirmed' || booking.status === 'completed') && (
               <View style={styles.card}>
                 <InvoiceDisplay
                   type={isOwner ? 'host' : 'traveler'}
@@ -368,7 +423,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                     status: booking.status,
                   }}
                   pricePerUnit={booking.daily_rate || 0}
-                  paymentMethod={booking.payment_method}
+                  paymentMethod={payment?.payment_method || booking.payment_method}
                   travelerName={isOwner ? undefined : `${renter?.first_name || ''} ${renter?.last_name || ''}`.trim()}
                   travelerEmail={isOwner ? undefined : renter?.email}
                   travelerPhone={isOwner ? undefined : renter?.phone}

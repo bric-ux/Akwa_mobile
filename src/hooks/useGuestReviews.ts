@@ -230,6 +230,46 @@ export const useGuestReviews = () => {
     }
   };
 
+  // Check if vehicle owner can review a renter for a specific vehicle booking
+  const canReviewVehicleRenter = async (bookingId: string): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      // Check if booking is completed
+      const { data: booking } = await supabase
+        .from('vehicle_bookings')
+        .select('id, status, end_date, renter_id, vehicle:vehicles(owner_id)')
+        .eq('id', bookingId)
+        .single();
+
+      if (!booking) return false;
+      
+      const vehicle = booking.vehicle as any;
+      if (vehicle?.owner_id !== user.id) return false;
+      
+      // Check if rental is completed
+      const endDate = new Date(booking.end_date);
+      endDate.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (endDate > today) return false;
+
+      // Check if already reviewed (using guest_reviews with vehicleId as propertyId for compatibility)
+      const { data: existingReview } = await (supabase as any)
+        .from('guest_reviews')
+        .select('id')
+        .eq('booking_id', bookingId)
+        .eq('host_id', user.id)
+        .maybeSingle();
+
+      return !existingReview;
+    } catch (err) {
+      console.error('Error checking if can review vehicle renter:', err);
+      return false;
+    }
+  };
+
   return {
     loading,
     error,
@@ -237,6 +277,7 @@ export const useGuestReviews = () => {
     getReviewsForGuest,
     getPublishedReviewsForGuest,
     canReviewGuest,
+    canReviewVehicleRenter,
     submitGuestReview
   };
 };

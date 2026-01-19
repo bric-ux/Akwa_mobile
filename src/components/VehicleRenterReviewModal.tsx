@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useGuestReviews } from '../hooks/useGuestReviews';
+import { useVehicleRenterReviews } from '../hooks/useVehicleRenterReviews';
 import { VEHICLE_COLORS } from '../constants/colors';
 
 interface VehicleRenterReviewModalProps {
@@ -34,9 +34,10 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
   vehicleId,
   onReviewSubmitted,
 }) => {
-  const { submitGuestReview, loading } = useGuestReviews();
+  const { createReview, loading } = useVehicleRenterReviews();
   const [rating, setRating] = useState(0);
-  const [cleanlinessRating, setCleanlinessRating] = useState(0);
+  const [vehicleCareRating, setVehicleCareRating] = useState(0);
+  const [punctualityRating, setPunctualityRating] = useState(0);
   const [communicationRating, setCommunicationRating] = useState(0);
   const [respectRulesRating, setRespectRulesRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -48,22 +49,22 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
       return;
     }
 
-    // Utiliser la même logique que pour les propriétés mais avec vehicleId comme propertyId
-    // Note: Cela nécessite que la table guest_reviews accepte vehicle_id ou qu'on utilise une logique similaire
-    const result = await submitGuestReview({
-      bookingId,
-      guestId: renterId,
-      propertyId: vehicleId, // Utiliser vehicleId comme propertyId pour la compatibilité
+    const result = await createReview({
+      booking_id: bookingId,
+      vehicle_id: vehicleId,
+      renter_id: renterId,
       rating,
-      cleanlinessRating: cleanlinessRating || undefined,
-      communicationRating: communicationRating || undefined,
-      respectRulesRating: respectRulesRating || undefined,
+      vehicle_care_rating: vehicleCareRating || undefined,
+      punctuality_rating: punctualityRating || undefined,
+      communication_rating: communicationRating || undefined,
+      respect_rules_rating: respectRulesRating || undefined,
       comment: comment.trim() || undefined,
     });
 
     if (result.success) {
       setRating(0);
-      setCleanlinessRating(0);
+      setVehicleCareRating(0);
+      setPunctualityRating(0);
       setCommunicationRating(0);
       setRespectRulesRating(0);
       setComment('');
@@ -159,11 +160,18 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
               <Text style={styles.sectionTitle}>Notes détaillées</Text>
               <View style={styles.ratingsGrid}>
                 <StarRating
-                  title="Propreté"
-                  icon="sparkles-outline"
-                  rating={cleanlinessRating}
-                  setRating={setCleanlinessRating}
-                  category="cleanliness"
+                  title="Soin du véhicule"
+                  icon="car-outline"
+                  rating={vehicleCareRating}
+                  setRating={setVehicleCareRating}
+                  category="vehicleCare"
+                />
+                <StarRating
+                  title="Ponctualité"
+                  icon="time-outline"
+                  rating={punctualityRating}
+                  setRating={setPunctualityRating}
+                  category="punctuality"
                 />
                 <StarRating
                   title="Communication"

@@ -8,8 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
-  Share,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -89,6 +90,12 @@ const PropertyBookingDetailsScreen: React.FC = () => {
   const handleDownloadPDF = async () => {
     if (!booking) return;
     
+    // Empêcher le téléchargement pour les réservations annulées
+    if (booking.status === 'cancelled') {
+      Alert.alert('Erreur', 'Impossible de télécharger la facture pour une réservation annulée.');
+      return;
+    }
+    
     setDownloadingPDF(true);
     try {
       // Appeler la fonction Supabase pour générer le PDF
@@ -122,25 +129,25 @@ const PropertyBookingDetailsScreen: React.FC = () => {
       if (error) throw error;
 
       if (data?.pdf) {
-        // Décoder le PDF base64 et le partager
-        const byteCharacters = atob(data.pdf);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        // Sauvegarder le PDF dans un fichier temporaire
+        const fileName = `facture-${booking.id.substring(0, 8)}.pdf`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
         
-        // Créer une URL temporaire pour le PDF
-        const url = URL.createObjectURL(blob);
-        
-        // Partager le PDF
-        await Share.share({
-          message: `Facture de réservation ${booking.id.substring(0, 8)}`,
-          url: url,
+        await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
+          encoding: FileSystem.EncodingType.Base64,
         });
         
-        Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
+        // Partager le PDF
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Partager la facture',
+          });
+          Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
+        } else {
+          Alert.alert('Succès', 'La facture a été sauvegardée.');
+        }
       } else {
         // Si pas de PDF, ouvrir dans le navigateur
         const pdfUrl = `https://hqzgndjbxzgsyfoictgo.supabase.co/storage/v1/object/public/invoices/${booking.id}.pdf`;
