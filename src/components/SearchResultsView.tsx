@@ -15,6 +15,7 @@ import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
+import { TRAVELER_COLORS, COMMON_COLORS } from '../constants/colors';
 import PropertyCard from './PropertyCard';
 import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
 
@@ -295,62 +296,107 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     #map { width: 100%; height: 100vh; background: #f0f0f0; }
     .leaflet-container { background: #f0f0f0; }
     .price-marker {
-      background: rgba(255, 255, 255, 0.95);
-      border: 1.5px solid #e74c3c;
-      border-radius: 16px;
-      padding: 6px 12px;
-      font-weight: 700;
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid ${TRAVELER_COLORS.primary};
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-weight: 800;
       font-size: 13px;
-      color: #e74c3c;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      color: ${TRAVELER_COLORS.primary};
+      box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3), 0 2px 4px rgba(0,0,0,0.1);
       cursor: pointer;
       white-space: nowrap;
-      backdrop-filter: blur(4px);
+      backdrop-filter: blur(8px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .price-marker::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      transition: left 0.5s;
     }
     .price-marker:hover {
-      background: rgba(231, 76, 60, 0.95);
+      background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%);
       color: white;
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 6px 20px rgba(230, 126, 34, 0.4), 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .price-marker:hover::before {
+      left: 100%;
     }
     .cluster-marker {
-      background: rgba(46, 125, 50, 0.95);
-      border: 2px solid #2E7D32;
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid ${TRAVELER_COLORS.primary};
       border-radius: 20px;
-      padding: 8px 14px;
-      font-weight: 700;
-      font-size: 14px;
-      color: white;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+      padding: 6px 14px;
+      font-weight: 800;
+      font-size: 13px;
+      color: ${TRAVELER_COLORS.primary};
+      box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3), 0 2px 4px rgba(0,0,0,0.1);
       cursor: pointer;
       white-space: nowrap;
       display: flex;
       align-items: center;
       justify-content: center;
       min-width: 50px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(8px);
+    }
+    .cluster-marker::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      transition: left 0.5s;
     }
     .cluster-marker:hover {
-      background: rgba(46, 125, 50, 1);
-      transform: scale(1.05);
+      background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%);
+      color: white;
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 6px 20px rgba(230, 126, 34, 0.4), 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .cluster-marker:hover::before {
+      left: 100%;
     }
     .cluster-count {
-      background: white;
-      color: #2E7D32;
+      background: ${TRAVELER_COLORS.primary};
+      color: white;
       border-radius: 50%;
       width: 24px;
       height: 24px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin-left: 6px;
-      font-size: 12px;
-      font-weight: 800;
+      margin-left: 8px;
+      font-size: 11px;
+      font-weight: 900;
+      box-shadow: 0 2px 6px rgba(230, 126, 34, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.9);
     }
     .property-list-item {
-      padding: 10px;
-      border-bottom: 1px solid #eee;
+      padding: 12px 14px;
+      border-bottom: 1px solid #e8e8e8;
       cursor: pointer;
+      transition: all 0.2s ease;
+      border-left: 3px solid transparent;
+      background: linear-gradient(to right, transparent, rgba(230, 126, 34, 0.02));
     }
     .property-list-item:hover {
-      background: #f5f5f5;
+      background: linear-gradient(to right, rgba(230, 126, 34, 0.08), rgba(214, 106, 26, 0.05));
+      border-left-color: ${TRAVELER_COLORS.primary};
+      transform: translateX(4px);
+      box-shadow: -2px 0 8px rgba(230, 126, 34, 0.15);
     }
     .property-list-item:last-child {
       border-bottom: none;
@@ -455,8 +501,13 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
               });
               
               // Popup avec liste de toutes les propriétés
+              // Limiter à 10 propriétés affichées, avec indication si plus
+              const maxDisplayed = 10;
+              const displayedProperties = markerData.properties.slice(0, maxDisplayed);
+              const hasMore = markerData.properties.length > maxDisplayed;
+              
               let propertiesList = '';
-              markerData.properties.forEach((prop) => {
+              displayedProperties.forEach((prop) => {
                 const displayPrice = (
                   prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
                     ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -464,47 +515,69 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
                 );
                 const displayCurrency = prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA';
                 const distanceText = prop.distance !== null && prop.distance !== undefined 
-                  ? ' <span style="color: #666; font-size: 11px;">(' + prop.distance.toFixed(1) + ' km)</span>' 
+                  ? ' <span style="color: #888; font-size: 11px; font-weight: 500;">• ' + prop.distance.toFixed(1) + ' km</span>' 
                   : '';
                 propertiesList += '<div class="property-list-item" onclick="selectProperty(\\'' + prop.id + '\\')">' +
-                  '<strong style="font-size: 13px;">' + prop.title.replace(/"/g, '') + '</strong><br/>' +
-                  '<span style="color: #e74c3c; font-weight: bold; font-size: 12px;">' + displayPrice + ' ' + displayCurrency + '/nuit</span>' + distanceText +
+                  '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
+                  '<span style="font-size: 16px;">🏠</span>' +
+                  '<strong style="font-size: 14px; color: #333; flex: 1; line-height: 1.3;">' + prop.title.replace(/"/g, '') + '</strong>' +
+                  '</div>' +
+                  '<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">' +
+                  '<span style="color: ${TRAVELER_COLORS.primary}; font-weight: 800; font-size: 13px;">' + displayPrice + ' ' + displayCurrency + '</span>' +
+                  '<span style="color: #999; font-size: 11px;">/nuit</span>' +
+                  distanceText +
+                  '</div>' +
                   '</div>';
               });
               
-              popupContent = '<div style="max-width: 250px; max-height: 300px; overflow-y: auto;">' +
-                '<div style="padding: 8px; background: #2E7D32; color: white; font-weight: bold; margin: -10px -10px 10px -10px; border-radius: 4px 4px 0 0;">' +
-                markerData.count + ' propriété' + (markerData.count > 1 ? 's' : '') + ' à cet endroit' +
+              // Message si plus de propriétés
+              const morePropertiesText = hasMore 
+                ? '<div style="padding: 12px; text-align: center; color: #666; font-size: 12px; font-weight: 600; border-top: 1px solid #eee; background: #f9f9f9;">' +
+                  'Et ' + (markerData.properties.length - maxDisplayed) + ' autre' + (markerData.properties.length - maxDisplayed > 1 ? 's' : '') + ' propriété' + (markerData.properties.length - maxDisplayed > 1 ? 's' : '') +
+                  '</div>'
+                : '';
+              
+              popupContent = '<div style="max-width: 300px; max-height: 400px; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;">' +
+                '<div style="padding: 14px 16px; background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%); color: white; font-weight: 800; font-size: 15px; box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3); display: flex; align-items: center; gap: 8px; flex-shrink: 0;">' +
+                '<span style="font-size: 18px;">📍</span>' +
+                '<span>' + markerData.count + ' propriété' + (markerData.count > 1 ? 's' : '') + ' à cet endroit</span>' +
                 '</div>' +
-                propertiesList +
+                '<div style="padding: 4px; overflow-y: auto; flex: 1; max-height: 320px;">' + propertiesList + '</div>' +
+                morePropertiesText +
                 '</div>';
             } else {
               // Marqueur simple pour une seule propriété
               const prop = markerData.properties[0];
+              const displayPrice = (
+                prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
+                  ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                  : prop.price.toLocaleString('fr-FR')
+              );
+              const displayCurrency = prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA';
               divIcon = L.divIcon({
                 className: 'custom-marker',
-                html: '<div class="price-marker">' + (
-                  prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
-                    ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                    : prop.price.toLocaleString('fr-FR')
-                ) + ' ' + (
-                  prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
-                ) + '</div>',
-                iconSize: [100, 36],
-                iconAnchor: [50, 36]
+                html: '<div class="price-marker">' + displayPrice + ' ' + displayCurrency + '</div>',
+                iconSize: [100, 34],
+                iconAnchor: [50, 34]
               });
               
               // Popup pour une seule propriété
               const distanceText = prop.distance !== null && prop.distance !== undefined 
-                ? '<br/><span style="color: #666; font-size: 12px;">📍 ' + prop.distance.toFixed(1) + ' km</span>' 
+                ? '<div style="display: flex; align-items: center; gap: 4px; margin-top: 6px;"><span style="font-size: 12px;">📍</span><span style="color: #888; font-size: 12px; font-weight: 500;">' + prop.distance.toFixed(1) + ' km</span></div>' 
                 : '';
-              popupContent = '<div style="max-width: 200px;"><strong>' + prop.title.replace(/"/g, '') + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 14px;">' + (
-                prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
-                  ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                  : prop.price.toLocaleString('fr-FR')
-              ) + ' ' + (
-                prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
-              ) + '/nuit</span>' + distanceText + '</div>';
+              popupContent = '<div style="max-width: 240px; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">' +
+                '<div style="padding: 14px 16px; background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%); color: white;">' +
+                '<div style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">' + prop.title.replace(/"/g, '') + '</div>' +
+                '<div style="display: flex; align-items: baseline; gap: 4px;">' +
+                '<span style="font-size: 20px; font-weight: 900;">' + displayPrice + '</span>' +
+                '<span style="font-size: 12px; opacity: 0.9;">' + displayCurrency + '/nuit</span>' +
+                '</div>' +
+                distanceText +
+                '</div>' +
+                '<button onclick="selectProperty(\\'' + prop.id + '\\')" style="background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%); color: white; border: none; padding: 12px 20px; border-radius: 0 0 12px 12px; cursor: pointer; width: 100%; font-weight: 700; font-size: 14px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(230, 126, 34, 0.3);">' +
+                  '✨ Voir détails' +
+                  '</button>' +
+                  '</div>';
             }
 
             const marker = L.marker(markerData.position, { 

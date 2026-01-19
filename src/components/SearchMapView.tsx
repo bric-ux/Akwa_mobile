@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Image, Modal } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Image, Modal, Animated, Dimensions, ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
+import { TRAVELER_COLORS, COMMON_COLORS } from '../constants/colors';
 
 interface SearchMapViewProps {
   properties: Property[];
@@ -11,10 +13,14 @@ interface SearchMapViewProps {
   searchRadius?: number; // Rayon de recherche en km
 }
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPress, searchCenter, searchRadius }) => {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const webViewRef = useRef<WebView>(null);
   const { formatPrice: formatPriceWithCurrency, currency, currencySymbol, convert } = useCurrency();
+  const slideAnim = useRef(new Animated.Value(300)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Calculer les coordonnées moyennes pour centrer la carte
   const getCenterCoordinates = () => {
@@ -167,62 +173,111 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
     body { margin: 0; padding: 0; }
     #map { width: 100%; height: 100vh; }
     .price-marker {
-      background: rgba(255, 255, 255, 0.85);
-      border: 1.5px solid #e74c3c;
-      border-radius: 16px;
-      padding: 4px 10px;
-      font-weight: 700;
-      font-size: 12px;
-      color: #e74c3c;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid ${TRAVELER_COLORS.primary};
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-weight: 800;
+      font-size: 13px;
+      color: ${TRAVELER_COLORS.primary};
+      box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3), 0 2px 4px rgba(0,0,0,0.1);
       cursor: pointer;
       white-space: nowrap;
-      backdrop-filter: blur(2px);
+      backdrop-filter: blur(8px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .price-marker::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      transition: left 0.5s;
     }
     .price-marker:hover {
-      background: rgba(231, 76, 60, 0.9);
-      color:white;
+      background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%);
+      color: white;
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 6px 20px rgba(230, 126, 34, 0.4), 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .price-marker:hover::before {
+      left: 100%;
     }
     .cluster-marker {
-      background: rgba(46, 125, 50, 0.95);
-      border: 2px solid #2E7D32;
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid ${TRAVELER_COLORS.primary};
       border-radius: 20px;
-      padding: 8px 14px;
-      font-weight: 700;
-      font-size: 14px;
-      color: white;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+      padding: 6px 12px;
+      font-weight: 800;
+      font-size: 12px;
+      color: ${TRAVELER_COLORS.primary};
+      box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3), 0 2px 4px rgba(0,0,0,0.1);
       cursor: pointer;
       white-space: nowrap;
       display: flex;
       align-items: center;
       justify-content: center;
       min-width: 50px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(8px);
+      line-height: 1.2;
+    }
+    .cluster-marker::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      transition: left 0.5s;
     }
     .cluster-marker:hover {
-      background: rgba(46, 125, 50, 1);
-      transform: scale(1.05);
+      background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%);
+      color: white;
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 6px 20px rgba(230, 126, 34, 0.4), 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .cluster-marker:hover::before {
+      left: 100%;
     }
     .cluster-count {
-      background: white;
-      color: #2E7D32;
+      background: ${TRAVELER_COLORS.primary};
+      color: white;
       border-radius: 50%;
       width: 24px;
       height: 24px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin-left: 6px;
-      font-size: 12px;
-      font-weight: 800;
+      margin-left: 8px;
+      font-size: 11px;
+      font-weight: 900;
+      box-shadow: 0 2px 6px rgba(230, 126, 34, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.9);
     }
     .property-list-item {
-      padding: 10px;
-      border-bottom: 1px solid #eee;
+      padding: 12px 14px;
+      border-bottom: 1px solid #e8e8e8;
       cursor: pointer;
+      transition: all 0.2s ease;
+      border-left: 3px solid transparent;
+      background: linear-gradient(to right, transparent, rgba(230, 126, 34, 0.02));
     }
     .property-list-item:hover {
-      background: #f5f5f5;
+      background: linear-gradient(to right, rgba(230, 126, 34, 0.08), rgba(214, 106, 26, 0.05));
+      border-left-color: ${TRAVELER_COLORS.primary};
+      transform: translateX(4px);
+      box-shadow: -2px 0 8px rgba(230, 126, 34, 0.15);
     }
     .property-list-item:last-child {
       border-bottom: none;
@@ -279,23 +334,39 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
       let popupContent;
       
       if (isCluster) {
-        // Marqueur de cluster avec compteur
+        // Calculer le prix min et max pour le cluster
+        const prices = markerData.properties.map(p => 
+          p.convertedPrice !== undefined && currentCurrency !== 'XOF' ? p.convertedPrice : p.price
+        );
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const displayCurrency = markerData.properties[0].convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA';
+        
+        // Si tous les prix sont identiques, afficher un seul prix
+        // Sinon, afficher "À partir de X"
+        let priceDisplay;
+        if (minPrice === maxPrice) {
+          priceDisplay = minPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        } else {
+          // Afficher "À partir de" avec le prix minimum
+          priceDisplay = 'À partir de ' + minPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        }
+        
         divIcon = L.divIcon({
           className: 'custom-cluster-marker',
-          html: '<div class="cluster-marker">' + 
-            (markerData.properties[0].convertedPrice !== undefined && currentCurrency !== 'XOF'
-              ? markerData.properties[0].convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-              : markerData.properties[0].price.toLocaleString('fr-FR')
-            ) + ' ' + (
-              markerData.properties[0].convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
-            ) + '<span class="cluster-count">' + markerData.count + '</span></div>',
-          iconSize: [120, 40],
-          iconAnchor: [60, 40]
+          html: '<div class="cluster-marker">' + priceDisplay + ' ' + displayCurrency + '<span class="cluster-count">' + markerData.count + '</span></div>',
+          iconSize: [140, 34],
+          iconAnchor: [70, 34]
         });
         
         // Popup avec liste de toutes les propriétés
+        // Limiter à 10 propriétés affichées, avec indication si plus
+        const maxDisplayed = 10;
+        const displayedProperties = markerData.properties.slice(0, maxDisplayed);
+        const hasMore = markerData.properties.length > maxDisplayed;
+        
         let propertiesList = '';
-        markerData.properties.forEach((prop, idx) => {
+        displayedProperties.forEach((prop) => {
           const displayPrice = (
             prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
               ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -303,38 +374,54 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
           );
           const displayCurrency = prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA';
           const distanceText = prop.distance !== null && prop.distance !== undefined 
-            ? ' <span style="color: #666; font-size: 11px;">(' + prop.distance.toFixed(1) + ' km)</span>' 
+            ? ' <span style="color: #888; font-size: 11px; font-weight: 500;">• ' + prop.distance.toFixed(1) + ' km</span>' 
             : '';
           propertiesList += '<div class="property-list-item" onclick="selectProperty(\\'' + prop.id + '\\')">' +
-            '<strong style="font-size: 13px;">' + prop.title.replace(/"/g, '') + '</strong><br/>' +
-            '<span style="color: #e74c3c; font-weight: bold; font-size: 12px;">' + displayPrice + ' ' + displayCurrency + '/nuit</span>' + distanceText +
+            '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
+            '<span style="font-size: 16px;">🏠</span>' +
+            '<strong style="font-size: 14px; color: #333; flex: 1; line-height: 1.3;">' + prop.title.replace(/"/g, '') + '</strong>' +
+            '</div>' +
+            '<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">' +
+            '<span style="color: ${TRAVELER_COLORS.primary}; font-weight: 800; font-size: 13px;">' + displayPrice + ' ' + displayCurrency + '</span>' +
+            '<span style="color: #999; font-size: 11px;">/nuit</span>' +
+            distanceText +
+            '</div>' +
             '</div>';
         });
         
-        popupContent = '<div style="max-width: 250px; max-height: 300px; overflow-y: auto;">' +
-          '<div style="padding: 8px; background: #2E7D32; color: white; font-weight: bold; margin: -10px -10px 10px -10px; border-radius: 4px 4px 0 0;">' +
-          markerData.count + ' propriété' + (markerData.count > 1 ? 's' : '') + ' à cet endroit' +
+        // Message si plus de propriétés
+        const morePropertiesText = hasMore 
+          ? '<div style="padding: 12px; text-align: center; color: #666; font-size: 12px; font-weight: 600; border-top: 1px solid #eee;">' +
+            'Et ' + (markerData.properties.length - maxDisplayed) + ' autre' + (markerData.properties.length - maxDisplayed > 1 ? 's' : '') + ' propriété' + (markerData.properties.length - maxDisplayed > 1 ? 's' : '') +
+            '</div>'
+          : '';
+        
+        popupContent = '<div style="max-width: 300px; max-height: 400px; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;">' +
+          '<div style="padding: 14px 16px; background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%); color: white; font-weight: 800; font-size: 15px; box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3); display: flex; align-items: center; gap: 8px; flex-shrink: 0;">' +
+          '<span style="font-size: 18px;">📍</span>' +
+          '<span>' + markerData.count + ' propriété' + (markerData.count > 1 ? 's' : '') + ' à cet endroit</span>' +
           '</div>' +
-          propertiesList +
+          '<div style="padding: 4px; overflow-y: auto; flex: 1; max-height: 320px;">' + propertiesList + '</div>' +
+          morePropertiesText +
           '</div>';
       } else {
         // Marqueur simple pour une seule propriété
         const prop = markerData.properties[0];
+        const displayPrice = (
+          prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
+            ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+            : prop.price.toLocaleString('fr-FR')
+        );
+        const displayCurrency = prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA';
         divIcon = L.divIcon({
           className: 'custom-marker',
-          html: '<div class="price-marker">' + (
-            prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
-              ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-              : prop.price.toLocaleString('fr-FR')
-          ) + ' ' + (
-            prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA'
-          ) + '</div>',
-          iconSize: [90, 34],
-          iconAnchor: [45, 34]
+          html: '<div class="price-marker">' + displayPrice + ' ' + displayCurrency + '</div>',
+          iconSize: [100, 34],
+          iconAnchor: [50, 34]
         });
         
         // Popup pour une seule propriété
-        const displayPrice = (
+        const popupDisplayPrice = (
           prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
             ? (
               currentCurrency !== 'JPY'
@@ -343,11 +430,22 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
             )
             : prop.price.toLocaleString('fr-FR')
         );
-        const displayCurrency = prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA';
         const distanceText = prop.distance !== null && prop.distance !== undefined 
-          ? '<br/><span style="color: #666; font-size: 12px;">📍 ' + prop.distance.toFixed(1) + ' km</span>' 
+          ? '<div style="display: flex; align-items: center; gap: 4px; margin-top: 6px;"><span style="font-size: 12px;">📍</span><span style="color: #888; font-size: 12px; font-weight: 500;">' + prop.distance.toFixed(1) + ' km</span></div>' 
           : '';
-        popupContent = '<div style="max-width: 200px;"><strong>' + prop.title.replace(/"/g, '') + '</strong><br/><span style="color: #e74c3c; font-weight: bold; font-size: 16px;">' + displayPrice + ' ' + displayCurrency + '/nuit</span>' + distanceText + '<br/><button onclick="selectProperty(\\'' + prop.id + '\\')" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-top: 8px; width: 100%;">Voir détails</button></div>';
+        popupContent = '<div style="max-width: 240px; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">' +
+          '<div style="padding: 14px 16px; background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%); color: white;">' +
+          '<div style="font-size: 18px; font-weight: 800; margin-bottom: 4px;">' + prop.title.replace(/"/g, '') + '</div>' +
+          '<div style="display: flex; align-items: baseline; gap: 4px;">' +
+          '<span style="font-size: 20px; font-weight: 900;">' + popupDisplayPrice + '</span>' +
+          '<span style="font-size: 12px; opacity: 0.9;">' + displayCurrency + '/nuit</span>' +
+          '</div>' +
+          distanceText +
+          '</div>' +
+          '<button onclick="selectProperty(\\'' + prop.id + '\\')" style="background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%); color: white; border: none; padding: 12px 20px; border-radius: 0 0 12px 12px; cursor: pointer; width: 100%; font-weight: 700; font-size: 14px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(230, 126, 34, 0.3);">' +
+          '✨ Voir détails' +
+          '</button>' +
+          '</div>';
       }
 
       const marker = L.marker(markerData.position, { 
@@ -390,11 +488,43 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
         if (property) {
           // Afficher seulement l'aperçu, ne pas naviguer directement
           setSelectedProperty(property);
+          // Animation d'entrée
+          Animated.parallel([
+            Animated.spring(slideAnim, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 50,
+              friction: 8,
+            }),
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+          ]).start();
         }
       }
     } catch (error) {
       console.error('Error parsing WebView message:', error);
     }
+  };
+
+  const handleCloseProperty = () => {
+    Animated.parallel([
+      Animated.spring(slideAnim, {
+        toValue: 300,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setSelectedProperty(null);
+    });
   };
 
   useEffect(() => {
@@ -421,47 +551,201 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
       />
       
       <View style={styles.header}>
-        <Text style={styles.headerText}>
-          {properties.length} logement{properties.length > 1 ? 's' : ''} disponible{properties.length > 1 ? 's' : ''}
-        </Text>
+        <View style={styles.headerContent}>
+          <View style={styles.headerIconContainer}>
+            <Ionicons name="map" size={18} color={TRAVELER_COLORS.primary} />
+          </View>
+          <Text style={styles.headerText}>
+            {properties.length === 1 
+              ? '1 logement disponible' 
+              : `${properties.length} logements disponibles`}
+          </Text>
+        </View>
       </View>
 
       {selectedProperty && (
-        <View style={styles.propertyCard}>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setSelectedProperty(null)}
+        <>
+          {/* Overlay sombre */}
+          <Animated.View 
+            style={[
+              styles.overlay,
+              { opacity: fadeAnim }
+            ]}
           >
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-          {selectedProperty.images?.[0] && (
-            <Image 
-              source={{ uri: selectedProperty.images[0] }} 
-              style={styles.propertyImage}
-              resizeMode="cover"
+            <TouchableOpacity 
+              style={styles.overlayTouchable}
+              activeOpacity={1}
+              onPress={handleCloseProperty}
             />
-          )}
-          <Text style={styles.propertyTitle}>{selectedProperty.title}</Text>
-          <Text style={styles.propertyPrice}>
-            {formatPrice(selectedProperty.price_per_night)}/nuit
-          </Text>
-          {(selectedProperty.location?.name || selectedProperty.locations?.name) && (
-            <Text style={styles.propertyLocation}>
-              📍 {selectedProperty.location?.name || selectedProperty.locations?.name}
-            </Text>
-          )}
-          <TouchableOpacity
-            style={styles.viewButton}
-            onPress={() => {
-              if (onPropertyPress) {
-                onPropertyPress(selectedProperty);
+          </Animated.View>
+
+          {/* Carte de propriété avec animation */}
+          <Animated.View
+            style={[
+              styles.propertyCard,
+              {
+                transform: [{ translateY: slideAnim }],
+                opacity: fadeAnim,
               }
-              setSelectedProperty(null);
-            }}
+            ]}
           >
-            <Text style={styles.viewButtonText}>Voir les détails</Text>
-          </TouchableOpacity>
-        </View>
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+            >
+              {/* Header avec gradient et image */}
+              <View style={styles.cardHeader}>
+                {selectedProperty.images?.[0] ? (
+                  <Image 
+                    source={{ uri: selectedProperty.images[0] }} 
+                    style={styles.propertyImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.propertyImagePlaceholder}>
+                    <Ionicons name="home" size={48} color={TRAVELER_COLORS.primary} />
+                  </View>
+                )}
+                <View style={styles.imageOverlay} />
+                
+                {/* Gradient overlay en bas de l'image */}
+                <View style={styles.imageGradientOverlay} />
+                
+                {/* Bouton fermer */}
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleCloseProperty}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.closeButtonInner}>
+                    <Ionicons name="close" size={20} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Badge prix flottant avec design amélioré */}
+                <View style={styles.priceBadge}>
+                  <View style={styles.priceBadgeContent}>
+                    <Text style={styles.priceBadgeLabel}>À partir de</Text>
+                    <View style={styles.priceBadgeRow}>
+                      <Text style={styles.priceBadgeText}>
+                        {formatPrice(selectedProperty.price_per_night)}
+                      </Text>
+                      <Text style={styles.priceBadgeSubtext}>/nuit</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Contenu */}
+              <View style={styles.cardContent}>
+                {/* Titre avec type de propriété */}
+                <View style={styles.titleSection}>
+                  {selectedProperty.property_type && (
+                    <View style={styles.propertyTypeBadge}>
+                      <Text style={styles.propertyTypeText}>{selectedProperty.property_type}</Text>
+                    </View>
+                  )}
+                  <Text style={styles.propertyTitle} numberOfLines={2}>
+                    {selectedProperty.title}
+                  </Text>
+                </View>
+
+                {/* Rating si disponible */}
+                {selectedProperty.rating && (
+                  <View style={styles.ratingRow}>
+                    <View style={styles.ratingContainer}>
+                      <Ionicons name="star" size={16} color="#FFD700" />
+                      <Text style={styles.ratingText}>{selectedProperty.rating.toFixed(1)}</Text>
+                      {selectedProperty.review_count > 0 && (
+                        <Text style={styles.reviewCountText}>
+                          ({selectedProperty.review_count} avis)
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                {/* Informations de localisation */}
+                {(selectedProperty.location?.name || selectedProperty.locations?.name) && (
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoItem}>
+                      <View style={styles.infoIconContainer}>
+                        <Ionicons name="location" size={18} color={TRAVELER_COLORS.primary} />
+                      </View>
+                      <Text style={styles.infoText} numberOfLines={2}>
+                        {selectedProperty.location?.name || selectedProperty.locations?.name}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Détails supplémentaires avec design amélioré */}
+                <View style={styles.detailsRow}>
+                  {selectedProperty.bedrooms && (
+                    <View style={styles.detailItem}>
+                      <View style={styles.detailIconContainer}>
+                        <Ionicons name="bed-outline" size={20} color={TRAVELER_COLORS.primary} />
+                      </View>
+                      <View style={styles.detailTextContainer}>
+                        <Text style={styles.detailNumber}>{selectedProperty.bedrooms}</Text>
+                        <Text style={styles.detailLabel}>Chambre{selectedProperty.bedrooms > 1 ? 's' : ''}</Text>
+                      </View>
+                    </View>
+                  )}
+                  {selectedProperty.bathrooms && (
+                    <View style={styles.detailItem}>
+                      <View style={styles.detailIconContainer}>
+                        <Ionicons name="water-outline" size={20} color={TRAVELER_COLORS.primary} />
+                      </View>
+                      <View style={styles.detailTextContainer}>
+                        <Text style={styles.detailNumber}>{selectedProperty.bathrooms}</Text>
+                        <Text style={styles.detailLabel}>Salle{selectedProperty.bathrooms > 1 ? 's' : ''} de bain</Text>
+                      </View>
+                    </View>
+                  )}
+                  {selectedProperty.max_guests && (
+                    <View style={styles.detailItem}>
+                      <View style={styles.detailIconContainer}>
+                        <Ionicons name="people-outline" size={20} color={TRAVELER_COLORS.primary} />
+                      </View>
+                      <View style={styles.detailTextContainer}>
+                        <Text style={styles.detailNumber}>{selectedProperty.max_guests}</Text>
+                        <Text style={styles.detailLabel}>Voyageur{selectedProperty.max_guests > 1 ? 's' : ''}</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+
+                {/* Description si disponible */}
+                {selectedProperty.description && (
+                  <View style={styles.descriptionContainer}>
+                    <Text style={styles.description} numberOfLines={3}>
+                      {selectedProperty.description}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Bouton d'action principal avec design amélioré */}
+                <TouchableOpacity
+                  style={styles.viewButton}
+                  onPress={() => {
+                    if (onPropertyPress) {
+                      onPropertyPress(selectedProperty);
+                    }
+                    handleCloseProperty();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.viewButtonGradient}>
+                    <Text style={styles.viewButtonText}>Voir les détails</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </Animated.View>
+        </>
       )}
     </View>
   );
@@ -479,86 +763,316 @@ const styles = StyleSheet.create({
     top: 10,
     left: 10,
     right: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
     padding: 12,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  headerText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-  },
-  propertyCard: {
-    position: 'absolute',
-    bottom: 10,
-    left: 10,
-    right: 10,
-    backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 12,
-    shadowColor: '#000',
+    borderRadius: 16,
+    shadowColor: TRAVELER_COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
     elevation: 5,
+    borderWidth: 1,
+    borderColor: `rgba(230, 126, 34, 0.1)`,
   },
-  closeButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  headerIconContainer: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: `rgba(230, 126, 34, 0.1)`,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+    letterSpacing: 0.3,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 998,
+  },
+  overlayTouchable: {
+    flex: 1,
+  },
+  propertyCard: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: SCREEN_HEIGHT * 0.75,
+    zIndex: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  cardHeader: {
+    position: 'relative',
+    height: 260,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#f5f5f5',
+  },
+  propertyImage: {
+    width: '100%',
+    height: '100%',
+  },
+  propertyImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: TRAVELER_COLORS.light,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  imageGradientOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: 'transparent',
+    background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
     zIndex: 10,
   },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+  closeButtonInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backdropFilter: 'blur(10px)',
   },
-propertyImage: {
-    width: '100%',
-    height: 100,
-    borderRadius: 8,
-    marginBottom: 8,
+  priceBadge: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(230, 126, 34, 0.1)',
   },
-  propertyTitle: {
-    fontSize: 14,
+  priceBadgeContent: {
+    padding: 14,
+  },
+  priceBadgeLabel: {
+    fontSize: 11,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
-  },
-  propertyPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#e74c3c',
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: 4,
   },
-  propertyLocation: {
-    fontSize: 12,
+  priceBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  priceBadgeText: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: TRAVELER_COLORS.primary,
+  },
+  priceBadgeSubtext: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#666',
+  },
+  cardContent: {
+    padding: 20,
+  },
+  titleSection: {
+    marginBottom: 12,
+  },
+  propertyTypeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: TRAVELER_COLORS.light,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
     marginBottom: 8,
   },
+  propertyTypeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: TRAVELER_COLORS.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  propertyTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    lineHeight: 30,
+  },
+  ratingRow: {
+    marginBottom: 16,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ratingText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#333',
+  },
+  reviewCountText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#666',
+    marginLeft: 4,
+  },
+  infoRow: {
+    marginBottom: 20,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  infoIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: TRAVELER_COLORS.light,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  infoText: {
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 20,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    backgroundColor: TRAVELER_COLORS.light,
+    borderRadius: 16,
+  },
+  detailItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: TRAVELER_COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  detailTextContainer: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  detailNumber: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#333',
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
+  },
+  descriptionContainer: {
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+  },
+  description: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  description: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
   viewButton: {
-    backgroundColor: '#e74c3c',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    marginTop: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: TRAVELER_COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  viewButtonGradient: {
+    backgroundColor: TRAVELER_COLORS.primary,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
   },
   viewButtonText: {
     color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });
 
