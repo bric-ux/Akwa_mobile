@@ -218,7 +218,10 @@ const MyBookingsScreen: React.FC = () => {
       </Text>
       <TouchableOpacity
         style={styles.exploreButton}
-        onPress={() => navigation.navigate('Home')}
+        onPress={() => {
+          // Naviguer vers l'onglet Home
+          (navigation as any).navigate('Home', { screen: 'HomeTab' });
+        }}
       >
         <Text style={styles.exploreButtonText}>Explorer les propriétés</Text>
       </TouchableOpacity>

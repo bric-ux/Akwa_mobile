@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getCommissionRates, type ServiceType } from '../lib/commissions';
 
@@ -145,10 +145,15 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* En-tête */}
+      {/* En-tête avec logo */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>{getTitle()}</Text>
+        <Image
+          source={{ uri: 'https://hqzgndjbxzgsyfoictgo.supabase.co/storage/v1/object/public/property-images/akwa-home-logo.png' }}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <View style={styles.headerRight}>
+          <Text style={styles.headerType}>{getTitle()}</Text>
           <Text style={styles.invoiceNumber}>
             N° {booking.id.substring(0, 8).toUpperCase()}
           </Text>
@@ -479,25 +484,29 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: '#F97316',
   },
-  headerLeft: {
-    flex: 1,
+  logo: {
+    height: 48,
+    width: 120,
   },
-  title: {
-    fontSize: 14,
+  headerRight: {
+    alignItems: 'flex-end',
+  },
+  headerType: {
+    fontSize: 12,
     color: '#6b7280',
     marginBottom: 4,
   },
   invoiceNumber: {
     fontSize: 14,
-    fontFamily: 'monospace',
     fontWeight: '600',
     color: '#333',
+    fontFamily: 'monospace',
   },
   section: {
     marginBottom: 12,

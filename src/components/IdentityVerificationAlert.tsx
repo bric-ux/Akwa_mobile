@@ -79,6 +79,7 @@ export const IdentityVerificationAlert: React.FC<IdentityVerificationAlertProps>
               <Text style={styles.documentItem}>• Carte Nationale d'Identité</Text>
               <Text style={styles.documentItem}>• Passeport</Text>
               <Text style={styles.documentItem}>• Permis de Conduire</Text>
+              <Text style={styles.documentItem}>• Tout autre document officiel permettant l'identification</Text>
             </View>
           </View>
         )}

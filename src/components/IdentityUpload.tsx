@@ -174,7 +174,7 @@ export const IdentityUpload: React.FC<IdentityUploadProps> = ({
     <View style={styles.container}>
       <Text style={styles.title}>Envoyer votre pièce d'identité</Text>
       <Text style={styles.subtitle}>
-        Envoyez une pièce d'identité valide (carte d'identité, passeport, ou permis de conduire).
+        Envoyez une pièce d'identité valide : carte nationale d'identité, passeport, permis de conduire, ou tout autre document officiel permettant l'identification.
       </Text>
 
       {/* Sélection du type de document */}
