@@ -66,6 +66,7 @@ import EditVehicleScreen from '../screens/EditVehicleScreen';
 import VehicleManagementScreen from '../screens/VehicleManagementScreen';
 import VehicleCalendarScreen from '../screens/VehicleCalendarScreen';
 import VehiclePricingScreen from '../screens/VehiclePricingScreen';
+import VehicleReviewsScreen from '../screens/VehicleReviewsScreen';
 import VehicleOwnerAccountScreen from '../screens/VehicleOwnerAccountScreen';
 import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
 import PenaltiesScreen from '../screens/PenaltiesScreen';
@@ -839,6 +840,14 @@ const AppNavigator = () => {
               component={VehiclePricingScreen}
               options={{ 
                 title: 'Tarification du véhicule',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="VehicleReviews" 
+              component={VehicleReviewsScreen}
+              options={{ 
+                title: 'Avis du véhicule',
                 headerShown: false 
               }}
             />

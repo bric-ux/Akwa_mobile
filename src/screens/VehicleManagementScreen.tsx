@@ -117,6 +117,10 @@ const VehicleManagementScreen: React.FC = () => {
     navigation.navigate('VehiclePricing' as never, { vehicleId } as never);
   };
 
+  const handleOpenReviews = () => {
+    navigation.navigate('VehicleReviews' as never, { vehicleId } as never);
+  };
+
   if (loadingVehicle || loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -241,13 +245,23 @@ const VehicleManagementScreen: React.FC = () => {
         {/* Options d'action - Ligne 2 */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[styles.actionCard, styles.actionCardFull]}
+            style={styles.actionCard}
             onPress={handleOpenPricing}
           >
             <View style={styles.actionIconContainer}>
               <Ionicons name="pricetag-outline" size={24} color="#475569" />
             </View>
             <Text style={styles.actionText}>Tarification</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={handleOpenReviews}
+          >
+            <View style={styles.actionIconContainer}>
+              <Ionicons name="star-outline" size={24} color="#475569" />
+            </View>
+            <Text style={styles.actionText}>Avis</Text>
           </TouchableOpacity>
         </View>
 

@@ -262,6 +262,7 @@ export type RootStackParamList = {
   VehicleManagement: { vehicleId: string };
   VehicleCalendar: { vehicleId: string };
   VehiclePricing: { vehicleId: string };
+  VehicleReviews: { vehicleId: string };
   HostVehicleBookings: { vehicleId?: string };
   Penalties: undefined;
 };

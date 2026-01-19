@@ -242,16 +242,24 @@ const HostVehicleBookingsScreen: React.FC = () => {
       };
 
       let isCurrentlyRented = false;
+      let hasActiveBookings = false;
 
       vehicleBookings.forEach(booking => {
-        if (booking.status === 'pending') stats.pending++;
-        if (booking.status === 'confirmed') stats.confirmed++;
+        if (booking.status === 'pending') {
+          stats.pending++;
+          hasActiveBookings = true;
+        }
+        if (booking.status === 'confirmed') {
+          stats.confirmed++;
+          hasActiveBookings = true;
+        }
         if (booking.status === 'cancelled') stats.cancelled++;
         if (isBookingCompleted(booking) && booking.status !== 'cancelled') stats.completed++;
         
         if (isBookingInProgress(booking)) {
           stats.inProgress++;
           isCurrentlyRented = true;
+          hasActiveBookings = true;
         }
       });
 
@@ -260,7 +268,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
         bookings: vehicleBookings,
         stats,
         isCurrentlyRented,
-        isAvailable: vehicleBookings.length === 0,
+        isAvailable: !hasActiveBookings, // Disponible si pas de réservations actives (pending, confirmed, in_progress)
       };
     });
 
