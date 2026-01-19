@@ -122,6 +122,29 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       const reasonLabel = cancellationReasons.find((r) => r.value === selectedReason)?.label || selectedReason;
       const fullReason = reason.trim() ? `${reasonLabel}: ${reason.trim()}` : reasonLabel;
 
+      // Récupérer les informations complètes de la réservation pour les emails
+      const { data: bookingData, error: bookingFetchError } = await supabase
+        .from('vehicle_bookings')
+        .select(`
+          *,
+          vehicle:vehicles(
+            brand,
+            model,
+            owner_id
+          ),
+          renter:profiles!vehicle_bookings_renter_id_fkey(
+            first_name,
+            last_name,
+            email
+          )
+        `)
+        .eq('id', booking.id)
+        .single();
+
+      if (bookingFetchError) {
+        throw bookingFetchError;
+      }
+
       // Mettre à jour le statut via Supabase directement
       const { error: updateError } = await supabase
         .from('vehicle_bookings')
@@ -135,6 +158,81 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         .eq('id', booking.id);
 
       if (updateError) throw updateError;
+
+      // Envoyer les emails de notification
+      try {
+        const vehicleTitle = bookingData?.vehicle 
+          ? `${bookingData.vehicle.brand || ''} ${bookingData.vehicle.model || ''}`.trim() 
+          : 'Véhicule';
+        
+        const startDateFormatted = new Date(booking.start_date).toLocaleDateString('fr-FR');
+        const endDateFormatted = new Date(booking.end_date).toLocaleDateString('fr-FR');
+
+        // Email à l'autre partie
+        if (isOwner && bookingData?.renter?.email) {
+          // Propriétaire annule → Email au locataire
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'vehicle_booking_cancelled_by_owner',
+              to: bookingData.renter.email,
+              data: {
+                renterName: bookingData.renter.first_name || 'Cher client',
+                vehicleTitle: vehicleTitle,
+                startDate: startDateFormatted,
+                endDate: endDateFormatted,
+                reason: fullReason,
+                refundAmount: booking.total_price - penalty,
+              }
+            }
+          });
+        } else if (!isOwner && bookingData?.vehicle?.owner_id) {
+          // Locataire annule → Email au propriétaire
+          const { data: ownerProfile } = await supabase
+            .from('profiles')
+            .select('email, first_name')
+            .eq('user_id', bookingData.vehicle.owner_id)
+            .single();
+            
+          if (ownerProfile?.email) {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'vehicle_booking_cancelled_by_renter',
+                to: ownerProfile.email,
+                data: {
+                  ownerName: ownerProfile.first_name || 'Cher propriétaire',
+                  vehicleTitle: vehicleTitle,
+                  startDate: startDateFormatted,
+                  endDate: endDateFormatted,
+                  reason: fullReason,
+                  penaltyAmount: penalty,
+                }
+              }
+            });
+          }
+        }
+
+        // Email à l'admin
+        await supabase.functions.invoke('send-email', {
+          body: {
+            type: 'vehicle_booking_cancelled_admin',
+            to: 'contact@akwahome.com',
+            data: {
+              bookingId: booking.id,
+              vehicleTitle: vehicleTitle,
+              cancelledBy: isOwner ? 'propriétaire' : 'locataire',
+              renterName: bookingData?.renter ? `${bookingData.renter.first_name || ''} ${bookingData.renter.last_name || ''}`.trim() : 'N/A',
+              startDate: startDateFormatted,
+              endDate: endDateFormatted,
+              reason: fullReason,
+              penaltyAmount: penalty,
+              totalPrice: booking.total_price,
+            }
+          }
+        });
+      } catch (emailError) {
+        console.error('Erreur envoi email annulation:', emailError);
+        // Ne pas faire échouer l'annulation si l'email échoue
+      }
 
       Alert.alert('Succès', 'La réservation a été annulée avec succès.');
       onCancelled();

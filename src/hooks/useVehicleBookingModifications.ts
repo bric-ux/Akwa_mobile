@@ -96,7 +96,7 @@ export const useVehicleBookingModifications = () => {
           throw updateError;
         }
 
-        // Envoyer un email au propriétaire pour l'informer de la modification
+        // Envoyer les emails de notification pour modification de demande en attente
         try {
           const ownerProfile = await supabase
             .from('profiles')
@@ -104,20 +104,50 @@ export const useVehicleBookingModifications = () => {
             .eq('user_id', booking.vehicle.owner_id)
             .single();
 
+          const vehicleTitle = booking.vehicle.title || `${booking.vehicle.brand} ${booking.vehicle.model}`;
+          const renterName = `${booking.renter?.first_name || ''} ${booking.renter?.last_name || ''}`.trim();
+
+          // Email au propriétaire
           if (ownerProfile.data?.email) {
             await supabase.functions.invoke('send-email', {
               body: {
-                type: 'vehicle_booking_request',
+                type: 'pending_vehicle_booking_modified_owner',
                 to: ownerProfile.data.email,
                 data: {
-                  bookingId: booking.id,
-                  vehicleTitle: booking.vehicle.title || `${booking.vehicle.brand} ${booking.vehicle.model}`,
-                  renterName: `${booking.renter?.first_name || ''} ${booking.renter?.last_name || ''}`.trim(),
-                  startDate: data.requestedStartDate,
-                  endDate: data.requestedEndDate,
-                  rentalDays: data.requestedRentalDays,
-                  totalPrice: data.requestedTotalPrice,
-                  message: data.message || 'Les dates de la demande ont été modifiées',
+                  ownerName: `${ownerProfile.data.first_name || ''} ${ownerProfile.data.last_name || ''}`.trim() || 'Cher propriétaire',
+                  renterName: renterName || 'Un locataire',
+                  vehicleTitle: vehicleTitle,
+                  oldStartDate: new Date(booking.start_date).toLocaleDateString('fr-FR'),
+                  oldEndDate: new Date(booking.end_date).toLocaleDateString('fr-FR'),
+                  newStartDate: new Date(data.requestedStartDate).toLocaleDateString('fr-FR'),
+                  newEndDate: new Date(data.requestedEndDate).toLocaleDateString('fr-FR'),
+                  oldRentalDays: booking.rental_days,
+                  newRentalDays: data.requestedRentalDays,
+                  oldTotalPrice: booking.total_price,
+                  newTotalPrice: data.requestedTotalPrice,
+                  message: data.message || null,
+                },
+              },
+            });
+          }
+
+          // Email au locataire
+          if (booking.renter?.email) {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'pending_vehicle_booking_modified_renter',
+                to: booking.renter.email,
+                data: {
+                  renterName: renterName || 'Cher client',
+                  vehicleTitle: vehicleTitle,
+                  oldStartDate: new Date(booking.start_date).toLocaleDateString('fr-FR'),
+                  oldEndDate: new Date(booking.end_date).toLocaleDateString('fr-FR'),
+                  newStartDate: new Date(data.requestedStartDate).toLocaleDateString('fr-FR'),
+                  newEndDate: new Date(data.requestedEndDate).toLocaleDateString('fr-FR'),
+                  oldRentalDays: booking.rental_days,
+                  newRentalDays: data.requestedRentalDays,
+                  oldTotalPrice: booking.total_price,
+                  newTotalPrice: data.requestedTotalPrice,
                 },
               },
             });
@@ -150,7 +180,7 @@ export const useVehicleBookingModifications = () => {
         throw updateError;
       }
 
-      // Envoyer un email au propriétaire
+      // Envoyer les emails de notification pour modification de réservation confirmée
       try {
         const ownerProfile = await supabase
           .from('profiles')
@@ -158,20 +188,55 @@ export const useVehicleBookingModifications = () => {
           .eq('user_id', booking.vehicle.owner_id)
           .single();
 
+        const vehicleTitle = booking.vehicle.title || `${booking.vehicle.brand} ${booking.vehicle.model}`;
+        const renterName = `${booking.renter?.first_name || ''} ${booking.renter?.last_name || ''}`.trim();
+
+        // Email au propriétaire
         if (ownerProfile.data?.email) {
           await supabase.functions.invoke('send-email', {
             body: {
-              type: 'vehicle_booking_request',
+              type: 'vehicle_modification_requested',
               to: ownerProfile.data.email,
               data: {
+                ownerName: `${ownerProfile.data.first_name || ''} ${ownerProfile.data.last_name || ''}`.trim() || 'Cher propriétaire',
+                renterName: renterName || 'Un locataire',
+                vehicleTitle: vehicleTitle,
+                originalStartDate: new Date(booking.start_date).toLocaleDateString('fr-FR'),
+                originalEndDate: new Date(booking.end_date).toLocaleDateString('fr-FR'),
+                originalDays: booking.rental_days,
+                originalPrice: booking.total_price,
+                requestedStartDate: new Date(data.requestedStartDate).toLocaleDateString('fr-FR'),
+                requestedEndDate: new Date(data.requestedEndDate).toLocaleDateString('fr-FR'),
+                requestedDays: data.requestedRentalDays,
+                requestedPrice: data.requestedTotalPrice,
+                renterMessage: data.message || null,
                 bookingId: booking.id,
-                vehicleTitle: booking.vehicle.title || `${booking.vehicle.brand} ${booking.vehicle.model}`,
-                renterName: `${booking.renter?.first_name || ''} ${booking.renter?.last_name || ''}`.trim(),
-                startDate: data.requestedStartDate,
-                endDate: data.requestedEndDate,
-                rentalDays: data.requestedRentalDays,
-                totalPrice: data.requestedTotalPrice,
-                message: data.message || 'Les dates de la réservation ont été modifiées',
+                isPendingBooking: false,
+              },
+            },
+          });
+        }
+
+        // Email au locataire pour l'informer de sa modification
+        if (booking.renter?.email) {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'vehicle_modification_requested',
+              to: booking.renter.email,
+              data: {
+                renterName: renterName || 'Cher client',
+                vehicleTitle: vehicleTitle,
+                originalStartDate: new Date(booking.start_date).toLocaleDateString('fr-FR'),
+                originalEndDate: new Date(booking.end_date).toLocaleDateString('fr-FR'),
+                originalDays: booking.rental_days,
+                originalPrice: booking.total_price,
+                requestedStartDate: new Date(data.requestedStartDate).toLocaleDateString('fr-FR'),
+                requestedEndDate: new Date(data.requestedEndDate).toLocaleDateString('fr-FR'),
+                requestedDays: data.requestedRentalDays,
+                requestedPrice: data.requestedTotalPrice,
+                message: 'Votre demande de modification a été envoyée au propriétaire',
+                bookingId: booking.id,
+                isPendingBooking: false,
               },
             },
           });
