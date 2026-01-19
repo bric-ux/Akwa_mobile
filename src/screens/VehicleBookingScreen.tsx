@@ -124,9 +124,15 @@ const VehicleBookingScreen: React.FC = () => {
   const uploadLicenseDocument = async (uri: string, fileName: string, mimeType: string): Promise<string> => {
     setUploadingLicense(true);
     try {
-      // Lire le fichier
+      // Lire le fichier depuis l'URI locale
       const response = await fetch(uri);
-      const blob = await response.blob();
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
+      }
+      
+      // Utiliser arrayBuffer() au lieu de blob() pour React Native
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
       
       // Générer un nom de fichier unique
       const fileExt = fileName.split('.').pop() || 'jpg';
@@ -135,7 +141,7 @@ const VehicleBookingScreen: React.FC = () => {
       // Upload vers Supabase Storage dans le bucket license-documents
       const { data, error } = await supabase.storage
         .from('license-documents')
-        .upload(uniqueFileName, blob, {
+        .upload(uniqueFileName, uint8Array, {
           cacheControl: '3600',
           upsert: false,
           contentType: mimeType,
@@ -152,6 +158,10 @@ const VehicleBookingScreen: React.FC = () => {
         .getPublicUrl(uniqueFileName);
 
       return publicUrl;
+    } catch (error: any) {
+      console.error('Erreur lors de l\'upload du permis:', error);
+      Alert.alert('Erreur', 'Impossible d\'uploader le document. Veuillez réessayer.');
+      throw error;
     } finally {
       setUploadingLicense(false);
     }
@@ -358,6 +368,9 @@ const VehicleBookingScreen: React.FC = () => {
         endDate: endDateStr,
         messageToOwner: message.trim() || undefined,
         licenseDocumentUrl: licenseDocumentUrl || undefined,
+        hasLicense: isLicenseRequired ? hasLicense : undefined,
+        licenseYears: isLicenseRequired && hasLicense ? licenseYears : undefined,
+        licenseNumber: isLicenseRequired && hasLicense ? licenseNumber : undefined,
       });
 
       if (result.success) {

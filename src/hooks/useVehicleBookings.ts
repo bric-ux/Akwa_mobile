@@ -12,6 +12,9 @@ export interface VehicleBookingData {
   messageToOwner?: string;
   specialRequests?: string;
   licenseDocumentUrl?: string;
+  hasLicense?: boolean;
+  licenseYears?: string;
+  licenseNumber?: string;
 }
 
 export const useVehicleBookings = () => {
@@ -57,7 +60,7 @@ export const useVehicleBookings = () => {
       // Récupérer les informations du véhicule pour calculer le prix
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('price_per_day, minimum_rental_days, auto_booking')
+        .select('price_per_day, minimum_rental_days, auto_booking, security_deposit')
         .eq('id', bookingData.vehicleId)
         .single();
 
@@ -130,7 +133,8 @@ export const useVehicleBookings = () => {
       // Déterminer le statut initial en fonction de auto_booking
       const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
 
-      // Créer la réservation
+      // Créer la réservation (sans license_document_url qui n'existe pas dans la table)
+      // Exactement comme sur le site web
       const { data: booking, error: bookingError } = await supabase
         .from('vehicle_bookings')
         .insert({
@@ -141,11 +145,14 @@ export const useVehicleBookings = () => {
           rental_days: rentalDays,
           daily_rate: dailyRate,
           total_price: totalPrice,
+          security_deposit: vehicle.security_deposit ?? 0,
           pickup_location: bookingData.pickupLocation || null,
           dropoff_location: bookingData.dropoffLocation || null,
           message_to_owner: bookingData.messageToOwner || null,
           special_requests: bookingData.specialRequests || null,
-          license_document_url: bookingData.licenseDocumentUrl || null,
+          has_license: bookingData.hasLicense || false,
+          license_years: bookingData.licenseYears ? parseInt(bookingData.licenseYears) : null,
+          license_number: bookingData.licenseNumber || null,
           status: initialStatus,
         })
         .select(`
@@ -162,6 +169,24 @@ export const useVehicleBookings = () => {
 
       if (bookingError) {
         throw bookingError;
+      }
+
+      // Sauvegarder le document du permis dans license_documents si uploadé
+      // Exactement comme sur le site web
+      if (bookingData.licenseDocumentUrl && booking && user) {
+        const { error: licenseError } = await supabase
+          .from('license_documents')
+          .insert({
+            user_id: user.id,
+            vehicle_booking_id: booking.id,
+            document_url: bookingData.licenseDocumentUrl,
+            document_type: 'driving_license',
+          });
+
+        if (licenseError) {
+          console.error('Erreur sauvegarde document permis:', licenseError);
+          // Ne pas bloquer la réservation si l'enregistrement du document échoue
+        }
       }
 
       // Envoyer les emails après création de la réservation
@@ -211,7 +236,7 @@ export const useVehicleBookings = () => {
               endDate: bookingData.endDate,
               rentalDays: rentalDays,
               totalPrice: totalPrice,
-              securityDeposit: booking.security_deposit || 0,
+              securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
               pickupLocation: bookingData.pickupLocation || '',
               isInstantBooking: true,
             };
@@ -263,7 +288,7 @@ export const useVehicleBookings = () => {
               endDate: bookingData.endDate,
               rentalDays: rentalDays,
               totalPrice: totalPrice,
-              securityDeposit: booking.security_deposit || 0,
+              securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
               message: bookingData.messageToOwner || '',
               isInstantBooking: false,
             };

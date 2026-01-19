@@ -16,13 +16,13 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <LanguageProvider>
           <CurrencyProvider>
-            <SearchDatesProvider>
-              <AuthProvider>
+            <AuthProvider>
+              <SearchDatesProvider>
                 <AuthGate>
                   <AppNavigator />
                 </AuthGate>
-              </AuthProvider>
-            </SearchDatesProvider>
+              </SearchDatesProvider>
+            </AuthProvider>
           </CurrencyProvider>
         </LanguageProvider>
       </QueryClientProvider>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../services/AuthContext';
 
 const SEARCH_DATES_KEY = 'search_dates';
 
@@ -21,6 +22,7 @@ const SearchDatesContext = createContext<SearchDatesContextType | undefined>(und
 
 export const SearchDatesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [dates, setDatesState] = useState<SearchDates>({});
+  const { user } = useAuth();
 
   const loadDates = useCallback(async () => {
     try {
@@ -100,11 +102,25 @@ export const SearchDatesProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   }, []);
 
-  // Charger les dates au démarrage (une seule fois)
+  // Charger les dates au démarrage seulement si l'utilisateur est connecté
   useEffect(() => {
-    loadDates();
+    if (user) {
+      loadDates();
+    } else {
+      // Si pas d'utilisateur, effacer les dates
+      clearDates();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Effacer les dates lors de la déconnexion
+  useEffect(() => {
+    if (!user) {
+      // Utilisateur déconnecté, effacer les dates
+      clearDates();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // Mémoriser la valeur du context pour éviter les re-renders inutiles
   const contextValue = useMemo(() => ({
