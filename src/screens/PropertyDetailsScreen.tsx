@@ -29,6 +29,7 @@ import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalcula
 import { useLanguage } from '../contexts/LanguageContext';
 import PropertyReviews from '../components/PropertyReviews';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
+import { log, logError } from '../utils/logger';
 
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
@@ -62,7 +63,7 @@ const PropertyDetailsScreen: React.FC = () => {
 
   // Log pour déboguer
   useEffect(() => {
-    console.log('📅 PropertyDetailsScreen - Dates calculées:', {
+    log('📅 PropertyDetailsScreen - Dates calculées:', {
       routeCheckIn,
       routeCheckOut,
       searchDatesCheckIn: searchDates.checkIn,
@@ -96,7 +97,7 @@ const PropertyDetailsScreen: React.FC = () => {
     const loadProperty = async () => {
       try {
         setLoading(true);
-        console.log('🔍 Chargement de la propriété avec ID:', propertyId);
+        log('🔍 Chargement de la propriété avec ID:', propertyId);
         
         // Vérifier que l'ID est valide
         if (!propertyId) {
@@ -106,7 +107,7 @@ const PropertyDetailsScreen: React.FC = () => {
         const propertyData = await getPropertyById(propertyId);
         
         // Debug pour vérifier les données récupérées
-        console.log('🔍 [PropertyDetailsScreen] Données de la propriété récupérées:', {
+        log('🔍 [PropertyDetailsScreen] Données de la propriété récupérées:', {
           title: propertyData?.title,
           house_rules: propertyData?.house_rules,
           check_in_time: propertyData?.check_in_time,
@@ -126,7 +127,7 @@ const PropertyDetailsScreen: React.FC = () => {
         
         // Charger le profil de l'hôte
         if (propertyData && propertyData.host_id) {
-          console.log('🔄 Chargement du profil de l\'hôte:', propertyData.host_id);
+          log('🔄 Chargement du profil de l\'hôte:', propertyData.host_id);
           await getHostProfile(propertyData.host_id);
         }
 
@@ -137,7 +138,7 @@ const PropertyDetailsScreen: React.FC = () => {
           setIsFavorited(favorited);
         }
       } catch (error: any) {
-        console.error('❌ Erreur lors du chargement de la propriété:', error);
+        logError('❌ Erreur lors du chargement de la propriété:', error);
         
         // Messages d'erreur plus spécifiques
         let errorMessage = 'Impossible de charger les détails de la propriété';
@@ -171,7 +172,7 @@ const PropertyDetailsScreen: React.FC = () => {
           const price = await getPriceForDate(property.id, today, property.price_per_night);
           setDisplayPrice(price);
         } catch (error) {
-          console.error('Error loading today price:', error);
+          logError('Error loading today price:', error);
           setDisplayPrice(null);
         } finally {
           setPriceLoading(false);
@@ -213,7 +214,7 @@ const PropertyDetailsScreen: React.FC = () => {
   };
 
   const handleBookNow = () => {
-    console.log('📅 PropertyDetailsScreen - handleBookNow appelé avec dates:', {
+    log('📅 PropertyDetailsScreen - handleBookNow appelé avec dates:', {
       checkIn,
       checkOut,
       adults,
@@ -261,7 +262,7 @@ const PropertyDetailsScreen: React.FC = () => {
             images={property.images || []}
             height={300}
             onImagePress={(imageIndex) => {
-              console.log('Image sélectionnée:', imageIndex);
+              log('Image sélectionnée:', imageIndex);
               // Optionnel : ouvrir une vue plein écran des images
             }}
           />
@@ -367,7 +368,7 @@ const PropertyDetailsScreen: React.FC = () => {
         {/* Règlement intérieur */}
         {(() => {
           const hasRules = property.check_in_time || property.check_out_time || property.house_rules;
-          console.log('🔍 [PropertyDetailsScreen] Vérification des règles:', {
+          log('🔍 [PropertyDetailsScreen] Vérification des règles:', {
             check_in_time: property.check_in_time,
             check_out_time: property.check_out_time,
             house_rules: property.house_rules,
@@ -549,7 +550,7 @@ const PropertyDetailsScreen: React.FC = () => {
             : undefined;
           
           // Log pour déboguer
-          console.log('🗺️ [PropertyDetailsScreen] Coordonnées extraites:', {
+          log('🗺️ [PropertyDetailsScreen] Coordonnées extraites:', {
             propertyLatitude: property.latitude,
             propertyLongitude: property.longitude,
             locationLatitude: location && 'latitude' in location ? (location as any).latitude : null,

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import { User } from '../types';
+import { log, logError, logWarn } from '../utils/logger';
 
 interface AuthContextType {
   user: User | null;
@@ -41,7 +42,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           });
         }
       } catch (error) {
-        console.error('Erreur lors de la vérification de l\'authentification:', error);
+        logError('Erreur lors de la vérification de l\'authentification:', error);
       } finally {
         setLoading(false);
       }
@@ -88,9 +89,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Envoyer email de bienvenue si l'inscription réussit
     if (data.user) {
-      console.log('🔄 Tentative d\'envoi d\'email de bienvenue...');
-      console.log('📧 Email destinataire:', email);
-      console.log('👤 Prénom:', userData.first_name || 'Utilisateur');
+      log('🔄 Tentative d\'envoi d\'email de bienvenue...');
+      log('📧 Email destinataire:', email);
+      log('👤 Prénom:', userData.first_name || 'Utilisateur');
       
       try {
         const emailResult = await supabase.functions.invoke('send-email', {
@@ -103,18 +104,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         });
         
-        console.log('✅ Email de bienvenue envoyé avec succès');
-        console.log('📧 ID email:', emailResult.data?.id);
-        console.log('📧 Réponse complète:', emailResult);
-      } catch (emailError) {
-        console.error('❌ Erreur envoi email de bienvenue:');
-        console.error('❌ Type:', typeof emailError);
-        console.error('❌ Message:', emailError.message);
-        console.error('❌ Détails:', emailError);
+        log('✅ Email de bienvenue envoyé avec succès');
+        log('📧 ID email:', emailResult.data?.id);
+        log('📧 Réponse complète:', emailResult);
+      } catch (emailError: any) {
+        logError('❌ Erreur envoi email de bienvenue:');
+        logError('❌ Type:', typeof emailError);
+        logError('❌ Message:', emailError.message);
+        logError('❌ Détails:', emailError);
         // Ne pas faire échouer l'inscription si l'email échoue
       }
     } else {
-      console.warn('⚠️ Aucun utilisateur créé, email de bienvenue non envoyé');
+      logWarn('⚠️ Aucun utilisateur créé, email de bienvenue non envoyé');
     }
   };
 

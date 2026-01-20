@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { Property, SearchFilters, Amenity } from '../types';
 import { getAmenityIcon } from '../utils/amenityIcons';
 import { calculateDistance, isWithinRadius } from '../utils/distance';
+import { log, logError, logWarn } from '../utils/logger';
 
 // Fonction helper pour calculer rating et review_count depuis les avis approuvés
 const calculateRatingFromReviews = async (propertyId: string): Promise<{ rating: number; review_count: number }> => {
@@ -14,7 +15,7 @@ const calculateRatingFromReviews = async (propertyId: string): Promise<{ rating:
       .eq('approved', true);
 
     if (error) {
-      console.error('❌ Erreur lors du calcul du rating:', error);
+      logError('❌ Erreur lors du calcul du rating:', error);
       return { rating: 0, review_count: 0 };
     }
 
@@ -29,7 +30,7 @@ const calculateRatingFromReviews = async (propertyId: string): Promise<{ rating:
       review_count: reviewCount
     };
   } catch (err) {
-    console.error('❌ Erreur lors du calcul du rating:', err);
+    logError('❌ Erreur lors du calcul du rating:', err);
     return { rating: 0, review_count: 0 };
   }
 };
@@ -49,13 +50,13 @@ export const useProperties = () => {
   useEffect(() => {
     const loadAmenitiesCache = async () => {
       try {
-        console.log('🔄 [useProperties] Chargement initial du cache des équipements...');
+        log('🔄 [useProperties] Chargement initial du cache des équipements...');
         const { data: amenities, error } = await supabase
           .from('property_amenities')
           .select('id, name');
         
         if (error) {
-          console.error('❌ [useProperties] Erreur lors du chargement du cache:', error);
+          logError('❌ [useProperties] Erreur lors du chargement du cache:', error);
           throw error;
         }
         
@@ -76,12 +77,12 @@ export const useProperties = () => {
             });
           });
           setAmenitiesCache(cache);
-          console.log('✅ [useProperties] Cache des équipements chargé:', amenities.length, 'équipements');
+          log('✅ [useProperties] Cache des équipements chargé:', amenities.length, 'équipements');
         } else {
-          console.warn('⚠️ [useProperties] Aucun équipement trouvé dans property_amenities');
+          logWarn('⚠️ [useProperties] Aucun équipement trouvé dans property_amenities');
         }
       } catch (error) {
-        console.error('❌ [useProperties] Erreur lors du chargement du cache des équipements:', error);
+        logError('❌ [useProperties] Erreur lors du chargement du cache des équipements:', error);
       }
     };
     
@@ -90,7 +91,7 @@ export const useProperties = () => {
 
   // Fonction pour mapper les équipements depuis la base de données (par ID ou nom)
   const mapAmenities = useCallback(async (amenityIdsOrNames: string[] | null) => {
-    console.log('🔄 [mapAmenities] Input:', {
+    log('🔄 [mapAmenities] Input:', {
       amenityIdsOrNames,
       isArray: Array.isArray(amenityIdsOrNames),
       length: Array.isArray(amenityIdsOrNames) ? amenityIdsOrNames.length : 'N/A',

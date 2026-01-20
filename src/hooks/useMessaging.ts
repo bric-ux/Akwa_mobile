@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Conversation, Message } from '../types';
 import { useEmailService } from './useEmailService';
+import { log, logError, logWarn } from '../utils/logger';
 
 export const useMessaging = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -13,13 +14,13 @@ export const useMessaging = () => {
 
   // Charger les conversations de l'utilisateur
   const loadConversations = useCallback(async (userId: string) => {
-    console.log('🔄 [useMessaging] Chargement des conversations pour:', userId);
+    log('🔄 [useMessaging] Chargement des conversations pour:', userId);
     setLoading(true);
     setError(null);
     
     try {
       // D'abord, testons une requête simple
-      console.log('🔄 [useMessaging] Test requête simple...');
+      log('🔄 [useMessaging] Test requête simple...');
       const { data: simpleData, error: simpleError } = await supabase
         .from('conversations')
         .select('*')
@@ -27,14 +28,14 @@ export const useMessaging = () => {
         .order('updated_at', { ascending: false });
 
       if (simpleError) {
-        console.error('❌ [useMessaging] Erreur requête simple:', simpleError);
+        logError('❌ [useMessaging] Erreur requête simple:', simpleError);
         throw simpleError;
       }
 
-      console.log('✅ [useMessaging] Requête simple réussie:', simpleData?.length || 0, 'conversations');
+      log('✅ [useMessaging] Requête simple réussie:', simpleData?.length || 0, 'conversations');
 
       // Ensuite, testons la requête complète (comme sur le site web)
-      console.log('🔄 [useMessaging] Test requête complète...');
+      log('🔄 [useMessaging] Test requête complète...');
       const { data, error } = await supabase
         .from('conversations')
         .select(`

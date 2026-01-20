@@ -40,7 +40,7 @@ import AdminIdentityDocumentsScreen from '../screens/AdminIdentityDocumentsScree
 import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
 import PdfViewerScreen from '../screens/PdfViewerScreen';
 import EditPropertyScreen from '../screens/EditPropertyScreen';
-import MessagingDebugScreen from '../screens/MessagingDebugScreen';
+// import MessagingDebugScreen from '../screens/MessagingDebugScreen'; // Désactivé en production
 import HostPaymentInfoScreen from '../screens/HostPaymentInfoScreen';
 import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
 import AdminReviewsScreen from '../screens/AdminReviewsScreen';
@@ -755,14 +755,17 @@ const AppNavigator = () => {
             headerShown: false 
           }}
         />
-        <Stack.Screen 
-          name="MessagingDebug" 
-          component={MessagingDebugScreen}
-          options={{ 
-            title: 'Debug Messagerie',
-            headerBackTitle: 'Retour'
-          }}
-        />
+        {/* Écran de debug désactivé en production pour éviter l'exposition d'informations sensibles */}
+        {__DEV__ && (
+          <Stack.Screen 
+            name="MessagingDebug" 
+            component={require('../screens/MessagingDebugScreen').default}
+            options={{ 
+              title: 'Debug Messagerie',
+              headerBackTitle: 'Retour'
+            }}
+          />
+        )}
             <Stack.Screen 
               name="Conciergerie" 
               component={ConciergerieScreen}
