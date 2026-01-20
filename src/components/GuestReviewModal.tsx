@@ -151,7 +151,13 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.content} 
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+            keyboardShouldPersistTaps="handled"
+          >
             <View style={styles.section}>
               {/* Note globale */}
               <View style={styles.globalRatingSection}>
@@ -256,7 +262,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '95%',
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -277,7 +284,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 20,
+    paddingBottom: 20,
   },
   section: {
     gap: 20,

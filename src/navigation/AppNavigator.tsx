@@ -576,7 +576,7 @@ const AppNavigator = () => {
         />
         <Stack.Screen 
           name="Messaging" 
-          component={AuthScreen} // Placeholder
+          component={MessagingScreen}
           options={{ 
             title: 'Messages',
             headerBackTitle: 'Retour'

@@ -14,7 +14,7 @@ export interface VehicleReview {
   communication_rating: number | null;
   condition_rating: number | null;
   value_rating: number | null;
-  approved: boolean | null;
+  is_published: boolean;
   created_at: string;
 }
 
@@ -29,7 +29,7 @@ export const useVehicleReviews = () => {
         .from('vehicle_reviews')
         .select('*')
         .eq('vehicle_id', vehicleId)
-        .eq('approved', true)
+        .eq('is_published', true)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -110,7 +110,7 @@ export const useVehicleReviews = () => {
           communication_rating: reviewData.communication_rating || null,
           value_rating: reviewData.value_rating || null,
           comment: reviewData.comment?.trim() || null,
-          approved: false, // Needs admin approval
+          is_published: false, // Sera publié quand le propriétaire répondra
         });
 
       if (error) {
@@ -119,7 +119,7 @@ export const useVehicleReviews = () => {
         return { success: false, error: error.message };
       }
 
-      Alert.alert('Avis envoyé', 'Votre avis sera publié après validation par notre équipe');
+      Alert.alert('Avis envoyé', 'Votre avis sera publié lorsque le propriétaire y aura répondu');
       return { success: true };
     } catch (error: any) {
       console.error('Error creating vehicle review:', error);

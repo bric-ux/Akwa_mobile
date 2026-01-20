@@ -434,13 +434,37 @@ export const useVehicleBookings = () => {
         .from('vehicle_bookings')
         .select(`
           *,
-          renter:profiles!renter_id (
+          vehicle:vehicles (
+            id,
+            title,
+            brand,
+            model,
+            images,
+            owner_id,
+            location:locations (
+              id,
+              name
+            ),
+            vehicle_photos (
+              id,
+              url,
+              is_main
+            )
+          ),
+          renter:profiles!vehicle_bookings_renter_id_fkey (
             user_id,
             first_name,
             last_name,
             email,
             phone,
             avatar_url
+          ),
+          license_documents (
+            id,
+            document_url,
+            document_type,
+            verified,
+            verified_at
           )
         `)
         .eq('vehicle_id', vehicleId)
@@ -448,6 +472,29 @@ export const useVehicleBookings = () => {
 
       if (queryError) {
         throw queryError;
+      }
+
+      // Charger les informations du propriétaire si le véhicule existe
+      if (data && data.length > 0 && data[0].vehicle?.owner_id) {
+        const ownerId = data[0].vehicle.owner_id;
+        const { data: ownerData } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name, email, phone, avatar_url')
+          .eq('user_id', ownerId)
+          .single();
+
+        if (ownerData) {
+          // Enrichir toutes les réservations avec les informations du propriétaire
+          const enrichedData = data.map((booking: any) => ({
+            ...booking,
+            vehicle: booking.vehicle ? {
+              ...booking.vehicle,
+              owner: ownerData
+            } : undefined
+          }));
+
+          return enrichedData as VehicleBooking[];
+        }
       }
 
       return (data || []) as VehicleBooking[];
@@ -678,23 +725,63 @@ export const useVehicleBookings = () => {
             brand,
             model,
             images,
+            owner_id,
+            location:locations (
+              id,
+              name
+            ),
             vehicle_photos (
               id,
               url,
               is_main
             )
           ),
-          renter:profiles!renter_id (
+          renter:profiles!vehicle_bookings_renter_id_fkey (
             user_id,
             first_name,
             last_name,
             email,
             phone,
             avatar_url
+          ),
+          license_documents (
+            id,
+            document_url,
+            document_type,
+            verified,
+            verified_at
           )
         `)
         .in('vehicle_id', vehicleIds)
         .order('created_at', { ascending: false });
+
+      if (queryError) {
+        throw queryError;
+      }
+
+      // Charger les informations du propriétaire pour chaque véhicule
+      if (data && data.length > 0) {
+        const ownerIds = [...new Set(data.map((b: any) => b.vehicle?.owner_id).filter(Boolean))];
+        if (ownerIds.length > 0) {
+          const { data: ownersData } = await supabase
+            .from('profiles')
+            .select('user_id, first_name, last_name, email, phone, avatar_url')
+            .in('user_id', ownerIds);
+
+          const ownersMap = new Map((ownersData || []).map((o: any) => [o.user_id, o]));
+
+          // Enrichir les données avec les informations du propriétaire
+          const enrichedData = data.map((booking: any) => ({
+            ...booking,
+            vehicle: booking.vehicle ? {
+              ...booking.vehicle,
+              owner: ownersMap.get(booking.vehicle.owner_id) || undefined
+            } : undefined
+          }));
+
+          return enrichedData as VehicleBooking[];
+        }
+      }
 
       if (queryError) {
         throw queryError;

@@ -134,7 +134,13 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Note globale */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Note globale *</Text>
@@ -204,7 +210,10 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
                 textAlignVertical="top"
               />
             </View>
+          </ScrollView>
 
+          {/* Footer avec bouton de soumission fixe */}
+          <View style={styles.footer}>
             <TouchableOpacity
               style={[styles.submitButton, (rating === 0 || loading) && styles.submitButtonDisabled]}
               onPress={handleSubmit}
@@ -216,7 +225,7 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
                 <Text style={styles.submitButtonText}>Envoyer mon avis</Text>
               )}
             </TouchableOpacity>
-          </ScrollView>
+          </View>
         </SafeAreaView>
       </View>
     </Modal>
@@ -233,7 +242,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '95%',
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -260,6 +270,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   section: {
     padding: 16,
@@ -307,13 +320,17 @@ const styles = StyleSheet.create({
     minHeight: 100,
     backgroundColor: '#f9fafb',
   },
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    padding: 16,
+    backgroundColor: '#fff',
+  },
   submitButton: {
     backgroundColor: VEHICLE_COLORS.primary,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    margin: 16,
-    marginTop: 8,
   },
   submitButtonDisabled: {
     backgroundColor: '#d1d5db',

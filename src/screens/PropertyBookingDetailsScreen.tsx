@@ -126,37 +126,61 @@ const PropertyBookingDetailsScreen: React.FC = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [PropertyBookingDetails] Erreur génération PDF:', error);
+        throw error;
+      }
+
+      console.log('📄 [PropertyBookingDetails] Réponse PDF:', { hasPdf: !!data?.pdf, dataKeys: data ? Object.keys(data) : [] });
 
       if (data?.pdf) {
-        // Sauvegarder le PDF dans un fichier temporaire
-        const fileName = `facture-${booking.id.substring(0, 8)}.pdf`;
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        
-        await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        // Partager le PDF
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (isAvailable) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'application/pdf',
-            dialogTitle: 'Partager la facture',
+        try {
+          // Sauvegarder le PDF dans un fichier temporaire
+          const fileName = `facture-${booking.id.substring(0, 8)}.pdf`;
+          const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+          
+          console.log('💾 [PropertyBookingDetails] Écriture fichier:', fileUri);
+          
+          await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
+            encoding: FileSystem.EncodingType.Base64,
           });
-          Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
-        } else {
-          Alert.alert('Succès', 'La facture a été sauvegardée.');
+          
+          console.log('✅ [PropertyBookingDetails] Fichier écrit avec succès');
+          
+          // Vérifier que le fichier existe
+          const fileInfo = await FileSystem.getInfoAsync(fileUri);
+          console.log('📁 [PropertyBookingDetails] Info fichier:', fileInfo);
+          
+          if (!fileInfo.exists) {
+            throw new Error('Le fichier n\'a pas été créé');
+          }
+          
+          // Partager le PDF
+          const isAvailable = await Sharing.isAvailableAsync();
+          console.log('📤 [PropertyBookingDetails] Sharing disponible:', isAvailable);
+          
+          if (isAvailable) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: 'application/pdf',
+              dialogTitle: 'Partager la facture',
+            });
+            Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
+          } else {
+            // Fallback: ouvrir avec Linking
+            const canOpen = await Linking.canOpenURL(fileUri);
+            if (canOpen) {
+              await Linking.openURL(fileUri);
+            } else {
+              Alert.alert('Succès', 'La facture a été sauvegardée.');
+            }
+          }
+        } catch (fileError: any) {
+          console.error('❌ [PropertyBookingDetails] Erreur fichier:', fileError);
+          Alert.alert('Erreur', `Erreur lors de la sauvegarde: ${fileError.message}`);
         }
       } else {
-        // Si pas de PDF, ouvrir dans le navigateur
-        const pdfUrl = `https://hqzgndjbxzgsyfoictgo.supabase.co/storage/v1/object/public/invoices/${booking.id}.pdf`;
-        const canOpen = await Linking.canOpenURL(pdfUrl);
-        if (canOpen) {
-          await Linking.openURL(pdfUrl);
-        } else {
-          Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');
-        }
+        console.error('❌ [PropertyBookingDetails] Pas de PDF dans la réponse');
+        Alert.alert('Erreur', 'Le PDF n\'a pas pu être généré. Veuillez réessayer.');
       }
     } catch (error: any) {
       console.error('Erreur lors de la génération du PDF:', error);
@@ -381,8 +405,8 @@ const PropertyBookingDetailsScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Facture - Afficher aussi pour les réservations annulées */}
-        {(isConfirmed || isCancelled) && (
+        {/* Facture - uniquement pour les réservations confirmées ou terminées, pas annulées */}
+        {isConfirmed && booking.status !== 'cancelled' && (
           <>
             <View style={styles.section}>
               <InvoiceDisplay
@@ -400,21 +424,23 @@ const PropertyBookingDetailsScreen: React.FC = () => {
               />
             </View>
 
-            {/* Bouton télécharger PDF */}
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={handleDownloadPDF}
-              disabled={downloadingPDF}
-            >
-              {downloadingPDF ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="download-outline" size={20} color="#fff" />
-                  <Text style={styles.downloadButtonText}>Télécharger la facture (PDF)</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {/* Bouton télécharger PDF - uniquement si confirmée ou terminée, pas annulée */}
+            {isConfirmed && booking.status !== 'cancelled' && (
+              <TouchableOpacity
+                style={styles.downloadButton}
+                onPress={handleDownloadPDF}
+                disabled={downloadingPDF}
+              >
+                {downloadingPDF ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="download-outline" size={20} color="#fff" />
+                    <Text style={styles.downloadButtonText}>Télécharger la facture (PDF)</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </>
         )}
 

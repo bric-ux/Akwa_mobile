@@ -49,33 +49,137 @@ const VehicleBookingDetailsScreen: React.FC = () => {
     try {
       setLoading(true);
       
-      // Charger la réservation
-      const bookings = await getMyBookings();
-      const foundBooking = bookings.find(b => b.id === bookingId);
+      if (!user) {
+        Alert.alert('Erreur', 'Utilisateur non connecté');
+        navigation.goBack();
+        return;
+      }
+
+      // Charger directement la réservation par ID avec toutes les relations
+      console.log('🔍 [VehicleBookingDetails] Chargement réservation ID:', bookingId);
       
-      if (!foundBooking) {
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('vehicle_bookings')
+        .select(`
+          *,
+          vehicle:vehicles (
+            id,
+            title,
+            brand,
+            model,
+            images,
+            owner_id,
+            location:locations (
+              id,
+              name
+            ),
+            vehicle_photos (
+              id,
+              url,
+              is_main
+            )
+          ),
+          renter:profiles!vehicle_bookings_renter_id_fkey (
+            user_id,
+            first_name,
+            last_name,
+            email,
+            phone,
+            avatar_url
+          ),
+          license_documents (
+            id,
+            document_url,
+            document_type,
+            verified,
+            verified_at
+          )
+        `)
+        .eq('id', bookingId)
+        .single();
+
+      if (bookingError) {
+        console.error('❌ [VehicleBookingDetails] Erreur Supabase:', bookingError);
+        Alert.alert('Erreur', `Impossible de charger la réservation: ${bookingError.message}`);
+        navigation.goBack();
+        return;
+      }
+
+      if (!bookingData) {
+        console.error('❌ [VehicleBookingDetails] Aucune donnée retournée');
         Alert.alert('Erreur', 'Réservation introuvable');
         navigation.goBack();
         return;
       }
-      
-      setBooking(foundBooking);
 
-      // Utiliser les infos du propriétaire déjà chargées dans la réservation
-      if (foundBooking.vehicle?.owner) {
-        setOwnerInfo({
-          first_name: foundBooking.vehicle.owner.first_name,
-          last_name: foundBooking.vehicle.owner.last_name,
-          phone: foundBooking.vehicle.owner.phone,
-        });
-      } else if (foundBooking.vehicle?.owner_id) {
-        // Fallback: charger les infos du propriétaire si elles ne sont pas dans la réservation
-        const { data: ownerData } = await supabase
+      console.log('✅ [VehicleBookingDetails] Réservation chargée:', {
+        id: bookingData.id,
+        vehicle_id: bookingData.vehicle_id,
+        renter_id: bookingData.renter_id,
+        vehicle: bookingData.vehicle ? 'présent' : 'absent'
+      });
+
+      // Charger les infos du propriétaire séparément si le véhicule existe
+      let ownerData = null;
+      if (bookingData.vehicle?.owner_id) {
+        const { data: owner, error: ownerError } = await supabase
           .from('profiles')
-          .select('first_name, last_name, phone')
-          .eq('user_id', foundBooking.vehicle.owner_id)
+          .select('user_id, first_name, last_name, email, phone, avatar_url')
+          .eq('user_id', bookingData.vehicle.owner_id)
           .single();
-        setOwnerInfo(ownerData);
+        
+        if (ownerError) {
+          console.error('⚠️ [VehicleBookingDetails] Erreur chargement propriétaire:', ownerError);
+        } else {
+          ownerData = owner;
+          console.log('✅ [VehicleBookingDetails] Propriétaire chargé:', owner?.first_name);
+        }
+      }
+
+      // Vérifier que l'utilisateur est soit le locataire soit le propriétaire
+      const isRenter = bookingData.renter_id === user.id;
+      const isOwner = bookingData.vehicle?.owner_id === user.id;
+
+      console.log('🔐 [VehicleBookingDetails] Vérification accès:', {
+        userId: user.id,
+        renterId: bookingData.renter_id,
+        ownerId: bookingData.vehicle?.owner_id,
+        isRenter,
+        isOwner
+      });
+
+      if (!isRenter && !isOwner) {
+        Alert.alert('Erreur', 'Vous n\'avez pas accès à cette réservation');
+        navigation.goBack();
+        return;
+      }
+
+      // Construire l'objet booking avec les données chargées
+      const bookingWithRelations: VehicleBooking = {
+        ...bookingData,
+        vehicle: bookingData.vehicle ? {
+          ...bookingData.vehicle,
+          owner: ownerData ? {
+            user_id: ownerData.user_id,
+            first_name: ownerData.first_name,
+            last_name: ownerData.last_name,
+            email: ownerData.email,
+            phone: ownerData.phone,
+            avatar_url: ownerData.avatar_url,
+          } : undefined
+        } : undefined,
+        renter: bookingData.renter || undefined,
+      } as VehicleBooking;
+
+      setBooking(bookingWithRelations);
+
+      // Utiliser les infos du propriétaire chargées
+      if (ownerData) {
+        setOwnerInfo({
+          first_name: ownerData.first_name,
+          last_name: ownerData.last_name,
+          phone: ownerData.phone,
+        });
       }
 
       // Charger les infos de paiement
@@ -137,30 +241,61 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [VehicleBookingDetails] Erreur génération PDF:', error);
+        throw error;
+      }
+
+      console.log('📄 [VehicleBookingDetails] Réponse PDF:', { hasPdf: !!data?.pdf, dataKeys: data ? Object.keys(data) : [] });
 
       if (data?.pdf) {
-        // Sauvegarder le PDF dans un fichier temporaire
-        const fileName = `facture-vehicule-${booking.id.substring(0, 8)}.pdf`;
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        
-        await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        // Partager le PDF
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (isAvailable) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'application/pdf',
-            dialogTitle: 'Partager la facture',
+        try {
+          // Sauvegarder le PDF dans un fichier temporaire
+          const fileName = `facture-vehicule-${booking.id.substring(0, 8)}.pdf`;
+          const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+          
+          console.log('💾 [VehicleBookingDetails] Écriture fichier:', fileUri);
+          
+          await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
+            encoding: FileSystem.EncodingType.Base64,
           });
-          Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
-        } else {
-          Alert.alert('Succès', 'La facture a été sauvegardée.');
+          
+          console.log('✅ [VehicleBookingDetails] Fichier écrit avec succès');
+          
+          // Vérifier que le fichier existe
+          const fileInfo = await FileSystem.getInfoAsync(fileUri);
+          console.log('📁 [VehicleBookingDetails] Info fichier:', fileInfo);
+          
+          if (!fileInfo.exists) {
+            throw new Error('Le fichier n\'a pas été créé');
+          }
+          
+          // Partager le PDF
+          const isAvailable = await Sharing.isAvailableAsync();
+          console.log('📤 [VehicleBookingDetails] Sharing disponible:', isAvailable);
+          
+          if (isAvailable) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: 'application/pdf',
+              dialogTitle: 'Partager la facture',
+            });
+            Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
+          } else {
+            // Fallback: ouvrir avec Linking
+            const canOpen = await Linking.canOpenURL(fileUri);
+            if (canOpen) {
+              await Linking.openURL(fileUri);
+            } else {
+              Alert.alert('Succès', 'La facture a été sauvegardée.');
+            }
+          }
+        } catch (fileError: any) {
+          console.error('❌ [VehicleBookingDetails] Erreur fichier:', fileError);
+          Alert.alert('Erreur', `Erreur lors de la sauvegarde: ${fileError.message}`);
         }
       } else {
-        Alert.alert('Erreur', 'Impossible de générer le PDF');
+        console.error('❌ [VehicleBookingDetails] Pas de PDF dans la réponse');
+        Alert.alert('Erreur', 'Le PDF n\'a pas pu être généré. Veuillez réessayer.');
       }
     } catch (error: any) {
       console.error('Erreur lors de la génération du PDF:', error);
@@ -366,21 +501,23 @@ const VehicleBookingDetailsScreen: React.FC = () => {
               />
             </View>
 
-            {/* Bouton télécharger PDF */}
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={handleDownloadPDF}
-              disabled={downloadingPDF}
-            >
-              {downloadingPDF ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="download-outline" size={20} color="#fff" />
-                  <Text style={styles.downloadButtonText}>Télécharger la facture (PDF)</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {/* Bouton télécharger PDF - uniquement si confirmée ou terminée, pas annulée */}
+            {isConfirmed && booking.status !== 'cancelled' && (
+              <TouchableOpacity
+                style={styles.downloadButton}
+                onPress={handleDownloadPDF}
+                disabled={downloadingPDF}
+              >
+                {downloadingPDF ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="download-outline" size={20} color="#fff" />
+                    <Text style={styles.downloadButtonText}>Télécharger la facture (PDF)</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </>
         )}
 

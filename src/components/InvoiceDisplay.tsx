@@ -74,6 +74,9 @@ const getPaymentMethodLabel = (method?: string): string => {
     bank_transfer: 'Virement bancaire',
     cash: 'Espèces',
     card: 'Carte bancaire',
+    orange_money: 'Orange Money',
+    mtn_money: 'MTN Money',
+    moov_money: 'Moov Money',
   };
   return methods[method] || method;
 };

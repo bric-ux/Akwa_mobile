@@ -99,3 +99,4 @@ await supabase.functions.invoke('send-email', {
 3. **IMPORTANT**: Ajouter email à l'admin pour les annulations
 4. **AMÉLIORATION**: Envisager d'utiliser le système de demandes de modification pour les réservations confirmées
 
+

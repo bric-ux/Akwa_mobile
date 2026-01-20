@@ -106,10 +106,10 @@ const VehicleReviews: React.FC<VehicleReviewsProps> = ({ vehicleId, ownerId }) =
     );
   }
 
-  // Filtrer uniquement les avis approuvés
-  const approvedReviews = reviews.filter(r => r.approved === true);
+  // Filtrer uniquement les avis publiés (publiés quand le propriétaire a répondu)
+  const publishedReviews = reviews.filter(r => r.is_published === true);
 
-  if (approvedReviews.length === 0) {
+  if (publishedReviews.length === 0) {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Avis des locataires</Text>
@@ -123,7 +123,7 @@ const VehicleReviews: React.FC<VehicleReviewsProps> = ({ vehicleId, ownerId }) =
     );
   }
 
-  const averageRating = approvedReviews.reduce((sum, review) => sum + review.rating, 0) / approvedReviews.length;
+  const averageRating = publishedReviews.reduce((sum, review) => sum + review.rating, 0) / publishedReviews.length;
 
   return (
     <View style={styles.container}>
@@ -136,7 +136,7 @@ const VehicleReviews: React.FC<VehicleReviewsProps> = ({ vehicleId, ownerId }) =
             {averageRating.toFixed(1)}
           </Text>
           <Text style={styles.reviewCount}>
-            ({approvedReviews.length} avis)
+            ({publishedReviews.length} avis)
           </Text>
         </View>
       </View>
@@ -148,7 +148,7 @@ const VehicleReviews: React.FC<VehicleReviewsProps> = ({ vehicleId, ownerId }) =
         style={styles.reviewsScroll}
         contentContainerStyle={styles.reviewsContent}
       >
-        {approvedReviews.map((review) => {
+        {publishedReviews.map((review) => {
           const response = responses[review.id];
 
           return (

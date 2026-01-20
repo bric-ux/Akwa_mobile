@@ -49,20 +49,50 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const loadPayment = async () => {
     if (!booking) return;
     try {
-      const { data } = await supabase
+      console.log('🔍 [VehicleBookingDetailsModal] Chargement payment pour booking:', booking.id);
+      const { data, error } = await supabase
         .from('vehicle_payments')
         .select('*')
         .eq('booking_id', booking.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      
+      if (error) {
+        console.error('❌ [VehicleBookingDetailsModal] Erreur chargement payment:', error);
+      } else {
+        console.log('✅ [VehicleBookingDetailsModal] Payment chargé:', {
+          hasPayment: !!data,
+          paymentMethod: data?.payment_method,
+          bookingPaymentMethod: booking.payment_method,
+          finalPaymentMethod: data?.payment_method || booking.payment_method || 'AUCUN'
+        });
+        
+        // Si pas de payment mais qu'on a un payment_method dans booking, l'utiliser
+        if (!data && booking.payment_method) {
+          console.log('⚠️ [VehicleBookingDetailsModal] Pas de payment mais payment_method dans booking:', booking.payment_method);
+        }
+      }
+      
       setPayment(data);
     } catch (error) {
       console.error('Erreur lors du chargement du paiement:', error);
     }
   };
 
-  if (!booking) return null;
+  if (!booking) {
+    console.log('❌ [VehicleBookingDetailsModal] Pas de booking, modal ne s\'affiche pas');
+    return null;
+  }
+
+  console.log('✅ [VehicleBookingDetailsModal] Modal rendu avec booking:', {
+    id: booking.id,
+    status: booking.status,
+    hasVehicle: !!booking.vehicle,
+    hasRenter: !!booking.renter,
+    hasOwner: !!booking.vehicle?.owner,
+    isOwner
+  });
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -94,6 +124,19 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const vehicle = booking.vehicle;
   const renter = booking.renter;
   const owner = vehicle?.owner;
+
+  // Debug: vérifier que les données sont présentes
+  console.log('🔍 [VehicleBookingDetailsModal] Données booking:', {
+    hasBooking: !!booking,
+    hasVehicle: !!vehicle,
+    hasRenter: !!renter,
+    hasOwner: !!owner,
+    vehicleId: vehicle?.id,
+    renterId: renter?.user_id,
+    ownerId: owner?.user_id,
+    status: booking.status,
+    isOwner
+  });
 
   const commissionRates = getCommissionRates('vehicle');
   const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
@@ -145,42 +188,66 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
             ownerPhone: owner?.phone || '',
             pickupLocation: booking.pickup_location,
             isInstantBooking: isInstantBooking,
-            paymentMethod: payment?.payment_method || booking.payment_method,
+            paymentMethod: payment?.payment_method || booking.payment_method || undefined,
           }
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [VehicleBookingDetailsModal] Erreur génération PDF:', error);
+        throw error;
+      }
+
+      console.log('📄 [VehicleBookingDetailsModal] Réponse PDF:', { hasPdf: !!data?.pdf, dataKeys: data ? Object.keys(data) : [] });
 
       if (data?.pdf) {
-        // Décoder le PDF base64
-        const byteCharacters = atob(data.pdf);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        
-        // Sauvegarder le PDF dans un fichier temporaire
-        const fileName = `facture-vehicule-${booking.id.substring(0, 8)}.pdf`;
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        
-        await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        // Partager le PDF
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (isAvailable) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'application/pdf',
-            dialogTitle: 'Partager la facture',
+        try {
+          // Sauvegarder le PDF dans un fichier temporaire
+          const fileName = `facture-vehicule-${booking.id.substring(0, 8)}.pdf`;
+          const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+          
+          console.log('💾 [VehicleBookingDetailsModal] Écriture fichier:', fileUri);
+          
+          await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
+            encoding: FileSystem.EncodingType.Base64,
           });
-          Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
-        } else {
-          // Fallback: ouvrir avec Linking si Sharing n'est pas disponible
-          Alert.alert('Succès', 'La facture a été sauvegardée.');
+          
+          console.log('✅ [VehicleBookingDetailsModal] Fichier écrit avec succès');
+          
+          // Vérifier que le fichier existe
+          const fileInfo = await FileSystem.getInfoAsync(fileUri);
+          console.log('📁 [VehicleBookingDetailsModal] Info fichier:', fileInfo);
+          
+          if (!fileInfo.exists) {
+            throw new Error('Le fichier n\'a pas été créé');
+          }
+          
+          // Partager le PDF
+          const isAvailable = await Sharing.isAvailableAsync();
+          console.log('📤 [VehicleBookingDetailsModal] Sharing disponible:', isAvailable);
+          
+          if (isAvailable) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: 'application/pdf',
+              dialogTitle: 'Partager la facture',
+            });
+            Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
+          } else {
+            // Fallback: ouvrir avec Linking
+            const canOpen = await Linking.canOpenURL(fileUri);
+            if (canOpen) {
+              await Linking.openURL(fileUri);
+            } else {
+              Alert.alert('Succès', 'La facture a été sauvegardée.');
+            }
+          }
+        } catch (fileError: any) {
+          console.error('❌ [VehicleBookingDetailsModal] Erreur fichier:', fileError);
+          Alert.alert('Erreur', `Erreur lors de la sauvegarde: ${fileError.message}`);
         }
+      } else {
+        console.error('❌ [VehicleBookingDetailsModal] Pas de PDF dans la réponse');
+        Alert.alert('Erreur', 'Le PDF n\'a pas pu être généré. Veuillez réessayer.');
       }
     } catch (error: any) {
       console.error('Erreur téléchargement PDF:', error);
@@ -197,6 +264,8 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
       Alert.alert('Erreur', 'Impossible d\'ouvrir le document.');
     }
   };
+
+  console.log('🎯 [VehicleBookingDetailsModal] RENDU - visible:', visible, 'booking:', booking?.id, 'status:', booking?.status);
 
   return (
     <Modal
@@ -220,7 +289,13 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
 
           <Text style={styles.bookingId}>Réservation #{booking.id?.slice(0, 8)}</Text>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.content} 
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
+
             {/* Statut */}
             <View style={styles.section}>
               {getStatusBadge(booking.status)}
@@ -405,8 +480,24 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               </View>
             )}
 
-            {/* Facture - uniquement pour les réservations confirmées ou terminées (pas annulées) */}
-            {(booking.status === 'confirmed' || booking.status === 'completed') && (
+            {/* DEBUG Payment Method */}
+            <View style={[styles.card, { backgroundColor: '#e0f2fe', borderColor: '#0284c7', borderWidth: 1 }]}>
+              <Text style={{ color: '#0c4a6e', fontSize: 12, marginBottom: 5 }}>
+                🔍 DEBUG PAYMENT METHOD:
+              </Text>
+              <Text style={{ color: '#0c4a6e', fontSize: 11 }}>
+                payment?.payment_method: {payment?.payment_method || 'NULL'}
+              </Text>
+              <Text style={{ color: '#0c4a6e', fontSize: 11 }}>
+                booking.payment_method: {booking.payment_method || 'NULL'}
+              </Text>
+              <Text style={{ color: '#0c4a6e', fontSize: 11, fontWeight: 'bold' }}>
+                FINAL: {payment?.payment_method || booking.payment_method || 'NON SPÉCIFIÉ'}
+              </Text>
+            </View>
+
+            {/* Facture - uniquement pour les réservations confirmées, en cours ou terminées (pas annulées) */}
+            {(booking.status === 'confirmed' || booking.status === 'in_progress' || booking.status === 'completed') && booking.status !== 'cancelled' && (
               <View style={styles.card}>
                 <InvoiceDisplay
                   type={isOwner ? 'host' : 'traveler'}
@@ -419,14 +510,14 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                     created_at: booking.created_at,
                     discount_amount: booking.discount_amount,
                     discount_applied: booking.discount_applied,
-                    payment_method: booking.payment_method,
+                    payment_method: payment?.payment_method || booking.payment_method || undefined,
                     status: booking.status,
                   }}
                   pricePerUnit={booking.daily_rate || 0}
-                  paymentMethod={payment?.payment_method || booking.payment_method}
-                  travelerName={isOwner ? undefined : `${renter?.first_name || ''} ${renter?.last_name || ''}`.trim()}
-                  travelerEmail={isOwner ? undefined : renter?.email}
-                  travelerPhone={isOwner ? undefined : renter?.phone}
+                  paymentMethod={payment?.payment_method || booking.payment_method || undefined}
+                  travelerName={isOwner ? `${renter?.first_name || ''} ${renter?.last_name || ''}`.trim() : undefined}
+                  travelerEmail={isOwner ? renter?.email : undefined}
+                  travelerPhone={isOwner ? renter?.phone : undefined}
                   hostName={isOwner ? `${owner?.first_name || ''} ${owner?.last_name || ''}`.trim() : undefined}
                   hostEmail={isOwner ? owner?.email : undefined}
                   hostPhone={isOwner ? owner?.phone : undefined}
@@ -435,8 +526,8 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               </View>
             )}
 
-            {/* Bouton télécharger PDF - uniquement pour les réservations confirmées/terminées */}
-            {(booking.status === 'confirmed' || booking.status === 'completed') && (
+            {/* Bouton télécharger PDF - uniquement pour les réservations confirmées, en cours ou terminées, pas annulées */}
+            {(booking.status === 'confirmed' || booking.status === 'in_progress' || booking.status === 'completed') && booking.status !== 'cancelled' && (
               <TouchableOpacity
                 style={[styles.downloadButton, isDownloading && styles.downloadButtonDisabled]}
                 onPress={handleDownloadPDF}
@@ -538,7 +629,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '95%',
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -569,7 +661,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 20,
+    paddingBottom: 100,
   },
   section: {
     alignItems: 'center',

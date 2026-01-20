@@ -78,6 +78,8 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
             totalPrice: booking.total_price,
             pricePerNight: booking.properties?.price_per_night || 0,
             cleaningFee: booking.properties?.cleaning_fee || 0,
+            serviceFee: booking.properties?.service_fee || 0,
+            taxes: booking.properties?.taxes || 0,
             paymentMethod: payment?.payment_method || booking.payment_method,
             travelerName: booking.guest_profile 
               ? `${booking.guest_profile.first_name} ${booking.guest_profile.last_name}`.trim()
@@ -90,36 +92,61 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [HostBookingDetailsModal] Erreur génération PDF:', error);
+        throw error;
+      }
+
+      console.log('📄 [HostBookingDetailsModal] Réponse PDF:', { hasPdf: !!data?.pdf, dataKeys: data ? Object.keys(data) : [] });
 
       if (data?.pdf) {
-        // Sauvegarder le PDF dans un fichier temporaire
-        const fileName = `justificatif-${booking.id.substring(0, 8)}.pdf`;
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        
-        await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        
-        // Partager le PDF
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (isAvailable) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'application/pdf',
-            dialogTitle: 'Partager le justificatif',
+        try {
+          // Sauvegarder le PDF dans un fichier temporaire
+          const fileName = `justificatif-${booking.id.substring(0, 8)}.pdf`;
+          const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+          
+          console.log('💾 [HostBookingDetailsModal] Écriture fichier:', fileUri);
+          
+          await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
+            encoding: FileSystem.EncodingType.Base64,
           });
-          Alert.alert('Succès', 'Le justificatif a été généré. Vous pouvez le partager ou l\'enregistrer.');
-        } else {
-          Alert.alert('Succès', 'Le justificatif a été sauvegardé.');
+          
+          console.log('✅ [HostBookingDetailsModal] Fichier écrit avec succès');
+          
+          // Vérifier que le fichier existe
+          const fileInfo = await FileSystem.getInfoAsync(fileUri);
+          console.log('📁 [HostBookingDetailsModal] Info fichier:', fileInfo);
+          
+          if (!fileInfo.exists) {
+            throw new Error('Le fichier n\'a pas été créé');
+          }
+          
+          // Partager le PDF
+          const isAvailable = await Sharing.isAvailableAsync();
+          console.log('📤 [HostBookingDetailsModal] Sharing disponible:', isAvailable);
+          
+          if (isAvailable) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType: 'application/pdf',
+              dialogTitle: 'Partager le justificatif',
+            });
+            Alert.alert('Succès', 'Le justificatif a été généré. Vous pouvez le partager ou l\'enregistrer.');
+          } else {
+            // Fallback: ouvrir avec Linking
+            const canOpen = await Linking.canOpenURL(fileUri);
+            if (canOpen) {
+              await Linking.openURL(fileUri);
+            } else {
+              Alert.alert('Succès', 'Le justificatif a été sauvegardé.');
+            }
+          }
+        } catch (fileError: any) {
+          console.error('❌ [HostBookingDetailsModal] Erreur fichier:', fileError);
+          Alert.alert('Erreur', `Erreur lors de la sauvegarde: ${fileError.message}`);
         }
       } else {
-        const pdfUrl = `https://hqzgndjbxzgsyfoictgo.supabase.co/storage/v1/object/public/invoices/host_${booking.id}.pdf`;
-        const canOpen = await Linking.canOpenURL(pdfUrl);
-        if (canOpen) {
-          await Linking.openURL(pdfUrl);
-        } else {
-          Alert.alert('Erreur', 'Impossible d\'ouvrir le PDF');
-        }
+        console.error('❌ [HostBookingDetailsModal] Pas de PDF dans la réponse');
+        Alert.alert('Erreur', 'Le PDF n\'a pas pu être généré. Veuillez réessayer.');
       }
     } catch (error: any) {
       console.error('Erreur lors de la génération du PDF:', error);
@@ -150,7 +177,12 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
             {/* Informations de base */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Informations</Text>
@@ -187,8 +219,8 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
               </View>
             </View>
 
-            {/* Facture */}
-            {isConfirmed && (
+            {/* Facture - uniquement pour les réservations confirmées ou terminées, pas annulées */}
+            {isConfirmed && booking.status !== 'cancelled' && (
               <>
                 <View style={styles.section}>
                   <InvoiceDisplay
@@ -209,21 +241,23 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
                   />
                 </View>
 
-                {/* Bouton télécharger PDF */}
-                <TouchableOpacity
-                  style={styles.downloadButton}
-                  onPress={handleDownloadPDF}
-                  disabled={downloadingPDF}
-                >
-                  {downloadingPDF ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="download-outline" size={20} color="#fff" />
-                      <Text style={styles.downloadButtonText}>Télécharger le justificatif (PDF)</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                {/* Bouton télécharger PDF - uniquement si confirmée ou terminée, pas annulée */}
+                {isConfirmed && booking.status !== 'cancelled' && (
+                  <TouchableOpacity
+                    style={styles.downloadButton}
+                    onPress={handleDownloadPDF}
+                    disabled={downloadingPDF}
+                  >
+                    {downloadingPDF ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="download-outline" size={20} color="#fff" />
+                        <Text style={styles.downloadButtonText}>Télécharger le justificatif (PDF)</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
               </>
             )}
 
@@ -276,8 +310,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '95%',
     minHeight: '50%',
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -297,6 +332,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   section: {
     padding: 20,

@@ -211,7 +211,8 @@ export const useGuestReviews = () => {
           cleanliness_rating: reviewData.cleanlinessRating || null,
           communication_rating: reviewData.communicationRating || null,
           respect_rules_rating: reviewData.respectRulesRating || null,
-          comment: reviewData.comment || null
+          comment: reviewData.comment || null,
+          is_published: false // Sera publié quand le voyageur répondra
         });
 
       if (insertError) {

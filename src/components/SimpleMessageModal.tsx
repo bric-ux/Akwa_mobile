@@ -80,12 +80,29 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
         return;
       }
 
-      // Chercher ou créer une conversation
+      // Déterminer qui est l'hôte et qui est l'invité
+      // Pour les véhicules, le propriétaire du véhicule est l'hôte, le locataire est l'invité
+      // Si otherParticipant.isHost est true, alors otherParticipant est le propriétaire (hôte)
+      // Sinon, otherParticipant est le locataire (invité) et user est le propriétaire (hôte)
+      const hostId = otherParticipant.isHost ? otherParticipant.id : user.id;
+      const guestId = otherParticipant.isHost ? user.id : otherParticipant.id;
+      
+      console.log('🔍 [SimpleMessageModal] Conversation setup:', {
+        vehicleId: vehId,
+        bookingId,
+        otherParticipantId: otherParticipant.id,
+        otherParticipantIsHost: otherParticipant.isHost,
+        userId: user.id,
+        hostId,
+        guestId
+      });
+
+      // Chercher une conversation existante
       const { data: existingConversation } = await supabase
         .from('conversations')
         .select('id')
         .eq('vehicle_id', vehId)
-        .eq('booking_id', bookingId)
+        .or(`and(guest_id.eq.${guestId},host_id.eq.${hostId}),and(guest_id.eq.${hostId},host_id.eq.${guestId})`)
         .maybeSingle();
 
       let convId: string;
@@ -97,14 +114,16 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
           .from('conversations')
           .insert({
             vehicle_id: vehId,
-            booking_id: bookingId,
-            participant1_id: user.id,
-            participant2_id: otherParticipant.id,
+            guest_id: guestId,
+            host_id: hostId,
           })
           .select('id')
           .single();
 
-        if (createError) throw createError;
+        if (createError) {
+          console.error('Error creating conversation:', createError);
+          throw createError;
+        }
         convId = newConversation.id;
       }
 

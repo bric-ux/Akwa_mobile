@@ -267,7 +267,13 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.content} 
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+            keyboardShouldPersistTaps="handled"
+          >
             {bookingIsCompleted ? (
               <View style={styles.warningContainer}>
                 <Ionicons name="information-circle" size={48} color="#ef4444" />
@@ -382,7 +388,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '95%',
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -407,7 +414,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: 20,
+    paddingBottom: 20,
   },
   warningContainer: {
     alignItems: 'center',
