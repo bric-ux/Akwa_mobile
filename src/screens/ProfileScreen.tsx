@@ -195,7 +195,7 @@ const ProfileScreen: React.FC = () => {
     },
     {
       id: 'myGuestReviews',
-      title: 'Mes avis reçus',
+      title: 'Mes avis',
       icon: 'star-outline',
       onPress: () => navigation.navigate('MyGuestReviews' as never),
     },

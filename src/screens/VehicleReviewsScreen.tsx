@@ -46,6 +46,7 @@ const VehicleReviewsScreen: React.FC = () => {
   const [reviews, setReviews] = useState<VehicleReviewWithDetails[]>([]);
   const [vehicle, setVehicle] = useState<{ title?: string; brand?: string; model?: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingReviews, setLoadingReviews] = useState(true);
   const [responseModalVisible, setResponseModalVisible] = useState(false);
   const [selectedReview, setSelectedReview] = useState<VehicleReviewWithDetails | null>(null);
   const [responseText, setResponseText] = useState('');
@@ -77,9 +78,13 @@ const VehicleReviewsScreen: React.FC = () => {
   };
 
   const loadReviews = async () => {
-    if (!vehicleId) return;
+    if (!vehicleId) {
+      setLoadingReviews(false);
+      return;
+    }
     
     try {
+      setLoadingReviews(true);
       // Charger tous les avis (pas seulement approuvés) pour le propriétaire
       const { data: reviewsData, error } = await (supabase as any)
         .from('vehicle_reviews')
@@ -92,29 +97,39 @@ const VehicleReviewsScreen: React.FC = () => {
 
       if (error) {
         console.error('Error loading reviews:', error);
+        setReviews([]);
+        setLoadingReviews(false);
         return;
       }
 
-      // Charger les réponses
-      const reviewIds = (reviewsData || []).map((r: any) => r.id);
-      if (reviewIds.length > 0) {
-        const { data: responses } = await (supabase as any)
+      // Initialiser avec un tableau vide si reviewsData est null/undefined
+      const reviewsList = reviewsData || [];
+
+      // Charger les réponses si on a des avis
+      let responses: any[] = [];
+      if (reviewsList.length > 0) {
+        const reviewIds = reviewsList.map((r: any) => r.id);
+        const { data: responsesData } = await (supabase as any)
           .from('vehicle_review_responses')
           .select('*')
           .in('review_id', reviewIds);
-
-        const enrichedReviews = (reviewsData || []).map((review: any) => ({
-          ...review,
-          reviewer: review.reviewer || undefined,
-          response: (responses || []).find((r: any) => r.review_id === review.id)
-        }));
-
-        setReviews(enrichedReviews);
-      } else {
-        setReviews([]);
+        
+        responses = responsesData || [];
       }
+
+      // Enrichir les avis avec les réponses
+      const enrichedReviews = reviewsList.map((review: any) => ({
+        ...review,
+        reviewer: review.reviewer || review.profiles || undefined,
+        response: responses.find((r: any) => r.review_id === review.id)
+      }));
+
+      setReviews(enrichedReviews);
     } catch (error) {
       console.error('Error loading reviews:', error);
+      setReviews([]);
+    } finally {
+      setLoadingReviews(false);
     }
   };
 
@@ -262,9 +277,10 @@ const VehicleReviewsScreen: React.FC = () => {
         )}
 
         {/* Reviews list */}
-        {loading ? (
+        {loadingReviews ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
+            <Text style={styles.loadingText}>Chargement des avis...</Text>
           </View>
         ) : reviews.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -576,6 +592,11 @@ const styles = StyleSheet.create({
   loadingContainer: {
     padding: 40,
     alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
   },
   emptyContainer: {
     padding: 40,

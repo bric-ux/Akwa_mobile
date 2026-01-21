@@ -34,7 +34,7 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
       getHostProfile(hostId);
       getHostReviews(hostId);
     }
-  }, [visible, hostId]);
+  }, [visible, hostId, getHostProfile, getHostReviews]);
 
   const renderStars = (rating: number) => {
     return (
@@ -149,10 +149,16 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
               )}
 
               {/* Avis */}
-              {reviews.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Avis des locataires</Text>
-                  {reviews.map((review) => (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Avis des locataires</Text>
+                {reviewsLoading ? (
+                  <View style={styles.loadingReviewsContainer}>
+                    <ActivityIndicator size="small" color="#2563eb" />
+                    <Text style={styles.loadingReviewsText}>Chargement des avis...</Text>
+                  </View>
+                ) : reviews.length > 0 ? (
+                  <>
+                    {reviews.map((review) => (
                     <View key={review.id} style={styles.reviewItem}>
                       <View style={styles.reviewHeader}>
                         <View style={styles.reviewerInfo}>
@@ -196,17 +202,16 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                       )}
                     </View>
                   ))}
-                </View>
-              )}
-
-              {reviews.length === 0 && !reviewsLoading && (
-                <View style={styles.emptyReviews}>
-                  <Ionicons name="star-outline" size={48} color="#d1d5db" />
-                  <Text style={styles.emptyReviewsText}>
-                    Aucun avis pour le moment
-                  </Text>
-                </View>
-              )}
+                  </>
+                ) : (
+                  <View style={styles.emptyReviews}>
+                    <Ionicons name="star-outline" size={48} color="#d1d5db" />
+                    <Text style={styles.emptyReviewsText}>
+                      Aucun avis pour le moment
+                    </Text>
+                  </View>
+                )}
+              </View>
             </ScrollView>
           ) : (
             <View style={styles.errorContainer}>
@@ -446,6 +451,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
     marginTop: 12,
+  },
+  loadingReviewsContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadingReviewsText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#6b7280',
   },
   errorContainer: {
     flex: 1,

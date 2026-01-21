@@ -554,7 +554,7 @@ const AppNavigator = () => {
           name="MyGuestReviews" 
           component={MyGuestReviewsScreen}
           options={{ 
-            title: 'Mes avis reçus',
+            title: 'Mes avis',
             headerShown: false 
           }}
         />

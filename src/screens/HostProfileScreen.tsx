@@ -26,8 +26,7 @@ const HostProfileScreen: React.FC = () => {
       getHostProfile(hostId);
       getHostReviews(hostId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostId]);
+  }, [hostId, getHostProfile, getHostReviews]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -141,55 +140,61 @@ const HostProfileScreen: React.FC = () => {
         </View>
 
         {/* Avis reçus */}
-        {reviews.length > 0 ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Avis reçus ({reviews.length})</Text>
-            {reviewsLoading ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Avis reçus {reviews.length > 0 && `(${reviews.length})`}</Text>
+          {reviewsLoading ? (
+            <View style={styles.loadingReviewsContainer}>
               <ActivityIndicator size="small" color="#2E7D32" />
-            ) : (
-              <View style={styles.reviewsContainer}>
-                {reviews.slice(0, 3).map((review) => (
-                  <View key={review.id} style={styles.reviewCard}>
-                    <View style={styles.reviewHeader}>
-                      <View style={styles.reviewerInfo}>
-                        <View style={styles.reviewerAvatar}>
-                          <Text style={styles.reviewerInitial}>
-                            {review.reviewer_name?.charAt(0) || 'U'}
-                          </Text>
-                        </View>
-                        <View>
-                          <Text style={styles.reviewerName}>{review.reviewer_name || 'Anonyme'}</Text>
-                          <Text style={styles.reviewDate}>
-                            {formatDate(review.created_at)}
-                          </Text>
-                        </View>
+              <Text style={styles.loadingReviewsText}>Chargement des avis...</Text>
+            </View>
+          ) : reviews.length > 0 ? (
+            <View style={styles.reviewsContainer}>
+              {reviews.slice(0, 3).map((review) => (
+                <View key={review.id} style={styles.reviewCard}>
+                  <View style={styles.reviewHeader}>
+                    <View style={styles.reviewerInfo}>
+                      <View style={styles.reviewerAvatar}>
+                        <Text style={styles.reviewerInitial}>
+                          {review.reviewer_name?.charAt(0) || 'U'}
+                        </Text>
                       </View>
-                      <View style={styles.ratingContainer}>
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Ionicons
-                            key={star}
-                            name={star <= review.rating ? "star" : "star-outline"}
-                            size={16}
-                            color="#FFD700"
-                          />
-                        ))}
+                      <View>
+                        <Text style={styles.reviewerName}>{review.reviewer_name || 'Anonyme'}</Text>
+                        <Text style={styles.reviewDate}>
+                          {formatDate(review.created_at)}
+                        </Text>
                       </View>
                     </View>
-                    {review.comment ? (
-                      <Text style={styles.reviewComment}>{review.comment}</Text>
-                    ) : null}
-                    <Text style={styles.propertyTitle}>Propriété: {review.property_title || 'Propriété'}</Text>
+                    <View style={styles.ratingContainer}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Ionicons
+                          key={star}
+                          name={star <= review.rating ? "star" : "star-outline"}
+                          size={16}
+                          color="#FFD700"
+                        />
+                      ))}
+                    </View>
                   </View>
-                ))}
-                {reviews.length > 3 ? (
-                  <Text style={styles.moreReviews}>
-                    +{reviews.length - 3} autres avis...
-                  </Text>
-                ) : null}
-              </View>
-            )}
-          </View>
-        ) : null}
+                  {review.comment ? (
+                    <Text style={styles.reviewComment}>{review.comment}</Text>
+                  ) : null}
+                  <Text style={styles.propertyTitle}>Propriété: {review.property_title || 'Propriété'}</Text>
+                </View>
+              ))}
+              {reviews.length > 3 ? (
+                <Text style={styles.moreReviews}>
+                  +{reviews.length - 3} autres avis...
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <View style={styles.emptyReviews}>
+              <Ionicons name="star-outline" size={48} color="#d1d5db" />
+              <Text style={styles.emptyReviewsText}>Aucun avis pour le moment</Text>
+            </View>
+          )}
+        </View>
 
         {/* Informations de contact */}
         <View style={styles.section}>
@@ -426,6 +431,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  loadingReviewsContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadingReviewsText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666',
+  },
+  emptyReviews: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  emptyReviewsText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    marginTop: 12,
   },
   contactInfo: {
     gap: 12,

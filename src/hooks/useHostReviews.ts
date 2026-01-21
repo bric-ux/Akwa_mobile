@@ -134,7 +134,7 @@ export const useHostReviews = () => {
             vehicles!vehicle_reviews_vehicle_id_fkey(brand, model, title)
           `)
           .in('vehicle_id', vehicleIds)
-          .eq('approved', true)
+          .eq('is_published', true)
           .order('created_at', { ascending: false });
 
         if (!vehicleReviewsError && vehicleReviewsData) {
