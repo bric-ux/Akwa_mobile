@@ -11,6 +11,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ import CitySearchInputModal from '../components/CitySearchInputModal';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import VehicleBrandAutocomplete from '../components/VehicleBrandAutocomplete';
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
   { value: 'car', label: 'Voiture' },
@@ -62,11 +64,11 @@ const COMMON_FEATURES = [
 ];
 
 const VEHICLE_PHOTO_CATEGORIES = [
-  { value: 'exterior', label: 'Extérieur', icon: '🚗' },
-  { value: 'interior', label: 'Intérieur', icon: '🪑' },
-  { value: 'engine', label: 'Moteur', icon: '⚙️' },
-  { value: 'documents', label: 'Documents', icon: '📄' },
-  { value: 'other', label: 'Autre', icon: '📸' },
+  { value: 'exterior', label: 'Extérieur', icon: 'car-outline', color: '#2563eb' },
+  { value: 'interior', label: 'Intérieur', icon: 'home-outline', color: '#059669' },
+  { value: 'engine', label: 'Moteur', icon: 'settings-outline', color: '#dc2626' },
+  { value: 'documents', label: 'Documents', icon: 'document-text-outline', color: '#f59e0b' },
+  { value: 'other', label: 'Autre', icon: 'camera-outline', color: '#7c3aed' },
 ];
 
 const AddVehicleScreen: React.FC = () => {
@@ -287,20 +289,36 @@ const AddVehicleScreen: React.FC = () => {
   };
 
   const addCustomFeature = () => {
-    if (customFeature.trim()) {
+    const trimmedFeature = customFeature.trim();
+    if (trimmedFeature) {
+      // Vérifier si l'équipement n'existe pas déjà
+      if (formData.features.includes(trimmedFeature)) {
+        Alert.alert('Attention', 'Cet équipement est déjà ajouté');
+        return;
+      }
+      
+      Keyboard.dismiss();
       setFormData(prev => ({
         ...prev,
-        features: [...prev.features, customFeature.trim()],
+        features: [...prev.features, trimmedFeature],
       }));
       setCustomFeature('');
     }
   };
 
   const addRule = () => {
-    if (customRule.trim()) {
+    const trimmedRule = customRule.trim();
+    if (trimmedRule) {
+      // Vérifier si la règle n'existe pas déjà
+      if (formData.rules.includes(trimmedRule)) {
+        Alert.alert('Attention', 'Cette règle est déjà ajoutée');
+        return;
+      }
+      
+      Keyboard.dismiss();
       setFormData(prev => ({
         ...prev,
-        rules: [...prev.rules, customRule.trim()],
+        rules: [...prev.rules, trimmedRule],
       }));
       setCustomRule('');
     }
@@ -313,13 +331,19 @@ const AddVehicleScreen: React.FC = () => {
     }));
   };
 
-  const handleLocationSelect = (location: { id: string; name: string }) => {
+  const handleLocationSelect = (location: { id: string; name: string; type?: string; city_id?: string; commune?: string }) => {
     setFormData(prev => ({
       ...prev,
       location_id: location.id,
       location_name: location.name,
     }));
     setShowLocationModal(false);
+  };
+
+  const handleLocationChange = (location: { id: string; name: string; type?: string; city_id?: string; commune?: string } | null) => {
+    if (location) {
+      handleLocationSelect(location);
+    }
   };
 
   const loadUserProfile = async () => {
@@ -548,11 +572,11 @@ const AddVehicleScreen: React.FC = () => {
             </View>
 
             <Text style={styles.label}>Marque *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ex: Toyota"
+            <VehicleBrandAutocomplete
               value={formData.brand}
-              onChangeText={(value) => handleInputChange('brand', value)}
+              onChange={(value) => handleInputChange('brand', value)}
+              placeholder="Ex: Toyota"
+              mode="brand"
             />
 
             <Text style={styles.label}>Modèle *</Text>
@@ -885,6 +909,21 @@ const AddVehicleScreen: React.FC = () => {
                   )}
                 </TouchableOpacity>
               ))}
+              {/* Afficher les équipements personnalisés */}
+              {formData.features
+                .filter(f => !COMMON_FEATURES.includes(f))
+                .map((feature, index) => (
+                  <TouchableOpacity
+                    key={`custom-${index}`}
+                    style={[styles.featureTag, styles.featureTagCustom]}
+                    onPress={() => toggleFeature(feature)}
+                  >
+                    <Text style={[styles.featureText, styles.featureTextSelected]}>
+                      {feature}
+                    </Text>
+                    <Ionicons name="checkmark" size={16} color="#2E7D32" />
+                  </TouchableOpacity>
+                ))}
             </View>
             <View style={styles.customInputRow}>
               <TextInput
@@ -892,8 +931,14 @@ const AddVehicleScreen: React.FC = () => {
                 placeholder="Ajouter un équipement personnalisé"
                 value={customFeature}
                 onChangeText={setCustomFeature}
+                onSubmitEditing={addCustomFeature}
+                returnKeyType="done"
               />
-              <TouchableOpacity style={styles.addButton} onPress={addCustomFeature}>
+              <TouchableOpacity 
+                style={[styles.addButton, !customFeature.trim() && styles.addButtonDisabled]} 
+                onPress={addCustomFeature}
+                disabled={!customFeature.trim()}
+              >
                 <Ionicons name="add" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -916,8 +961,14 @@ const AddVehicleScreen: React.FC = () => {
                 placeholder="Ajouter une règle"
                 value={customRule}
                 onChangeText={setCustomRule}
+                onSubmitEditing={addRule}
+                returnKeyType="done"
               />
-              <TouchableOpacity style={styles.addButton} onPress={addRule}>
+              <TouchableOpacity 
+                style={[styles.addButton, !customRule.trim() && styles.addButtonDisabled]} 
+                onPress={addRule}
+                disabled={!customRule.trim()}
+              >
                 <Ionicons name="add" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -942,6 +993,7 @@ const AddVehicleScreen: React.FC = () => {
         <CitySearchInputModal
           visible={showLocationModal}
           onClose={() => setShowLocationModal(false)}
+          onChange={handleLocationChange}
           onSelect={handleLocationSelect}
         />
 
@@ -949,25 +1001,34 @@ const AddVehicleScreen: React.FC = () => {
         {showCategoryModal && selectedImageForCategory !== null && (
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Catégoriser la photo</Text>
-              {VEHICLE_PHOTO_CATEGORIES.map((category) => (
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Catégoriser la photo</Text>
                 <TouchableOpacity
-                  key={category.value}
-                  style={styles.modalOption}
-                  onPress={() => setImageCategory(category.value)}
+                  onPress={() => {
+                    setShowCategoryModal(false);
+                    setSelectedImageForCategory(null);
+                  }}
+                  style={styles.modalCloseButton}
                 >
-                  <Text style={styles.modalOptionText}>{category.icon} {category.label}</Text>
+                  <Ionicons name="close" size={24} color="#666" />
                 </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => {
-                  setShowCategoryModal(false);
-                  setSelectedImageForCategory(null);
-                }}
-              >
-                <Text style={styles.modalCancelText}>Annuler</Text>
-              </TouchableOpacity>
+              </View>
+              <View style={styles.categoriesContainer}>
+                {VEHICLE_PHOTO_CATEGORIES.map((category) => (
+                  <TouchableOpacity
+                    key={category.value}
+                    style={styles.categoryCard}
+                    onPress={() => setImageCategory(category.value)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.categoryIconContainer, { backgroundColor: `${category.color}15` }]}>
+                      <Ionicons name={category.icon as any} size={32} color={category.color} />
+                    </View>
+                    <Text style={styles.categoryLabel}>{category.label}</Text>
+                    <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </View>
         )}
@@ -1146,6 +1207,10 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
     fontWeight: '600',
   },
+  featureTagCustom: {
+    backgroundColor: '#f0f8f0',
+    borderColor: '#2E7D32',
+  },
   customInputRow: {
     flexDirection: 'row',
     gap: 8,
@@ -1160,6 +1225,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    minWidth: 48,
+    minHeight: 48,
+  },
+  addButtonDisabled: {
+    backgroundColor: '#9ca3af',
+    opacity: 0.6,
   },
   ruleItem: {
     flexDirection: 'row',
@@ -1245,35 +1316,78 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    width: '80%',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
     maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    flex: 1,
   },
-  modalOption: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+  modalCloseButton: {
+    padding: 4,
   },
-  modalOptionText: {
+  categoriesContainer: {
+    gap: 12,
+  },
+  categoryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  categoryIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryLabel: {
     fontSize: 16,
+    fontWeight: '600',
+    color: '#0f172a',
+    flex: 1,
   },
   modalCancelButton: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
+    marginTop: 20,
+    padding: 14,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   modalCancelText: {
     fontSize: 16,
-    color: '#666',
+    fontWeight: '600',
+    color: '#64748b',
   },
   checkboxContainer: {
     flexDirection: 'row',
