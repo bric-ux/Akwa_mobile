@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useEmailService } from './useEmailService';
 
 export interface GuestReview {
   id: string;
@@ -34,6 +35,7 @@ export const useGuestReviews = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { sendNewGuestReview } = useEmailService();
 
   // Get reviews written by a host for guests
   const getGuestReviewsByHost = async (hostId: string): Promise<GuestReview[]> => {
@@ -219,6 +221,41 @@ export const useGuestReviews = () => {
         console.error('Error submitting guest review:', insertError);
         setError(insertError.message || "Impossible de publier l'avis");
         return { success: false };
+      }
+
+      // Envoyer un email de notification au voyageur
+      try {
+        // Récupérer les informations du voyageur et de la propriété
+        const { data: guestData } = await supabase
+          .from('profiles')
+          .select('first_name, last_name, email')
+          .eq('user_id', reviewData.guestId)
+          .single();
+
+        const { data: propertyData } = await supabase
+          .from('properties')
+          .select('title, host_id, profiles!properties_host_id_fkey(first_name, last_name)')
+          .eq('id', reviewData.propertyId)
+          .single();
+
+        if (guestData && propertyData && propertyData.profiles) {
+          const guestName = `${guestData.first_name} ${guestData.last_name}`;
+          const hostName = `${propertyData.profiles.first_name} ${propertyData.profiles.last_name}`;
+          
+          await sendNewGuestReview(
+            guestData.email,
+            guestName,
+            hostName,
+            propertyData.title,
+            reviewData.rating,
+            reviewData.comment
+          );
+
+          console.log('✅ [useGuestReviews] Email de notification envoyé au voyageur');
+        }
+      } catch (emailError) {
+        console.error('❌ [useGuestReviews] Erreur envoi email notification:', emailError);
+        // Ne pas faire échouer la soumission de l'avis si l'email échoue
       }
 
       return { success: true };

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useEmailService } from './useEmailService';
 import { Alert } from 'react-native';
 
 export interface VehicleRenterReview {
@@ -43,6 +44,7 @@ export const useVehicleRenterReviews = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { sendNewRenterReview } = useEmailService();
 
   // Vérifier si le propriétaire peut laisser un avis pour une réservation
   const canReviewBooking = async (bookingId: string): Promise<boolean> => {
@@ -114,6 +116,41 @@ export const useVehicleRenterReviews = () => {
         setError(insertError.message || "Impossible de soumettre l'avis");
         Alert.alert('Erreur', insertError.message || "Impossible de soumettre l'avis");
         return { success: false, error: insertError.message };
+      }
+
+      // Envoyer un email de notification au locataire
+      try {
+        // Récupérer les informations du locataire et du véhicule
+        const { data: renterData } = await supabase
+          .from('profiles')
+          .select('first_name, last_name, email')
+          .eq('user_id', reviewData.renter_id)
+          .single();
+
+        const { data: vehicleData } = await supabase
+          .from('vehicles')
+          .select('title')
+          .eq('id', reviewData.vehicle_id)
+          .single();
+
+        if (renterData && vehicleData) {
+          const renterName = `${renterData.first_name} ${renterData.last_name}`;
+          const ownerName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Propriétaire';
+          
+          await sendNewRenterReview(
+            renterData.email,
+            renterName,
+            ownerName,
+            vehicleData.title,
+            reviewData.rating,
+            reviewData.comment
+          );
+
+          console.log('✅ [useVehicleRenterReviews] Email de notification envoyé au locataire');
+        }
+      } catch (emailError) {
+        console.error('❌ [useVehicleRenterReviews] Erreur envoi email notification:', emailError);
+        // Ne pas faire échouer la soumission de l'avis si l'email échoue
       }
 
       Alert.alert('Avis envoyé', 'Votre avis sera publié lorsque le locataire y aura répondu');

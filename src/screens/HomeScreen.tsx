@@ -10,7 +10,7 @@ import {
   ImageBackground,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../services/AuthContext';
 import { useProperties } from '../hooks/useProperties';
@@ -89,7 +89,8 @@ const HomeScreen: React.FC = () => {
         const destinations = await getPopularDestinations(8);
         setPopularDestinations(destinations);
       } catch (error) {
-        console.error('Erreur lors du chargement des destinations populaires:', error);
+        // Erreur silencieuse en production
+        if (__DEV__) console.error('Erreur lors du chargement des destinations populaires:', error);
       } finally {
         setDestinationsLoading(false);
       }
@@ -97,20 +98,6 @@ const HomeScreen: React.FC = () => {
     
     loadPopularDestinations();
   }, []);
-
-
-  // Rafraîchir les données quand l'écran devient actif (une seule fois)
-  useFocusEffect(
-    React.useCallback(() => {
-      console.log('🔄 HomeScreen devient actif - Rafraîchissement des propriétés');
-      // Utiliser fetchProperties avec un délai pour éviter la boucle
-      const timeoutId = setTimeout(() => {
-        fetchProperties();
-      }, 100);
-      
-      return () => clearTimeout(timeoutId);
-    }, []) // Tableau vide pour éviter les re-renders
-  );
 
 
   const handlePropertyPress = (property: Property) => {
@@ -244,7 +231,6 @@ const HomeScreen: React.FC = () => {
         images={carouselImages}
         onImagePress={(image) => {
           // Optionnel : navigation vers une page de détails de l'image
-          console.log('Image sélectionnée:', image.title);
         }}
       />
 

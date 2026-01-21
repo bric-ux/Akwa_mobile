@@ -85,7 +85,7 @@ export const useBookings = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const { sendBookingRequest, sendBookingRequestSent } = useEmailService();
+  const { sendBookingRequest, sendBookingRequestSent, sendBookingConfirmed, sendBookingConfirmedHost } = useEmailService();
   const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
   const { generateAndSendBookingPDF } = useBookingPDF();
 
@@ -254,16 +254,34 @@ export const useBookings = () => {
 
       // Envoyer les emails après création de la réservation
       try {
-        // Récupérer les informations de l'hôte et du voyageur
+        // Récupérer les informations complètes de la propriété, hôte et voyageur
         const { data: propertyInfo, error: propertyInfoError } = await supabase
           .from('properties')
           .select(`
             title,
             host_id,
+            address,
+            price_per_night,
+            cleaning_fee,
+            service_fee,
+            taxes,
+            cancellation_policy,
+            check_in_time,
+            check_out_time,
+            house_rules,
+            locations:location_id(
+              id,
+              name,
+              type,
+              latitude,
+              longitude,
+              parent_id
+            ),
             profiles!properties_host_id_fkey(
               first_name,
               last_name,
-              email
+              email,
+              phone
             )
           `)
           .eq('id', bookingData.propertyId)
@@ -274,30 +292,193 @@ export const useBookings = () => {
         } else {
           const hostProfile = propertyInfo.profiles;
           const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
+          const hostName = `${hostProfile.first_name} ${hostProfile.last_name}`;
           
-          // Email de notification à l'hôte
-          await sendBookingRequest(
-            hostProfile.email,
-            `${hostProfile.first_name} ${hostProfile.last_name}`,
-            guestName,
-            propertyInfo.title,
-            bookingData.checkInDate,
-            bookingData.checkOutDate,
-            bookingData.guestsCount,
-            bookingData.totalPrice,
-            bookingData.messageToHost
-          );
+          // Si auto_booking est true, la réservation est directement confirmée
+          if (propertyData.auto_booking && booking?.status === 'confirmed') {
+            // Préparer les données pour le PDF
+            const pdfBookingData = {
+              id: booking.id,
+              property: {
+                title: propertyInfo.title,
+                address: propertyInfo.address || '',
+                city_name: propertyInfo.locations?.name || '',
+                city_region: propertyInfo.locations?.type === 'city' ? propertyInfo.locations?.name : '',
+                price_per_night: propertyInfo.price_per_night || 0,
+                cleaning_fee: propertyInfo.cleaning_fee || 0,
+                service_fee: propertyInfo.service_fee || 0,
+                taxes: propertyInfo.taxes || 0,
+                cancellation_policy: propertyInfo.cancellation_policy || 'flexible'
+              },
+              guest: {
+                first_name: user.user_metadata?.first_name || '',
+                last_name: user.user_metadata?.last_name || '',
+                email: user.email || '',
+                phone: user.user_metadata?.phone || ''
+              },
+              host: {
+                first_name: hostProfile.first_name || '',
+                last_name: hostProfile.last_name || '',
+                email: hostProfile.email || '',
+                phone: hostProfile.phone || ''
+              },
+              check_in_date: bookingData.checkInDate,
+              check_out_date: bookingData.checkOutDate,
+              guests_count: bookingData.guestsCount,
+              total_price: bookingData.totalPrice,
+              status: 'confirmed',
+              created_at: booking.created_at,
+              message: bookingData.messageToHost || '',
+              discount_applied: bookingData.discountApplied || false,
+              discount_amount: bookingData.discountAmount || 0,
+              original_total: bookingData.originalTotal || bookingData.totalPrice,
+              payment_method: bookingData.paymentMethod || '',
+              payment_plan: bookingData.paymentPlan || ''
+            };
 
-          // Email de confirmation au voyageur
-          await sendBookingRequestSent(
-            user.email || '',
-            guestName,
-            propertyInfo.title,
-            bookingData.checkInDate,
-            bookingData.checkOutDate,
-            bookingData.guestsCount,
-            bookingData.totalPrice
-          );
+            // Générer le PDF et envoyer les emails de confirmation
+            try {
+              const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-booking-pdf', {
+                body: { bookingData: pdfBookingData }
+              });
+
+              if (pdfError) {
+                console.log('⚠️ [useBookings] PDF non généré, envoi email sans pièce jointe');
+                
+                // Email au voyageur sans PDF
+                await sendBookingConfirmed(
+                  user.email || '',
+                  guestName,
+                  propertyInfo.title,
+                  bookingData.checkInDate,
+                  bookingData.checkOutDate,
+                  bookingData.guestsCount,
+                  bookingData.totalPrice,
+                  hostName,
+                  hostProfile.phone || '',
+                  hostProfile.email || '',
+                  propertyInfo.address || '',
+                  bookingData.messageToHost
+                );
+
+                // Email à l'hôte sans PDF
+                await sendBookingConfirmedHost(
+                  hostProfile.email,
+                  hostName,
+                  guestName,
+                  propertyInfo.title,
+                  bookingData.checkInDate,
+                  bookingData.checkOutDate,
+                  bookingData.guestsCount,
+                  bookingData.totalPrice
+                );
+              } else if (pdfData?.success && pdfData?.pdf) {
+                console.log('✅ [useBookings] PDF généré avec succès');
+                
+                // Email au voyageur avec PDF
+                await supabase.functions.invoke('send-email', {
+                  body: {
+                    type: 'booking_confirmed',
+                    to: user.email || '',
+                    data: {
+                      bookingId: booking.id,
+                      guestName: guestName,
+                      propertyTitle: propertyInfo.title,
+                      checkIn: bookingData.checkInDate,
+                      checkOut: bookingData.checkOutDate,
+                      guests: bookingData.guestsCount,
+                      totalPrice: bookingData.totalPrice,
+                      hostName: hostName,
+                      hostPhone: hostProfile.phone || '',
+                      hostEmail: hostProfile.email || '',
+                      propertyAddress: propertyInfo.address || '',
+                      specialMessage: bookingData.messageToHost
+                    },
+                    attachments: [{
+                      filename: pdfData.filename || `reservation-${booking.id}.pdf`,
+                      content: pdfData.pdf,
+                      type: 'application/pdf'
+                    }]
+                  }
+                });
+
+                // Email à l'hôte avec PDF
+                await supabase.functions.invoke('send-email', {
+                  body: {
+                    type: 'booking_confirmed_host',
+                    to: hostProfile.email,
+                    data: {
+                      bookingId: booking.id,
+                      hostName: hostName,
+                      guestName: guestName,
+                      propertyTitle: propertyInfo.title,
+                      checkIn: bookingData.checkInDate,
+                      checkOut: bookingData.checkOutDate,
+                      guests: bookingData.guestsCount,
+                      totalPrice: bookingData.totalPrice
+                    },
+                    attachments: [{
+                      filename: pdfData.filename || `reservation-${booking.id}.pdf`,
+                      content: pdfData.pdf,
+                      type: 'application/pdf'
+                    }]
+                  }
+                });
+              }
+            } catch (pdfEmailError) {
+              console.error('❌ [useBookings] Erreur génération PDF/email:', pdfEmailError);
+              // Envoyer les emails sans PDF en cas d'erreur
+              await sendBookingConfirmed(
+                user.email || '',
+                guestName,
+                propertyInfo.title,
+                bookingData.checkInDate,
+                bookingData.checkOutDate,
+                bookingData.guestsCount,
+                bookingData.totalPrice,
+                hostName,
+                hostProfile.phone || '',
+                hostProfile.email || '',
+                propertyInfo.address || '',
+                bookingData.messageToHost
+              );
+              await sendBookingConfirmedHost(
+                hostProfile.email,
+                hostName,
+                guestName,
+                propertyInfo.title,
+                bookingData.checkInDate,
+                bookingData.checkOutDate,
+                bookingData.guestsCount,
+                bookingData.totalPrice
+              );
+            }
+          } else {
+            // Réservation en attente - envoyer les emails de demande
+            // Email de notification à l'hôte
+            await sendBookingRequest(
+              hostProfile.email,
+              hostName,
+              guestName,
+              propertyInfo.title,
+              bookingData.checkInDate,
+              bookingData.checkOutDate,
+              bookingData.guestsCount,
+              bookingData.totalPrice,
+              bookingData.messageToHost
+            );
+
+            // Email de confirmation au voyageur
+            await sendBookingRequestSent(
+              user.email || '',
+              guestName,
+              propertyInfo.title,
+              bookingData.checkInDate,
+              bookingData.checkOutDate,
+              bookingData.guestsCount,
+              bookingData.totalPrice
+            );
+          }
 
           console.log('✅ [useBookings] Emails de réservation envoyés');
         }

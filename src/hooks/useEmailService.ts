@@ -1,8 +1,10 @@
 // Hook pour l'envoi d'emails avec les mêmes contenus que le site web
 import { supabase } from '../services/supabase';
 
+const isDev = __DEV__;
+
 export interface EmailData {
-  type: 'welcome' | 'email_confirmation' | 'booking_request' | 'booking_request_sent' | 'booking_response' | 'booking_confirmed' | 'booking_confirmed_host' | 'booking_cancelled' | 'booking_cancelled_host' | 'booking_completed' | 'booking_completed_host' | 'password_reset' | 'new_message' | 'host_application_submitted' | 'host_application_received' | 'host_application_approved' | 'conciergerie_request';
+  type: 'welcome' | 'email_confirmation' | 'booking_request' | 'booking_request_sent' | 'booking_response' | 'booking_confirmed' | 'booking_confirmed_host' | 'booking_cancelled' | 'booking_cancelled_host' | 'booking_completed' | 'booking_completed_host' | 'password_reset' | 'new_message' | 'host_application_submitted' | 'host_application_received' | 'host_application_approved' | 'host_application_rejected' | 'new_property_review' | 'new_guest_review' | 'new_vehicle_review' | 'new_renter_review' | 'conciergerie_request';
   to: string;
   data: any;
 }
@@ -10,21 +12,18 @@ export interface EmailData {
 export const useEmailService = () => {
   const sendEmail = async (emailData: EmailData) => {
     try {
-      console.log('📧 [useEmailService] Envoi d\'email:', emailData.type, 'vers:', emailData.to);
-      
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: emailData
       });
 
       if (error) {
-        console.error('❌ [useEmailService] Erreur lors de l\'envoi:', error);
+        if (isDev) console.error('[useEmailService] Erreur:', error);
         throw error;
       }
 
-      console.log('✅ [useEmailService] Email envoyé avec succès');
       return { success: true, data };
     } catch (error) {
-      console.error('❌ [useEmailService] Erreur:', error);
+      if (isDev) console.error('[useEmailService] Erreur:', error);
       return { success: false, error };
     }
   };
@@ -249,6 +248,74 @@ export const useEmailService = () => {
     });
   };
 
+  const sendHostApplicationRejected = async (hostEmail: string, hostName: string, propertyTitle: string, reason?: string) => {
+    return sendEmail({
+      type: 'host_application_rejected',
+      to: hostEmail,
+      data: {
+        hostName,
+        propertyTitle,
+        reason: reason || 'Votre candidature ne répond pas à nos critères.'
+      }
+    });
+  };
+
+  const sendNewPropertyReview = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, rating: number, comment?: string) => {
+    return sendEmail({
+      type: 'new_property_review',
+      to: hostEmail,
+      data: {
+        hostName,
+        guestName,
+        propertyTitle,
+        rating,
+        comment: comment || ''
+      }
+    });
+  };
+
+  const sendNewGuestReview = async (guestEmail: string, guestName: string, hostName: string, propertyTitle: string, rating: number, comment?: string) => {
+    return sendEmail({
+      type: 'new_guest_review',
+      to: guestEmail,
+      data: {
+        guestName,
+        hostName,
+        propertyTitle,
+        rating,
+        comment: comment || ''
+      }
+    });
+  };
+
+  const sendNewVehicleReview = async (ownerEmail: string, ownerName: string, renterName: string, vehicleTitle: string, rating: number, comment?: string) => {
+    return sendEmail({
+      type: 'new_vehicle_review',
+      to: ownerEmail,
+      data: {
+        ownerName,
+        renterName,
+        vehicleTitle,
+        rating,
+        comment: comment || ''
+      }
+    });
+  };
+
+  const sendNewRenterReview = async (renterEmail: string, renterName: string, ownerName: string, vehicleTitle: string, rating: number, comment?: string) => {
+    return sendEmail({
+      type: 'new_renter_review',
+      to: renterEmail,
+      data: {
+        renterName,
+        ownerName,
+        vehicleTitle,
+        rating,
+        comment: comment || ''
+      }
+    });
+  };
+
   return {
     sendEmail,
     sendWelcomeEmail,
@@ -267,5 +334,10 @@ export const useEmailService = () => {
     sendHostApplicationSubmitted,
     sendHostApplicationReceived,
     sendHostApplicationApproved,
+    sendHostApplicationRejected,
+    sendNewPropertyReview,
+    sendNewGuestReview,
+    sendNewVehicleReview,
+    sendNewRenterReview,
   };
 };

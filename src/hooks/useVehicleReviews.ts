@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useEmailService } from './useEmailService';
 import { Alert } from 'react-native';
 
 export interface VehicleReview {
@@ -21,6 +22,7 @@ export interface VehicleReview {
 export const useVehicleReviews = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const { sendNewVehicleReview } = useEmailService();
 
   // Get reviews for a vehicle
   const getVehicleReviews = async (vehicleId: string): Promise<VehicleReview[]> => {
@@ -117,6 +119,36 @@ export const useVehicleReviews = () => {
         console.error('Error creating vehicle review:', error);
         Alert.alert('Erreur', error.message || "Impossible de soumettre l'avis");
         return { success: false, error: error.message };
+      }
+
+      // Envoyer un email de notification au propriétaire
+      try {
+        // Récupérer les informations du véhicule et du propriétaire
+        const { data: vehicleData } = await supabase
+          .from('vehicles')
+          .select('title, owner_id, profiles!vehicles_owner_id_fkey(first_name, last_name, email)')
+          .eq('id', reviewData.vehicle_id)
+          .single();
+
+        if (vehicleData && vehicleData.profiles) {
+          const ownerProfile = vehicleData.profiles;
+          const ownerName = `${ownerProfile.first_name} ${ownerProfile.last_name}`;
+          const renterName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Locataire';
+          
+          await sendNewVehicleReview(
+            ownerProfile.email,
+            ownerName,
+            renterName,
+            vehicleData.title,
+            reviewData.rating,
+            reviewData.comment
+          );
+
+          console.log('✅ [useVehicleReviews] Email de notification envoyé au propriétaire');
+        }
+      } catch (emailError) {
+        console.error('❌ [useVehicleReviews] Erreur envoi email notification:', emailError);
+        // Ne pas faire échouer la soumission de l'avis si l'email échoue
       }
 
       Alert.alert('Avis envoyé', 'Votre avis sera publié lorsque le propriétaire y aura répondu');

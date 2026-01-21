@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useEmailService } from './useEmailService';
 
 export interface HostApplicationData {
   propertyType: string;
@@ -78,6 +79,7 @@ export const useHostApplications = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();
 
   const submitApplication = async (applicationData: HostApplicationData) => {
     if (!user) {
@@ -179,6 +181,49 @@ export const useHostApplications = () => {
       }
 
       console.log('✅ Candidature soumise avec succès:', data);
+      
+      // Envoyer les emails de confirmation
+      try {
+        // Email de confirmation à l'utilisateur
+        await sendHostApplicationSubmitted(
+          applicationData.email,
+          applicationData.fullName,
+          applicationData.title,
+          applicationData.propertyType,
+          applicationData.location
+        );
+
+        // Email de notification aux administrateurs
+        // Récupérer les emails des administrateurs
+        const { data: admins } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('role', 'admin')
+          .eq('is_active', true);
+
+        if (admins && admins.length > 0) {
+          // Envoyer à tous les administrateurs
+          await Promise.all(
+            admins.map(admin => 
+              sendHostApplicationReceived(
+                admin.email,
+                applicationData.fullName,
+                applicationData.email,
+                applicationData.title,
+                applicationData.propertyType,
+                applicationData.location,
+                applicationData.pricePerNight
+              )
+            )
+          );
+        }
+
+        console.log('✅ [useHostApplications] Emails de candidature envoyés');
+      } catch (emailError) {
+        console.error('❌ [useHostApplications] Erreur envoi email:', emailError);
+        // Ne pas faire échouer la soumission si l'email échoue
+      }
+      
       return { success: true, data };
     } catch (err: any) {
       console.error('❌ Erreur lors de la soumission:', err);

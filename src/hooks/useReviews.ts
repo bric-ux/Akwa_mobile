@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useEmailService } from './useEmailService';
 
 export interface Review {
   id: string;
@@ -166,6 +167,52 @@ export const useReviews = () => {
         
         setError(errorMessage);
         return { success: false };
+      }
+
+      // Envoyer un email de notification à l'hôte
+      try {
+        // Récupérer les informations de la propriété et de l'hôte
+        const { data: propertyData } = await supabase
+          .from('properties')
+          .select(`
+            title,
+            host_id,
+            profiles!properties_host_id_fkey(
+              first_name,
+              last_name,
+              email
+            )
+          `)
+          .eq('id', reviewData.propertyId)
+          .single();
+
+        if (propertyData && propertyData.profiles) {
+          const hostProfile = propertyData.profiles;
+          const hostName = `${hostProfile.first_name} ${hostProfile.last_name}`;
+          const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
+          
+          // Calculer la note moyenne
+          const averageRating = (
+            reviewData.locationRating +
+            reviewData.cleanlinessRating +
+            reviewData.valueRating +
+            reviewData.communicationRating
+          ) / 4;
+
+          await sendNewPropertyReview(
+            hostProfile.email,
+            hostName,
+            guestName,
+            propertyData.title,
+            averageRating,
+            reviewData.comment
+          );
+
+          console.log('✅ [useReviews] Email de notification envoyé à l\'hôte');
+        }
+      } catch (emailError) {
+        console.error('❌ [useReviews] Erreur envoi email notification:', emailError);
+        // Ne pas faire échouer la soumission de l'avis si l'email échoue
       }
 
       return { success: true };
