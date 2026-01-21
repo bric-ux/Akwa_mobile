@@ -11,7 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCities } from '../hooks/useCities';
 import { useNeighborhoods } from '../hooks/useNeighborhoods';
@@ -252,13 +254,15 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
         transparent
         animationType="slide"
         onRequestClose={closeModal}
+        statusBarTranslucent={true}
       >
+        <StatusBar backgroundColor="rgba(0, 0, 0, 0.5)" barStyle="light-content" />
         <KeyboardAvoidingView 
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <View style={styles.modalContent}>
+          <SafeAreaView style={styles.modalContent} edges={['top', 'bottom']}>
             {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Rechercher une localisation</Text>
@@ -350,7 +354,7 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
                 </View>
               )}
             </View>
-          </View>
+          </SafeAreaView>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -398,7 +402,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '85%',
+    maxHeight: '90%',
     minHeight: '60%',
   },
   modalHeader: {

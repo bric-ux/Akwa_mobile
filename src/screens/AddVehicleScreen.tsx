@@ -12,13 +12,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
-import { useVehicleApplications } from '../hooks/useVehicleApplications';
 import { useAuth } from '../services/AuthContext';
 import { VehicleType, TransmissionType, FuelType } from '../types';
 import CitySearchInputModal from '../components/CitySearchInputModal';
@@ -71,11 +71,42 @@ const VEHICLE_PHOTO_CATEGORIES = [
   { value: 'other', label: 'Autre', icon: 'camera-outline', color: '#7c3aed' },
 ];
 
+// Fonction pour formater les dates en français
+const formatDateFrench = (date: Date): string => {
+  const months = [
+    'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+  ];
+  const weekdays = [
+    'dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'
+  ];
+  
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  const weekday = weekdays[date.getDay()];
+  
+  return `${weekday} ${day} ${month} ${year}`;
+};
+
+const formatDateShortFrench = (date: Date): string => {
+  const months = [
+    'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+  ];
+  
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  
+  return `${day} ${month} ${year}`;
+};
+
 const AddVehicleScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { submitApplication, loading } = useVehicleApplications();
+  const { addVehicle, loading } = useVehicles();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -114,6 +145,7 @@ const AddVehicleScreen: React.FC = () => {
   const [selectedImageForCategory, setSelectedImageForCategory] = useState<number | null>(null);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [showInsuranceDatePicker, setShowInsuranceDatePicker] = useState(false);
+  const [tempInsuranceDate, setTempInsuranceDate] = useState<Date | null>(null);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -443,48 +475,40 @@ const AddVehicleScreen: React.FC = () => {
       .eq('user_id', user.id)
       .single();
 
-    const applicationPayload = {
-      vehicleType: formData.vehicle_type,
+    // Préparer les données pour la table vehicles (comme sur le site web)
+    const vehiclePayload: Partial<any> = {
+      vehicle_type: formData.vehicle_type,
       brand: formData.brand.trim(),
       model: formData.model.trim(),
       year: parseInt(formData.year),
-      plateNumber: formData.plate_number.trim() || undefined,
+      plate_number: formData.plate_number.trim() || undefined,
       seats: parseInt(formData.seats) || 5,
       transmission: formData.transmission || undefined,
-      fuelType: formData.fuel_type || undefined,
+      fuel_type: formData.fuel_type || undefined,
       mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
-      locationId: formData.location_id || undefined,
-      location: formData.location_name,
-      pricePerDay: parseInt(formData.price_per_day),
-      pricePerWeek: formData.price_per_week ? parseInt(formData.price_per_week) : undefined,
-      pricePerMonth: formData.price_per_month ? parseInt(formData.price_per_month) : undefined,
-      securityDeposit: parseInt(formData.security_deposit) || 0,
-      minimumRentalDays: parseInt(formData.minimum_rental_days) || 1,
+      location_id: formData.location_id || undefined,
+      price_per_day: parseInt(formData.price_per_day),
+      price_per_week: formData.price_per_week ? parseInt(formData.price_per_week) : undefined,
+      price_per_month: formData.price_per_month ? parseInt(formData.price_per_month) : undefined,
+      security_deposit: parseInt(formData.security_deposit) || 0,
+      minimum_rental_days: parseInt(formData.minimum_rental_days) || 1,
       title: formData.title.trim(),
       description: formData.description.trim(),
       features: formData.features,
       rules: formData.rules,
       images: selectedImages.map(img => img.uri),
-      categorizedPhotos: selectedImages.map((img, index) => ({
-        url: img.uri,
-        category: img.category || 'exterior',
-        displayOrder: img.displayOrder ?? index,
-        isMain: img.isMain || false
-      })),
-      fullName: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : formData.ownerFullName || '',
-      email: profile?.email || formData.ownerEmail || '',
-      phone: profile?.phone || formData.ownerPhone || '',
       has_insurance: formData.has_insurance,
-      insurance_expiration_date: formData.insurance_expiration_date ? formData.insurance_expiration_date.toISOString().split('T')[0] : null,
-      insurance_details: formData.insurance_details || '',
+      insurance_details: formData.insurance_details || undefined,
+      // Les champs d'assurance peuvent être stockés dans insurance_details
+      // ou dans un champ séparé selon votre schéma
     };
 
-    const result = await submitApplication(applicationPayload);
+    const result = await addVehicle(vehiclePayload);
 
     if (result.success) {
       Alert.alert(
-        'Candidature soumise',
-        'Votre candidature de véhicule a été soumise avec succès !\n\nElle sera examinée par un administrateur et vous serez notifié une fois validée.',
+        'Véhicule soumis',
+        'Votre véhicule a été soumis avec succès !\n\nIl sera examiné par un administrateur et vous serez notifié une fois approuvé.',
         [
           {
             text: 'OK',
@@ -499,7 +523,7 @@ const AddVehicleScreen: React.FC = () => {
         ]
       );
     } else {
-      Alert.alert('Erreur', result.error || 'Une erreur est survenue');
+      Alert.alert('Erreur', result.error || 'Une erreur est survenue lors de l\'ajout du véhicule');
     }
   };
 
@@ -782,38 +806,29 @@ const AddVehicleScreen: React.FC = () => {
                 <Text style={styles.label}>Date d'expiration de l'assurance *</Text>
                 <TouchableOpacity
                   style={styles.dateButton}
-                  onPress={() => setShowInsuranceDatePicker(true)}
+                  onPress={() => {
+                    setTempInsuranceDate(formData.insurance_expiration_date || new Date());
+                    setShowInsuranceDatePicker(true);
+                  }}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
-                  <Text style={[styles.dateButtonText, !formData.insurance_expiration_date && styles.dateButtonTextPlaceholder]}>
-                    {formData.insurance_expiration_date
-                      ? formData.insurance_expiration_date.toLocaleDateString('fr-FR', {
-                          day: '2-digit',
-                          month: 'long',
-                          year: 'numeric',
-                        })
-                      : 'Sélectionner la date d\'expiration'}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={20} color="#666" />
+                  <View style={styles.dateButtonIconContainer}>
+                    <Ionicons name="calendar-outline" size={24} color="#2E7D32" />
+                  </View>
+                  <View style={styles.dateButtonTextContainer}>
+                    <Text style={[styles.dateButtonLabel, !formData.insurance_expiration_date && styles.dateButtonLabelPlaceholder]}>
+                      {formData.insurance_expiration_date
+                        ? 'Date sélectionnée'
+                        : 'Sélectionner la date'}
+                    </Text>
+                    <Text style={[styles.dateButtonText, !formData.insurance_expiration_date && styles.dateButtonTextPlaceholder]}>
+                      {formData.insurance_expiration_date
+                        ? formatDateShortFrench(formData.insurance_expiration_date)
+                        : 'Appuyez pour choisir'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
                 </TouchableOpacity>
-
-                {showInsuranceDatePicker && (
-                  <DateTimePicker
-                    value={formData.insurance_expiration_date || new Date()}
-                    mode="date"
-                    display="default"
-                    minimumDate={new Date()}
-                    onChange={(event, selectedDate) => {
-                      setShowInsuranceDatePicker(Platform.OS === 'ios');
-                      if (selectedDate) {
-                        setFormData(prev => ({
-                          ...prev,
-                          insurance_expiration_date: selectedDate,
-                        }));
-                      }
-                    }}
-                  />
-                )}
 
                 <Text style={styles.label}>Détails de l'assurance (optionnel)</Text>
                 <TextInput
@@ -826,6 +841,92 @@ const AddVehicleScreen: React.FC = () => {
                 />
               </View>
             )}
+
+        {/* Modal de sélection de date d'assurance */}
+        <Modal
+          visible={showInsuranceDatePicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowInsuranceDatePicker(false)}
+        >
+          <View style={styles.dateModalOverlay}>
+            <View style={styles.dateModalContent}>
+              <View style={styles.dateModalHeader}>
+                <Text style={styles.dateModalTitle}>Date d'expiration de l'assurance</Text>
+                <TouchableOpacity
+                  onPress={() => setShowInsuranceDatePicker(false)}
+                  style={styles.dateModalCloseButton}
+                >
+                  <Ionicons name="close" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.datePickerContainer}>
+                <Text style={styles.datePickerHint}>
+                  Sélectionnez la date d'expiration de votre assurance
+                </Text>
+                {tempInsuranceDate && (
+                  <View style={styles.selectedDatePreview}>
+                    <Ionicons name="calendar" size={20} color="#2E7D32" />
+                    <Text style={styles.selectedDateText}>
+                      {formatDateFrench(tempInsuranceDate)}
+                    </Text>
+                  </View>
+                )}
+                <DateTimePicker
+                  value={tempInsuranceDate || formData.insurance_expiration_date || new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  minimumDate={new Date()}
+                  onChange={(event, selectedDate) => {
+                    if (Platform.OS === 'android') {
+                      setShowInsuranceDatePicker(false);
+                      if (selectedDate) {
+                        setFormData(prev => ({
+                          ...prev,
+                          insurance_expiration_date: selectedDate,
+                        }));
+                      }
+                    } else if (Platform.OS === 'ios' && selectedDate) {
+                      // Sur iOS, on met à jour la date temporaire
+                      setTempInsuranceDate(selectedDate);
+                    }
+                  }}
+                  style={styles.datePicker}
+                />
+              </View>
+
+              {Platform.OS === 'ios' && (
+                <View style={styles.dateModalFooter}>
+                  <TouchableOpacity
+                    style={styles.dateModalCancelButton}
+                    onPress={() => {
+                      setTempInsuranceDate(null);
+                      setShowInsuranceDatePicker(false);
+                    }}
+                  >
+                    <Text style={styles.dateModalCancelText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.dateModalConfirmButton}
+                    onPress={() => {
+                      if (tempInsuranceDate) {
+                        setFormData(prev => ({
+                          ...prev,
+                          insurance_expiration_date: tempInsuranceDate,
+                        }));
+                      }
+                      setTempInsuranceDate(null);
+                      setShowInsuranceDatePicker(false);
+                    }}
+                  >
+                    <Text style={styles.dateModalConfirmText}>Confirmer</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
           </View>
 
           {/* Photos */}
@@ -1449,21 +1550,141 @@ const styles = StyleSheet.create({
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    padding: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    gap: 12,
+  },
+  dateButtonIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#f0fdf4',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dateButtonTextContainer: {
+    flex: 1,
+  },
+  dateButtonLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 2,
+    fontWeight: '500',
+  },
+  dateButtonLabelPlaceholder: {
+    color: '#94a3b8',
   },
   dateButtonText: {
-    flex: 1,
-    marginLeft: 12,
     fontSize: 16,
-    color: '#2c3e50',
+    color: '#0f172a',
+    fontWeight: '600',
   },
   dateButtonTextPlaceholder: {
-    color: '#999',
+    color: '#94a3b8',
+    fontWeight: '400',
+  },
+  dateModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  dateModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'ios' ? 0 : 20,
+    maxHeight: '80%',
+  },
+  dateModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  dateModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  dateModalCloseButton: {
+    padding: 4,
+  },
+  datePickerContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  datePickerHint: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  selectedDatePreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    width: '100%',
+  },
+  selectedDateText: {
+    fontSize: 16,
+    color: '#166534',
+    fontWeight: '600',
+    flex: 1,
+  },
+  datePicker: {
+    width: '100%',
+  },
+  dateModalFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  dateModalCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateModalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  dateModalConfirmButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#2E7D32',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateModalConfirmText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 
