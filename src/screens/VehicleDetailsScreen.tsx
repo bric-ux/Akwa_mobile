@@ -339,73 +339,66 @@ const VehicleDetailsScreen: React.FC = () => {
             </View>
           ) : null}
 
-          {/* Caractéristiques principales - Design moderne amélioré */}
+          {/* Caractéristiques principales */}
           <View style={styles.featuresSection}>
             <Text style={styles.sectionTitle}>Caractéristiques</Text>
             <View style={styles.featuresContainer}>
-              <View style={styles.featureRow}>
+              {/* Places */}
+              <View style={styles.featureItem}>
+                <Ionicons name="people" size={20} color={VEHICLE_COLORS.primary} />
+                <View style={styles.featureTextContainer}>
+                  <Text style={styles.featureLabel}>Places</Text>
+                  <Text style={styles.featureValue}>{String(vehicle.seats || 0)}</Text>
+                </View>
+              </View>
+              
+              {/* Transmission */}
+              {vehicle.transmission ? (
                 <View style={styles.featureItem}>
-                  <View style={styles.featureIconWrapper}>
-                    <Ionicons name="people" size={24} color={VEHICLE_COLORS.primary} />
-                  </View>
-                  <View style={styles.featureInfo}>
-                    <Text style={styles.featureValue}>{String(vehicle.seats || 0)}</Text>
-                    <Text style={styles.featureLabel}>Places</Text>
+                  <Ionicons name="settings" size={20} color={VEHICLE_COLORS.primary} />
+                  <View style={styles.featureTextContainer}>
+                    <Text style={styles.featureLabel}>Transmission</Text>
+                    <Text style={styles.featureValue}>
+                      {vehicle.transmission === 'automatic' ? 'Automatique' : vehicle.transmission === 'manual' ? 'Manuelle' : String(vehicle.transmission || '')}
+                    </Text>
                   </View>
                 </View>
-                {vehicle.transmission ? (
-                  <View style={styles.featureItem}>
-                    <View style={styles.featureIconWrapper}>
-                      <Ionicons name="settings" size={24} color={VEHICLE_COLORS.primary} />
-                    </View>
-                    <View style={styles.featureInfo}>
-                      <Text style={styles.featureValue}>
-                        {vehicle.transmission === 'automatic' ? 'Automatique' : vehicle.transmission === 'manual' ? 'Manuelle' : String(vehicle.transmission || '')}
-                      </Text>
-                      <Text style={styles.featureLabel}>Transmission</Text>
-                    </View>
+              ) : null}
+              
+              {/* Carburant */}
+              {vehicle.fuel_type ? (
+                <View style={styles.featureItem}>
+                  <Ionicons name="flash" size={20} color={VEHICLE_COLORS.primary} />
+                  <View style={styles.featureTextContainer}>
+                    <Text style={styles.featureLabel}>Carburant</Text>
+                    <Text style={styles.featureValue}>{String(vehicle.fuel_type)}</Text>
                   </View>
-                ) : null}
-              </View>
-              <View style={styles.featureRow}>
-                {vehicle.fuel_type ? (
-                  <View style={styles.featureItem}>
-                    <View style={styles.featureIconWrapper}>
-                      <Ionicons name="flash" size={24} color={VEHICLE_COLORS.primary} />
-                    </View>
-                    <View style={styles.featureInfo}>
-                      <Text style={styles.featureValue} numberOfLines={1}>
-                        {vehicle.fuel_type ? String(vehicle.fuel_type) : 'Non spécifié'}
-                      </Text>
-                      <Text style={styles.featureLabel}>Carburant</Text>
-                    </View>
+                </View>
+              ) : null}
+              
+              {/* Année */}
+              {vehicle.year && vehicle.year > 0 ? (
+                <View style={styles.featureItem}>
+                  <Ionicons name="calendar" size={20} color={VEHICLE_COLORS.primary} />
+                  <View style={styles.featureTextContainer}>
+                    <Text style={styles.featureLabel}>Année</Text>
+                    <Text style={styles.featureValue}>{String(vehicle.year)}</Text>
                   </View>
-                ) : null}
-                {vehicle.year && vehicle.year > 0 ? (
-                  <View style={styles.featureItem}>
-                    <View style={styles.featureIconWrapper}>
-                      <Ionicons name="calendar" size={24} color={VEHICLE_COLORS.primary} />
-                    </View>
-                    <View style={styles.featureInfo}>
-                      <Text style={styles.featureValue}>{String(vehicle.year)}</Text>
-                      <Text style={styles.featureLabel}>Année</Text>
-                    </View>
+                </View>
+              ) : null}
+              
+              {/* Kilométrage */}
+              {vehicle.mileage && vehicle.mileage > 0 ? (
+                <View style={styles.featureItem}>
+                  <Ionicons name="speedometer" size={20} color={VEHICLE_COLORS.primary} />
+                  <View style={styles.featureTextContainer}>
+                    <Text style={styles.featureLabel}>Kilométrage</Text>
+                    <Text style={styles.featureValue}>
+                      {String(vehicle.mileage.toLocaleString('fr-FR'))} km
+                    </Text>
                   </View>
-                ) : null}
-                {vehicle.mileage && vehicle.mileage > 0 ? (
-                  <View style={styles.featureItem}>
-                    <View style={styles.featureIconWrapper}>
-                      <Ionicons name="speedometer" size={24} color={VEHICLE_COLORS.primary} />
-                    </View>
-                    <View style={styles.featureInfo}>
-                      <Text style={styles.featureValue}>
-                        {vehicle.mileage && vehicle.mileage > 0 ? String(vehicle.mileage.toLocaleString('fr-FR')) : '0'}
-                      </Text>
-                      <Text style={styles.featureLabel}>Kilométrage</Text>
-                    </View>
-                  </View>
-                ) : null}
-              </View>
+                </View>
+              ) : null}
             </View>
           </View>
 
@@ -837,7 +830,7 @@ const styles = StyleSheet.create({
   featuresContainer: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
@@ -846,43 +839,33 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  featureRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
   featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    gap: 12,
+  },
+  featureTextContainer: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    gap: 12,
-  },
-  featureIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#f0fdf4',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  featureInfo: {
+  featureLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
     flex: 1,
   },
   featureValue: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#0f172a',
-    marginBottom: 2,
-  },
-  featureLabel: {
-    fontSize: 12,
-    color: '#64748b',
-    fontWeight: '500',
+    textAlign: 'right',
+    flex: 1,
   },
   section: {
     marginBottom: 24,
