@@ -106,9 +106,20 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const checkIn = booking.check_in_date || booking.start_date || '';
   const checkOut = booking.check_out_date || booking.end_date || '';
   
-  const nights = checkIn && checkOut
-    ? Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24))
-    : 1;
+  // Pour les véhicules, utiliser rental_days si disponible, sinon calculer avec +1 (comme lors de la création)
+  // Pour les propriétés, utiliser le calcul standard
+  let nights = 1;
+  if (serviceType === 'vehicle' && (booking as any).rental_days) {
+    nights = (booking as any).rental_days;
+  } else if (checkIn && checkOut) {
+    if (serviceType === 'vehicle') {
+      // Pour les véhicules: différence + 1 (comme lors de la création de la réservation)
+      nights = Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    } else {
+      // Pour les propriétés: calcul standard
+      nights = Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24));
+    }
+  }
   
   const commissionRates = getCommissionRates(serviceType);
   const basePrice = pricePerUnit * nights;
@@ -125,7 +136,17 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     : (booking.properties?.taxes || 0);
   
   const hostCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
-  const totalPaidByTraveler = booking.total_price || (priceAfterDiscount + effectiveServiceFee + cleaningFee + effectiveTaxes);
+  // Calculer le total payé : prix après réduction + frais de service + frais de ménage + taxes
+  // IMPORTANT: Pour les véhicules, booking.total_price peut ne pas inclure les frais de service
+  // donc on calcule toujours le total correctement
+  const calculatedTotal = priceAfterDiscount + effectiveServiceFee + cleaningFee + effectiveTaxes;
+  // Pour les véhicules, toujours utiliser le calcul car total_price ne contient pas les frais de service
+  // Pour les propriétés, utiliser booking.total_price s'il existe et correspond au calcul
+  const totalPaidByTraveler = (serviceType === 'vehicle') 
+    ? calculatedTotal
+    : (booking.total_price && Math.abs(booking.total_price - calculatedTotal) <= 100) 
+      ? booking.total_price 
+      : calculatedTotal;
   const hostNetAmount = booking.status === 'cancelled' ? 0 : (priceAfterDiscount - hostCommission);
   const akwaHomeTotalRevenue = effectiveServiceFee + hostCommission;
 

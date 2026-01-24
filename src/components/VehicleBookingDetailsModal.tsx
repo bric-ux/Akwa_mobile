@@ -451,7 +451,8 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                     discount_applied: booking.discount_applied,
                     payment_method: payment?.payment_method || booking.payment_method || undefined,
                     status: booking.status,
-                  }}
+                    rental_days: booking.rental_days, // Passer rental_days pour le calcul correct
+                  } as any}
                   pricePerUnit={booking.daily_rate || 0}
                   paymentMethod={payment?.payment_method || booking.payment_method || undefined}
                   travelerName={isOwner ? `${renter?.first_name || ''} ${renter?.last_name || ''}`.trim() : undefined}

@@ -231,6 +231,16 @@ const MyVehicleBookingsScreen: React.FC = () => {
               {formatPrice(booking.total_price || 0)}
             </Text>
           </View>
+          {booking.discount_amount && booking.discount_amount > 0 && (
+            <View style={styles.discountInfo}>
+              <Text style={styles.discountText}>
+                Réduction: -{formatPrice(booking.discount_amount)}
+              </Text>
+              <Text style={styles.discountSubtext}>
+                Prix de base: {formatPrice((booking.daily_rate || 0) * (booking.rental_days || 0))}
+              </Text>
+            </View>
+          )}
 
           {booking.message_to_owner && (
             <View style={styles.messageContainer}>
@@ -692,6 +702,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2E7D32',
+  },
+  discountInfo: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10b981',
+  },
+  discountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#10b981',
+    marginBottom: 2,
+  },
+  discountSubtext: {
+    fontSize: 11,
+    color: '#6b7280',
   },
   messageContainer: {
     backgroundColor: '#f8f9fa',

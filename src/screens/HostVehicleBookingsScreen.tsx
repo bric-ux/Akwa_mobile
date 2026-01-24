@@ -361,6 +361,14 @@ const HostVehicleBookingsScreen: React.FC = () => {
               {formatDate(item.start_date)} → {formatDate(item.end_date)}
             </Text>
           </View>
+          {item.discount_amount && item.discount_amount > 0 && (
+            <View style={styles.detailRow}>
+              <Ionicons name="pricetag-outline" size={16} color="#f59e0b" />
+              <Text style={styles.discountDetailText}>
+                Réduction: -{item.discount_amount.toLocaleString('fr-FR')} FCFA
+              </Text>
+            </View>
+          )}
           <View style={styles.detailRow}>
             <Ionicons name="cash-outline" size={16} color="#10b981" />
             <Text style={[styles.detailText, styles.netEarnings]}>
@@ -922,6 +930,11 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 14,
     color: '#666',
+  },
+  discountDetailText: {
+    fontSize: 14,
+    color: '#f59e0b',
+    fontWeight: '600',
   },
   messageSection: {
     marginTop: 12,
