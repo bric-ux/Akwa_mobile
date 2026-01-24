@@ -168,7 +168,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         const startDateFormatted = new Date(booking.start_date).toLocaleDateString('fr-FR');
         const endDateFormatted = new Date(booking.end_date).toLocaleDateString('fr-FR');
 
-        // Email à l'autre partie
+        // Email à l'autre partie ET au locataire qui annule
         if (isOwner && bookingData?.renter?.email) {
           // Propriétaire annule → Email au locataire
           await supabase.functions.invoke('send-email', {
@@ -185,26 +185,47 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
               }
             }
           });
-        } else if (!isOwner && bookingData?.vehicle?.owner_id) {
+        } else if (!isOwner) {
           // Locataire annule → Email au propriétaire
-          const { data: ownerProfile } = await supabase
-            .from('profiles')
-            .select('email, first_name')
-            .eq('user_id', bookingData.vehicle.owner_id)
-            .single();
-            
-          if (ownerProfile?.email) {
+          if (bookingData?.vehicle?.owner_id) {
+            const { data: ownerProfile } = await supabase
+              .from('profiles')
+              .select('email, first_name')
+              .eq('user_id', bookingData.vehicle.owner_id)
+              .single();
+              
+            if (ownerProfile?.email) {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'vehicle_booking_cancelled_by_renter',
+                  to: ownerProfile.email,
+                  data: {
+                    ownerName: ownerProfile.first_name || 'Cher propriétaire',
+                    vehicleTitle: vehicleTitle,
+                    startDate: startDateFormatted,
+                    endDate: endDateFormatted,
+                    reason: fullReason,
+                    penaltyAmount: penalty,
+                  }
+                }
+              });
+            }
+          }
+          
+          // Email au locataire qui annule (confirmation de son annulation)
+          if (bookingData?.renter?.email) {
             await supabase.functions.invoke('send-email', {
               body: {
-                type: 'vehicle_booking_cancelled_by_renter',
-                to: ownerProfile.email,
+                type: 'vehicle_booking_cancelled_by_renter_confirmation',
+                to: bookingData.renter.email,
                 data: {
-                  ownerName: ownerProfile.first_name || 'Cher propriétaire',
+                  renterName: bookingData.renter.first_name || 'Cher client',
                   vehicleTitle: vehicleTitle,
                   startDate: startDateFormatted,
                   endDate: endDateFormatted,
                   reason: fullReason,
                   penaltyAmount: penalty,
+                  refundAmount: booking.total_price - penalty,
                 }
               }
             });

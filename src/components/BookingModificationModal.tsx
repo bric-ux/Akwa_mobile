@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Booking } from '../hooks/useBookings';
-import { useBookingModifications } from '../hooks/useBookingModifications';
+import { useBookingModifications, BookingModificationRequest } from '../hooks/useBookingModifications';
 import { useAuth } from '../services/AuthContext';
 import AvailabilityCalendar from './AvailabilityCalendar';
 import { getAveragePriceForPeriod } from '../utils/priceCalculator';
@@ -33,7 +33,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   onModificationRequested,
 }) => {
   const { user } = useAuth();
-  const { createModificationRequest, getBookingPendingRequest, loading } = useBookingModifications();
+  const { createModificationRequest, getBookingPendingRequest, cancelModificationRequest, loading } = useBookingModifications();
   
   // Initialiser les dates directement depuis booking
   const [checkIn, setCheckIn] = useState<Date | null>(() => {
@@ -53,8 +53,8 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   const [guestsCount, setGuestsCount] = useState(booking.guests_count);
   const [message, setMessage] = useState('');
   const [showCalendar, setShowCalendar] = useState(false);
-  const [calendarMode, setCalendarMode] = useState<'checkIn' | 'checkOut'>('checkIn');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<BookingModificationRequest | null>(null);
   const [checkingPending, setCheckingPending] = useState(true);
   const [effectivePrice, setEffectivePrice] = useState<number | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(false);
@@ -91,8 +91,8 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   
   // Log pour déboguer l'état de showCalendar
   useEffect(() => {
-    console.log('📅 État showCalendar:', showCalendar, 'calendarMode:', calendarMode);
-  }, [showCalendar, calendarMode]);
+    console.log('📅 État showCalendar:', showCalendar);
+  }, [showCalendar]);
 
   useEffect(() => {
     const loadEffectivePrice = async () => {
@@ -126,6 +126,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     setCheckingPending(true);
     const pending = await getBookingPendingRequest(booking.id);
     setHasPendingRequest(!!pending);
+    setPendingRequest(pending);
     setCheckingPending(false);
   };
 
@@ -252,15 +253,83 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
               <ActivityIndicator size="large" color="#2E7D32" />
               <Text style={styles.loadingText}>Vérification...</Text>
             </View>
-          ) : hasPendingRequest ? (
-            <View style={styles.centerContainer}>
-              <Ionicons name="alert-circle" size={64} color="#f39c12" />
-              <Text style={styles.alertTitle}>Demande en cours</Text>
-              <Text style={styles.alertText}>
-                Vous avez déjà une demande de modification en attente pour cette réservation.
-                Veuillez attendre la réponse de l'hôte.
-              </Text>
-            </View>
+          ) : hasPendingRequest && pendingRequest ? (
+            <>
+              <View style={styles.pendingRequestCard}>
+                <View style={styles.pendingRequestHeader}>
+                  <Ionicons name="time-outline" size={24} color="#f39c12" />
+                  <Text style={styles.pendingRequestTitle}>Demande en attente</Text>
+                </View>
+                <Text style={styles.pendingRequestSubtitle}>
+                  Votre demande de modification est en cours d'examen par l'hôte.
+                </Text>
+
+                {/* Détails de la demande */}
+                <View style={styles.requestDetails}>
+                  <Text style={styles.requestDetailsTitle}>Détails de votre demande</Text>
+                  
+                  <View style={styles.requestDetailRow}>
+                    <Text style={styles.requestDetailLabel}>Dates demandées:</Text>
+                    <Text style={styles.requestDetailValue}>
+                      {formatDate(new Date(pendingRequest.requested_check_in))} - {formatDate(new Date(pendingRequest.requested_check_out))}
+                    </Text>
+                  </View>
+
+                  <View style={styles.requestDetailRow}>
+                    <Text style={styles.requestDetailLabel}>Nombre de voyageurs:</Text>
+                    <Text style={styles.requestDetailValue}>{pendingRequest.requested_guests_count}</Text>
+                  </View>
+
+                  <View style={styles.requestDetailRow}>
+                    <Text style={styles.requestDetailLabel}>Nouveau total:</Text>
+                    <Text style={styles.requestDetailValue}>{formatPrice(pendingRequest.requested_total_price)}</Text>
+                  </View>
+
+                  {pendingRequest.guest_message && (
+                    <View style={styles.requestMessageBox}>
+                      <Text style={styles.requestMessageLabel}>Votre message:</Text>
+                      <Text style={styles.requestMessageText}>{pendingRequest.guest_message}</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.requestDetailRow}>
+                    <Text style={styles.requestDetailLabel}>Date de la demande:</Text>
+                    <Text style={styles.requestDetailValue}>
+                      {formatDate(new Date(pendingRequest.created_at))}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Bouton d'annulation */}
+                <TouchableOpacity
+                  style={styles.cancelRequestButton}
+                  onPress={async () => {
+                    Alert.alert(
+                      'Annuler la demande',
+                      'Êtes-vous sûr de vouloir annuler cette demande de modification ?',
+                      [
+                        { text: 'Non', style: 'cancel' },
+                        {
+                          text: 'Oui, annuler',
+                          style: 'destructive',
+                          onPress: async () => {
+                            const result = await cancelModificationRequest(pendingRequest.id);
+                            if (result.success) {
+                              setHasPendingRequest(false);
+                              setPendingRequest(null);
+                              checkPendingRequest();
+                            }
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="close-circle-outline" size={20} color="#e74c3c" />
+                  <Text style={styles.cancelRequestButtonText}>Annuler la demande</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           ) : (
             <>
               {/* Propriété */}
@@ -274,57 +343,42 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
               {/* Nouvelles dates */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Nouvelles dates</Text>
-                <View style={styles.dateRow}>
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      console.log('📅 Ouvrir calendrier check-in, checkIn actuel:', checkIn);
-                      console.log('📅 property?.id:', property?.id);
-                      if (!property?.id) {
-                        Alert.alert('Erreur', 'Propriété non trouvée');
-                        return;
-                      }
-                      setCalendarMode('checkIn');
-                      setShowCalendar(true);
-                      console.log('📅 showCalendar mis à true, calendarMode:', 'checkIn');
-                    }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
-                    <View style={styles.dateButtonContent}>
-                      <Text style={styles.dateLabel}>Arrivée</Text>
-                      <Text style={styles.dateValue}>
-                        {checkIn ? formatDate(checkIn) : 'Sélectionner'}
-                      </Text>
+                <TouchableOpacity
+                  style={styles.dateRangeButton}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (!property?.id) {
+                      Alert.alert('Erreur', 'Propriété non trouvée');
+                      return;
+                    }
+                    setShowCalendar(true);
+                  }}
+                >
+                  <Ionicons name="calendar-outline" size={24} color="#2E7D32" />
+                  <View style={styles.dateRangeContent}>
+                    <View style={styles.dateRangeRow}>
+                      <View style={styles.dateItem}>
+                        <Text style={styles.dateLabel}>Arrivée</Text>
+                        <Text style={styles.dateValue}>
+                          {checkIn ? formatDate(checkIn) : 'Sélectionner'}
+                        </Text>
+                      </View>
+                      <Ionicons name="arrow-forward" size={20} color="#666" style={styles.dateArrow} />
+                      <View style={styles.dateItem}>
+                        <Text style={styles.dateLabel}>Départ</Text>
+                        <Text style={styles.dateValue}>
+                          {checkOut ? formatDate(checkOut) : 'Sélectionner'}
+                        </Text>
+                      </View>
                     </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      console.log('📅 Ouvrir calendrier check-out, checkOut actuel:', checkOut);
-                      console.log('📅 property?.id:', property?.id);
-                      if (!property?.id) {
-                        Alert.alert('Erreur', 'Propriété non trouvée');
-                        return;
-                      }
-                      setCalendarMode('checkOut');
-                      setShowCalendar(true);
-                      console.log('📅 showCalendar mis à true, calendarMode:', 'checkOut');
-                    }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
-                    <View style={styles.dateButtonContent}>
-                      <Text style={styles.dateLabel}>Départ</Text>
-                      <Text style={styles.dateValue}>
-                        {checkOut ? formatDate(checkOut) : 'Sélectionner'}
+                    {checkIn && checkOut && (
+                      <Text style={styles.nightsText}>
+                        {nights} {nights === 1 ? 'nuit' : 'nuits'}
                       </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#666" />
+                </TouchableOpacity>
               </View>
 
               {/* Nombre de voyageurs */}
@@ -466,40 +520,33 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
               <View style={styles.header}>
                 <TouchableOpacity 
                   onPress={() => {
-                    console.log('❌ Fermer calendrier via bouton');
                     setShowCalendar(false);
                   }}
                   style={styles.closeButton}
                 >
                   <Ionicons name="close" size={24} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>
-                  {calendarMode === 'checkIn' ? 'Date d\'arrivée' : 'Date de départ'}
-                </Text>
+                <Text style={styles.headerTitle}>Sélectionner les dates</Text>
                 <View style={styles.placeholder} />
               </View>
               <View style={{ flex: 1 }}>
                 <AvailabilityCalendar
                   propertyId={property.id}
-                  selectedCheckIn={calendarMode === 'checkIn' ? checkIn : null}
-                  selectedCheckOut={calendarMode === 'checkOut' ? checkOut : null}
+                  selectedCheckIn={checkIn}
+                  selectedCheckOut={checkOut}
                   onDateSelect={(selectedCheckIn, selectedCheckOut) => {
-                    console.log('📅 Dates sélectionnées:', { selectedCheckIn, selectedCheckOut, calendarMode });
-                    if (calendarMode === 'checkIn' && selectedCheckIn) {
+                    if (selectedCheckIn) {
                       setCheckIn(selectedCheckIn);
-                      if (checkOut && selectedCheckIn >= checkOut) {
-                        const newCheckOut = new Date(selectedCheckIn);
-                        newCheckOut.setDate(newCheckOut.getDate() + 1);
-                        setCheckOut(newCheckOut);
-                      }
-                    } else if (calendarMode === 'checkOut' && selectedCheckOut) {
+                    }
+                    if (selectedCheckOut) {
                       setCheckOut(selectedCheckOut);
                     }
-                    console.log('📅 Fermeture du calendrier après sélection');
-                    setShowCalendar(false);
+                    // Fermer le calendrier seulement si les deux dates sont sélectionnées
+                    if (selectedCheckIn && selectedCheckOut) {
+                      setShowCalendar(false);
+                    }
                   }}
                   onClose={() => {
-                    console.log('📅 Calendrier fermé via onClose');
                     setShowCalendar(false);
                   }}
                 />
@@ -593,12 +640,7 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 12,
   },
-  dateRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  dateButton: {
-    flex: 1,
+  dateRangeButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
@@ -606,15 +648,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e9ecef',
-    minHeight: 60,
+    minHeight: 70,
   },
-  dateButtonPressed: {
-    backgroundColor: '#f0f0f0',
-    borderColor: '#2E7D32',
-  },
-  dateButtonContent: {
+  dateRangeContent: {
     marginLeft: 12,
     flex: 1,
+  },
+  dateRangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateItem: {
+    flex: 1,
+  },
+  dateArrow: {
+    marginHorizontal: 8,
+  },
+  nightsText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
   dateLabel: {
     fontSize: 12,
@@ -775,6 +829,96 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     marginBottom: 20,
+  },
+  pendingRequestCard: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#fef3c7',
+  },
+  pendingRequestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  pendingRequestTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 12,
+  },
+  pendingRequestSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  requestDetails: {
+    backgroundColor: '#f9fafb',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  requestDetailsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  requestDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  requestDetailLabel: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
+  },
+  requestDetailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+    textAlign: 'right',
+  },
+  requestMessageBox: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2E7D32',
+  },
+  requestMessageLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  requestMessageText: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  cancelRequestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e74c3c',
+    padding: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  cancelRequestButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#e74c3c',
   },
 });
 

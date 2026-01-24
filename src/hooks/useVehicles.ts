@@ -43,7 +43,8 @@ export const useVehicles = () => {
             bio
           )
         `)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('is_approved', true); // Only show approved vehicles to public
 
       // Appliquer les filtres
       if (filters?.vehicleType) {

@@ -345,11 +345,11 @@ export interface Vehicle {
   created_at: string;
   updated_at: string;
   photos?: VehiclePhoto[];
-  admin_approved?: boolean;
-  admin_rejected?: boolean;
+  is_approved?: boolean;
+  approval_status?: 'pending' | 'approved' | 'rejected';
   admin_notes?: string;
-  reviewed_by?: string;
-  reviewed_at?: string;
+  approved_by?: string;
+  approved_at?: string;
   owner?: {
     user_id: string;
     first_name?: string;

@@ -98,27 +98,50 @@ const AdminVehiclesScreen: React.FC = () => {
           text: 'Approuver',
           onPress: async () => {
             try {
+              // Récupérer le véhicule pour envoyer l'email
+              const vehicle = vehicles.find(v => v.id === vehicleId);
+              const owner = (vehicle as any)?.owner;
+
               const { error } = await supabase
                 .from('vehicles')
                 .update({
-                  admin_approved: true,
-                  admin_rejected: false,
-                  is_active: true,
+                  is_approved: true,
+                  approval_status: 'approved',
+                  approved_at: new Date().toISOString(),
+                  approved_by: user?.id,
                   admin_notes: adminNotes || null,
-                  reviewed_by: user?.id,
-                  reviewed_at: new Date().toISOString(),
                 })
                 .eq('id', vehicleId);
 
               if (error) throw error;
+
+              // Envoyer l'email d'approbation (comme sur le site web)
+              if (owner?.email) {
+                try {
+                  await supabase.functions.invoke('send-email', {
+                    body: {
+                      type: 'vehicle_approved',
+                      to: owner.email,
+                      data: {
+                        ownerName: `${owner.first_name || ''} ${owner.last_name || ''}`.trim() || 'Propriétaire',
+                        vehicleTitle: vehicle?.title || 'Véhicule',
+                      }
+                    }
+                  });
+                } catch (emailError) {
+                  console.error('Erreur envoi email:', emailError);
+                  // Ne pas bloquer si l'email échoue
+                }
+              }
 
               Alert.alert('Succès', 'Véhicule approuvé avec succès');
               setAdminNotes('');
               setSelectedVehicle(null);
               setShowDetails(false);
               loadVehicles();
-            } catch (err) {
-              Alert.alert('Erreur', 'Impossible d\'approuver le véhicule');
+            } catch (err: any) {
+              console.error('Erreur approbation:', err);
+              Alert.alert('Erreur', err.message || 'Impossible d\'approuver le véhicule');
             }
           },
         },
@@ -142,27 +165,49 @@ const AdminVehiclesScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Récupérer le véhicule pour envoyer l'email
+              const vehicle = vehicles.find(v => v.id === vehicleId);
+              const owner = (vehicle as any)?.owner;
+
               const { error } = await supabase
                 .from('vehicles')
                 .update({
-                  admin_approved: false,
-                  admin_rejected: true,
-                  is_active: false,
+                  is_approved: false,
+                  approval_status: 'rejected',
                   admin_notes: adminNotes,
-                  reviewed_by: user?.id,
-                  reviewed_at: new Date().toISOString(),
                 })
                 .eq('id', vehicleId);
 
               if (error) throw error;
+
+              // Envoyer l'email de rejet (comme sur le site web)
+              if (owner?.email) {
+                try {
+                  await supabase.functions.invoke('send-email', {
+                    body: {
+                      type: 'vehicle_rejected',
+                      to: owner.email,
+                      data: {
+                        ownerName: `${owner.first_name || ''} ${owner.last_name || ''}`.trim() || 'Propriétaire',
+                        vehicleTitle: vehicle?.title || 'Véhicule',
+                        adminNotes: adminNotes,
+                      }
+                    }
+                  });
+                } catch (emailError) {
+                  console.error('Erreur envoi email:', emailError);
+                  // Ne pas bloquer si l'email échoue
+                }
+              }
 
               Alert.alert('Succès', 'Véhicule rejeté');
               setAdminNotes('');
               setSelectedVehicle(null);
               setShowDetails(false);
               loadVehicles();
-            } catch (err) {
-              Alert.alert('Erreur', 'Impossible de rejeter le véhicule');
+            } catch (err: any) {
+              console.error('Erreur rejet:', err);
+              Alert.alert('Erreur', err.message || 'Impossible de rejeter le véhicule');
             }
           },
         },
@@ -182,10 +227,11 @@ const AdminVehiclesScreen: React.FC = () => {
   };
 
   const getStatusBadge = (vehicle: Vehicle) => {
-    if (vehicle.admin_approved) {
+    const approvalStatus = (vehicle as any).approval_status || 'pending';
+    if (approvalStatus === 'approved') {
       return { color: '#2E7D32', text: 'Approuvé', icon: 'checkmark-circle-outline' };
     }
-    if (vehicle.admin_rejected) {
+    if (approvalStatus === 'rejected') {
       return { color: '#e74c3c', text: 'Rejeté', icon: 'close-circle-outline' };
     }
     return { color: '#f39c12', text: 'En attente', icon: 'time-outline' };
@@ -193,14 +239,15 @@ const AdminVehiclesScreen: React.FC = () => {
 
   const filteredVehicles = vehicles.filter(vehicle => {
     if (filterStatus === 'all') return true;
+    const approvalStatus = (vehicle as any).approval_status || 'pending';
     if (filterStatus === 'pending') {
-      return !vehicle.admin_approved && !vehicle.admin_rejected;
+      return approvalStatus === 'pending';
     }
     if (filterStatus === 'approved') {
-      return vehicle.admin_approved;
+      return approvalStatus === 'approved';
     }
     if (filterStatus === 'rejected') {
-      return vehicle.admin_rejected;
+      return approvalStatus === 'rejected';
     }
     return true;
   });
@@ -452,7 +499,7 @@ const AdminVehiclesScreen: React.FC = () => {
           </ScrollView>
 
           {/* Actions */}
-          {selectedVehicle && !selectedVehicle.admin_approved && !selectedVehicle.admin_rejected && (
+          {selectedVehicle && ((selectedVehicle as any).approval_status === 'pending' || !(selectedVehicle as any).approval_status) && (
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.actionButton, styles.rejectButton]}

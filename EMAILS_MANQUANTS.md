@@ -100,3 +100,5 @@ await supabase.functions.invoke('send-email', {
 4. **AMÉLIORATION**: Envisager d'utiliser le système de demandes de modification pour les réservations confirmées
 
 
+
+

@@ -95,3 +95,5 @@ console.log('🧹 Nettoyage des logs console...');
 const cleaned = processDirectory(SRC_DIR);
 console.log(`✅ ${cleaned} fichiers nettoyés`);
 
+
+
