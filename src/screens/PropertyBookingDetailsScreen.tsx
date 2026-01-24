@@ -20,6 +20,7 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import InvoiceDisplay from '../components/InvoiceDisplay';
 import { formatPrice } from '../utils/priceCalculator';
+import BookingModificationModal from '../components/BookingModificationModal';
 
 type PropertyBookingDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyBookingDetails'>;
 
@@ -39,6 +40,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
   } | null>(null);
   const [payment, setPayment] = useState<any>(null);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [modificationModalVisible, setModificationModalVisible] = useState(false);
 
   useEffect(() => {
     loadBookingDetails();
@@ -246,6 +248,27 @@ const PropertyBookingDetailsScreen: React.FC = () => {
     / (1000 * 60 * 60 * 24)
   );
 
+  // Fonction pour vérifier si la réservation peut être modifiée
+  const canModifyBooking = () => {
+    if (!booking) return false;
+    
+    // Ne peut pas modifier si annulée ou terminée
+    if (booking.status === 'cancelled' || booking.status === 'completed') return false;
+    
+    // Ne peut pas modifier si le checkout est passé
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkout = new Date(booking.check_out_date);
+    checkout.setHours(0, 0, 0, 0);
+    if (checkout < today) return false;
+    
+    const checkIn = new Date(booking.check_in_date);
+    checkIn.setHours(0, 0, 0, 0);
+    
+    // Peut modifier si le check-in est dans le futur ou aujourd'hui
+    return checkIn >= today;
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header */}
@@ -444,6 +467,19 @@ const PropertyBookingDetailsScreen: React.FC = () => {
           </>
         )}
 
+        {/* Bouton Modifier - pour les réservations modifiables */}
+        {canModifyBooking() && (
+          <TouchableOpacity
+            style={styles.modifyButton}
+            onPress={() => setModificationModalVisible(true)}
+          >
+            <Ionicons name="create-outline" size={20} color="#2563eb" />
+            <Text style={styles.modifyButtonText}>
+              {booking.status === 'pending' ? 'Modifier la demande' : 'Modifier la réservation'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* Voir le logement */}
         {booking.properties?.id && (
           <TouchableOpacity
@@ -453,6 +489,22 @@ const PropertyBookingDetailsScreen: React.FC = () => {
             <Ionicons name="eye-outline" size={20} color="#2E7D32" />
             <Text style={styles.viewPropertyButtonText}>Voir le logement</Text>
           </TouchableOpacity>
+        )}
+
+        {/* Modal de modification */}
+        {booking && (
+          <BookingModificationModal
+            visible={modificationModalVisible}
+            onClose={() => {
+              setModificationModalVisible(false);
+              loadBookingDetails(); // Recharger les détails après modification
+            }}
+            booking={booking}
+            onModificationRequested={() => {
+              setModificationModalVisible(false);
+              loadBookingDetails();
+            }}
+          />
         )}
       </ScrollView>
     </SafeAreaView>
@@ -593,6 +645,25 @@ const styles = StyleSheet.create({
   },
   downloadButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    gap: 8,
+  },
+  modifyButtonText: {
+    color: '#2563eb',
     fontSize: 16,
     fontWeight: '600',
   },

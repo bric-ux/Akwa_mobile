@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useMessaging } from '../hooks/useMessaging';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { Alert } from 'react-native';
+import { useBookingModifications } from '../hooks/useBookingModifications';
 
 interface BookingCardProps {
   booking: Booking;
@@ -34,6 +35,19 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const navigation = useNavigation();
   const { user } = useAuth();
   const { createOrGetConversation } = useMessaging();
+  const { getBookingPendingRequest } = useBookingModifications();
+  const [pendingRequest, setPendingRequest] = useState<any>(null);
+  const [loadingRequest, setLoadingRequest] = useState(false);
+
+  useEffect(() => {
+    const checkPendingRequest = async () => {
+      setLoadingRequest(true);
+      const request = await getBookingPendingRequest(booking.id);
+      setPendingRequest(request);
+      setLoadingRequest(false);
+    };
+    checkPendingRequest();
+  }, [booking.id]);
 
   const handleContactHost = async () => {
     if (!user || !booking.properties?.host_id || !booking.properties?.id) {
@@ -99,12 +113,21 @@ const BookingCard: React.FC<BookingCardProps> = ({
     return isBookingPast(booking.check_out_date);
   };
 
-  const hasAlreadyStarted = () => {
-    const checkInDate = new Date(booking.check_in_date);
-    checkInDate.setHours(0, 0, 0, 0);
+  const canModifyBooking = () => {
+    // Ne peut pas modifier si annulée ou terminée
+    if (booking.status === 'cancelled' || booking.status === 'completed') return false;
+    
+    // Ne peut pas modifier si le checkout est passé
+    if (isBookingPast(booking.check_out_date)) return false;
+    
+    const checkIn = new Date(booking.check_in_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return checkInDate <= today;
+    checkIn.setHours(0, 0, 0, 0);
+    
+    // Peut modifier si le check-in est dans le futur ou aujourd'hui
+    // Permet de modifier les réservations pending, confirmed, et même in_progress (le jour même du check-in)
+    return checkIn >= today;
   };
 
   const formatPrice = (price: number) => {
@@ -217,6 +240,19 @@ const BookingCard: React.FC<BookingCardProps> = ({
         </View>
       </View>
 
+      {/* Afficher la demande de modification en cours */}
+      {pendingRequest && (
+        <View style={styles.modificationRequestBanner}>
+          <Ionicons name="time-outline" size={18} color="#f39c12" />
+          <View style={styles.modificationRequestContent}>
+            <Text style={styles.modificationRequestTitle}>Demande de modification en cours</Text>
+            <Text style={styles.modificationRequestDates}>
+              Nouvelles dates proposées: {formatDate(pendingRequest.requested_check_in)} - {formatDate(pendingRequest.requested_check_out)}
+            </Text>
+          </View>
+        </View>
+      )}
+
       <View style={styles.bookingDetails}>
         <View style={styles.guestsInfo}>
           <Ionicons name="people-outline" size={16} color="#666" />
@@ -328,7 +364,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </TouchableOpacity>
         )}
 
-        {(booking.status === 'pending' || booking.status === 'confirmed') && !isBookingPast(booking.check_out_date) && !hasAlreadyStarted() && (
+        {canModifyBooking() && (
           <>
             {onModifyBooking && (
               <TouchableOpacity
@@ -522,6 +558,30 @@ const styles = StyleSheet.create({
   },
   modifyButtonText: {
     color: '#3498db',
+  },
+  modificationRequestBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef3c7',
+    padding: 12,
+    marginTop: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f39c12',
+    gap: 8,
+  },
+  modificationRequestContent: {
+    flex: 1,
+  },
+  modificationRequestTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f39c12',
+    marginBottom: 4,
+  },
+  modificationRequestDates: {
+    fontSize: 12,
+    color: '#856404',
   },
 });
 

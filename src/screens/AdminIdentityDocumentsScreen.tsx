@@ -139,36 +139,38 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
 
       if (profileError) throw profileError;
 
-      // Envoyer l'email de notification
+      // Envoyer l'email de notification à l'utilisateur
       try {
         const user = users[doc.user_id];
         if (user?.email) {
           const emailType = verified ? 'identity_verified' : 'identity_rejected';
-          const reason = verified 
-            ? 'Document approuvé par l\'administrateur' 
-            : 'Document rejeté par l\'administrateur';
-
+          
           const { error: emailError } = await supabase.functions.invoke('send-email', {
             body: {
               type: emailType,
               to: user.email,
               data: {
-                firstName: user.first_name,
-                reason: reason,
-                siteUrl: 'https://akwahome.com' // URL du site web
+                firstName: user.first_name || 'Utilisateur',
+                lastName: user.last_name || '',
+                documentType: doc.document_type || 'Document d\'identité',
+                verified: verified,
+                adminNotes: adminNotes.trim() || undefined,
+                siteUrl: 'https://akwahome.com'
               }
             }
           });
 
           if (emailError) {
-            console.error('Erreur envoi email:', emailError);
+            console.error('❌ Erreur envoi email:', emailError);
             // Continue même si l'email échoue
           } else {
-            console.log('✅ Email de notification envoyé');
+            console.log(`✅ Email de ${verified ? 'vérification' : 'rejet'} envoyé à l'utilisateur`);
           }
+        } else {
+          console.warn('⚠️ Email utilisateur non disponible pour l\'envoi de notification');
         }
       } catch (emailError) {
-        console.error('Erreur lors de l\'envoi de l\'email:', emailError);
+        console.error('❌ Erreur lors de l\'envoi de l\'email:', emailError);
         // Continue même si l'email échoue
       }
 

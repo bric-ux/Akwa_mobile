@@ -107,51 +107,82 @@ export const useBookingModifications = () => {
 
         // Email à l'hôte
         if (hostData?.email) {
-          await supabase.functions.invoke('send-email', {
-            body: {
-              type: 'booking_modification_requested',
-              to: hostData.email,
-              data: {
-                hostName: `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim(),
-                guestName: `${guestData?.first_name || ''} ${guestData?.last_name || ''}`.trim() || 'Voyageur',
-                propertyTitle: bookingData.properties.title,
-                originalCheckIn: data.originalCheckIn,
-                originalCheckOut: data.originalCheckOut,
-                originalGuests: data.originalGuestsCount,
-                originalPrice: data.originalTotalPrice,
-                requestedCheckIn: data.requestedCheckIn,
-                requestedCheckOut: data.requestedCheckOut,
-                requestedGuests: data.requestedGuestsCount,
-                requestedPrice: data.requestedTotalPrice,
-                guestMessage: data.guestMessage || null,
-                bookingId: data.bookingId
+          try {
+            const hostEmailResponse = await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'booking_modification_requested',
+                to: hostData.email,
+                data: {
+                  hostName: `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim(),
+                  guestName: `${guestData?.first_name || ''} ${guestData?.last_name || ''}`.trim() || 'Voyageur',
+                  propertyTitle: bookingData.properties.title,
+                  originalCheckIn: data.originalCheckIn,
+                  originalCheckOut: data.originalCheckOut,
+                  originalGuests: data.originalGuestsCount,
+                  originalPrice: data.originalTotalPrice,
+                  requestedCheckIn: data.requestedCheckIn,
+                  requestedCheckOut: data.requestedCheckOut,
+                  requestedGuests: data.requestedGuestsCount,
+                  requestedPrice: data.requestedTotalPrice,
+                  guestMessage: data.guestMessage || null,
+                  bookingId: data.bookingId
+                }
               }
+            });
+            
+            if (hostEmailResponse.error) {
+              console.error('❌ Erreur envoi email à l\'hôte:', hostEmailResponse.error);
+            } else {
+              console.log('✅ Email de demande de modification envoyé à l\'hôte:', hostData.email);
             }
-          });
-          console.log('✅ Email de demande de modification envoyé à l\'hôte:', hostData.email);
+          } catch (hostEmailError) {
+            console.error('❌ Erreur lors de l\'envoi de l\'email à l\'hôte:', hostEmailError);
+          }
         } else {
           console.warn('⚠️ Pas d\'email hôte trouvé pour host_id:', bookingData?.properties?.host_id);
         }
 
         // Email au voyageur (confirmation)
         if (guestData?.email) {
-          await supabase.functions.invoke('send-email', {
-            body: {
-              type: 'booking_modification_request_sent',
+          try {
+            const emailData = {
+              guestName: `${guestData.first_name || ''} ${guestData.last_name || ''}`.trim() || 'Cher voyageur',
+              propertyTitle: bookingData.properties?.title || 'Propriété',
+              requestedCheckIn: data.requestedCheckIn,
+              requestedCheckOut: data.requestedCheckOut,
+              requestedGuests: data.requestedGuestsCount || 1,
+              requestedPrice: typeof data.requestedTotalPrice === 'number' ? data.requestedTotalPrice : Number(data.requestedTotalPrice) || 0,
+            };
+            
+            console.log('📧 [useBookingModifications] Envoi email au voyageur:', {
               to: guestData.email,
-              data: {
-                guestName: `${guestData.first_name || ''} ${guestData.last_name || ''}`.trim() || 'Cher voyageur',
-                propertyTitle: bookingData.properties.title,
-                requestedCheckIn: data.requestedCheckIn,
-                requestedCheckOut: data.requestedCheckOut,
-                requestedGuests: data.requestedGuestsCount,
-                requestedPrice: data.requestedTotalPrice,
+              type: 'booking_modification_request_sent',
+              data: emailData
+            });
+            
+            const emailResponse = await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'booking_modification_request_sent',
+                to: guestData.email,
+                data: emailData
               }
+            });
+            
+            if (emailResponse.error) {
+              console.error('❌ [useBookingModifications] Erreur envoi email au voyageur:', emailResponse.error);
+              console.error('❌ [useBookingModifications] Détails erreur:', JSON.stringify(emailResponse.error, null, 2));
+            } else {
+              console.log('✅ [useBookingModifications] Email de confirmation envoyé au voyageur:', guestData.email);
+              console.log('✅ [useBookingModifications] Réponse email:', emailResponse.data);
             }
-          });
-          console.log('✅ Email de confirmation envoyé au voyageur:', guestData.email);
+          } catch (guestEmailError: any) {
+            console.error('❌ [useBookingModifications] Erreur lors de l\'envoi de l\'email au voyageur:', guestEmailError);
+            console.error('❌ [useBookingModifications] Stack trace:', guestEmailError?.stack);
+          }
         } else {
-          console.warn('⚠️ Pas d\'email voyageur trouvé pour guest_id:', data.guestId);
+          console.warn('⚠️ [useBookingModifications] Pas d\'email voyageur trouvé pour guest_id:', data.guestId);
+          console.warn('⚠️ [useBookingModifications] Données guestData:', guestData);
+          console.warn('⚠️ [useBookingModifications] guestResult:', guestResult);
         }
       } catch (emailError) {
         console.error('❌ Erreur envoi email demande modification:', emailError);
@@ -252,10 +283,37 @@ export const useBookingModifications = () => {
   const approveModificationRequest = async (requestId: string, hostMessage?: string) => {
     setLoading(true);
     try {
-      // Récupérer la demande
+      // Récupérer la demande avec les détails de la réservation et du voyageur
       const { data: request, error: fetchError } = await supabase
         .from('booking_modification_requests')
-        .select('*')
+        .select(`
+          *,
+          booking:bookings(
+            id,
+            property_id,
+            discount_amount,
+            discount_applied,
+            payment_method,
+            payment_plan,
+            properties(
+              title,
+              host_id,
+              price_per_night,
+              cleaning_fee,
+              service_fee,
+              taxes,
+              address,
+              check_in_time,
+              check_out_time,
+              house_rules,
+              cancellation_policy,
+              locations(
+                name,
+                type
+              )
+            )
+          )
+        `)
         .eq('id', requestId)
         .single();
 
@@ -287,9 +345,137 @@ export const useBookingModifications = () => {
 
       if (updateError) throw updateError;
 
+      // Récupérer les profils du voyageur et de l'hôte
+      const { data: guestProfile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, email, phone')
+        .eq('user_id', request.guest_id)
+        .single();
+
+      const { data: hostProfile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, email, phone')
+        .eq('user_id', request.host_id)
+        .single();
+
+      // Envoyer les emails avec PDF
+      if (guestProfile?.email) {
+        const bookingData = {
+          bookingId: request.booking_id,
+          propertyTitle: request.booking?.properties?.title || 'Votre réservation',
+          guestName: `${guestProfile.first_name} ${guestProfile.last_name}`,
+          hostName: hostProfile ? `${hostProfile.first_name} ${hostProfile.last_name}` : 'L\'hôte',
+          checkIn: request.requested_check_in,
+          checkOut: request.requested_check_out,
+          check_in_date: request.requested_check_in,
+          check_out_date: request.requested_check_out,
+          guestsCount: request.requested_guests_count,
+          guests: request.requested_guests_count,
+          totalPrice: request.requested_total_price,
+          total_price: request.requested_total_price,
+          pricePerNight: request.booking?.properties?.price_per_night || 0,
+          discountAmount: request.booking?.discount_amount || 0,
+          discount_amount: request.booking?.discount_amount || 0,
+          discountApplied: request.booking?.discount_applied || false,
+          discount_applied: request.booking?.discount_applied || false,
+          cleaningFee: request.booking?.properties?.cleaning_fee || 0,
+          property: {
+            title: request.booking?.properties?.title || 'Votre réservation',
+            address: request.booking?.properties?.address || '',
+            city_name: request.booking?.properties?.locations?.name || '',
+            city_region: request.booking?.properties?.locations?.type === 'region' ? request.booking?.properties?.locations?.name : '',
+            price_per_night: request.booking?.properties?.price_per_night || 0,
+            cleaning_fee: request.booking?.properties?.cleaning_fee || 0,
+            service_fee: request.booking?.properties?.service_fee || 0,
+            taxes: request.booking?.properties?.taxes || 0,
+            cancellation_policy: request.booking?.properties?.cancellation_policy || 'flexible',
+            check_in_time: request.booking?.properties?.check_in_time,
+            check_out_time: request.booking?.properties?.check_out_time,
+            house_rules: request.booking?.properties?.house_rules
+          },
+          guest: {
+            first_name: guestProfile.first_name,
+            last_name: guestProfile.last_name,
+            email: guestProfile.email,
+            phone: guestProfile.phone
+          },
+          host: {
+            first_name: hostProfile?.first_name,
+            last_name: hostProfile?.last_name,
+            email: hostProfile?.email,
+            phone: hostProfile?.phone
+          }
+        };
+
+        // Email de modification approuvée avec nouvelle facture au voyageur
+        await supabase.functions.invoke('send-email', {
+          body: {
+            type: 'booking_modification_approved',
+            to: guestProfile.email,
+            data: {
+              ...bookingData,
+              newCheckIn: request.requested_check_in,
+              newCheckOut: request.requested_check_out,
+              newGuests: request.requested_guests_count,
+              newPrice: request.requested_total_price,
+              originalCheckIn: request.original_check_in,
+              originalCheckOut: request.original_check_out,
+              originalGuests: request.original_guests_count,
+              originalPrice: request.original_total_price,
+              hostMessage: hostMessage || null,
+              isModification: true,
+              isHostEmail: false,
+              payment_method: request.booking?.payment_method || '',
+              payment_plan: request.booking?.payment_plan || ''
+            }
+          }
+        });
+        console.log('✅ Email de modification approuvée avec facture envoyé au voyageur');
+
+        // Délai pour éviter le rate limit
+        await new Promise(resolve => setTimeout(resolve, 600));
+
+        // Email à l'hôte avec justificatif mis à jour
+        if (hostProfile?.email) {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'booking_confirmed_host',
+              to: hostProfile.email,
+              data: {
+                ...bookingData,
+                isModification: true,
+                payment_method: request.booking?.payment_method || '',
+                payment_plan: request.booking?.payment_plan || ''
+              }
+            }
+          });
+          console.log('✅ Email de modification approuvée avec justificatif envoyé à l\'hôte');
+        }
+
+        // Délai pour éviter le rate limit
+        await new Promise(resolve => setTimeout(resolve, 600));
+
+        // Email à l'admin avec facture admin
+        await supabase.functions.invoke('send-email', {
+          body: {
+            type: 'booking_confirmed_admin',
+            to: 'admin@akwahome.com',
+            data: {
+              ...bookingData,
+              isModification: true,
+              serviceFee: request.booking?.properties?.service_fee || 0,
+              cleaning_fee: request.booking?.properties?.cleaning_fee || 0,
+              payment_method: request.booking?.payment_method || '',
+              payment_plan: request.booking?.payment_plan || ''
+            }
+          }
+        });
+        console.log('✅ Email de modification approuvée avec facture envoyé à l\'admin');
+      }
+
       Alert.alert(
         'Modification approuvée',
-        'La réservation a été mise à jour.',
+        'La réservation a été mise à jour et les nouvelles factures ont été envoyées.',
         [{ text: 'OK' }]
       );
 
@@ -311,6 +497,25 @@ export const useBookingModifications = () => {
   const rejectModificationRequest = async (requestId: string, hostMessage?: string) => {
     setLoading(true);
     try {
+      // Récupérer la demande avec les détails du voyageur et de la réservation
+      const { data: request, error: fetchError } = await supabase
+        .from('booking_modification_requests')
+        .select(`
+          *,
+          booking:bookings(
+            id,
+            property_id,
+            properties(
+              title
+            )
+          )
+        `)
+        .eq('id', requestId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Mettre à jour le statut de la demande
       const { error } = await supabase
         .from('booking_modification_requests')
         .update({
@@ -322,9 +527,45 @@ export const useBookingModifications = () => {
 
       if (error) throw error;
 
+      // Envoyer un email au voyageur pour l'informer du refus
+      try {
+        const { data: guestProfile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name, email')
+          .eq('user_id', request.guest_id)
+          .single();
+
+        if (guestProfile?.email) {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'booking_modification_rejected',
+              to: guestProfile.email,
+              data: {
+                guestName: `${guestProfile.first_name} ${guestProfile.last_name}`,
+                propertyTitle: request.booking?.properties?.title || 'Votre réservation',
+                requestedCheckIn: request.requested_check_in,
+                requestedCheckOut: request.requested_check_out,
+                requestedGuests: request.requested_guests_count,
+                requestedPrice: request.requested_total_price,
+                originalCheckIn: request.original_check_in,
+                originalCheckOut: request.original_check_out,
+                originalGuests: request.original_guests_count,
+                originalPrice: request.original_total_price,
+                hostMessage: hostMessage || null,
+                bookingId: request.booking_id
+              }
+            }
+          });
+          console.log('✅ Email de modification refusée envoyé au voyageur');
+        }
+      } catch (emailError) {
+        console.error('❌ Erreur envoi email modification refusée:', emailError);
+        // Ne pas faire échouer le rejet si l'email échoue
+      }
+
       Alert.alert(
         'Modification refusée',
-        'La demande de modification a été refusée.',
+        'La demande de modification a été refusée et le voyageur a été notifié.',
         [{ text: 'OK' }]
       );
 

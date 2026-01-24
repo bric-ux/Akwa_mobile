@@ -130,18 +130,26 @@ const MyBookingsScreen: React.FC = () => {
 
   const handleModifyBooking = (booking: Booking) => {
     // Vérifier si la réservation peut être modifiée
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const checkInDate = new Date(booking.check_in_date);
-    checkInDate.setHours(0, 0, 0, 0);
-
     if (booking.status === 'completed' || booking.status === 'cancelled') {
       Alert.alert('Impossible de modifier', 'Cette réservation ne peut plus être modifiée.');
       return;
     }
 
-    if (checkInDate <= today) {
-      Alert.alert('Impossible de modifier', 'Vous ne pouvez modifier que les réservations futures.');
+    // Vérifier si le checkout est passé
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkout = new Date(booking.check_out_date);
+    checkout.setHours(0, 0, 0, 0);
+    if (checkout < today) {
+      Alert.alert('Impossible de modifier', 'Cette réservation est terminée et ne peut plus être modifiée.');
+      return;
+    }
+
+    // Vérifier si le check-in est dans le futur ou aujourd'hui
+    const checkInDate = new Date(booking.check_in_date);
+    checkInDate.setHours(0, 0, 0, 0);
+    if (checkInDate < today) {
+      Alert.alert('Impossible de modifier', 'Vous ne pouvez modifier que les réservations futures ou en cours.');
       return;
     }
 

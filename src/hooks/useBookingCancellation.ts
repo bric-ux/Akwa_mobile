@@ -223,16 +223,20 @@ export const useBookingCancellation = () => {
               type: 'booking_cancelled_host',
               to: hostData.email,
               data: {
-                hostName: hostData.first_name,
+                hostName: hostData.first_name || 'Hôte',
                 propertyTitle: bookingData.properties.title,
                 guestName: `${bookingData.profiles?.first_name || ''} ${bookingData.profiles?.last_name || ''}`.trim(),
                 checkIn: bookingData.check_in_date,
                 checkOut: bookingData.check_out_date,
+                guests: bookingData.guests_count || 1,
+                totalPrice: bookingData.total_price,
                 penaltyAmount: penaltyAmount,
-                reason: bookingData.cancellation_reason
+                reason: bookingData.cancellation_reason || 'Annulation par le voyageur',
+                siteUrl: 'https://akwahome.com'
               }
             }
           });
+          console.log('✅ Email d\'annulation envoyé à l\'hôte');
         }
       }
 
@@ -243,16 +247,20 @@ export const useBookingCancellation = () => {
             type: 'booking_cancelled_guest',
             to: bookingData.profiles.email,
             data: {
-              guestName: bookingData.profiles.first_name,
+              guestName: `${bookingData.profiles.first_name || ''} ${bookingData.profiles.last_name || ''}`.trim(),
               propertyTitle: bookingData.properties.title,
               checkIn: bookingData.check_in_date,
               checkOut: bookingData.check_out_date,
+              guests: bookingData.guests_count || 1,
+              totalPrice: bookingData.total_price,
               refundAmount: refundAmount,
               penaltyAmount: penaltyAmount,
-              reason: bookingData.cancellation_reason
+              reason: bookingData.cancellation_reason || 'Annulation par le voyageur',
+              siteUrl: 'https://akwahome.com'
             }
           }
         });
+        console.log('✅ Email d\'annulation envoyé au voyageur');
       }
     } catch (error) {
       console.error('Error sending cancellation emails:', error);

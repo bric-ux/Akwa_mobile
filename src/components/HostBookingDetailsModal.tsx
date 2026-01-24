@@ -17,6 +17,8 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Linking } from 'react-native';
 import HostCancellationDialog from './HostCancellationDialog';
+import { useBookingModifications } from '../hooks/useBookingModifications';
+import HostModificationRequestCard from './HostModificationRequestCard';
 
 interface HostBookingDetailsModalProps {
   visible: boolean;
@@ -32,12 +34,29 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [payment, setPayment] = useState<any>(null);
   const [hostCancellationDialogVisible, setHostCancellationDialogVisible] = useState(false);
+  const { getBookingPendingRequest } = useBookingModifications();
+  const [pendingRequest, setPendingRequest] = useState<any>(null);
+  const [loadingRequest, setLoadingRequest] = useState(false);
 
   useEffect(() => {
     if (visible && booking) {
       loadPayment();
+      loadPendingRequest();
     }
   }, [visible, booking]);
+
+  const loadPendingRequest = async () => {
+    if (!booking) return;
+    setLoadingRequest(true);
+    try {
+      const request = await getBookingPendingRequest(booking.id);
+      setPendingRequest(request);
+    } catch (error) {
+      console.error('Erreur lors du chargement de la demande de modification:', error);
+    } finally {
+      setLoadingRequest(false);
+    }
+  };
 
   const loadPayment = async () => {
     if (!booking) return;
@@ -183,6 +202,23 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled={true}
           >
+            {/* Demande de modification en attente */}
+            {pendingRequest && (
+              <View style={styles.modificationRequestSection}>
+                <HostModificationRequestCard
+                  request={pendingRequest}
+                  guestName={booking.guest_profile 
+                    ? `${booking.guest_profile.first_name} ${booking.guest_profile.last_name}`.trim()
+                    : 'Voyageur'}
+                  propertyTitle={booking.properties?.title || 'Propriété'}
+                  onUpdated={() => {
+                    loadPendingRequest();
+                    onClose(); // Fermer le modal pour recharger la liste
+                  }}
+                />
+              </View>
+            )}
+
             {/* Informations de base */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Informations</Text>
@@ -410,6 +446,10 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modificationRequestSection: {
+    marginBottom: 20,
+    paddingHorizontal: 20,
   },
 });
 

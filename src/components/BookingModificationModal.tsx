@@ -10,6 +10,9 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -53,6 +56,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   const [guestsCount, setGuestsCount] = useState(booking.guests_count);
   const [message, setMessage] = useState('');
   const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarMode, setCalendarMode] = useState<'checkIn' | 'checkOut' | 'both'>('both');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<BookingModificationRequest | null>(null);
   const [checkingPending, setCheckingPending] = useState(true);
@@ -81,11 +85,13 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       setGuestsCount(booking.guests_count);
       setMessage('');
       setShowCalendar(false); // S'assurer que le calendrier est fermé
+      setCalendarMode('both'); // Réinitialiser le mode calendrier
       checkPendingRequest();
       console.log('📅 Dates initialisées:', { checkInDate, checkOutDate, guestsCount: booking.guests_count, propertyId: property?.id });
     } else {
       // Réinitialiser quand le modal se ferme
       setShowCalendar(false);
+      setCalendarMode('both');
     }
   }, [visible, booking]);
   
@@ -94,15 +100,20 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     console.log('📅 État showCalendar:', showCalendar);
   }, [showCalendar]);
 
+  // Calculer les dates effectives pour le calcul du prix
+  const effectiveCheckInForPrice = checkIn || new Date(booking.check_in_date);
+  const effectiveCheckOutForPrice = checkOut || new Date(booking.check_out_date);
+
   useEffect(() => {
     const loadEffectivePrice = async () => {
-      if (checkIn && checkOut && property?.id) {
+      if (property?.id) {
         setLoadingPrice(true);
         try {
+          // Utiliser les dates effectives (modifiées ou originales) pour calculer le prix
           const avgPrice = await getAveragePriceForPeriod(
             property.id,
-            checkIn,
-            checkOut,
+            effectiveCheckInForPrice,
+            effectiveCheckOutForPrice,
             pricePerNight
           );
           setEffectivePrice(avgPrice);
@@ -117,10 +128,8 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       }
     };
 
-    if (checkIn && checkOut) {
-      loadEffectivePrice();
-    }
-  }, [checkIn, checkOut, property?.id, pricePerNight]);
+    loadEffectivePrice();
+  }, [effectiveCheckInForPrice, effectiveCheckOutForPrice, property?.id, pricePerNight]);
 
   const checkPendingRequest = async () => {
     setCheckingPending(true);
@@ -130,24 +139,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     setCheckingPending(false);
   };
 
-  const calculateNights = () => {
-    if (!checkIn || !checkOut) return 0;
-    const diffTime = checkOut.getTime() - checkIn.getTime();
-    return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-  };
-
-  const nights = calculateNights();
-  const subtotal = (effectivePrice || pricePerNight) * nights;
-  const newTotalPrice = subtotal + cleaningFee + serviceFee;
-
-  const hasChanges = 
-    checkIn && checkOut &&
-    (checkIn.toISOString().split('T')[0] !== booking.check_in_date ||
-     checkOut.toISOString().split('T')[0] !== booking.check_out_date ||
-     guestsCount !== booking.guests_count);
-
-  const priceDifference = newTotalPrice - booking.total_price;
-
+  // Fonctions utilitaires pour le formatage des dates (définies en premier)
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('fr-FR', {
       day: '2-digit',
@@ -163,6 +155,29 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     return `${year}-${month}-${day}`;
   };
 
+  // Utiliser les dates actuelles si elles ne sont pas modifiées
+  const effectiveCheckIn = checkIn || new Date(booking.check_in_date);
+  const effectiveCheckOut = checkOut || new Date(booking.check_out_date);
+  
+  const calculateNights = () => {
+    if (!effectiveCheckIn || !effectiveCheckOut) return 0;
+    const diffTime = effectiveCheckOut.getTime() - effectiveCheckIn.getTime();
+    return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+  };
+  
+  const nights = calculateNights();
+  const subtotal = (effectivePrice || pricePerNight) * nights;
+  const newTotalPrice = subtotal + cleaningFee + serviceFee;
+
+  // Vérifier s'il y a des changements (dates ou nombre de voyageurs)
+  const checkInChanged = checkIn && formatDateForAPI(checkIn) !== booking.check_in_date;
+  const checkOutChanged = checkOut && formatDateForAPI(checkOut) !== booking.check_out_date;
+  const guestsChanged = guestsCount !== booking.guests_count;
+  
+  const hasChanges = checkInChanged || checkOutChanged || guestsChanged;
+
+  const priceDifference = newTotalPrice - booking.total_price;
+
   const handleDateSelect = (selectedCheckIn: Date | null, selectedCheckOut: Date | null) => {
     if (selectedCheckIn) {
       setCheckIn(selectedCheckIn);
@@ -173,11 +188,28 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (!user || !property?.host_id || !hasChanges || !checkIn || !checkOut) {
+    // Fermer le clavier avant de soumettre
+    Keyboard.dismiss();
+    
+    if (!user || !property?.host_id || !hasChanges) {
       return;
     }
 
-    if (nights < 1) {
+    // Utiliser les dates actuelles si elles ne sont pas modifiées
+    const finalCheckIn = checkIn || new Date(booking.check_in_date);
+    const finalCheckOut = checkOut || new Date(booking.check_out_date);
+
+    // Vérifier que les dates sont valides
+    if (finalCheckOut <= finalCheckIn) {
+      Alert.alert('Erreur', 'La date de départ doit être après la date d\'arrivée');
+      return;
+    }
+
+    const finalNights = Math.ceil(
+      (finalCheckOut.getTime() - finalCheckIn.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (finalNights < 1) {
       Alert.alert('Erreur', 'La date de départ doit être après la date d\'arrivée');
       return;
     }
@@ -187,6 +219,26 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       return;
     }
 
+    // Recalculer le prix avec les dates finales
+    // Si effectivePrice n'est pas encore chargé, le recalculer maintenant
+    let finalEffectivePrice = effectivePrice;
+    if (!finalEffectivePrice || loadingPrice) {
+      try {
+        finalEffectivePrice = await getAveragePriceForPeriod(
+          property.id,
+          finalCheckIn,
+          finalCheckOut,
+          pricePerNight
+        );
+      } catch (error) {
+        console.error('Error calculating final price:', error);
+        finalEffectivePrice = pricePerNight;
+      }
+    }
+    
+    const finalSubtotal = finalEffectivePrice * finalNights;
+    const finalTotalPrice = finalSubtotal + cleaningFee + serviceFee;
+
     const result = await createModificationRequest({
       bookingId: booking.id,
       guestId: user.id,
@@ -195,10 +247,10 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       originalCheckOut: booking.check_out_date,
       originalGuestsCount: booking.guests_count,
       originalTotalPrice: booking.total_price,
-      requestedCheckIn: formatDateForAPI(checkIn),
-      requestedCheckOut: formatDateForAPI(checkOut),
+      requestedCheckIn: formatDateForAPI(finalCheckIn),
+      requestedCheckOut: formatDateForAPI(finalCheckOut),
       requestedGuestsCount: guestsCount,
-      requestedTotalPrice: newTotalPrice,
+      requestedTotalPrice: finalTotalPrice,
       guestMessage: message.trim() || undefined,
     });
 
@@ -237,17 +289,22 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
           <View style={styles.placeholder} />
         </View>
 
-        <ScrollView 
-          ref={scrollViewRef}
-          style={styles.content} 
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="always"
-          contentContainerStyle={styles.scrollContent}
-          bounces={false}
-          scrollEnabled={true}
-          nestedScrollEnabled={false}
-          scrollEventThrottle={16}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
+          <ScrollView 
+            ref={scrollViewRef}
+            style={styles.content} 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+            bounces={false}
+            scrollEnabled={true}
+            nestedScrollEnabled={false}
+            scrollEventThrottle={16}
+          >
           {checkingPending ? (
             <View style={styles.centerContainer}>
               <ActivityIndicator size="large" color="#2E7D32" />
@@ -343,42 +400,66 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
               {/* Nouvelles dates */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Nouvelles dates</Text>
-                <TouchableOpacity
-                  style={styles.dateRangeButton}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    if (!property?.id) {
-                      Alert.alert('Erreur', 'Propriété non trouvée');
-                      return;
-                    }
-                    setShowCalendar(true);
-                  }}
-                >
-                  <Ionicons name="calendar-outline" size={24} color="#2E7D32" />
-                  <View style={styles.dateRangeContent}>
-                    <View style={styles.dateRangeRow}>
-                      <View style={styles.dateItem}>
-                        <Text style={styles.dateLabel}>Arrivée</Text>
-                        <Text style={styles.dateValue}>
+                <View style={styles.datesContainer}>
+                  {/* Date d'arrivée */}
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (!property?.id) {
+                        Alert.alert('Erreur', 'Propriété non trouvée');
+                        return;
+                      }
+                      setCalendarMode('checkIn');
+                      setShowCalendar(true);
+                    }}
+                  >
+                    <View style={styles.dateButtonContent}>
+                      <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
+                      <View style={styles.dateButtonTextContainer}>
+                        <Text style={styles.dateButtonLabel}>Arrivée</Text>
+                        <Text style={[styles.dateButtonValue, !checkIn && styles.dateButtonPlaceholder]}>
                           {checkIn ? formatDate(checkIn) : 'Sélectionner'}
                         </Text>
                       </View>
-                      <Ionicons name="arrow-forward" size={20} color="#666" style={styles.dateArrow} />
-                      <View style={styles.dateItem}>
-                        <Text style={styles.dateLabel}>Départ</Text>
-                        <Text style={styles.dateValue}>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#666" />
+                  </TouchableOpacity>
+
+                  {/* Date de départ */}
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (!property?.id) {
+                        Alert.alert('Erreur', 'Propriété non trouvée');
+                        return;
+                      }
+                      // Permettre la sélection de la date de départ même si l'arrivée n'est pas modifiée
+                      // (on utilisera la date d'arrivée actuelle de la réservation)
+                      setCalendarMode('checkOut');
+                      setShowCalendar(true);
+                    }}
+                  >
+                    <View style={styles.dateButtonContent}>
+                      <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
+                      <View style={styles.dateButtonTextContainer}>
+                        <Text style={styles.dateButtonLabel}>Départ</Text>
+                        <Text style={[styles.dateButtonValue, !checkOut && styles.dateButtonPlaceholder]}>
                           {checkOut ? formatDate(checkOut) : 'Sélectionner'}
                         </Text>
                       </View>
                     </View>
-                    {checkIn && checkOut && (
-                      <Text style={styles.nightsText}>
-                        {nights} {nights === 1 ? 'nuit' : 'nuits'}
-                      </Text>
-                    )}
+                    <Ionicons name="chevron-forward" size={18} color="#666" />
+                  </TouchableOpacity>
+                </View>
+                {(effectiveCheckIn && effectiveCheckOut) && (
+                  <View style={styles.nightsContainer}>
+                    <Text style={styles.nightsText}>
+                      {nights} {nights === 1 ? 'nuit' : 'nuits'}
+                    </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#666" />
-                </TouchableOpacity>
+                )}
               </View>
 
               {/* Nombre de voyageurs */}
@@ -420,30 +501,36 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                 <View style={styles.changesCard}>
                   <Text style={styles.changesTitle}>Résumé des modifications</Text>
                   
-                  <View style={styles.changeRow}>
-                    <Text style={styles.changeLabel}>Dates:</Text>
-                    <Text style={styles.changeValue}>
-                      {formatDate(new Date(booking.check_in_date))} - {formatDate(new Date(booking.check_out_date))}
-                    </Text>
-                    <Ionicons name="arrow-forward" size={16} color="#666" />
-                    <Text style={styles.changeValueNew}>
-                      {checkIn && checkOut ? `${formatDate(checkIn)} - ${formatDate(checkOut)}` : ''}
-                    </Text>
-                  </View>
+                  {(checkInChanged || checkOutChanged) && (
+                    <View style={styles.changeRow}>
+                      <Text style={styles.changeLabel}>Dates:</Text>
+                      <Text style={styles.changeValue}>
+                        {formatDate(new Date(booking.check_in_date))} - {formatDate(new Date(booking.check_out_date))}
+                      </Text>
+                      <Ionicons name="arrow-forward" size={16} color="#666" />
+                      <Text style={styles.changeValueNew}>
+                        {formatDate(effectiveCheckIn)} - {formatDate(effectiveCheckOut)}
+                      </Text>
+                    </View>
+                  )}
 
-                  <View style={styles.changeRow}>
-                    <Text style={styles.changeLabel}>Voyageurs:</Text>
-                    <Text style={styles.changeValue}>{booking.guests_count}</Text>
-                    <Ionicons name="arrow-forward" size={16} color="#666" />
-                    <Text style={styles.changeValueNew}>{guestsCount}</Text>
-                  </View>
+                  {guestsChanged && (
+                    <View style={styles.changeRow}>
+                      <Text style={styles.changeLabel}>Voyageurs:</Text>
+                      <Text style={styles.changeValue}>{booking.guests_count}</Text>
+                      <Ionicons name="arrow-forward" size={16} color="#666" />
+                      <Text style={styles.changeValueNew}>{guestsCount}</Text>
+                    </View>
+                  )}
 
-                  <View style={styles.changeRow}>
-                    <Text style={styles.changeLabel}>Nuits:</Text>
-                    <Text style={styles.changeValue}>{originalNights}</Text>
-                    <Ionicons name="arrow-forward" size={16} color="#666" />
-                    <Text style={styles.changeValueNew}>{nights}</Text>
-                  </View>
+                  {(checkInChanged || checkOutChanged) && (
+                    <View style={styles.changeRow}>
+                      <Text style={styles.changeLabel}>Nuits:</Text>
+                      <Text style={styles.changeValue}>{originalNights}</Text>
+                      <Ionicons name="arrow-forward" size={16} color="#666" />
+                      <Text style={styles.changeValueNew}>{nights}</Text>
+                    </View>
+                  )}
 
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>Nouveau total</Text>
@@ -485,9 +572,9 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                   <Text style={styles.cancelButtonText}>Annuler</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.button, styles.submitButton, (!hasChanges || nights < 1 || loading) && styles.submitButtonDisabled]}
+                  style={[styles.button, styles.submitButton, (!hasChanges || loading) && styles.submitButtonDisabled]}
                   onPress={handleSubmit}
-                  disabled={!hasChanges || nights < 1 || loading}
+                  disabled={!hasChanges || loading}
                 >
                   {loading ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -503,7 +590,8 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
               </Text>
             </>
           )}
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* Calendrier modal */}
         {property?.id && showCalendar && (
@@ -512,7 +600,6 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
             animationType="slide"
             presentationStyle="pageSheet"
             onRequestClose={() => {
-              console.log('❌ Fermer calendrier via onRequestClose');
               setShowCalendar(false);
             }}
           >
@@ -526,24 +613,38 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                 >
                   <Ionicons name="close" size={24} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Sélectionner les dates</Text>
+                <Text style={styles.headerTitle}>
+                  {calendarMode === 'checkIn' ? 'Sélectionner la date d\'arrivée' : 
+                   calendarMode === 'checkOut' ? 'Sélectionner la date de départ' : 
+                   'Sélectionner les dates'}
+                </Text>
                 <View style={styles.placeholder} />
               </View>
               <View style={{ flex: 1 }}>
                 <AvailabilityCalendar
                   propertyId={property.id}
-                  selectedCheckIn={checkIn}
-                  selectedCheckOut={checkOut}
+                  selectedCheckIn={calendarMode === 'checkIn' || calendarMode === 'both' ? checkIn : null}
+                  selectedCheckOut={calendarMode === 'checkOut' || calendarMode === 'both' ? checkOut : null}
+                  mode={calendarMode}
+                  showHeader={false}
                   onDateSelect={(selectedCheckIn, selectedCheckOut) => {
-                    if (selectedCheckIn) {
+                    if (calendarMode === 'checkIn' && selectedCheckIn) {
                       setCheckIn(selectedCheckIn);
-                    }
-                    if (selectedCheckOut) {
+                      // Si la nouvelle date d'arrivée est >= date de départ, ajuster la date de départ
+                      if (checkOut && selectedCheckIn >= checkOut) {
+                        const newCheckOut = new Date(selectedCheckIn);
+                        newCheckOut.setDate(newCheckOut.getDate() + 1);
+                        setCheckOut(newCheckOut);
+                      }
+                    } else if (calendarMode === 'checkOut' && selectedCheckOut) {
                       setCheckOut(selectedCheckOut);
-                    }
-                    // Fermer le calendrier seulement si les deux dates sont sélectionnées
-                    if (selectedCheckIn && selectedCheckOut) {
-                      setShowCalendar(false);
+                    } else if (calendarMode === 'both') {
+                      if (selectedCheckIn) {
+                        setCheckIn(selectedCheckIn);
+                      }
+                      if (selectedCheckOut) {
+                        setCheckOut(selectedCheckOut);
+                      }
                     }
                   }}
                   onClose={() => {
@@ -590,6 +691,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 40, // Espace supplémentaire pour le clavier
   },
   centerContainer: {
     flex: 1,
@@ -640,45 +742,51 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 12,
   },
-  dateRangeButton: {
+  datesContainer: {
+    gap: 12,
+  },
+  dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e9ecef',
-    minHeight: 70,
+    minHeight: 60,
   },
-  dateRangeContent: {
+  dateButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  dateButtonTextContainer: {
     marginLeft: 12,
     flex: 1,
   },
-  dateRangeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  dateItem: {
-    flex: 1,
-  },
-  dateArrow: {
-    marginHorizontal: 8,
-  },
-  nightsText: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  dateLabel: {
+  dateButtonLabel: {
     fontSize: 12,
     color: '#666',
     marginBottom: 4,
   },
-  dateValue: {
+  dateButtonValue: {
     fontSize: 16,
     fontWeight: '500',
     color: '#333',
+  },
+  dateButtonPlaceholder: {
+    color: '#999',
+    fontWeight: '400',
+  },
+  nightsContainer: {
+    marginTop: 8,
+    paddingLeft: 4,
+  },
+  nightsText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
   },
   guestsSelector: {
     flexDirection: 'row',

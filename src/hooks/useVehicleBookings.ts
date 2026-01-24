@@ -20,7 +20,7 @@ export interface VehicleBookingData {
 export const useVehicleBookings = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
+  const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
 
   const createBooking = useCallback(async (bookingData: VehicleBookingData) => {
     try {
@@ -43,7 +43,9 @@ export const useVehicleBookings = () => {
         return { success: false, error: 'IDENTITY_REQUIRED' };
       }
 
-      if (!isVerified) {
+      // Permettre les réservations si le document est vérifié OU en cours d'examen (pending)
+      // Bloquer seulement si le document a été rejeté (rejected) ou n'existe pas
+      if (!isVerified && verificationStatus !== 'pending') {
         setError('IDENTITY_NOT_VERIFIED');
         return { success: false, error: 'IDENTITY_NOT_VERIFIED' };
       }
@@ -226,6 +228,8 @@ export const useVehicleBookings = () => {
               vehicleTitle: vehicleTitle,
               vehicleBrand: vehicleInfo.brand || '',
               vehicleModel: vehicleInfo.model || '',
+              vehicleYear: vehicle?.year || '',
+              fuelType: vehicle?.fuel_type || '',
               renterName: renterName,
               renterEmail: user.email || '',
               renterPhone: renterProfile.phone || '',
@@ -235,10 +239,12 @@ export const useVehicleBookings = () => {
               startDate: bookingData.startDate,
               endDate: bookingData.endDate,
               rentalDays: rentalDays,
+              dailyRate: booking.daily_rate || vehicle?.price_per_day || 0,
               totalPrice: totalPrice,
               securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
               pickupLocation: bookingData.pickupLocation || '',
               isInstantBooking: true,
+              paymentMethod: bookingData.paymentMethod || booking.payment_method || '',
             };
 
             // Email au locataire avec PDF
@@ -278,6 +284,8 @@ export const useVehicleBookings = () => {
               vehicleTitle: vehicleTitle,
               vehicleBrand: vehicleInfo.brand || '',
               vehicleModel: vehicleInfo.model || '',
+              vehicleYear: vehicle?.year || '',
+              fuelType: vehicle?.fuel_type || '',
               renterName: renterName,
               renterEmail: user.email || '',
               renterPhone: renterProfile.phone || '',
@@ -287,10 +295,13 @@ export const useVehicleBookings = () => {
               startDate: bookingData.startDate,
               endDate: bookingData.endDate,
               rentalDays: rentalDays,
+              dailyRate: booking.daily_rate || vehicle?.price_per_day || 0,
               totalPrice: totalPrice,
               securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
+              pickupLocation: bookingData.pickupLocation || '',
               message: bookingData.messageToOwner || '',
               isInstantBooking: false,
+              paymentMethod: bookingData.paymentMethod || booking.payment_method || '',
             };
 
             // Email au locataire (demande envoyée)

@@ -189,14 +189,21 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
     return currentDate < today;
   };
 
+  // Fonction helper pour normaliser une date au format YYYY-MM-DD (sans décalage de fuseau horaire)
+  const formatDateToISO = (year: number, month: number, day: number): string => {
+    const monthStr = String(month + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    return `${year}-${monthStr}-${dayStr}`;
+  };
+
   const isSelected = (day: number) => {
-    const dateStr = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toISOString().split('T')[0];
+    const dateStr = formatDateToISO(currentMonth.getFullYear(), currentMonth.getMonth(), day);
     return dateStr === tempCheckIn || dateStr === tempCheckOut;
   };
 
   const isInRange = (day: number) => {
     if (!tempCheckIn || !tempCheckOut) return false;
-    const dateStr = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toISOString().split('T')[0];
+    const dateStr = formatDateToISO(currentMonth.getFullYear(), currentMonth.getMonth(), day);
     return dateStr > tempCheckIn && dateStr < tempCheckOut;
   };
 
@@ -206,7 +213,12 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
       return;
     }
 
-    const selectedDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day).toISOString().split('T')[0];
+    // Normaliser la date en utilisant les composants locaux pour éviter le décalage de fuseau horaire
+    const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(dateObj.getDate()).padStart(2, '0');
+    const selectedDate = `${year}-${month}-${dayStr}`;
     
     if (calendarMode === 'checkIn') {
       const newCheckIn = selectedDate;

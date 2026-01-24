@@ -35,7 +35,7 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
           icon: 'time-outline',
           color: '#f59e0b',
           title: 'Vérification en cours',
-          message: 'Votre pièce d\'identité est en cours de vérification. Vous pourrez réserver une fois validée.'
+          message: 'Votre pièce d\'identité est en cours de vérification. Vous pouvez déjà effectuer des réservations.'
         };
       case 'rejected':
         return {
@@ -98,6 +98,7 @@ export const BookingIdentityAlert: React.FC<BookingIdentityAlertProps> = ({
             </View>
             <Text style={styles.pendingMessage}>
               Votre document est en cours de vérification par notre équipe. 
+              Vous pouvez déjà effectuer des réservations pendant cette période. 
               Vous recevrez une notification une fois la vérification terminée.
             </Text>
             <View style={styles.pendingInfo}>

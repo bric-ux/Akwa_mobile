@@ -14,10 +14,12 @@ const { width } = Dimensions.get('window');
 
 interface AvailabilityCalendarProps {
   propertyId: string;
-  selectedCheckIn?: Date;
-  selectedCheckOut?: Date;
+  selectedCheckIn?: Date | null;
+  selectedCheckOut?: Date | null;
   onDateSelect: (checkIn: Date | null, checkOut: Date | null) => void;
   onClose: () => void;
+  mode?: 'checkIn' | 'checkOut' | 'both'; // Mode de sélection : une seule date ou les deux
+  showHeader?: boolean; // Afficher ou non le header du calendrier
 }
 
 const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
@@ -26,6 +28,8 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   selectedCheckOut,
   onDateSelect,
   onClose,
+  mode = 'both',
+  showHeader = true,
 }) => {
   const { isDateUnavailable, unavailableDates, loading } = useAvailabilityCalendar(propertyId);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -119,24 +123,61 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
     return compareDate < today;
   };
 
+  const isDateBeforeCheckIn = (date: Date) => {
+    if (mode !== 'checkOut') return false;
+    const checkInToCompare = selectedCheckIn || tempCheckIn;
+    if (!checkInToCompare) return false;
+    const normalizedDate = normalizeDate(date);
+    const normalizedCheckIn = normalizeDate(checkInToCompare);
+    return normalizedDate <= normalizedCheckIn;
+  };
+
   const handleDatePress = (date: Date) => {
-    if (isDateUnavailable(date) || isPastDate(date)) return;
+    if (isDateUnavailable(date) || isPastDate(date) || isDateBeforeCheckIn(date)) return;
 
     // Normaliser la date sélectionnée
     const normalizedDate = normalizeDate(date);
 
-    if (!tempCheckIn || (tempCheckIn && tempCheckOut)) {
-      // Nouvelle sélection
+    if (mode === 'checkIn') {
+      // Mode check-in uniquement : sélectionner directement la date d'arrivée
       setTempCheckIn(normalizedDate);
       setTempCheckOut(null);
-    } else if (tempCheckIn && !tempCheckOut) {
-      // Sélection de la date de fin - permettre le même jour
-      const normalizedCheckIn = normalizeDate(tempCheckIn);
-      if (normalizedDate >= normalizedCheckIn) {
-        setTempCheckOut(normalizedDate);
+      // Confirmer automatiquement
+      onDateSelect(normalizedDate, null);
+      onClose();
+    } else if (mode === 'checkOut') {
+      // Mode check-out uniquement : sélectionner directement la date de départ
+      // Vérifier que la date est après check-in
+      const checkInToCompare = selectedCheckIn || tempCheckIn;
+      if (checkInToCompare) {
+        const normalizedCheckIn = normalizeDate(checkInToCompare);
+        if (normalizedDate > normalizedCheckIn) {
+          setTempCheckOut(normalizedDate);
+          // Confirmer automatiquement
+          onDateSelect(null, normalizedDate);
+          onClose();
+        }
       } else {
+        setTempCheckOut(normalizedDate);
+        // Confirmer automatiquement
+        onDateSelect(null, normalizedDate);
+        onClose();
+      }
+    } else {
+      // Mode both : sélectionner les deux dates
+      if (!tempCheckIn || (tempCheckIn && tempCheckOut)) {
+        // Nouvelle sélection
         setTempCheckIn(normalizedDate);
         setTempCheckOut(null);
+      } else if (tempCheckIn && !tempCheckOut) {
+        // Sélection de la date de fin - permettre le même jour
+        const normalizedCheckIn = normalizeDate(tempCheckIn);
+        if (normalizedDate >= normalizedCheckIn) {
+          setTempCheckOut(normalizedDate);
+        } else {
+          setTempCheckIn(normalizedDate);
+          setTempCheckOut(null);
+        }
       }
     }
   };
@@ -144,11 +185,21 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   const handleConfirm = () => {
     // Normaliser les dates avant de les passer
     const normalizedCheckIn = tempCheckIn ? normalizeDate(tempCheckIn) : null;
-    // Si pas de date de départ, utiliser la date d'arrivée + 1 jour
-    const checkOut = tempCheckOut 
-      ? normalizeDate(tempCheckOut) 
-      : (normalizedCheckIn ? normalizeDate(new Date(normalizedCheckIn.getTime() + 24 * 60 * 60 * 1000)) : null);
-    onDateSelect(normalizedCheckIn, checkOut);
+    const normalizedCheckOut = tempCheckOut ? normalizeDate(tempCheckOut) : null;
+    
+    if (mode === 'checkIn' && normalizedCheckIn) {
+      // Mode check-in : passer seulement la date d'arrivée
+      onDateSelect(normalizedCheckIn, null);
+    } else if (mode === 'checkOut' && normalizedCheckOut) {
+      // Mode check-out : passer seulement la date de départ
+      onDateSelect(null, normalizedCheckOut);
+    } else {
+      // Mode both : passer les deux dates
+      // Si pas de date de départ, utiliser la date d'arrivée + 1 jour
+      const checkOut = normalizedCheckOut || 
+        (normalizedCheckIn ? normalizeDate(new Date(normalizedCheckIn.getTime() + 24 * 60 * 60 * 1000)) : null);
+      onDateSelect(normalizedCheckIn, checkOut);
+    }
     onClose();
   };
 
@@ -173,7 +224,7 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   };
 
   const getDayStyle = (date: Date) => {
-    if (isDateUnavailable(date)) {
+    if (isDateUnavailable(date) || isDateBeforeCheckIn(date)) {
       return [styles.day, styles.unavailableDay];
     }
     if (isDateSelected(date)) {
@@ -193,13 +244,15 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <Ionicons name="close" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Sélectionner les dates</Text>
-        <View style={styles.placeholder} />
-      </View>
+      {showHeader && (
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Sélectionner les dates</Text>
+          <View style={styles.placeholder} />
+        </View>
+      )}
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.monthHeader}>
@@ -233,18 +286,19 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
 
               const isUnavailable = isDateUnavailable(day);
               const isPast = isPastDate(day);
-              const reason = isUnavailable ? getUnavailableReason(day) : (isPast ? 'Passé' : null);
+              const isBeforeCheckIn = isDateBeforeCheckIn(day);
+              const reason = isUnavailable ? getUnavailableReason(day) : (isPast ? 'Passé' : (isBeforeCheckIn ? 'Avant arrivée' : null));
 
               return (
                 <TouchableOpacity
                   key={index}
                   style={getDayStyle(day)}
                   onPress={() => handleDatePress(day)}
-                  disabled={isUnavailable || isPast}
+                  disabled={isUnavailable || isPast || isBeforeCheckIn}
                 >
                   <Text style={[
                     styles.dayText,
-                    (isUnavailable || isPast) && styles.unavailableDayText,
+                    (isUnavailable || isPast || isBeforeCheckIn) && styles.unavailableDayText,
                     isDateSelected(day) && styles.selectedDayText,
                     isDateInRange(day) && styles.rangeDayText,
                     (isDateStart(day) || isDateEnd(day)) && styles.rangeEndDayText
@@ -285,8 +339,17 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
         
         <TouchableOpacity 
           onPress={handleConfirm} 
-          style={[styles.confirmButton, !tempCheckIn && styles.confirmButtonDisabled]}
-          disabled={!tempCheckIn}
+          style={[
+            styles.confirmButton, 
+            ((mode === 'checkIn' && !tempCheckIn) || 
+             (mode === 'checkOut' && !tempCheckOut) || 
+             (mode === 'both' && !tempCheckIn)) && styles.confirmButtonDisabled
+          ]}
+          disabled={
+            (mode === 'checkIn' && !tempCheckIn) || 
+            (mode === 'checkOut' && !tempCheckOut) || 
+            (mode === 'both' && !tempCheckIn)
+          }
         >
           <Text style={styles.confirmButtonText}>Confirmer</Text>
         </TouchableOpacity>

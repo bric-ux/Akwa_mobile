@@ -283,169 +283,123 @@ export const useHostBookings = () => {
         const hostName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim();
 
         if (status === 'confirmed') {
-          // Préparer les données pour le PDF
-          const pdfBookingData = {
-            id: bookingData.id,
-            property: {
-              title: bookingData.properties.title,
-              address: bookingData.properties.address || '',
-              city_name: bookingData.properties.location?.name || bookingData.properties.locations?.name || '',
-              city_region: bookingData.properties.location?.type === 'city' ? bookingData.properties.location?.name : '',
-              price_per_night: bookingData.properties.price_per_night || 0,
-              cleaning_fee: bookingData.properties.cleaning_fee || 0,
-              service_fee: bookingData.properties.service_fee || 0,
-              taxes: bookingData.properties.taxes || 0,
-              cancellation_policy: bookingData.properties.cancellation_policy || 'flexible'
-            },
-            guest: {
-              first_name: guestFirstName,
-              last_name: guestLastName,
-              email: guestEmail,
-              phone: guestPhone
-            },
-            host: {
-              first_name: user.user_metadata?.first_name || '',
-              last_name: user.user_metadata?.last_name || '',
-              email: user.email || '',
-              phone: user.user_metadata?.phone || ''
-            },
-            check_in: bookingData.check_in_date,
-            check_out: bookingData.check_out_date,
-            guests_count: bookingData.guests_count,
-            total_price: bookingData.total_price,
-            status: bookingData.status,
-            created_at: bookingData.created_at,
-            message: bookingData.message_to_host || '',
-            discount_applied: bookingData.discount_applied || false,
-            discount_amount: bookingData.discount_amount || 0,
-            original_total: bookingData.original_total || bookingData.total_price,
-            payment_method: bookingData.payment_method || '',
-            payment_plan: bookingData.payment_plan || ''
-          };
-
-          // Envoyer les emails de confirmation avec PDF
+          // Envoyer les emails de confirmation avec PDF (générés automatiquement par send-email)
           try {
-            console.log('📄 [useHostBookings] Génération PDF...');
-            console.log('📊 [useHostBookings] Données PDF préparées:', {
-              id: pdfBookingData.id,
-              payment_method: pdfBookingData.payment_method,
-              payment_plan: pdfBookingData.payment_plan
-            });
+            console.log('📧 [useHostBookings] Envoi emails de confirmation avec PDF...');
             
-            const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-booking-pdf', {
-              body: { bookingData: pdfBookingData }
-            });
-
-            if (pdfError) {
-              console.log('⚠️ [useHostBookings] PDF non généré, envoi email sans pièce jointe');
-              
-              // Email au voyageur sans PDF
-              const { error: emailError } = await supabase.functions.invoke('send-email', {
-                body: {
-                  type: 'booking_confirmed',
-                  to: guestEmail,
-                  data: {
-                    bookingId: bookingData.id,
-                    guestName: guestName,
-                    propertyTitle: bookingData.properties.title,
-                    checkIn: bookingData.check_in_date,
-                    checkOut: bookingData.check_out_date,
-                    guests: bookingData.guests_count,
-                    totalPrice: bookingData.total_price,
-                    status: 'confirmed'
-                  }
-                }
-              });
-
-              if (emailError) {
-                console.error('❌ [useHostBookings] Erreur email voyageur:', emailError);
+            // Email au voyageur avec PDF (généré automatiquement)
+            const guestEmailData = {
+              type: 'booking_confirmed',
+              to: guestEmail,
+              data: {
+                bookingId: bookingData.id,
+                guestName: guestName,
+                propertyTitle: bookingData.properties.title,
+                checkIn: bookingData.check_in_date,
+                checkOut: bookingData.check_out_date,
+                guestsCount: bookingData.guests_count,
+                totalPrice: bookingData.total_price,
+                discountApplied: bookingData.discount_applied || false,
+                discountAmount: bookingData.discount_amount || 0,
+                property: {
+                  title: bookingData.properties.title,
+                  address: bookingData.properties.address || '',
+                  city_name: bookingData.properties.location?.name || bookingData.properties.locations?.name || '',
+                  city_region: bookingData.properties.location?.type === 'city' ? bookingData.properties.location?.name : '',
+                  price_per_night: bookingData.properties.price_per_night || 0,
+                  cleaning_fee: bookingData.properties.cleaning_fee || 0,
+                  service_fee: bookingData.properties.service_fee || 0,
+                  taxes: bookingData.properties.taxes || 0,
+                  cancellation_policy: bookingData.properties.cancellation_policy || 'flexible',
+                  check_in_time: bookingData.properties.check_in_time,
+                  check_out_time: bookingData.properties.check_out_time,
+                  house_rules: bookingData.properties.house_rules
+                },
+                guest: {
+                  first_name: guestFirstName,
+                  last_name: guestLastName,
+                  email: guestEmail,
+                  phone: guestPhone
+                },
+                host: {
+                  first_name: user.user_metadata?.first_name || '',
+                  last_name: user.user_metadata?.last_name || '',
+                  email: user.email || '',
+                  phone: user.user_metadata?.phone || ''
+                },
+                status: 'confirmed',
+                message: bookingData.message_to_host || '',
+                payment_method: bookingData.payment_method || '',
+                payment_plan: bookingData.payment_plan || ''
               }
+            };
 
-              // Email à l'hôte sans PDF
-              const { error: hostEmailError } = await supabase.functions.invoke('send-email', {
-                body: {
-                  type: 'booking_confirmed_host',
-                  to: user.email,
-                  data: {
-                    bookingId: bookingData.id,
-                    hostName: hostName,
-                    guestName: guestName,
-                    propertyTitle: bookingData.properties.title,
-                    checkIn: bookingData.check_in_date,
-                    checkOut: bookingData.check_out_date,
-                    guests: bookingData.guests_count,
-                    totalPrice: bookingData.total_price
-                  }
-                }
-              });
+            const guestEmailResult = await supabase.functions.invoke('send-email', { body: guestEmailData });
+            if (guestEmailResult.error) {
+              console.error('❌ [useHostBookings] Erreur email voyageur:', guestEmailResult.error);
+            } else {
+              console.log('✅ [useHostBookings] Email avec PDF envoyé au voyageur');
+            }
 
-              if (hostEmailError) {
-                console.error('❌ [useHostBookings] Erreur email hôte:', hostEmailError);
+            // Délai pour éviter le rate limit
+            await new Promise(resolve => setTimeout(resolve, 600));
+
+            // Email à l'hôte avec PDF (généré automatiquement)
+            const hostEmailData = {
+              type: 'booking_confirmed_host',
+              to: user.email,
+              data: {
+                bookingId: bookingData.id,
+                hostName: hostName,
+                guestName: guestName,
+                propertyTitle: bookingData.properties.title,
+                checkIn: bookingData.check_in_date,
+                checkOut: bookingData.check_out_date,
+                guestsCount: bookingData.guests_count,
+                totalPrice: bookingData.total_price,
+                discountApplied: bookingData.discount_applied || false,
+                discountAmount: bookingData.discount_amount || 0,
+                property: {
+                  title: bookingData.properties.title,
+                  address: bookingData.properties.address || '',
+                  city_name: bookingData.properties.location?.name || bookingData.properties.locations?.name || '',
+                  city_region: bookingData.properties.location?.type === 'city' ? bookingData.properties.location?.name : '',
+                  price_per_night: bookingData.properties.price_per_night || 0,
+                  cleaning_fee: bookingData.properties.cleaning_fee || 0,
+                  service_fee: bookingData.properties.service_fee || 0,
+                  taxes: bookingData.properties.taxes || 0,
+                  cancellation_policy: bookingData.properties.cancellation_policy || 'flexible',
+                  check_in_time: bookingData.properties.check_in_time,
+                  check_out_time: bookingData.properties.check_out_time,
+                  house_rules: bookingData.properties.house_rules
+                },
+                guest: {
+                  first_name: guestFirstName,
+                  last_name: guestLastName,
+                  email: guestEmail,
+                  phone: guestPhone
+                },
+                host: {
+                  first_name: user.user_metadata?.first_name || '',
+                  last_name: user.user_metadata?.last_name || '',
+                  email: user.email || '',
+                  phone: user.user_metadata?.phone || ''
+                },
+                status: 'confirmed',
+                message: bookingData.message_to_host || '',
+                payment_method: bookingData.payment_method || '',
+                payment_plan: bookingData.payment_plan || ''
               }
-            } else if (pdfData?.success && pdfData?.pdf) {
-              console.log('✅ [useHostBookings] PDF généré, envoi emails avec pièce jointe');
-              
-              // Email au voyageur avec PDF
-              const { error: emailError } = await supabase.functions.invoke('send-email', {
-                body: {
-                  type: 'booking_confirmed',
-                  to: guestEmail,
-                  data: {
-                    bookingId: bookingData.id,
-                    guestName: guestName,
-                    propertyTitle: bookingData.properties.title,
-                    checkIn: bookingData.check_in_date,
-                    checkOut: bookingData.check_out_date,
-                    guests: bookingData.guests_count,
-                    totalPrice: bookingData.total_price,
-                    status: 'confirmed'
-                  },
-                  attachments: [{
-                    filename: pdfData.filename || `reservation-${bookingData.id}.pdf`,
-                    content: pdfData.pdf,
-                    type: 'application/pdf'
-                  }]
-                }
-              });
+            };
 
-              if (emailError) {
-                console.error('❌ [useHostBookings] Erreur email voyageur:', emailError);
-              } else {
-                console.log('✅ [useHostBookings] Email avec PDF envoyé au voyageur');
-              }
-
-              // Email à l'hôte avec PDF
-              const { error: hostEmailError } = await supabase.functions.invoke('send-email', {
-                body: {
-                  type: 'booking_confirmed_host',
-                  to: user.email,
-                  data: {
-                    bookingId: bookingData.id,
-                    hostName: hostName,
-                    guestName: guestName,
-                    propertyTitle: bookingData.properties.title,
-                    checkIn: bookingData.check_in_date,
-                    checkOut: bookingData.check_out_date,
-                    guests: bookingData.guests_count,
-                    totalPrice: bookingData.total_price
-                  },
-                  attachments: [{
-                    filename: pdfData.filename || `reservation-${bookingData.id}.pdf`,
-                    content: pdfData.pdf,
-                    type: 'application/pdf'
-                  }]
-                }
-              });
-
-              if (hostEmailError) {
-                console.error('❌ [useHostBookings] Erreur email hôte:', hostEmailError);
-              } else {
-                console.log('✅ [useHostBookings] Email avec PDF envoyé à l\'hôte');
-              }
+            const hostEmailResult = await supabase.functions.invoke('send-email', { body: hostEmailData });
+            if (hostEmailResult.error) {
+              console.error('❌ [useHostBookings] Erreur email hôte:', hostEmailResult.error);
+            } else {
+              console.log('✅ [useHostBookings] Email avec PDF envoyé à l\'hôte');
             }
           } catch (error) {
-            console.error('❌ [useHostBookings] Erreur génération PDF:', error);
-            // L'email sera envoyé sans PDF
+            console.error('❌ [useHostBookings] Erreur envoi emails:', error);
           }
 
           console.log('✅ [useHostBookings] Confirmation envoyée aux voyageurs et hôtes');
@@ -587,14 +541,22 @@ export const useHostBookings = () => {
         }
       }
 
-      // Envoyer les emails de notification
-      try {
-        const { data: guestProfile } = await supabase
-          .from('profiles')
-          .select('email, first_name, last_name')
-          .eq('user_id', booking.guest_id)
-          .single();
+      // Récupérer les profils complets pour les emails
+      const { data: guestProfile } = await supabase
+        .from('profiles')
+        .select('email, first_name, last_name')
+        .eq('user_id', booking.guest_id)
+        .single();
 
+      const { data: hostProfile } = await supabase
+        .from('profiles')
+        .select('email, first_name, last_name')
+        .eq('user_id', user.id)
+        .single();
+
+      // Envoyer les emails explicites aux deux parties
+      try {
+        // Email au voyageur (notification de l'annulation par l'hôte)
         if (guestProfile?.email) {
           await supabase.functions.invoke('send-email', {
             body: {
@@ -605,15 +567,42 @@ export const useHostBookings = () => {
                 propertyTitle: booking.properties.title,
                 checkIn: booking.check_in_date,
                 checkOut: booking.check_out_date,
-                refundAmount: booking.total_price,
+                guests: booking.guests_count,
+                totalPrice: booking.total_price,
+                refundAmount: booking.total_price - penalty,
                 penaltyAmount: penalty,
-                reason: cancellationReason,
+                reason: cancellationReason || 'Annulation par l\'hôte',
+                siteUrl: 'https://akwahome.com'
               }
             }
           });
+          console.log('✅ Email d\'annulation envoyé au voyageur');
+        }
+
+        // Email à l'hôte (confirmation de son annulation)
+        if (hostProfile?.email) {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'booking_cancelled_host',
+              to: hostProfile.email,
+              data: {
+                hostName: `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim(),
+                propertyTitle: booking.properties.title,
+                guestName: `${guestProfile?.first_name || ''} ${guestProfile?.last_name || ''}`.trim(),
+                checkIn: booking.check_in_date,
+                checkOut: booking.check_out_date,
+                guests: booking.guests_count,
+                totalPrice: booking.total_price,
+                penaltyAmount: penalty,
+                reason: cancellationReason || 'Annulation par l\'hôte',
+                siteUrl: 'https://akwahome.com'
+              }
+            }
+          });
+          console.log('✅ Email de confirmation d\'annulation envoyé à l\'hôte');
         }
       } catch (emailError) {
-        console.error('Erreur lors de l\'envoi de l\'email:', emailError);
+        console.error('❌ Erreur lors de l\'envoi des emails:', emailError);
         // Ne pas faire échouer l'annulation si l'email échoue
       }
 

@@ -39,7 +39,7 @@ const VehicleBookingScreen: React.FC = () => {
   const { user } = useAuth();
   const { getVehicleById } = useVehicles();
   const { createBooking, loading } = useVehicleBookings();
-  const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
+  const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
 
   const [vehicle, setVehicle] = useState<any>(null);
@@ -305,11 +305,20 @@ const VehicleBookingScreen: React.FC = () => {
       return;
     }
 
-    if (!isVerified) {
-      Alert.alert(
-        'Identité en cours de vérification',
-        'Votre pièce d\'identité est en cours de vérification. Vous pourrez réserver une fois qu\'elle sera validée par notre équipe.'
-      );
+    // Permettre les réservations si le document est vérifié OU en cours d'examen (pending)
+    // Bloquer seulement si le document a été rejeté (rejected) ou n'existe pas
+    if (!isVerified && verificationStatus !== 'pending') {
+      if (verificationStatus === 'rejected') {
+        Alert.alert(
+          'Identité rejetée',
+          'Votre document d\'identité a été rejeté. Veuillez soumettre un nouveau document valide pour effectuer des réservations.'
+        );
+      } else {
+        Alert.alert(
+          'Identité requise',
+          'Vous devez soumettre un document d\'identité pour effectuer une réservation.'
+        );
+      }
       return;
     }
 

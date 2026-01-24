@@ -456,16 +456,24 @@ export const useProperties = () => {
       if (filters?.checkIn && filters?.checkOut && filteredData.length > 0) {
         console.log(`📅 Filtrage par disponibilité: ${filters.checkIn} - ${filters.checkOut}`);
         
-        // Normaliser les dates au format YYYY-MM-DD
+        // Normaliser les dates au format YYYY-MM-DD (sans décalage de fuseau horaire)
         const normalizeDate = (date: string | Date | null | undefined): string => {
           if (!date) return '';
           if (typeof date === 'string') {
             // Si c'est déjà au format YYYY-MM-DD, le retourner tel quel
             if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
-            // Sinon, essayer de parser
-            return new Date(date).toISOString().split('T')[0];
+            // Sinon, parser la date et utiliser les composants locaux pour éviter le décalage UTC
+            const dateObj = new Date(date);
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
           }
-          return new Date(date).toISOString().split('T')[0];
+          // Si c'est un objet Date, utiliser les composants locaux
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
         };
         
         const normalizedCheckIn = normalizeDate(filters.checkIn);
@@ -477,13 +485,18 @@ export const useProperties = () => {
         
         for (const property of filteredData) {
           try {
-            // Récupérer les réservations qui bloquent les dates (pending, confirmed, completed)
+            // Récupérer les réservations qui bloquent les dates (seulement confirmed pour la recherche)
+            // Les réservations pending ne bloquent pas les dates dans la recherche (comme sur le site web)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            
             const { data: bookings, error: bookingsError } = await supabase
               .from('bookings')
               .select('check_in_date, check_out_date, status')
               .eq('property_id', property.id)
-              .in('status', ['pending', 'confirmed', 'completed'])
-              .gte('check_out_date', new Date().toISOString().split('T')[0]);
+              .eq('status', 'confirmed') // Seulement les réservations confirmées bloquent les dates
+              .gte('check_out_date', todayStr);
             
             if (bookingsError) {
               console.error(`❌ Erreur lors de la vérification des réservations pour ${property.id}:`, bookingsError);

@@ -3,7 +3,6 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
 import { useIdentityVerification } from './useIdentityVerification';
-import { useBookingPDF } from './useBookingPDF';
 
 export interface BookingData {
   propertyId: string;
@@ -86,8 +85,7 @@ export const useBookings = () => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const { sendBookingRequest, sendBookingRequestSent, sendBookingConfirmed, sendBookingConfirmedHost } = useEmailService();
-  const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
-  const { generateAndSendBookingPDF } = useBookingPDF();
+  const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
 
   const createBooking = async (bookingData: BookingData) => {
     if (!user) {
@@ -106,7 +104,9 @@ export const useBookings = () => {
       return { success: false };
     }
 
-    if (!isVerified) {
+    // Permettre les réservations si le document est vérifié OU en cours d'examen (pending)
+    // Bloquer seulement si le document a été rejeté (rejected) ou n'existe pas
+    if (!isVerified && verificationStatus !== 'pending') {
       setError('IDENTITY_NOT_VERIFIED');
       return { success: false };
     }
@@ -130,12 +130,13 @@ export const useBookings = () => {
 
       // Vérification de la disponibilité des dates (uniquement réservations CONFIRMÉES + dates bloquées)
       // Les réservations pending ne bloquent pas les dates (comme sur le site web)
+      // Récupérer toutes les réservations confirmées pour cette propriété
       const { data: existingBookings, error: checkError } = await supabase
         .from('bookings')
-        .select('id, check_in_date, check_out_date')
+        .select('id, check_in_date, check_out_date, status')
         .eq('property_id', bookingData.propertyId)
         .eq('status', 'confirmed')
-        .or(`and(check_in_date.lte.${bookingData.checkInDate},check_out_date.gt.${bookingData.checkInDate}),and(check_in_date.lt.${bookingData.checkOutDate},check_out_date.gte.${bookingData.checkOutDate}),and(check_in_date.gte.${bookingData.checkInDate},check_out_date.lte.${bookingData.checkOutDate})`);
+        .gte('check_out_date', new Date().toISOString().split('T')[0]); // Seulement les réservations futures
 
       if (checkError) {
         console.error('Availability check error:', checkError);
@@ -155,8 +156,35 @@ export const useBookings = () => {
         return { success: false, error: 'Erreur lors de la vérification des dates bloquées' };
       }
 
-      // Vérifier les conflits avec les réservations confirmées
-      if (existingBookings && existingBookings.length > 0) {
+      // Vérifier manuellement les conflits avec les réservations confirmées
+      // Deux réservations se chevauchent si :
+      // - La nouvelle commence avant la fin de l'existante ET finit après le début de l'existante
+      const bookingStart = new Date(bookingData.checkInDate);
+      const bookingEnd = new Date(bookingData.checkOutDate);
+      bookingStart.setHours(0, 0, 0, 0);
+      bookingEnd.setHours(0, 0, 0, 0);
+
+      const hasBookingConflict = existingBookings?.some(booking => {
+        const existingStart = new Date(booking.check_in_date);
+        const existingEnd = new Date(booking.check_out_date);
+        existingStart.setHours(0, 0, 0, 0);
+        existingEnd.setHours(0, 0, 0, 0);
+
+        // Vérifier le chevauchement : la nouvelle commence avant la fin de l'existante 
+        // ET finit après le début de l'existante
+        const overlaps = bookingStart < existingEnd && bookingEnd > existingStart;
+        
+        if (overlaps) {
+          console.log('🔴 Conflit détecté:', {
+            nouvelle: `${bookingData.checkInDate} - ${bookingData.checkOutDate}`,
+            existante: `${booking.check_in_date} - ${booking.check_out_date}`
+          });
+        }
+        
+        return overlaps;
+      });
+
+      if (hasBookingConflict) {
         setError('Ces dates sont déjà réservées');
         return { success: false, error: 'Ces dates sont déjà réservées' };
       }
@@ -336,122 +364,124 @@ export const useBookings = () => {
               payment_plan: bookingData.paymentPlan || ''
             };
 
-            // Générer le PDF et envoyer les emails de confirmation
+            // Envoyer les emails de confirmation avec PDF (générés automatiquement par send-email)
             try {
-              const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-booking-pdf', {
-                body: { bookingData: pdfBookingData }
-              });
+              console.log('📧 [useBookings] Envoi emails de confirmation avec PDF...');
+              
+              // Email au voyageur avec PDF (généré automatiquement)
+              const guestEmailData = {
+                type: 'booking_confirmed',
+                to: user.email || '',
+                data: {
+                  bookingId: booking.id,
+                  guestName: guestName,
+                  propertyTitle: propertyInfo.title,
+                  checkIn: bookingData.checkInDate,
+                  checkOut: bookingData.checkOutDate,
+                  guestsCount: bookingData.guestsCount,
+                  totalPrice: bookingData.totalPrice,
+                  discountApplied: bookingData.discountApplied || false,
+                  discountAmount: bookingData.discountAmount || 0,
+                  property: {
+                    title: propertyInfo.title,
+                    address: propertyInfo.address || '',
+                    city_name: propertyInfo.locations?.name || '',
+                    city_region: propertyInfo.locations?.type === 'region' ? propertyInfo.locations?.name : '',
+                    price_per_night: propertyInfo.price_per_night || 0,
+                    cleaning_fee: propertyInfo.cleaning_fee || 0,
+                    service_fee: propertyInfo.service_fee || 0,
+                    taxes: propertyInfo.taxes || 0,
+                    cancellation_policy: propertyInfo.cancellation_policy || 'flexible',
+                    check_in_time: propertyInfo.check_in_time,
+                    check_out_time: propertyInfo.check_out_time,
+                    house_rules: propertyInfo.house_rules
+                  },
+                  guest: {
+                    first_name: user.user_metadata?.first_name || '',
+                    last_name: user.user_metadata?.last_name || '',
+                    email: user.email || '',
+                    phone: user.user_metadata?.phone || ''
+                  },
+                  host: {
+                    first_name: hostProfile.first_name || '',
+                    last_name: hostProfile.last_name || '',
+                    email: hostProfile.email || '',
+                    phone: hostProfile.phone || ''
+                  },
+                  status: 'confirmed',
+                  message: bookingData.messageToHost || '',
+                  payment_method: bookingData.paymentMethod || '',
+                  payment_plan: bookingData.paymentPlan || ''
+                }
+              };
 
-              if (pdfError) {
-                console.log('⚠️ [useBookings] PDF non généré, envoi email sans pièce jointe');
-                
-                // Email au voyageur sans PDF
-                await sendBookingConfirmed(
-                  user.email || '',
-                  guestName,
-                  propertyInfo.title,
-                  bookingData.checkInDate,
-                  bookingData.checkOutDate,
-                  bookingData.guestsCount,
-                  bookingData.totalPrice,
-                  hostName,
-                  hostProfile.phone || '',
-                  hostProfile.email || '',
-                  propertyInfo.address || '',
-                  bookingData.messageToHost
-                );
-
-                // Email à l'hôte sans PDF
-                await sendBookingConfirmedHost(
-                  hostProfile.email,
-                  hostName,
-                  guestName,
-                  propertyInfo.title,
-                  bookingData.checkInDate,
-                  bookingData.checkOutDate,
-                  bookingData.guestsCount,
-                  bookingData.totalPrice
-                );
-              } else if (pdfData?.success && pdfData?.pdf) {
-                console.log('✅ [useBookings] PDF généré avec succès');
-                
-                // Email au voyageur avec PDF
-                await supabase.functions.invoke('send-email', {
-                  body: {
-                    type: 'booking_confirmed',
-                    to: user.email || '',
-                    data: {
-                      bookingId: booking.id,
-                      guestName: guestName,
-                      propertyTitle: propertyInfo.title,
-                      checkIn: bookingData.checkInDate,
-                      checkOut: bookingData.checkOutDate,
-                      guests: bookingData.guestsCount,
-                      totalPrice: bookingData.totalPrice,
-                      hostName: hostName,
-                      hostPhone: hostProfile.phone || '',
-                      hostEmail: hostProfile.email || '',
-                      propertyAddress: propertyInfo.address || '',
-                      specialMessage: bookingData.messageToHost
-                    },
-                    attachments: [{
-                      filename: pdfData.filename || `reservation-${booking.id}.pdf`,
-                      content: pdfData.pdf,
-                      type: 'application/pdf'
-                    }]
-                  }
-                });
-
-                // Email à l'hôte avec PDF
-                await supabase.functions.invoke('send-email', {
-                  body: {
-                    type: 'booking_confirmed_host',
-                    to: hostProfile.email,
-                    data: {
-                      bookingId: booking.id,
-                      hostName: hostName,
-                      guestName: guestName,
-                      propertyTitle: propertyInfo.title,
-                      checkIn: bookingData.checkInDate,
-                      checkOut: bookingData.checkOutDate,
-                      guests: bookingData.guestsCount,
-                      totalPrice: bookingData.totalPrice
-                    },
-                    attachments: [{
-                      filename: pdfData.filename || `reservation-${booking.id}.pdf`,
-                      content: pdfData.pdf,
-                      type: 'application/pdf'
-                    }]
-                  }
-                });
+              const guestEmailResult = await supabase.functions.invoke('send-email', { body: guestEmailData });
+              if (guestEmailResult.error) {
+                console.error('❌ [useBookings] Erreur email voyageur:', guestEmailResult.error);
+              } else {
+                console.log('✅ [useBookings] Email avec PDF envoyé au voyageur');
               }
-            } catch (pdfEmailError) {
-              console.error('❌ [useBookings] Erreur génération PDF/email:', pdfEmailError);
-              // Envoyer les emails sans PDF en cas d'erreur
-              await sendBookingConfirmed(
-                user.email || '',
-                guestName,
-                propertyInfo.title,
-                bookingData.checkInDate,
-                bookingData.checkOutDate,
-                bookingData.guestsCount,
-                bookingData.totalPrice,
-                hostName,
-                hostProfile.phone || '',
-                hostProfile.email || '',
-                propertyInfo.address || '',
-                bookingData.messageToHost
-              );
-              await sendBookingConfirmedHost(
-                hostProfile.email,
-                hostName,
-                guestName,
-                propertyInfo.title,
-                bookingData.checkInDate,
-                bookingData.checkOutDate,
-                bookingData.guestsCount,
-                bookingData.totalPrice
-              );
+
+              // Délai pour éviter le rate limit
+              await new Promise(resolve => setTimeout(resolve, 600));
+
+              // Email à l'hôte avec PDF (généré automatiquement)
+              const hostEmailData = {
+                type: 'booking_confirmed_host',
+                to: hostProfile.email,
+                data: {
+                  bookingId: booking.id,
+                  hostName: hostName,
+                  guestName: guestName,
+                  propertyTitle: propertyInfo.title,
+                  checkIn: bookingData.checkInDate,
+                  checkOut: bookingData.checkOutDate,
+                  guestsCount: bookingData.guestsCount,
+                  totalPrice: bookingData.totalPrice,
+                  discountApplied: bookingData.discountApplied || false,
+                  discountAmount: bookingData.discountAmount || 0,
+                  property: {
+                    title: propertyInfo.title,
+                    address: propertyInfo.address || '',
+                    city_name: propertyInfo.locations?.name || '',
+                    city_region: propertyInfo.locations?.type === 'region' ? propertyInfo.locations?.name : '',
+                    price_per_night: propertyInfo.price_per_night || 0,
+                    cleaning_fee: propertyInfo.cleaning_fee || 0,
+                    service_fee: propertyInfo.service_fee || 0,
+                    taxes: propertyInfo.taxes || 0,
+                    cancellation_policy: propertyInfo.cancellation_policy || 'flexible',
+                    check_in_time: propertyInfo.check_in_time,
+                    check_out_time: propertyInfo.check_out_time,
+                    house_rules: propertyInfo.house_rules
+                  },
+                  guest: {
+                    first_name: user.user_metadata?.first_name || '',
+                    last_name: user.user_metadata?.last_name || '',
+                    email: user.email || '',
+                    phone: user.user_metadata?.phone || ''
+                  },
+                  host: {
+                    first_name: hostProfile.first_name || '',
+                    last_name: hostProfile.last_name || '',
+                    email: hostProfile.email || '',
+                    phone: hostProfile.phone || ''
+                  },
+                  status: 'confirmed',
+                  message: bookingData.messageToHost || '',
+                  payment_method: bookingData.paymentMethod || '',
+                  payment_plan: bookingData.paymentPlan || ''
+                }
+              };
+
+              const hostEmailResult = await supabase.functions.invoke('send-email', { body: hostEmailData });
+              if (hostEmailResult.error) {
+                console.error('❌ [useBookings] Erreur email hôte:', hostEmailResult.error);
+              } else {
+                console.log('✅ [useBookings] Email avec PDF envoyé à l\'hôte');
+              }
+            } catch (emailError) {
+              console.error('❌ [useBookings] Erreur envoi emails:', emailError);
+              // Ne pas faire échouer la réservation si l'email échoue
             }
           } else {
             // Réservation en attente - envoyer les emails de demande
@@ -605,11 +635,6 @@ export const useBookings = () => {
       }
 
       // Vérifier si la réservation peut être annulée
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const checkOutDate = new Date(booking.check_out_date);
-      checkOutDate.setHours(0, 0, 0, 0);
-
       if (booking.status === 'completed') {
         setError('Impossible d\'annuler une réservation terminée');
         return { success: false, error: 'Impossible d\'annuler une réservation terminée' };
@@ -620,16 +645,78 @@ export const useBookings = () => {
         return { success: false, error: 'Cette réservation est déjà annulée' };
       }
 
+      // Récupérer les détails complets de la réservation pour les emails et les vérifications
+      const { data: fullBooking, error: fetchFullError } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          properties!inner(
+            id,
+            title,
+            price_per_night,
+            host_id,
+            cancellation_policy
+          ),
+          profiles!bookings_guest_id_fkey(
+            first_name,
+            last_name,
+            email
+          )
+        `)
+        .eq('id', bookingId)
+        .eq('guest_id', user.id)
+        .single();
+
+      if (fetchFullError) {
+        console.error('Error fetching full booking:', fetchFullError);
+        setError('Erreur lors de la récupération de la réservation');
+        return { success: false };
+      }
+
+      // Vérifier que les dates ne sont pas passées
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const checkOutDate = new Date(fullBooking.check_out_date);
+      checkOutDate.setHours(0, 0, 0, 0);
+
       if (checkOutDate < today) {
         setError('Impossible d\'annuler une réservation dont les dates sont passées');
         return { success: false, error: 'Impossible d\'annuler une réservation dont les dates sont passées' };
       }
 
+      // Calculer les informations d'annulation
+      const checkInDate = new Date(fullBooking.check_in_date);
+      const now = new Date();
+      const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const totalNights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      let penaltyAmount = 0;
+      const cancellationPolicy = fullBooking.properties.cancellation_policy || 'flexible';
+      
+      if (cancellationPolicy === 'strict') {
+        if (daysUntilCheckIn < 7) {
+          penaltyAmount = Math.round(fullBooking.properties.price_per_night * totalNights * 0.5);
+        }
+      } else if (cancellationPolicy === 'moderate') {
+        if (daysUntilCheckIn < 5) {
+          penaltyAmount = Math.round(fullBooking.properties.price_per_night * totalNights * 0.5);
+        } else if (daysUntilCheckIn < 14) {
+          penaltyAmount = Math.round(fullBooking.properties.price_per_night * totalNights * 0.25);
+        }
+      }
+      // 'flexible' = pas de pénalité
+
+      const refundAmount = fullBooking.total_price - penaltyAmount;
+
       // Procéder à l'annulation
       const { error } = await supabase
         .from('bookings')
         .update({ 
-          status: 'cancelled'
+          status: 'cancelled',
+          cancelled_by: user.id,
+          cancelled_at: new Date().toISOString(),
+          cancellation_reason: 'Annulation par le voyageur',
+          cancellation_penalty: penaltyAmount
         })
         .eq('id', bookingId)
         .eq('guest_id', user.id);
@@ -638,6 +725,65 @@ export const useBookings = () => {
         console.error('Error cancelling booking:', error);
         setError('Erreur lors de l\'annulation de la réservation');
         return { success: false };
+      }
+
+      // Envoyer les emails explicites aux deux parties
+      try {
+        // Récupérer le profil de l'hôte
+        const { data: hostProfile } = await supabase
+          .from('profiles')
+          .select('email, first_name, last_name')
+          .eq('user_id', fullBooking.properties.host_id)
+          .single();
+
+        // Email au voyageur (confirmation de son annulation)
+        if (fullBooking.profiles?.email) {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'booking_cancelled_guest',
+              to: fullBooking.profiles.email,
+              data: {
+                guestName: `${fullBooking.profiles.first_name || ''} ${fullBooking.profiles.last_name || ''}`.trim(),
+                propertyTitle: fullBooking.properties.title,
+                checkIn: fullBooking.check_in_date,
+                checkOut: fullBooking.check_out_date,
+                guests: fullBooking.guests_count,
+                totalPrice: fullBooking.total_price,
+                refundAmount: refundAmount,
+                penaltyAmount: penaltyAmount,
+                reason: 'Annulation par le voyageur',
+                siteUrl: 'https://akwahome.com'
+              }
+            }
+          });
+          console.log('✅ Email d\'annulation envoyé au voyageur');
+        }
+
+        // Email à l'hôte (notification de l'annulation)
+        if (hostProfile?.email) {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'booking_cancelled_host',
+              to: hostProfile.email,
+              data: {
+                hostName: `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim(),
+                propertyTitle: fullBooking.properties.title,
+                guestName: `${fullBooking.profiles.first_name || ''} ${fullBooking.profiles.last_name || ''}`.trim(),
+                checkIn: fullBooking.check_in_date,
+                checkOut: fullBooking.check_out_date,
+                guests: fullBooking.guests_count,
+                totalPrice: fullBooking.total_price,
+                penaltyAmount: penaltyAmount,
+                reason: 'Annulation par le voyageur',
+                siteUrl: 'https://akwahome.com'
+              }
+            }
+          });
+          console.log('✅ Email d\'annulation envoyé à l\'hôte');
+        }
+      } catch (emailError) {
+        console.error('❌ Erreur envoi emails annulation:', emailError);
+        // Ne pas faire échouer l'annulation si l'email échoue
       }
 
       return { success: true };

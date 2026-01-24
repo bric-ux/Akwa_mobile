@@ -209,9 +209,72 @@ export const useIdentityVerification = () => {
 
       console.log('✅ Document d\'identité uploadé avec succès');
       
-      // Note: Les notifications admin sont gérées automatiquement via la base de données
-      // Les admins peuvent voir les nouveaux documents dans leur tableau de bord
-      // via la table identity_documents avec verified = null
+      // Envoyer les emails de notification
+      try {
+        // Récupérer les informations de l'utilisateur
+        const { data: userProfile, error: profileError } = await supabase
+          .from('profiles')
+          .select('first_name, last_name, email')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!profileError && userProfile?.email) {
+          // Email de confirmation à l'utilisateur
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'identity_document_submitted',
+              to: userProfile.email,
+              data: {
+                firstName: userProfile.first_name || 'Utilisateur',
+                lastName: userProfile.last_name || '',
+                documentType: documentType,
+                siteUrl: 'https://akwahome.com'
+              }
+            }
+          });
+          console.log('✅ Email de confirmation envoyé à l\'utilisateur');
+        }
+
+        // Email de notification aux administrateurs
+        const { data: adminUsers, error: adminError } = await supabase
+          .from('profiles')
+          .select('email, first_name')
+          .eq('role', 'admin')
+          .not('email', 'is', null);
+
+        if (!adminError && adminUsers && adminUsers.length > 0) {
+          console.log(`📧 Envoi notification à ${adminUsers.length} admin(s)...`);
+          
+          for (const admin of adminUsers) {
+            try {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'identity_document_received',
+                  to: admin.email,
+                  data: {
+                    adminName: admin.first_name || 'Administrateur',
+                    userName: userProfile?.first_name && userProfile?.last_name 
+                      ? `${userProfile.first_name} ${userProfile.last_name}` 
+                      : userProfile?.first_name || 'Utilisateur',
+                    userEmail: userProfile?.email || '',
+                    documentType: documentType,
+                    siteUrl: 'https://akwahome.com'
+                  }
+                }
+              });
+              console.log(`✅ Email envoyé à l'admin: ${admin.email}`);
+              
+              // Délai pour éviter le rate limit
+              await new Promise(resolve => setTimeout(resolve, 300));
+            } catch (emailError) {
+              console.error(`❌ Erreur envoi email admin ${admin.email}:`, emailError);
+            }
+          }
+        }
+      } catch (emailError) {
+        console.error('❌ Erreur lors de l\'envoi des emails:', emailError);
+        // Ne pas faire échouer l'upload si l'email échoue
+      }
       
       // Recharger le statut
       await checkIdentityStatus(true);

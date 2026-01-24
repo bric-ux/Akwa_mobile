@@ -52,7 +52,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const { t } = useLanguage();
   const { createBooking, loading } = useBookings();
   const { sendBookingRequestSent, sendBookingRequest } = useEmailService();
-  const { hasUploadedIdentity, isVerified, loading: identityLoading } = useIdentityVerification();
+  const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
   const { dates: contextDates, setDates: saveSearchDates } = useSearchDatesContext();
   
   const [checkIn, setCheckIn] = useState<Date | null>(null);
@@ -697,12 +697,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
             </Text>
           </View>
 
-          {/* Vérification d'identité */}
-          {!isVerified && (
+          {/* Vérification d'identité - Afficher seulement si pas de document OU document rejeté */}
+          {!hasUploadedIdentity || (!isVerified && verificationStatus === 'rejected') ? (
             <View style={styles.identitySection}>
               <BookingIdentityAlert />
             </View>
-          )}
+          ) : null}
 
           {/* Sélection des dates */}
           <View style={styles.section}>
@@ -1301,28 +1301,30 @@ const BookingModal: React.FC<BookingModalProps> = ({
           <TouchableOpacity
             style={[
               styles.bookButton, 
-              (loading || identityLoading || !isVerified) && styles.bookButtonDisabled
+              (loading || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')) && styles.bookButtonDisabled
             ]}
             onPress={handleSubmit}
-            disabled={loading || identityLoading || !isVerified}
+            disabled={loading || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')}
           >
             {loading || identityLoading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={styles.bookButtonText}>
-                {!isVerified 
+                {!hasUploadedIdentity
                   ? t('booking.identityRequired')
-                  : selectedPaymentMethod === 'cash'
-                    ? t('booking.confirmBooking')
-                    : selectedPaymentMethod === 'paypal'
-                      ? property.auto_booking 
-                        ? t('booking.payWithPaypalAndBook')
-                        : t('booking.payWithPaypal')
-                      : paymentPlan === 'split'
-                        ? `${t('booking.pay')} ${formatPrice(finalTotal * 0.5)} ${t('common.now')}`
-                        : property.auto_booking 
-                          ? t('booking.payAndBook')
-                          : t('booking.sendRequest')
+                  : hasUploadedIdentity && !isVerified && verificationStatus === 'rejected'
+                    ? 'Identité rejetée'
+                    : selectedPaymentMethod === 'cash'
+                      ? t('booking.confirmBooking')
+                      : selectedPaymentMethod === 'paypal'
+                        ? property.auto_booking 
+                          ? t('booking.payWithPaypalAndBook')
+                          : t('booking.payWithPaypal')
+                        : paymentPlan === 'split'
+                          ? `${t('booking.pay')} ${formatPrice(finalTotal * 0.5)} ${t('common.now')}`
+                          : property.auto_booking 
+                            ? t('booking.payAndBook')
+                            : t('booking.sendRequest')
                 }
               </Text>
             )}

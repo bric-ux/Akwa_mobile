@@ -26,6 +26,8 @@ import GuestReviewModal from '../components/GuestReviewModal';
 import GuestProfileModal from '../components/GuestProfileModal';
 import HostBookingDetailsModal from '../components/HostBookingDetailsModal';
 import { useGuestReviews } from '../hooks/useGuestReviews';
+import { useBookingModifications, BookingModificationRequest } from '../hooks/useBookingModifications';
+import HostModificationRequestCard from '../components/HostModificationRequestCard';
 
 const HostBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -50,6 +52,8 @@ const HostBookingsScreen: React.FC = () => {
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
   const [bookingDetailsModalVisible, setBookingDetailsModalVisible] = useState(false);
   const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<HostBooking | null>(null);
+  const { getPendingRequestsForHost } = useBookingModifications();
+  const [modificationRequests, setModificationRequests] = useState<BookingModificationRequest[]>([]);
 
   const loadData = async () => {
     try {
@@ -74,6 +78,13 @@ const HostBookingsScreen: React.FC = () => {
         }
       }
       setCanReview(reviewChecks);
+      
+      // Charger les demandes de modification en attente
+      if (user) {
+        const requests = await getPendingRequestsForHost(user.id);
+        setModificationRequests(requests);
+        console.log('📝 [HostBookingsScreen] Demandes de modification chargées:', requests.length);
+      }
       
       console.log('✅ [HostBookingsScreen] Chargement terminé avec succès');
     } catch (err: any) {
@@ -405,6 +416,29 @@ const HostBookingsScreen: React.FC = () => {
           <Text style={styles.messageText}>{item.message_to_host}</Text>
         </View>
       )}
+
+      {/* Afficher la demande de modification en attente directement sur la réservation */}
+      {(() => {
+        const pendingRequest = modificationRequests.find(req => req.booking_id === item.id);
+        if (pendingRequest) {
+          const guestName = item.guest_profile
+            ? `${item.guest_profile.first_name} ${item.guest_profile.last_name}`.trim()
+            : 'Voyageur';
+          const propertyTitle = item.properties?.title || 'Propriété';
+          
+          return (
+            <View style={styles.modificationRequestOnBooking}>
+              <HostModificationRequestCard
+                request={pendingRequest}
+                guestName={guestName}
+                propertyTitle={propertyTitle}
+                onUpdated={loadData}
+              />
+            </View>
+          );
+        }
+        return null;
+      })()}
 
       {/* Boutons d'action */}
       <View style={styles.actionButtonsContainer}>
@@ -1382,6 +1416,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modificationRequestOnBooking: {
+    marginTop: 12,
+    marginBottom: 8,
   },
 });
 
