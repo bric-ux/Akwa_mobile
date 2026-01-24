@@ -22,14 +22,18 @@ import VehicleCancellationModal from '../components/VehicleCancellationModal';
 import VehicleModificationModal from '../components/VehicleModificationModal';
 import VehicleReviewModal from '../components/VehicleReviewModal';
 import { useVehicleReviews } from '../hooks/useVehicleReviews';
+import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 
 const MyVehicleBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { getMyBookings, loading } = useVehicleBookings();
   const { canReviewVehicle } = useVehicleReviews();
+  const { getBookingPendingRequest, cancelModificationRequest } = useVehicleBookingModifications();
+  const [cancellingRequests, setCancellingRequests] = useState<{ [key: string]: boolean }>({});
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<{ [key: string]: any }>({});
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
   const [cancellationModalVisible, setCancellationModalVisible] = useState(false);
   const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<VehicleBooking | null>(null);
@@ -61,6 +65,22 @@ const MyVehicleBookingsScreen: React.FC = () => {
     try {
       const userBookings = await getMyBookings();
       setBookings(userBookings);
+      
+      // Charger les demandes de modification en attente pour chaque réservation
+      const requestsMap: { [key: string]: any } = {};
+      for (const booking of userBookings) {
+        if (booking.id) {
+          try {
+            const request = await getBookingPendingRequest(booking.id);
+            if (request) {
+              requestsMap[booking.id] = request;
+            }
+          } catch (err) {
+            console.error('Erreur chargement demande modification:', err);
+          }
+        }
+      }
+      setPendingRequests(requestsMap);
       
       // Vérifier pour chaque réservation terminée si l'utilisateur peut noter le véhicule
       const canReviewMap: { [key: string]: boolean } = {};
@@ -144,6 +164,21 @@ const MyVehicleBookingsScreen: React.FC = () => {
     return status === selectedFilter;
   });
 
+  const canModifyBooking = (booking: VehicleBooking) => {
+    // Ne peut pas modifier si annulée ou terminée
+    if (booking.status === 'cancelled' || booking.status === 'completed') return false;
+    
+    // Ne peut pas modifier si la date de fin est passée
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(booking.end_date);
+    endDate.setHours(0, 0, 0, 0);
+    if (endDate < today) return false;
+    
+    // Peut modifier si pending, confirmed ou in_progress et que la date de fin n'est pas passée
+    return booking.status === 'pending' || booking.status === 'confirmed' || booking.status === 'in_progress';
+  };
+
   const renderBookingItem = ({ item: booking }: { item: VehicleBooking }) => {
     const status = getBookingStatus(booking);
     const statusColor = getStatusColor(status);
@@ -205,6 +240,62 @@ const MyVehicleBookingsScreen: React.FC = () => {
           )}
         </View>
 
+        {/* Afficher la demande de modification en cours */}
+        {pendingRequests[booking.id] && (
+          <View style={styles.modificationRequestBanner}>
+            <Ionicons name="time-outline" size={18} color="#f39c12" />
+            <View style={styles.modificationRequestContent}>
+              <Text style={styles.modificationRequestTitle}>Demande de modification en cours</Text>
+              <Text style={styles.modificationRequestDates}>
+                Nouvelles dates proposées: {formatDate(pendingRequests[booking.id].requested_start_date)} - {formatDate(pendingRequests[booking.id].requested_end_date)}
+              </Text>
+              {pendingRequests[booking.id].requested_rental_days !== booking.rental_days && (
+                <Text style={styles.modificationRequestInfo}>
+                  Durée: {pendingRequests[booking.id].requested_rental_days} jour{pendingRequests[booking.id].requested_rental_days > 1 ? 's' : ''}
+                </Text>
+              )}
+              {pendingRequests[booking.id].requested_total_price !== booking.total_price && (
+                <Text style={styles.modificationRequestInfo}>
+                  Nouveau prix: {formatPrice(pendingRequests[booking.id].requested_total_price)}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={styles.cancelModificationButton}
+                onPress={async () => {
+                  const requestId = pendingRequests[booking.id].id;
+                  if (cancellingRequests[requestId]) return;
+                  Alert.alert(
+                    'Annuler la demande',
+                    'Êtes-vous sûr de vouloir annuler cette demande de modification ?',
+                    [
+                      { text: 'Non', style: 'cancel' },
+                      {
+                        text: 'Oui',
+                        style: 'destructive',
+                        onPress: async () => {
+                          setCancellingRequests(prev => ({ ...prev, [requestId]: true }));
+                          const result = await cancelModificationRequest(requestId);
+                          if (result.success) {
+                            // Recharger les réservations pour mettre à jour l'affichage
+                            await loadBookings();
+                          }
+                          setCancellingRequests(prev => ({ ...prev, [requestId]: false }));
+                        },
+                      },
+                    ]
+                  );
+                }}
+                disabled={cancellingRequests[pendingRequests[booking.id].id]}
+              >
+                <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
+                <Text style={styles.cancelModificationButtonText}>
+                  {cancellingRequests[pendingRequests[booking.id].id] ? 'Annulation...' : 'Annuler la demande'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={styles.actionButton}
@@ -244,8 +335,8 @@ const MyVehicleBookingsScreen: React.FC = () => {
           </TouchableOpacity>
         )}
 
-        {/* Bouton Modifier pour les réservations en attente, confirmées ou en cours */}
-        {(status === 'pending' || status === 'confirmed' || status === 'in_progress') && (
+        {/* Bouton Modifier pour les réservations modifiables */}
+        {canModifyBooking(booking) && (
           <TouchableOpacity
             style={styles.modifyButton}
             onPress={() => {
@@ -695,6 +786,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fbbf24',
+  },
+  modificationRequestBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fef3c7',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f39c12',
+    gap: 10,
+  },
+  modificationRequestContent: {
+    flex: 1,
+  },
+  modificationRequestTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  modificationRequestDates: {
+    fontSize: 12,
+    color: '#78350f',
+    marginBottom: 2,
+  },
+  modificationRequestInfo: {
+    fontSize: 12,
+    color: '#78350f',
+    marginTop: 2,
+  },
+  cancelModificationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fee2e2',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    gap: 6,
+  },
+  cancelModificationButtonText: {
+    fontSize: 12,
+    color: '#ef4444',
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,

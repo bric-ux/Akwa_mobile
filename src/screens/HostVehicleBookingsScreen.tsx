@@ -28,6 +28,9 @@ import VehicleCancellationModal from '../components/VehicleCancellationModal';
 import GuestProfileModal from '../components/GuestProfileModal';
 import VehicleRenterReviewModal from '../components/VehicleRenterReviewModal';
 import { useVehicleRenterReviews } from '../hooks/useVehicleRenterReviews';
+import HostVehicleModificationRequestCard from '../components/HostVehicleModificationRequestCard';
+import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
+import { useAuth } from '../services/AuthContext';
 
 type HostVehicleBookingsRouteParams = {
   vehicleId?: string;
@@ -41,9 +44,12 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const { getVehicleBookings, getAllOwnerBookings, updateBookingStatus, loading } = useVehicleBookings();
   const { getMyVehicles } = useVehicles();
   const { canReviewBooking } = useVehicleRenterReviews();
+  const { user } = useAuth();
+  const { getPendingRequestsForOwner } = useVehicleBookingModifications();
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [modificationRequests, setModificationRequests] = useState<any[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'in_progress'>('all');
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(vehicleId || null);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
@@ -77,6 +83,12 @@ const HostVehicleBookingsScreen: React.FC = () => {
         data = await getAllOwnerBookings();
       }
       setBookings(data);
+      
+      // Charger les demandes de modification en attente
+      if (user?.id) {
+        const requests = await getPendingRequestsForOwner(user.id);
+        setModificationRequests(requests);
+      }
       
       // Vérifier pour chaque réservation terminée si le propriétaire peut noter le locataire
       const canReviewMap: { [key: string]: boolean } = {};
@@ -200,9 +212,12 @@ const HostVehicleBookingsScreen: React.FC = () => {
     
     // Prix de base = daily_rate × rental_days
     const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
+    // Appliquer la réduction si elle existe
+    const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
     const commissionRates = getCommissionRates('vehicle');
-    const ownerCommission = commissionRates.hostFeePercent / 100; // 2%
-    return Math.round(basePrice * (1 - ownerCommission));
+    // Commission de 2% sur le prix APRÈS réduction
+    const ownerCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+    return priceAfterDiscount - ownerCommission;
   };
 
   const filteredBookings = bookings.filter(booking => {
@@ -360,6 +375,31 @@ const HostVehicleBookingsScreen: React.FC = () => {
             <Text style={styles.messageText}>{item.message_to_owner}</Text>
           </View>
         )}
+
+        {/* Afficher la demande de modification en attente directement sur la réservation */}
+        {(() => {
+          const pendingRequest = modificationRequests.find(req => req.booking_id === item.id);
+          if (pendingRequest) {
+            const renterName = item.renter
+              ? `${item.renter.first_name || ''} ${item.renter.last_name || ''}`.trim()
+              : 'Locataire';
+            const vehicleTitle = item.vehicle
+              ? `${item.vehicle.brand || ''} ${item.vehicle.model || ''}`.trim()
+              : 'Véhicule';
+            
+            return (
+              <View style={styles.modificationRequestOnBooking}>
+                <HostVehicleModificationRequestCard
+                  request={pendingRequest}
+                  renterName={renterName}
+                  vehicleTitle={vehicleTitle}
+                  onUpdated={loadBookings}
+                />
+              </View>
+            );
+          }
+          return null;
+        })()}
 
         {/* Action buttons */}
         <View style={styles.actionButtonsRow}>
@@ -1072,6 +1112,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#fff',
     fontWeight: '600',
+  },
+  modificationRequestOnBooking: {
+    marginTop: 12,
+    marginBottom: 12,
   },
   vehicleCardYear: {
     fontSize: 14,

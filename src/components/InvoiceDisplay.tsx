@@ -114,21 +114,12 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const basePrice = pricePerUnit * nights;
   const discountAmount = booking.discount_amount || 0;
   
-  let priceAfterDiscount = basePrice - discountAmount;
+  // Prix après réduction (sans ajustement)
+  const priceAfterDiscount = basePrice - discountAmount;
   
-  // Vérifier la cohérence avec le total_price
-  if (booking.total_price) {
-    const calculatedServiceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
-    const calculatedTotal = priceAfterDiscount + calculatedServiceFee + cleaningFee + (providedTaxes || booking.properties?.taxes || 0);
-    
-    if (Math.abs(calculatedTotal - booking.total_price) > 100) {
-      const taxes = providedTaxes || booking.properties?.taxes || 0;
-      priceAfterDiscount = Math.round((booking.total_price - cleaningFee - taxes) / (1 + commissionRates.travelerFeePercent / 100));
-    }
-  }
-  
+  // Calculer les frais de service sur le prix APRÈS réduction
   const effectiveServiceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
-  const actualDiscountAmount = basePrice - priceAfterDiscount;
+  const actualDiscountAmount = discountAmount;
   const effectiveTaxes = providedTaxes !== undefined 
     ? providedTaxes 
     : (booking.properties?.taxes || 0);

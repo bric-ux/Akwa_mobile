@@ -35,9 +35,10 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const navigation = useNavigation();
   const { user } = useAuth();
   const { createOrGetConversation } = useMessaging();
-  const { getBookingPendingRequest } = useBookingModifications();
+  const { getBookingPendingRequest, cancelModificationRequest } = useBookingModifications();
   const [pendingRequest, setPendingRequest] = useState<any>(null);
   const [loadingRequest, setLoadingRequest] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     const checkPendingRequest = async () => {
@@ -249,6 +250,37 @@ const BookingCard: React.FC<BookingCardProps> = ({
             <Text style={styles.modificationRequestDates}>
               Nouvelles dates proposées: {formatDate(pendingRequest.requested_check_in)} - {formatDate(pendingRequest.requested_check_out)}
             </Text>
+            <TouchableOpacity
+              style={styles.cancelModificationButton}
+              onPress={async () => {
+                if (cancelling) return;
+                Alert.alert(
+                  'Annuler la demande',
+                  'Êtes-vous sûr de vouloir annuler cette demande de modification ?',
+                  [
+                    { text: 'Non', style: 'cancel' },
+                    {
+                      text: 'Oui',
+                      style: 'destructive',
+                      onPress: async () => {
+                        setCancelling(true);
+                        const result = await cancelModificationRequest(pendingRequest.id);
+                        if (result.success) {
+                          setPendingRequest(null);
+                        }
+                        setCancelling(false);
+                      },
+                    },
+                  ]
+                );
+              }}
+              disabled={cancelling}
+            >
+              <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
+              <Text style={styles.cancelModificationButtonText}>
+                {cancelling ? 'Annulation...' : 'Annuler la demande'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -582,6 +614,23 @@ const styles = StyleSheet.create({
   modificationRequestDates: {
     fontSize: 12,
     color: '#856404',
+  },
+  cancelModificationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fee2e2',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    gap: 6,
+  },
+  cancelModificationButtonText: {
+    fontSize: 12,
+    color: '#ef4444',
+    fontWeight: '600',
   },
 });
 

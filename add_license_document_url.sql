@@ -10,3 +10,4 @@ COMMENT ON COLUMN vehicle_bookings.license_document_url IS 'URL du document du p
 
 
 
+

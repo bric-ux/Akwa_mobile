@@ -631,6 +631,15 @@ export const useBookingModifications = () => {
 
       // Envoyer les emails de notification
       try {
+        console.log('📧 [cancelModificationRequest] Données récupérées:', {
+          requestId,
+          bookingId: request.booking_id,
+          guestId: request.guest_id,
+          hasBookingData: !!bookingData,
+          hasProperties: !!bookingData?.properties,
+          hostId: bookingData?.properties?.host_id,
+        });
+
         // Récupérer les profils de l'hôte et du voyageur directement
         const [hostResult, guestResult] = await Promise.all([
           bookingData?.properties?.host_id
@@ -649,29 +658,84 @@ export const useBookingModifications = () => {
             : Promise.resolve({ data: null, error: null })
         ]);
 
+        if (hostResult.error) {
+          console.error('❌ [cancelModificationRequest] Erreur récupération profil hôte:', hostResult.error);
+        }
+        if (guestResult.error) {
+          console.error('❌ [cancelModificationRequest] Erreur récupération profil voyageur:', guestResult.error);
+        }
+
         const hostData = hostResult.data;
         const guestData = guestResult.data;
 
+        console.log('📧 [cancelModificationRequest] Profils récupérés:', {
+          hostData: hostData ? { email: hostData.email, name: `${hostData.first_name} ${hostData.last_name}` } : null,
+          guestData: guestData ? { email: guestData.email, name: `${guestData.first_name} ${guestData.last_name}` } : null,
+        });
+
         // Email à l'hôte pour l'informer de l'annulation
-        if (hostData?.email) {
-          await supabase.functions.invoke('send-email', {
-            body: {
+        // Essayer d'abord avec hostData, sinon essayer de récupérer directement depuis request.host_id
+        let hostEmail = hostData?.email;
+        let hostName = hostData ? `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim() : 'Cher hôte';
+        
+        if (!hostEmail && request.host_id) {
+          console.log('📧 [cancelModificationRequest] Tentative récupération email hôte depuis request.host_id:', request.host_id);
+          const { data: hostDataFromRequest } = await supabase
+            .from('profiles')
+            .select('email, first_name, last_name')
+            .eq('user_id', request.host_id)
+            .single();
+          
+          if (hostDataFromRequest?.email) {
+            hostEmail = hostDataFromRequest.email;
+            hostName = `${hostDataFromRequest.first_name || ''} ${hostDataFromRequest.last_name || ''}`.trim() || 'Cher hôte';
+            console.log('✅ [cancelModificationRequest] Email hôte récupéré depuis request.host_id:', hostEmail);
+          }
+        }
+        
+        if (hostEmail) {
+          try {
+            console.log('📧 [cancelModificationRequest] Envoi email à l\'hôte:', {
+              to: hostEmail,
               type: 'booking_modification_cancelled',
-              to: hostData.email,
-              data: {
-                hostName: `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim(),
-                guestName: `${guestData?.first_name || ''} ${guestData?.last_name || ''}`.trim() || 'Voyageur',
-                propertyTitle: bookingData?.properties?.title || 'Propriété',
-                requestedCheckIn: request.requested_check_in,
-                requestedCheckOut: request.requested_check_out,
-                requestedGuests: request.requested_guests_count,
-                requestedPrice: request.requested_total_price,
+              hostName: hostName,
+              guestName: `${guestData?.first_name || ''} ${guestData?.last_name || ''}`.trim() || 'Voyageur',
+              propertyTitle: bookingData?.properties?.title || 'Propriété',
+            });
+            
+            const emailResponse = await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'booking_modification_cancelled',
+                to: hostEmail,
+                data: {
+                  hostName: hostName,
+                  guestName: `${guestData?.first_name || ''} ${guestData?.last_name || ''}`.trim() || 'Voyageur',
+                  propertyTitle: bookingData?.properties?.title || request.property_title || 'Propriété',
+                  requestedCheckIn: request.requested_check_in,
+                  requestedCheckOut: request.requested_check_out,
+                  requestedGuests: request.requested_guests_count,
+                  requestedPrice: request.requested_total_price,
+                }
               }
+            });
+            
+            if (emailResponse.error) {
+              console.error('❌ [cancelModificationRequest] Erreur envoi email à l\'hôte:', emailResponse.error);
+              console.error('❌ [cancelModificationRequest] Détails erreur:', JSON.stringify(emailResponse.error, null, 2));
+            } else {
+              console.log('✅ [cancelModificationRequest] Email d\'annulation de demande envoyé à l\'hôte:', hostEmail);
+              console.log('✅ [cancelModificationRequest] Réponse email:', emailResponse.data);
             }
-          });
-          console.log('✅ Email d\'annulation de demande envoyé à l\'hôte:', hostData.email);
+          } catch (hostEmailError: any) {
+            console.error('❌ [cancelModificationRequest] Erreur lors de l\'envoi de l\'email à l\'hôte:', hostEmailError);
+            console.error('❌ [cancelModificationRequest] Stack:', hostEmailError.stack);
+          }
         } else {
-          console.warn('⚠️ Pas d\'email hôte trouvé pour host_id:', bookingData?.properties?.host_id);
+          console.warn('⚠️ [cancelModificationRequest] Pas d\'email hôte trouvé');
+          console.warn('⚠️ [cancelModificationRequest] host_id depuis bookingData:', bookingData?.properties?.host_id);
+          console.warn('⚠️ [cancelModificationRequest] host_id depuis request:', request.host_id);
+          console.warn('⚠️ [cancelModificationRequest] hostResult:', hostResult);
+          console.warn('⚠️ [cancelModificationRequest] bookingData?.properties:', bookingData?.properties);
         }
 
         // Email au voyageur (confirmation de l'annulation)
@@ -685,6 +749,8 @@ export const useBookingModifications = () => {
                 propertyTitle: bookingData?.properties?.title || 'Propriété',
                 requestedCheckIn: request.requested_check_in,
                 requestedCheckOut: request.requested_check_out,
+                requestedGuests: request.requested_guests_count,
+                requestedPrice: request.requested_total_price,
               }
             }
           });

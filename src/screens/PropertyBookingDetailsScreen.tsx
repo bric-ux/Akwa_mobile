@@ -9,8 +9,6 @@ import {
   ActivityIndicator,
   Linking,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -39,7 +37,6 @@ const PropertyBookingDetailsScreen: React.FC = () => {
     phone?: string;
   } | null>(null);
   const [payment, setPayment] = useState<any>(null);
-  const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [modificationModalVisible, setModificationModalVisible] = useState(false);
 
   useEffect(() => {
@@ -89,108 +86,6 @@ const PropertyBookingDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleDownloadPDF = async () => {
-    if (!booking) return;
-    
-    // Empêcher le téléchargement pour les réservations annulées
-    if (booking.status === 'cancelled') {
-      Alert.alert('Erreur', 'Impossible de télécharger la facture pour une réservation annulée.');
-      return;
-    }
-    
-    setDownloadingPDF(true);
-    try {
-      // Appeler la fonction Supabase pour générer le PDF
-      const { data, error } = await supabase.functions.invoke('send-email', {
-        body: {
-          type: 'property_generate_traveler_pdf',
-          data: {
-            bookingId: booking.id,
-            propertyTitle: booking.properties?.title || '',
-            checkIn: booking.check_in_date,
-            checkOut: booking.check_out_date,
-            guestsCount: booking.guests_count,
-            totalPrice: booking.total_price,
-            pricePerNight: booking.properties?.price_per_night || 0,
-            cleaningFee: booking.properties?.cleaning_fee || 0,
-            serviceFee: booking.properties?.service_fee,
-            taxes: booking.properties?.taxes,
-            paymentMethod: payment?.payment_method || booking.payment_method,
-            hostName: hostInfo ? `${hostInfo.first_name} ${hostInfo.last_name}` : undefined,
-            hostPhone: hostInfo?.phone,
-            discountApplied: booking.discount_applied,
-            discountAmount: booking.discount_amount,
-            houseRules: booking.properties?.house_rules,
-            checkInTime: booking.properties?.check_in_time,
-            checkOutTime: booking.properties?.check_out_time,
-            cancellationPolicy: booking.properties?.cancellation_policy,
-          }
-        }
-      });
-
-      if (error) {
-        console.error('❌ [PropertyBookingDetails] Erreur génération PDF:', error);
-        throw error;
-      }
-
-      console.log('📄 [PropertyBookingDetails] Réponse PDF:', { hasPdf: !!data?.pdf, dataKeys: data ? Object.keys(data) : [] });
-
-      if (data?.pdf) {
-        try {
-          // Sauvegarder le PDF dans un fichier temporaire
-          const fileName = `facture-${booking.id.substring(0, 8)}.pdf`;
-          const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-          
-          console.log('💾 [PropertyBookingDetails] Écriture fichier:', fileUri);
-          
-          await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          
-          console.log('✅ [PropertyBookingDetails] Fichier écrit avec succès');
-          
-          // Vérifier que le fichier existe
-          const fileInfo = await FileSystem.getInfoAsync(fileUri);
-          console.log('📁 [PropertyBookingDetails] Info fichier:', fileInfo);
-          
-          if (!fileInfo.exists) {
-            throw new Error('Le fichier n\'a pas été créé');
-          }
-          
-          // Partager le PDF
-          const isAvailable = await Sharing.isAvailableAsync();
-          console.log('📤 [PropertyBookingDetails] Sharing disponible:', isAvailable);
-          
-          if (isAvailable) {
-            await Sharing.shareAsync(fileUri, {
-              mimeType: 'application/pdf',
-              dialogTitle: 'Partager la facture',
-            });
-            Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
-          } else {
-            // Fallback: ouvrir avec Linking
-            const canOpen = await Linking.canOpenURL(fileUri);
-            if (canOpen) {
-              await Linking.openURL(fileUri);
-            } else {
-              Alert.alert('Succès', 'La facture a été sauvegardée.');
-            }
-          }
-        } catch (fileError: any) {
-          console.error('❌ [PropertyBookingDetails] Erreur fichier:', fileError);
-          Alert.alert('Erreur', `Erreur lors de la sauvegarde: ${fileError.message}`);
-        }
-      } else {
-        console.error('❌ [PropertyBookingDetails] Pas de PDF dans la réponse');
-        Alert.alert('Erreur', 'Le PDF n\'a pas pu être généré. Veuillez réessayer.');
-      }
-    } catch (error: any) {
-      console.error('Erreur lors de la génération du PDF:', error);
-      Alert.alert('Erreur', 'Impossible de générer le PDF. Veuillez réessayer plus tard.');
-    } finally {
-      setDownloadingPDF(false);
-    }
-  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -447,23 +342,6 @@ const PropertyBookingDetailsScreen: React.FC = () => {
               />
             </View>
 
-            {/* Bouton télécharger PDF - uniquement si confirmée ou terminée, pas annulée */}
-            {isConfirmed && booking.status !== 'cancelled' && (
-              <TouchableOpacity
-                style={styles.downloadButton}
-                onPress={handleDownloadPDF}
-                disabled={downloadingPDF}
-              >
-                {downloadingPDF ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="download-outline" size={20} color="#fff" />
-                    <Text style={styles.downloadButtonText}>Télécharger la facture (PDF)</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
           </>
         )}
 
@@ -630,23 +508,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     padding: 12,
-  },
-  downloadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2E7D32',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    gap: 8,
-  },
-  downloadButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   modifyButton: {
     flexDirection: 'row',

@@ -9,8 +9,6 @@ import {
   ActivityIndicator,
   Linking,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -21,6 +19,8 @@ import { supabase } from '../services/supabase';
 import InvoiceDisplay from '../components/InvoiceDisplay';
 import { formatPrice } from '../utils/priceCalculator';
 import { getCommissionRates } from '../lib/commissions';
+import VehicleModificationModal from '../components/VehicleModificationModal';
+import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 
 type VehicleBookingDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleBookingDetails'>;
 
@@ -30,6 +30,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
   const { bookingId } = route.params;
   const { user } = useAuth();
   const { getMyBookings } = useVehicleBookings();
+  const { getBookingPendingRequest, cancelModificationRequest } = useVehicleBookingModifications();
+  const [cancelling, setCancelling] = useState(false);
   
   const [booking, setBooking] = useState<VehicleBooking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,12 +40,29 @@ const VehicleBookingDetailsScreen: React.FC = () => {
     last_name?: string;
     phone?: string;
   } | null>(null);
-  const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [payment, setPayment] = useState<any>(null);
+  const [modificationModalVisible, setModificationModalVisible] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<any>(null);
 
   useEffect(() => {
     loadBookingDetails();
   }, [bookingId]);
+
+  useEffect(() => {
+    if (booking?.id) {
+      loadPendingRequest();
+    }
+  }, [booking?.id]);
+
+  const loadPendingRequest = async () => {
+    if (!booking?.id) return;
+    try {
+      const request = await getBookingPendingRequest(booking.id);
+      setPendingRequest(request);
+    } catch (error) {
+      console.error('Erreur chargement demande modification:', error);
+    }
+  };
 
   const loadBookingDetails = async () => {
     try {
@@ -199,111 +218,6 @@ const VehicleBookingDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleDownloadPDF = async () => {
-    if (!booking) return;
-    
-    // Empêcher le téléchargement pour les réservations annulées
-    if (booking.status === 'cancelled') {
-      Alert.alert('Erreur', 'Impossible de télécharger la facture pour une réservation annulée.');
-      return;
-    }
-    
-    setDownloadingPDF(true);
-    try {
-      // Appeler la fonction Supabase pour générer le PDF
-      const { data, error } = await supabase.functions.invoke('send-email', {
-        body: {
-          type: 'vehicle_generate_renter_pdf',
-          data: {
-            bookingId: booking.id,
-            vehicleTitle: `${booking.vehicle?.brand || ''} ${booking.vehicle?.model || ''}`.trim(),
-            vehicleBrand: booking.vehicle?.brand || '',
-            vehicleModel: booking.vehicle?.model || '',
-            vehicleYear: booking.vehicle?.year || '',
-            fuelType: booking.vehicle?.fuel_type || '',
-            startDate: booking.start_date,
-            endDate: booking.end_date,
-            rentalDays: booking.rental_days,
-            dailyRate: booking.daily_rate,
-            totalPrice: booking.total_price,
-            securityDeposit: booking.security_deposit || 0,
-            renterName: user?.user_metadata?.first_name && user?.user_metadata?.last_name
-              ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}`
-              : 'Locataire',
-            renterEmail: user?.email,
-            renterPhone: user?.user_metadata?.phone,
-            ownerName: ownerInfo ? `${ownerInfo.first_name} ${ownerInfo.last_name}` : undefined,
-            ownerEmail: ownerInfo?.phone,
-            ownerPhone: ownerInfo?.phone || '',
-            pickupLocation: booking.pickup_location,
-            paymentMethod: payment?.payment_method || booking.payment_method,
-          }
-        }
-      });
-
-      if (error) {
-        console.error('❌ [VehicleBookingDetails] Erreur génération PDF:', error);
-        throw error;
-      }
-
-      console.log('📄 [VehicleBookingDetails] Réponse PDF:', { hasPdf: !!data?.pdf, dataKeys: data ? Object.keys(data) : [] });
-
-      if (data?.pdf) {
-        try {
-          // Sauvegarder le PDF dans un fichier temporaire
-          const fileName = `facture-vehicule-${booking.id.substring(0, 8)}.pdf`;
-          const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-          
-          console.log('💾 [VehicleBookingDetails] Écriture fichier:', fileUri);
-          
-          await FileSystem.writeAsStringAsync(fileUri, data.pdf, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          
-          console.log('✅ [VehicleBookingDetails] Fichier écrit avec succès');
-          
-          // Vérifier que le fichier existe
-          const fileInfo = await FileSystem.getInfoAsync(fileUri);
-          console.log('📁 [VehicleBookingDetails] Info fichier:', fileInfo);
-          
-          if (!fileInfo.exists) {
-            throw new Error('Le fichier n\'a pas été créé');
-          }
-          
-          // Partager le PDF
-          const isAvailable = await Sharing.isAvailableAsync();
-          console.log('📤 [VehicleBookingDetails] Sharing disponible:', isAvailable);
-          
-          if (isAvailable) {
-            await Sharing.shareAsync(fileUri, {
-              mimeType: 'application/pdf',
-              dialogTitle: 'Partager la facture',
-            });
-            Alert.alert('Succès', 'La facture a été générée. Vous pouvez la partager ou l\'enregistrer.');
-          } else {
-            // Fallback: ouvrir avec Linking
-            const canOpen = await Linking.canOpenURL(fileUri);
-            if (canOpen) {
-              await Linking.openURL(fileUri);
-            } else {
-              Alert.alert('Succès', 'La facture a été sauvegardée.');
-            }
-          }
-        } catch (fileError: any) {
-          console.error('❌ [VehicleBookingDetails] Erreur fichier:', fileError);
-          Alert.alert('Erreur', `Erreur lors de la sauvegarde: ${fileError.message}`);
-        }
-      } else {
-        console.error('❌ [VehicleBookingDetails] Pas de PDF dans la réponse');
-        Alert.alert('Erreur', 'Le PDF n\'a pas pu être généré. Veuillez réessayer.');
-      }
-    } catch (error: any) {
-      console.error('Erreur lors de la génération du PDF:', error);
-      Alert.alert('Erreur', 'Impossible de générer le PDF. Veuillez réessayer plus tard.');
-    } finally {
-      setDownloadingPDF(false);
-    }
-  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -329,6 +243,26 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         <Text style={styles.statusText}>{config.label}</Text>
       </View>
     );
+  };
+
+  const canModifyBooking = () => {
+    if (!booking) return false;
+    
+    // Ne peut pas modifier si annulée ou terminée
+    if (booking.status === 'cancelled' || booking.status === 'completed') return false;
+    
+    // Ne peut pas modifier si la date de fin est passée
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(booking.end_date);
+    endDate.setHours(0, 0, 0, 0);
+    if (endDate < today) return false;
+    
+    const startDate = new Date(booking.start_date);
+    startDate.setHours(0, 0, 0, 0);
+    
+    // Peut modifier si la date de début est dans le futur ou aujourd'hui
+    return startDate >= today || booking.status === 'pending' || booking.status === 'confirmed' || booking.status === 'in_progress';
   };
 
   if (loading) {
@@ -377,6 +311,60 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         <View style={styles.statusContainer}>
           {getStatusBadge(booking.status)}
         </View>
+
+        {/* Afficher la demande de modification en cours */}
+        {pendingRequest && (
+          <View style={styles.modificationRequestBanner}>
+            <Ionicons name="time-outline" size={18} color="#f39c12" />
+            <View style={styles.modificationRequestContent}>
+              <Text style={styles.modificationRequestTitle}>Demande de modification en cours</Text>
+              <Text style={styles.modificationRequestDates}>
+                Nouvelles dates proposées: {formatDate(pendingRequest.requested_start_date)} - {formatDate(pendingRequest.requested_end_date)}
+              </Text>
+              {pendingRequest.requested_rental_days !== booking.rental_days && (
+                <Text style={styles.modificationRequestInfo}>
+                  Durée: {pendingRequest.requested_rental_days} jour{pendingRequest.requested_rental_days > 1 ? 's' : ''}
+                </Text>
+              )}
+              {pendingRequest.requested_total_price !== booking.total_price && (
+                <Text style={styles.modificationRequestInfo}>
+                  Nouveau prix: {formatPrice(pendingRequest.requested_total_price)}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={styles.cancelModificationButton}
+                onPress={async () => {
+                  if (cancelling) return;
+                  Alert.alert(
+                    'Annuler la demande',
+                    'Êtes-vous sûr de vouloir annuler cette demande de modification ?',
+                    [
+                      { text: 'Non', style: 'cancel' },
+                      {
+                        text: 'Oui',
+                        style: 'destructive',
+                        onPress: async () => {
+                          setCancelling(true);
+                          const result = await cancelModificationRequest(pendingRequest.id);
+                          if (result.success) {
+                            await loadPendingRequest(); // Recharger pour mettre à jour l'affichage
+                          }
+                          setCancelling(false);
+                        },
+                      },
+                    ]
+                  );
+                }}
+                disabled={cancelling}
+              >
+                <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
+                <Text style={styles.cancelModificationButtonText}>
+                  {cancelling ? 'Annulation...' : 'Annuler la demande'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Informations de la réservation */}
         <View style={styles.section}>
@@ -433,6 +421,16 @@ const VehicleBookingDetailsScreen: React.FC = () => {
               <Text style={[styles.infoValue, styles.priceValue]}>
                 {formatPrice(booking.total_price)}
               </Text>
+              {booking.discount_amount && booking.discount_amount > 0 && (
+                <View style={styles.discountInfo}>
+                  <Text style={styles.discountLabel}>
+                    Réduction appliquée: -{formatPrice(booking.discount_amount)}
+                  </Text>
+                  <Text style={styles.discountSubtext}>
+                    Prix de base: {formatPrice((booking.daily_rate || 0) * (booking.rental_days || 0))}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -491,34 +489,32 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                   start_date: booking.start_date,
                   end_date: booking.end_date,
                   total_price: booking.total_price,
+                  discount_amount: booking.discount_amount,
+                  discount_applied: booking.discount_applied,
                   payment_method: payment?.payment_method || booking.payment_method,
                   status: booking.status,
                 }}
-                pricePerUnit={booking.daily_rate}
+                pricePerUnit={booking.daily_rate || 0}
                 cleaningFee={0}
                 paymentMethod={payment?.payment_method || booking.payment_method}
                 propertyOrVehicleTitle={`${booking.vehicle?.brand || ''} ${booking.vehicle?.model || ''}`.trim()}
               />
             </View>
 
-            {/* Bouton télécharger PDF - uniquement si confirmée ou terminée, pas annulée */}
-            {isConfirmed && booking.status !== 'cancelled' && (
-              <TouchableOpacity
-                style={styles.downloadButton}
-                onPress={handleDownloadPDF}
-                disabled={downloadingPDF}
-              >
-                {downloadingPDF ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="download-outline" size={20} color="#fff" />
-                    <Text style={styles.downloadButtonText}>Télécharger la facture (PDF)</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
           </>
+        )}
+
+        {/* Bouton Modifier - pour les réservations modifiables */}
+        {canModifyBooking() && (
+          <TouchableOpacity
+            style={styles.modifyButton}
+            onPress={() => setModificationModalVisible(true)}
+          >
+            <Ionicons name="create-outline" size={20} color="#2563eb" />
+            <Text style={styles.modifyButtonText}>
+              {booking.status === 'pending' ? 'Modifier la demande' : 'Modifier la réservation'}
+            </Text>
+          </TouchableOpacity>
         )}
 
         {/* Voir le véhicule */}
@@ -530,6 +526,22 @@ const VehicleBookingDetailsScreen: React.FC = () => {
             <Ionicons name="eye-outline" size={20} color="#2563eb" />
             <Text style={styles.viewVehicleButtonText}>Voir le véhicule</Text>
           </TouchableOpacity>
+        )}
+
+        {/* Modal de modification */}
+        {booking && (
+          <VehicleModificationModal
+            visible={modificationModalVisible}
+            onClose={() => {
+              setModificationModalVisible(false);
+              loadBookingDetails(); // Recharger les détails après modification
+            }}
+            booking={booking}
+            onModified={() => {
+              setModificationModalVisible(false);
+              loadBookingDetails();
+            }}
+          />
         )}
       </ScrollView>
     </SafeAreaView>
@@ -656,23 +668,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: 12,
   },
-  downloadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    gap: 8,
-  },
-  downloadButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   viewVehicleButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -691,6 +686,91 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    gap: 8,
+  },
+  modifyButtonText: {
+    color: '#2563eb',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modificationRequestBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fef3c7',
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f39c12',
+    gap: 10,
+  },
+  modificationRequestContent: {
+    flex: 1,
+  },
+  modificationRequestTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  modificationRequestDates: {
+    fontSize: 12,
+    color: '#78350f',
+    marginBottom: 2,
+  },
+  modificationRequestInfo: {
+    fontSize: 12,
+    color: '#78350f',
+    marginTop: 2,
+  },
+  cancelModificationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fee2e2',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    gap: 6,
+  },
+  cancelModificationButtonText: {
+    fontSize: 12,
+    color: '#ef4444',
+    fontWeight: '600',
+  },
+  discountInfo: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10b981',
+  },
+  discountLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#10b981',
+    marginBottom: 4,
+  },
+  discountSubtext: {
+    fontSize: 12,
+    color: '#6b7280',
   },
 });
 

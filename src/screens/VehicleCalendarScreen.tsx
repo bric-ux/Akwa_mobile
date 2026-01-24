@@ -39,6 +39,7 @@ const VehicleCalendarScreen: React.FC = () => {
   const { vehicleId } = route.params;
   
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
   const [reason, setReason] = useState('');
@@ -48,30 +49,51 @@ const VehicleCalendarScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadBlockedDates();
+    loadUnavailableDates();
   }, [vehicleId]);
 
-  const loadBlockedDates = async () => {
+  const loadUnavailableDates = async () => {
     try {
       setRefreshing(true);
-      const { data, error } = await supabase
+      
+      // Charger les dates bloquées manuellement
+      const { data: blockedData, error: blockedError } = await supabase
         .from('vehicle_blocked_dates')
         .select('*')
         .eq('vehicle_id', vehicleId)
         .order('start_date', { ascending: true });
 
-      if (error) throw error;
-      setBlockedDates(data || []);
+      if (blockedError) throw blockedError;
+      setBlockedDates(blockedData || []);
+
+      // Charger les réservations (pending, confirmed, in_progress)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
+      
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from('vehicle_bookings')
+        .select('id, start_date, end_date, status')
+        .eq('vehicle_id', vehicleId)
+        .in('status', ['pending', 'confirmed', 'in_progress'])
+        .gte('end_date', todayStr)
+        .order('start_date', { ascending: true });
+
+      if (bookingsError) {
+        console.error('Erreur lors du chargement des réservations:', bookingsError);
+      } else {
+        setBookings(bookingsData || []);
+      }
     } catch (error: any) {
-      console.error('Erreur lors du chargement des dates bloquées:', error);
-      Alert.alert('Erreur', 'Impossible de charger les dates bloquées');
+      console.error('Erreur lors du chargement des dates:', error);
+      Alert.alert('Erreur', 'Impossible de charger les dates');
     } finally {
       setRefreshing(false);
     }
   };
 
   const handleRefresh = async () => {
-    await loadBlockedDates();
+    await loadUnavailableDates();
   };
 
   const isDateBlocked = (date: Date): BlockedDate | undefined => {
@@ -79,6 +101,17 @@ const VehicleCalendarScreen: React.FC = () => {
     return blockedDates.find(blocked => {
       return dateStr >= blocked.start_date && dateStr <= blocked.end_date;
     });
+  };
+
+  const isDateBooked = (date: Date): boolean => {
+    const dateStr = formatDateToISO(date);
+    return bookings.some(booking => {
+      return dateStr >= booking.start_date && dateStr <= booking.end_date;
+    });
+  };
+
+  const isDateUnavailable = (date: Date): boolean => {
+    return isDateBlocked(date) !== undefined || isDateBooked(date);
   };
 
   const handleDatePress = (date: Date) => {
@@ -90,8 +123,19 @@ const VehicleCalendarScreen: React.FC = () => {
     }
 
     const blocked = isDateBlocked(date);
+    const booked = isDateBooked(date);
     
-    // Si on clique sur une date bloquée, proposer de la débloquer
+    // Si la date est réservée, ne pas permettre la sélection
+    if (booked) {
+      Alert.alert(
+        'Date réservée',
+        'Cette date est déjà réservée et ne peut pas être modifiée.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    // Si on clique sur une date bloquée manuellement, proposer de la débloquer
     if (blocked) {
       Alert.alert(
         'Débloquer cette période',
@@ -289,12 +333,14 @@ const VehicleCalendarScreen: React.FC = () => {
               const dateStr = formatDateToISO(date);
               const isPast = date < today;
               const blocked = isDateBlocked(date);
+              const booked = isDateBooked(date);
+              const unavailable = isDateUnavailable(date);
               const blockType = getDateBlockType(date);
               const isSelected = selectedStartDate && selectedEndDate &&
                 date >= selectedStartDate && date <= selectedEndDate;
               const isStart = selectedStartDate && date.getTime() === selectedStartDate.getTime();
               const isEnd = selectedEndDate && date.getTime() === selectedEndDate.getTime();
-              const isAvailable = !isPast && !blocked;
+              const isAvailable = !isPast && !unavailable;
 
               return (
                 <TouchableOpacity
@@ -303,22 +349,22 @@ const VehicleCalendarScreen: React.FC = () => {
                     styles.dayCell,
                     isPast && styles.dayCellPast,
                     isAvailable && styles.dayCellAvailable,
-                    blocked && styles.dayCellBlocked,
+                    (blocked || booked) && styles.dayCellBlocked,
                     isSelected && styles.dayCellSelected,
                     isStart && styles.dayCellStart,
                     isEnd && styles.dayCellEnd,
                   ]}
                   onPress={() => handleDatePress(date)}
-                  disabled={isPast}
+                  disabled={isPast || unavailable}
                 >
                   <Text
                     style={[
-                      styles.dayText,
-                      isPast && styles.dayTextPast,
-                      isAvailable && styles.dayTextAvailable,
-                      blocked && styles.dayTextBlocked,
-                      isSelected && styles.dayTextSelected,
-                    ]}
+                    styles.dayText,
+                    isPast && styles.dayTextPast,
+                    isAvailable && styles.dayTextAvailable,
+                    (blocked || booked) && styles.dayTextBlocked,
+                    isSelected && styles.dayTextSelected,
+                  ]}
                   >
                     {date.getDate()}
                   </Text>
@@ -398,9 +444,39 @@ const VehicleCalendarScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Réservations */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Réservations ({bookings.length})</Text>
+          {refreshing ? (
+            <ActivityIndicator size="small" color={VEHICLE_COLORS.primary} />
+          ) : bookings.length === 0 ? (
+            <Text style={styles.emptyText}>Aucune réservation</Text>
+          ) : (
+            bookings.map((booking) => (
+              <View key={booking.id} style={styles.periodCard}>
+                <View style={styles.periodInfo}>
+                  <View style={[styles.badgeBlocked, { backgroundColor: '#2563eb' }]}>
+                    <Text style={styles.badgeText}>
+                      {booking.status === 'confirmed' ? 'Confirmée' : 
+                       booking.status === 'pending' ? 'En attente' : 'En cours'}
+                    </Text>
+                  </View>
+                  <Text style={styles.periodDate}>
+                    {booking.start_date === booking.end_date ? (
+                      formatDateShort(new Date(booking.start_date))
+                    ) : (
+                      `${formatDateShort(new Date(booking.start_date))} → ${formatDateShort(new Date(booking.end_date))}`
+                    )}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
         {/* Périodes bloquées */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Périodes bloquées ({blockedDates.length})</Text>
+          <Text style={styles.sectionTitle}>Périodes bloquées manuellement ({blockedDates.length})</Text>
           {refreshing ? (
             <ActivityIndicator size="small" color={VEHICLE_COLORS.primary} />
           ) : blockedDates.length === 0 ? (
