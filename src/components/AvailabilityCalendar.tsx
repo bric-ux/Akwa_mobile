@@ -32,6 +32,13 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   const [tempCheckIn, setTempCheckIn] = useState<Date | null>(selectedCheckIn || null);
   const [tempCheckOut, setTempCheckOut] = useState<Date | null>(selectedCheckOut || null);
 
+  // Fonction pour normaliser une date à minuit (évite les problèmes de fuseau horaire)
+  const normalizeDate = (date: Date): Date => {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  };
+
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -47,9 +54,10 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
       days.push(null);
     }
     
-    // Ajouter les jours du mois
+    // Ajouter les jours du mois - normaliser à minuit
     for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(year, month, day));
+      const dateObj = new Date(year, month, day);
+      days.push(normalizeDate(dateObj));
     }
     
     return days;
@@ -57,23 +65,36 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
 
   const isDateSelected = (date: Date) => {
     if (!tempCheckIn && !tempCheckOut) return false;
-    if (tempCheckIn && tempCheckOut) {
-      return date >= tempCheckIn && date <= tempCheckOut;
+    const normalizedDate = normalizeDate(date);
+    const normalizedCheckIn = tempCheckIn ? normalizeDate(tempCheckIn) : null;
+    const normalizedCheckOut = tempCheckOut ? normalizeDate(tempCheckOut) : null;
+    
+    if (normalizedCheckIn && normalizedCheckOut) {
+      return normalizedDate >= normalizedCheckIn && normalizedDate <= normalizedCheckOut;
     }
-    return tempCheckIn?.getTime() === date.getTime() || tempCheckOut?.getTime() === date.getTime();
+    return normalizedCheckIn?.getTime() === normalizedDate.getTime() || normalizedCheckOut?.getTime() === normalizedDate.getTime();
   };
 
   const isDateInRange = (date: Date) => {
     if (!tempCheckIn || !tempCheckOut) return false;
-    return date > tempCheckIn && date < tempCheckOut;
+    const normalizedDate = normalizeDate(date);
+    const normalizedCheckIn = normalizeDate(tempCheckIn);
+    const normalizedCheckOut = normalizeDate(tempCheckOut);
+    return normalizedDate > normalizedCheckIn && normalizedDate < normalizedCheckOut;
   };
 
   const isDateStart = (date: Date) => {
-    return tempCheckIn?.getTime() === date.getTime();
+    if (!tempCheckIn) return false;
+    const normalizedDate = normalizeDate(date);
+    const normalizedCheckIn = normalizeDate(tempCheckIn);
+    return normalizedCheckIn.getTime() === normalizedDate.getTime();
   };
 
   const isDateEnd = (date: Date) => {
-    return tempCheckOut?.getTime() === date.getTime();
+    if (!tempCheckOut) return false;
+    const normalizedDate = normalizeDate(date);
+    const normalizedCheckOut = normalizeDate(tempCheckOut);
+    return normalizedCheckOut.getTime() === normalizedDate.getTime();
   };
 
   const getUnavailableReason = (date: Date) => {
@@ -101,25 +122,33 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   const handleDatePress = (date: Date) => {
     if (isDateUnavailable(date) || isPastDate(date)) return;
 
+    // Normaliser la date sélectionnée
+    const normalizedDate = normalizeDate(date);
+
     if (!tempCheckIn || (tempCheckIn && tempCheckOut)) {
       // Nouvelle sélection
-      setTempCheckIn(date);
+      setTempCheckIn(normalizedDate);
       setTempCheckOut(null);
     } else if (tempCheckIn && !tempCheckOut) {
       // Sélection de la date de fin - permettre le même jour
-      if (date >= tempCheckIn) {
-        setTempCheckOut(date);
+      const normalizedCheckIn = normalizeDate(tempCheckIn);
+      if (normalizedDate >= normalizedCheckIn) {
+        setTempCheckOut(normalizedDate);
       } else {
-        setTempCheckIn(date);
+        setTempCheckIn(normalizedDate);
         setTempCheckOut(null);
       }
     }
   };
 
   const handleConfirm = () => {
+    // Normaliser les dates avant de les passer
+    const normalizedCheckIn = tempCheckIn ? normalizeDate(tempCheckIn) : null;
     // Si pas de date de départ, utiliser la date d'arrivée + 1 jour
-    const checkOut = tempCheckOut || (tempCheckIn ? new Date(tempCheckIn.getTime() + 24 * 60 * 60 * 1000) : null);
-    onDateSelect(tempCheckIn, checkOut);
+    const checkOut = tempCheckOut 
+      ? normalizeDate(tempCheckOut) 
+      : (normalizedCheckIn ? normalizeDate(new Date(normalizedCheckIn.getTime() + 24 * 60 * 60 * 1000)) : null);
+    onDateSelect(normalizedCheckIn, checkOut);
     onClose();
   };
 

@@ -28,11 +28,16 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
 }) => {
   const { hostProfile, loading, getHostProfile } = useHostProfile();
   const { reviews, loading: reviewsLoading, getHostReviews } = useHostReviews();
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
+  const MAX_REVIEWS_PREVIEW = 3;
 
   useEffect(() => {
     if (visible && hostId) {
       getHostProfile(hostId);
       getHostReviews(hostId);
+      // Réinitialiser l'état quand le modal s'ouvre
+      setShowAllReviews(false);
     }
   }, [visible, hostId, getHostProfile, getHostReviews]);
 
@@ -150,7 +155,11 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
 
               {/* Avis */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Avis des locataires</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>
+                    Avis des locataires {reviews.length > 0 && `(${reviews.length})`}
+                  </Text>
+                </View>
                 {reviewsLoading ? (
                   <View style={styles.loadingReviewsContainer}>
                     <ActivityIndicator size="small" color="#2563eb" />
@@ -158,50 +167,67 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                   </View>
                 ) : reviews.length > 0 ? (
                   <>
-                    {reviews.map((review) => (
-                    <View key={review.id} style={styles.reviewItem}>
-                      <View style={styles.reviewHeader}>
-                        <View style={styles.reviewerInfo}>
-                          <View style={styles.reviewerAvatar}>
-                            <Text style={styles.reviewerInitial}>
-                              {review.reviewer_name?.charAt(0) || 'U'}
-                            </Text>
+                    {(showAllReviews ? reviews : reviews.slice(0, MAX_REVIEWS_PREVIEW)).map((review) => (
+                      <View key={review.id} style={styles.reviewItem}>
+                        <View style={styles.reviewHeader}>
+                          <View style={styles.reviewerInfo}>
+                            <View style={styles.reviewerAvatar}>
+                              <Text style={styles.reviewerInitial}>
+                                {review.reviewer_name?.charAt(0) || 'U'}
+                              </Text>
+                            </View>
+                            <View>
+                              <Text style={styles.reviewerName}>
+                                {review.reviewer_name || 'Locataire anonyme'}
+                              </Text>
+                              <Text style={styles.reviewDate}>
+                                {new Date(review.created_at).toLocaleDateString('fr-FR', {
+                                  month: 'long',
+                                  year: 'numeric',
+                                })}
+                              </Text>
+                            </View>
                           </View>
-                          <View>
-                            <Text style={styles.reviewerName}>
-                              {review.reviewer_name || 'Locataire anonyme'}
-                            </Text>
-                            <Text style={styles.reviewDate}>
-                              {new Date(review.created_at).toLocaleDateString('fr-FR', {
-                                month: 'long',
-                                year: 'numeric',
-                              })}
-                            </Text>
-                          </View>
+                          {renderStars(review.rating)}
                         </View>
-                        {renderStars(review.rating)}
+                        {review.comment && (
+                          <Text style={styles.reviewComment}>{review.comment}</Text>
+                        )}
+                        {review.review_type === 'property' && review.property_title && (
+                          <View style={styles.reviewTypeBadge}>
+                            <Ionicons name="home-outline" size={12} color="#2563eb" />
+                            <Text style={styles.reviewTypeText}>
+                              Résidence meublée: {review.property_title}
+                            </Text>
+                          </View>
+                        )}
+                        {review.review_type === 'vehicle' && review.vehicle_title && (
+                          <View style={styles.reviewTypeBadge}>
+                            <Ionicons name="car-outline" size={12} color="#059669" />
+                            <Text style={styles.reviewTypeText}>
+                              Véhicule: {review.vehicle_title}
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                      {review.comment && (
-                        <Text style={styles.reviewComment}>{review.comment}</Text>
-                      )}
-                      {review.review_type === 'property' && review.property_title && (
-                        <View style={styles.reviewTypeBadge}>
-                          <Ionicons name="home-outline" size={12} color="#2563eb" />
-                          <Text style={styles.reviewTypeText}>
-                            Résidence meublée: {review.property_title}
-                          </Text>
-                        </View>
-                      )}
-                      {review.review_type === 'vehicle' && review.vehicle_title && (
-                        <View style={styles.reviewTypeBadge}>
-                          <Ionicons name="car-outline" size={12} color="#059669" />
-                          <Text style={styles.reviewTypeText}>
-                            Véhicule: {review.vehicle_title}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  ))}
+                    ))}
+                    {reviews.length > MAX_REVIEWS_PREVIEW && (
+                      <TouchableOpacity
+                        style={styles.showAllButton}
+                        onPress={() => setShowAllReviews(!showAllReviews)}
+                      >
+                        <Text style={styles.showAllButtonText}>
+                          {showAllReviews 
+                            ? 'Voir moins d\'avis' 
+                            : `Voir tous les avis (${reviews.length - MAX_REVIEWS_PREVIEW} de plus)`}
+                        </Text>
+                        <Ionicons 
+                          name={showAllReviews ? 'chevron-up' : 'chevron-down'} 
+                          size={20} 
+                          color="#2563eb" 
+                        />
+                      </TouchableOpacity>
+                    )}
                   </>
                 ) : (
                   <View style={styles.emptyReviews}>
@@ -359,11 +385,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 24,
   },
+  sectionHeader: {
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 12,
   },
   bioText: {
     fontSize: 14,
@@ -460,6 +488,24 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     color: '#6b7280',
+  },
+  showAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+  },
+  showAllButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563eb',
   },
   errorContainer: {
     flex: 1,

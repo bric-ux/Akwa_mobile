@@ -88,6 +88,31 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const totalGuests = adults + children + infants;
 
+  // Fonction pour normaliser une date à minuit (évite les problèmes de fuseau horaire)
+  const normalizeDate = (date: Date): Date => {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  };
+
+  // Fonction pour formater une date sans problème de fuseau horaire
+  const formatDateDisplay = (date: Date): string => {
+    const normalized = normalizeDate(date);
+    const year = normalized.getFullYear();
+    const month = String(normalized.getMonth() + 1).padStart(2, '0');
+    const day = String(normalized.getDate()).padStart(2, '0');
+    return `${day}/${month}/${year}`;
+  };
+
+  // Fonction pour formater une date en string ISO sans problème de fuseau horaire (YYYY-MM-DD)
+  const formatDateToISOString = (date: Date): string => {
+    const normalized = normalizeDate(date);
+    const year = normalized.getFullYear();
+    const month = String(normalized.getMonth() + 1).padStart(2, '0');
+    const day = String(normalized.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const calculateNights = () => {
     if (!checkIn || !checkOut) return 0;
     const diffTime = checkOut.getTime() - checkIn.getTime();
@@ -124,13 +149,23 @@ const BookingModal: React.FC<BookingModalProps> = ({
         babiesToUse,
       });
       
-      // Initialiser avec les valeurs finales
+      // Initialiser avec les valeurs finales - normaliser les dates pour éviter les problèmes de fuseau horaire
       if (checkInToUse) {
         try {
-          const initialDate = new Date(checkInToUse);
+          // Parser la date en utilisant les composants pour éviter les problèmes de fuseau horaire
+          let initialDate: Date;
+          if (typeof checkInToUse === 'string' && checkInToUse.includes('-')) {
+            // Format ISO (YYYY-MM-DD) - parser manuellement pour éviter UTC
+            const [year, month, day] = checkInToUse.split('-').map(Number);
+            initialDate = new Date(year, month - 1, day);
+          } else {
+            initialDate = new Date(checkInToUse);
+          }
+          
           if (!isNaN(initialDate.getTime())) {
-            setCheckIn(initialDate);
-            console.log('✅ CheckIn initialisé:', initialDate);
+            const normalizedDate = normalizeDate(initialDate);
+            setCheckIn(normalizedDate);
+            console.log('✅ CheckIn initialisé:', normalizedDate);
           } else {
             console.log('❌ Date checkIn invalide:', checkInToUse);
             setCheckIn(null);
@@ -146,10 +181,20 @@ const BookingModal: React.FC<BookingModalProps> = ({
       
       if (checkOutToUse) {
         try {
-          const initialDate = new Date(checkOutToUse);
+          // Parser la date en utilisant les composants pour éviter les problèmes de fuseau horaire
+          let initialDate: Date;
+          if (typeof checkOutToUse === 'string' && checkOutToUse.includes('-')) {
+            // Format ISO (YYYY-MM-DD) - parser manuellement pour éviter UTC
+            const [year, month, day] = checkOutToUse.split('-').map(Number);
+            initialDate = new Date(year, month - 1, day);
+          } else {
+            initialDate = new Date(checkOutToUse);
+          }
+          
           if (!isNaN(initialDate.getTime())) {
-            setCheckOut(initialDate);
-            console.log('✅ CheckOut initialisé:', initialDate);
+            const normalizedDate = normalizeDate(initialDate);
+            setCheckOut(normalizedDate);
+            console.log('✅ CheckOut initialisé:', normalizedDate);
           } else {
             console.log('❌ Date checkOut invalide:', checkOutToUse);
             setCheckOut(null);
@@ -172,8 +217,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   // Fonction helper pour sauvegarder les dates
   const saveDates = useCallback((checkInDate?: Date | null, checkOutDate?: Date | null, adultsCount?: number, childrenCount?: number, babiesCount?: number) => {
-    const checkInStr = checkInDate ? checkInDate.toISOString().split('T')[0] : undefined;
-    const checkOutStr = checkOutDate ? checkOutDate.toISOString().split('T')[0] : undefined;
+    const checkInStr = checkInDate ? formatDateToISOString(checkInDate) : undefined;
+    const checkOutStr = checkOutDate ? formatDateToISOString(checkOutDate) : undefined;
     
     const datesToSave = {
       checkIn: checkInStr,
@@ -237,7 +282,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
   useEffect(() => {
     // Ne sauvegarder que si on a au moins une date ET que le modal est visible
     if (visible && (checkIn || checkOut)) {
-      const key = `${checkIn?.toISOString() || ''}_${checkOut?.toISOString() || ''}_${adults}_${children}_${infants}`;
+      // Utiliser formatDateToISOString pour la clé de comparaison aussi
+      const checkInKey = checkIn ? formatDateToISOString(checkIn) : '';
+      const checkOutKey = checkOut ? formatDateToISOString(checkOut) : '';
+      const key = `${checkInKey}_${checkOutKey}_${adults}_${children}_${infants}`;
       
       // Ne sauvegarder que si les valeurs ont changé
       if (lastSavedRef.current !== key) {
@@ -245,8 +293,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
         lastSavedRef.current = key;
         
         // Sauvegarder directement sans passer par saveDates pour éviter la boucle
-        const checkInStr = checkIn ? checkIn.toISOString().split('T')[0] : undefined;
-        const checkOutStr = checkOut ? checkOut.toISOString().split('T')[0] : undefined;
+        // Utiliser formatDateToISOString pour éviter les problèmes de fuseau horaire
+        const checkInStr = checkIn ? formatDateToISOString(checkIn) : undefined;
+        const checkOutStr = checkOut ? formatDateToISOString(checkOut) : undefined;
         const datesToSave = {
           checkIn: checkInStr,
           checkOut: checkOutStr,
@@ -409,10 +458,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const formatDateForAPI = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    // Normaliser la date avant de la formater pour éviter les problèmes de fuseau horaire
+    const normalized = normalizeDate(date);
+    return formatDateToISOString(normalized);
   };
 
   const handleSubmit = async () => {
@@ -666,14 +714,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
               <View style={styles.dateItem}>
                 <Text style={styles.dateLabel}>{t('booking.arrival')}</Text>
                 <Text style={styles.dateValue}>
-                  {checkIn ? checkIn.toLocaleDateString('fr-FR') : t('booking.selectDates')}
+                  {checkIn ? formatDateDisplay(checkIn) : t('booking.selectDates')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#666" />
               <View style={styles.dateItem}>
                 <Text style={styles.dateLabel}>{t('booking.departure')}</Text>
                 <Text style={styles.dateValue}>
-                  {checkOut ? checkOut.toLocaleDateString('fr-FR') : t('booking.selectDates')}
+                  {checkOut ? formatDateDisplay(checkOut) : t('booking.selectDates')}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -1295,8 +1343,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
             selectedCheckIn={checkIn}
             selectedCheckOut={checkOut}
             onDateSelect={(checkInDate, checkOutDate) => {
-              setCheckIn(checkInDate);
-              setCheckOut(checkOutDate);
+              // Normaliser les dates à minuit pour éviter les problèmes de fuseau horaire
+              const normalizedCheckIn = checkInDate ? normalizeDate(checkInDate) : null;
+              const normalizedCheckOut = checkOutDate ? normalizeDate(checkOutDate) : null;
+              setCheckIn(normalizedCheckIn);
+              setCheckOut(normalizedCheckOut);
               // La sauvegarde sera faite automatiquement par le useEffect
             }}
             onClose={() => setShowCalendar(false)}
