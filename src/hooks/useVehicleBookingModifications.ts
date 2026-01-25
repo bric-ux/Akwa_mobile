@@ -434,6 +434,12 @@ export const useVehicleBookingModifications = () => {
           ? `${ownerProfile.first_name || ''} ${ownerProfile.last_name || ''}`.trim() 
           : 'Propriétaire';
 
+        // Calculer le revenu net du propriétaire
+        // totalPrice = basePrice + serviceFee (10% de basePrice)
+        // Donc : basePrice = totalPrice / 1.10
+        const calculatedBasePrice = Math.round((request.requested_total_price || 0) / 1.10);
+        const ownerNetRevenue = calculatedBasePrice - Math.round(calculatedBasePrice * 0.02);
+        
         const emailData = {
           bookingId: request.booking_id,
           vehicleTitle: vehicleTitle,
@@ -451,7 +457,9 @@ export const useVehicleBookingModifications = () => {
           endDate: request.requested_end_date,
           rentalDays: request.requested_rental_days,
           dailyRate: bookingData.daily_rate || vehicle.price_per_day || 0,
+          basePrice: calculatedBasePrice, // Prix après réduction (calculé à partir de totalPrice)
           totalPrice: request.requested_total_price,
+          ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
           securityDeposit: bookingData.security_deposit || 0,
           pickupLocation: bookingData.pickup_location || '',
           isInstantBooking: false,

@@ -70,35 +70,119 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       };
     }
 
+    const now = new Date();
+    const startDate = new Date(booking.start_date);
+    const endDate = new Date(booking.end_date);
+    
+    // Normaliser les dates pour les comparaisons
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const startDate = new Date(booking.start_date);
-    startDate.setHours(0, 0, 0, 0);
-    const daysUntilStart = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
+    const startDateNormalized = new Date(startDate);
+    startDateNormalized.setHours(0, 0, 0, 0);
+    const endDateNormalized = new Date(endDate);
+    endDateNormalized.setHours(0, 0, 0, 0);
+    
+    // Calculer les heures et jours jusqu'au début
+    const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    const daysUntilStart = Math.ceil(hoursUntilStart / 24);
+    
+    // Vérifier si la réservation est en cours
+    const isInProgress = startDateNormalized <= today && today <= endDateNormalized;
+    
     const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
+    const dailyRate = booking.daily_rate || (basePrice / (booking.rental_days || 1));
 
-    if (isOwner) {
-      // Propriétaire annule
-      if (daysUntilStart >= 7) {
-        return { penalty: 0, penaltyDescription: 'Aucune pénalité (annulation 7+ jours avant)', refundAmount: basePrice };
-      } else if (daysUntilStart >= 3) {
-        const penalty = Math.round(basePrice * 0.1);
-        return { penalty, penaltyDescription: 'Pénalité de 10%', refundAmount: basePrice - penalty };
+    if (isInProgress) {
+      // Annulation EN COURS de location
+      const totalDays = booking.rental_days || 0;
+      const daysElapsed = Math.max(0, Math.floor((today.getTime() - startDateNormalized.getTime()) / (1000 * 60 * 60 * 24)));
+      const remainingDays = Math.max(0, totalDays - daysElapsed - 1); // -1 car aujourd'hui est déjà entamé
+      const remainingDaysAmount = remainingDays * dailyRate;
+      
+      if (isOwner) {
+        // Propriétaire annule en cours : 50% de pénalité sur les jours restants, locataire remboursé 100%
+        const penalty = Math.round(remainingDaysAmount * 0.50);
+        return { 
+          penalty, 
+          penaltyDescription: `Annulation en cours de location (50% de pénalité sur ${remainingDays} jour(s) restant(s))`, 
+          refundAmount: remainingDaysAmount // Locataire remboursé 100% des jours restants
+        };
       } else {
-        const penalty = Math.round(basePrice * 0.2);
-        return { penalty, penaltyDescription: 'Pénalité de 20%', refundAmount: basePrice - penalty };
+        // Locataire annule en cours : 50% de pénalité sur les jours restants
+        const penalty = Math.round(remainingDaysAmount * 0.50);
+        return { 
+          penalty, 
+          penaltyDescription: `Annulation en cours de location (50% de pénalité sur ${remainingDays} jour(s) restant(s))`, 
+          refundAmount: Math.round(remainingDaysAmount * 0.50) // Remboursement de 50% des jours restants
+        };
+      }
+    } else if (hoursUntilStart <= 0) {
+      // La date de début est passée mais ce n'est pas en cours (cas edge)
+      const penalty = Math.round(basePrice * 0.50);
+      return { 
+        penalty, 
+        penaltyDescription: 'La location a déjà commencé', 
+        refundAmount: Math.round(basePrice * 0.50) 
+      };
+    } else if (isOwner) {
+      // PROPRIÉTAIRE annule (avant le début)
+      if (daysUntilStart > 28) {
+        return { 
+          penalty: 0, 
+          penaltyDescription: 'Annulation gratuite (plus de 28 jours avant)', 
+          refundAmount: basePrice // Locataire toujours remboursé 100%
+        };
+      } else if (daysUntilStart > 7) {
+        const penalty = Math.round(basePrice * 0.20);
+        return { 
+          penalty, 
+          penaltyDescription: 'Annulation entre 7 et 28 jours avant (20% de pénalité)', 
+          refundAmount: basePrice // Locataire toujours remboursé 100%
+        };
+      } else if (hoursUntilStart > 48) {
+        const penalty = Math.round(basePrice * 0.40);
+        return { 
+          penalty, 
+          penaltyDescription: 'Annulation entre 48h et 7 jours avant (40% de pénalité)', 
+          refundAmount: basePrice // Locataire toujours remboursé 100%
+        };
+      } else {
+        const penalty = Math.round(basePrice * 0.50);
+        return { 
+          penalty, 
+          penaltyDescription: 'Annulation 48h ou moins avant le départ (50% de pénalité)', 
+          refundAmount: basePrice // Locataire toujours remboursé 100%
+        };
       }
     } else {
-      // Locataire annule
-      if (daysUntilStart >= 7) {
-        return { penalty: 0, penaltyDescription: 'Remboursement complet', refundAmount: basePrice };
-      } else if (daysUntilStart >= 3) {
-        const penalty = Math.round(basePrice * 0.1);
-        return { penalty, penaltyDescription: 'Pénalité de 10%', refundAmount: basePrice - penalty };
+      // LOCATAIRE annule (avant le début)
+      if (daysUntilStart > 7) {
+        return { 
+          penalty: 0, 
+          penaltyDescription: 'Annulation gratuite (plus de 7 jours avant)', 
+          refundAmount: basePrice 
+        };
+      } else if (daysUntilStart > 3) {
+        const penalty = Math.round(basePrice * 0.15);
+        return { 
+          penalty, 
+          penaltyDescription: 'Annulation entre 3 et 7 jours avant (15% de pénalité)', 
+          refundAmount: basePrice - penalty 
+        };
+      } else if (hoursUntilStart > 24) {
+        const penalty = Math.round(basePrice * 0.30);
+        return { 
+          penalty, 
+          penaltyDescription: 'Annulation entre 24h et 3 jours avant (30% de pénalité)', 
+          refundAmount: basePrice - penalty 
+        };
       } else {
-        const penalty = Math.round(basePrice * 0.2);
-        return { penalty, penaltyDescription: 'Pénalité de 20%', refundAmount: basePrice - penalty };
+        const penalty = Math.round(basePrice * 0.50);
+        return { 
+          penalty, 
+          penaltyDescription: 'Annulation 24h ou moins avant le départ (50% de pénalité)', 
+          refundAmount: basePrice - penalty 
+        };
       }
     }
   };
@@ -181,7 +265,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                 startDate: startDateFormatted,
                 endDate: endDateFormatted,
                 reason: fullReason,
-                refundAmount: booking.total_price - penalty,
+                refundAmount: refundAmount, // Utiliser le refundAmount calculé (toujours 100% pour le locataire)
               }
             }
           });
@@ -225,7 +309,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                   endDate: endDateFormatted,
                   reason: fullReason,
                   penaltyAmount: penalty,
-                  refundAmount: booking.total_price - penalty,
+                  refundAmount: refundAmount, // Utiliser le refundAmount calculé
                 }
               }
             });
@@ -313,17 +397,39 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                     </Text>
                   ) : (
                     <Text style={styles.infoText}>
-                      {penalty > 0 ? (
+                      {penaltyDescription}
+                      {'\n\n'}
+                      {isOwner ? (
                         <>
-                          En annulant cette réservation, une pénalité de {penalty.toLocaleString()} XOF sera appliquée.
-                          {'\n\n'}
-                          Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
+                          {penalty > 0 ? (
+                            <>
+                              Vous serez pénalisé de {penalty.toLocaleString()} XOF.
+                              {'\n'}
+                              Le locataire sera remboursé intégralement de {refundAmount.toLocaleString()} XOF.
+                            </>
+                          ) : (
+                            <>
+                              Aucune pénalité ne sera appliquée.
+                              {'\n'}
+                              Le locataire sera remboursé intégralement de {refundAmount.toLocaleString()} XOF.
+                            </>
+                          )}
                         </>
                       ) : (
                         <>
-                          Aucune pénalité ne sera appliquée.
-                          {'\n\n'}
-                          Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
+                          {penalty > 0 ? (
+                            <>
+                              Une pénalité de {penalty.toLocaleString()} XOF sera appliquée.
+                              {'\n'}
+                              Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
+                            </>
+                          ) : (
+                            <>
+                              Aucune pénalité ne sera appliquée.
+                              {'\n'}
+                              Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
+                            </>
+                          )}
                         </>
                       )}
                     </Text>

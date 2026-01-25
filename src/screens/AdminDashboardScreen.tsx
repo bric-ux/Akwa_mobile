@@ -98,15 +98,16 @@ const AdminDashboardScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  const QuickAction = ({ title, description, icon, onPress }: {
+  const QuickAction = ({ title, description, icon, onPress, color }: {
     title: string;
     description: string;
     icon: string;
     onPress: () => void;
+    color?: string;
   }) => (
     <TouchableOpacity style={styles.quickAction} onPress={onPress}>
       <View style={styles.quickActionIcon}>
-        <Ionicons name={icon as any} size={24} color="#e74c3c" />
+        <Ionicons name={icon as any} size={24} color={color || "#e74c3c"} />
       </View>
       <View style={styles.quickActionContent}>
         <Text style={styles.quickActionTitle}>{title}</Text>
@@ -425,6 +426,22 @@ const AdminDashboardScreen: React.FC = () => {
             description="Suivre et gérer les pénalités d'annulation"
             icon="alert-circle-outline"
             onPress={handleNavigateToPenalties}
+          />
+
+          <QuickAction
+            title="Revenus AkwaHome"
+            description="Suivre les gains des résidences et véhicules"
+            icon="cash-outline"
+            onPress={() => navigation.navigate('AdminRevenue' as never)}
+            color="#2E7D32"
+          />
+
+          <QuickAction
+            title="Remboursements"
+            description="Suivre et gérer les remboursements"
+            icon="refresh-outline"
+            onPress={() => navigation.navigate('AdminRefunds' as never)}
+            color="#e67e22"
           />
         </View>
 

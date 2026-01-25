@@ -157,7 +157,7 @@ export const useVehicleBookings = () => {
       const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
 
       // Créer la réservation (sans license_document_url qui n'existe pas dans la table)
-      // Exactement comme sur le site web
+      // Note: discount_applied et discount_amount n'existent pas dans vehicle_bookings
       const { data: booking, error: bookingError } = await supabase
         .from('vehicle_bookings')
         .insert({
@@ -168,8 +168,6 @@ export const useVehicleBookings = () => {
           rental_days: rentalDays,
           daily_rate: dailyRate,
           total_price: totalPrice, // Total avec frais de service
-          discount_applied: pricing.discountApplied || false,
-          discount_amount: pricing.discountAmount || 0,
           security_deposit: vehicle.security_deposit ?? 0,
           pickup_location: bookingData.pickupLocation || null,
           dropoff_location: bookingData.dropoffLocation || null,
@@ -246,6 +244,9 @@ export const useVehicleBookings = () => {
 
           if (isAutoBooking) {
             // Réservation automatique - Envoyer les emails de confirmation immédiatement
+            // Calculer le revenu net du propriétaire (prix après réduction - commission 2%)
+            const ownerNetRevenue = basePrice - Math.round(basePrice * 0.02);
+            
             const emailData = {
               bookingId: booking.id,
               vehicleTitle: vehicleTitle,
@@ -263,7 +264,9 @@ export const useVehicleBookings = () => {
               endDate: bookingData.endDate,
               rentalDays: rentalDays,
               dailyRate: booking.daily_rate || vehicle?.price_per_day || 0,
+              basePrice: basePrice, // Prix après réduction (pour calculer le revenu net)
               totalPrice: totalPrice,
+              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
               securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
               pickupLocation: bookingData.pickupLocation || '',
               isInstantBooking: true,
@@ -302,6 +305,17 @@ export const useVehicleBookings = () => {
             });
           } else {
             // Réservation sur demande - Envoyer les emails de demande
+            // Calculer le revenu net du propriétaire (prix après réduction - commission 2%)
+            const ownerNetRevenue = basePrice - Math.round(basePrice * 0.02);
+            
+            console.log('📧 [useVehicleBookings] Calcul revenu net propriétaire:', {
+              basePrice,
+              totalPrice,
+              ownerNetRevenue,
+              commission: Math.round(basePrice * 0.02),
+              rentalDays
+            });
+            
             const emailData = {
               bookingId: booking.id,
               vehicleTitle: vehicleTitle,
@@ -319,13 +333,21 @@ export const useVehicleBookings = () => {
               endDate: bookingData.endDate,
               rentalDays: rentalDays,
               dailyRate: booking.daily_rate || vehicle?.price_per_day || 0,
+              basePrice: basePrice, // Prix après réduction (pour calculer le revenu net)
               totalPrice: totalPrice,
+              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
               securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
               pickupLocation: bookingData.pickupLocation || '',
               message: bookingData.messageToOwner || '',
               isInstantBooking: false,
               paymentMethod: bookingData.paymentMethod || booking.payment_method || '',
             };
+            
+            console.log('📧 [useVehicleBookings] Email data envoyé:', {
+              basePrice: emailData.basePrice,
+              totalPrice: emailData.totalPrice,
+              ownerNetRevenue: emailData.ownerNetRevenue
+            });
 
             // Email au locataire (demande envoyée)
             if (user.email) {
@@ -357,7 +379,7 @@ export const useVehicleBookings = () => {
         // Ne pas faire échouer la réservation si l'email échoue
       }
 
-      return { success: true, booking };
+      return { success: true, booking, status: booking.status };
     } catch (err: any) {
       console.error('Erreur lors de la création de la réservation:', err);
       setError(err.message || 'Erreur lors de la création de la réservation');
@@ -615,6 +637,12 @@ export const useVehicleBookings = () => {
             });
           };
 
+          // Calculer le revenu net du propriétaire
+          // totalPrice = basePrice + serviceFee (10% de basePrice)
+          // Donc : basePrice = totalPrice / 1.10
+          const calculatedBasePrice = Math.round((booking.total_price || 0) / 1.10);
+          const ownerNetRevenue = calculatedBasePrice - Math.round(calculatedBasePrice * 0.02);
+
           const emailData = {
             bookingId: booking.id,
             vehicleTitle: vehicleTitle,
@@ -632,7 +660,9 @@ export const useVehicleBookings = () => {
             endDate: formatDate(booking.end_date),
             rentalDays: booking.rental_days,
             dailyRate: booking.daily_rate,
+            basePrice: calculatedBasePrice, // Prix après réduction (calculé à partir de totalPrice)
             totalPrice: booking.total_price,
+            ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
             securityDeposit: booking.security_deposit || 0,
             pickupLocation: booking.pickup_location || '',
             isInstantBooking: false, // Confirmation manuelle = pas instantanée

@@ -71,6 +71,8 @@ import VehicleOwnerAccountScreen from '../screens/VehicleOwnerAccountScreen';
 import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
 import PenaltiesScreen from '../screens/PenaltiesScreen';
 import AdminPenaltiesScreen from '../screens/AdminPenaltiesScreen';
+import AdminRefundsScreen from '../screens/AdminRefundsScreen';
+import AdminRevenueScreen from '../screens/AdminRevenueScreen';
 import HostReviewsScreen from '../screens/HostReviewsScreen';
 import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
 import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
@@ -667,6 +669,22 @@ const AppNavigator = () => {
               component={AdminPenaltiesScreen}
               options={{
                 title: 'Gestion des pénalités',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminRefunds"
+              component={AdminRefundsScreen}
+              options={{
+                title: 'Remboursements',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminRevenue"
+              component={AdminRevenueScreen}
+              options={{
+                title: 'Revenus AkwaHome',
                 headerShown: false
               }}
             />

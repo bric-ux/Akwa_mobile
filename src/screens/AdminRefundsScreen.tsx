@@ -25,6 +25,7 @@ interface Refund {
   created_at: string;
   processed_at?: string | null;
   processed_by?: string | null;
+  type?: 'property' | 'vehicle';
   payment: {
     id: string;
     amount: number;
@@ -35,11 +36,19 @@ interface Refund {
     id: string;
     check_in_date?: string;
     check_out_date?: string;
+    start_date?: string;
+    end_date?: string;
     total_price: number;
     status: string;
     properties?: {
       id: string;
       title: string;
+    };
+    vehicles?: {
+      id: string;
+      title: string;
+      brand: string;
+      model: string;
     };
     guest_profile?: {
       first_name?: string;
@@ -71,7 +80,8 @@ const AdminRefundsScreen: React.FC = () => {
   const loadRefunds = async () => {
     setLoading(true);
     try {
-      let query = supabase
+      // Récupérer les remboursements de propriétés
+      let propertyRefundsQuery = supabase
         .from('refunds')
         .select(`
           *,
@@ -87,6 +97,7 @@ const AdminRefundsScreen: React.FC = () => {
             check_out_date,
             total_price,
             status,
+            guest_id,
             properties(
               id,
               title
@@ -96,16 +107,59 @@ const AdminRefundsScreen: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
+        propertyRefundsQuery = propertyRefundsQuery.eq('status', statusFilter);
       }
 
-      const { data, error } = await query;
+      const { data: propertyRefunds, error: propertyError } = await propertyRefundsQuery;
 
-      if (error) throw error;
+      if (propertyError) {
+        console.error('Erreur chargement remboursements propriétés:', propertyError);
+        // Ne pas bloquer si la table n'existe pas ou s'il y a une erreur
+        if (propertyError.code === 'PGRST205' || propertyError.message?.includes('does not exist') || propertyError.message?.includes('Could not find the table')) {
+          console.warn('Table refunds n\'existe pas ou est vide - continuer avec les annulations de véhicules uniquement');
+        } else {
+          // Pour les autres erreurs, on continue quand même
+          console.warn('Erreur lors du chargement des remboursements de propriétés, continuation...');
+        }
+      }
 
-      // Enrichir avec les profils
-      const refundsWithProfiles = await Promise.all(
-        (data || []).map(async (refund: any) => {
+      // Récupérer les remboursements de véhicules (s'il y a une table vehicle_refunds)
+      // Pour l'instant, on utilise les annulations de réservations de véhicules
+      let vehicleRefundsQuery = supabase
+        .from('vehicle_bookings')
+        .select(`
+          id,
+          start_date,
+          end_date,
+          total_price,
+          status,
+          cancelled_at,
+          cancellation_penalty,
+          cancellation_reason,
+          renter_id,
+          vehicles(
+            id,
+            title,
+            brand,
+            model
+          )
+        `)
+        .eq('status', 'cancelled')
+        .not('cancelled_at', 'is', null)
+        .order('cancelled_at', { ascending: false });
+
+      const { data: vehicleCancellations, error: vehicleError } = await vehicleRefundsQuery;
+
+      if (vehicleError) {
+        console.error('Erreur chargement annulations véhicules:', vehicleError);
+      }
+
+      // Combiner les remboursements
+      const allRefunds: any[] = [];
+      
+      // Traiter les remboursements de propriétés (seulement si pas d'erreur ou si la table existe)
+      if (propertyRefunds && !propertyError) {
+        for (const refund of propertyRefunds) {
           const [guestResult, processorResult] = await Promise.all([
             refund.booking?.guest_id
               ? supabase
@@ -123,18 +177,74 @@ const AdminRefundsScreen: React.FC = () => {
               : { data: null },
           ]);
 
-          return {
+          allRefunds.push({
             ...refund,
+            type: 'property',
             booking: {
               ...refund.booking,
               guest_profile: guestResult.data,
             },
             processor_profile: processorResult.data,
-          };
-        })
+          });
+        }
+      }
+
+      // Traiter les annulations de véhicules comme remboursements potentiels
+      if (vehicleCancellations) {
+        for (const cancellation of vehicleCancellations) {
+          const refundAmount = (cancellation.total_price || 0) - (cancellation.cancellation_penalty || 0);
+          
+          if (refundAmount > 0) {
+            const [renterResult] = await Promise.all([
+              cancellation.renter_id
+                ? supabase
+                    .from('profiles')
+                    .select('first_name, last_name, email, phone')
+                    .eq('user_id', cancellation.renter_id)
+                    .single()
+                : { data: null },
+            ]);
+
+            allRefunds.push({
+              id: `vehicle-${cancellation.id}`,
+              amount: refundAmount,
+              reason: cancellation.cancellation_reason || 'Annulation de réservation',
+              status: 'completed', // Les annulations sont considérées comme traitées
+              refund_type: cancellation.cancellation_penalty > 0 ? 'partial' : 'full',
+              created_at: cancellation.cancelled_at,
+              processed_at: cancellation.cancelled_at,
+              type: 'vehicle',
+              booking: {
+                id: cancellation.id,
+                start_date: cancellation.start_date,
+                end_date: cancellation.end_date,
+                total_price: cancellation.total_price,
+                status: 'cancelled',
+                vehicles: cancellation.vehicles,
+                guest_profile: renterResult.data,
+              },
+              payment: {
+                id: `vehicle-payment-${cancellation.id}`,
+                amount: cancellation.total_price,
+                payment_method: 'Non spécifié',
+                status: 'refunded',
+              },
+            });
+          }
+        }
+      }
+
+      // Trier par date de création (plus récent en premier)
+      allRefunds.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-      setRefunds(refundsWithProfiles as Refund[]);
+      // Appliquer le filtre de statut si nécessaire
+      const filteredRefunds = statusFilter === 'all' 
+        ? allRefunds 
+        : allRefunds.filter(r => r.status === statusFilter);
+
+      setRefunds(filteredRefunds as Refund[]);
     } catch (error) {
       console.error('Erreur chargement remboursements:', error);
       Alert.alert('Erreur', 'Impossible de charger les remboursements');
@@ -277,9 +387,15 @@ const AdminRefundsScreen: React.FC = () => {
               >
                 <View style={styles.refundHeader}>
                   <View style={styles.refundTitleContainer}>
-                    <Ionicons name="home-outline" size={20} color="#e67e22" />
+                    <Ionicons 
+                      name={refund.type === 'vehicle' ? 'car-outline' : 'home-outline'} 
+                      size={20} 
+                      color={refund.type === 'vehicle' ? '#e67e22' : '#3498db'} 
+                    />
                     <Text style={styles.refundTitle} numberOfLines={1}>
-                      {refund.booking?.properties?.title || 'Réservation'}
+                      {refund.type === 'vehicle'
+                        ? `${refund.booking?.vehicles?.brand || ''} ${refund.booking?.vehicles?.model || ''}`.trim() || refund.booking?.vehicles?.title || 'Véhicule'
+                        : refund.booking?.properties?.title || 'Réservation'}
                     </Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
@@ -294,7 +410,7 @@ const AdminRefundsScreen: React.FC = () => {
                   <View style={styles.detailRow}>
                     <Ionicons name="person-outline" size={16} color="#666" />
                     <Text style={styles.detailText}>
-                      {customer?.first_name} {customer?.last_name}
+                      {customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : 'N/A'}
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
@@ -385,17 +501,36 @@ const AdminRefundsScreen: React.FC = () => {
                 <View style={styles.modalSection}>
                   <Text style={styles.sectionTitle}>Réservation</Text>
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Propriété</Text>
+                    <Text style={styles.infoLabel}>Type</Text>
+                    <View style={styles.infoValueContainer}>
+                      <Ionicons 
+                        name={selectedRefund.type === 'vehicle' ? 'car-outline' : 'home-outline'} 
+                        size={16} 
+                        color={selectedRefund.type === 'vehicle' ? '#e67e22' : '#3498db'} 
+                      />
+                      <Text style={styles.infoValue}>
+                        {selectedRefund.type === 'vehicle' ? 'Location de véhicule' : 'Résidence meublée'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>
+                      {selectedRefund.type === 'vehicle' ? 'Véhicule' : 'Propriété'}
+                    </Text>
                     <Text style={styles.infoValue}>
-                      {selectedRefund.booking?.properties?.title || 'N/A'}
+                      {selectedRefund.type === 'vehicle'
+                        ? `${selectedRefund.booking?.vehicles?.brand || ''} ${selectedRefund.booking?.vehicles?.model || ''}`.trim() || selectedRefund.booking?.vehicles?.title || 'N/A'
+                        : selectedRefund.booking?.properties?.title || 'N/A'}
                     </Text>
                   </View>
-                  {selectedRefund.booking?.check_in_date && (
+                  {(selectedRefund.booking?.check_in_date || selectedRefund.booking?.start_date) && (
                     <View style={styles.infoRow}>
                       <Text style={styles.infoLabel}>Dates</Text>
                       <Text style={styles.infoValue}>
-                        {formatDate(selectedRefund.booking.check_in_date)} -{' '}
-                        {formatDate(selectedRefund.booking.check_out_date || '')}
+                        {selectedRefund.type === 'vehicle'
+                          ? `${formatDate(selectedRefund.booking.start_date || '')} - ${formatDate(selectedRefund.booking.end_date || '')}`
+                          : `${formatDate(selectedRefund.booking.check_in_date || '')} - ${formatDate(selectedRefund.booking.check_out_date || '')}`
+                        }
                       </Text>
                     </View>
                   )}
@@ -412,8 +547,8 @@ const AdminRefundsScreen: React.FC = () => {
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Nom</Text>
                     <Text style={styles.infoValue}>
-                      {selectedRefund.booking?.guest_profile?.first_name}{' '}
-                      {selectedRefund.booking?.guest_profile?.last_name}
+                      {selectedRefund.booking?.guest_profile?.first_name || ''}{' '}
+                      {selectedRefund.booking?.guest_profile?.last_name || ''}
                     </Text>
                   </View>
                   <View style={styles.infoRow}>
@@ -455,11 +590,11 @@ const AdminRefundsScreen: React.FC = () => {
                   <View style={styles.modalSection}>
                     <Text style={styles.sectionTitle}>Traité par</Text>
                     <Text style={styles.infoValue}>
-                      {selectedRefund.processor_profile.first_name}{' '}
-                      {selectedRefund.processor_profile.last_name}
+                      {selectedRefund.processor_profile.first_name || ''}{' '}
+                      {selectedRefund.processor_profile.last_name || ''}
                     </Text>
                     <Text style={[styles.infoValue, styles.emailValue]}>
-                      {selectedRefund.processor_profile.email}
+                      {selectedRefund.processor_profile.email || 'N/A'}
                     </Text>
                   </View>
                 )}
@@ -712,6 +847,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
     textAlign: 'right',
+  },
+  infoValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   amountValue: {
     color: '#ef4444',

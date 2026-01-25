@@ -101,7 +101,8 @@ const VehicleBookingScreen: React.FC = () => {
     const end = new Date(endDate);
     const diffTime = end.getTime() - start.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 0;
+    // Ajouter 1 pour inclure le jour de départ (ex: 8 fév au 13 fév = 6 jours)
+    return diffDays > 0 ? diffDays + 1 : 0;
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
@@ -385,9 +386,12 @@ const VehicleBookingScreen: React.FC = () => {
       });
 
       if (result.success) {
+        const isConfirmed = result.status === 'confirmed';
         Alert.alert(
-          'Demande envoyée !',
-          'Votre demande de réservation a été envoyée au propriétaire. Vous recevrez une réponse sous peu.',
+          isConfirmed ? 'Réservation confirmée !' : 'Demande envoyée !',
+          isConfirmed 
+            ? 'Votre réservation a été confirmée automatiquement. Vous recevrez une confirmation par email.'
+            : 'Votre demande de réservation a été envoyée au propriétaire. Vous recevrez une réponse sous peu.',
           [
             {
               text: 'OK',

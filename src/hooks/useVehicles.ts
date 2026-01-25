@@ -196,8 +196,19 @@ export const useVehicles = () => {
       // Filtrer par dates de disponibilité si startDate et endDate sont fournis
       let availableVehicles = data || [];
       if (filters?.startDate && filters?.endDate) {
-        const startDate = filters.startDate;
-        const endDate = filters.endDate;
+        // Normaliser les dates au format YYYY-MM-DD pour éviter les problèmes de fuseau horaire
+        const normalizeDate = (dateStr: string) => {
+          if (!dateStr) return '';
+          // Si c'est déjà au format YYYY-MM-DD, retourner tel quel
+          if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            return dateStr;
+          }
+          // Sinon, extraire la partie date
+          return dateStr.split('T')[0];
+        };
+        
+        const startDate = normalizeDate(filters.startDate);
+        const endDate = normalizeDate(filters.endDate);
         
         console.log(`🔍 [useVehicles] Filtrage par dates: ${startDate} - ${endDate}`);
         
@@ -205,16 +216,13 @@ export const useVehicles = () => {
         const vehicleIds = availableVehicles.map(v => v.id);
         
         if (vehicleIds.length > 0) {
-          // Récupérer les réservations qui chevauchent les dates sélectionnées
-          // On inclut seulement 'pending' et 'confirmed' (les réservations 'completed' sont terminées et ne bloquent pas)
-          // On filtre aussi pour ne récupérer que les réservations qui commencent avant la fin de la recherche
+          // Récupérer TOUTES les réservations pour ces véhicules (pending et confirmed)
+          // On va filtrer les chevauchements en JavaScript pour être sûr de ne rien manquer
           const { data: conflictingBookings, error: bookingsError } = await supabase
             .from('vehicle_bookings')
             .select('vehicle_id, start_date, end_date, status')
             .in('vehicle_id', vehicleIds)
-            .in('status', ['pending', 'confirmed'])
-            .lte('start_date', endDate) // Les réservations qui commencent avant ou à la fin de la recherche
-            .gte('end_date', startDate); // Et qui se terminent après ou au début de la recherche
+            .in('status', ['pending', 'confirmed']);
           
           if (bookingsError) {
             console.error('❌ [useVehicles] Erreur lors de la vérification des réservations:', bookingsError);
@@ -230,13 +238,12 @@ export const useVehicles = () => {
             }
           }
           
-          // Récupérer les dates bloquées qui chevauchent les dates sélectionnées
+          // Récupérer TOUTES les dates bloquées pour ces véhicules
+          // On va filtrer les chevauchements en JavaScript pour être sûr de ne rien manquer
           const { data: blockedDates, error: blockedError } = await supabase
             .from('vehicle_blocked_dates')
             .select('vehicle_id, start_date, end_date')
-            .in('vehicle_id', vehicleIds)
-            .lte('start_date', endDate) // Les dates bloquées qui commencent avant ou à la fin de la recherche
-            .gte('end_date', startDate); // Et qui se terminent après ou au début de la recherche
+            .in('vehicle_id', vehicleIds);
           
           if (blockedError) {
             console.error('❌ [useVehicles] Erreur lors de la vérification des dates bloquées:', blockedError);
@@ -245,17 +252,15 @@ export const useVehicles = () => {
           // Créer un Set des IDs de véhicules indisponibles
           const unavailableVehicleIds = new Set<string>();
           
+          // Normaliser les dates de recherche une seule fois
+          const searchStart = normalizeDate(startDate);
+          const searchEnd = normalizeDate(endDate);
+          
           // Vérifier les chevauchements pour les réservations
           (conflictingBookings || []).forEach((booking: any) => {
-            // Normaliser les dates au format YYYY-MM-DD pour éviter les problèmes de fuseau horaire
-            const normalizeDate = (dateStr: string) => {
-              return dateStr.split('T')[0]; // Prendre seulement la partie date
-            };
-            
+            // Normaliser les dates de la réservation
             const bookingStart = normalizeDate(booking.start_date);
             const bookingEnd = normalizeDate(booking.end_date);
-            const searchStart = normalizeDate(startDate);
-            const searchEnd = normalizeDate(endDate);
             
             console.log(`🔍 [useVehicles] Vérification chevauchement: réservation ${bookingStart} - ${bookingEnd} vs recherche ${searchStart} - ${searchEnd}`);
             
@@ -273,18 +278,13 @@ export const useVehicles = () => {
           
           // Vérifier les chevauchements pour les dates bloquées
           (blockedDates || []).forEach((blocked: any) => {
-            // Normaliser les dates au format YYYY-MM-DD pour éviter les problèmes de fuseau horaire
-            const normalizeDate = (dateStr: string) => {
-              return dateStr.split('T')[0]; // Prendre seulement la partie date
-            };
-            
+            // Normaliser les dates bloquées
             const blockedStart = normalizeDate(blocked.start_date);
             const blockedEnd = normalizeDate(blocked.end_date);
-            const searchStart = normalizeDate(startDate);
-            const searchEnd = normalizeDate(endDate);
             
             // Vérifier si les dates se chevauchent
-            if (searchStart <= blockedEnd && searchEnd >= blockedStart) {
+            const hasOverlap = searchStart <= blockedEnd && searchEnd >= blockedStart;
+            if (hasOverlap) {
               unavailableVehicleIds.add(blocked.vehicle_id);
               console.log(`🚫 [useVehicles] Véhicule ${blocked.vehicle_id} indisponible: dates bloquées ${blockedStart} - ${blockedEnd} chevauchent recherche ${searchStart} - ${searchEnd}`);
             }

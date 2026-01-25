@@ -327,12 +327,14 @@ const VehicleDetailsScreen: React.FC = () => {
                     <View style={[styles.optionIconContainer, { backgroundColor: '#fef3c7' }]}>
                       <Ionicons name="document-text" size={24} color="#f59e0b" />
                     </View>
-                    <Text style={styles.optionTitle}>Permis requis</Text>
-                    <Text style={styles.optionDescription} numberOfLines={2}>
-                      {((vehicle as any).min_license_years || 0) > 0 
-                        ? `${String((vehicle as any).min_license_years || 0)} an(s) minimum`
-                        : 'Permis valide requis'}
-                    </Text>
+                    <View style={styles.optionContent}>
+                      <Text style={styles.optionTitle}>Permis requis</Text>
+                      <Text style={styles.optionDescription} numberOfLines={2}>
+                        {((vehicle as any).min_license_years || 0) > 0 
+                          ? `Permis valide requis - ${String((vehicle as any).min_license_years || 0)} an(s) minimum`
+                          : 'Permis valide requis'}
+                      </Text>
+                    </View>
                   </View>
                 ) : null}
               </View>
