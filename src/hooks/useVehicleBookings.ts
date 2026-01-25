@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { VehicleBooking, VehicleBookingStatus } from '../types';
 import { useIdentityVerification } from './useIdentityVerification';
+import { calculateTotalPrice, calculateFees } from './usePricing';
 
 export interface VehicleBookingData {
   vehicleId: string;
@@ -62,7 +63,7 @@ export const useVehicleBookings = () => {
       // Récupérer les informations du véhicule pour calculer le prix
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('price_per_day, minimum_rental_days, auto_booking, security_deposit')
+        .select('price_per_day, minimum_rental_days, auto_booking, security_deposit, discount_enabled, discount_min_days, discount_percentage, long_stay_discount_enabled, long_stay_discount_min_days, long_stay_discount_percentage')
         .eq('id', bookingData.vehicleId)
         .single();
 
@@ -74,12 +75,12 @@ export const useVehicleBookings = () => {
         throw new Error(`La location minimum est de ${vehicle.minimum_rental_days || 1} jour(s)`);
       }
 
-      // Vérifier la disponibilité (pending, confirmed, completed - comme sur le site web)
+      // Vérifier la disponibilité (pending, confirmed - les réservations terminées ne bloquent pas)
       const { data: existingBookings, error: availabilityError } = await supabase
         .from('vehicle_bookings')
         .select('id, start_date, end_date, status')
         .eq('vehicle_id', bookingData.vehicleId)
-        .in('status', ['pending', 'confirmed', 'completed'])
+        .in('status', ['pending', 'confirmed'])
         .gte('end_date', new Date().toISOString().split('T')[0]);
 
       if (availabilityError) {
@@ -128,10 +129,30 @@ export const useVehicleBookings = () => {
         throw new Error('Ces dates sont bloquées par le propriétaire');
       }
 
-      // Calculer le prix total
+      // Calculer le prix total avec réductions et frais de service
       const dailyRate = vehicle.price_per_day;
-      const totalPrice = dailyRate * rentalDays;
-
+      
+      // Configuration des réductions
+      const discountConfig = {
+        enabled: vehicle.discount_enabled || false,
+        minNights: vehicle.discount_min_days || null,
+        percentage: vehicle.discount_percentage || null
+      };
+      
+      const longStayDiscountConfig = vehicle.long_stay_discount_enabled ? {
+        enabled: vehicle.long_stay_discount_enabled || false,
+        minNights: vehicle.long_stay_discount_min_days || null,
+        percentage: vehicle.long_stay_discount_percentage || null
+      } : undefined;
+      
+      // Calculer le prix avec réductions
+      const pricing = calculateTotalPrice(dailyRate, rentalDays, discountConfig, longStayDiscountConfig);
+      const basePrice = pricing.totalPrice; // Prix après réduction
+      
+      // Calculer les frais de service (10% du prix après réduction pour les véhicules)
+      const fees = calculateFees(basePrice, rentalDays, 'vehicle');
+      const totalPrice = basePrice + fees.serviceFee; // Total avec frais de service
+      
       // Déterminer le statut initial en fonction de auto_booking
       const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
 
@@ -146,7 +167,9 @@ export const useVehicleBookings = () => {
           end_date: bookingData.endDate,
           rental_days: rentalDays,
           daily_rate: dailyRate,
-          total_price: totalPrice,
+          total_price: totalPrice, // Total avec frais de service
+          discount_applied: pricing.discountApplied || false,
+          discount_amount: pricing.discountAmount || 0,
           security_deposit: vehicle.security_deposit ?? 0,
           pickup_location: bookingData.pickupLocation || null,
           dropoff_location: bookingData.dropoffLocation || null,

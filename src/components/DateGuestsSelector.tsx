@@ -16,6 +16,7 @@ interface DateGuestsSelectorProps {
   children: number;
   babies: number;
   onDateGuestsChange: (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => void;
+  isDateUnavailable?: (date: Date) => boolean; // Fonction optionnelle pour vérifier si une date est indisponible
 }
 
 export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
@@ -25,6 +26,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   children,
   babies,
   onDateGuestsChange,
+  isDateUnavailable,
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [tempCheckIn, setTempCheckIn] = useState(checkIn);
@@ -215,6 +217,12 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
 
     // Normaliser la date en utilisant les composants locaux pour éviter le décalage de fuseau horaire
     const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    
+    // Empêcher la sélection de dates indisponibles
+    if (isDateUnavailable && isDateUnavailable(dateObj)) {
+      return;
+    }
+    
     const year = dateObj.getFullYear();
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
     const dayStr = String(dateObj.getDate()).padStart(2, '0');
@@ -279,6 +287,9 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
       const isTodayDay = isToday(day);
       const isInRangeDay = isInRange(day);
       const isPastDay = isPastDate(day);
+      const currentDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+      const isUnavailableDay = isDateUnavailable ? isDateUnavailable(currentDate) : false;
+      const isDisabled = isPastDay || isUnavailableDay;
       
       days.push(
         <TouchableOpacity
@@ -289,9 +300,10 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
             isSelectedDay && styles.selectedDay,
             isInRangeDay && styles.rangeDay,
             isPastDay && styles.pastDay,
+            isUnavailableDay && styles.unavailableDay,
           ]}
           onPress={() => handleDateSelect(day)}
-          disabled={isPastDay}
+          disabled={isDisabled}
         >
           <Text style={[
             styles.dayText,
@@ -299,6 +311,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
             isSelectedDay && styles.selectedText,
             isInRangeDay && styles.rangeText,
             isPastDay && styles.pastText,
+            isUnavailableDay && styles.unavailableText,
           ]}>
             {day}
           </Text>
@@ -631,6 +644,14 @@ const styles = StyleSheet.create({
   },
   pastText: {
     color: '#ccc',
+  },
+  unavailableDay: {
+    backgroundColor: '#ffe0e0',
+    opacity: 0.6,
+  },
+  unavailableText: {
+    color: '#999',
+    textDecorationLine: 'line-through',
   },
   modalContainer: {
     flex: 1,

@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --clear",
+    "start:anon": "echo 'n' | expo start --clear || expo start --clear",
+    "start:tunnel": "expo start --tunnel --clear",
+    "start:lan": "expo start --lan --clear",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"

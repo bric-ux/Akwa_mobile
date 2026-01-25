@@ -23,6 +23,7 @@ import VehicleModificationModal from '../components/VehicleModificationModal';
 import VehicleReviewModal from '../components/VehicleReviewModal';
 import { useVehicleReviews } from '../hooks/useVehicleReviews';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
+import { getCommissionRates } from '../lib/commissions';
 
 const MyVehicleBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -185,6 +186,13 @@ const MyVehicleBookingsScreen: React.FC = () => {
     const vehicle = booking.vehicle;
     const vehicleImage = vehicle?.images?.[0] || vehicle?.vehicle_photos?.[0]?.url || null;
     const rentalDays = booking.rental_days || 1;
+    
+    // Calculer le total avec frais de service pour s'assurer qu'il est toujours correct
+    const basePrice = (booking.daily_rate || 0) * rentalDays;
+    const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
+    const commissionRates = getCommissionRates('vehicle');
+    const serviceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+    const totalWithServiceFee = priceAfterDiscount + serviceFee;
 
     return (
       <View style={styles.bookingCard}>
@@ -228,7 +236,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Total</Text>
             <Text style={styles.priceValue}>
-              {formatPrice(booking.total_price || 0)}
+              {formatPrice(totalWithServiceFee)}
             </Text>
           </View>
           {booking.discount_amount && booking.discount_amount > 0 && (

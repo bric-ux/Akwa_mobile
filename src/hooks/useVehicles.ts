@@ -206,16 +206,28 @@ export const useVehicles = () => {
         
         if (vehicleIds.length > 0) {
           // Récupérer les réservations qui chevauchent les dates sélectionnées
-          // On inclut 'pending', 'confirmed' et 'completed' mais on vérifie que la date de fin n'est pas passée
+          // On inclut seulement 'pending' et 'confirmed' (les réservations 'completed' sont terminées et ne bloquent pas)
+          // On filtre aussi pour ne récupérer que les réservations qui commencent avant la fin de la recherche
           const { data: conflictingBookings, error: bookingsError } = await supabase
             .from('vehicle_bookings')
             .select('vehicle_id, start_date, end_date, status')
             .in('vehicle_id', vehicleIds)
-            .in('status', ['pending', 'confirmed', 'completed'])
-            .gte('end_date', startDate); // Seulement les réservations qui se terminent après le début de la recherche
+            .in('status', ['pending', 'confirmed'])
+            .lte('start_date', endDate) // Les réservations qui commencent avant ou à la fin de la recherche
+            .gte('end_date', startDate); // Et qui se terminent après ou au début de la recherche
           
           if (bookingsError) {
             console.error('❌ [useVehicles] Erreur lors de la vérification des réservations:', bookingsError);
+          } else {
+            console.log(`📋 [useVehicles] ${conflictingBookings?.length || 0} réservation(s) trouvée(s) pour ${vehicleIds.length} véhicule(s)`);
+            if (conflictingBookings && conflictingBookings.length > 0) {
+              console.log('📋 [useVehicles] Réservations:', conflictingBookings.map((b: any) => ({
+                vehicle_id: b.vehicle_id,
+                start_date: b.start_date,
+                end_date: b.end_date,
+                status: b.status
+              })));
+            }
           }
           
           // Récupérer les dates bloquées qui chevauchent les dates sélectionnées
@@ -223,7 +235,8 @@ export const useVehicles = () => {
             .from('vehicle_blocked_dates')
             .select('vehicle_id, start_date, end_date')
             .in('vehicle_id', vehicleIds)
-            .gte('end_date', startDate); // Seulement les dates bloquées qui se terminent après le début de la recherche
+            .lte('start_date', endDate) // Les dates bloquées qui commencent avant ou à la fin de la recherche
+            .gte('end_date', startDate); // Et qui se terminent après ou au début de la recherche
           
           if (blockedError) {
             console.error('❌ [useVehicles] Erreur lors de la vérification des dates bloquées:', blockedError);
@@ -234,28 +247,46 @@ export const useVehicles = () => {
           
           // Vérifier les chevauchements pour les réservations
           (conflictingBookings || []).forEach((booking: any) => {
-            const bookingStart = new Date(booking.start_date);
-            const bookingEnd = new Date(booking.end_date);
-            const searchStart = new Date(startDate);
-            const searchEnd = new Date(endDate);
+            // Normaliser les dates au format YYYY-MM-DD pour éviter les problèmes de fuseau horaire
+            const normalizeDate = (dateStr: string) => {
+              return dateStr.split('T')[0]; // Prendre seulement la partie date
+            };
+            
+            const bookingStart = normalizeDate(booking.start_date);
+            const bookingEnd = normalizeDate(booking.end_date);
+            const searchStart = normalizeDate(startDate);
+            const searchEnd = normalizeDate(endDate);
+            
+            console.log(`🔍 [useVehicles] Vérification chevauchement: réservation ${bookingStart} - ${bookingEnd} vs recherche ${searchStart} - ${searchEnd}`);
             
             // Vérifier si les dates se chevauchent
-            // Deux plages se chevauchent si: searchStart < bookingEnd ET searchEnd > bookingStart
-            if (searchStart < bookingEnd && searchEnd > bookingStart) {
+            // Deux plages se chevauchent si: searchStart <= bookingEnd ET searchEnd >= bookingStart
+            // (on utilise <= et >= pour inclure les cas où les dates se touchent exactement)
+            const hasOverlap = searchStart <= bookingEnd && searchEnd >= bookingStart;
+            console.log(`🔍 [useVehicles] Chevauchement détecté: ${hasOverlap} (${searchStart} <= ${bookingEnd} && ${searchEnd} >= ${bookingStart})`);
+            
+            if (hasOverlap) {
               unavailableVehicleIds.add(booking.vehicle_id);
+              console.log(`🚫 [useVehicles] Véhicule ${booking.vehicle_id} indisponible: réservation ${bookingStart} - ${bookingEnd} chevauche recherche ${searchStart} - ${searchEnd}`);
             }
           });
           
           // Vérifier les chevauchements pour les dates bloquées
           (blockedDates || []).forEach((blocked: any) => {
-            const blockedStart = new Date(blocked.start_date);
-            const blockedEnd = new Date(blocked.end_date);
-            const searchStart = new Date(startDate);
-            const searchEnd = new Date(endDate);
+            // Normaliser les dates au format YYYY-MM-DD pour éviter les problèmes de fuseau horaire
+            const normalizeDate = (dateStr: string) => {
+              return dateStr.split('T')[0]; // Prendre seulement la partie date
+            };
+            
+            const blockedStart = normalizeDate(blocked.start_date);
+            const blockedEnd = normalizeDate(blocked.end_date);
+            const searchStart = normalizeDate(startDate);
+            const searchEnd = normalizeDate(endDate);
             
             // Vérifier si les dates se chevauchent
-            if (searchStart < blockedEnd && searchEnd > blockedStart) {
+            if (searchStart <= blockedEnd && searchEnd >= blockedStart) {
               unavailableVehicleIds.add(blocked.vehicle_id);
+              console.log(`🚫 [useVehicles] Véhicule ${blocked.vehicle_id} indisponible: dates bloquées ${blockedStart} - ${blockedEnd} chevauchent recherche ${searchStart} - ${searchEnd}`);
             }
           });
           

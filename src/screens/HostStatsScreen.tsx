@@ -16,6 +16,7 @@ import { useMyProperties } from '../hooks/useMyProperties';
 import { useHostBookings } from '../hooks/useHostBookings';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
+import { getCommissionRates } from '../lib/commissions';
 
 interface DetailedStats {
   totalProperties: number;
@@ -120,9 +121,39 @@ const HostStatsScreen: React.FC = () => {
       );
       confirmedBookingsCount = confirmed.length;
       
+      // Calculer les revenus nets (après déduction des commissions)
+      const commissionRates = getCommissionRates('property');
+      const calculateNetEarnings = (booking: any) => {
+        if (booking.status === 'cancelled') return 0;
+        
+        // Calculer le nombre de nuits
+        let nights = 0;
+        if ((booking as any).check_in_date && (booking as any).check_out_date) {
+          const checkIn = new Date((booking as any).check_in_date);
+          const checkOut = new Date((booking as any).check_out_date);
+          nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        // Récupérer le prix par nuit depuis la propriété ou calculer depuis total_price
+        const pricePerNight = (booking as any).property?.price_per_night || 
+                             (booking as any).properties?.price_per_night || 0;
+        
+        // Calculer le prix de base
+        const basePrice = pricePerNight * nights;
+        
+        // Appliquer la réduction si elle existe
+        const discountAmount = (booking as any).discount_amount || 0;
+        const priceAfterDiscount = basePrice - discountAmount;
+        
+        // Commission de 2% sur le prix APRÈS réduction
+        const hostCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+        return priceAfterDiscount - hostCommission;
+      };
+
       confirmed.forEach(booking => {
-        const price = (booking as any).total_price || 0;
-        revenue += price;
+        // Utiliser le calcul des revenus nets au lieu du total_price brut
+        const netEarnings = calculateNetEarnings(booking);
+        revenue += netEarnings;
         totalGuestsCount += (booking as any).guests_count || 0;
         
         if ((booking as any).check_in_date && (booking as any).check_out_date) {
@@ -394,7 +425,7 @@ const HostStatsScreen: React.FC = () => {
           />
           
           <StatCard
-            title={viewMode === 'monthly' ? 'Revenus du mois' : 'Revenus totaux'}
+            title={viewMode === 'monthly' ? 'Revenus nets du mois' : 'Revenus nets totaux'}
             value={formatPrice(currentStats.totalRevenue)}
             icon="cash-outline"
             color="#e67e22"

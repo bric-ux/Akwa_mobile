@@ -18,6 +18,7 @@ import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { useAuth } from '../services/AuthContext';
 import { VehicleBooking } from '../types';
 import { VEHICLE_COLORS } from '../constants/colors';
+import { getCommissionRates } from '../lib/commissions';
 
 interface DetailedStats {
   totalVehicles: number;
@@ -78,7 +79,21 @@ const VehicleOwnerStatsScreen: React.FC = () => {
         b.status === 'confirmed' || b.status === 'completed'
       );
 
-      const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
+      // Calculer les revenus nets (après déduction des commissions)
+      const commissionRates = getCommissionRates('vehicle');
+      const calculateNetEarnings = (booking: VehicleBooking) => {
+        if (booking.status === 'cancelled') return 0;
+        
+        // Prix de base = daily_rate × rental_days
+        const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
+        // Appliquer la réduction si elle existe
+        const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
+        // Commission de 2% sur le prix APRÈS réduction
+        const ownerCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+        return priceAfterDiscount - ownerCommission;
+      };
+
+      const totalRevenue = completedBookings.reduce((sum, b) => sum + calculateNetEarnings(b), 0);
       const totalDays = completedBookings.reduce((sum, b) => sum + (b.rental_days || 0), 0);
       const averagePerBooking = completedBookings.length > 0 
         ? totalRevenue / completedBookings.length 
@@ -146,12 +161,25 @@ const VehicleOwnerStatsScreen: React.FC = () => {
   }
 
   // Calculer les statistiques par véhicule
+  const commissionRates = getCommissionRates('vehicle');
+  const calculateNetEarnings = (booking: VehicleBooking) => {
+    if (booking.status === 'cancelled') return 0;
+    
+    // Prix de base = daily_rate × rental_days
+    const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
+    // Appliquer la réduction si elle existe
+    const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
+    // Commission de 2% sur le prix APRÈS réduction
+    const ownerCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+    return priceAfterDiscount - ownerCommission;
+  };
+
   const vehicleStats = vehicles.map(vehicle => {
     const vehicleBookings = allBookings.filter(b => 
       b.vehicle_id === vehicle.id && 
       (b.status === 'completed' || b.status === 'confirmed')
     );
-    const vehicleRevenue = vehicleBookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
+    const vehicleRevenue = vehicleBookings.reduce((sum, b) => sum + calculateNetEarnings(b), 0);
     const vehicleDays = vehicleBookings.reduce((sum, b) => sum + (b.rental_days || 0), 0);
 
     return {
@@ -218,7 +246,7 @@ const VehicleOwnerStatsScreen: React.FC = () => {
           />
           
           <StatCard
-            title="Revenus totaux"
+            title="Revenus nets totaux"
             value={formatPrice(stats.totalRevenue)}
             icon="cash-outline"
             color="#10b981"
@@ -290,7 +318,7 @@ const VehicleOwnerStatsScreen: React.FC = () => {
                         <Text style={styles.vehicleStatDetailValue}>
                           {formatPrice(vehicle.revenue)}
                         </Text>
-                        <Text style={styles.vehicleStatDetailLabel}>Revenus</Text>
+                        <Text style={styles.vehicleStatDetailLabel}>Revenus nets</Text>
                       </View>
                       <View style={styles.vehicleStatDetailItem}>
                         <Text style={styles.vehicleStatDetailValue}>
@@ -318,7 +346,7 @@ const VehicleOwnerStatsScreen: React.FC = () => {
           <Text style={styles.summaryTitle}>Résumé des performances</Text>
           <Text style={styles.summaryText}>
             Vous gérez {stats.totalVehicles} véhicule{stats.totalVehicles > 1 ? 's' : ''} avec un total de {stats.totalBookings} réservation{stats.totalBookings > 1 ? 's' : ''}.
-            {stats.totalRevenue > 0 && ` Vos revenus totaux s'élèvent à ${formatPrice(stats.totalRevenue)}.`}
+            {stats.totalRevenue > 0 && ` Vos revenus nets totaux s'élèvent à ${formatPrice(stats.totalRevenue)}.`}
           </Text>
         </View>
       </ScrollView>

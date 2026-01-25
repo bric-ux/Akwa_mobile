@@ -66,7 +66,7 @@ const VehicleCalendarScreen: React.FC = () => {
       if (blockedError) throw blockedError;
       setBlockedDates(blockedData || []);
 
-      // Charger les réservations (pending, confirmed, in_progress)
+      // Charger les réservations (pending, confirmed - les réservations terminées ne bloquent pas)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayStr = today.toISOString().split('T')[0];
@@ -75,7 +75,7 @@ const VehicleCalendarScreen: React.FC = () => {
         .from('vehicle_bookings')
         .select('id, start_date, end_date, status')
         .eq('vehicle_id', vehicleId)
-        .in('status', ['pending', 'confirmed', 'in_progress'])
+        .in('status', ['pending', 'confirmed'])
         .gte('end_date', todayStr)
         .order('start_date', { ascending: true });
 

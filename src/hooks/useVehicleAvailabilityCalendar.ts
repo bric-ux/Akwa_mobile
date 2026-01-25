@@ -20,12 +20,12 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
       today.setHours(0, 0, 0, 0);
       const todayStr = today.toISOString().split('T')[0];
       
-      // Récupérer les réservations (pending, confirmed, in_progress - toutes bloquent les dates)
+      // Récupérer les réservations (pending, confirmed - les réservations terminées ne bloquent pas)
       const { data: bookings, error: bookingsError } = await supabase
         .from('vehicle_bookings')
         .select('id, start_date, end_date, status')
         .eq('vehicle_id', vehicleId)
-        .in('status', ['pending', 'confirmed', 'in_progress'])
+        .in('status', ['pending', 'confirmed'])
         .gte('end_date', todayStr); // Seulement les réservations qui ne sont pas terminées
 
       if (bookingsError) {
@@ -141,4 +141,5 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
     refetch: fetchUnavailableDates
   };
 };
+
 

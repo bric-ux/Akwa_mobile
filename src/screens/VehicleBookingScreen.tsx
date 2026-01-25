@@ -21,6 +21,7 @@ import { useVehicles } from '../hooks/useVehicles';
 import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
+import { useVehicleAvailabilityCalendar } from '../hooks/useVehicleAvailabilityCalendar';
 import { formatPrice } from '../utils/priceCalculator';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
@@ -41,6 +42,7 @@ const VehicleBookingScreen: React.FC = () => {
   const { createBooking, loading } = useVehicleBookings();
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
+  const { isDateUnavailable } = useVehicleAvailabilityCalendar(vehicleId);
 
   const [vehicle, setVehicle] = useState<any>(null);
   const [loadingVehicle, setLoadingVehicle] = useState(true);
@@ -543,6 +545,7 @@ const VehicleBookingScreen: React.FC = () => {
             children={0}
             babies={0}
             onDateGuestsChange={handleDateGuestsChange}
+            isDateUnavailable={isDateUnavailable}
           />
           {rentalDays > 0 ? (
             <Text style={styles.rentalDaysText}>

@@ -137,13 +137,12 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   
   const hostCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
   // Calculer le total payé : prix après réduction + frais de service + frais de ménage + taxes
-  // IMPORTANT: Pour les véhicules, booking.total_price peut ne pas inclure les frais de service
-  // donc on calcule toujours le total correctement
   const calculatedTotal = priceAfterDiscount + effectiveServiceFee + cleaningFee + effectiveTaxes;
-  // Pour les véhicules, toujours utiliser le calcul car total_price ne contient pas les frais de service
+  // Pour les véhicules, toujours utiliser le calcul pour s'assurer que les frais de service sont inclus
+  // (même si booking.total_price existe, il peut ne pas inclure les frais de service pour les anciennes réservations)
   // Pour les propriétés, utiliser booking.total_price s'il existe et correspond au calcul
   const totalPaidByTraveler = (serviceType === 'vehicle') 
-    ? calculatedTotal
+    ? calculatedTotal // Toujours utiliser le calcul pour inclure les frais de service
     : (booking.total_price && Math.abs(booking.total_price - calculatedTotal) <= 100) 
       ? booking.total_price 
       : calculatedTotal;
