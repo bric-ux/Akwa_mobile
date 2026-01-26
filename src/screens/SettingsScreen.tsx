@@ -119,26 +119,40 @@ const SettingsScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      // Utiliser la fonction native de Supabase qui gère l'envoi d'email et le token
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: 'https://akwahome.com/reset-password.html', // URL de votre page de réinitialisation
+      // Utiliser la même fonction edge que le site web
+      const { error } = await supabase.functions.invoke('reset-password', {
+        body: { email: user.email }
       });
 
       if (error) {
-        console.error('Erreur Supabase:', error);
-        Alert.alert(t('common.error'), 'Impossible d\'envoyer l\'email de réinitialisation');
-        return;
+        console.error('Erreur reset password:', error);
+        // Même en cas d'erreur, on affiche un message de succès pour la sécurité
+        // (ne pas révéler si l'email existe ou non)
       }
 
       Alert.alert(
-        t('settings.emailSent'),
-        t('settings.emailSentDesc'),
-        [{ text: t('common.ok') }]
+        'Email envoyé !',
+        'Si un compte existe avec cet email, vous recevrez un lien de réinitialisation.',
+        [
+          {
+            text: t('common.ok'),
+            onPress: () => setShowResetModal(false)
+          }
+        ]
       );
-      setShowResetModal(false);
-    } catch (error) {
-      console.error('Erreur réinitialisation mot de passe:', error);
-      Alert.alert(t('common.error'), 'Une erreur est survenue lors de l\'envoi de l\'email');
+    } catch (error: any) {
+      console.error('Erreur catch:', error);
+      // Même en cas d'erreur, on affiche un message de succès pour la sécurité
+      Alert.alert(
+        'Email envoyé !',
+        'Si un compte existe avec cet email, vous recevrez un lien de réinitialisation.',
+        [
+          {
+            text: t('common.ok'),
+            onPress: () => setShowResetModal(false)
+          }
+        ]
+      );
     } finally {
       setLoading(false);
     }

@@ -21,6 +21,7 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import PasswordValidation from '../components/PasswordValidation';
 import EmailVerificationModal from '../components/EmailVerificationModal';
+import PasswordResetModal from '../components/PasswordResetModal';
 import { useEmailVerification } from '../hooks/useEmailVerification';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -46,6 +47,7 @@ const AuthScreen: React.FC = () => {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [dateError, setDateError] = useState<string | null>(null);
   const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [pendingUserData, setPendingUserData] = useState<{
     email: string;
     firstName: string;
@@ -419,6 +421,11 @@ const AuthScreen: React.FC = () => {
     setAgreeTerms(false);
   };
 
+  const handleForgotPassword = () => {
+    // Ouvrir la modal de réinitialisation de mot de passe
+    setShowPasswordReset(true);
+  };
+
 
   const openTerms = async () => {
     try {
@@ -614,6 +621,16 @@ const AuthScreen: React.FC = () => {
               </View>
             )}
 
+            {/* Lien "Mot de passe oublié" - uniquement en mode connexion */}
+            {isLogin && (
+              <TouchableOpacity 
+                style={styles.forgotPasswordContainer}
+                onPress={handleForgotPassword}
+              >
+                <Text style={styles.forgotPasswordText}>{t('auth.forgotPassword')}</Text>
+              </TouchableOpacity>
+            )}
+
             {!isLogin && (
               <>
                 <View style={styles.termsContainer}>
@@ -754,6 +771,13 @@ const AuthScreen: React.FC = () => {
           canClose={false} // Ne peut pas être fermée sans vérification lors de la création de compte
         />
       )}
+
+      {/* Modal de réinitialisation de mot de passe */}
+      <PasswordResetModal
+        visible={showPasswordReset}
+        onClose={() => setShowPasswordReset(false)}
+        initialEmail={email}
+      />
     </SafeAreaView>
   );
 };
@@ -1019,6 +1043,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 5,
     marginLeft: 15,
+  },
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    marginTop: -10,
+    marginBottom: 15,
+  },
+  forgotPasswordText: {
+    color: '#2E7D32',
+    fontSize: 14,
+    fontWeight: '500',
   },
   successContainer: {
     flexDirection: 'row',

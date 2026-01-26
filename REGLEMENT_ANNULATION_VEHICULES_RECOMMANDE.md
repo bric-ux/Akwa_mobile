@@ -195,3 +195,4 @@
 3. **Réservations terminées** : Impossible d'annuler
 4. **Calcul de base** : `daily_rate × rental_days` (ou `total_price` si disponible)
 
+
