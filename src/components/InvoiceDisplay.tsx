@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getCommissionRates, type ServiceType } from '../lib/commissions';
+import akwaHomeLogo from '../../assets/images/akwahome_logo.png';
 
 interface InvoiceDisplayProps {
   type: 'traveler' | 'host' | 'admin';
@@ -162,7 +163,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       {/* En-tête avec logo */}
       <View style={styles.header}>
         <Image
-          source={{ uri: 'https://hqzgndjbxzgsyfoictgo.supabase.co/storage/v1/object/public/property-images/akwa-home-logo.png' }}
+          source={akwaHomeLogo}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -482,6 +483,18 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           </Text>
         </View>
       )}
+
+      {/* Pied de page avec logo */}
+      <View style={styles.footerSection}>
+        <Image
+          source={akwaHomeLogo}
+          style={styles.footerLogo}
+          resizeMode="contain"
+        />
+        <Text style={styles.footerBrandText}>
+          AkwaHome - Votre plateforme de réservation en Côte d'Ivoire
+        </Text>
+      </View>
     </View>
   );
 };
@@ -679,6 +692,24 @@ const styles = StyleSheet.create({
     borderTopColor: '#e5e7eb',
   },
   footerText: {
+    fontSize: 11,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  footerSection: {
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 2,
+    borderTopColor: '#F97316',
+    alignItems: 'center',
+  },
+  footerLogo: {
+    height: 32,
+    width: 100,
+    marginBottom: 8,
+    opacity: 0.5,
+  },
+  footerBrandText: {
     fontSize: 11,
     color: '#6b7280',
     textAlign: 'center',
