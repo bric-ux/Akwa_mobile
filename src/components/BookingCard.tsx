@@ -14,6 +14,8 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { Alert } from 'react-native';
 import { useBookingModifications } from '../hooks/useBookingModifications';
+import { getCommissionRates } from '../lib/commissions';
+import { calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
 
 interface BookingCardProps {
   booking: Booking;
@@ -174,6 +176,93 @@ const BookingCard: React.FC<BookingCardProps> = ({
     / (1000 * 60 * 60 * 24)
   );
 
+  // Calculer le montant total EXACTEMENT comme dans PropertyBookingDetailsScreen
+  // Logique: basePrice = pricePerNight * nights
+  //          priceAfterDiscount = basePrice - discountAmount
+  //          serviceFee = priceAfterDiscount * 12%
+  //          total = priceAfterDiscount + serviceFee + cleaningFee + taxes
+  const calculateTotalAmount = (): number => {
+    if (!booking.properties) return booking.total_price || 0;
+    
+    const pricePerNight = booking.properties.price_per_night || 0;
+    if (pricePerNight === 0) return booking.total_price || 0;
+    
+    // TOUJOURS recalculer la réduction pour être sûr d'avoir la bonne valeur
+    let discountAmount = 0;
+    
+    const discountConfig: DiscountConfig = {
+      enabled: booking.properties.discount_enabled || false,
+      minNights: booking.properties.discount_min_nights || null,
+      percentage: booking.properties.discount_percentage || null
+    };
+    const longStayDiscountConfig: DiscountConfig | undefined = booking.properties.long_stay_discount_enabled ? {
+      enabled: booking.properties.long_stay_discount_enabled || false,
+      minNights: booking.properties.long_stay_discount_min_nights || null,
+      percentage: booking.properties.long_stay_discount_percentage || null
+    } : undefined;
+    
+    try {
+      const pricing = calculateTotalPrice(pricePerNight, nights, discountConfig, longStayDiscountConfig);
+      discountAmount = pricing.discountAmount || 0;
+    } catch (error) {
+      console.error('Erreur lors du calcul de la réduction:', error);
+      discountAmount = booking.discount_amount || 0;
+    }
+    
+    // Calculer exactement comme InvoiceDisplay
+    const basePrice = pricePerNight * nights;
+    const priceAfterDiscount = basePrice - discountAmount;
+    
+    // Calculer les frais de service (12% du prix APRÈS réduction)
+    const commissionRates = getCommissionRates('property');
+    const effectiveServiceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+    
+    // Frais de ménage (gratuit si applicable)
+    const baseCleaningFee = booking.properties.cleaning_fee || 0;
+    const isFreeCleaningApplicable = booking.properties.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days;
+    const cleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
+    
+    // Taxes
+    const taxes = booking.properties.taxes || 0;
+    
+    // Total payé : prix après réduction + frais de service + frais de ménage + taxes
+    const calculatedTotal = priceAfterDiscount + effectiveServiceFee + cleaningFee + taxes;
+    
+    return calculatedTotal;
+  };
+
+  const totalAmount = calculateTotalAmount();
+
+  // Calculer aussi le montant de réduction pour l'affichage
+  const calculateDiscountAmount = (): number => {
+    if (!booking.properties) return 0;
+    
+    const basePricePerNight = booking.properties.price_per_night || 0;
+    if (basePricePerNight === 0) return 0;
+    
+    const discountConfig: DiscountConfig = {
+      enabled: booking.properties.discount_enabled || false,
+      minNights: booking.properties.discount_min_nights || null,
+      percentage: booking.properties.discount_percentage || null
+    };
+    const longStayDiscountConfig: DiscountConfig | undefined = booking.properties.long_stay_discount_enabled ? {
+      enabled: booking.properties.long_stay_discount_enabled || false,
+      minNights: booking.properties.long_stay_discount_min_nights || null,
+      percentage: booking.properties.long_stay_discount_percentage || null
+    } : undefined;
+    
+    try {
+      const pricing = calculateTotalPrice(basePricePerNight, nights, discountConfig, longStayDiscountConfig);
+      return pricing.discountAmount || 0;
+    } catch (error) {
+      console.error('Erreur lors du calcul de la réduction:', error);
+      return booking.discount_amount || 0;
+    }
+  };
+
+  const discountAmount = calculateDiscountAmount();
+  const originalTotal = booking.properties ? (booking.properties.price_per_night || 0) * nights : booking.total_price || 0;
+
   // Fonction pour obtenir l'URL de l'image de la propriété
   // Priorité: property_photos (triées par display_order) > images > placeholder
   const getPropertyImageUrl = (): string => {
@@ -297,13 +386,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
 
         <View style={styles.priceContainer}>
           <Text style={styles.priceText}>
-            {formatPrice(booking.total_price)}
+            {formatPrice(totalAmount)}
           </Text>
-          {booking.discount_applied && booking.original_total && (
-            <Text style={styles.originalPrice}>
-              {formatPrice(booking.original_total)}
-            </Text>
-          )}
         </View>
       </View>
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getCommissionRates, type ServiceType } from '../lib/commissions';
+import { calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
 import akwaHomeLogo from '../../assets/images/akwahome_logo.png';
 
 interface InvoiceDisplayProps {
@@ -26,6 +27,13 @@ interface InvoiceDisplayProps {
       price_per_night?: number;
       cleaning_fee?: number;
       title?: string;
+      discount_enabled?: boolean;
+      discount_min_nights?: number | null;
+      discount_percentage?: number | null;
+      long_stay_discount_enabled?: boolean;
+      long_stay_discount_min_nights?: number | null;
+      long_stay_discount_percentage?: number | null;
+      free_cleaning_min_days?: number | null;
     };
   };
   pricePerUnit: number;
@@ -124,7 +132,33 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   
   const commissionRates = getCommissionRates(serviceType);
   const basePrice = pricePerUnit * nights;
-  const discountAmount = booking.discount_amount || 0;
+  
+  // Recalculer la réduction pour être sûr d'avoir la bonne valeur (comme dans PropertyBookingDetailsScreen)
+  let discountAmount = 0;
+  if (serviceType === 'property' && booking.properties) {
+    const discountConfig: DiscountConfig = {
+      enabled: booking.properties.discount_enabled || false,
+      minNights: booking.properties.discount_min_nights || null,
+      percentage: booking.properties.discount_percentage || null
+    };
+    const longStayDiscountConfig: DiscountConfig | undefined = booking.properties.long_stay_discount_enabled ? {
+      enabled: booking.properties.long_stay_discount_enabled || false,
+      minNights: booking.properties.long_stay_discount_min_nights || null,
+      percentage: booking.properties.long_stay_discount_percentage || null
+    } : undefined;
+    
+    try {
+      const pricing = calculateTotalPrice(pricePerUnit, nights, discountConfig, longStayDiscountConfig);
+      discountAmount = pricing.discountAmount || 0;
+    } catch (error) {
+      console.error('Erreur lors du calcul de la réduction dans InvoiceDisplay:', error);
+      // En cas d'erreur, utiliser la valeur stockée
+      discountAmount = booking.discount_amount || 0;
+    }
+  } else {
+    // Pour les véhicules ou si pas de propriété, utiliser la valeur stockée
+    discountAmount = booking.discount_amount || 0;
+  }
   
   // Prix après réduction (sans ajustement)
   const priceAfterDiscount = basePrice - discountAmount;
@@ -137,8 +171,18 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     : (booking.properties?.taxes || 0);
   
   const hostCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+  
+  // Calculer les frais de ménage en tenant compte de free_cleaning_min_days
+  // Utiliser le cleaningFee passé en paramètre si fourni, sinon utiliser celui de la propriété
+  let effectiveCleaningFee = cleaningFee !== undefined ? cleaningFee : (booking.properties?.cleaning_fee || 0);
+  
+  // Appliquer la logique free_cleaning_min_days si applicable
+  if (serviceType === 'property' && booking.properties?.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days) {
+    effectiveCleaningFee = 0;
+  }
+  
   // Calculer le total payé : prix après réduction + frais de service + frais de ménage + taxes
-  const calculatedTotal = priceAfterDiscount + effectiveServiceFee + cleaningFee + effectiveTaxes;
+  const calculatedTotal = priceAfterDiscount + effectiveServiceFee + effectiveCleaningFee + effectiveTaxes;
   // Pour les véhicules, toujours utiliser le calcul pour s'assurer que les frais de service sont inclus
   // (même si booking.total_price existe, il peut ne pas inclure les frais de service pour les anciennes réservations)
   // Pour les propriétés, utiliser booking.total_price s'il existe et correspond au calcul
@@ -255,10 +299,10 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           )}
 
           {/* Frais de ménage */}
-          {cleaningFee > 0 && (
+          {effectiveCleaningFee > 0 && (
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>Frais de ménage</Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(cleaningFee)}</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveCleaningFee)}</Text>
             </View>
           )}
 
@@ -414,10 +458,10 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           </View>
 
           {/* Frais de ménage */}
-          {cleaningFee > 0 && (
+          {effectiveCleaningFee > 0 && (
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>Frais de ménage</Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(cleaningFee)}</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveCleaningFee)}</Text>
             </View>
           )}
 

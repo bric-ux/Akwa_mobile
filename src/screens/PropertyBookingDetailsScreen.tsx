@@ -19,6 +19,8 @@ import { supabase } from '../services/supabase';
 import InvoiceDisplay from '../components/InvoiceDisplay';
 import { formatPrice } from '../utils/priceCalculator';
 import BookingModificationModal from '../components/BookingModificationModal';
+import { getCommissionRates } from '../lib/commissions';
+import { calculateTotalPrice, calculateFees, calculateFinalPrice, type DiscountConfig } from '../hooks/usePricing';
 
 type PropertyBookingDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyBookingDetails'>;
 
@@ -143,6 +145,123 @@ const PropertyBookingDetailsScreen: React.FC = () => {
     / (1000 * 60 * 60 * 24)
   );
 
+  // Calculer le montant total EXACTEMENT comme dans InvoiceDisplay
+  // Logique: basePrice = pricePerNight * nights
+  //          priceAfterDiscount = basePrice - discountAmount
+  //          serviceFee = priceAfterDiscount * 12%
+  //          total = priceAfterDiscount + serviceFee + cleaningFee + taxes
+  const calculateTotalAmount = (): number => {
+    if (!booking.properties) return booking.total_price || 0;
+    
+    const pricePerNight = booking.properties.price_per_night || 0;
+    if (pricePerNight === 0) return booking.total_price || 0;
+    
+    // TOUJOURS recalculer la réduction pour être sûr d'avoir la bonne valeur
+    // même si booking.discount_amount existe (car il peut être incorrect)
+    let discountAmount = 0;
+    
+    const discountConfig: DiscountConfig = {
+      enabled: booking.properties.discount_enabled || false,
+      minNights: booking.properties.discount_min_nights || null,
+      percentage: booking.properties.discount_percentage || null
+    };
+    const longStayDiscountConfig: DiscountConfig | undefined = booking.properties.long_stay_discount_enabled ? {
+      enabled: booking.properties.long_stay_discount_enabled || false,
+      minNights: booking.properties.long_stay_discount_min_nights || null,
+      percentage: booking.properties.long_stay_discount_percentage || null
+    } : undefined;
+    
+    try {
+      const pricing = calculateTotalPrice(pricePerNight, nights, discountConfig, longStayDiscountConfig);
+      discountAmount = pricing.discountAmount || 0;
+      
+      console.log('💰 Calcul réduction:', {
+        pricePerNight,
+        nights,
+        basePrice: pricePerNight * nights,
+        discountAmount,
+        discountConfig,
+        longStayDiscountConfig
+      });
+    } catch (error) {
+      console.error('Erreur lors du calcul de la réduction:', error);
+      // En cas d'erreur, utiliser la valeur stockée
+      discountAmount = booking.discount_amount || 0;
+    }
+    
+    // Calculer exactement comme InvoiceDisplay
+    const basePrice = pricePerNight * nights;
+    const priceAfterDiscount = basePrice - discountAmount;
+    
+    // Calculer les frais de service (12% du prix APRÈS réduction)
+    const commissionRates = getCommissionRates('property');
+    const effectiveServiceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+    
+    // Frais de ménage (gratuit si applicable)
+    const baseCleaningFee = booking.properties.cleaning_fee || 0;
+    const isFreeCleaningApplicable = booking.properties.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days;
+    const calculatedCleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
+    
+    // Taxes
+    const taxes = booking.properties.taxes || 0;
+    
+    // Total payé : prix après réduction + frais de service + frais de ménage + taxes
+    const calculatedTotal = priceAfterDiscount + effectiveServiceFee + calculatedCleaningFee + taxes;
+    
+    console.log('💰 Calcul total:', {
+      basePrice,
+      discountAmount,
+      priceAfterDiscount,
+      effectiveServiceFee,
+      calculatedCleaningFee,
+      taxes,
+      calculatedTotal,
+      bookingTotalPrice: booking.total_price
+    });
+    
+    return calculatedTotal;
+  };
+
+  const totalAmount = calculateTotalAmount();
+  
+  // Calculer les frais de ménage pour l'affichage (même logique que dans calculateTotalAmount)
+  const calculatedCleaningFee = booking.properties ? (() => {
+    const baseCleaningFee = booking.properties.cleaning_fee || 0;
+    const isFreeCleaningApplicable = booking.properties.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days;
+    return isFreeCleaningApplicable ? 0 : baseCleaningFee;
+  })() : 0;
+  
+  // Calculer aussi le montant de réduction pour l'affichage - TOUJOURS recalculer
+  const calculateDiscountAmount = (): number => {
+    if (!booking.properties) return 0;
+    
+    const basePricePerNight = booking.properties.price_per_night || 0;
+    if (basePricePerNight === 0) return 0;
+    
+    const discountConfig: DiscountConfig = {
+      enabled: booking.properties.discount_enabled || false,
+      minNights: booking.properties.discount_min_nights || null,
+      percentage: booking.properties.discount_percentage || null
+    };
+    const longStayDiscountConfig: DiscountConfig | undefined = booking.properties.long_stay_discount_enabled ? {
+      enabled: booking.properties.long_stay_discount_enabled || false,
+      minNights: booking.properties.long_stay_discount_min_nights || null,
+      percentage: booking.properties.long_stay_discount_percentage || null
+    } : undefined;
+    
+    try {
+      // calculateTotalPrice attend basePrice (prix par nuit), nights, et les configs de réduction
+      // Il calcule ensuite: originalTotal = basePrice * nights, puis applique la réduction
+      const pricing = calculateTotalPrice(basePricePerNight, nights, discountConfig, longStayDiscountConfig);
+      return pricing.discountAmount || 0;
+    } catch (error) {
+      console.error('Erreur lors du calcul de la réduction:', error);
+      return booking.discount_amount || 0;
+    }
+  };
+
+  const discountAmount = calculateDiscountAmount();
+
   // Fonction pour vérifier si la réservation peut être modifiée
   const canModifyBooking = () => {
     if (!booking) return false;
@@ -237,10 +356,23 @@ const PropertyBookingDetailsScreen: React.FC = () => {
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Montant total</Text>
               <Text style={[styles.infoValue, styles.priceValue]}>
-                {formatPrice(booking.total_price)}
+                {formatPrice(totalAmount)}
               </Text>
             </View>
           </View>
+
+          {/* Réduction si applicable - comme sur le site web */}
+          {discountAmount > 0 && (
+            <View style={styles.infoRow}>
+              <Ionicons name="pricetag-outline" size={20} color="#2E7D32" />
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, styles.discountLabel]}>Réduction appliquée</Text>
+                <Text style={[styles.infoValue, styles.discountValue]}>
+                  -{formatPrice(discountAmount)}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Contact de l'hôte */}
@@ -495,6 +627,13 @@ const styles = StyleSheet.create({
   priceValue: {
     fontSize: 18,
     color: '#2E7D32',
+  },
+  discountLabel: {
+    color: '#2E7D32',
+  },
+  discountValue: {
+    color: '#2E7D32',
+    fontWeight: '600',
   },
   phoneLink: {
     fontSize: 14,
