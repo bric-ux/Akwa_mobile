@@ -197,10 +197,48 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
     return isUnavailable;
   };
 
+  // Fonction pour vérifier si une plage de dates chevauche une période indisponible
+  const isDateRangeUnavailable = (startDate: Date, endDate: Date) => {
+    const normalizeDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    const normalizeDateStr = (dateStr: string) => {
+      if (!dateStr) return '';
+      if (dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+      }
+      return dateStr;
+    };
+    
+    const startStr = normalizeDate(startDate);
+    const endStr = normalizeDate(endDate);
+    
+    // Vérifier si la plage chevauche une période indisponible
+    // Deux plages se chevauchent si : start < existingEnd && end > existingStart
+    return unavailableDates.some(({ start_date, end_date }) => {
+      const normalizedStart = normalizeDateStr(start_date);
+      const normalizedEnd = normalizeDateStr(end_date);
+      
+      // Vérifier le chevauchement
+      const overlaps = startStr < normalizedEnd && endStr > normalizedStart;
+      
+      if (overlaps) {
+        console.log(`🚫 [isDateRangeUnavailable] Plage ${startStr} - ${endStr} chevauche période ${normalizedStart} - ${normalizedEnd}`);
+      }
+      
+      return overlaps;
+    });
+  };
+
   return {
     unavailableDates,
     loading,
     isDateUnavailable,
+    isDateRangeUnavailable,
     refetch: fetchUnavailableDates
   };
 };

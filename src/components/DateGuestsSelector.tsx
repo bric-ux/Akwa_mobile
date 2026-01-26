@@ -17,6 +17,7 @@ interface DateGuestsSelectorProps {
   babies: number;
   onDateGuestsChange: (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => void;
   isDateUnavailable?: (date: Date) => boolean; // Fonction optionnelle pour vérifier si une date est indisponible
+  isDateRangeUnavailable?: (startDate: Date, endDate: Date) => boolean; // Fonction optionnelle pour vérifier si une plage de dates chevauche une période indisponible
 }
 
 export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
@@ -27,6 +28,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   babies,
   onDateGuestsChange,
   isDateUnavailable,
+  isDateRangeUnavailable,
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [tempCheckIn, setTempCheckIn] = useState(checkIn);
@@ -104,6 +106,16 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   };
 
   const handleApply = () => {
+    // Vérifier si la plage complète chevauche une période indisponible
+    if (tempCheckIn && tempCheckOut && isDateRangeUnavailable) {
+      const checkInDate = new Date(tempCheckIn);
+      const checkOutDate = new Date(tempCheckOut);
+      if (isDateRangeUnavailable(checkInDate, checkOutDate)) {
+        // La plage chevauche une période indisponible, ne pas appliquer
+        return;
+      }
+    }
+    
     onDateGuestsChange(
       { checkIn: tempCheckIn, checkOut: tempCheckOut },
       { adults: tempAdults, children: tempChildren, babies: tempBabies }
@@ -248,6 +260,17 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
       // Utiliser les valeurs temporaires actuelles
       const finalCheckIn = tempCheckIn;
       if (finalCheckIn && newCheckOut) {
+        // Vérifier si la plage complète chevauche une période indisponible
+        if (isDateRangeUnavailable) {
+          const checkInDate = new Date(finalCheckIn);
+          const checkOutDate = new Date(newCheckOut);
+          if (isDateRangeUnavailable(checkInDate, checkOutDate)) {
+            // La plage chevauche une période indisponible, ne pas sauvegarder
+            setTempCheckOut(undefined);
+            return;
+          }
+        }
+        
         // Utiliser setTimeout pour s'assurer que setTempCheckOut est terminé
         setTimeout(() => {
           onDateGuestsChange(

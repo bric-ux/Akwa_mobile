@@ -42,7 +42,7 @@ const VehicleBookingScreen: React.FC = () => {
   const { createBooking, loading } = useVehicleBookings();
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
-  const { isDateUnavailable } = useVehicleAvailabilityCalendar(vehicleId);
+  const { isDateUnavailable, isDateRangeUnavailable } = useVehicleAvailabilityCalendar(vehicleId);
 
   const [vehicle, setVehicle] = useState<any>(null);
   const [loadingVehicle, setLoadingVehicle] = useState(true);
@@ -550,6 +550,7 @@ const VehicleBookingScreen: React.FC = () => {
             babies={0}
             onDateGuestsChange={handleDateGuestsChange}
             isDateUnavailable={isDateUnavailable}
+            isDateRangeUnavailable={isDateRangeUnavailable}
           />
           {rentalDays > 0 ? (
             <Text style={styles.rentalDaysText}>

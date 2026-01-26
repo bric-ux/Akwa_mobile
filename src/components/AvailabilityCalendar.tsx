@@ -31,7 +31,7 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   mode = 'both',
   showHeader = true,
 }) => {
-  const { isDateUnavailable, unavailableDates, loading } = useAvailabilityCalendar(propertyId);
+  const { isDateUnavailable, unavailableDates, loading, isDateRangeUnavailable } = useAvailabilityCalendar(propertyId);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [tempCheckIn, setTempCheckIn] = useState<Date | null>(selectedCheckIn || null);
   const [tempCheckOut, setTempCheckOut] = useState<Date | null>(selectedCheckOut || null);
@@ -173,6 +173,11 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
         // Sélection de la date de fin - permettre le même jour
         const normalizedCheckIn = normalizeDate(tempCheckIn);
         if (normalizedDate >= normalizedCheckIn) {
+          // Vérifier si la plage complète chevauche une période indisponible
+          if (isDateRangeUnavailable && isDateRangeUnavailable(tempCheckIn, normalizedDate)) {
+            // La plage chevauche une période indisponible, ne pas permettre la sélection
+            return;
+          }
           setTempCheckOut(normalizedDate);
         } else {
           setTempCheckIn(normalizedDate);
@@ -198,6 +203,13 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
       // Si pas de date de départ, utiliser la date d'arrivée + 1 jour
       const checkOut = normalizedCheckOut || 
         (normalizedCheckIn ? normalizeDate(new Date(normalizedCheckIn.getTime() + 24 * 60 * 60 * 1000)) : null);
+      
+      // Vérifier si la plage complète chevauche une période indisponible
+      if (normalizedCheckIn && checkOut && isDateRangeUnavailable && isDateRangeUnavailable(normalizedCheckIn, checkOut)) {
+        // La plage chevauche une période indisponible, ne pas confirmer
+        return;
+      }
+      
       onDateSelect(normalizedCheckIn, checkOut);
     }
     onClose();
