@@ -264,7 +264,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Frais de service */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              Frais de service Akwahome{serviceType === 'property' ? ` (${commissionRates.travelerFeePercent}%)` : ''}
+              Frais de service Akwahome
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
           </View>
