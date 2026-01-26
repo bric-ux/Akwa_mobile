@@ -558,68 +558,37 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
 
     if (result.success) {
+      // IMPORTANT: Les emails sont maintenant gérés dans useBookings.ts
+      // Ne plus envoyer d'emails depuis BookingModal pour éviter les doublons
+      // Les emails sont envoyés automatiquement selon le statut de la réservation :
+      // - Si auto_booking = true : booking_confirmed au voyageur et booking_confirmed_host à l'hôte
+      // - Si auto_booking = false : booking_request_sent au voyageur et booking_request à l'hôte
+      
       const isAutoBooking = property.auto_booking === true;
       
-      // Envoyer l'email de confirmation au voyageur
-      try {
-        await sendBookingRequestSent(
-          user.email || '',
-          `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Utilisateur',
-          property.title,
-          formatDateForAPI(checkIn),
-          formatDateForAPI(checkOut),
-          totalGuests,
-          finalTotal
-        );
-      } catch (error) {
-        console.error('Erreur lors de l\'envoi de l\'email au voyageur:', error);
-      }
-
-      // Envoyer l'email à l'hôte (si ce n'est pas une réservation automatique)
-      if (!isAutoBooking) {
-        try {
-          // Récupérer les informations de l'hôte
-          const { data: hostData, error: hostError } = await supabase
-            .from('profiles')
-            .select('first_name, last_name, email')
-            .eq('user_id', property.host_id)
-            .single();
-
-          if (!hostError && hostData?.email) {
-            await sendBookingRequest(
-              hostData.email,
-              `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim() || 'Hôte',
-              `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur',
-              property.title,
-              formatDateForAPI(checkIn),
-              formatDateForAPI(checkOut),
-              totalGuests,
-              finalTotal,
-              message.trim() || undefined
-            );
-          }
-        } catch (error) {
-          console.error('Erreur lors de l\'envoi de l\'email à l\'hôte:', error);
-        }
-      }
-      
+      // Afficher l'alerte de confirmation
       Alert.alert(
         isAutoBooking ? 'Réservation confirmée !' : 'Demande envoyée !',
         isAutoBooking 
           ? 'Votre réservation a été confirmée automatiquement. Vous recevrez une confirmation par email.'
           : 'Votre demande de réservation a été envoyée au propriétaire. Vous recevrez une notification lorsqu\'il répondra.',
-        [{ text: 'OK', onPress: onClose }]
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            // Réinitialiser le formulaire
+            setCheckIn(null);
+            setCheckOut(null);
+            setAdults(1);
+            setChildren(0);
+            setInfants(0);
+            setMessage('');
+            setVoucherCode('');
+            setVoucherDiscount(null);
+            // Fermer le modal
+            onClose();
+          }
+        }]
       );
-      
-      // Réinitialiser le formulaire
-      setCheckIn(null);
-      setCheckOut(null);
-      setAdults(1);
-      setChildren(0);
-      setInfants(0);
-      setMessage('');
-      setVoucherCode('');
-      setVoucherDiscount(null);
     } else {
       console.error('Erreur de réservation:', result.error || 'Erreur inconnue');
       Alert.alert(

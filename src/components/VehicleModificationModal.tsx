@@ -51,9 +51,16 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 
   const calculateRentalDays = () => {
     if (!startDate || !endDate) return 0;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
+    
+    // Si les dates sont identiques, c'est 1 jour de location
+    if (startDate === endDate) {
+      return 1;
+    }
+    
+    // Si les dates sont différentes, calculer la différence
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T00:00:00');
+    const diffTime = end.getTime() - start.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays + 1; // +1 pour inclure le jour de départ
   };
@@ -72,11 +79,10 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
       return;
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    if (end <= start) {
-      Alert.alert('Erreur', 'La date de fin doit être après la date de début');
+    // Comparer les dates en format string pour éviter les problèmes de fuseau horaire
+    // Permettre l'égalité pour les locations d'un jour (ex: du 1er au 1er janvier)
+    if (endDate < startDate) {
+      Alert.alert('Erreur', 'La date de fin ne peut pas être avant la date de début');
       return;
     }
 

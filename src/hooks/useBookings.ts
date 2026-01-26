@@ -229,9 +229,11 @@ export const useBookings = () => {
         return { success: false, error: `Le nombre maximum de voyageurs est ${propertyData.max_guests || 10}` };
       }
 
+      // Déterminer le statut initial en fonction de auto_booking (comme sur le site web)
+      // IMPORTANT: Déterminer AVANT la création pour éviter les problèmes de timing
+      const initialStatus = propertyData.auto_booking ? 'confirmed' : 'pending';
+
       // Créer la réservation
-      // IMPORTANT: Ajouter un flag pour éviter les emails en double
-      // Si auto_booking est true, on marque que l'email sera envoyé depuis le mobile
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -251,7 +253,7 @@ export const useBookings = () => {
           original_total: bookingData.originalTotal || bookingData.totalPrice,
           payment_method: bookingData.paymentMethod || null,
           payment_plan: bookingData.paymentPlan || null,
-          status: propertyData.auto_booking ? 'confirmed' : 'pending',
+          status: initialStatus,
         })
         .select()
         .single();
@@ -329,10 +331,9 @@ export const useBookings = () => {
           const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
           const hostName = `${hostProfile.first_name} ${hostProfile.last_name}`;
           
-          // Si auto_booking est true, la réservation est directement confirmée
-          // IMPORTANT: Utiliser propertyInfo.auto_booking (récupéré ici) au lieu de propertyData
-          const isAutoBooking = propertyInfo.auto_booking === true;
-          if (isAutoBooking && booking?.status === 'confirmed') {
+          // Utiliser initialStatus (déterminé AVANT la création) pour décider quels emails envoyer
+          // C'est la même logique que sur le site web pour éviter les problèmes de timing
+          if (initialStatus === 'confirmed') {
             console.log('✅ [useBookings] Réservation automatique détectée - envoi email de confirmation uniquement');
             // IMPORTANT: Vérifier si un email a déjà été envoyé pour éviter les doublons
             // On envoie l'email UNIQUEMENT depuis le mobile, pas depuis un trigger en base
@@ -427,9 +428,8 @@ export const useBookings = () => {
                 }
               };
 
-              // IMPORTANT: Vérifier si l'email n'a pas déjà été envoyé pour éviter les doublons
-              // Log pour debug
-              console.log('📧 [useBookings] Envoi email confirmation au voyageur (réservation automatique)');
+              // Envoyer l'email de confirmation au voyageur (comme sur le site web)
+              console.log('📧 [useBookings] Envoi email de confirmation au voyageur (réservation automatique)');
               const guestEmailResult = await supabase.functions.invoke('send-email', { body: guestEmailData });
               if (guestEmailResult.error) {
                 console.error('❌ [useBookings] Erreur email voyageur:', guestEmailResult.error);
@@ -498,37 +498,36 @@ export const useBookings = () => {
               console.error('❌ [useBookings] Erreur envoi emails:', emailError);
               // Ne pas faire échouer la réservation si l'email échoue
             }
-          } else {
-            // Réservation en attente - envoyer les emails de demande
-            // IMPORTANT: Ne pas envoyer ces emails si c'est une réservation automatique
-            if (!isAutoBooking) {
-              console.log('✅ [useBookings] Réservation en attente - envoi emails de demande');
-              // Email de notification à l'hôte
-              await sendBookingRequest(
-                hostProfile.email,
-                hostName,
-                guestName,
-                propertyInfo.title,
-                bookingData.checkInDate,
-                bookingData.checkOutDate,
-                bookingData.guestsCount,
-                bookingData.totalPrice,
-                bookingData.messageToHost
-              );
+          } else if (initialStatus === 'pending') {
+            // Réservation en attente - envoyer les emails de demande (comme sur le site web)
+            console.log('✅ [useBookings] Réservation en attente - envoi emails de demande');
+            
+            // Email de notification à l'hôte
+            await sendBookingRequest(
+              hostProfile.email,
+              hostName,
+              guestName,
+              propertyInfo.title,
+              bookingData.checkInDate,
+              bookingData.checkOutDate,
+              bookingData.guestsCount,
+              bookingData.totalPrice,
+              bookingData.messageToHost
+            );
 
-              // Email de confirmation au voyageur
-              await sendBookingRequestSent(
-                user.email || '',
-                guestName,
-                propertyInfo.title,
-                bookingData.checkInDate,
-                bookingData.checkOutDate,
-                bookingData.guestsCount,
-                bookingData.totalPrice
-              );
-            } else {
-              console.log('⚠️ [useBookings] Réservation automatique - emails de demande ignorés');
-            }
+            // Délai pour éviter le rate limit
+            await new Promise(resolve => setTimeout(resolve, 600));
+
+            // Email de confirmation au voyageur (demande envoyée)
+            await sendBookingRequestSent(
+              user.email || '',
+              guestName,
+              propertyInfo.title,
+              bookingData.checkInDate,
+              bookingData.checkOutDate,
+              bookingData.guestsCount,
+              bookingData.totalPrice
+            );
           }
 
           console.log('✅ [useBookings] Emails de réservation envoyés');

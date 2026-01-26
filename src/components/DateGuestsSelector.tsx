@@ -230,17 +230,17 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
     // Normaliser la date en utilisant les composants locaux pour éviter le décalage de fuseau horaire
     const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
     
-    // Empêcher la sélection de dates indisponibles
-    if (isDateUnavailable && isDateUnavailable(dateObj)) {
-      return;
-    }
-    
     const year = dateObj.getFullYear();
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
     const dayStr = String(dateObj.getDate()).padStart(2, '0');
     const selectedDate = `${year}-${month}-${dayStr}`;
     
     if (calendarMode === 'checkIn') {
+      // Pour le check-in, vérifier que la date n'est pas indisponible
+      if (isDateUnavailable && isDateUnavailable(dateObj)) {
+        return;
+      }
+      
       const newCheckIn = selectedDate;
       setTempCheckIn(newCheckIn);
       // Si la date de départ est antérieure à la date d'arrivée, la réinitialiser
@@ -251,14 +251,27 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
       setCalendarMode('checkOut');
       // Ne pas fermer le calendrier, continuer avec la sélection de checkOut
     } else {
+      // Pour le check-out, vérifier d'abord si on a un check-in
+      const finalCheckIn = tempCheckIn;
       const newCheckOut = selectedDate;
+      
+      // Vérifier que la date de fin est supérieure ou égale à la date de début
+      // Permettre l'égalité pour les locations d'un jour (ex: du 1er au 1er janvier)
+      if (finalCheckIn && newCheckOut < finalCheckIn) {
+        // La date de fin ne peut pas être avant la date de début
+        return;
+      }
+      
+      // Pour le check-out, on ne bloque pas les dates individuelles indisponibles
+      // car on vérifie la plage complète avec isDateRangeUnavailable
+      // Cela permet de sélectionner une date de fin qui est dans une période indisponible
+      // si la plage complète ne chevauche pas une période indisponible
+      
       setTempCheckOut(newCheckOut);
       // Fermer le calendrier après avoir sélectionné checkOut
       setShowCalendar(false);
       
       // Sauvegarder automatiquement quand les deux dates sont sélectionnées
-      // Utiliser les valeurs temporaires actuelles
-      const finalCheckIn = tempCheckIn;
       if (finalCheckIn && newCheckOut) {
         // Vérifier si la plage complète chevauche une période indisponible
         if (isDateRangeUnavailable) {

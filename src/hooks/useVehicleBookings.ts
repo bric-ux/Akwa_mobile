@@ -52,12 +52,19 @@ export const useVehicleBookings = () => {
       }
 
       // Calculer le nombre de jours (comme sur le site web: différence + 1)
-      const start = new Date(bookingData.startDate);
-      const end = new Date(bookingData.endDate);
-      const rentalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      // Si les dates sont identiques, c'est 1 jour de location
+      let rentalDays = 1;
+      if (bookingData.startDate !== bookingData.endDate) {
+        const start = new Date(bookingData.startDate + 'T00:00:00');
+        const end = new Date(bookingData.endDate + 'T00:00:00');
+        const diffTime = end.getTime() - start.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        rentalDays = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
+      }
 
-      if (rentalDays <= 1) {
-        throw new Error('La date de fin doit être après la date de début');
+      // Permettre les locations d'un jour minimum (ex: du 1er au 1er janvier = 1 jour)
+      if (rentalDays < 1) {
+        throw new Error('La date de fin ne peut pas être avant la date de début');
       }
 
       // Récupérer les informations du véhicule pour calculer le prix

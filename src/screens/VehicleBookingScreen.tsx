@@ -97,12 +97,22 @@ const VehicleBookingScreen: React.FC = () => {
 
   const calculateRentalDays = () => {
     if (!startDate || !endDate) return 0;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    
+    // Normaliser les dates pour éviter les problèmes de fuseau horaire
+    // Les dates sont au format "YYYY-MM-DD", on peut les comparer directement
+    if (startDate === endDate) {
+      // Si les dates sont identiques, c'est 1 jour de location
+      return 1;
+    }
+    
+    // Si les dates sont différentes, calculer la différence
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T00:00:00');
     const diffTime = end.getTime() - start.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    // Ajouter 1 pour inclure le jour de départ (ex: 8 fév au 13 fév = 6 jours)
-    return diffDays > 0 ? diffDays + 1 : 0;
+    // Ajouter 1 pour inclure le jour de départ
+    // Ex: du 1er au 2 janvier = 1 jour de différence + 1 = 2 jours
+    return diffDays + 1;
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
@@ -330,10 +340,11 @@ const VehicleBookingScreen: React.FC = () => {
       return;
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (end <= start) {
-      Alert.alert('Erreur', 'La date de fin doit être après la date de début');
+    // Comparer les dates en format string pour éviter les problèmes de fuseau horaire
+    // Le format "YYYY-MM-DD" est lexicographiquement comparable
+    // Permettre l'égalité pour les locations d'un jour (ex: du 1er au 1er janvier)
+    if (endDate < startDate) {
+      Alert.alert('Erreur', 'La date de fin ne peut pas être avant la date de début');
       return;
     }
 

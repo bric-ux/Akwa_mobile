@@ -221,10 +221,8 @@ const EditPropertyScreen: React.FC = () => {
         if (selectedLocation.id) {
           updateData.location_id = selectedLocation.id;
         }
-        // Garder le nom de la localisation pour compatibilité
-        if (selectedLocation.name) {
-          updateData.location = selectedLocation.name;
-        }
+        // Note: La colonne 'location' n'existe pas dans la table properties
+        // Seul location_id est utilisé pour référencer la table locations
       }
 
       // Mettre à jour la propriété
