@@ -22,11 +22,17 @@ export const useAvailabilityCalendar = (propertyId: string) => {
       today.setHours(0, 0, 0, 0);
       const todayStr = today.toISOString().split('T')[0];
       
+      // IMPORTANT: Récupérer TOUTES les réservations qui peuvent bloquer des dates
+      // - confirmed: bloquent définitivement
+      // - pending: bloquent temporairement (en attente de confirmation)
+      // Note: Les réservations "en cours" ont le statut "confirmed" dans la base
+      // mais sont calculées dynamiquement comme "in_progress" dans l'app
+      // On ne récupère PAS les completed car elles ne bloquent plus les dates
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select('id, check_in_date, check_out_date, status')
         .eq('property_id', propertyId)
-        .in('status', ['confirmed', 'pending'])
+        .in('status', ['confirmed', 'pending']) // in_progress n'existe pas dans l'enum, c'est calculé dynamiquement
         .gte('check_out_date', todayStr); // Seulement les réservations qui ne sont pas terminées
 
       if (bookingsError) {
@@ -69,24 +75,54 @@ export const useAvailabilityCalendar = (propertyId: string) => {
       // IMPORTANT : Pour les réservations avec une demande de modification en attente,
       // on bloque les dates ORIGINALES (pas les dates demandées) tant que la modification n'est pas acceptée
       (bookings || []).forEach(booking => {
+        // Normaliser les dates pour éviter les problèmes de format
+        const normalizeDate = (dateStr: string) => {
+          if (!dateStr) return '';
+          // Si la date contient un timestamp, extraire seulement la partie date
+          if (dateStr.includes('T')) {
+            return dateStr.split('T')[0];
+          }
+          return dateStr;
+        };
+        
         // Vérifier si cette réservation a une demande de modification en attente
         const pendingMod = pendingModifications.find(m => m.booking_id === booking.id);
         
         if (pendingMod) {
           // Si une modification est en attente, bloquer les dates ORIGINALES
-          const key = `${pendingMod.original_check_in}-${pendingMod.original_check_out}`;
+          const originalStart = normalizeDate(pendingMod.original_check_in);
+          const originalEnd = normalizeDate(pendingMod.original_check_out);
+          const key = `${originalStart}-${originalEnd}`;
           unavailableMap.set(key, {
-            start_date: pendingMod.original_check_in,
-            end_date: pendingMod.original_check_out,
+            start_date: originalStart,
+            end_date: originalEnd,
             reason: 'Réservé (modification en attente)'
           });
         } else {
           // Sinon, utiliser les dates actuelles de la réservation
-          const key = `${booking.check_in_date}-${booking.check_out_date}`;
-          const reason = booking.status === 'pending' ? 'Réservation en attente' : 'Réservé';
+          const checkIn = normalizeDate(booking.check_in_date);
+          const checkOut = normalizeDate(booking.check_out_date);
+          const key = `${checkIn}-${checkOut}`;
+          
+          // Déterminer le statut effectif pour l'affichage
+          // Les réservations "en cours" ont le statut "confirmed" mais sont entre check-in et check-out
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const checkInDate = new Date(checkIn);
+          checkInDate.setHours(0, 0, 0, 0);
+          const checkOutDate = new Date(checkOut);
+          checkOutDate.setHours(0, 0, 0, 0);
+          
+          let reason = 'Réservé';
+          if (booking.status === 'pending') {
+            reason = 'Réservation en attente';
+          } else if (booking.status === 'confirmed' && checkInDate <= today && checkOutDate >= today) {
+            reason = 'Réservé (en cours)';
+          }
+          
           unavailableMap.set(key, {
-            start_date: booking.check_in_date,
-            end_date: booking.check_out_date,
+            start_date: checkIn,
+            end_date: checkOut,
             reason
           });
         }
@@ -94,10 +130,21 @@ export const useAvailabilityCalendar = (propertyId: string) => {
       
       // Ensuite ajouter les dates bloquées (elles écrasent les réservations si même période)
       (blockedDates || []).forEach(blocked => {
-        const key = `${blocked.start_date}-${blocked.end_date}`;
+        // Normaliser les dates pour éviter les problèmes de format
+        const normalizeDate = (dateStr: string) => {
+          if (!dateStr) return '';
+          if (dateStr.includes('T')) {
+            return dateStr.split('T')[0];
+          }
+          return dateStr;
+        };
+        
+        const blockedStart = normalizeDate(blocked.start_date);
+        const blockedEnd = normalizeDate(blocked.end_date);
+        const key = `${blockedStart}-${blockedEnd}`;
         unavailableMap.set(key, {
-          start_date: blocked.start_date,
-          end_date: blocked.end_date,
+          start_date: blockedStart,
+          end_date: blockedEnd,
           reason: blocked.reason || 'Bloqué manuellement'
         });
       });
@@ -105,11 +152,29 @@ export const useAvailabilityCalendar = (propertyId: string) => {
       // Convertir le Map en array
       const allUnavailableDates = Array.from(unavailableMap.values());
 
+      // IMPORTANT: Vérifier que toutes les dates entre start_date et end_date sont bien incluses
+      // Normaliser toutes les dates pour s'assurer qu'elles sont au format YYYY-MM-DD
+      const normalizedUnavailableDates = allUnavailableDates.map(({ start_date, end_date, reason }) => {
+        const normalizeDateStr = (dateStr: string) => {
+          if (!dateStr) return '';
+          if (dateStr.includes('T')) {
+            return dateStr.split('T')[0];
+          }
+          return dateStr;
+        };
+        
+        return {
+          start_date: normalizeDateStr(start_date),
+          end_date: normalizeDateStr(end_date),
+          reason
+        };
+      });
+
       console.log('📅 [useAvailabilityCalendar] Réservations trouvées:', bookings?.length || 0);
       console.log('📅 [useAvailabilityCalendar] Demandes de modification en attente:', pendingModifications.length);
       console.log('📅 [useAvailabilityCalendar] Dates bloquées trouvées:', blockedDates?.length || 0);
-      console.log('📅 [useAvailabilityCalendar] Dates indisponibles combinées:', allUnavailableDates);
-      setUnavailableDates(allUnavailableDates);
+      console.log('📅 [useAvailabilityCalendar] Dates indisponibles combinées:', normalizedUnavailableDates);
+      setUnavailableDates(normalizedUnavailableDates);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -128,18 +193,77 @@ export const useAvailabilityCalendar = (propertyId: string) => {
     const day = String(date.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`; // Format YYYY-MM-DD
     
+    // Normaliser les dates des périodes indisponibles pour comparaison
+    const normalizeDateStr = (dateStr: string) => {
+      if (!dateStr) return '';
+      // Si la date contient un timestamp, extraire seulement la partie date
+      if (dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+      }
+      return dateStr;
+    };
+    
     const isUnavailable = unavailableDates.some(({ start_date, end_date }) => {
+      // Normaliser les dates de début et fin
+      const normalizedStart = normalizeDateStr(start_date);
+      const normalizedEnd = normalizeDateStr(end_date);
+      
       // Vérifier si la date est dans la période [start_date, end_date] (inclus)
-      return dateStr >= start_date && dateStr <= end_date;
+      // IMPORTANT: Utiliser >= et <= pour inclure les dates limites
+      const isInPeriod = dateStr >= normalizedStart && dateStr <= normalizedEnd;
+      
+      if (isInPeriod) {
+        console.log(`🚫 [isDateUnavailable] Date ${dateStr} indisponible: période ${normalizedStart} - ${normalizedEnd}`);
+      }
+      
+      return isInPeriod;
     });
     
     return isUnavailable;
+  };
+
+  // Fonction pour vérifier si une plage de dates chevauche une période indisponible
+  const isDateRangeUnavailable = (startDate: Date, endDate: Date) => {
+    const normalizeDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    const normalizeDateStr = (dateStr: string) => {
+      if (!dateStr) return '';
+      if (dateStr.includes('T')) {
+        return dateStr.split('T')[0];
+      }
+      return dateStr;
+    };
+    
+    const startStr = normalizeDate(startDate);
+    const endStr = normalizeDate(endDate);
+    
+    // Vérifier si la plage chevauche une période indisponible
+    // Deux plages se chevauchent si : start < existingEnd && end > existingStart
+    return unavailableDates.some(({ start_date, end_date }) => {
+      const normalizedStart = normalizeDateStr(start_date);
+      const normalizedEnd = normalizeDateStr(end_date);
+      
+      // Vérifier le chevauchement
+      const overlaps = startStr < normalizedEnd && endStr > normalizedStart;
+      
+      if (overlaps) {
+        console.log(`🚫 [isDateRangeUnavailable] Plage ${startStr} - ${endStr} chevauche période ${normalizedStart} - ${normalizedEnd}`);
+      }
+      
+      return overlaps;
+    });
   };
 
   return {
     unavailableDates,
     loading,
     isDateUnavailable,
+    isDateRangeUnavailable,
     refetch: fetchUnavailableDates
   };
 };

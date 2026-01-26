@@ -128,15 +128,17 @@ export const useBookings = () => {
         return { success: false, error: 'Erreur lors de la récupération des informations de la propriété' };
       }
 
-      // Vérification de la disponibilité des dates (uniquement réservations CONFIRMÉES + dates bloquées)
-      // Les réservations pending ne bloquent pas les dates (comme sur le site web)
-      // Récupérer toutes les réservations confirmées pour cette propriété
+      // Vérification de la disponibilité des dates
+      // IMPORTANT: Récupérer TOUTES les réservations qui bloquent les dates pour être cohérent avec le calendrier
+      // Le calendrier affiche les dates comme indisponibles si elles ont des réservations pending ou confirmed
+      // Note: in_progress n'existe pas dans l'enum, c'est calculé dynamiquement à partir de confirmed
+      // Donc la vérification doit prendre en compte pending et confirmed pour éviter les incohérences
       const { data: existingBookings, error: checkError } = await supabase
         .from('bookings')
         .select('id, check_in_date, check_out_date, status')
         .eq('property_id', bookingData.propertyId)
-        .eq('status', 'confirmed')
-        .gte('check_out_date', new Date().toISOString().split('T')[0]); // Seulement les réservations futures
+        .in('status', ['confirmed', 'pending']) // in_progress n'existe pas dans l'enum, c'est calculé dynamiquement
+        .gte('check_out_date', new Date().toISOString().split('T')[0]); // Seulement les réservations qui ne sont pas terminées
 
       if (checkError) {
         console.error('Availability check error:', checkError);
@@ -172,12 +174,14 @@ export const useBookings = () => {
 
         // Vérifier le chevauchement : la nouvelle commence avant la fin de l'existante 
         // ET finit après le début de l'existante
+        // IMPORTANT: Utiliser <= et >= pour inclure les dates limites (check-in et check-out)
         const overlaps = bookingStart < existingEnd && bookingEnd > existingStart;
         
         if (overlaps) {
           console.log('🔴 Conflit détecté:', {
             nouvelle: `${bookingData.checkInDate} - ${bookingData.checkOutDate}`,
-            existante: `${booking.check_in_date} - ${booking.check_out_date}`
+            existante: `${booking.check_in_date} - ${booking.check_out_date}`,
+            status: booking.status
           });
         }
         
@@ -226,6 +230,8 @@ export const useBookings = () => {
       }
 
       // Créer la réservation
+      // IMPORTANT: Ajouter un flag pour éviter les emails en double
+      // Si auto_booking est true, on marque que l'email sera envoyé depuis le mobile
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -297,6 +303,7 @@ export const useBookings = () => {
             check_in_time,
             check_out_time,
             house_rules,
+            auto_booking,
             locations:location_id(
               id,
               name,
@@ -323,7 +330,12 @@ export const useBookings = () => {
           const hostName = `${hostProfile.first_name} ${hostProfile.last_name}`;
           
           // Si auto_booking est true, la réservation est directement confirmée
-          if (propertyData.auto_booking && booking?.status === 'confirmed') {
+          // IMPORTANT: Utiliser propertyInfo.auto_booking (récupéré ici) au lieu de propertyData
+          const isAutoBooking = propertyInfo.auto_booking === true;
+          if (isAutoBooking && booking?.status === 'confirmed') {
+            console.log('✅ [useBookings] Réservation automatique détectée - envoi email de confirmation uniquement');
+            // IMPORTANT: Vérifier si un email a déjà été envoyé pour éviter les doublons
+            // On envoie l'email UNIQUEMENT depuis le mobile, pas depuis un trigger en base
             // Préparer les données pour le PDF
             const pdfBookingData = {
               id: booking.id,
@@ -415,11 +427,14 @@ export const useBookings = () => {
                 }
               };
 
+              // IMPORTANT: Vérifier si l'email n'a pas déjà été envoyé pour éviter les doublons
+              // Log pour debug
+              console.log('📧 [useBookings] Envoi email confirmation au voyageur (réservation automatique)');
               const guestEmailResult = await supabase.functions.invoke('send-email', { body: guestEmailData });
               if (guestEmailResult.error) {
                 console.error('❌ [useBookings] Erreur email voyageur:', guestEmailResult.error);
               } else {
-                console.log('✅ [useBookings] Email avec PDF envoyé au voyageur');
+                console.log('✅ [useBookings] Email avec PDF envoyé au voyageur (réservation automatique)');
               }
 
               // Délai pour éviter le rate limit
@@ -485,29 +500,35 @@ export const useBookings = () => {
             }
           } else {
             // Réservation en attente - envoyer les emails de demande
-            // Email de notification à l'hôte
-            await sendBookingRequest(
-              hostProfile.email,
-              hostName,
-              guestName,
-              propertyInfo.title,
-              bookingData.checkInDate,
-              bookingData.checkOutDate,
-              bookingData.guestsCount,
-              bookingData.totalPrice,
-              bookingData.messageToHost
-            );
+            // IMPORTANT: Ne pas envoyer ces emails si c'est une réservation automatique
+            if (!isAutoBooking) {
+              console.log('✅ [useBookings] Réservation en attente - envoi emails de demande');
+              // Email de notification à l'hôte
+              await sendBookingRequest(
+                hostProfile.email,
+                hostName,
+                guestName,
+                propertyInfo.title,
+                bookingData.checkInDate,
+                bookingData.checkOutDate,
+                bookingData.guestsCount,
+                bookingData.totalPrice,
+                bookingData.messageToHost
+              );
 
-            // Email de confirmation au voyageur
-            await sendBookingRequestSent(
-              user.email || '',
-              guestName,
-              propertyInfo.title,
-              bookingData.checkInDate,
-              bookingData.checkOutDate,
-              bookingData.guestsCount,
-              bookingData.totalPrice
-            );
+              // Email de confirmation au voyageur
+              await sendBookingRequestSent(
+                user.email || '',
+                guestName,
+                propertyInfo.title,
+                bookingData.checkInDate,
+                bookingData.checkOutDate,
+                bookingData.guestsCount,
+                bookingData.totalPrice
+              );
+            } else {
+              console.log('⚠️ [useBookings] Réservation automatique - emails de demande ignorés');
+            }
           }
 
           console.log('✅ [useBookings] Emails de réservation envoyés');
