@@ -68,8 +68,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
   const [viewMode, setViewMode] = useState<'grid' | 'category'>('grid');
   const [showAllPhotos, setShowAllPhotos] = useState(false);
   
-  // Limiter l'affichage initial à 7 photos en vue grille
-  const MAX_PHOTOS_GRID = 7;
+  // Limiter l'affichage initial à 3 photos en vue grille
+  const MAX_PHOTOS_GRID = 3;
 
   // Grouper les photos par catégorie
   const photosByCategory = photos.reduce((acc, photo) => {
@@ -221,7 +221,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
       {/* Grille des photos */}
       <ScrollView style={styles.photosContainer} key={`photos-${viewMode}`}>
         {viewMode === 'grid' ? (
-          // Vue grille : afficher les 7 premières photos
+          // Vue grille : afficher les 3 premières photos
           <View style={styles.gridContainer}>
             {limitedPhotosGrid.length === 0 ? (
               <View style={styles.noPhotosContainer}>
@@ -230,15 +230,21 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
               </View>
             ) : (
               <View style={styles.photoGrid}>
-                {limitedPhotosGrid.map((photo, index) => (
-                <TouchableOpacity
-                  key={photo.id}
-                  style={styles.photoItem}
-                  onPress={() => {
-                    const photoIndex = allPhotosFlat.findIndex(p => p.id === photo.id);
-                    openFullGallery(photoIndex >= 0 ? photoIndex : index);
-                  }}
-                >
+                {limitedPhotosGrid.map((photo, index) => {
+                  const isLastInRow = (index + 1) % 3 === 0;
+                  return (
+                  <TouchableOpacity
+                    key={photo.id}
+                    style={[
+                      styles.photoItem,
+                      // Ajouter marge à droite seulement si ce n'est pas la dernière photo de la ligne
+                      !isLastInRow && styles.photoItemWithMargin
+                    ]}
+                    onPress={() => {
+                      const photoIndex = allPhotosFlat.findIndex(p => p.id === photo.id);
+                      openFullGallery(photoIndex >= 0 ? photoIndex : index);
+                    }}
+                  >
                   <Image
                     source={{ uri: photo.url }}
                     style={styles.photoImage}
@@ -293,7 +299,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                     </TouchableOpacity>
                   )}
                 </TouchableOpacity>
-                ))}
+                  );
+                })}
               </View>
             )}
             
@@ -693,7 +700,6 @@ const styles = StyleSheet.create({
   photoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
   },
   categoryBadge: {
     position: 'absolute',
@@ -809,14 +815,19 @@ const styles = StyleSheet.create({
   photoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
   },
   photoItem: {
-    width: (screenWidth - 48) / 2,
-    height: (screenWidth - 48) / 2,
+    // Calcul précis: largeur écran - padding gridContainer (16*2) - 2 espaces de 8px entre les 3 photos
+    // screenWidth - 32 (padding) - 16 (2 espaces de 8px) = screenWidth - 48
+    // Diviser par 3 pour obtenir la largeur de chaque photo
+    width: (screenWidth - 48) / 3,
+    height: (screenWidth - 48) / 3,
     marginBottom: 12,
     borderRadius: 8,
     overflow: 'hidden',
+  },
+  photoItemWithMargin: {
+    marginRight: 8,
   },
   photoImage: {
     width: '100%',
