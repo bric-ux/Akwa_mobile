@@ -98,6 +98,37 @@ const PropertyBookingDetailsScreen: React.FC = () => {
     });
   };
 
+  // Fonction pour déterminer le statut réel à afficher en fonction des dates
+  const getEffectiveStatus = (): string => {
+    if (!booking) return 'pending';
+    
+    // Si annulée ou terminée, utiliser le statut de la base
+    if (booking.status === 'cancelled' || booking.status === 'completed') {
+      return booking.status;
+    }
+    
+    // Vérifier si la réservation est en cours
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkIn = new Date(booking.check_in_date);
+    checkIn.setHours(0, 0, 0, 0);
+    const checkOut = new Date(booking.check_out_date);
+    checkOut.setHours(0, 0, 0, 0);
+    
+    // Si le checkout est passé, la réservation est terminée
+    if (checkOut < today) {
+      return 'completed';
+    }
+    
+    // Si le check-in est passé ou aujourd'hui et le checkout est futur, la réservation est en cours
+    if (checkIn <= today && checkOut >= today && booking.status === 'confirmed') {
+      return 'in_progress';
+    }
+    
+    // Sinon, utiliser le statut de la base de données
+    return booking.status;
+  };
+
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { color: string; label: string }> = {
       pending: { color: '#f39c12', label: 'En attente' },
@@ -174,15 +205,6 @@ const PropertyBookingDetailsScreen: React.FC = () => {
     try {
       const pricing = calculateTotalPrice(pricePerNight, nights, discountConfig, longStayDiscountConfig);
       discountAmount = pricing.discountAmount || 0;
-      
-      console.log('💰 Calcul réduction:', {
-        pricePerNight,
-        nights,
-        basePrice: pricePerNight * nights,
-        discountAmount,
-        discountConfig,
-        longStayDiscountConfig
-      });
     } catch (error) {
       console.error('Erreur lors du calcul de la réduction:', error);
       // En cas d'erreur, utiliser la valeur stockée
@@ -207,17 +229,6 @@ const PropertyBookingDetailsScreen: React.FC = () => {
     
     // Total payé : prix après réduction + frais de service + frais de ménage + taxes
     const calculatedTotal = priceAfterDiscount + effectiveServiceFee + calculatedCleaningFee + taxes;
-    
-    console.log('💰 Calcul total:', {
-      basePrice,
-      discountAmount,
-      priceAfterDiscount,
-      effectiveServiceFee,
-      calculatedCleaningFee,
-      taxes,
-      calculatedTotal,
-      bookingTotalPrice: booking.total_price
-    });
     
     return calculatedTotal;
   };
@@ -269,18 +280,22 @@ const PropertyBookingDetailsScreen: React.FC = () => {
     // Ne peut pas modifier si annulée ou terminée
     if (booking.status === 'cancelled' || booking.status === 'completed') return false;
     
-    // Ne peut pas modifier si le checkout est passé
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const checkout = new Date(booking.check_out_date);
-    checkout.setHours(0, 0, 0, 0);
-    if (checkout < today) return false;
+    // Peut modifier les réservations en attente, confirmées ou en cours
+    if (booking.status === 'pending' || booking.status === 'confirmed' || booking.status === 'in_progress') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const checkout = new Date(booking.check_out_date);
+      checkout.setHours(0, 0, 0, 0);
+      
+      // Ne peut pas modifier si le checkout est passé (réservation terminée)
+      if (checkout < today) return false;
+      
+      // Peut modifier si le checkout est aujourd'hui ou dans le futur
+      return checkout >= today;
+    }
     
-    const checkIn = new Date(booking.check_in_date);
-    checkIn.setHours(0, 0, 0, 0);
-    
-    // Peut modifier si le check-in est dans le futur ou aujourd'hui
-    return checkIn >= today;
+    return false;
   };
 
   return (
@@ -300,7 +315,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Statut */}
         <View style={styles.statusContainer}>
-          {getStatusBadge(booking.status)}
+          {getStatusBadge(getEffectiveStatus())}
         </View>
 
         {/* Informations de la réservation */}

@@ -140,19 +140,15 @@ const MyBookingsScreen: React.FC = () => {
     today.setHours(0, 0, 0, 0);
     const checkout = new Date(booking.check_out_date);
     checkout.setHours(0, 0, 0, 0);
+    
+    // Ne peut pas modifier si le checkout est passé (réservation terminée)
     if (checkout < today) {
       Alert.alert('Impossible de modifier', 'Cette réservation est terminée et ne peut plus être modifiée.');
       return;
     }
 
-    // Vérifier si le check-in est dans le futur ou aujourd'hui
-    const checkInDate = new Date(booking.check_in_date);
-    checkInDate.setHours(0, 0, 0, 0);
-    if (checkInDate < today) {
-      Alert.alert('Impossible de modifier', 'Vous ne pouvez modifier que les réservations futures ou en cours.');
-      return;
-    }
-
+    // Peut modifier si le checkout est aujourd'hui ou dans le futur
+    // Cela inclut les réservations futures (check-in futur) et en cours (check-in passé mais checkout futur)
     setSelectedBookingForModification(booking);
     setModificationModalVisible(true);
   };

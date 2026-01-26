@@ -142,9 +142,10 @@ export const useBookingModifications = () => {
           console.warn('⚠️ Pas d\'email hôte trouvé pour host_id:', bookingData?.properties?.host_id);
         }
 
-        // Email au voyageur (confirmation)
+        // Email au voyageur (confirmation explicite)
         if (guestData?.email) {
           try {
+            // S'assurer que toutes les données nécessaires sont présentes
             const emailData = {
               guestName: `${guestData.first_name || ''} ${guestData.last_name || ''}`.trim() || 'Cher voyageur',
               propertyTitle: bookingData.properties?.title || 'Propriété',
@@ -154,15 +155,18 @@ export const useBookingModifications = () => {
               requestedPrice: typeof data.requestedTotalPrice === 'number' ? data.requestedTotalPrice : Number(data.requestedTotalPrice) || 0,
             };
             
-            console.log('📧 [useBookingModifications] Envoi email au voyageur:', {
+            // Vérifier que le type d'email est correct
+            const emailType = 'booking_modification_request_sent';
+            
+            console.log('📧 [useBookingModifications] Envoi email explicite au voyageur:', {
               to: guestData.email,
-              type: 'booking_modification_request_sent',
+              type: emailType,
               data: emailData
             });
             
             const emailResponse = await supabase.functions.invoke('send-email', {
               body: {
-                type: 'booking_modification_request_sent',
+                type: emailType,
                 to: guestData.email,
                 data: emailData
               }
@@ -172,7 +176,8 @@ export const useBookingModifications = () => {
               console.error('❌ [useBookingModifications] Erreur envoi email au voyageur:', emailResponse.error);
               console.error('❌ [useBookingModifications] Détails erreur:', JSON.stringify(emailResponse.error, null, 2));
             } else {
-              console.log('✅ [useBookingModifications] Email de confirmation envoyé au voyageur:', guestData.email);
+              console.log('✅ [useBookingModifications] Email explicite de confirmation envoyé au voyageur:', guestData.email);
+              console.log('✅ [useBookingModifications] Type d\'email utilisé:', emailType);
               console.log('✅ [useBookingModifications] Réponse email:', emailResponse.data);
             }
           } catch (guestEmailError: any) {
@@ -182,7 +187,6 @@ export const useBookingModifications = () => {
         } else {
           console.warn('⚠️ [useBookingModifications] Pas d\'email voyageur trouvé pour guest_id:', data.guestId);
           console.warn('⚠️ [useBookingModifications] Données guestData:', guestData);
-          console.warn('⚠️ [useBookingModifications] guestResult:', guestResult);
         }
       } catch (emailError) {
         console.error('❌ Erreur envoi email demande modification:', emailError);
@@ -673,13 +677,12 @@ export const useBookingModifications = () => {
           guestData: guestData ? { email: guestData.email, name: `${guestData.first_name} ${guestData.last_name}` } : null,
         });
 
-        // Email à l'hôte pour l'informer de l'annulation
+        // Email à l'hôte pour l'informer de l'annulation (même type que la fonction Edge expire-pending-requests)
         // Essayer d'abord avec hostData, sinon essayer de récupérer directement depuis request.host_id
         let hostEmail = hostData?.email;
         let hostName = hostData ? `${hostData.first_name || ''} ${hostData.last_name || ''}`.trim() : 'Cher hôte';
         
         if (!hostEmail && request.host_id) {
-          console.log('📧 [cancelModificationRequest] Tentative récupération email hôte depuis request.host_id:', request.host_id);
           const { data: hostDataFromRequest } = await supabase
             .from('profiles')
             .select('email, first_name, last_name')
@@ -689,74 +692,72 @@ export const useBookingModifications = () => {
           if (hostDataFromRequest?.email) {
             hostEmail = hostDataFromRequest.email;
             hostName = `${hostDataFromRequest.first_name || ''} ${hostDataFromRequest.last_name || ''}`.trim() || 'Cher hôte';
-            console.log('✅ [cancelModificationRequest] Email hôte récupéré depuis request.host_id:', hostEmail);
           }
         }
         
         if (hostEmail) {
           try {
-            console.log('📧 [cancelModificationRequest] Envoi email à l\'hôte:', {
-              to: hostEmail,
-              type: 'booking_modification_cancelled',
-              hostName: hostName,
-              guestName: `${guestData?.first_name || ''} ${guestData?.last_name || ''}`.trim() || 'Voyageur',
-              propertyTitle: bookingData?.properties?.title || 'Propriété',
-            });
-            
+            const formatDate = (dateStr: string) => {
+              const date = new Date(dateStr);
+              return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+            };
+
             const emailResponse = await supabase.functions.invoke('send-email', {
               body: {
-                type: 'booking_modification_cancelled',
+                type: 'modification_expired_host_notification',
                 to: hostEmail,
                 data: {
                   hostName: hostName,
-                  guestName: `${guestData?.first_name || ''} ${guestData?.last_name || ''}`.trim() || 'Voyageur',
-                  propertyTitle: bookingData?.properties?.title || request.property_title || 'Propriété',
-                  requestedCheckIn: request.requested_check_in,
-                  requestedCheckOut: request.requested_check_out,
-                  requestedGuests: request.requested_guests_count,
+                  guestName: `${guestData?.first_name || ''} ${guestData?.last_name || ''}`.trim() || 'Un voyageur',
+                  propertyTitle: bookingData?.properties?.title || 'Propriété',
+                  requestedCheckIn: formatDate(request.requested_check_in),
+                  requestedCheckOut: formatDate(request.requested_check_out),
                   requestedPrice: request.requested_total_price,
+                  reason: 'Le voyageur a annulé sa demande de modification'
                 }
               }
             });
             
             if (emailResponse.error) {
               console.error('❌ [cancelModificationRequest] Erreur envoi email à l\'hôte:', emailResponse.error);
-              console.error('❌ [cancelModificationRequest] Détails erreur:', JSON.stringify(emailResponse.error, null, 2));
             } else {
-              console.log('✅ [cancelModificationRequest] Email d\'annulation de demande envoyé à l\'hôte:', hostEmail);
-              console.log('✅ [cancelModificationRequest] Réponse email:', emailResponse.data);
+              console.log('✅ [cancelModificationRequest] Email d\'annulation envoyé à l\'hôte:', hostEmail);
             }
           } catch (hostEmailError: any) {
             console.error('❌ [cancelModificationRequest] Erreur lors de l\'envoi de l\'email à l\'hôte:', hostEmailError);
-            console.error('❌ [cancelModificationRequest] Stack:', hostEmailError.stack);
           }
-        } else {
-          console.warn('⚠️ [cancelModificationRequest] Pas d\'email hôte trouvé');
-          console.warn('⚠️ [cancelModificationRequest] host_id depuis bookingData:', bookingData?.properties?.host_id);
-          console.warn('⚠️ [cancelModificationRequest] host_id depuis request:', request.host_id);
-          console.warn('⚠️ [cancelModificationRequest] hostResult:', hostResult);
-          console.warn('⚠️ [cancelModificationRequest] bookingData?.properties:', bookingData?.properties);
         }
 
-        // Email au voyageur (confirmation de l'annulation)
+        // Email au voyageur (même type que la fonction Edge expire-pending-requests)
         if (guestData?.email) {
-          await supabase.functions.invoke('send-email', {
-            body: {
-              type: 'booking_modification_cancelled_guest',
-              to: guestData.email,
-              data: {
-                guestName: `${guestData.first_name || ''} ${guestData.last_name || ''}`.trim() || 'Cher voyageur',
-                propertyTitle: bookingData?.properties?.title || 'Propriété',
-                requestedCheckIn: request.requested_check_in,
-                requestedCheckOut: request.requested_check_out,
-                requestedGuests: request.requested_guests_count,
-                requestedPrice: request.requested_total_price,
+          try {
+            const formatDate = (dateStr: string) => {
+              const date = new Date(dateStr);
+              return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+            };
+
+            const emailResponse = await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'booking_modification_expired',
+                to: guestData.email,
+                data: {
+                  guestName: guestData.first_name || 'Cher client',
+                  propertyTitle: bookingData?.properties?.title || 'Propriété',
+                  requestedCheckIn: formatDate(request.requested_check_in),
+                  requestedCheckOut: formatDate(request.requested_check_out),
+                  reason: 'Vous avez annulé votre demande de modification'
+                }
               }
+            });
+            
+            if (emailResponse.error) {
+              console.error('❌ [cancelModificationRequest] Erreur envoi email au voyageur:', emailResponse.error);
+            } else {
+              console.log('✅ [cancelModificationRequest] Email d\'annulation envoyé au voyageur:', guestData.email);
             }
-          });
-          console.log('✅ Email de confirmation d\'annulation envoyé au voyageur:', guestData.email);
-        } else {
-          console.warn('⚠️ Pas d\'email voyageur trouvé pour guest_id:', request.guest_id);
+          } catch (guestEmailError: any) {
+            console.error('❌ [cancelModificationRequest] Erreur lors de l\'envoi de l\'email au voyageur:', guestEmailError);
+          }
         }
       } catch (emailError) {
         console.error('❌ Erreur envoi email annulation demande:', emailError);

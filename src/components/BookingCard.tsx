@@ -120,17 +120,16 @@ const BookingCard: React.FC<BookingCardProps> = ({
     // Ne peut pas modifier si annulée ou terminée
     if (booking.status === 'cancelled' || booking.status === 'completed') return false;
     
-    // Ne peut pas modifier si le checkout est passé
-    if (isBookingPast(booking.check_out_date)) return false;
+    // Peut modifier les réservations en attente, confirmées ou en cours
+    if (booking.status === 'pending' || booking.status === 'confirmed' || booking.status === 'in_progress') {
+      // Ne peut pas modifier si le checkout est passé (réservation terminée)
+      if (isBookingPast(booking.check_out_date)) return false;
+      
+      // Peut modifier si le checkout est aujourd'hui ou dans le futur
+      return !isBookingPast(booking.check_out_date);
+    }
     
-    const checkIn = new Date(booking.check_in_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    checkIn.setHours(0, 0, 0, 0);
-    
-    // Peut modifier si le check-in est dans le futur ou aujourd'hui
-    // Permet de modifier les réservations pending, confirmed, et même in_progress (le jour même du check-in)
-    return checkIn >= today;
+    return false;
   };
 
   const formatPrice = (price: number) => {
@@ -141,12 +140,43 @@ const BookingCard: React.FC<BookingCardProps> = ({
     }).format(price);
   };
 
+  // Fonction pour déterminer le statut réel à afficher en fonction des dates
+  const getEffectiveStatus = (): string => {
+    // Si annulée ou terminée, utiliser le statut de la base
+    if (booking.status === 'cancelled' || booking.status === 'completed') {
+      return booking.status;
+    }
+    
+    // Vérifier si la réservation est en cours
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkIn = new Date(booking.check_in_date);
+    checkIn.setHours(0, 0, 0, 0);
+    const checkOut = new Date(booking.check_out_date);
+    checkOut.setHours(0, 0, 0, 0);
+    
+    // Si le checkout est passé, la réservation est terminée
+    if (checkOut < today) {
+      return 'completed';
+    }
+    
+    // Si le check-in est passé ou aujourd'hui et le checkout est futur, la réservation est en cours
+    if (checkIn <= today && checkOut >= today && booking.status === 'confirmed') {
+      return 'in_progress';
+    }
+    
+    // Sinon, utiliser le statut de la base de données
+    return booking.status;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
         return '#f39c12';
       case 'confirmed':
         return '#27ae60';
+      case 'in_progress':
+        return '#3498db';
       case 'cancelled':
         return '#e74c3c';
       case 'completed':
@@ -162,6 +192,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
         return 'En attente';
       case 'confirmed':
         return 'Confirmée';
+      case 'in_progress':
+        return 'En cours';
       case 'cancelled':
         return 'Annulée';
       case 'completed':
@@ -170,6 +202,8 @@ const BookingCard: React.FC<BookingCardProps> = ({
         return status;
     }
   };
+
+  const effectiveStatus = getEffectiveStatus();
 
   const nights = Math.ceil(
     (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) 
@@ -322,9 +356,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </View>
         </View>
         <View style={styles.statusContainer}>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) }]}>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(effectiveStatus) }]}>
             <Text style={styles.statusText}>
-              {getStatusText(booking.status)}
+              {getStatusText(effectiveStatus)}
             </Text>
           </View>
         </View>

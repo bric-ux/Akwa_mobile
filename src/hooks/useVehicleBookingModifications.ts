@@ -682,61 +682,70 @@ export const useVehicleBookingModifications = () => {
           renter: renter ? { email: renter.email, name: `${renter.first_name} ${renter.last_name}` } : null,
         });
 
-        // Email au propriétaire
+        // Email au propriétaire (même type que la fonction Edge expire-pending-requests)
         if (ownerProfile?.email) {
           try {
-            console.log('📧 [cancelModificationRequest] Envoi email au propriétaire:', {
-              to: ownerProfile.email,
-              type: 'vehicle_modification_cancelled',
-              ownerName: `${ownerProfile.first_name || ''} ${ownerProfile.last_name || ''}`.trim() || 'Cher propriétaire',
-              renterName: renter ? `${renter.first_name || ''} ${renter.last_name || ''}`.trim() : 'Un locataire',
-              vehicleTitle: vehicleTitle,
-            });
-            
+            const formatDate = (dateStr: string) => {
+              const date = new Date(dateStr);
+              return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+            };
+
             const emailResponse = await supabase.functions.invoke('send-email', {
               body: {
-                type: 'vehicle_modification_cancelled',
+                type: 'vehicle_modification_expired_owner_notification',
                 to: ownerProfile.email,
                 data: {
-                  ownerName: `${ownerProfile.first_name || ''} ${ownerProfile.last_name || ''}`.trim() || 'Cher propriétaire',
+                  ownerName: ownerProfile.first_name || 'Cher propriétaire',
                   renterName: renter ? `${renter.first_name || ''} ${renter.last_name || ''}`.trim() : 'Un locataire',
                   vehicleTitle: vehicleTitle,
-                  bookingId: request.booking_id,
-                },
-              },
+                  requestedStartDate: formatDate(request.requested_start_date),
+                  requestedEndDate: formatDate(request.requested_end_date),
+                  requestedPrice: request.requested_total_price,
+                  reason: 'Le locataire a annulé sa demande de modification'
+                }
+              }
             });
             
             if (emailResponse.error) {
               console.error('❌ [cancelModificationRequest] Erreur envoi email au propriétaire:', emailResponse.error);
-              console.error('❌ [cancelModificationRequest] Détails erreur:', JSON.stringify(emailResponse.error, null, 2));
             } else {
               console.log('✅ [cancelModificationRequest] Email d\'annulation envoyé au propriétaire:', ownerProfile.email);
-              console.log('✅ [cancelModificationRequest] Réponse email:', emailResponse.data);
             }
           } catch (ownerEmailError: any) {
             console.error('❌ [cancelModificationRequest] Erreur lors de l\'envoi de l\'email au propriétaire:', ownerEmailError);
-            console.error('❌ [cancelModificationRequest] Stack:', ownerEmailError.stack);
           }
-        } else {
-          console.warn('⚠️ [cancelModificationRequest] Pas d\'email propriétaire trouvé pour owner_id:', vehicle?.owner_id);
-          console.warn('⚠️ [cancelModificationRequest] ownerProfile:', ownerProfile);
-          console.warn('⚠️ [cancelModificationRequest] vehicle:', vehicle);
         }
 
-        // Email au locataire
+        // Email au locataire (même type que la fonction Edge expire-pending-requests)
         if (renter?.email) {
-          await supabase.functions.invoke('send-email', {
-            body: {
-              type: 'vehicle_modification_cancelled_renter',
-              to: renter.email,
-              data: {
-                renterName: `${renter.first_name || ''} ${renter.last_name || ''}`.trim() || 'Cher client',
-                vehicleTitle: vehicleTitle,
-                bookingId: request.booking_id,
-              },
-            },
-          });
-          console.log('✅ Email d\'annulation envoyé au locataire');
+          try {
+            const formatDate = (dateStr: string) => {
+              const date = new Date(dateStr);
+              return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+            };
+
+            const emailResponse = await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'vehicle_booking_modification_expired',
+                to: renter.email,
+                data: {
+                  renterName: renter.first_name || 'Cher client',
+                  vehicleTitle: vehicleTitle,
+                  requestedStartDate: formatDate(request.requested_start_date),
+                  requestedEndDate: formatDate(request.requested_end_date),
+                  reason: 'Vous avez annulé votre demande de modification'
+                }
+              }
+            });
+            
+            if (emailResponse.error) {
+              console.error('❌ [cancelModificationRequest] Erreur envoi email au locataire:', emailResponse.error);
+            } else {
+              console.log('✅ [cancelModificationRequest] Email d\'annulation envoyé au locataire:', renter.email);
+            }
+          } catch (renterEmailError: any) {
+            console.error('❌ [cancelModificationRequest] Erreur lors de l\'envoi de l\'email au locataire:', renterEmailError);
+          }
         }
       } catch (emailError) {
         console.error('❌ Erreur envoi emails annulation:', emailError);

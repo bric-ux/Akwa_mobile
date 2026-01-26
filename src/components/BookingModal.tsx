@@ -85,6 +85,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   } | null>(null);
   const [validatingVoucher, setValidatingVoucher] = useState(false);
   const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
+  const lastInitialGuestsRef = useRef<{ adults?: number; children?: number; babies?: number } | null>(null);
 
   const totalGuests = adults + children + infants;
 
@@ -208,10 +209,30 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setCheckOut(null);
       }
       
-      setAdults(adultsToUse);
-      setChildren(childrenToUse);
-      setInfants(babiesToUse);
-      console.log('✅ Voyageurs initialisés:', { adultsToUse, childrenToUse, babiesToUse });
+      // Ne réinitialiser les voyageurs que si les valeurs initiales ont changé
+      // Cela permet à l'utilisateur de modifier les valeurs sans qu'elles soient réinitialisées
+      const currentInitialGuests = {
+        adults: initialAdults !== undefined ? initialAdults : (contextDates.adults || 1),
+        children: initialChildren !== undefined ? initialChildren : (contextDates.children || 0),
+        babies: initialBabies !== undefined ? initialBabies : (contextDates.babies || 0),
+      };
+      
+      // Si c'est la première fois ou si les valeurs initiales ont changé, réinitialiser
+      const hasInitialGuestsChanged = 
+        !lastInitialGuestsRef.current ||
+        lastInitialGuestsRef.current.adults !== currentInitialGuests.adults ||
+        lastInitialGuestsRef.current.children !== currentInitialGuests.children ||
+        lastInitialGuestsRef.current.babies !== currentInitialGuests.babies;
+      
+      if (hasInitialGuestsChanged) {
+        setAdults(adultsToUse);
+        setChildren(childrenToUse);
+        setInfants(babiesToUse);
+        lastInitialGuestsRef.current = currentInitialGuests;
+        console.log('✅ Voyageurs initialisés:', { adultsToUse, childrenToUse, babiesToUse });
+      } else {
+        console.log('ℹ️ Voyageurs non réinitialisés (valeurs initiales inchangées, l\'utilisateur peut modifier)');
+      }
     }
   }, [visible, initialCheckIn, initialCheckOut, initialAdults, initialChildren, initialBabies, contextDates.checkIn, contextDates.checkOut, contextDates.adults, contextDates.children, contextDates.babies]);
 
