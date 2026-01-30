@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { Alert } from 'react-native';
+import { useEmailService } from './useEmailService';
 
 export interface ReviewResponse {
   id: string;
@@ -15,6 +16,7 @@ export interface ReviewResponse {
 export const useReviewResponses = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
+  const { sendNewPropertyReviewResponse, sendPropertyReviewPublished } = useEmailService();
 
   const getReviewResponse = async (reviewId: string): Promise<ReviewResponse | null> => {
     try {
@@ -49,6 +51,70 @@ export const useReviewResponses = () => {
         });
 
       if (error) throw error;
+
+      // Envoyer un email de notification au voyageur
+      try {
+        // Récupérer les informations de l'avis, du voyageur et de la propriété
+        const { data: reviewData } = await supabase
+          .from('reviews')
+          .select(`
+            reviewer_id,
+            property_id,
+            location_rating,
+            cleanliness_rating,
+            value_rating,
+            communication_rating,
+            comment,
+            properties!reviews_property_id_fkey(
+              title,
+              host_id,
+              profiles!properties_host_id_fkey(first_name, last_name)
+            ),
+            profiles!reviews_reviewer_id_fkey(first_name, last_name, email)
+          `)
+          .eq('id', reviewId)
+          .single();
+
+        if (reviewData && reviewData.profiles && reviewData.properties) {
+          const guestProfile = reviewData.profiles as any;
+          const propertyData = reviewData.properties as any;
+          const hostProfile = propertyData.profiles as any;
+
+          const guestEmail = guestProfile.email;
+          const guestName = `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim() || 'Voyageur';
+          const hostName = `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte';
+          const propertyTitle = propertyData.title || 'Votre réservation';
+          
+          // Calculer la note moyenne
+          const avgRating = reviewData.location_rating && reviewData.cleanliness_rating && reviewData.value_rating && reviewData.communication_rating
+            ? Math.round(((reviewData.location_rating + reviewData.cleanliness_rating + reviewData.value_rating + reviewData.communication_rating) / 4) * 10) / 10
+            : 0;
+
+          await sendNewPropertyReviewResponse(
+            guestEmail,
+            guestName,
+            hostName,
+            propertyTitle,
+            response
+          );
+
+          // Envoyer aussi l'email de publication (l'avis est automatiquement publié par le trigger SQL)
+          await sendPropertyReviewPublished(
+            guestEmail,
+            guestName,
+            hostName,
+            propertyTitle,
+            avgRating,
+            reviewData.comment || undefined
+          );
+
+          console.log('✅ [useReviewResponses] Emails de notification envoyés au voyageur');
+        }
+      } catch (emailError) {
+        console.error('❌ [useReviewResponses] Erreur envoi email notification:', emailError);
+        // Ne pas faire échouer la soumission de la réponse si l'email échoue
+      }
+
       Alert.alert('Succès', 'Réponse publiée avec succès');
       return { success: true };
     } catch (error: any) {

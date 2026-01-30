@@ -21,6 +21,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useVehicleReviews, VehicleReview } from '../hooks/useVehicleReviews';
+import { useEmailService } from '../hooks/useEmailService';
 import { VEHICLE_COLORS } from '../constants/colors';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -43,6 +44,7 @@ const VehicleReviewsScreen: React.FC = () => {
   const { vehicleId } = route.params || {};
   const { user } = useAuth();
   const { getVehicleReviews, loading } = useVehicleReviews();
+  const { sendNewVehicleReviewResponse, sendVehicleReviewPublished } = useEmailService();
   const [reviews, setReviews] = useState<VehicleReviewWithDetails[]>([]);
   const [vehicle, setVehicle] = useState<{ title?: string; brand?: string; model?: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,6 +152,8 @@ const VehicleReviewsScreen: React.FC = () => {
 
     setSubmitting(true);
     try {
+      const isNewResponse = !selectedReview.response;
+      
       if (selectedReview.response) {
         // Update existing response
         const { error } = await (supabase as any)
@@ -171,6 +175,60 @@ const VehicleReviewsScreen: React.FC = () => {
           });
 
         if (error) throw error;
+      }
+
+      // Envoyer un email de notification au locataire (seulement pour les nouvelles réponses)
+      if (isNewResponse) {
+        try {
+          // Récupérer les informations de l'avis, du locataire et du véhicule
+          const { data: reviewData } = await (supabase as any)
+            .from('vehicle_reviews')
+            .select(`
+              reviewer_id,
+              vehicle_id,
+              rating,
+              comment,
+              vehicles!vehicle_reviews_vehicle_id_fkey(
+                title
+              ),
+              profiles!vehicle_reviews_reviewer_id_fkey(first_name, last_name, email)
+            `)
+            .eq('id', selectedReview.id)
+            .single();
+
+          if (reviewData && reviewData.profiles && reviewData.vehicles) {
+            const renterProfile = reviewData.profiles as any;
+            const vehicleData = reviewData.vehicles as any;
+
+            const renterEmail = renterProfile.email;
+            const renterName = `${renterProfile.first_name || ''} ${renterProfile.last_name || ''}`.trim() || 'Locataire';
+            const ownerName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Propriétaire';
+            const vehicleTitle = vehicleData.title || 'Votre location';
+
+            await sendNewVehicleReviewResponse(
+              renterEmail,
+              renterName,
+              ownerName,
+              vehicleTitle,
+              responseText.trim()
+            );
+
+            // Envoyer aussi l'email de publication (l'avis est automatiquement publié par le trigger SQL)
+            await sendVehicleReviewPublished(
+              renterEmail,
+              renterName,
+              ownerName,
+              vehicleTitle,
+              reviewData.rating || 0,
+              reviewData.comment || undefined
+            );
+
+            console.log('✅ [VehicleReviewsScreen] Emails de notification envoyés au locataire');
+          }
+        } catch (emailError) {
+          console.error('❌ [VehicleReviewsScreen] Erreur envoi email notification:', emailError);
+          // Ne pas faire échouer la soumission de la réponse si l'email échoue
+        }
       }
 
       Alert.alert('Succès', 'Votre réponse a été enregistrée et l\'avis est maintenant publié');

@@ -44,7 +44,7 @@ export const useVehicleRenterReviews = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const { sendNewRenterReview } = useEmailService();
+  const { sendNewRenterReview, sendNewVehicleRenterReviewResponse, sendVehicleRenterReviewPublished } = useEmailService();
 
   // Vérifier si le propriétaire peut laisser un avis pour une réservation
   const canReviewBooking = async (bookingId: string): Promise<boolean> => {
@@ -302,6 +302,58 @@ export const useVehicleRenterReviews = () => {
         setError(insertError.message || "Impossible de publier la réponse");
         Alert.alert('Erreur', insertError.message || "Impossible de publier la réponse");
         return { success: false, error: insertError.message };
+      }
+
+      // Envoyer un email de notification au propriétaire
+      try {
+        // Récupérer les informations de l'avis, du propriétaire et du véhicule
+        const { data: reviewData } = await (supabase as any)
+          .from('vehicle_renter_reviews')
+          .select(`
+            owner_id,
+            vehicle_id,
+            rating,
+            comment,
+            vehicles!vehicle_renter_reviews_vehicle_id_fkey(
+              title
+            ),
+            profiles!vehicle_renter_reviews_owner_id_fkey(first_name, last_name, email)
+          `)
+          .eq('id', reviewId)
+          .single();
+
+        if (reviewData && reviewData.profiles && reviewData.vehicles) {
+          const ownerProfile = reviewData.profiles as any;
+          const vehicleData = reviewData.vehicles as any;
+
+          const ownerEmail = ownerProfile.email;
+          const ownerName = `${ownerProfile.first_name || ''} ${ownerProfile.last_name || ''}`.trim() || 'Propriétaire';
+          const renterName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Locataire';
+          const vehicleTitle = vehicleData.title || 'Votre véhicule';
+
+          await sendNewVehicleRenterReviewResponse(
+            ownerEmail,
+            ownerName,
+            renterName,
+            vehicleTitle,
+            response.trim()
+          );
+
+          // Envoyer aussi l'email de publication (l'avis est automatiquement publié par le trigger SQL)
+          await sendVehicleRenterReviewPublished(
+            ownerEmail,
+            ownerName,
+            renterName,
+            vehicleTitle,
+            reviewData.rating || 0,
+            reviewData.comment || undefined
+          );
+
+          console.log('✅ [useVehicleRenterReviews] Emails de notification envoyés au propriétaire');
+        }
+      } catch (emailError) {
+        console.error('❌ [useVehicleRenterReviews] Erreur envoi email notification:', emailError);
+        // Ne pas faire échouer la soumission de la réponse si l'email échoue
       }
 
       Alert.alert('Succès', 'Votre réponse a été ajoutée et l\'avis est maintenant publié');

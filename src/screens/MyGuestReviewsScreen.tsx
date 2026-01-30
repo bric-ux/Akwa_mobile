@@ -22,6 +22,7 @@ import { useGuestReviews, GuestReview } from '../hooks/useGuestReviews';
 import { useVehicleRenterReviews, VehicleRenterReview } from '../hooks/useVehicleRenterReviews';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useEmailService } from '../hooks/useEmailService';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -66,6 +67,7 @@ const MyGuestReviewsScreen: React.FC = () => {
   const { user } = useAuth();
   const { getReviewsForGuest, loading: guestReviewsLoading } = useGuestReviews();
   const { getReviewsAboutMe, createResponse, loading: vehicleReviewsLoading } = useVehicleRenterReviews();
+  const { sendNewGuestReviewResponse, sendGuestReviewPublished } = useEmailService();
   
   // Avis reçus
   const [receivedPropertyReviews, setReceivedPropertyReviews] = useState<GuestReview[]>([]);
@@ -234,6 +236,8 @@ const MyGuestReviewsScreen: React.FC = () => {
     try {
       if (selectedReviewType === 'property') {
         const review = selectedReview as GuestReview;
+        const isNewResponse = !review.response;
+        
         if (review.response) {
           const { error } = await (supabase as any)
             .from('guest_review_responses')
@@ -254,6 +258,60 @@ const MyGuestReviewsScreen: React.FC = () => {
             });
 
           if (error) throw error;
+        }
+
+        // Envoyer un email de notification à l'hôte (seulement pour les nouvelles réponses)
+        if (isNewResponse) {
+          try {
+            // Récupérer les informations de l'avis, de l'hôte et de la propriété
+            const { data: reviewData } = await (supabase as any)
+              .from('guest_reviews')
+              .select(`
+                host_id,
+                property_id,
+                rating,
+                comment,
+                properties!guest_reviews_property_id_fkey(
+                  title
+                ),
+                profiles!guest_reviews_host_id_fkey(first_name, last_name, email)
+              `)
+              .eq('id', review.id)
+              .single();
+
+            if (reviewData && reviewData.profiles && reviewData.properties) {
+              const hostProfile = reviewData.profiles as any;
+              const propertyData = reviewData.properties as any;
+
+              const hostEmail = hostProfile.email;
+              const hostName = `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte';
+              const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
+              const propertyTitle = propertyData.title || 'Votre propriété';
+
+              await sendNewGuestReviewResponse(
+                hostEmail,
+                hostName,
+                guestName,
+                propertyTitle,
+                responseText.trim()
+              );
+
+              // Envoyer aussi l'email de publication (l'avis est automatiquement publié par le trigger SQL)
+              await sendGuestReviewPublished(
+                hostEmail,
+                hostName,
+                guestName,
+                propertyTitle,
+                reviewData.rating || 0,
+                reviewData.comment || undefined
+              );
+
+              console.log('✅ [MyGuestReviewsScreen] Emails de notification envoyés à l\'hôte');
+            }
+          } catch (emailError) {
+            console.error('❌ [MyGuestReviewsScreen] Erreur envoi email notification:', emailError);
+            // Ne pas faire échouer la soumission de la réponse si l'email échoue
+          }
         }
       } else {
         const review = selectedReview as VehicleRenterReview;

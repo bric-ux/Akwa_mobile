@@ -4,7 +4,7 @@ import { supabase } from '../services/supabase';
 const isDev = __DEV__;
 
 export interface EmailData {
-  type: 'welcome' | 'email_confirmation' | 'booking_request' | 'booking_request_sent' | 'booking_response' | 'booking_confirmed' | 'booking_confirmed_host' | 'booking_cancelled' | 'booking_cancelled_host' | 'booking_completed' | 'booking_completed_host' | 'password_reset' | 'new_message' | 'host_application_submitted' | 'host_application_received' | 'host_application_approved' | 'host_application_rejected' | 'new_property_review' | 'new_guest_review' | 'new_vehicle_review' | 'new_renter_review' | 'conciergerie_request';
+  type: 'welcome' | 'email_confirmation' | 'booking_request' | 'booking_request_sent' | 'booking_response' | 'booking_confirmed' | 'booking_confirmed_host' | 'booking_cancelled' | 'booking_cancelled_host' | 'booking_completed' | 'booking_completed_host' | 'password_reset' | 'new_message' | 'host_application_submitted' | 'host_application_received' | 'host_application_approved' | 'host_application_rejected' | 'new_property_review' | 'new_guest_review' | 'new_vehicle_review' | 'new_renter_review' | 'new_property_review_response' | 'property_review_published' | 'new_guest_review_response' | 'guest_review_published' | 'new_vehicle_review_response' | 'vehicle_review_published' | 'new_vehicle_renter_review_response' | 'vehicle_renter_review_published' | 'conciergerie_request';
   to: string;
   data: any;
 }
@@ -316,6 +316,114 @@ export const useEmailService = () => {
     });
   };
 
+  const sendNewPropertyReviewResponse = async (guestEmail: string, guestName: string, hostName: string, propertyTitle: string, response: string) => {
+    return sendEmail({
+      type: 'new_property_review_response',
+      to: guestEmail,
+      data: {
+        guestName,
+        hostName,
+        propertyTitle,
+        response
+      }
+    });
+  };
+
+  const sendPropertyReviewPublished = async (guestEmail: string, guestName: string, hostName: string, propertyTitle: string, rating: number, comment?: string) => {
+    return sendEmail({
+      type: 'property_review_published',
+      to: guestEmail,
+      data: {
+        guestName,
+        hostName,
+        propertyTitle,
+        rating,
+        comment: comment || ''
+      }
+    });
+  };
+
+  const sendNewGuestReviewResponse = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, response: string) => {
+    return sendEmail({
+      type: 'new_guest_review_response',
+      to: hostEmail,
+      data: {
+        hostName,
+        guestName,
+        propertyTitle,
+        response
+      }
+    });
+  };
+
+  const sendGuestReviewPublished = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, rating: number, comment?: string) => {
+    return sendEmail({
+      type: 'guest_review_published',
+      to: hostEmail,
+      data: {
+        hostName,
+        guestName,
+        propertyTitle,
+        rating,
+        comment: comment || ''
+      }
+    });
+  };
+
+  const sendNewVehicleReviewResponse = async (renterEmail: string, renterName: string, ownerName: string, vehicleTitle: string, response: string) => {
+    return sendEmail({
+      type: 'new_vehicle_review_response',
+      to: renterEmail,
+      data: {
+        renterName,
+        ownerName,
+        vehicleTitle,
+        response
+      }
+    });
+  };
+
+  const sendVehicleReviewPublished = async (renterEmail: string, renterName: string, ownerName: string, vehicleTitle: string, rating: number, comment?: string) => {
+    return sendEmail({
+      type: 'vehicle_review_published',
+      to: renterEmail,
+      data: {
+        renterName,
+        ownerName,
+        vehicleTitle,
+        rating,
+        comment: comment || ''
+      }
+    });
+  };
+
+  const sendNewVehicleRenterReviewResponse = async (ownerEmail: string, ownerName: string, renterName: string, vehicleTitle: string, response: string) => {
+    return sendEmail({
+      type: 'new_vehicle_renter_review_response',
+      to: ownerEmail,
+      data: {
+        ownerName,
+        renterName,
+        vehicleTitle,
+        response
+      }
+    });
+  };
+
+  const sendVehicleRenterReviewPublished = async (ownerEmail: string, ownerName: string, renterName: string, vehicleTitle: string, rating: number, comment?: string) => {
+    return sendEmail({
+      type: 'vehicle_renter_review_published',
+      to: ownerEmail,
+      data: {
+        ownerName,
+        renterName,
+        vehicleTitle,
+        rating,
+        comment: comment || ''
+      }
+    });
+  };
+
   return {
     sendEmail,
     sendWelcomeEmail,
@@ -339,5 +447,13 @@ export const useEmailService = () => {
     sendNewGuestReview,
     sendNewVehicleReview,
     sendNewRenterReview,
+    sendNewPropertyReviewResponse,
+    sendPropertyReviewPublished,
+    sendNewGuestReviewResponse,
+    sendGuestReviewPublished,
+    sendNewVehicleReviewResponse,
+    sendVehicleReviewPublished,
+    sendNewVehicleRenterReviewResponse,
+    sendVehicleRenterReviewPublished,
   };
 };
