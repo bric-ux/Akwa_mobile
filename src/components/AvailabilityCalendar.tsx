@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -32,9 +32,38 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   showHeader = true,
 }) => {
   const { isDateUnavailable, unavailableDates, loading, isDateRangeUnavailable } = useAvailabilityCalendar(propertyId);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  // Initialiser le mois avec la date appropriée selon le mode
+  const getInitialMonth = (): Date => {
+    // Si on est en mode checkOut, utiliser selectedCheckOut
+    if (mode === 'checkOut' && selectedCheckOut) {
+      return new Date(selectedCheckOut.getFullYear(), selectedCheckOut.getMonth(), 1);
+    }
+    // Sinon, utiliser selectedCheckIn ou selectedCheckOut
+    if (selectedCheckIn) {
+      return new Date(selectedCheckIn.getFullYear(), selectedCheckIn.getMonth(), 1);
+    }
+    if (selectedCheckOut) {
+      return new Date(selectedCheckOut.getFullYear(), selectedCheckOut.getMonth(), 1);
+    }
+    return new Date();
+  };
+  const [currentMonth, setCurrentMonth] = useState(getInitialMonth());
   const [tempCheckIn, setTempCheckIn] = useState<Date | null>(selectedCheckIn || null);
   const [tempCheckOut, setTempCheckOut] = useState<Date | null>(selectedCheckOut || null);
+  
+  // Mettre à jour le mois initial quand les dates ou le mode changent
+  useEffect(() => {
+    if (mode === 'checkOut' && selectedCheckOut) {
+      const checkOutMonth = new Date(selectedCheckOut.getFullYear(), selectedCheckOut.getMonth(), 1);
+      setCurrentMonth(checkOutMonth);
+    } else if (selectedCheckIn) {
+      const checkInMonth = new Date(selectedCheckIn.getFullYear(), selectedCheckIn.getMonth(), 1);
+      setCurrentMonth(checkInMonth);
+    } else if (selectedCheckOut) {
+      const checkOutMonth = new Date(selectedCheckOut.getFullYear(), selectedCheckOut.getMonth(), 1);
+      setCurrentMonth(checkOutMonth);
+    }
+  }, [selectedCheckIn, selectedCheckOut, mode]);
 
   // Fonction pour normaliser une date à minuit (évite les problèmes de fuseau horaire)
   const normalizeDate = (date: Date): Date => {

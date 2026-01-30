@@ -21,6 +21,7 @@ import { formatPrice } from '../utils/priceCalculator';
 import BookingModificationModal from '../components/BookingModificationModal';
 import { getCommissionRates } from '../lib/commissions';
 import { calculateTotalPrice, calculateFees, calculateFinalPrice, type DiscountConfig } from '../hooks/usePricing';
+import { useBookingModifications } from '../hooks/useBookingModifications';
 
 type PropertyBookingDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyBookingDetails'>;
 
@@ -30,6 +31,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
   const { bookingId } = route.params;
   const { user } = useAuth();
   const { getUserBookings } = useBookings();
+  const { getBookingPendingRequest } = useBookingModifications();
   
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,10 +42,28 @@ const PropertyBookingDetailsScreen: React.FC = () => {
   } | null>(null);
   const [payment, setPayment] = useState<any>(null);
   const [modificationModalVisible, setModificationModalVisible] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<any>(null);
 
   useEffect(() => {
     loadBookingDetails();
   }, [bookingId]);
+
+  useEffect(() => {
+    if (booking?.id) {
+      checkPendingRequest();
+    }
+  }, [booking?.id]);
+
+  const checkPendingRequest = async () => {
+    if (!booking?.id) return;
+    try {
+      const request = await getBookingPendingRequest(booking.id);
+      setPendingRequest(request);
+    } catch (error) {
+      console.error('Erreur chargement demande modification:', error);
+      setPendingRequest(null);
+    }
+  };
 
   const loadBookingDetails = async () => {
     try {
@@ -498,7 +518,33 @@ const PropertyBookingDetailsScreen: React.FC = () => {
         {canModifyBooking() && (
           <TouchableOpacity
             style={styles.modifyButton}
-            onPress={() => setModificationModalVisible(true)}
+            onPress={async () => {
+              // Vérifier s'il y a une demande en cours
+              if (pendingRequest) {
+                Alert.alert(
+                  'Demande en cours',
+                  'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse de l\'hôte ou annuler la demande existante.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+              // Vérifier à nouveau au moment du clic
+              try {
+                const request = await getBookingPendingRequest(booking.id);
+                if (request) {
+                  setPendingRequest(request);
+                  Alert.alert(
+                    'Demande en cours',
+                    'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse de l\'hôte ou annuler la demande existante.',
+                    [{ text: 'OK' }]
+                  );
+                  return;
+                }
+              } catch (error) {
+                console.error('Erreur vérification demande:', error);
+              }
+              setModificationModalVisible(true);
+            }}
           >
             <Ionicons name="create-outline" size={20} color="#2563eb" />
             <Text style={styles.modifyButtonText}>

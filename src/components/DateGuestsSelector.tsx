@@ -38,7 +38,21 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   const [tempBabies, setTempBabies] = useState(babies);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMode, setCalendarMode] = useState<'checkIn' | 'checkOut'>('checkIn');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  // Initialiser le mois avec la date de check-in si disponible, sinon la date actuelle
+  const getInitialMonth = (): Date => {
+    if (checkIn) {
+      try {
+        const checkInDate = new Date(checkIn);
+        if (!isNaN(checkInDate.getTime())) {
+          return new Date(checkInDate.getFullYear(), checkInDate.getMonth(), 1);
+        }
+      } catch {
+        // Si erreur de parsing, utiliser la date actuelle
+      }
+    }
+    return new Date();
+  };
+  const [currentMonth, setCurrentMonth] = useState(getInitialMonth());
 
   // Synchroniser les valeurs temporaires avec les props quand elles changent depuis l'extérieur
   // Utiliser un ref pour éviter les boucles infinies
@@ -69,6 +83,19 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
       }
       if (babies !== undefined && babies !== tempBabies) {
         setTempBabies(babies);
+      }
+      
+      // Mettre à jour le mois du calendrier si checkIn change
+      if (checkIn && checkIn !== prevPropsRef.current.checkIn) {
+        try {
+          const checkInDate = new Date(checkIn);
+          if (!isNaN(checkInDate.getTime())) {
+            const checkInMonth = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), 1);
+            setCurrentMonth(checkInMonth);
+          }
+        } catch {
+          // Ignorer les erreurs de parsing
+        }
       }
       
       // Mettre à jour la référence

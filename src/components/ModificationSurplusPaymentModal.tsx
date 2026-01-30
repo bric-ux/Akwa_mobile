@@ -21,6 +21,17 @@ interface ModificationSurplusPaymentModalProps {
   bookingId: string;
   onPaymentComplete: () => void;
   propertyTitle?: string;
+  originalTotalPrice?: number;
+  newTotalPrice?: number;
+  priceBreakdown?: {
+    basePriceDiff?: number;
+    discountDiff?: number;
+    cleaningFeeDiff?: number;
+    serviceFeeDiff?: number;
+    serviceFeeHTDiff?: number;
+    serviceFeeVATDiff?: number;
+    taxesDiff?: number;
+  };
 }
 
 const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalProps> = ({
@@ -30,6 +41,9 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   bookingId,
   onPaymentComplete,
   propertyTitle,
+  originalTotalPrice,
+  newTotalPrice,
+  priceBreakdown,
 }) => {
   const [paymentMethod, setPaymentMethod] = useState<'wave' | 'card' | 'mobile_money' | 'cash'>('wave');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -149,6 +163,72 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                 Ce montant correspond au surplus de votre modification de réservation.
               </Text>
             </View>
+
+            {/* Détails du surplus */}
+            {priceBreakdown && (
+              <View style={styles.priceDetailsSection}>
+                <Text style={styles.priceDetailsTitle}>Détail du surplus</Text>
+                
+                {priceBreakdown.basePriceDiff !== undefined && priceBreakdown.basePriceDiff !== 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Différence prix de base:</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.basePriceDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
+                      {priceBreakdown.basePriceDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.basePriceDiff)}
+                    </Text>
+                  </View>
+                )}
+                
+                {priceBreakdown.discountDiff !== undefined && priceBreakdown.discountDiff !== 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Différence réduction:</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.discountDiff > 0 ? styles.decreaseValue : styles.increaseValue]}>
+                      {priceBreakdown.discountDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.discountDiff)}
+                    </Text>
+                  </View>
+                )}
+                
+                {priceBreakdown.cleaningFeeDiff !== undefined && priceBreakdown.cleaningFeeDiff !== 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Différence frais de ménage:</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.cleaningFeeDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
+                      {priceBreakdown.cleaningFeeDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.cleaningFeeDiff)}
+                    </Text>
+                  </View>
+                )}
+                
+                {priceBreakdown.serviceFeeHTDiff !== undefined && priceBreakdown.serviceFeeHTDiff !== 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Différence frais de service (HT):</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.serviceFeeHTDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
+                      {priceBreakdown.serviceFeeHTDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.serviceFeeHTDiff)}
+                    </Text>
+                  </View>
+                )}
+                
+                {priceBreakdown.serviceFeeVATDiff !== undefined && priceBreakdown.serviceFeeVATDiff !== 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Différence TVA (20%):</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.serviceFeeVATDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
+                      {priceBreakdown.serviceFeeVATDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.serviceFeeVATDiff)}
+                    </Text>
+                  </View>
+                )}
+                
+                {priceBreakdown.taxesDiff !== undefined && priceBreakdown.taxesDiff !== 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Différence taxes:</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.taxesDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
+                      {priceBreakdown.taxesDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.taxesDiff)}
+                    </Text>
+                  </View>
+                )}
+                
+                <View style={[styles.priceDetailRow, styles.surplusRow]}>
+                  <Text style={styles.surplusLabel}>Surplus total à payer:</Text>
+                  <Text style={styles.surplusValue}>{formatPrice(surplusAmount)}</Text>
+                </View>
+              </View>
+            )}
 
             <View style={styles.paymentMethodsSection}>
               <Text style={styles.sectionTitle}>Méthode de paiement</Text>
@@ -439,6 +519,93 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
+  },
+  priceDetailsSection: {
+    backgroundColor: '#f9fafb',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  priceDetailsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 12,
+  },
+  priceComparisonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  priceComparisonLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  priceComparisonValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+    textDecorationLine: 'line-through',
+  },
+  priceDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  priceDetailLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  priceDetailValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1f2937',
+  },
+  discountValue: {
+    color: '#059669',
+  },
+  increaseValue: {
+    color: '#e74c3c',
+  },
+  decreaseValue: {
+    color: '#059669',
+  },
+  totalRow: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  totalValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  surplusRow: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 2,
+    borderTopColor: '#e67e22',
+  },
+  surplusLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  surplusValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#e67e22',
   },
 });
 

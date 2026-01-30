@@ -21,12 +21,14 @@ import BookingCard from '../components/BookingCard';
 import ReviewModal from '../components/ReviewModal';
 import CancellationDialog from '../components/CancellationDialog';
 import BookingModificationModal from '../components/BookingModificationModal';
+import { useBookingModifications } from '../hooks/useBookingModifications';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { getUserBookings, cancelBooking, loading, error } = useBookings();
   const { canUserReviewProperty } = useReviews();
+  const { getBookingPendingRequest } = useBookingModifications();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
@@ -128,7 +130,7 @@ const MyBookingsScreen: React.FC = () => {
     setReviewModalVisible(true);
   };
 
-  const handleModifyBooking = (booking: Booking) => {
+  const handleModifyBooking = async (booking: Booking) => {
     // Vérifier si la réservation peut être modifiée
     if (booking.status === 'completed' || booking.status === 'cancelled') {
       Alert.alert('Impossible de modifier', 'Cette réservation ne peut plus être modifiée.');
@@ -149,6 +151,22 @@ const MyBookingsScreen: React.FC = () => {
 
     // Peut modifier si le checkout est aujourd'hui ou dans le futur
     // Cela inclut les réservations futures (check-in futur) et en cours (check-in passé mais checkout futur)
+    
+    // Vérifier s'il y a une demande en cours
+    try {
+      const pendingRequest = await getBookingPendingRequest(booking.id);
+      if (pendingRequest) {
+        Alert.alert(
+          'Demande en cours',
+          'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse de l\'hôte ou annuler la demande existante.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    } catch (error) {
+      console.error('Erreur vérification demande:', error);
+    }
+    
     setSelectedBookingForModification(booking);
     setModificationModalVisible(true);
   };
