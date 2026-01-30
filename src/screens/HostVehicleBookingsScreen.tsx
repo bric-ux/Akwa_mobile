@@ -288,17 +288,18 @@ const HostVehicleBookingsScreen: React.FC = () => {
           return;
         }
 
-        // Les réservations pending ou confirmed qui ne sont pas terminées et pas encore commencées sont actives
+        // Les réservations pending ne bloquent pas la disponibilité (elles sont en attente de confirmation)
+        // Seules les réservations confirmed ou in_progress bloquent la disponibilité
         if (booking.status === 'pending') {
           stats.pending++;
-          hasActiveBookings = true;
+          // Ne pas mettre hasActiveBookings = true pour pending car elles ne bloquent pas la disponibilité
         } else if (booking.status === 'confirmed') {
           // Vérifier que la réservation confirmed n'est pas encore terminée
           const endDate = new Date(booking.end_date);
           endDate.setHours(0, 0, 0, 0);
           if (endDate >= today) {
             stats.confirmed++;
-            hasActiveBookings = true;
+            hasActiveBookings = true; // Seules les confirmed bloquent la disponibilité
           } else {
             // Si la date de fin est passée, c'est une réservation terminée
             stats.completed++;
@@ -311,7 +312,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
         bookings: vehicleBookings,
         stats,
         isCurrentlyRented,
-        isAvailable: !hasActiveBookings, // Disponible si pas de réservations actives (pending, confirmed, in_progress)
+        isAvailable: !hasActiveBookings, // Disponible si pas de réservations confirmées ou en cours (pas les pending)
       };
     });
 
@@ -608,6 +609,10 @@ const HostVehicleBookingsScreen: React.FC = () => {
                       {item.isCurrentlyRented ? (
                         <View style={styles.rentedBadge}>
                           <Text style={styles.rentedBadgeText}>En location</Text>
+                        </View>
+                      ) : item.stats.pending > 0 && !item.isAvailable ? (
+                        <View style={[styles.unavailableBadge, { backgroundColor: '#f59e0b' }]}>
+                          <Text style={styles.unavailableBadgeText}>En attente ({item.stats.pending})</Text>
                         </View>
                       ) : item.isAvailable ? (
                         <View style={styles.availableBadge}>

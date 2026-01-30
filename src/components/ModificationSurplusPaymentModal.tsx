@@ -71,24 +71,51 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
 
     setLoading(true);
     try {
-      // Créer un enregistrement de paiement pour le surplus de modification
+      // Mapper payment_method à payment_provider
+      const getPaymentProvider = (method: string): string => {
+        switch (method) {
+          case 'wave':
+            return 'wave';
+          case 'mobile_money':
+            return 'orange_money'; // Par défaut, peut être ajusté selon le provider sélectionné
+          case 'card':
+            return 'stripe';
+          case 'cash':
+            return 'manual';
+          default:
+            return 'manual';
+        }
+      };
+
+      // Créer un enregistrement de paiement pour le surplus de modification via Edge Function
+      const paymentProvider = getPaymentProvider(paymentMethod);
       const paymentData: any = {
         booking_id: bookingId,
         amount: surplusAmount,
         payment_method: paymentMethod,
-        payment_type: 'modification_surplus',
-        status: paymentMethod === 'cash' ? 'pending' : 'completed',
+        payment_provider: paymentProvider,
       };
 
       if (paymentMethod === 'wave' || paymentMethod === 'mobile_money') {
-        paymentData.phone_number = phoneNumber;
+        paymentData.mobile_money_phone = phoneNumber;
+        if (paymentMethod === 'wave') {
+          paymentData.mobile_money_operator = 'wave';
+        } else {
+          paymentData.mobile_money_operator = 'orange_money'; // Par défaut
+        }
       }
 
-      const { error: paymentError } = await supabase
-        .from('payments')
-        .insert(paymentData);
+      const { data: paymentResult, error: paymentError } = await supabase.functions.invoke(
+        'create-modification-payment',
+        {
+          body: paymentData,
+        }
+      );
 
       if (paymentError) throw paymentError;
+      if (!paymentResult?.success) {
+        throw new Error(paymentResult?.error || 'Erreur lors de la création du paiement');
+      }
 
       // Envoyer email de confirmation
       try {

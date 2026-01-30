@@ -30,7 +30,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   booking,
   onModified,
 }) => {
-  const { modifyBooking, loading } = useVehicleBookingModifications();
+  const { modifyBooking, loading, getBookingPendingRequest } = useVehicleBookingModifications();
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [message, setMessage] = useState('');
@@ -88,6 +88,22 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 
     if (rentalDays < 1) {
       Alert.alert('Erreur', 'La durée de location doit être d\'au moins 1 jour');
+      return;
+    }
+
+    // Vérifier s'il y a déjà une demande de modification en cours
+    try {
+      const pendingRequest = await getBookingPendingRequest(booking.id);
+      if (pendingRequest) {
+        Alert.alert(
+          'Demande en cours',
+          'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse du propriétaire ou annuler la demande existante.'
+        );
+        return;
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification de la demande en cours:', error);
+      Alert.alert('Erreur', 'Impossible de vérifier les demandes en cours. Veuillez réessayer.');
       return;
     }
 

@@ -159,6 +159,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [travelerEmail, setTravelerEmail] = useState<string | undefined>(providedTravelerEmail);
   const [hostEmail, setHostEmail] = useState<string | undefined>(providedHostEmail);
+  const [approvedModification, setApprovedModification] = useState<any>(null);
 
   // Debug: Vérifier les données disponibles
   useEffect(() => {
@@ -262,6 +263,67 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
     fetchEmails();
   }, [type, serviceType, booking, user, providedTravelerEmail, providedHostEmail]);
+
+  // Récupérer les modifications approuvées pour cette réservation
+  useEffect(() => {
+    const fetchApprovedModification = async () => {
+      if (!booking?.id) {
+        if (__DEV__) console.log('🔍 [InvoiceDisplay] Pas de booking.id, skip');
+        return;
+      }
+      
+      if (__DEV__) console.log('🔍 [InvoiceDisplay] Recherche modification pour booking:', booking.id, 'serviceType:', serviceType);
+      
+      try {
+        if (serviceType === 'property') {
+          const { data, error } = await supabase
+            .from('booking_modification_requests')
+            .select('*')
+            .eq('booking_id', booking.id)
+            .eq('status', 'approved')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (__DEV__) {
+            console.log('🔍 [InvoiceDisplay] Résultat requête modification propriété:', { data, error });
+          }
+          
+          if (!error && data) {
+            setApprovedModification(data);
+            if (__DEV__) console.log('✅ [InvoiceDisplay] Modification approuvée trouvée:', data);
+          } else if (error) {
+            console.error('❌ [InvoiceDisplay] Erreur requête modification:', error);
+          }
+        } else {
+          // Pour les véhicules
+          const { data, error } = await supabase
+            .from('vehicle_booking_modification_requests')
+            .select('*')
+            .eq('booking_id', booking.id)
+            .eq('status', 'approved')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (__DEV__) {
+            console.log('🔍 [InvoiceDisplay] Résultat requête modification véhicule:', { data, error });
+          }
+          
+          if (!error && data) {
+            setApprovedModification(data);
+            if (__DEV__) console.log('✅ [InvoiceDisplay] Modification approuvée trouvée:', data);
+          } else if (error) {
+            console.error('❌ [InvoiceDisplay] Erreur requête modification:', error);
+          }
+        }
+      } catch (error) {
+        console.error('❌ [InvoiceDisplay] Erreur lors de la récupération de la modification:', error);
+      }
+    };
+
+    fetchApprovedModification();
+  }, [booking?.id, serviceType]);
   const effectivePaymentMethod = paymentMethod || booking.payment_method || 'Non spécifié';
   const checkIn = booking.check_in_date || booking.start_date || '';
   const checkOut = booking.check_out_date || booking.end_date || '';
@@ -568,6 +630,56 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Voyageurs</Text>
           <Text style={styles.sectionValue}>{booking.guests_count}</Text>
+        </View>
+      )}
+
+      {/* Section Prolongement de séjour */}
+      {approvedModification && (
+        <View style={styles.extensionSection}>
+          <View style={styles.extensionHeader}>
+            <Ionicons name="calendar-outline" size={20} color="#2563eb" />
+            <Text style={styles.extensionTitle}>Prolongement de séjour</Text>
+          </View>
+          
+          <View style={styles.extensionContent}>
+            <View style={styles.extensionRow}>
+              <Text style={styles.extensionLabel}>Dates originales:</Text>
+              <Text style={styles.extensionValue}>
+                {serviceType === 'property' 
+                  ? `${formatDate(approvedModification.original_check_in)} - ${formatDate(approvedModification.original_check_out)}`
+                  : `${formatDate(approvedModification.original_start_date)} - ${formatDate(approvedModification.original_end_date)}`
+                }
+              </Text>
+            </View>
+            
+            <View style={styles.extensionRow}>
+              <Text style={styles.extensionLabel}>Nouvelles dates:</Text>
+              <Text style={[styles.extensionValue, styles.extensionValueNew]}>
+                {serviceType === 'property'
+                  ? `${formatDate(approvedModification.requested_check_in)} - ${formatDate(approvedModification.requested_check_out)}`
+                  : `${formatDate(approvedModification.requested_start_date)} - ${formatDate(approvedModification.requested_end_date)}`
+                }
+              </Text>
+            </View>
+
+            {serviceType === 'property' && approvedModification.original_guests_count !== approvedModification.requested_guests_count && (
+              <View style={styles.extensionRow}>
+                <Text style={styles.extensionLabel}>Nombre de voyageurs:</Text>
+                <Text style={styles.extensionValue}>
+                  {approvedModification.original_guests_count} → {approvedModification.requested_guests_count}
+                </Text>
+              </View>
+            )}
+
+            {approvedModification.requested_total_price > approvedModification.original_total_price && (
+              <View style={styles.extensionRow}>
+                <Text style={styles.extensionLabel}>Surplus payé:</Text>
+                <Text style={[styles.extensionValue, styles.extensionValueAmount]}>
+                  {formatPriceFCFA(approvedModification.requested_total_price - approvedModification.original_total_price)}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       )}
 
@@ -1443,6 +1555,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#333',
     lineHeight: 20,
+  },
+  extensionSection: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  extensionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  extensionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#f59e0b',
+    marginLeft: 6,
+  },
+  extensionContent: {
+    gap: 8,
+  },
+  extensionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  extensionLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    flex: 1,
+  },
+  extensionValue: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
+    textAlign: 'right',
+  },
+  extensionValueNew: {
+    color: '#059669',
+    fontWeight: '600',
+  },
+  extensionValueAmount: {
+    color: '#2563eb',
+    fontWeight: '600',
   },
   cancellationSection: {
     marginTop: 16,

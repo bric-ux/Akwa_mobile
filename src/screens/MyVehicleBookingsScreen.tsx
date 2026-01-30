@@ -357,7 +357,22 @@ const MyVehicleBookingsScreen: React.FC = () => {
         {canModifyBooking(booking) && (
           <TouchableOpacity
             style={styles.modifyButton}
-            onPress={() => {
+            onPress={async () => {
+              // Vérifier s'il y a déjà une demande de modification en cours
+              try {
+                const pendingRequest = await getBookingPendingRequest(booking.id);
+                if (pendingRequest) {
+                  Alert.alert(
+                    'Demande en cours',
+                    'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse du propriétaire ou annuler la demande existante.'
+                  );
+                  return;
+                }
+              } catch (error) {
+                console.error('Erreur lors de la vérification de la demande en cours:', error);
+                Alert.alert('Erreur', 'Impossible de vérifier les demandes en cours. Veuillez réessayer.');
+                return;
+              }
               setSelectedBookingForModification(booking);
               setModificationModalVisible(true);
             }}
