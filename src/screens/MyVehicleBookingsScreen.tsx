@@ -222,7 +222,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
                   {formatDate(booking.start_date)} - {formatDate(booking.end_date)}
                 </Text>
                 <Text style={styles.daysText}>
-                  {rentalDays} jour{rentalDays > 1 ? 's' : ''}
+                  {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
                 </Text>
               </View>
             </View>
@@ -239,7 +239,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
               {formatPrice(totalWithServiceFee)}
             </Text>
           </View>
-          {booking.discount_amount && booking.discount_amount > 0 && (
+          {(booking.discount_amount && booking.discount_amount > 0) ? (
             <View style={styles.discountInfo}>
               <Text style={styles.discountText}>
                 Réduction: -{formatPrice(booking.discount_amount)}
@@ -248,18 +248,18 @@ const MyVehicleBookingsScreen: React.FC = () => {
                 Prix de base: {formatPrice((booking.daily_rate || 0) * (booking.rental_days || 0))}
               </Text>
             </View>
-          )}
+          ) : null}
 
-          {booking.message_to_owner && (
+          {booking.message_to_owner ? (
             <View style={styles.messageContainer}>
               <Text style={styles.messageLabel}>Votre message :</Text>
               <Text style={styles.messageText}>{booking.message_to_owner}</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         {/* Afficher la demande de modification en cours */}
-        {pendingRequests[booking.id] && (
+        {pendingRequests[booking.id] ? (
           <View style={styles.modificationRequestBanner}>
             <Ionicons name="time-outline" size={18} color="#f39c12" />
             <View style={styles.modificationRequestContent}>
@@ -269,7 +269,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
               </Text>
               {pendingRequests[booking.id].requested_rental_days !== booking.rental_days && (
                 <Text style={styles.modificationRequestInfo}>
-                  Durée: {pendingRequests[booking.id].requested_rental_days} jour{pendingRequests[booking.id].requested_rental_days > 1 ? 's' : ''}
+                  Durée: {String(pendingRequests[booking.id].requested_rental_days || 0)} jour{(pendingRequests[booking.id].requested_rental_days || 0) > 1 ? 's' : ''}
                 </Text>
               )}
               {pendingRequests[booking.id].requested_total_price !== booking.total_price && (
@@ -312,7 +312,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           </View>
-        )}
+        ) : null}
 
         <View style={styles.actionsRow}>
           <TouchableOpacity

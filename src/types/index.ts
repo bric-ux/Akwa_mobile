@@ -393,6 +393,9 @@ export interface VehicleBooking {
   cancelled_by: string | null;
   cancellation_reason: string | null;
   cancellation_penalty: number;
+  discount_applied?: boolean;
+  discount_amount?: number;
+  original_total?: number;
   created_at: string;
   updated_at: string;
   vehicle?: Vehicle;

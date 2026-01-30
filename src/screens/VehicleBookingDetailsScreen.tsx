@@ -496,6 +496,12 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                   rental_days: booking.rental_days, // Passer rental_days pour le calcul correct
                   vehicle: {
                     rules: booking.vehicle?.rules || [],
+                    discount_enabled: booking.vehicle?.discount_enabled,
+                    discount_min_days: booking.vehicle?.discount_min_days,
+                    discount_percentage: booking.vehicle?.discount_percentage,
+                    long_stay_discount_enabled: booking.vehicle?.long_stay_discount_enabled,
+                    long_stay_discount_min_days: booking.vehicle?.long_stay_discount_min_days,
+                    long_stay_discount_percentage: booking.vehicle?.long_stay_discount_percentage,
                   },
                 } as any}
                 pricePerUnit={booking.daily_rate || 0}

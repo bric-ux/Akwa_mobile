@@ -41,6 +41,12 @@ interface InvoiceDisplayProps {
     };
     vehicle?: {
       rules?: string[];
+      discount_enabled?: boolean;
+      discount_min_days?: number | null;
+      discount_percentage?: number | null;
+      long_stay_discount_enabled?: boolean;
+      long_stay_discount_min_days?: number | null;
+      long_stay_discount_percentage?: number | null;
     };
   };
   pricePerUnit: number;
@@ -368,8 +374,29 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       // En cas d'erreur, utiliser la valeur stockée
       discountAmount = booking.discount_amount || 0;
     }
+  } else if (serviceType === 'vehicle' && booking.vehicle) {
+    // Pour les véhicules, recalculer la réduction comme pour les propriétés
+    const discountConfig: DiscountConfig = {
+      enabled: booking.vehicle.discount_enabled || false,
+      minNights: booking.vehicle.discount_min_days || null,
+      percentage: booking.vehicle.discount_percentage || null
+    };
+    const longStayDiscountConfig: DiscountConfig | undefined = booking.vehicle.long_stay_discount_enabled ? {
+      enabled: booking.vehicle.long_stay_discount_enabled || false,
+      minNights: booking.vehicle.long_stay_discount_min_days || null,
+      percentage: booking.vehicle.long_stay_discount_percentage || null
+    } : undefined;
+    
+    try {
+      const pricing = calculateTotalPrice(pricePerUnit, nights, discountConfig, longStayDiscountConfig);
+      discountAmount = pricing.discountAmount || 0;
+    } catch (error) {
+      console.error('Erreur lors du calcul de la réduction véhicule dans InvoiceDisplay:', error);
+      // En cas d'erreur, utiliser la valeur stockée
+      discountAmount = booking.discount_amount || 0;
+    }
   } else {
-    // Pour les véhicules ou si pas de propriété, utiliser la valeur stockée
+    // Fallback : utiliser la valeur stockée
     discountAmount = booking.discount_amount || 0;
   }
   
@@ -505,26 +532,31 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           recipientName: type === 'traveler' ? (travelerName || 'Locataire') : (hostName || 'Propriétaire'),
           invoiceType: type === 'traveler' ? 'renter' : 'owner',
           vehicleTitle: propertyOrVehicleTitle || '',
+          vehicleBrand: booking.vehicle?.brand || '',
+          vehicleModel: booking.vehicle?.model || '',
+          vehicleYear: booking.vehicle?.year || '',
+          fuelType: booking.vehicle?.fuel_type || '',
+          renterName: travelerName || '',
+          renterEmail: travelerEmail,
+          renterPhone: travelerPhone,
+          ownerName: hostName || '',
+          ownerEmail: hostEmail,
+          ownerPhone: hostPhone,
           startDate: checkIn,
           endDate: checkOut,
           rentalDays: nights,
-          totalPrice: totalPaidByTraveler,
-          discountApplied: actualDiscountAmount > 0,
-          discountAmount: actualDiscountAmount,
           dailyRate: pricePerUnit,
-          renter: {
-            first_name: travelerName?.split(' ')[0] || '',
-            last_name: travelerName?.split(' ').slice(1).join(' ') || '',
-            email: travelerEmail,
-            phone: travelerPhone,
-          },
-          owner: {
-            first_name: hostName?.split(' ')[0] || '',
-            last_name: hostName?.split(' ').slice(1).join(' ') || '',
-            email: hostEmail,
-            phone: hostPhone,
-          },
-          payment_method: effectivePaymentMethod,
+          basePrice: priceAfterDiscount,
+          totalPrice: totalPaidByTraveler,
+          discountAmount: actualDiscountAmount,
+          vehicleDiscountEnabled: booking.vehicle?.discount_enabled || false,
+          vehicleDiscountMinDays: booking.vehicle?.discount_min_days || null,
+          vehicleDiscountPercentage: booking.vehicle?.discount_percentage || null,
+          vehicleLongStayDiscountEnabled: booking.vehicle?.long_stay_discount_enabled || false,
+          vehicleLongStayDiscountMinDays: booking.vehicle?.long_stay_discount_min_days || null,
+          vehicleLongStayDiscountPercentage: booking.vehicle?.long_stay_discount_percentage || null,
+          securityDeposit: booking.vehicle?.security_deposit || 0,
+          paymentMethod: effectivePaymentMethod,
         };
       }
 
@@ -621,7 +653,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Durée</Text>
         <Text style={styles.sectionValue}>
-          {nights} {serviceType === 'property' ? `nuit${nights > 1 ? 's' : ''}` : `jour${nights > 1 ? 's' : ''}`}
+          {String(nights)} {serviceType === 'property' ? `nuit${nights > 1 ? 's' : ''}` : `jour${nights > 1 ? 's' : ''}`}
         </Text>
       </View>
 
@@ -666,7 +698,16 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
               <View style={styles.extensionRow}>
                 <Text style={styles.extensionLabel}>Nombre de voyageurs:</Text>
                 <Text style={styles.extensionValue}>
-                  {approvedModification.original_guests_count} → {approvedModification.requested_guests_count}
+                  {String(approvedModification.original_guests_count || 0)} → {String(approvedModification.requested_guests_count || 0)}
+                </Text>
+              </View>
+            )}
+            
+            {serviceType === 'vehicle' && approvedModification.original_rental_days !== approvedModification.requested_rental_days && (
+              <View style={styles.extensionRow}>
+                <Text style={styles.extensionLabel}>Durée de location:</Text>
+                <Text style={styles.extensionValue}>
+                  {String(approvedModification.original_rental_days || 0)} jour{approvedModification.original_rental_days > 1 ? 's' : ''} → {String(approvedModification.requested_rental_days || 0)} jour{approvedModification.requested_rental_days > 1 ? 's' : ''}
                 </Text>
               </View>
             )}
@@ -727,7 +768,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Prix initial */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              Prix initial ({nights} {serviceType === 'property' ? 'nuits' : 'jours'})
+              Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'})
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
           </View>
@@ -834,7 +875,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Prix initial */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              Prix initial ({nights} {serviceType === 'property' ? 'nuits' : 'jours'})
+              Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'})
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
           </View>
@@ -908,17 +949,36 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Versement de l'hôte/propriétaire */}
           <Text style={styles.financialTitle}>Votre versement</Text>
           
-          {/* Montant de la réservation */}
+          {/* Prix initial */}
           <View style={styles.financialRow}>
-            <Text style={styles.financialLabel}>Montant de la réservation</Text>
-            <Text style={styles.financialValue}>{formatPriceFCFA(priceAfterDiscount)}</Text>
+            <Text style={styles.financialLabel}>
+              Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'})
+            </Text>
+            <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
           </View>
 
-          {/* Info réduction */}
-          {discountAmount > 0 && (
-            <Text style={styles.discountNote}>
-              (Réduction de {formatPriceFCFA(discountAmount)} déjà déduite)
-            </Text>
+          {/* Réduction */}
+          {actualDiscountAmount > 0 && (
+            <>
+              <View style={styles.financialRow}>
+                <Text style={[styles.financialLabel, styles.discountText]}>Réduction appliquée</Text>
+                <Text style={[styles.financialValue, styles.discountText]}>
+                  -{formatPriceFCFA(actualDiscountAmount)}
+                </Text>
+              </View>
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Prix après réduction</Text>
+                <Text style={styles.financialValue}>{formatPriceFCFA(priceAfterDiscount)}</Text>
+              </View>
+            </>
+          )}
+
+          {/* Montant de la réservation (si pas de réduction, c'est le même que basePrice) */}
+          {actualDiscountAmount === 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Montant de la réservation</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(priceAfterDiscount)}</Text>
+            </View>
           )}
 
           {/* Commission Akwahome avec détails TVA */}

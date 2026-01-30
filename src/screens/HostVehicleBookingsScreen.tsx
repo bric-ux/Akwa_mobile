@@ -295,14 +295,23 @@ const HostVehicleBookingsScreen: React.FC = () => {
           // Ne pas mettre hasActiveBookings = true pour pending car elles ne bloquent pas la disponibilité
         } else if (booking.status === 'confirmed') {
           // Vérifier que la réservation confirmed n'est pas encore terminée
+          const startDate = new Date(booking.start_date);
+          startDate.setHours(0, 0, 0, 0);
           const endDate = new Date(booking.end_date);
           endDate.setHours(0, 0, 0, 0);
-          if (endDate >= today) {
+          
+          // Une réservation confirmed est active si :
+          // 1. Elle n'est pas encore terminée (endDate >= today)
+          // 2. ET elle n'est pas déjà complétée (double vérification avec isBookingCompleted)
+          // 3. ET elle n'est pas annulée
+          if (endDate >= today && !isCompleted && !isCancelled) {
             stats.confirmed++;
             hasActiveBookings = true; // Seules les confirmed bloquent la disponibilité
           } else {
-            // Si la date de fin est passée, c'est une réservation terminée
-            stats.completed++;
+            // Si la date de fin est passée ou si elle est complétée, c'est une réservation terminée
+            if (!isCancelled) {
+              stats.completed++;
+            }
           }
         }
       });
@@ -373,9 +382,9 @@ const HostVehicleBookingsScreen: React.FC = () => {
               <Text style={styles.renterName}>
                 {item.renter?.first_name || 'Locataire'} {item.renter?.last_name || ''}
               </Text>
-              {item.renter?.email && (
+              {item.renter?.email ? (
                 <Text style={styles.renterEmail}>{item.renter.email}</Text>
-              )}
+              ) : null}
             </View>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
@@ -390,14 +399,14 @@ const HostVehicleBookingsScreen: React.FC = () => {
               {formatDate(item.start_date)} → {formatDate(item.end_date)}
             </Text>
           </View>
-          {item.discount_amount && item.discount_amount > 0 && (
+          {(item.discount_amount && item.discount_amount > 0) ? (
             <View style={styles.detailRow}>
               <Ionicons name="pricetag-outline" size={16} color="#f59e0b" />
               <Text style={styles.discountDetailText}>
                 Réduction: -{item.discount_amount.toLocaleString('fr-FR')} FCFA
               </Text>
             </View>
-          )}
+          ) : null}
           <View style={styles.detailRow}>
             <Ionicons name="cash-outline" size={16} color="#10b981" />
             <Text style={[styles.detailText, styles.netEarnings]}>
@@ -406,12 +415,12 @@ const HostVehicleBookingsScreen: React.FC = () => {
           </View>
         </View>
 
-        {item.message_to_owner && (
+        {item.message_to_owner ? (
           <View style={styles.messageSection}>
             <Text style={styles.messageLabel}>Message:</Text>
             <Text style={styles.messageText}>{item.message_to_owner}</Text>
           </View>
-        )}
+        ) : null}
 
         {/* Afficher la demande de modification en attente directement sur la réservation */}
         {(() => {
@@ -453,7 +462,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
           </TouchableOpacity>
 
           {/* Contacter - si le locataire existe */}
-          {item.renter?.user_id && (
+          {item.renter?.user_id ? (
             <TouchableOpacity
               style={[styles.actionButtonSmall, styles.contactButton]}
               onPress={() => {
@@ -473,10 +482,10 @@ const HostVehicleBookingsScreen: React.FC = () => {
               <Ionicons name="chatbubble-outline" size={16} color="#3b82f6" />
               <Text style={[styles.actionButtonSmallText, { color: '#3b82f6' }]}>Contacter</Text>
             </TouchableOpacity>
-          )}
+          ) : null}
 
           {/* Téléphone - si le locataire a un téléphone */}
-          {item.renter?.phone && (
+          {item.renter?.phone ? (
             <TouchableOpacity
               style={[styles.actionButtonSmall, styles.phoneButton]}
               onPress={() => {
@@ -485,10 +494,10 @@ const HostVehicleBookingsScreen: React.FC = () => {
             >
               <Ionicons name="call-outline" size={16} color="#10b981" />
             </TouchableOpacity>
-          )}
+          ) : null}
 
           {/* Voir profil - si le locataire existe */}
-          {(item.renter?.user_id || item.renter_id) && (
+          {(item.renter?.user_id || item.renter_id) ? (
             <TouchableOpacity
               style={[styles.actionButtonSmall, styles.viewProfileButton]}
               onPress={() => {
@@ -499,7 +508,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
               <Ionicons name="person-outline" size={16} color="#2563eb" />
               <Text style={[styles.actionButtonSmallText, { color: '#2563eb' }]}>Profil</Text>
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
         {/* Accepter/Refuser pour pending */}
@@ -537,7 +546,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
         )}
 
         {/* Évaluer le locataire pour les réservations terminées */}
-        {completed && item.status !== 'cancelled' && canReviewRenter[item.id] && item.renter?.user_id && item.vehicle?.id && (
+        {(completed && item.status !== 'cancelled' && canReviewRenter[item.id] && item.renter?.user_id && item.vehicle?.id) ? (
           <TouchableOpacity
             style={[styles.actionButton, styles.reviewButton]}
             onPress={() => {
@@ -548,7 +557,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
             <Ionicons name="star-outline" size={18} color="#fbbf24" />
             <Text style={[styles.actionButtonText, { color: '#fbbf24' }]}>Évaluer le locataire</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     );
   };
@@ -610,7 +619,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
                         <View style={styles.rentedBadge}>
                           <Text style={styles.rentedBadgeText}>En location</Text>
                         </View>
-                      ) : item.stats.pending > 0 && !item.isAvailable ? (
+                      ) : item.stats.pending > 0 && item.isAvailable ? (
                         <View style={[styles.unavailableBadge, { backgroundColor: '#f59e0b' }]}>
                           <Text style={styles.unavailableBadgeText}>En attente ({item.stats.pending})</Text>
                         </View>

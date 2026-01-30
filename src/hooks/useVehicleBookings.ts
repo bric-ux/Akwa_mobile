@@ -155,6 +155,9 @@ export const useVehicleBookings = () => {
       // Calculer le prix avec réductions
       const pricing = calculateTotalPrice(dailyRate, rentalDays, discountConfig, longStayDiscountConfig);
       const basePrice = pricing.totalPrice; // Prix après réduction
+      const discountAmount = pricing.discountAmount || 0;
+      const discountApplied = pricing.discountApplied || false;
+      const originalTotal = pricing.originalTotal || (dailyRate * rentalDays);
       
       // Calculer les frais de service (10% du prix après réduction pour les véhicules)
       const fees = calculateFees(basePrice, rentalDays, 'vehicle');
@@ -163,8 +166,7 @@ export const useVehicleBookings = () => {
       // Déterminer le statut initial en fonction de auto_booking
       const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
 
-      // Créer la réservation (sans license_document_url qui n'existe pas dans la table)
-      // Note: discount_applied et discount_amount n'existent pas dans vehicle_bookings
+      // Créer la réservation avec les données de réduction
       const { data: booking, error: bookingError } = await supabase
         .from('vehicle_bookings')
         .insert({
@@ -184,6 +186,9 @@ export const useVehicleBookings = () => {
           license_years: bookingData.licenseYears ? parseInt(bookingData.licenseYears) : null,
           license_number: bookingData.licenseNumber || null,
           status: initialStatus,
+          discount_applied: discountApplied,
+          discount_amount: discountAmount,
+          original_total: originalTotal,
         })
         .select(`
           *,
@@ -278,6 +283,13 @@ export const useVehicleBookings = () => {
               pickupLocation: bookingData.pickupLocation || '',
               isInstantBooking: true,
               paymentMethod: bookingData.paymentMethod || booking.payment_method || '',
+              discountAmount: pricing.discountAmount || 0, // Montant de la réduction
+              vehicleDiscountEnabled: vehicle.discount_enabled || false,
+              vehicleDiscountMinDays: vehicle.discount_min_days || null,
+              vehicleDiscountPercentage: vehicle.discount_percentage || null,
+              vehicleLongStayDiscountEnabled: vehicle.long_stay_discount_enabled || false,
+              vehicleLongStayDiscountMinDays: vehicle.long_stay_discount_min_days || null,
+              vehicleLongStayDiscountPercentage: vehicle.long_stay_discount_percentage || null,
             };
 
             // Email au locataire avec PDF

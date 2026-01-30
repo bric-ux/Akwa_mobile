@@ -192,7 +192,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.bookingId}>Réservation #{booking.id?.slice(0, 8)}</Text>
+          <Text style={styles.bookingId}>Réservation #{booking.id ? String(booking.id.slice(0, 8)) : ''}</Text>
 
           <ScrollView 
             style={styles.content} 
@@ -244,7 +244,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                     {vehicle?.brand} {vehicle?.model}
                   </Text>
                   <Text style={styles.vehicleYear}>
-                    {vehicle?.year} • {vehicle?.fuel_type}
+                    {vehicle?.year ? String(vehicle.year) : ''} {vehicle?.year && vehicle?.fuel_type ? '•' : ''} {vehicle?.fuel_type || ''}
                   </Text>
                 </View>
               </View>
@@ -270,7 +270,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               <View style={styles.durationRow}>
                 <Text style={styles.durationLabel}>Durée</Text>
                 <Text style={styles.durationValue}>
-                  {booking.rental_days} jour{booking.rental_days > 1 ? 's' : ''}
+                  {String(booking.rental_days || 0)} jour{(booking.rental_days || 0) > 1 ? 's' : ''}
                 </Text>
               </View>
             </View>
@@ -342,7 +342,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                   {booking.license_years && (
                     <View style={styles.infoRow}>
                       <Text style={styles.infoLabel}>Années de permis</Text>
-                      <Text style={styles.infoValue}>{booking.license_years} an(s)</Text>
+                      <Text style={styles.infoValue}>{String(booking.license_years || 0)} an(s)</Text>
                     </View>
                   )}
                   {booking.license_number && (
@@ -454,6 +454,12 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                     rental_days: booking.rental_days, // Passer rental_days pour le calcul correct
                     vehicle: {
                       rules: booking.vehicle?.rules || [],
+                      discount_enabled: booking.vehicle?.discount_enabled,
+                      discount_min_days: booking.vehicle?.discount_min_days,
+                      discount_percentage: booking.vehicle?.discount_percentage,
+                      long_stay_discount_enabled: booking.vehicle?.long_stay_discount_enabled,
+                      long_stay_discount_min_days: booking.vehicle?.long_stay_discount_min_days,
+                      long_stay_discount_percentage: booking.vehicle?.long_stay_discount_percentage,
                     },
                   } as any}
                   pricePerUnit={booking.daily_rate || 0}

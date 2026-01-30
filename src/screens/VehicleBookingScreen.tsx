@@ -398,6 +398,15 @@ const VehicleBookingScreen: React.FC = () => {
 
       if (result.success) {
         const isConfirmed = result.status === 'confirmed';
+        // Réinitialiser le formulaire
+        setStartDate('');
+        setEndDate('');
+        setMessage('');
+        setHasLicense(false);
+        setLicenseYears('');
+        setLicenseNumber('');
+        setLicenseDocumentUrl(null);
+        
         Alert.alert(
           isConfirmed ? 'Réservation confirmée !' : 'Demande envoyée !',
           isConfirmed 
@@ -407,7 +416,10 @@ const VehicleBookingScreen: React.FC = () => {
             {
               text: 'OK',
               onPress: () => {
+                // Naviguer vers les réservations et fermer cet écran
                 navigation.navigate('MyVehicleBookings' as never);
+                // Retourner en arrière pour fermer l'écran de réservation
+                navigation.goBack();
               },
             },
           ]
