@@ -114,6 +114,7 @@ export function calculateTotalPrice(
 /**
  * Calcule les frais supplémentaires en utilisant les vrais frais de la propriété
  * IMPORTANT: Le serviceFee est calculé comme 12% du prix APRÈS réduction (comme sur le site web)
+ * TVA de 20% appliquée sur les frais de service
  */
 export function calculateFees(
   priceAfterDiscount: number, // Prix APRÈS application des réductions
@@ -128,6 +129,8 @@ export function calculateFees(
 ): {
   cleaningFee: number;
   serviceFee: number;
+  serviceFeeHT: number;
+  serviceFeeVAT: number;
   taxes: number;
   totalFees: number;
 } {
@@ -140,7 +143,10 @@ export function calculateFees(
   // Calculer les frais de service comme un pourcentage du prix APRÈS réduction
   // Pour les propriétés: 12%, pour les véhicules: 10%
   const commissionRates = getCommissionRates(serviceType);
-  const serviceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+  const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+  // TVA de 20% sur les frais de service
+  const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
+  const serviceFee = serviceFeeHT + serviceFeeVAT;
   
   const taxes = propertyFees?.taxes || 0;
   
@@ -149,8 +155,34 @@ export function calculateFees(
   return {
     cleaningFee,
     serviceFee,
+    serviceFeeHT,
+    serviceFeeVAT,
     taxes,
     totalFees
+  };
+}
+
+/**
+ * Calcule la commission hôte/propriétaire avec TVA de 20%
+ */
+export function calculateHostCommission(
+  priceAfterDiscount: number,
+  serviceType: 'property' | 'vehicle' = 'property'
+): {
+  hostCommission: number;
+  hostCommissionHT: number;
+  hostCommissionVAT: number;
+} {
+  const commissionRates = getCommissionRates(serviceType);
+  const hostCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+  // TVA de 20% sur la commission hôte
+  const hostCommissionVAT = Math.round(hostCommissionHT * 0.20);
+  const hostCommission = hostCommissionHT + hostCommissionVAT;
+  
+  return {
+    hostCommission,
+    hostCommissionHT,
+    hostCommissionVAT
   };
 }
 

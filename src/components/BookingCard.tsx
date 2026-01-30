@@ -247,9 +247,11 @@ const BookingCard: React.FC<BookingCardProps> = ({
     const basePrice = pricePerNight * nights;
     const priceAfterDiscount = basePrice - discountAmount;
     
-    // Calculer les frais de service (12% du prix APRÈS réduction)
+    // Calculer les frais de service avec TVA (12% du prix APRÈS réduction + 20% TVA)
     const commissionRates = getCommissionRates('property');
-    const effectiveServiceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+    const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+    const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
+    const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
     
     // Frais de ménage (gratuit si applicable)
     const baseCleaningFee = booking.properties.cleaning_fee || 0;

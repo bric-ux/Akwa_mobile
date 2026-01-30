@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getCommissionRates, type ServiceType } from '../lib/commissions';
-import { calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
+import { calculateTotalPrice, calculateHostCommission, type DiscountConfig } from '../hooks/usePricing';
 import akwaHomeLogo from '../../assets/images/akwahome_logo.png';
 
 interface InvoiceDisplayProps {
@@ -111,6 +111,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   hostPhone,
   propertyOrVehicleTitle,
 }) => {
+  const [showVATInvoice, setShowVATInvoice] = useState(false);
   const effectivePaymentMethod = paymentMethod || booking.payment_method || 'Non spécifié';
   const checkIn = booking.check_in_date || booking.start_date || '';
   const checkOut = booking.check_out_date || booking.end_date || '';
@@ -162,15 +163,21 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   
   // Prix après réduction (sans ajustement)
   const priceAfterDiscount = basePrice - discountAmount;
-  
-  // Calculer les frais de service sur le prix APRÈS réduction
-  const effectiveServiceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
   const actualDiscountAmount = discountAmount;
   const effectiveTaxes = providedTaxes !== undefined 
     ? providedTaxes 
     : (booking.properties?.taxes || 0);
   
-  const hostCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+  // Calculer les frais de service avec TVA
+  const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+  const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
+  const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
+  
+  // Calculer la commission hôte avec TVA
+  const hostCommissionData = calculateHostCommission(priceAfterDiscount, serviceType);
+  const hostCommission = hostCommissionData.hostCommission;
+  const hostCommissionHT = hostCommissionData.hostCommissionHT;
+  const hostCommissionVAT = hostCommissionData.hostCommissionVAT;
   
   // Calculer les frais de ménage en tenant compte de free_cleaning_min_days
   // Utiliser le cleaningFee passé en paramètre si fourni, sinon utiliser celui de la propriété
@@ -306,13 +313,38 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </View>
           )}
 
-          {/* Frais de service */}
+          {/* Frais de service avec détails TVA */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
               Frais de service Akwahome
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
           </View>
+          
+          {/* Détails TVA pour frais de service */}
+          <View style={styles.vatDetailsContainer}>
+            <View style={styles.vatDetailRow}>
+              <Text style={styles.vatDetailLabel}>Frais de base (HT)</Text>
+              <Text style={styles.vatDetailValue}>{formatPriceFCFA(serviceFeeHT)}</Text>
+            </View>
+            <View style={styles.vatDetailRow}>
+              <Text style={styles.vatDetailLabel}>TVA (20%)</Text>
+              <Text style={styles.vatDetailValue}>{formatPriceFCFA(serviceFeeVAT)}</Text>
+            </View>
+            <View style={styles.vatDetailRow}>
+              <Text style={styles.vatDetailLabel}>Total (TTC)</Text>
+              <Text style={styles.vatDetailValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
+            </View>
+          </View>
+          
+          {/* Bouton voir facture avec TVA */}
+          <TouchableOpacity 
+            style={styles.vatInvoiceButton}
+            onPress={() => setShowVATInvoice(true)}
+          >
+            <Ionicons name="document-text-outline" size={16} color="#007bff" />
+            <Text style={styles.vatInvoiceButtonText}>Voir facture avec TVA</Text>
+          </TouchableOpacity>
 
           {/* Taxes */}
           {effectiveTaxes > 0 && (
@@ -353,6 +385,84 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       {/* === JUSTIFICATIF HÔTE === */}
       {type === 'host' && (
         <View style={styles.financialSection}>
+          {/* Détails du paiement du voyageur/locataire */}
+          <Text style={styles.financialTitle}>Détails du paiement {serviceType === 'property' ? 'du voyageur' : 'du locataire'}</Text>
+          
+          {/* Prix initial */}
+          <View style={styles.financialRow}>
+            <Text style={styles.financialLabel}>
+              Prix initial ({nights} {serviceType === 'property' ? 'nuits' : 'jours'})
+            </Text>
+            <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
+          </View>
+
+          {/* Réduction */}
+          {actualDiscountAmount > 0 && (
+            <>
+              <View style={styles.financialRow}>
+                <Text style={[styles.financialLabel, styles.discountText]}>Réduction appliquée</Text>
+                <Text style={[styles.financialValue, styles.discountText]}>
+                  -{formatPriceFCFA(actualDiscountAmount)}
+                </Text>
+              </View>
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Prix après réduction</Text>
+                <Text style={styles.financialValue}>{formatPriceFCFA(priceAfterDiscount)}</Text>
+              </View>
+            </>
+          )}
+
+          {/* Frais de ménage */}
+          {effectiveCleaningFee > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Frais de ménage</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveCleaningFee)}</Text>
+            </View>
+          )}
+
+          {/* Frais de service avec détails TVA */}
+          <View style={styles.financialRow}>
+            <Text style={styles.financialLabel}>
+              Frais de service Akwahome
+            </Text>
+            <Text style={styles.financialValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
+          </View>
+          
+          {/* Détails TVA pour frais de service */}
+          <View style={styles.vatDetailsContainer}>
+            <View style={styles.vatDetailRow}>
+              <Text style={styles.vatDetailLabel}>Frais de base (HT)</Text>
+              <Text style={styles.vatDetailValue}>{formatPriceFCFA(serviceFeeHT)}</Text>
+            </View>
+            <View style={styles.vatDetailRow}>
+              <Text style={styles.vatDetailLabel}>TVA (20%)</Text>
+              <Text style={styles.vatDetailValue}>{formatPriceFCFA(serviceFeeVAT)}</Text>
+            </View>
+            <View style={styles.vatDetailRow}>
+              <Text style={styles.vatDetailLabel}>Total (TTC)</Text>
+              <Text style={styles.vatDetailValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
+            </View>
+          </View>
+
+          {/* Taxes */}
+          {effectiveTaxes > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Taxes locales</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes)}</Text>
+            </View>
+          )}
+
+          <View style={styles.separator} />
+
+          {/* Total payé par le voyageur */}
+          <View style={styles.financialRow}>
+            <Text style={styles.totalLabel}>Total payé {serviceType === 'property' ? 'par le voyageur' : 'par le locataire'}</Text>
+            <Text style={styles.totalValue}>{formatPriceFCFA(totalPaidByTraveler)}</Text>
+          </View>
+
+          <View style={styles.separator} />
+
+          {/* Versement de l'hôte/propriétaire */}
           <Text style={styles.financialTitle}>Votre versement</Text>
           
           {/* Montant de la réservation */}
@@ -368,7 +478,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </Text>
           )}
 
-          {/* Commission Akwahome */}
+          {/* Commission Akwahome avec détails TVA */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
               Commission Akwahome ({commissionRates.hostFeePercent}%)
@@ -377,6 +487,31 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
               -{formatPriceFCFA(hostCommission)}
             </Text>
           </View>
+          
+          {/* Détails TVA pour commission hôte */}
+          <View style={styles.vatDetailsContainer}>
+            <View style={styles.vatDetailRow}>
+              <Text style={styles.vatDetailLabel}>Commission de base (HT)</Text>
+              <Text style={styles.vatDetailValue}>{formatPriceFCFA(hostCommissionHT)}</Text>
+            </View>
+            <View style={styles.vatDetailRow}>
+              <Text style={styles.vatDetailLabel}>TVA (20%)</Text>
+              <Text style={styles.vatDetailValue}>{formatPriceFCFA(hostCommissionVAT)}</Text>
+            </View>
+            <View style={styles.vatDetailRow}>
+              <Text style={styles.vatDetailLabel}>Total (TTC)</Text>
+              <Text style={styles.vatDetailValue}>{formatPriceFCFA(hostCommission)}</Text>
+            </View>
+          </View>
+          
+          {/* Bouton voir facture avec TVA */}
+          <TouchableOpacity 
+            style={styles.vatInvoiceButton}
+            onPress={() => setShowVATInvoice(true)}
+          >
+            <Ionicons name="document-text-outline" size={16} color="#007bff" />
+            <Text style={styles.vatInvoiceButtonText}>Voir facture avec TVA</Text>
+          </TouchableOpacity>
 
           <View style={styles.separator} />
 
@@ -399,7 +534,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             <View style={styles.contactSection}>
               <View style={styles.contactHeader}>
                 <Ionicons name="call-outline" size={16} color="#333" />
-                <Text style={styles.contactTitle}>Contact du voyageur</Text>
+                <Text style={styles.contactTitle}>Contact {serviceType === 'property' ? 'du voyageur' : 'du locataire'}</Text>
               </View>
               <Text style={styles.contactName}>{travelerName}</Text>
               <Text style={styles.contactPhone}>{travelerPhone}</Text>
@@ -467,34 +602,67 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
           <View style={styles.separator} />
 
-          {/* Commissions détaillées */}
+          {/* Commissions détaillées avec TVA */}
           <View style={styles.commissionBox}>
             <Text style={styles.commissionBoxTitle}>Commissions Akwahome</Text>
             
             <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Frais de service voyageur</Text>
+              <Text style={styles.financialLabel}>Frais de service voyageur (TTC)</Text>
               <Text style={[styles.financialValue, styles.commissionValue]}>
                 +{formatPriceFCFA(effectiveServiceFee)}
               </Text>
             </View>
+            <View style={styles.vatDetailsContainer}>
+              <View style={styles.vatDetailRow}>
+                <Text style={styles.vatDetailLabel}>Frais de base (HT)</Text>
+                <Text style={styles.vatDetailValue}>{formatPriceFCFA(serviceFeeHT)}</Text>
+              </View>
+              <View style={styles.vatDetailRow}>
+                <Text style={styles.vatDetailLabel}>TVA (20%)</Text>
+                <Text style={styles.vatDetailValue}>{formatPriceFCFA(serviceFeeVAT)}</Text>
+              </View>
+            </View>
 
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>
-                Commission hôte ({commissionRates.hostFeePercent}%)
+                Commission hôte ({commissionRates.hostFeePercent}%) (TTC)
               </Text>
               <Text style={[styles.financialValue, styles.commissionValue]}>
                 +{formatPriceFCFA(hostCommission)}
               </Text>
             </View>
+            <View style={styles.vatDetailsContainer}>
+              <View style={styles.vatDetailRow}>
+                <Text style={styles.vatDetailLabel}>Commission de base (HT)</Text>
+                <Text style={styles.vatDetailValue}>{formatPriceFCFA(hostCommissionHT)}</Text>
+              </View>
+              <View style={styles.vatDetailRow}>
+                <Text style={styles.vatDetailLabel}>TVA (20%)</Text>
+                <Text style={styles.vatDetailValue}>{formatPriceFCFA(hostCommissionVAT)}</Text>
+              </View>
+            </View>
 
             <View style={styles.separator} />
 
             <View style={styles.financialRow}>
-              <Text style={styles.totalLabel}>Revenu total Akwahome</Text>
+              <Text style={styles.totalLabel}>Revenu total Akwahome (HT)</Text>
               <Text style={[styles.totalValue, styles.commissionTotal]}>
-                {formatPriceFCFA(akwaHomeTotalRevenue)}
+                {formatPriceFCFA(serviceFeeHT + hostCommissionHT)}
               </Text>
             </View>
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>TVA totale collectée</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(serviceFeeVAT + hostCommissionVAT)}</Text>
+            </View>
+            
+            {/* Bouton voir facture avec TVA */}
+            <TouchableOpacity 
+              style={styles.vatInvoiceButton}
+              onPress={() => setShowVATInvoice(true)}
+            >
+              <Ionicons name="document-text-outline" size={16} color="#007bff" />
+              <Text style={styles.vatInvoiceButtonText}>Voir facture avec TVA</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.separator} />
@@ -539,6 +707,146 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           AkwaHome - Votre plateforme de réservation en Côte d'Ivoire
         </Text>
       </View>
+
+      {/* Modal Facture avec TVA */}
+      <Modal
+        visible={showVATInvoice}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowVATInvoice(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Facture avec TVA</Text>
+              <TouchableOpacity onPress={() => setShowVATInvoice(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView 
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {/* Informations émetteur */}
+              <View style={styles.vatInvoiceSection}>
+                <Text style={styles.vatInvoiceSectionTitle}>Facture émise par</Text>
+                <Text style={styles.vatInvoiceCompanyName}>Akwahome</Text>
+                <Text style={styles.vatInvoiceAddress}>CI-ABJ-03-2025-B12-06694</Text>
+              </View>
+
+              {/* Informations destinataire */}
+              {type === 'traveler' && travelerName && (
+                <View style={styles.vatInvoiceSection}>
+                  <Text style={styles.vatInvoiceSectionTitle}>Facture envoyée à</Text>
+                  <Text style={styles.vatInvoiceRecipientName}>{travelerName}</Text>
+                  {travelerEmail && <Text style={styles.vatInvoiceRecipientDetail}>{travelerEmail}</Text>}
+                  {travelerPhone && <Text style={styles.vatInvoiceRecipientDetail}>{travelerPhone}</Text>}
+                </View>
+              )}
+
+              {type === 'host' && hostName && (
+                <View style={styles.vatInvoiceSection}>
+                  <Text style={styles.vatInvoiceSectionTitle}>Facture envoyée à</Text>
+                  <Text style={styles.vatInvoiceRecipientName}>{hostName}</Text>
+                  {hostEmail && <Text style={styles.vatInvoiceRecipientDetail}>{hostEmail}</Text>}
+                  {hostPhone && <Text style={styles.vatInvoiceRecipientDetail}>{hostPhone}</Text>}
+                </View>
+              )}
+
+              {/* Numéro et date de facture */}
+              <View style={styles.vatInvoiceSection}>
+                <View style={styles.vatInvoiceRow}>
+                  <Text style={styles.vatInvoiceLabel}>Date d'émission de la facture</Text>
+                  <Text style={styles.vatInvoiceValue}>{formatDate(booking.created_at || new Date().toISOString())}</Text>
+                </View>
+                <View style={styles.vatInvoiceRow}>
+                  <Text style={styles.vatInvoiceLabel}>Numéro de facture</Text>
+                  <Text style={styles.vatInvoiceValue}>AKWA-{booking.id.substring(0, 8).toUpperCase()}</Text>
+                </View>
+              </View>
+
+              {/* Description */}
+              <View style={styles.vatInvoiceSection}>
+                <Text style={styles.vatInvoiceSectionTitle}>Description</Text>
+                <Text style={styles.vatInvoiceDescription}>
+                  Frais d'utilisation de la plateforme en ligne pour la réservation {booking.id.substring(0, 8).toUpperCase()} du {formatDate(booking.created_at || new Date().toISOString())}
+                </Text>
+              </View>
+
+              {/* Détails avec TVA */}
+              <View style={styles.vatInvoiceSection}>
+                <Text style={styles.vatInvoiceSectionTitle}>Détails</Text>
+                
+                <View style={styles.vatInvoiceDetailsTable}>
+                  <View style={styles.vatInvoiceTableRow}>
+                    <Text style={styles.vatInvoiceTableLabel}>PAYS DE FACTURATION DE LA TVA</Text>
+                    <Text style={styles.vatInvoiceTableValue}>CI</Text>
+                  </View>
+                  <View style={styles.vatInvoiceTableRow}>
+                    <Text style={styles.vatInvoiceTableLabel}>TAUX DE TVA</Text>
+                    <Text style={styles.vatInvoiceTableValue}>20,0%</Text>
+                  </View>
+                  
+                  {type === 'traveler' && (
+                    <>
+                      <View style={styles.vatInvoiceTableRow}>
+                        <Text style={styles.vatInvoiceTableLabel}>FRAIS DE BASE</Text>
+                        <Text style={styles.vatInvoiceTableValue}>Frais de service</Text>
+                      </View>
+                      <View style={styles.vatInvoiceTableRow}>
+                        <Text style={styles.vatInvoiceTableLabel}>MONTANT</Text>
+                        <Text style={styles.vatInvoiceTableValue}>{formatPriceFCFA(serviceFeeHT)}</Text>
+                      </View>
+                      <View style={styles.vatInvoiceTableRow}>
+                        <Text style={styles.vatInvoiceTableLabel}>MONTANT DE LA TVA</Text>
+                        <Text style={styles.vatInvoiceTableValue}>{formatPriceFCFA(serviceFeeVAT)}</Text>
+                      </View>
+                      <View style={styles.vatInvoiceTableRow}>
+                        <Text style={styles.vatInvoiceTableLabel}>TOTAL DES FRAIS, TVA INCLUSE</Text>
+                        <Text style={styles.vatInvoiceTableValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
+                      </View>
+                    </>
+                  )}
+
+                  {type === 'host' && (
+                    <>
+                      <View style={styles.vatInvoiceTableRow}>
+                        <Text style={styles.vatInvoiceTableLabel}>FRAIS DE BASE</Text>
+                        <Text style={styles.vatInvoiceTableValue}>Commission Akwahome</Text>
+                      </View>
+                      <View style={styles.vatInvoiceTableRow}>
+                        <Text style={styles.vatInvoiceTableLabel}>MONTANT</Text>
+                        <Text style={styles.vatInvoiceTableValue}>{formatPriceFCFA(hostCommissionHT)}</Text>
+                      </View>
+                      <View style={styles.vatInvoiceTableRow}>
+                        <Text style={styles.vatInvoiceTableLabel}>MONTANT DE LA TVA</Text>
+                        <Text style={styles.vatInvoiceTableValue}>{formatPriceFCFA(hostCommissionVAT)}</Text>
+                      </View>
+                      <View style={styles.vatInvoiceTableRow}>
+                        <Text style={styles.vatInvoiceTableLabel}>TOTAL DES FRAIS, TVA INCLUSE</Text>
+                        <Text style={styles.vatInvoiceTableValue}>{formatPriceFCFA(hostCommission)}</Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              </View>
+
+              {/* Sous-total */}
+              <View style={styles.vatInvoiceSeparator} />
+              <View style={styles.vatInvoiceSection}>
+                <View style={styles.vatInvoiceSubtotalRow}>
+                  <Text style={styles.vatInvoiceSubtotalLabel}>Sous-total</Text>
+                  <Text style={styles.vatInvoiceSubtotalValue}>
+                    {type === 'traveler' ? formatPriceFCFA(effectiveServiceFee) : formatPriceFCFA(hostCommission)}
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -757,6 +1065,176 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6b7280',
     textAlign: 'center',
+  },
+  // Styles pour détails TVA
+  vatDetailsContainer: {
+    backgroundColor: '#f9fafb',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  vatDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  vatDetailLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  vatDetailValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+  },
+  vatInvoiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f9ff',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#007bff',
+  },
+  vatInvoiceButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#007bff',
+    marginLeft: 6,
+  },
+  // Styles pour modal facture avec TVA
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: '95%',
+    maxHeight: '95%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  vatInvoiceSection: {
+    marginBottom: 24,
+  },
+  vatInvoiceSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  vatInvoiceCompanyName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  vatInvoiceAddress: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  vatInvoiceRecipientName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  vatInvoiceRecipientDetail: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  vatInvoiceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  vatInvoiceLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    flex: 1,
+  },
+  vatInvoiceValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+    textAlign: 'right',
+  },
+  vatInvoiceDescription: {
+    fontSize: 13,
+    color: '#333',
+    lineHeight: 20,
+  },
+  vatInvoiceDetailsTable: {
+    backgroundColor: '#f9fafb',
+    padding: 12,
+    borderRadius: 8,
+  },
+  vatInvoiceTableRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  vatInvoiceTableLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    flex: 1,
+  },
+  vatInvoiceTableValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+    textAlign: 'right',
+  },
+  vatInvoiceSeparator: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 16,
+  },
+  vatInvoiceSubtotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  vatInvoiceSubtotalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  vatInvoiceSubtotalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2563eb',
   },
 });
 
