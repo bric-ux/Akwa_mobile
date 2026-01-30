@@ -452,6 +452,9 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                     payment_method: payment?.payment_method || booking.payment_method || undefined,
                     status: booking.status,
                     rental_days: booking.rental_days, // Passer rental_days pour le calcul correct
+                    vehicle: {
+                      rules: booking.vehicle?.rules || [],
+                    },
                   } as any}
                   pricePerUnit={booking.daily_rate || 0}
                   paymentMethod={payment?.payment_method || booking.payment_method || undefined}

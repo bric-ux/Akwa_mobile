@@ -36,6 +36,11 @@ interface InvoiceDisplayProps {
       long_stay_discount_min_nights?: number | null;
       long_stay_discount_percentage?: number | null;
       free_cleaning_min_days?: number | null;
+      house_rules?: string | null;
+      cancellation_policy?: string | null;
+    };
+    vehicle?: {
+      rules?: string[];
     };
   };
   pricePerUnit: number;
@@ -94,6 +99,32 @@ const getPaymentMethodLabel = (method?: string): string => {
 
 const getServiceTypeLabel = (serviceType: ServiceType): string => {
   return serviceType === 'property' ? 'Résidence meublée' : 'Location de véhicule';
+};
+
+const getCancellationPolicyText = (policy?: string | null, serviceType: ServiceType = 'property'): string => {
+  if (!policy) {
+    return serviceType === 'property' 
+      ? 'Annulation gratuite jusqu\'à 1 jour avant l\'arrivée. Remboursement intégral.'
+      : 'Annulation gratuite jusqu\'à 7 jours avant. Remboursement intégral.';
+  }
+
+  if (serviceType === 'property') {
+    switch (policy) {
+      case 'flexible':
+        return 'Annulation gratuite jusqu\'à 24h avant l\'arrivée. Remboursement intégral.';
+      case 'moderate':
+        return 'Annulation gratuite jusqu\'à 5 jours avant l\'arrivée. Après, 50% de pénalité.';
+      case 'strict':
+        return 'Annulation gratuite jusqu\'à 7 jours avant l\'arrivée. Après, 50% de pénalité.';
+      case 'non_refundable':
+        return 'Aucun remboursement en cas d\'annulation.';
+      default:
+        return 'Annulation gratuite jusqu\'à 1 jour avant l\'arrivée. Remboursement intégral.';
+    }
+  } else {
+    // Pour les véhicules, les règles sont différentes
+    return 'Annulation gratuite jusqu\'à 7 jours avant. Entre 3 et 7 jours : 10% de pénalité. Moins de 3 jours : 20% de pénalité.';
+  }
 };
 
 export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
@@ -926,6 +957,45 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         </View>
       )}
 
+      {/* Règlement intérieur / Règles */}
+      {serviceType === 'property' && booking.properties?.house_rules && (
+        <View style={styles.rulesSection}>
+          <View style={styles.rulesHeader}>
+            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
+            <Text style={styles.rulesTitle}>Règlement intérieur</Text>
+          </View>
+          <Text style={styles.rulesText}>{booking.properties.house_rules}</Text>
+        </View>
+      )}
+      
+      {serviceType === 'vehicle' && booking.vehicle?.rules && booking.vehicle.rules.length > 0 && (
+        <View style={styles.rulesSection}>
+          <View style={styles.rulesHeader}>
+            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
+            <Text style={styles.rulesTitle}>Règles de location</Text>
+          </View>
+          {booking.vehicle.rules.map((rule, index) => (
+            <Text key={index} style={styles.rulesText}>
+              • {rule}
+            </Text>
+          ))}
+        </View>
+      )}
+
+      {/* Conditions d'annulation */}
+      <View style={styles.cancellationSection}>
+        <View style={styles.cancellationHeader}>
+          <Ionicons name="information-circle-outline" size={18} color="#f59e0b" />
+          <Text style={styles.cancellationTitle}>Politique d'annulation</Text>
+        </View>
+        <Text style={styles.cancellationText}>
+          {getCancellationPolicyText(
+            serviceType === 'property' ? booking.properties?.cancellation_policy : undefined,
+            serviceType
+          )}
+        </Text>
+      </View>
+
       {/* Date de réservation */}
       {booking.created_at && (
         <View style={styles.footer}>
@@ -1296,6 +1366,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
+  },
+  rulesSection: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2563eb',
+  },
+  rulesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  rulesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563eb',
+    marginLeft: 6,
+  },
+  rulesText: {
+    fontSize: 13,
+    color: '#333',
+    lineHeight: 20,
+  },
+  cancellationSection: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#fffbeb',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  cancellationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cancellationTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f59e0b',
+    marginLeft: 6,
+  },
+  cancellationText: {
+    fontSize: 13,
+    color: '#333',
+    lineHeight: 20,
   },
   footer: {
     marginTop: 16,

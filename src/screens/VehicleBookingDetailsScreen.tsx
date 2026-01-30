@@ -494,6 +494,9 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                   payment_method: payment?.payment_method || booking.payment_method,
                   status: booking.status,
                   rental_days: booking.rental_days, // Passer rental_days pour le calcul correct
+                  vehicle: {
+                    rules: booking.vehicle?.rules || [],
+                  },
                 } as any}
                 pricePerUnit={booking.daily_rate || 0}
                 cleaningFee={0}
