@@ -517,6 +517,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           <Text style={styles.invoiceNumber}>
             N° {booking.id.substring(0, 8).toUpperCase()}
           </Text>
+          <Text style={styles.rccmNumber}>
+            RCCM: CI-ABJ-2025-B12-06694
+          </Text>
         </View>
       </View>
 
@@ -1259,6 +1262,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#333',
+    fontFamily: 'monospace',
+  },
+  rccmNumber: {
+    fontSize: 10,
+    color: '#6b7280',
+    marginTop: 4,
     fontFamily: 'monospace',
   },
   section: {
