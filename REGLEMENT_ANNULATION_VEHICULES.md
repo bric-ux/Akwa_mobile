@@ -141,3 +141,5 @@ Lors d'une annulation, des emails sont envoyés à :
   - `cancellation_penalty` : Montant de la pénalité
 
 
+
+

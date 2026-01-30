@@ -196,3 +196,5 @@
 4. **Calcul de base** : `daily_rate × rental_days` (ou `total_price` si disponible)
 
 
+
+
