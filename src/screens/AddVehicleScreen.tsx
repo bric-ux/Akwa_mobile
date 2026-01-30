@@ -13,6 +13,7 @@ import {
   Platform,
   Keyboard,
   Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -155,6 +156,7 @@ const AddVehicleScreen: React.FC = () => {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [showInsuranceDatePicker, setShowInsuranceDatePicker] = useState(false);
   const [tempInsuranceDate, setTempInsuranceDate] = useState<Date | null>(null);
+  const [showLicenseYearsPicker, setShowLicenseYearsPicker] = useState(false);
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -989,27 +991,19 @@ const AddVehicleScreen: React.FC = () => {
               {formData.requires_license && (
                 <View style={styles.licenseYearsContainer}>
                   <Text style={styles.label}>Nombre minimum d'années de permis requis</Text>
-                  <View style={styles.optionsRow}>
-                    {['0', '1', '2', '3', '5'].map((years) => (
-                      <TouchableOpacity
-                        key={years}
-                        style={[
-                          styles.optionButton,
-                          formData.min_license_years === years && styles.optionButtonSelected,
-                        ]}
-                        onPress={() => handleInputChange('min_license_years', years)}
-                      >
-                        <Text
-                          style={[
-                            styles.optionText,
-                            formData.min_license_years === years && styles.optionTextSelected,
-                          ]}
-                        >
-                          {years === '0' ? 'Pas de minimum' : `${years} an${years !== '1' ? 's' : ''} minimum`}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                  <TouchableOpacity
+                    style={styles.selectButton}
+                    onPress={() => setShowLicenseYearsPicker(true)}
+                  >
+                    <Text style={[styles.selectButtonText, formData.min_license_years === '0' && styles.selectButtonPlaceholder]}>
+                      {formData.min_license_years === '0' 
+                        ? 'Sélectionner' 
+                        : formData.min_license_years === '1'
+                        ? '1 an minimum'
+                        : `${formData.min_license_years} ans minimum`}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#666" />
+                  </TouchableOpacity>
                   <Text style={styles.hintText}>
                     Le locataire devra prouver qu'il possède son permis depuis ce nombre d'années
                   </Text>
@@ -1324,6 +1318,60 @@ const AddVehicleScreen: React.FC = () => {
             </View>
           </View>
         )}
+
+        {/* Modal pour sélectionner le nombre minimum d'années de permis */}
+        <Modal
+          visible={showLicenseYearsPicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowLicenseYearsPicker(false)}
+        >
+          <View style={styles.pickerModalOverlay}>
+            <View style={styles.pickerModalContent}>
+              <View style={styles.pickerModalHeader}>
+                <Text style={styles.pickerModalTitle}>Nombre minimum d'années de permis</Text>
+                <TouchableOpacity
+                  onPress={() => setShowLicenseYearsPicker(false)}
+                  style={styles.pickerModalClose}
+                >
+                  <Ionicons name="close" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+              <FlatList
+                data={[
+                  { value: '0', label: 'Pas de minimum' },
+                  { value: '1', label: '1 an minimum' },
+                  { value: '2', label: '2 ans minimum' },
+                  { value: '3', label: '3 ans minimum' },
+                  { value: '5', label: '5 ans minimum' },
+                ]}
+                keyExtractor={(item) => item.value}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.pickerOption,
+                      formData.min_license_years === item.value && styles.pickerOptionSelected
+                    ]}
+                    onPress={() => {
+                      handleInputChange('min_license_years', item.value);
+                      setShowLicenseYearsPicker(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.pickerOptionText,
+                      formData.min_license_years === item.value && styles.pickerOptionTextSelected
+                    ]}>
+                      {item.label}
+                    </Text>
+                    {formData.min_license_years === item.value ? (
+                      <Ionicons name="checkmark" size={20} color="#2E7D32" />
+                    ) : null}
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1926,6 +1974,70 @@ const styles = StyleSheet.create({
   },
   discountField: {
     flex: 1,
+  },
+  selectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    marginTop: 8,
+  },
+  selectButtonText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  selectButtonPlaceholder: {
+    color: '#999',
+  },
+  pickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  pickerModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '50%',
+  },
+  pickerModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  pickerModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  pickerModalClose: {
+    padding: 4,
+  },
+  pickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  pickerOptionSelected: {
+    backgroundColor: '#e8f5e9',
+  },
+  pickerOptionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  pickerOptionTextSelected: {
+    color: '#2E7D32',
+    fontWeight: '600',
   },
 });
 

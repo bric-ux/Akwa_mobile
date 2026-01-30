@@ -234,6 +234,11 @@ const HostVehicleBookingsScreen: React.FC = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Filtrer uniquement les véhicules approuvés pour l'affichage dans les réservations
+    const approvedVehicles = vehicles.filter((vehicle: any) => {
+      return vehicle.is_approved === true;
+    });
+
     const bookingsByVehicle = new Map<string, VehicleBooking[]>();
     bookings.forEach(booking => {
       if (!booking.vehicle?.id) return;
@@ -244,7 +249,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
       bookingsByVehicle.get(vid)!.push(booking);
     });
 
-    const vehiclesWithStats = vehicles.map(vehicle => {
+    const vehiclesWithStats = approvedVehicles.map(vehicle => {
       const vehicleBookings = bookingsByVehicle.get(vehicle.id) || [];
       
       const stats = {
@@ -260,21 +265,44 @@ const HostVehicleBookingsScreen: React.FC = () => {
       let hasActiveBookings = false;
 
       vehicleBookings.forEach(booking => {
-        if (booking.status === 'pending') {
-          stats.pending++;
-          hasActiveBookings = true;
-        }
-        if (booking.status === 'confirmed') {
-          stats.confirmed++;
-          hasActiveBookings = true;
-        }
-        if (booking.status === 'cancelled') stats.cancelled++;
-        if (isBookingCompleted(booking) && booking.status !== 'cancelled') stats.completed++;
+        // Ne compter que les réservations non terminées et non annulées comme actives
+        const isCompleted = isBookingCompleted(booking);
+        const isCancelled = booking.status === 'cancelled';
         
+        if (isCompleted || isCancelled) {
+          // Les réservations terminées ou annulées ne comptent pas comme actives
+          if (isCompleted && !isCancelled) stats.completed++;
+          if (isCancelled) stats.cancelled++;
+          return; // Ne pas les compter comme actives
+        }
+
+        // Vérifier si la réservation est en cours (dates chevauchent aujourd'hui)
         if (isBookingInProgress(booking)) {
           stats.inProgress++;
           isCurrentlyRented = true;
           hasActiveBookings = true;
+          // Si en cours, c'est aussi confirmed
+          if (booking.status === 'confirmed') {
+            stats.confirmed++;
+          }
+          return;
+        }
+
+        // Les réservations pending ou confirmed qui ne sont pas terminées et pas encore commencées sont actives
+        if (booking.status === 'pending') {
+          stats.pending++;
+          hasActiveBookings = true;
+        } else if (booking.status === 'confirmed') {
+          // Vérifier que la réservation confirmed n'est pas encore terminée
+          const endDate = new Date(booking.end_date);
+          endDate.setHours(0, 0, 0, 0);
+          if (endDate >= today) {
+            stats.confirmed++;
+            hasActiveBookings = true;
+          } else {
+            // Si la date de fin est passée, c'est une réservation terminée
+            stats.completed++;
+          }
         }
       });
 

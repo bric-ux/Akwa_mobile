@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,11 @@ import {
   Switch,
   Image,
   Modal,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { useProperties } from '../hooks/useProperties';
@@ -23,6 +25,8 @@ import { supabase } from '../services/supabase';
 import { useAmenities } from '../hooks/useAmenities';
 import { useHostApplications } from '../hooks/useHostApplications';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type EditPropertyRouteParams = {
   propertyId: string;
@@ -35,6 +39,7 @@ const EditPropertyScreen: React.FC = () => {
   const { user } = useAuth();
   const { getPropertyById } = useProperties();
   const { getAmenities } = useHostApplications();
+  const insets = useSafeAreaInsets();
   
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,6 +80,21 @@ const EditPropertyScreen: React.FC = () => {
   const [photos, setPhotos] = useState<CategorizedPhoto[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [showImageGallery, setShowImageGallery] = useState(false);
+  const [galleryStartIndex, setGalleryStartIndex] = useState(0);
+  const galleryScrollViewRef = useRef<ScrollView>(null);
+
+  // Scroller vers l'image sélectionnée quand la galerie s'ouvre
+  useEffect(() => {
+    if (showImageGallery && galleryScrollViewRef.current) {
+      setTimeout(() => {
+        galleryScrollViewRef.current?.scrollTo({
+          x: galleryStartIndex * SCREEN_WIDTH,
+          animated: false,
+        });
+      }, 100);
+    }
+  }, [showImageGallery, galleryStartIndex]);
 
   useEffect(() => {
     loadProperty();
@@ -321,7 +341,7 @@ const EditPropertyScreen: React.FC = () => {
       setPhotos(prev => {
         const updated = [...prev, ...newPhotos];
         // S'assurer qu'il n'y a qu'une seule photo principale
-        const hasMain = updated.some(p => p.is_main || p.isMain);
+        const hasMain = updated.some(p => p.is_main);
         if (!hasMain && updated.length > 0) {
           updated[0].is_main = true;
         }
@@ -403,24 +423,60 @@ const EditPropertyScreen: React.FC = () => {
     return labels[category] || '📷 Autre';
   };
 
+  const handleImagePress = (index: number) => {
+    setGalleryStartIndex(index);
+    setShowImageGallery(true);
+  };
+
+  const handlePrevImage = () => {
+    const newIndex = galleryStartIndex > 0 ? galleryStartIndex - 1 : photos.length - 1;
+    setGalleryStartIndex(newIndex);
+    galleryScrollViewRef.current?.scrollTo({
+      x: newIndex * SCREEN_WIDTH,
+      animated: true,
+    });
+  };
+
+  const handleNextImage = () => {
+    const newIndex = galleryStartIndex < photos.length - 1 ? galleryStartIndex + 1 : 0;
+    setGalleryStartIndex(newIndex);
+    galleryScrollViewRef.current?.scrollTo({
+      x: newIndex * SCREEN_WIDTH,
+      animated: true,
+    });
+  };
+
   const renderPhotosSection = () => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Photos de la propriété</Text>
       
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
         {photos.map((photo, index) => (
-          <View key={photo.id || index} style={[styles.photoContainer, (photo.is_main || photo.isMain) && styles.mainPhotoContainer]}>
-            <Image source={{ uri: photo.url }} style={styles.photo} />
+          <View key={photo.id || index} style={styles.photoContainer}>
+            <TouchableOpacity
+              onPress={() => handleImagePress(index)}
+              activeOpacity={0.9}
+              style={styles.photoTouchable}
+            >
+              <Image source={{ uri: photo.url }} style={styles.photo} />
+              {/* Indicateur que l'image est cliquable */}
+              <View style={styles.imageClickIndicator}>
+                <Ionicons name="expand-outline" size={20} color="#fff" />
+              </View>
+            </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.removePhotoButton}
-              onPress={() => removeImage(index)}
+              onPress={(e) => {
+                e.stopPropagation();
+                removeImage(index);
+              }}
             >
               <Ionicons name="close-circle" size={24} color="#ff4444" />
             </TouchableOpacity>
             
             {/* Badge photo principale */}
-            {(photo.is_main || photo.isMain) && (
+            {photo.is_main && (
               <View style={styles.mainPhotoBadge}>
                 <Ionicons name="star" size={14} color="#FFD700" />
                 <Text style={styles.mainPhotoBadgeText}>Principale</Text>
@@ -430,10 +486,13 @@ const EditPropertyScreen: React.FC = () => {
             {/* Boutons d'action en bas */}
             <View style={styles.photoActionsContainer}>
               {/* Bouton pour définir comme principale */}
-              {!(photo.is_main || photo.isMain) && (
+              {!photo.is_main && (
                 <TouchableOpacity
                   style={styles.setMainPhotoButton}
-                  onPress={() => setMainPhoto(index)}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    setMainPhoto(index);
+                  }}
                 >
                   <Ionicons name="star-outline" size={14} color="#fff" />
                 </TouchableOpacity>
@@ -441,8 +500,11 @@ const EditPropertyScreen: React.FC = () => {
               
               {/* Bouton catégorie */}
               <TouchableOpacity
-                style={[styles.categoryButton, (photo.is_main || photo.isMain) && styles.categoryButtonWithMain]}
-                onPress={() => openCategoryModal(index)}
+                style={styles.categoryButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  openCategoryModal(index);
+                }}
               >
                 <Text style={styles.categoryText} numberOfLines={1}>
                   {getCategoryLabel(photo.category)}
@@ -504,6 +566,84 @@ const EditPropertyScreen: React.FC = () => {
         </View>
       </Modal>
     </View>
+  );
+
+  // Modal Galerie d'images
+  const renderImageGalleryModal = () => (
+      <Modal
+        visible={showImageGallery}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowImageGallery(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar backgroundColor="rgba(0, 0, 0, 0.95)" barStyle="light-content" />
+        <View style={styles.galleryModalContainer}>
+          <View style={[styles.galleryHeader, { paddingTop: insets.top + 12 }]}>
+            <Text style={styles.galleryTitle} numberOfLines={1}>
+              {property?.title || 'Galerie d\'images'}
+            </Text>
+            <TouchableOpacity
+              style={styles.galleryCloseButton}
+              onPress={() => setShowImageGallery(false)}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+        <View style={styles.galleryImageContainer}>
+          <ScrollView
+            ref={galleryScrollViewRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(event) => {
+              const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+              setGalleryStartIndex(index);
+            }}
+            style={styles.galleryScrollView}
+            contentContainerStyle={styles.galleryScrollContent}
+          >
+            {photos.map((photo, index) => (
+              <View key={photo.id || index} style={styles.galleryImageWrapper}>
+                <Image
+                  source={{ uri: photo.url }}
+                  style={styles.galleryImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ))}
+          </ScrollView>
+
+          {photos.length > 1 && (
+            <>
+              <TouchableOpacity
+                style={[styles.galleryNavButton, styles.galleryNavButtonLeft]}
+                onPress={handlePrevImage}
+              >
+                <Ionicons name="chevron-back" size={32} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.galleryNavButton, styles.galleryNavButtonRight]}
+                onPress={handleNextImage}
+              >
+                <Ionicons name="chevron-forward" size={32} color="#fff" />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+
+        {photos.length > 1 && (
+          <View style={styles.galleryFooter}>
+            <View style={styles.galleryCounter}>
+              <Text style={styles.galleryCounterText}>
+                {galleryStartIndex + 1} / {photos.length}
+              </Text>
+            </View>
+          </View>
+        )}
+        </View>
+      </Modal>
   );
 
   const renderInputField = (
@@ -748,7 +888,7 @@ const EditPropertyScreen: React.FC = () => {
           
           {/* Champ pour les équipements personnalisés */}
           <View style={styles.customAmenitiesSection}>
-            <Text style={styles.label}>Autres équipements (non listés ci-dessus)</Text>
+            <Text style={styles.inputLabel}>Autres équipements (non listés ci-dessus)</Text>
             <Text style={styles.hint}>
               Ajoutez des équipements supplémentaires qui ne figurent pas dans la liste (séparés par des virgules)
             </Text>
@@ -839,6 +979,9 @@ const EditPropertyScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modal Galerie d'images */}
+      {renderImageGalleryModal()}
     </SafeAreaView>
   );
 };
@@ -958,7 +1101,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     backgroundColor: '#fff',
-    minHeight: 80,
+    minHeight: 100,
+    textAlignVertical: 'top',
     marginTop: 8,
   },
   hint: {
@@ -985,10 +1129,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     backgroundColor: '#fff',
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
   },
   switchGroup: {
     marginBottom: 20,
@@ -1105,10 +1245,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     position: 'relative',
   },
+  photoTouchable: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
   photo: {
     width: '100%',
     height: '100%',
     borderRadius: 8,
+  },
+  imageClickIndicator: {
+    position: 'absolute',
+    bottom: 40,
+    right: 5,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 20,
+    padding: 6,
   },
   removePhotoButton: {
     position: 'absolute',
@@ -1132,6 +1285,40 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  mainPhotoBadge: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  mainPhotoBadgeText: {
+    color: '#FFD700',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  photoActionsContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+  },
+  setMainPhotoButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addPhotoButton: {
     width: 150,
@@ -1186,6 +1373,90 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     marginLeft: 12,
+  },
+  galleryModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  galleryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  },
+  galleryTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginRight: 16,
+  },
+  galleryCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  galleryImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  galleryScrollView: {
+    flex: 1,
+  },
+  galleryScrollContent: {
+    alignItems: 'center',
+  },
+  galleryImageWrapper: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  galleryImage: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+  },
+  galleryNavButton: {
+    position: 'absolute',
+    top: '50%',
+    transform: [{ translateY: -20 }],
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  galleryNavButtonLeft: {
+    left: 16,
+  },
+  galleryNavButtonRight: {
+    right: 16,
+  },
+  galleryFooter: {
+    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    alignItems: 'center',
+  },
+  galleryCounter: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  galleryCounterText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

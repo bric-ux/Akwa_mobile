@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,19 @@ import {
   Alert,
   ActivityIndicator,
   FlatList,
+  Modal,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
 import { Vehicle } from '../types';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { RootStackParamList } from '../types';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type VehicleManagementRouteProp = RouteProp<RootStackParamList, 'VehicleManagement'>;
 
@@ -27,6 +32,22 @@ const VehicleManagementScreen: React.FC = () => {
   const { getVehicleById, updateVehicle, deleteVehicle, loading } = useVehicles();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loadingVehicle, setLoadingVehicle] = useState(true);
+  const [showImageGallery, setShowImageGallery] = useState(false);
+  const [galleryStartIndex, setGalleryStartIndex] = useState(0);
+  const galleryScrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
+
+  // Scroller vers l'image sélectionnée quand la galerie s'ouvre
+  useEffect(() => {
+    if (showImageGallery && galleryScrollViewRef.current && vehicle?.images) {
+      setTimeout(() => {
+        galleryScrollViewRef.current?.scrollTo({
+          x: galleryStartIndex * SCREEN_WIDTH,
+          animated: false,
+        });
+      }, 100);
+    }
+  }, [showImageGallery, galleryStartIndex, vehicle?.images]);
 
   useEffect(() => {
     loadVehicle();
@@ -121,6 +142,31 @@ const VehicleManagementScreen: React.FC = () => {
     navigation.navigate('VehicleReviews' as never, { vehicleId } as never);
   };
 
+  const handleImagePress = (index: number) => {
+    setGalleryStartIndex(index);
+    setShowImageGallery(true);
+  };
+
+  const handlePrevImage = () => {
+    if (!vehicle?.images) return;
+    const newIndex = galleryStartIndex > 0 ? galleryStartIndex - 1 : vehicle.images.length - 1;
+    setGalleryStartIndex(newIndex);
+    galleryScrollViewRef.current?.scrollTo({
+      x: newIndex * SCREEN_WIDTH,
+      animated: true,
+    });
+  };
+
+  const handleNextImage = () => {
+    if (!vehicle?.images) return;
+    const newIndex = galleryStartIndex < vehicle.images.length - 1 ? galleryStartIndex + 1 : 0;
+    setGalleryStartIndex(newIndex);
+    galleryScrollViewRef.current?.scrollTo({
+      x: newIndex * SCREEN_WIDTH,
+      animated: true,
+    });
+  };
+
   if (loadingVehicle || loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -189,9 +235,17 @@ const VehicleManagementScreen: React.FC = () => {
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
                 {vehicle.images.map((url, index) => (
-                  <View key={index} style={styles.photoItem}>
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.photoItem}
+                    onPress={() => handleImagePress(index)}
+                    activeOpacity={0.9}
+                  >
                     <Image source={{ uri: url }} style={styles.photo} />
-                  </View>
+                    <View style={styles.imageClickIndicator}>
+                      <Ionicons name="expand-outline" size={16} color="#fff" />
+                    </View>
+                  </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
@@ -274,6 +328,86 @@ const VehicleManagementScreen: React.FC = () => {
           <Text style={styles.deleteButtonText}>Supprimer le véhicule</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Modal Galerie d'images */}
+      <Modal
+        visible={showImageGallery}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowImageGallery(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar backgroundColor="rgba(0, 0, 0, 0.95)" barStyle="light-content" />
+        <View style={styles.galleryModalContainer}>
+          <View style={[styles.galleryHeader, { paddingTop: insets.top + 12 }]}>
+            <Text style={styles.galleryTitle} numberOfLines={1}>
+              {vehicle?.title || 'Galerie d\'images'}
+            </Text>
+            <TouchableOpacity
+              style={styles.galleryCloseButton}
+              onPress={() => setShowImageGallery(false)}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.galleryImageContainer}>
+            {vehicle?.images && vehicle.images.length > 0 && (
+              <>
+                <ScrollView
+                  ref={galleryScrollViewRef}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(event) => {
+                    const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                    setGalleryStartIndex(index);
+                  }}
+                  style={styles.galleryScrollView}
+                  contentContainerStyle={styles.galleryScrollContent}
+                >
+                  {vehicle.images.map((url, index) => (
+                    <View key={index} style={styles.galleryImageWrapper}>
+                      <Image
+                        source={{ uri: url }}
+                        style={styles.galleryImage}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  ))}
+                </ScrollView>
+
+                {vehicle.images.length > 1 && (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.galleryNavButton, styles.galleryNavButtonLeft]}
+                      onPress={handlePrevImage}
+                    >
+                      <Ionicons name="chevron-back" size={32} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.galleryNavButton, styles.galleryNavButtonRight]}
+                      onPress={handleNextImage}
+                    >
+                      <Ionicons name="chevron-forward" size={32} color="#fff" />
+                    </TouchableOpacity>
+                  </>
+                )}
+              </>
+            )}
+          </View>
+
+          {vehicle?.images && vehicle.images.length > 1 && (
+            <View style={styles.galleryFooter}>
+              <View style={styles.galleryCounter}>
+                <Text style={styles.galleryCounterText}>
+                  {galleryStartIndex + 1} / {vehicle.images.length}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -380,11 +514,104 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginRight: 12,
     backgroundColor: '#f0f0f0',
+    position: 'relative',
   },
   photo: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  imageClickIndicator: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 16,
+    padding: 4,
+  },
+  galleryModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  galleryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  },
+  galleryTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginRight: 16,
+  },
+  galleryCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  galleryImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  galleryScrollView: {
+    flex: 1,
+  },
+  galleryScrollContent: {
+    alignItems: 'center',
+  },
+  galleryImageWrapper: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  galleryImage: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+  },
+  galleryNavButton: {
+    position: 'absolute',
+    top: '50%',
+    transform: [{ translateY: -20 }],
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  galleryNavButtonLeft: {
+    left: 16,
+  },
+  galleryNavButtonRight: {
+    right: 16,
+  },
+  galleryFooter: {
+    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    alignItems: 'center',
+  },
+  galleryCounter: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  galleryCounterText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyPhotos: {
     alignItems: 'center',

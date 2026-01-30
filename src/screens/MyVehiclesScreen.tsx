@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,20 @@ import {
   RefreshControl,
   ActivityIndicator,
   ScrollView,
+  Modal,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
 import { Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type TabType = 'vehicles' | 'applications';
 
@@ -30,6 +35,11 @@ const MyVehiclesScreen: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('vehicles');
+  const [showImageGallery, setShowImageGallery] = useState(false);
+  const [selectedVehicleImages, setSelectedVehicleImages] = useState<string[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const galleryScrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   const loadVehicles = async () => {
     try {
@@ -94,10 +104,40 @@ const MyVehiclesScreen: React.FC = () => {
 
   const currentVehicles = activeTab === 'vehicles' ? activeVehicles : pendingVehicles;
 
+  const handleImagePress = (e: any, vehicle: Vehicle) => {
+    e.stopPropagation();
+    const vehicleImages = vehicle.images || vehicle.photos?.map((p: any) => p.url) || [];
+    if (vehicleImages.length > 0) {
+      setSelectedVehicleImages(vehicleImages);
+      setCurrentImageIndex(0);
+      setShowImageGallery(true);
+    }
+  };
+
+  const handlePrevImage = () => {
+    const newIndex = currentImageIndex > 0 ? currentImageIndex - 1 : selectedVehicleImages.length - 1;
+    setCurrentImageIndex(newIndex);
+    galleryScrollViewRef.current?.scrollTo({
+      x: newIndex * SCREEN_WIDTH,
+      animated: true,
+    });
+  };
+
+  const handleNextImage = () => {
+    const newIndex = currentImageIndex < selectedVehicleImages.length - 1 ? currentImageIndex + 1 : 0;
+    setCurrentImageIndex(newIndex);
+    galleryScrollViewRef.current?.scrollTo({
+      x: newIndex * SCREEN_WIDTH,
+      animated: true,
+    });
+  };
+
   const renderVehicle = ({ item }: { item: Vehicle }) => {
     const mainImage = item.images?.[0] || item.photos?.[0]?.url;
     const statusColor = getStatusColor(item);
     const statusText = getStatusText(item);
+    const vehicleImages = item.images || item.photos?.map((p: any) => p.url) || [];
+    const hasMultipleImages = vehicleImages.length > 1;
 
     return (
       <TouchableOpacity
@@ -113,15 +153,28 @@ const MyVehiclesScreen: React.FC = () => {
         disabled={activeTab === 'applications'}
       >
         <View style={styles.cardContent}>
-          <View style={styles.imageContainer}>
+          <TouchableOpacity
+            style={styles.imageContainer}
+            onPress={(e) => handleImagePress(e, item)}
+            activeOpacity={0.9}
+            disabled={!mainImage}
+          >
             {mainImage ? (
-              <Image source={{ uri: mainImage }} style={styles.vehicleImage} />
+              <>
+                <Image source={{ uri: mainImage }} style={styles.vehicleImage} />
+                {hasMultipleImages && (
+                  <View style={styles.imageCountBadge}>
+                    <Ionicons name="images-outline" size={12} color="#fff" />
+                    <Text style={styles.imageCountText}>{vehicleImages.length}</Text>
+                  </View>
+                )}
+              </>
             ) : (
               <View style={styles.imagePlaceholder}>
                 <Ionicons name="car-outline" size={activeTab === 'vehicles' ? 32 : 40} color="#9ca3af" />
               </View>
             )}
-          </View>
+          </TouchableOpacity>
 
           <View style={styles.vehicleInfo}>
             <Text style={styles.vehicleTitle} numberOfLines={1}>
@@ -245,6 +298,82 @@ const MyVehiclesScreen: React.FC = () => {
           }
         />
       )}
+
+      {/* Modal Galerie d'images */}
+      <Modal
+        visible={showImageGallery}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowImageGallery(false)}
+        statusBarTranslucent={true}
+      >
+        <StatusBar backgroundColor="rgba(0, 0, 0, 0.95)" barStyle="light-content" />
+        <View style={styles.galleryModalContainer}>
+          <View style={[styles.galleryHeader, { paddingTop: insets.top + 12 }]}>
+            <Text style={styles.galleryTitle} numberOfLines={1}>
+              Galerie d'images
+            </Text>
+            <TouchableOpacity
+              style={styles.galleryCloseButton}
+              onPress={() => setShowImageGallery(false)}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.galleryImageContainer}>
+            <ScrollView
+              ref={galleryScrollViewRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(event) => {
+                const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                setCurrentImageIndex(index);
+              }}
+              style={styles.galleryScrollView}
+              contentContainerStyle={styles.galleryScrollContent}
+            >
+              {selectedVehicleImages.map((imageUrl, index) => (
+                <View key={index} style={styles.galleryImageWrapper}>
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.galleryImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              ))}
+            </ScrollView>
+
+            {selectedVehicleImages.length > 1 && (
+              <>
+                <TouchableOpacity
+                  style={[styles.galleryNavButton, styles.galleryNavButtonLeft]}
+                  onPress={handlePrevImage}
+                >
+                  <Ionicons name="chevron-back" size={32} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.galleryNavButton, styles.galleryNavButtonRight]}
+                  onPress={handleNextImage}
+                >
+                  <Ionicons name="chevron-forward" size={32} color="#fff" />
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+
+          {selectedVehicleImages.length > 1 && (
+            <View style={styles.galleryFooter}>
+              <View style={styles.galleryCounter}>
+                <Text style={styles.galleryCounterText}>
+                  {currentImageIndex + 1} / {selectedVehicleImages.length}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -330,6 +459,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#f1f5f9',
     flexShrink: 0,
+    position: 'relative',
   },
   vehicleImage: {
     width: '100%',
@@ -341,6 +471,107 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  imageCountBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 3,
+  },
+  imageCountText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  galleryModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  galleryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  },
+  galleryTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginRight: 16,
+  },
+  galleryCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  galleryImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  galleryScrollView: {
+    flex: 1,
+  },
+  galleryScrollContent: {
+    alignItems: 'center',
+  },
+  galleryImageWrapper: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  galleryImage: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+  },
+  galleryNavButton: {
+    position: 'absolute',
+    top: '50%',
+    transform: [{ translateY: -20 }],
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  galleryNavButtonLeft: {
+    left: 16,
+  },
+  galleryNavButtonRight: {
+    right: 16,
+  },
+  galleryFooter: {
+    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    alignItems: 'center',
+  },
+  galleryCounter: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  galleryCounterText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   vehicleInfo: {
     flex: 1,
