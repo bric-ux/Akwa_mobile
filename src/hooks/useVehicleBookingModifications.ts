@@ -692,16 +692,16 @@ export const useVehicleBookingModifications = () => {
 
             const emailResponse = await supabase.functions.invoke('send-email', {
               body: {
-                type: 'vehicle_modification_expired_owner_notification',
+                type: 'vehicle_modification_cancelled_owner',
                 to: ownerProfile.email,
                 data: {
-                  ownerName: ownerProfile.first_name || 'Cher propriétaire',
+                  ownerName: `${ownerProfile.first_name || ''} ${ownerProfile.last_name || ''}`.trim() || 'Cher propriétaire',
                   renterName: renter ? `${renter.first_name || ''} ${renter.last_name || ''}`.trim() : 'Un locataire',
                   vehicleTitle: vehicleTitle,
-                  requestedStartDate: formatDate(request.requested_start_date),
-                  requestedEndDate: formatDate(request.requested_end_date),
-                  requestedPrice: request.requested_total_price,
-                  reason: 'Le locataire a annulé sa demande de modification'
+                  originalStartDate: request.original_start_date,
+                  originalEndDate: request.original_end_date,
+                  originalDays: request.original_rental_days,
+                  originalPrice: request.original_total_price
                 }
               }
             });
@@ -726,14 +726,15 @@ export const useVehicleBookingModifications = () => {
 
             const emailResponse = await supabase.functions.invoke('send-email', {
               body: {
-                type: 'vehicle_booking_modification_expired',
+                type: 'vehicle_modification_cancelled',
                 to: renter.email,
                 data: {
-                  renterName: renter.first_name || 'Cher client',
+                  renterName: `${renter.first_name || ''} ${renter.last_name || ''}`.trim() || 'Cher client',
                   vehicleTitle: vehicleTitle,
-                  requestedStartDate: formatDate(request.requested_start_date),
-                  requestedEndDate: formatDate(request.requested_end_date),
-                  reason: 'Vous avez annulé votre demande de modification'
+                  originalStartDate: request.original_start_date,
+                  originalEndDate: request.original_end_date,
+                  originalDays: request.original_rental_days,
+                  originalPrice: request.original_total_price
                 }
               }
             });

@@ -704,16 +704,16 @@ export const useBookingModifications = () => {
 
             const emailResponse = await supabase.functions.invoke('send-email', {
               body: {
-                type: 'modification_expired_host_notification',
+                type: 'booking_modification_cancelled_host',
                 to: hostEmail,
                 data: {
                   hostName: hostName,
                   guestName: `${guestData?.first_name || ''} ${guestData?.last_name || ''}`.trim() || 'Un voyageur',
                   propertyTitle: bookingData?.properties?.title || 'Propriété',
-                  requestedCheckIn: formatDate(request.requested_check_in),
-                  requestedCheckOut: formatDate(request.requested_check_out),
-                  requestedPrice: request.requested_total_price,
-                  reason: 'Le voyageur a annulé sa demande de modification'
+                  originalCheckIn: request.original_check_in,
+                  originalCheckOut: request.original_check_out,
+                  originalGuests: request.original_guests_count,
+                  originalPrice: request.original_total_price
                 }
               }
             });
@@ -738,14 +738,15 @@ export const useBookingModifications = () => {
 
             const emailResponse = await supabase.functions.invoke('send-email', {
               body: {
-                type: 'booking_modification_expired',
+                type: 'booking_modification_cancelled',
                 to: guestData.email,
                 data: {
-                  guestName: guestData.first_name || 'Cher client',
+                  guestName: `${guestData.first_name || ''} ${guestData.last_name || ''}`.trim() || 'Cher client',
                   propertyTitle: bookingData?.properties?.title || 'Propriété',
-                  requestedCheckIn: formatDate(request.requested_check_in),
-                  requestedCheckOut: formatDate(request.requested_check_out),
-                  reason: 'Vous avez annulé votre demande de modification'
+                  originalCheckIn: request.original_check_in,
+                  originalCheckOut: request.original_check_out,
+                  originalGuests: request.original_guests_count,
+                  originalPrice: request.original_total_price
                 }
               }
             });

@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Modal, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getCommissionRates, type ServiceType } from '../lib/commissions';
 import { calculateTotalPrice, calculateHostCommission, type DiscountConfig } from '../hooks/usePricing';
+import { supabase } from '../services/supabase';
+import { useAuth } from '../services/AuthContext';
 import akwaHomeLogo from '../../assets/images/akwahome_logo.png';
 
 interface InvoiceDisplayProps {
@@ -104,14 +106,107 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   taxes: providedTaxes,
   paymentMethod,
   travelerName,
-  travelerEmail,
+  travelerEmail: providedTravelerEmail,
   travelerPhone,
   hostName,
-  hostEmail,
+  hostEmail: providedHostEmail,
   hostPhone,
   propertyOrVehicleTitle,
 }) => {
+  const { user } = useAuth();
   const [showVATInvoice, setShowVATInvoice] = useState(false);
+  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
+  const [travelerEmail, setTravelerEmail] = useState<string | undefined>(providedTravelerEmail);
+  const [hostEmail, setHostEmail] = useState<string | undefined>(providedHostEmail);
+
+  // Récupérer les emails si non fournis
+  useEffect(() => {
+    const fetchEmails = async () => {
+      // Toujours utiliser l'email fourni en props s'il existe
+      if (providedTravelerEmail) {
+        setTravelerEmail(providedTravelerEmail);
+      }
+      if (providedHostEmail) {
+        setHostEmail(providedHostEmail);
+      }
+
+      // Pour le voyageur : utiliser l'email de l'utilisateur connecté si type === 'traveler' et pas d'email fourni
+      if (type === 'traveler' && !travelerEmail && user?.email) {
+        setTravelerEmail(user.email);
+      }
+
+      // Pour les propriétés
+      if (serviceType === 'property') {
+        // Pour l'hôte : récupérer depuis le booking si disponible
+        if (type === 'host' && !hostEmail && booking.properties?.host_id) {
+          try {
+            const { data: hostProfile } = await supabase
+              .from('profiles')
+              .select('email')
+              .eq('user_id', booking.properties.host_id)
+              .single();
+            if (hostProfile?.email) {
+              setHostEmail(hostProfile.email);
+            }
+          } catch (error) {
+            console.error('Erreur récupération email hôte:', error);
+          }
+        }
+
+        // Pour le voyageur depuis le booking (si on est hôte)
+        if (type === 'host' && !travelerEmail && (booking as any).guest_profile?.email) {
+          setTravelerEmail((booking as any).guest_profile.email);
+        } else if (type === 'host' && !travelerEmail && (booking as any).profiles?.email) {
+          setTravelerEmail((booking as any).profiles.email);
+        }
+
+        // Pour l'hôte depuis le booking (si on est voyageur)
+        if (type === 'traveler' && !hostEmail && booking.properties?.host_id) {
+          try {
+            const { data: hostProfile } = await supabase
+              .from('profiles')
+              .select('email')
+              .eq('user_id', booking.properties.host_id)
+              .single();
+            if (hostProfile?.email) {
+              setHostEmail(hostProfile.email);
+            }
+          } catch (error) {
+            console.error('Erreur récupération email hôte:', error);
+          }
+        }
+      }
+
+      // Pour les véhicules
+      if (serviceType === 'vehicle') {
+        // Récupérer depuis le booking (renter et owner sont souvent inclus)
+        if (!travelerEmail && (booking as any).renter?.email) {
+          setTravelerEmail((booking as any).renter.email);
+        } else if (type === 'traveler' && !travelerEmail && user?.email) {
+          setTravelerEmail(user.email);
+        }
+
+        if (!hostEmail && (booking as any).vehicle?.owner?.email) {
+          setHostEmail((booking as any).vehicle.owner.email);
+        } else if (!hostEmail && (booking as any).vehicle?.owner_id) {
+          try {
+            const { data: ownerProfile } = await supabase
+              .from('profiles')
+              .select('email')
+              .eq('user_id', (booking as any).vehicle.owner_id)
+              .single();
+            if (ownerProfile?.email) {
+              setHostEmail(ownerProfile.email);
+            }
+          } catch (error) {
+            console.error('Erreur récupération email propriétaire:', error);
+          }
+        }
+      }
+    };
+
+    fetchEmails();
+  }, [type, serviceType, booking, user, providedTravelerEmail, providedHostEmail]);
   const effectivePaymentMethod = paymentMethod || booking.payment_method || 'Non spécifié';
   const checkIn = booking.check_in_date || booking.start_date || '';
   const checkOut = booking.check_out_date || booking.end_date || '';
@@ -200,6 +295,150 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       : calculatedTotal;
   const hostNetAmount = booking.status === 'cancelled' ? 0 : (priceAfterDiscount - hostCommission);
   const akwaHomeTotalRevenue = effectiveServiceFee + hostCommission;
+
+  // Fonction pour envoyer la facture par email
+  const handleDownloadPDF = async () => {
+    try {
+      setIsDownloadingPDF(true);
+
+      // Déterminer le type d'email et le destinataire selon le serviceType
+      let emailType: string;
+      let recipientEmail: string | undefined;
+
+      if (serviceType === 'property') {
+        emailType = 'send_invoice_by_email';
+        
+        recipientEmail = type === 'traveler' 
+          ? travelerEmail 
+          : type === 'host' 
+          ? hostEmail 
+          : 'contact@akwahome.com';
+      } else {
+        // Pour les véhicules
+        emailType = 'send_vehicle_invoice_by_email';
+        
+        recipientEmail = type === 'traveler' 
+          ? travelerEmail 
+          : type === 'host' 
+          ? hostEmail 
+          : 'contact@akwahome.com';
+      }
+
+      // Si l'email n'est toujours pas disponible, essayer de le récupérer une dernière fois
+      if (!recipientEmail) {
+        // Pour le voyageur, utiliser l'email de l'utilisateur connecté
+        if (type === 'traveler' && user?.email) {
+          recipientEmail = user.email;
+        } else if (type === 'host' && user?.email) {
+          // Pour l'hôte, utiliser l'email de l'utilisateur connecté
+          recipientEmail = user.email;
+        }
+      }
+
+      if (!recipientEmail) {
+        throw new Error('Adresse email non disponible. Veuillez vérifier votre profil et réessayer.');
+      }
+
+      // Préparer les données pour l'email (l'Edge Function générera automatiquement le PDF)
+      let emailData: any;
+
+      if (serviceType === 'property') {
+        emailData = {
+          bookingId: booking.id,
+          recipientName: type === 'traveler' ? (travelerName || 'Voyageur') : (hostName || 'Hôte'),
+          invoiceType: type === 'traveler' ? 'traveler' : 'host',
+          propertyTitle: propertyOrVehicleTitle || '',
+          checkIn: checkIn,
+          checkOut: checkOut,
+          guestsCount: booking.guests_count,
+          totalPrice: totalPaidByTraveler,
+          discountApplied: actualDiscountAmount > 0,
+          discountAmount: actualDiscountAmount,
+          property: {
+            title: propertyOrVehicleTitle || '',
+            address: booking.properties?.address || '',
+            city_name: booking.properties?.locations?.name || '',
+            price_per_night: pricePerUnit,
+            cleaning_fee: effectiveCleaningFee,
+            service_fee: serviceFeeHT,
+            taxes: effectiveTaxes,
+            cancellation_policy: booking.properties?.cancellation_policy || 'flexible',
+            check_in_time: booking.properties?.check_in_time,
+            check_out_time: booking.properties?.check_out_time,
+            house_rules: booking.properties?.house_rules,
+          },
+          guest: {
+            first_name: travelerName?.split(' ')[0] || '',
+            last_name: travelerName?.split(' ').slice(1).join(' ') || '',
+            email: travelerEmail,
+            phone: travelerPhone,
+          },
+          host: {
+            first_name: hostName?.split(' ')[0] || '',
+            last_name: hostName?.split(' ').slice(1).join(' ') || '',
+            email: hostEmail,
+            phone: hostPhone,
+          },
+          payment_method: effectivePaymentMethod,
+        };
+      } else {
+        // Pour les véhicules - format attendu par l'Edge Function
+        emailData = {
+          bookingId: booking.id,
+          recipientName: type === 'traveler' ? (travelerName || 'Locataire') : (hostName || 'Propriétaire'),
+          invoiceType: type === 'traveler' ? 'renter' : 'owner',
+          vehicleTitle: propertyOrVehicleTitle || '',
+          startDate: checkIn,
+          endDate: checkOut,
+          rentalDays: nights,
+          totalPrice: totalPaidByTraveler,
+          discountApplied: actualDiscountAmount > 0,
+          discountAmount: actualDiscountAmount,
+          dailyRate: pricePerUnit,
+          renter: {
+            first_name: travelerName?.split(' ')[0] || '',
+            last_name: travelerName?.split(' ').slice(1).join(' ') || '',
+            email: travelerEmail,
+            phone: travelerPhone,
+          },
+          owner: {
+            first_name: hostName?.split(' ')[0] || '',
+            last_name: hostName?.split(' ').slice(1).join(' ') || '',
+            email: hostEmail,
+            phone: hostPhone,
+          },
+          payment_method: effectivePaymentMethod,
+        };
+      }
+
+      // Envoyer l'email avec le PDF généré automatiquement
+      const { error: emailError } = await supabase.functions.invoke('send-email', {
+        body: {
+          type: emailType,
+          to: recipientEmail,
+          data: emailData,
+        }
+      });
+
+      if (emailError) {
+        throw new Error(`Erreur envoi email: ${emailError.message || 'Impossible d\'envoyer l\'email'}`);
+      }
+
+      Alert.alert(
+        'Succès',
+        `La facture a été envoyée par email à ${recipientEmail}.\n\nVérifiez votre boîte mail (y compris les spams).`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('Erreur lors de l\'envoi de la facture par email:', error);
+      Alert.alert(
+        'Erreur',
+        error.message || 'Impossible d\'envoyer la facture par email. Veuillez réessayer.'
+      );
+    } finally {
+      setIsDownloadingPDF(false);
+    }
+  };
 
   const getTitle = () => {
     switch (type) {
@@ -706,6 +945,27 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         <Text style={styles.footerBrandText}>
           AkwaHome - Votre plateforme de réservation en Côte d'Ivoire
         </Text>
+      </View>
+
+      {/* Bouton de téléchargement PDF */}
+      <View style={styles.downloadSection}>
+        <TouchableOpacity 
+          style={[styles.downloadButton, isDownloadingPDF && styles.downloadButtonDisabled]}
+          onPress={handleDownloadPDF}
+          disabled={isDownloadingPDF}
+        >
+          {isDownloadingPDF ? (
+            <>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.downloadButtonText}>Envoi en cours...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="mail-outline" size={20} color="#fff" />
+              <Text style={styles.downloadButtonText}>Envoyer la facture par email</Text>
+            </>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Modal Facture avec TVA */}
@@ -1235,6 +1495,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#2563eb',
+  },
+  // Styles pour bouton de téléchargement
+  downloadSection: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  downloadButtonDisabled: {
+    opacity: 0.6,
+  },
+  downloadButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 
