@@ -220,6 +220,15 @@ const VehicleDetailsScreen: React.FC = () => {
                   ) : null}
                 </View>
               ) : null}
+              
+              {/* Caution */}
+              {vehicle.security_deposit && vehicle.security_deposit > 0 ? (
+                <View style={styles.depositRow}>
+                  <Ionicons name="shield-checkmark-outline" size={16} color={VEHICLE_COLORS.primary} />
+                  <Text style={styles.depositLabel}>Caution:</Text>
+                  <Text style={styles.depositValue}>{formatPrice(vehicle.security_deposit)}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Localisation et note */}
@@ -707,6 +716,26 @@ const styles = StyleSheet.create({
   altPriceLabel: {
     fontSize: 12,
     color: '#64748b',
+  },
+  depositRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    gap: 8,
+  },
+  depositLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  depositValue: {
+    fontSize: 16,
+    color: '#334155',
+    fontWeight: '700',
+    marginLeft: 'auto',
   },
   metaRow: {
     flexDirection: 'row',

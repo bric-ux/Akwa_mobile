@@ -444,37 +444,55 @@ const HostBookingsScreen: React.FC = () => {
       <View style={styles.actionButtonsContainer}>
         {/* Bouton Détails */}
         <TouchableOpacity
-          style={styles.detailsButton}
+          style={styles.actionButton}
           onPress={() => {
             setSelectedBookingForDetails(item);
             setBookingDetailsModalVisible(true);
           }}
         >
-          <Ionicons name="document-text-outline" size={16} color="#e67e22" />
-          <Text style={styles.detailsButtonText}>Détails</Text>
+          <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
+          <Text style={styles.actionButtonText}>Voir détails</Text>
         </TouchableOpacity>
 
         {/* Bouton Contacter le voyageur - disponible pour toutes les réservations sauf annulées */}
         {item.status !== 'cancelled' && item.guest_id && item.properties?.id && (
           <>
-            <BookingContactButton
-              bookingId={item.id}
-              propertyId={item.properties.id}
-              otherParticipantId={item.guest_id}
-              otherParticipantName={item.guest_profile ? `${item.guest_profile.first_name} ${item.guest_profile.last_name}` : undefined}
-              isHost={false}
-              variant="outline"
-              size="small"
-            />
             <TouchableOpacity
-              style={styles.viewProfileButton}
+              style={[styles.actionButton, styles.contactButton]}
+              onPress={async () => {
+                try {
+                  const { data: guestProfile } = await supabase
+                    .from('profiles')
+                    .select('first_name, last_name, email, phone')
+                    .eq('user_id', item.guest_id)
+                    .single();
+
+                  if (guestProfile) {
+                    navigation.navigate('Messages' as never, {
+                      bookingId: item.id,
+                      propertyId: item.properties.id,
+                      otherParticipantId: item.guest_id,
+                      otherParticipantName: `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim() || 'Voyageur',
+                      isHost: false,
+                    } as never);
+                  }
+                } catch (error) {
+                  console.error('Erreur navigation vers messages:', error);
+                }
+              }}
+            >
+              <Ionicons name="chatbubble-outline" size={16} color="#e67e22" />
+              <Text style={[styles.actionButtonText, styles.contactButtonText]}>Contacter</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.profileButton]}
               onPress={() => {
                 setSelectedGuestId(item.guest_id);
                 setGuestProfileModalVisible(true);
               }}
             >
               <Ionicons name="person-outline" size={16} color="#2563eb" />
-              <Text style={styles.viewProfileButtonText}>Voir profil</Text>
+              <Text style={[styles.actionButtonText, styles.profileButtonText]}>Voir profil</Text>
             </TouchableOpacity>
           </>
         )}
@@ -529,16 +547,16 @@ const HostBookingsScreen: React.FC = () => {
 
       {/* Bouton Annuler pour les réservations confirmées ou en cours */}
       {(item.status === 'confirmed' || item.status === 'in_progress') && (
-        <View style={styles.cancelButtonContainer}>
+        <View style={styles.actionButtonsContainer}>
           <TouchableOpacity
-            style={styles.cancelBookingButton}
+            style={[styles.actionButton, styles.cancelActionButton]}
             onPress={() => {
               setSelectedBookingForHostCancellation(item);
               setHostCancellationDialogVisible(true);
             }}
           >
-            <Ionicons name="close-circle-outline" size={18} color="#e74c3c" />
-            <Text style={styles.cancelBookingButtonText}>Annuler la réservation</Text>
+            <Ionicons name="close-outline" size={16} color="#e74c3c" />
+            <Text style={[styles.actionButtonText, styles.cancelActionButtonText]}>Annuler</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1136,25 +1154,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
   actionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
-    gap: 6,
+    borderWidth: 1,
+    borderColor: '#2E7D32',
+    backgroundColor: '#fff',
+    flex: 1,
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  contactButton: {
+    borderColor: '#e67e22',
+  },
+  contactButtonText: {
+    color: '#e67e22',
+  },
+  profileButton: {
+    borderColor: '#2563eb',
+  },
+  profileButtonText: {
+    color: '#2563eb',
+  },
+  cancelActionButton: {
+    borderColor: '#e74c3c',
+  },
+  cancelActionButtonText: {
+    color: '#e74c3c',
   },
   confirmButton: {
     backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
   },
   cancelButton: {
     backgroundColor: '#F44336',
+    borderColor: '#F44336',
   },
   actionButtonText: {
-    color: '#fff',
     fontSize: 14,
-    fontWeight: '600',
+    color: '#2E7D32',
+    fontWeight: '500',
+    marginLeft: 4,
   },
   emptyContainer: {
     flex: 1,
