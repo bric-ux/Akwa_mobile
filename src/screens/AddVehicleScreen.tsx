@@ -135,6 +135,15 @@ const AddVehicleScreen: React.FC = () => {
     has_insurance: false,
     insurance_expiration_date: null as Date | null,
     insurance_details: '',
+    with_driver: false,
+    requires_license: true,
+    min_license_years: '0',
+    discount_enabled: false,
+    discount_min_days: '7',
+    discount_percentage: '10',
+    long_stay_discount_enabled: false,
+    long_stay_discount_min_days: '30',
+    long_stay_discount_percentage: '20',
   });
 
   const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
@@ -147,7 +156,7 @@ const AddVehicleScreen: React.FC = () => {
   const [showInsuranceDatePicker, setShowInsuranceDatePicker] = useState(false);
   const [tempInsuranceDate, setTempInsuranceDate] = useState<Date | null>(null);
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -499,8 +508,15 @@ const AddVehicleScreen: React.FC = () => {
       images: selectedImages.map(img => img.uri),
       has_insurance: formData.has_insurance,
       insurance_details: formData.insurance_details || undefined,
-      // Les champs d'assurance peuvent être stockés dans insurance_details
-      // ou dans un champ séparé selon votre schéma
+      with_driver: formData.with_driver,
+      requires_license: formData.requires_license,
+      min_license_years: parseInt(formData.min_license_years) || 0,
+      discount_enabled: formData.discount_enabled,
+      discount_min_days: formData.discount_enabled ? parseInt(formData.discount_min_days) || 7 : undefined,
+      discount_percentage: formData.discount_enabled ? parseInt(formData.discount_percentage) || 10 : undefined,
+      long_stay_discount_enabled: formData.long_stay_discount_enabled,
+      long_stay_discount_min_days: formData.long_stay_discount_enabled ? parseInt(formData.long_stay_discount_min_days) || 30 : undefined,
+      long_stay_discount_percentage: formData.long_stay_discount_enabled ? parseInt(formData.long_stay_discount_percentage) || 20 : undefined,
     };
 
     const result = await addVehicle(vehiclePayload);
@@ -927,6 +943,181 @@ const AddVehicleScreen: React.FC = () => {
             </View>
           </View>
         </Modal>
+          </View>
+
+          {/* Options et exigences */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Options et exigences</Text>
+            
+            {/* Avec chauffeur */}
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => handleInputChange('with_driver', !formData.with_driver)}
+            >
+              <View style={[styles.checkbox, formData.with_driver && styles.checkboxChecked]}>
+                {formData.with_driver && (
+                  <Ionicons name="checkmark" size={20} color="#fff" />
+                )}
+              </View>
+              <View style={styles.checkboxLabelContainer}>
+                <Text style={styles.checkboxLabel}>Proposé avec chauffeur</Text>
+                <Text style={styles.checkboxDescription}>
+                  Je peux fournir un chauffeur pour ce véhicule
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Exigences de permis */}
+            <View style={styles.licenseSection}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => handleInputChange('requires_license', !formData.requires_license)}
+              >
+                <View style={[styles.checkbox, formData.requires_license && styles.checkboxChecked]}>
+                  {formData.requires_license && (
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                  )}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>Permis de conduire requis</Text>
+                  <Text style={styles.checkboxDescription}>
+                    Le locataire doit avoir un permis de conduire valide
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {formData.requires_license && (
+                <View style={styles.licenseYearsContainer}>
+                  <Text style={styles.label}>Nombre minimum d'années de permis requis</Text>
+                  <View style={styles.optionsRow}>
+                    {['0', '1', '2', '3', '5'].map((years) => (
+                      <TouchableOpacity
+                        key={years}
+                        style={[
+                          styles.optionButton,
+                          formData.min_license_years === years && styles.optionButtonSelected,
+                        ]}
+                        onPress={() => handleInputChange('min_license_years', years)}
+                      >
+                        <Text
+                          style={[
+                            styles.optionText,
+                            formData.min_license_years === years && styles.optionTextSelected,
+                          ]}
+                        >
+                          {years === '0' ? 'Pas de minimum' : `${years} an${years !== '1' ? 's' : ''} minimum`}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.hintText}>
+                    Le locataire devra prouver qu'il possède son permis depuis ce nombre d'années
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Réductions automatiques */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Réductions automatiques</Text>
+            <Text style={styles.sectionDescription}>
+              Attirez plus de clients en offrant des réductions pour les locations longues durées
+            </Text>
+
+            {/* Réduction courte durée */}
+            <View style={styles.discountCard}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => handleInputChange('discount_enabled', !formData.discount_enabled)}
+              >
+                <View style={[styles.checkbox, formData.discount_enabled && styles.checkboxChecked]}>
+                  {formData.discount_enabled && (
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                  )}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>Réduction pour locations de plusieurs jours</Text>
+                  <Text style={styles.checkboxDescription}>
+                    Offrez une réduction automatique pour les locations plus longues
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {formData.discount_enabled && (
+                <View style={styles.discountFieldsContainer}>
+                  <View style={styles.discountFieldRow}>
+                    <View style={styles.discountField}>
+                      <Text style={styles.label}>À partir de (jours)</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="7"
+                        value={formData.discount_min_days}
+                        onChangeText={(value) => handleInputChange('discount_min_days', value)}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <View style={styles.discountField}>
+                      <Text style={styles.label}>Réduction (%)</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="10"
+                        value={formData.discount_percentage}
+                        onChangeText={(value) => handleInputChange('discount_percentage', value)}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Réduction longue durée */}
+            <View style={[styles.discountCard, styles.longStayDiscountCard]}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => handleInputChange('long_stay_discount_enabled', !formData.long_stay_discount_enabled)}
+              >
+                <View style={[styles.checkbox, formData.long_stay_discount_enabled && styles.checkboxChecked]}>
+                  {formData.long_stay_discount_enabled && (
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                  )}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>Réduction longue durée (mensuelle)</Text>
+                  <Text style={styles.checkboxDescription}>
+                    Offrez une réduction supplémentaire pour les locations mensuelles
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {formData.long_stay_discount_enabled && (
+                <View style={styles.discountFieldsContainer}>
+                  <View style={styles.discountFieldRow}>
+                    <View style={styles.discountField}>
+                      <Text style={styles.label}>À partir de (jours)</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="30"
+                        value={formData.long_stay_discount_min_days}
+                        onChangeText={(value) => handleInputChange('long_stay_discount_min_days', value)}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <View style={styles.discountField}>
+                      <Text style={styles.label}>Réduction (%)</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="20"
+                        value={formData.long_stay_discount_percentage}
+                        onChangeText={(value) => handleInputChange('long_stay_discount_percentage', value)}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Photos */}
@@ -1685,6 +1876,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  licenseSection: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+  },
+  licenseYearsContainer: {
+    marginTop: 16,
+    paddingLeft: 16,
+    borderLeftWidth: 2,
+    borderLeftColor: '#2E7D32',
+  },
+  hintText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  discountCard: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#fffbeb',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  longStayDiscountCard: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#bbf7d0',
+  },
+  discountFieldsContainer: {
+    marginTop: 16,
+    paddingLeft: 16,
+    borderLeftWidth: 2,
+    borderLeftColor: '#f59e0b',
+  },
+  discountFieldRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  discountField: {
+    flex: 1,
   },
 });
 

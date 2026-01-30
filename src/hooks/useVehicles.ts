@@ -351,7 +351,22 @@ export const useVehicles = () => {
       setLoading(true);
       setError(null);
 
-      const { data, error: queryError } = await supabase
+      // Vérifier si l'utilisateur est connecté et s'il est le propriétaire
+      const { data: { user } } = await supabase.auth.getUser();
+      let isOwner = false;
+
+      if (user) {
+        // Vérifier si l'utilisateur est le propriétaire
+        const { data: vehicleCheck } = await supabase
+          .from('vehicles')
+          .select('owner_id')
+          .eq('id', vehicleId)
+          .single();
+        
+        isOwner = vehicleCheck?.owner_id === user.id;
+      }
+
+      let query = supabase
         .from('vehicles')
         .select(`
           *,
@@ -382,8 +397,14 @@ export const useVehicles = () => {
             bio
           )
         `)
-        .eq('id', vehicleId)
-        .single();
+        .eq('id', vehicleId);
+
+      // Si l'utilisateur n'est pas le propriétaire, filtrer par is_approved et is_active
+      if (!isOwner) {
+        query = query.eq('is_active', true).eq('is_approved', true);
+      }
+
+      const { data, error: queryError } = await query.single();
 
       if (queryError) {
         throw queryError;
