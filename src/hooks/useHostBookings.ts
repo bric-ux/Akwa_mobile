@@ -87,6 +87,9 @@ export const useHostBookings = () => {
             price_per_night,
             images,
             host_id,
+            check_in_time,
+            check_out_time,
+            house_rules,
             locations:location_id(
               id,
               name,

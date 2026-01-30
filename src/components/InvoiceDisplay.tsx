@@ -83,6 +83,16 @@ const formatDateTime = (dateString?: string): string => {
   });
 };
 
+const formatTime = (timeString?: string | null): string => {
+  if (!timeString) return '-';
+  // Si le format est HH:MM:SS, ne garder que HH:MM
+  if (timeString.includes(':')) {
+    const parts = timeString.split(':');
+    return `${parts[0]}:${parts[1]}`;
+  }
+  return timeString;
+};
+
 const getPaymentMethodLabel = (method?: string): string => {
   if (!method) return 'Non spécifié';
   const methods: { [key: string]: string } = {
@@ -149,6 +159,20 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [travelerEmail, setTravelerEmail] = useState<string | undefined>(providedTravelerEmail);
   const [hostEmail, setHostEmail] = useState<string | undefined>(providedHostEmail);
+
+  // Debug: Vérifier les données disponibles
+  useEffect(() => {
+    if (__DEV__ && booking) {
+      console.log('🔍 [InvoiceDisplay] Données booking:', {
+        serviceType,
+        hasProperties: !!booking.properties,
+        check_in_time: booking.properties?.check_in_time,
+        check_out_time: booking.properties?.check_out_time,
+        house_rules: booking.properties?.house_rules ? 'PRÉSENT' : 'MANQUANT',
+        house_rules_length: booking.properties?.house_rules?.length || 0,
+      });
+    }
+  }, [booking, serviceType]);
 
   // Récupérer les emails si non fournis
   useEffect(() => {
@@ -541,6 +565,40 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Voyageurs</Text>
           <Text style={styles.sectionValue}>{booking.guests_count}</Text>
+        </View>
+      )}
+
+      {/* Heures d'arrivée et de départ (propriétés uniquement) */}
+      {serviceType === 'property' && (booking.properties?.check_in_time || booking.properties?.check_out_time) && (
+        <View style={styles.section}>
+          <View style={styles.datesRow}>
+            {booking.properties?.check_in_time && (
+              <View style={styles.dateItem}>
+                <Text style={styles.sectionLabel}>Heure d'arrivée</Text>
+                <Text style={styles.sectionValue}>{formatTime(booking.properties.check_in_time)}</Text>
+              </View>
+            )}
+            {booking.properties?.check_out_time && (
+              <View style={styles.dateItem}>
+                <Text style={styles.sectionLabel}>Heure de départ</Text>
+                <Text style={styles.sectionValue}>{formatTime(booking.properties.check_out_time)}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+      
+      {serviceType === 'vehicle' && booking.vehicle?.rules && booking.vehicle.rules.length > 0 && (
+        <View style={styles.rulesSection}>
+          <View style={styles.rulesHeader}>
+            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
+            <Text style={styles.rulesTitle}>Règles de location</Text>
+          </View>
+          {booking.vehicle.rules.map((rule, index) => (
+            <Text key={index} style={styles.rulesText}>
+              • {rule}
+            </Text>
+          ))}
         </View>
       )}
 
@@ -957,31 +1015,6 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         </View>
       )}
 
-      {/* Règlement intérieur / Règles */}
-      {serviceType === 'property' && booking.properties?.house_rules && (
-        <View style={styles.rulesSection}>
-          <View style={styles.rulesHeader}>
-            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
-            <Text style={styles.rulesTitle}>Règlement intérieur</Text>
-          </View>
-          <Text style={styles.rulesText}>{booking.properties.house_rules}</Text>
-        </View>
-      )}
-      
-      {serviceType === 'vehicle' && booking.vehicle?.rules && booking.vehicle.rules.length > 0 && (
-        <View style={styles.rulesSection}>
-          <View style={styles.rulesHeader}>
-            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
-            <Text style={styles.rulesTitle}>Règles de location</Text>
-          </View>
-          {booking.vehicle.rules.map((rule, index) => (
-            <Text key={index} style={styles.rulesText}>
-              • {rule}
-            </Text>
-          ))}
-        </View>
-      )}
-
       {/* Conditions d'annulation */}
       <View style={styles.cancellationSection}>
         <View style={styles.cancellationHeader}>
@@ -995,6 +1028,17 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           )}
         </Text>
       </View>
+
+      {/* Règlement intérieur / Règles - Après la politique d'annulation */}
+      {serviceType === 'property' && booking.properties?.house_rules && (
+        <View style={styles.rulesSection}>
+          <View style={styles.rulesHeader}>
+            <Ionicons name="document-text-outline" size={18} color="#2563eb" />
+            <Text style={styles.rulesTitle}>Règlement intérieur</Text>
+          </View>
+          <Text style={styles.rulesText}>{booking.properties.house_rules}</Text>
+        </View>
+      )}
 
       {/* Date de réservation */}
       {booking.created_at && (
