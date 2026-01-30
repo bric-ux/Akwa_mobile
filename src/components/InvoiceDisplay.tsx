@@ -374,25 +374,34 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       // En cas d'erreur, utiliser la valeur stockée
       discountAmount = booking.discount_amount || 0;
     }
-  } else if (serviceType === 'vehicle' && booking.vehicle) {
-    // Pour les véhicules, recalculer la réduction comme pour les propriétés
-    const discountConfig: DiscountConfig = {
-      enabled: booking.vehicle.discount_enabled || false,
-      minNights: booking.vehicle.discount_min_days || null,
-      percentage: booking.vehicle.discount_percentage || null
-    };
-    const longStayDiscountConfig: DiscountConfig | undefined = booking.vehicle.long_stay_discount_enabled ? {
-      enabled: booking.vehicle.long_stay_discount_enabled || false,
-      minNights: booking.vehicle.long_stay_discount_min_days || null,
-      percentage: booking.vehicle.long_stay_discount_percentage || null
-    } : undefined;
-    
-    try {
-      const pricing = calculateTotalPrice(pricePerUnit, nights, discountConfig, longStayDiscountConfig);
-      discountAmount = pricing.discountAmount || 0;
-    } catch (error) {
-      console.error('Erreur lors du calcul de la réduction véhicule dans InvoiceDisplay:', error);
-      // En cas d'erreur, utiliser la valeur stockée
+  } else if (serviceType === 'vehicle') {
+    // Pour les véhicules, utiliser la valeur stockée si disponible, sinon recalculer
+    if (booking.discount_amount && booking.discount_amount > 0) {
+      // Utiliser la valeur stockée en priorité
+      discountAmount = booking.discount_amount;
+    } else if (booking.vehicle) {
+      // Sinon, recalculer la réduction comme pour les propriétés
+      const discountConfig: DiscountConfig = {
+        enabled: booking.vehicle.discount_enabled || false,
+        minNights: booking.vehicle.discount_min_days || null,
+        percentage: booking.vehicle.discount_percentage || null
+      };
+      const longStayDiscountConfig: DiscountConfig | undefined = booking.vehicle.long_stay_discount_enabled ? {
+        enabled: booking.vehicle.long_stay_discount_enabled || false,
+        minNights: booking.vehicle.long_stay_discount_min_days || null,
+        percentage: booking.vehicle.long_stay_discount_percentage || null
+      } : undefined;
+      
+      try {
+        const pricing = calculateTotalPrice(pricePerUnit, nights, discountConfig, longStayDiscountConfig);
+        discountAmount = pricing.discountAmount || 0;
+      } catch (error) {
+        console.error('Erreur lors du calcul de la réduction véhicule dans InvoiceDisplay:', error);
+        // En cas d'erreur, utiliser la valeur stockée
+        discountAmount = booking.discount_amount || 0;
+      }
+    } else {
+      // Fallback : utiliser la valeur stockée
       discountAmount = booking.discount_amount || 0;
     }
   } else {
