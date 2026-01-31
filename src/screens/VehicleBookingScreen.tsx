@@ -61,6 +61,7 @@ const VehicleBookingScreen: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadVehicle = async () => {
@@ -89,6 +90,42 @@ const VehicleBookingScreen: React.FC = () => {
       setEndDate(searchDates.checkOut);
     }
   }, [searchDates.checkIn, searchDates.checkOut]);
+
+  // Vérifier la disponibilité en temps réel quand les dates/heures changent
+  useEffect(() => {
+    if (startDateTime && endDateTime && vehicleId) {
+      const checkAvailability = async () => {
+        try {
+          const { data: isAvailable, error: availabilityError } = await supabase
+            .rpc('check_vehicle_hourly_availability', {
+              p_vehicle_id: vehicleId,
+              p_start_datetime: startDateTime,
+              p_end_datetime: endDateTime,
+              p_exclude_booking_id: null
+            });
+          
+          if (availabilityError) {
+            console.error('❌ [VehicleBookingScreen] Erreur lors de la vérification de disponibilité:', availabilityError);
+            setAvailabilityError('Erreur lors de la vérification de disponibilité');
+            return;
+          }
+          
+          if (!isAvailable) {
+            setAvailabilityError('Ce créneau (dates et heures) n\'est pas disponible pour ce véhicule');
+          } else {
+            setAvailabilityError(null);
+          }
+        } catch (error) {
+          console.error('❌ [VehicleBookingScreen] Erreur dans la vérification de disponibilité:', error);
+          setAvailabilityError('Erreur lors de la vérification de disponibilité');
+        }
+      };
+      
+      checkAvailability();
+    } else {
+      setAvailabilityError(null);
+    }
+  }, [startDateTime, endDateTime, vehicleId]);
 
   const requiresLicense = vehicle?.requires_license !== false;
   const minLicenseYears = vehicle?.min_license_years || 0;
@@ -430,29 +467,27 @@ const VehicleBookingScreen: React.FC = () => {
         // Réinitialiser le formulaire
         setStartDate('');
         setEndDate('');
+        setStartDateTime(undefined);
+        setEndDateTime(undefined);
         setMessage('');
         setHasLicense(false);
         setLicenseYears('');
         setLicenseNumber('');
         setLicenseDocumentUrl(null);
         
-        Alert.alert(
-          isConfirmed ? 'Réservation confirmée !' : 'Demande envoyée !',
-          isConfirmed 
-            ? 'Votre réservation a été confirmée automatiquement. Vous recevrez une confirmation par email.'
-            : 'Votre demande de réservation a été envoyée au propriétaire. Vous recevrez une réponse sous peu.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Naviguer vers les réservations et fermer cet écran
-                navigation.navigate('MyVehicleBookings' as never);
-                // Retourner en arrière pour fermer l'écran de réservation
-                navigation.goBack();
-              },
-            },
-          ]
-        );
+        // Fermer automatiquement l'écran et naviguer vers les réservations
+        navigation.navigate('MyVehicleBookings' as never);
+        navigation.goBack();
+        
+        // Afficher l'alerte de confirmation (non bloquante)
+        setTimeout(() => {
+          Alert.alert(
+            isConfirmed ? 'Réservation confirmée !' : 'Demande envoyée !',
+            isConfirmed 
+              ? 'Votre réservation a été confirmée automatiquement. Vous recevrez une confirmation par email.'
+              : 'Votre demande de réservation a été envoyée au propriétaire. Vous recevrez une réponse sous peu.'
+          );
+        }, 300); // Petit délai pour laisser l'animation de navigation se faire
       } else {
         if (result.error === 'IDENTITY_REQUIRED') {
           Alert.alert(
@@ -603,6 +638,12 @@ const VehicleBookingScreen: React.FC = () => {
             <Text style={styles.rentalDaysText}>
               {rentalDays} jour{rentalDays > 1 ? 's' : ''} de location
             </Text>
+          ) : null}
+          {availabilityError ? (
+            <View style={styles.availabilityErrorContainer}>
+              <Ionicons name="alert-circle" size={20} color="#dc2626" />
+              <Text style={styles.availabilityErrorText}>{availabilityError}</Text>
+            </View>
           ) : null}
         </View>
 
@@ -832,7 +873,7 @@ const VehicleBookingScreen: React.FC = () => {
         <TouchableOpacity
           style={[styles.submitButton, (isSubmitting || loading) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={isSubmitting || loading}
+          disabled={isSubmitting || loading || !!availabilityError}
         >
           {isSubmitting || loading ? (
             <ActivityIndicator size="small" color="#fff" />
@@ -1079,6 +1120,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#2E7D32',
+    fontWeight: '500',
+  },
+  availabilityErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#fee2e2',
+    borderRadius: 8,
+    gap: 8,
+  },
+  availabilityErrorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#dc2626',
     fontWeight: '500',
   },
   driverOptions: {

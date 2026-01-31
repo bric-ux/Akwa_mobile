@@ -6,8 +6,13 @@ export const useVehicles = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFilters, setLastFilters] = useState<VehicleFilters | undefined>(undefined);
 
   const fetchVehicles = useCallback(async (filters?: VehicleFilters) => {
+    // Stocker les filtres pour les réutiliser dans refetch
+    if (filters !== undefined) {
+      setLastFilters(filters);
+    }
     try {
       setLoading(true);
       setError(null);
@@ -196,6 +201,14 @@ export const useVehicles = () => {
       // Filtrer par disponibilité (jour ou heure selon le type)
       let availableVehicles = data || [];
       
+      console.log(`🔍 [useVehicles] Filtres reçus:`, {
+        startDate: filters?.startDate,
+        endDate: filters?.endDate,
+        startDateTime: filters?.startDateTime,
+        endDateTime: filters?.endDateTime,
+        rentalType: filters?.rentalType
+      });
+      
       // Si recherche par heure
       if (filters?.startDateTime && filters?.endDateTime && filters?.rentalType === 'hourly') {
         const startDateTime = new Date(filters.startDateTime);
@@ -214,11 +227,16 @@ export const useVehicles = () => {
                 });
               
               if (availabilityError) {
-                console.error('Error checking hourly availability:', availabilityError);
+                console.error(`❌ [useVehicles] Erreur pour véhicule ${vehicle.id}:`, availabilityError);
                 return false;
               }
               
-              return availabilityData === true;
+              // La fonction SQL retourne true si disponible, false si indisponible
+              const isActuallyAvailable = availabilityData === true;
+              
+              console.log(`🔍 [useVehicles] Véhicule ${vehicle.id} (${vehicle.title || vehicle.brand}): isAvailable=${availabilityData} (type: ${typeof availabilityData}), disponible=${isActuallyAvailable}`);
+              
+              return isActuallyAvailable;
             } catch (error) {
               console.error('Error in availability check:', error);
               return false;
@@ -232,6 +250,7 @@ export const useVehicles = () => {
       }
       // Si recherche par jour - utiliser la fonction SQL avec datetime pour une vérification précise
       else if (filters?.startDate && filters?.endDate) {
+        console.log(`✅ [useVehicles] Filtrage par jour activé: ${filters.startDate} - ${filters.endDate}`);
         // Construire les datetime à partir des dates (par défaut: début à 00:00, fin à 23:59:59)
         const startDateObj = new Date(filters.startDate);
         startDateObj.setHours(0, 0, 0, 0);
@@ -256,23 +275,40 @@ export const useVehicles = () => {
                 });
               
               if (availabilityError) {
-                console.error('❌ [useVehicles] Erreur lors de la vérification de disponibilité:', availabilityError);
+                console.error(`❌ [useVehicles] Erreur pour véhicule ${vehicle.id}:`, availabilityError);
                 return false;
               }
               
-              return isAvailable === true;
+              // La fonction SQL retourne true si disponible, false si indisponible
+              // isAvailable peut être true, false, ou null/undefined
+              const isActuallyAvailable = isAvailable === true;
+              
+              console.log(`🔍 [useVehicles] Véhicule ${vehicle.id} (${vehicle.title || vehicle.brand}): isAvailable=${isAvailable} (type: ${typeof isAvailable}), disponible=${isActuallyAvailable}`);
+              
+              return isActuallyAvailable;
             } catch (error) {
-              console.error('❌ [useVehicles] Erreur dans la vérification de disponibilité:', error);
+              console.error(`❌ [useVehicles] Erreur pour véhicule ${vehicle.id}:`, error);
               return false;
             }
           })
         );
         
-        availableVehicles = availableVehicles.filter((_: any, index: number) => 
-          availabilityChecks[index]
-        );
+        // Log détaillé des résultats
+        const availableCount = availabilityChecks.filter(Boolean).length;
+        const unavailableCount = availabilityChecks.length - availableCount;
+        console.log(`📊 [useVehicles] Résultats: ${availableCount} disponible(s), ${unavailableCount} indisponible(s) sur ${availableVehicles.length} véhicule(s) vérifié(s)`);
+        
+        availableVehicles = availableVehicles.filter((_: any, index: number) => {
+          const isAvailable = availabilityChecks[index];
+          if (!isAvailable) {
+            console.log(`🚫 [useVehicles] Véhicule ${availableVehicles[index].id} filtré (indisponible)`);
+          }
+          return isAvailable;
+        });
         
         console.log(`✅ [useVehicles] ${availableVehicles.length} véhicule(s) disponible(s) sur ${data?.length || 0} après filtrage par dates`);
+      } else {
+        console.log(`⚠️ [useVehicles] Pas de filtrage par dates - startDate: ${filters?.startDate}, endDate: ${filters?.endDate}`);
       }
 
       if (queryError) {
@@ -281,6 +317,7 @@ export const useVehicles = () => {
 
       // Transformer les données (utiliser availableVehicles au lieu de data si filtrage par dates)
       const vehiclesToTransform = (filters?.startDate && filters?.endDate) ? availableVehicles : (data || []);
+      console.log(`🔄 [useVehicles] Transformation: ${vehiclesToTransform.length} véhicule(s) à transformer (availableVehicles: ${availableVehicles.length}, data: ${data?.length || 0})`);
       const transformedVehicles: Vehicle[] = vehiclesToTransform.map((vehicle: any) => {
         // Extraire la première image principale ou la première image
         const photos = vehicle.vehicle_photos || [];
@@ -311,6 +348,11 @@ export const useVehicles = () => {
           } : undefined,
         };
       });
+
+      console.log(`🎯 [useVehicles] Véhicules finaux à afficher: ${transformedVehicles.length} véhicule(s)`);
+      if (transformedVehicles.length > 0) {
+        console.log(`🎯 [useVehicles] IDs des véhicules à afficher:`, transformedVehicles.map(v => v.id));
+      }
 
       setVehicles(transformedVehicles);
     } catch (err: any) {
@@ -526,9 +568,11 @@ export const useVehicles = () => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchVehicles();
-  }, [fetchVehicles]);
+  // SUPPRIMÉ: useEffect qui appelait fetchVehicles() sans filtres
+  // Le fetchVehicles doit être appelé explicitement avec des filtres depuis VehiclesScreen
+  // useEffect(() => {
+  //   fetchVehicles();
+  // }, [fetchVehicles]);
 
   const addVehicle = useCallback(async (vehicleData: Partial<Vehicle>) => {
     try {
@@ -959,7 +1003,7 @@ export const useVehicles = () => {
     addVehicle,
     updateVehicle,
     deleteVehicle,
-    refetch: () => fetchVehicles(),
+    refetch: () => fetchVehicles(lastFilters),
   };
 };
 

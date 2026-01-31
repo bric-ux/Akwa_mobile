@@ -77,19 +77,21 @@ const VehiclesScreen: React.FC = () => {
     }
   }, [searchDates.checkIn, searchDates.checkOut, startDate, endDate]);
 
+  // Chargement initial au montage (sans filtres de dates)
+  const hasLoadedOnceRef = useRef(false);
+  
   useEffect(() => {
-    const searchFilters: VehicleFilters = {
-      ...filters,
-      search: searchQuery.trim() || undefined,
-      // Inclure les dates/heures si sélectionnées (priorité aux datetime)
-      startDateTime: startDateTime || undefined,
-      endDateTime: endDateTime || undefined,
-      startDate: !startDateTime && startDate ? startDate : undefined,
-      endDate: !endDateTime && endDate ? endDate : undefined,
-      rentalType: startDateTime && endDateTime ? 'hourly' : undefined,
-    };
-    fetchVehicles(searchFilters);
-  }, [filters, searchQuery, startDate, endDate, startDateTime, endDateTime]);
+    // Charger une première fois au montage sans filtres de dates
+    if (!hasLoadedOnceRef.current) {
+      console.log(`🔄 [VehiclesScreen] Chargement initial (sans filtres de dates)`);
+      fetchVehicles({});
+      hasLoadedOnceRef.current = true;
+    }
+  }, [fetchVehicles]);
+  
+  // SUPPRIMÉ: useEffect automatique qui causait des appels multiples
+  // Les recherches se font maintenant uniquement via handleSearch(), handleDateTimeChange() ou handleDateGuestsChange()
+  // Cela évite les appels redondants quand les dates changent
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -115,33 +117,120 @@ const VehiclesScreen: React.FC = () => {
   };
 
   const handleSearch = () => {
+    console.log(`🔍 [VehiclesScreen] handleSearch - État actuel:`, {
+      startDate,
+      endDate,
+      startDateTime,
+      endDateTime,
+      searchQuery,
+      selectedLocationName,
+      filtersKeys: Object.keys(filters)
+    });
+    
+    // Essayer d'obtenir les dates depuis startDate/endDate ou depuis startDateTime/endDateTime
+    let finalStartDate = startDate;
+    let finalEndDate = endDate;
+    
+    // Si les dates simples sont vides mais qu'on a des datetime, extraire les dates
+    if ((!finalStartDate || finalStartDate === '') && startDateTime) {
+      finalStartDate = startDateTime.split('T')[0];
+    }
+    if ((!finalEndDate || finalEndDate === '') && endDateTime) {
+      finalEndDate = endDateTime.split('T')[0];
+    }
+    
+    const hasBothDates = finalStartDate !== '' && finalEndDate !== '';
+    console.log(`🔍 [VehiclesScreen] handleSearch - hasBothDates:`, hasBothDates, `finalStartDate: "${finalStartDate}"`, `finalEndDate: "${finalEndDate}"`);
+    
+    // Construire les filtres en incluant TOUJOURS les dates si elles sont définies
     const searchFilters: VehicleFilters = {
       ...filters,
       search: searchQuery.trim() || undefined,
       // Si on a une localisation sélectionnée, utiliser son nom pour la recherche hiérarchique
       locationName: selectedLocationName || filters.locationName,
-      // Ajouter les dates/heures si sélectionnées (priorité aux datetime)
-      startDateTime: startDateTime || undefined,
-      endDateTime: endDateTime || undefined,
-      startDate: !startDateTime && startDate ? startDate : undefined,
-      endDate: !endDateTime && endDate ? endDate : undefined,
-      rentalType: startDateTime && endDateTime ? 'hourly' : undefined,
     };
-    fetchVehicles(searchFilters);
+    
+    // IMPORTANT: Toujours inclure les dates si elles sont définies, même si on a d'autres filtres
+    if (hasBothDates) {
+      searchFilters.startDate = finalStartDate;
+      searchFilters.endDate = finalEndDate;
+      searchFilters.rentalType = undefined; // Toujours utiliser la recherche par jour pour les recherches avec dates
+      console.log(`✅ [VehiclesScreen] handleSearch - Dates ajoutées aux filtres:`, finalStartDate, finalEndDate);
+    } else {
+      console.log(`⚠️ [VehiclesScreen] handleSearch - Dates non ajoutées (hasBothDates=false)`);
+    }
+    
+    console.log(`🔍 [VehiclesScreen] handleSearch - searchFilters avant nettoyage:`, searchFilters);
+    
+    // Nettoyer les filtres undefined (mais préserver les dates si elles sont définies)
+    const cleanedFilters: VehicleFilters = Object.fromEntries(
+      Object.entries(searchFilters).filter(([key, value]) => {
+        if (value === undefined || value === '') {
+          console.log(`🗑️ [VehiclesScreen] handleSearch - Filtre "${key}" supprimé (valeur: ${value})`);
+          return false;
+        }
+        if (Array.isArray(value) && value.length === 0) {
+          console.log(`🗑️ [VehiclesScreen] handleSearch - Filtre "${key}" supprimé (tableau vide)`);
+          return false;
+        }
+        return true;
+      })
+    ) as VehicleFilters;
+    
+    console.log(`🔍 [VehiclesScreen] handleSearch - cleanedFilters après nettoyage:`, cleanedFilters);
+    
+    // Ne pas appeler fetchVehicles si tous les filtres sont vides (sauf si on a des dates)
+    const hasAnyFilters = Object.keys(cleanedFilters).length > 0;
+    if (!hasAnyFilters) {
+      console.log(`⏭️ [VehiclesScreen] handleSearch - Appel fetchVehicles ignoré - tous les filtres sont vides`);
+      return;
+    }
+    
+    console.log(`🔄 [VehiclesScreen] handleSearch - Appel fetchVehicles avec filtres:`, cleanedFilters);
+    fetchVehicles(cleanedFilters);
   };
 
   const handleDateTimeChange = (start: string, end: string) => {
     setStartDateTime(start);
     setEndDateTime(end);
     // Extraire aussi les dates pour compatibilité
-    setStartDate(start.split('T')[0]);
-    setEndDate(end.split('T')[0]);
+    const newStartDate = start.split('T')[0];
+    const newEndDate = end.split('T')[0];
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    
+    // Appeler fetchVehicles automatiquement si les deux dates sont définies
+    if (newStartDate && newEndDate) {
+      const searchFilters: VehicleFilters = {
+        ...filters,
+        search: searchQuery.trim() || undefined,
+        locationName: selectedLocationName || filters.locationName,
+        startDate: newStartDate,
+        endDate: newEndDate,
+        rentalType: undefined,
+      };
+      
+      // Nettoyer les filtres undefined
+      const cleanedFilters: VehicleFilters = Object.fromEntries(
+        Object.entries(searchFilters).filter(([_, value]) => {
+          if (value === undefined || value === '') return false;
+          if (Array.isArray(value) && value.length === 0) return false;
+          return true;
+        })
+      ) as VehicleFilters;
+      
+      console.log(`🔄 [VehiclesScreen] handleDateTimeChange - Appel fetchVehicles avec dates:`, cleanedFilters);
+      fetchVehicles(cleanedFilters);
+    }
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
     // Pour les véhicules, on utilise seulement les dates (pas les voyageurs)
-    setStartDate(dates.checkIn || '');
-    setEndDate(dates.checkOut || '');
+    const newStartDate = dates.checkIn || '';
+    const newEndDate = dates.checkOut || '';
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    
     // Sauvegarder les dates dans le contexte
     saveSearchDates({
       checkIn: dates.checkIn,
@@ -150,9 +239,34 @@ const VehiclesScreen: React.FC = () => {
       children: guests.children,
       babies: guests.babies,
     });
+    
+    // Appeler fetchVehicles automatiquement si les deux dates sont définies
+    if (newStartDate && newEndDate) {
+      const searchFilters: VehicleFilters = {
+        ...filters,
+        search: searchQuery.trim() || undefined,
+        locationName: selectedLocationName || filters.locationName,
+        startDate: newStartDate,
+        endDate: newEndDate,
+        rentalType: undefined,
+      };
+      
+      // Nettoyer les filtres undefined
+      const cleanedFilters: VehicleFilters = Object.fromEntries(
+        Object.entries(searchFilters).filter(([_, value]) => {
+          if (value === undefined || value === '') return false;
+          if (Array.isArray(value) && value.length === 0) return false;
+          return true;
+        })
+      ) as VehicleFilters;
+      
+      console.log(`🔄 [VehiclesScreen] handleDateGuestsChange - Appel fetchVehicles avec dates:`, cleanedFilters);
+      fetchVehicles(cleanedFilters);
+    }
   };
 
   const handleResetFilters = () => {
+    // Réinitialiser tous les filtres
     setFilters({});
     setSearchQuery('');
     setSelectedLocationName('');
@@ -160,6 +274,10 @@ const VehiclesScreen: React.FC = () => {
     setEndDate('');
     setStartDateTime('');
     setEndDateTime('');
+    
+    // Afficher tous les véhicules (sans filtres)
+    console.log(`🔄 [VehiclesScreen] handleResetFilters - Réinitialisation et affichage de tous les véhicules`);
+    fetchVehicles({});
   };
 
   const removeFilter = (filterKey: keyof VehicleFilters) => {
@@ -369,6 +487,15 @@ const VehiclesScreen: React.FC = () => {
                     Trouvez le véhicule qui correspond à vos besoins
                   </Text>
                 </View>
+                {(getActiveFiltersCount() > 0 || startDate || endDate) && (
+                  <TouchableOpacity
+                    style={styles.resetAllBtn}
+                    onPress={handleResetFilters}
+                  >
+                    <Ionicons name="refresh-outline" size={16} color="#2563eb" />
+                    <Text style={styles.resetAllBtnText}>Tout réinitialiser</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* Filtres actifs */}
@@ -497,14 +624,26 @@ const VehiclesScreen: React.FC = () => {
                 </View>
               )}
 
-              {/* Nombre de résultats */}
-              {vehicles && vehicles.length > 0 && (
-                <View style={styles.resultsCount}>
-                  <Text style={styles.resultsCountText}>
-                    <Text style={styles.resultsCountBold}>{vehicles.length}</Text> véhicule{vehicles.length > 1 ? 's' : ''} disponible{vehicles.length > 1 ? 's' : ''}
-                  </Text>
-                </View>
-              )}
+              {/* Nombre de résultats et bouton afficher tous */}
+              <View style={styles.resultsRow}>
+                {vehicles && vehicles.length > 0 && (
+                  <View style={styles.resultsCount}>
+                    <Text style={styles.resultsCountText}>
+                      <Text style={styles.resultsCountBold}>{vehicles.length}</Text> véhicule{vehicles.length > 1 ? 's' : ''} disponible{vehicles.length > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={styles.showAllBtn}
+                  onPress={() => {
+                    console.log(`🔄 [VehiclesScreen] Bouton "Afficher tous les véhicules" cliqué`);
+                    fetchVehicles({});
+                  }}
+                >
+                  <Ionicons name="list-outline" size={16} color="#2563eb" />
+                  <Text style={styles.showAllBtnText}>Afficher tous les véhicules</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {error && (
@@ -841,8 +980,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  resultsCount: {
+  resetAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  resetAllBtnText: {
+    color: '#2563eb',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  resultsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
+    gap: 12,
+  },
+  resultsCount: {
+    flex: 1,
   },
   resultsCountText: {
     fontSize: 14,
@@ -851,6 +1013,22 @@ const styles = StyleSheet.create({
   resultsCountBold: {
     fontWeight: '600',
     color: '#0f172a',
+  },
+  showAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  showAllBtnText: {
+    color: '#2563eb',
+    fontSize: 13,
+    fontWeight: '600',
   },
   loading: {
     flex: 1,
