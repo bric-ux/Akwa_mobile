@@ -6,7 +6,10 @@ export interface VehicleBookingModificationData {
   bookingId: string;
   requestedStartDate: string;
   requestedEndDate: string;
+  requestedStartDateTime?: string;
+  requestedEndDateTime?: string;
   requestedRentalDays: number;
+  requestedRentalHours?: number;
   requestedTotalPrice: number;
   message?: string;
 }
@@ -80,16 +83,32 @@ export const useVehicleBookingModifications = () => {
 
       // Si la réservation est en attente (pending), mettre à jour directement
       if (booking.status === 'pending') {
+        const updateData: any = {
+          start_date: data.requestedStartDate,
+          end_date: data.requestedEndDate,
+          rental_days: data.requestedRentalDays,
+          total_price: data.requestedTotalPrice,
+          daily_rate: booking.vehicle.price_per_day,
+          updated_at: new Date().toISOString(),
+        };
+        
+        // Ajouter les datetime si fournis
+        if (data.requestedStartDateTime) {
+          updateData.start_datetime = data.requestedStartDateTime;
+        }
+        if (data.requestedEndDateTime) {
+          updateData.end_datetime = data.requestedEndDateTime;
+        }
+        
+        // Ajouter rental_hours si fourni
+        if (data.requestedRentalHours !== undefined && data.requestedRentalHours > 0) {
+          updateData.rental_hours = data.requestedRentalHours;
+          updateData.hourly_rate = booking.vehicle.price_per_hour || 0;
+        }
+        
         const { error: updateError } = await supabase
           .from('vehicle_bookings')
-          .update({
-            start_date: data.requestedStartDate,
-            end_date: data.requestedEndDate,
-            rental_days: data.requestedRentalDays,
-            total_price: data.requestedTotalPrice,
-            daily_rate: booking.vehicle.price_per_day,
-            updated_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('id', data.bookingId);
 
         if (updateError) {
@@ -122,7 +141,9 @@ export const useVehicleBookingModifications = () => {
                   newStartDate: new Date(data.requestedStartDate).toLocaleDateString('fr-FR'),
                   newEndDate: new Date(data.requestedEndDate).toLocaleDateString('fr-FR'),
                   oldRentalDays: booking.rental_days,
+                  oldRentalHours: booking.rental_hours || 0,
                   newRentalDays: data.requestedRentalDays,
+                  newRentalHours: data.requestedRentalHours || 0,
                   oldTotalPrice: booking.total_price,
                   newTotalPrice: data.requestedTotalPrice,
                   message: data.message || null,
@@ -145,7 +166,9 @@ export const useVehicleBookingModifications = () => {
                   newStartDate: new Date(data.requestedStartDate).toLocaleDateString('fr-FR'),
                   newEndDate: new Date(data.requestedEndDate).toLocaleDateString('fr-FR'),
                   oldRentalDays: booking.rental_days,
+                  oldRentalHours: booking.rental_hours || 0,
                   newRentalDays: data.requestedRentalDays,
+                  newRentalHours: data.requestedRentalHours || 0,
                   oldTotalPrice: booking.total_price,
                   newTotalPrice: data.requestedTotalPrice,
                 },
@@ -161,23 +184,47 @@ export const useVehicleBookingModifications = () => {
       }
 
       // Pour les réservations confirmées, créer une demande de modification
+      const requestData: any = {
+        booking_id: data.bookingId,
+        renter_id: user.id,
+        owner_id: booking.vehicle.owner_id,
+        original_start_date: booking.start_date,
+        original_end_date: booking.end_date,
+        original_rental_days: booking.rental_days,
+        original_total_price: booking.total_price,
+        requested_start_date: data.requestedStartDate,
+        requested_end_date: data.requestedEndDate,
+        requested_rental_days: data.requestedRentalDays,
+        requested_total_price: data.requestedTotalPrice,
+        renter_message: data.message || null,
+        status: 'pending'
+      };
+      
+      // Ajouter les datetime et heures originales si disponibles
+      if (booking.start_datetime) {
+        requestData.original_start_datetime = booking.start_datetime;
+      }
+      if (booking.end_datetime) {
+        requestData.original_end_datetime = booking.end_datetime;
+      }
+      if (booking.rental_hours !== undefined && booking.rental_hours > 0) {
+        requestData.original_rental_hours = booking.rental_hours;
+      }
+      
+      // Ajouter les datetime et heures demandées si fournis
+      if (data.requestedStartDateTime) {
+        requestData.requested_start_datetime = data.requestedStartDateTime;
+      }
+      if (data.requestedEndDateTime) {
+        requestData.requested_end_datetime = data.requestedEndDateTime;
+      }
+      if (data.requestedRentalHours !== undefined && data.requestedRentalHours > 0) {
+        requestData.requested_rental_hours = data.requestedRentalHours;
+      }
+      
       const { data: modificationRequest, error: createRequestError } = await supabase
         .from('vehicle_booking_modification_requests')
-        .insert({
-          booking_id: data.bookingId,
-          renter_id: user.id,
-          owner_id: booking.vehicle.owner_id,
-          original_start_date: booking.start_date,
-          original_end_date: booking.end_date,
-          original_rental_days: booking.rental_days,
-          original_total_price: booking.total_price,
-          requested_start_date: data.requestedStartDate,
-          requested_end_date: data.requestedEndDate,
-          requested_rental_days: data.requestedRentalDays,
-          requested_total_price: data.requestedTotalPrice,
-          renter_message: data.message || null,
-          status: 'pending'
-        })
+        .insert(requestData)
         .select()
         .single();
 
@@ -220,10 +267,12 @@ export const useVehicleBookingModifications = () => {
                 originalStartDate: booking.start_date,
                 originalEndDate: booking.end_date,
                 originalDays: booking.rental_days,
+                originalHours: booking.rental_hours || 0,
                 originalPrice: booking.total_price,
                 requestedStartDate: data.requestedStartDate,
                 requestedEndDate: data.requestedEndDate,
                 requestedDays: data.requestedRentalDays,
+                requestedHours: data.requestedRentalHours || 0,
                 requestedPrice: data.requestedTotalPrice,
                 renterMessage: data.message || null,
                 bookingId: booking.id,
@@ -244,10 +293,12 @@ export const useVehicleBookingModifications = () => {
               originalStartDate: booking.start_date,
               originalEndDate: booking.end_date,
               originalDays: booking.rental_days,
+              originalHours: booking.rental_hours || 0,
               originalPrice: booking.total_price,
               requestedStartDate: data.requestedStartDate,
               requestedEndDate: data.requestedEndDate,
               requestedDays: data.requestedRentalDays,
+              requestedHours: data.requestedRentalHours || 0,
               requestedPrice: data.requestedTotalPrice,
               dailyRate: booking.vehicle.price_per_day || booking.daily_rate || 0,
               bookingId: booking.id,
@@ -385,15 +436,39 @@ export const useVehicleBookingModifications = () => {
       }
 
       // Mettre à jour la réservation
+      const updateData: any = {
+        start_date: request.requested_start_date,
+        end_date: request.requested_end_date,
+        rental_days: request.requested_rental_days,
+        total_price: request.requested_total_price,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Ajouter les datetime si disponibles
+      if (request.requested_start_datetime) {
+        updateData.start_datetime = request.requested_start_datetime;
+      }
+      if (request.requested_end_datetime) {
+        updateData.end_datetime = request.requested_end_datetime;
+      }
+      
+      // Ajouter rental_hours si disponible
+      if (request.requested_rental_hours !== undefined && request.requested_rental_hours > 0) {
+        updateData.rental_hours = request.requested_rental_hours;
+        // Récupérer le prix par heure du véhicule
+        const { data: vehicleData } = await supabase
+          .from('vehicles')
+          .select('price_per_hour')
+          .eq('id', request.booking.vehicle_id)
+          .single();
+        if (vehicleData?.price_per_hour) {
+          updateData.hourly_rate = vehicleData.price_per_hour;
+        }
+      }
+      
       const { error: updateBookingError } = await supabase
         .from('vehicle_bookings')
-        .update({
-          start_date: request.requested_start_date,
-          end_date: request.requested_end_date,
-          rental_days: request.requested_rental_days,
-          total_price: request.requested_total_price,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', request.booking_id);
 
       if (updateBookingError) throw updateBookingError;
@@ -456,7 +531,9 @@ export const useVehicleBookingModifications = () => {
           startDate: request.requested_start_date,
           endDate: request.requested_end_date,
           rentalDays: request.requested_rental_days,
+          rentalHours: request.requested_rental_hours || 0,
           dailyRate: bookingData.daily_rate || vehicle.price_per_day || 0,
+          hourlyRate: vehicle.price_per_hour || 0,
           basePrice: calculatedBasePrice, // Prix après réduction (calculé à partir de totalPrice)
           totalPrice: request.requested_total_price,
           ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire

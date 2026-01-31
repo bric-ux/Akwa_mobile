@@ -25,7 +25,7 @@ import { useVehicleAvailabilityCalendar } from '../hooks/useVehicleAvailabilityC
 import { formatPrice } from '../utils/priceCalculator';
 import { VehicleDateTimeSelector } from '../components/VehicleDateTimeSelector';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
-import { calculateTotalPrice, calculateFees, DiscountConfig } from '../hooks/usePricing';
+import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, DiscountConfig } from '../hooks/usePricing';
 import { getCommissionRates } from '../lib/commissions';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -397,22 +397,37 @@ const VehicleBookingScreen: React.FC = () => {
     percentage: vehicle?.long_stay_discount_percentage || null
   } : undefined;
   
-  // Calculer le prix des jours avec réductions
-  const pricing = calculateTotalPrice(basePricePerDay, rentalDays, discountConfig, longStayDiscountConfig);
-  let daysPrice = pricing.totalPrice; // Prix des jours après réduction
-  const originalDaysPrice = pricing.originalTotal; // Prix original des jours (avant réduction)
+  // Utiliser la fonction centralisée pour calculer le prix avec heures et réductions
+  const hourlyRateValue = (remainingHours > 0 && vehicle?.hourly_rental_enabled && vehicle?.price_per_hour) 
+    ? vehicle.price_per_hour 
+    : 0;
   
-  // Ajouter le prix des heures restantes si applicable
-  let hoursPrice = 0;
-  if (remainingHours > 0 && vehicle?.hourly_rental_enabled && vehicle?.price_per_hour) {
-    hoursPrice = remainingHours * vehicle.price_per_hour;
-    console.log(`💰 [VehicleBookingScreen] Calcul prix heures: ${remainingHours}h × ${vehicle.price_per_hour} = ${hoursPrice}`);
+  const priceCalculation = calculateVehiclePriceWithHours(
+    basePricePerDay,
+    rentalDays,
+    remainingHours,
+    hourlyRateValue,
+    discountConfig,
+    longStayDiscountConfig
+  );
+  
+  const daysPrice = priceCalculation.daysPrice;
+  const hoursPrice = priceCalculation.hoursPrice;
+  const originalDaysPrice = daysPrice;
+  const originalBasePrice = priceCalculation.originalTotal;
+  const discountAmount = priceCalculation.discountAmount;
+  const basePrice = priceCalculation.basePrice;
+  const pricing = {
+    discountApplied: priceCalculation.discountApplied,
+    discountType: priceCalculation.discountType,
+    discountAmount: discountAmount
+  };
+  
+  if (hoursPrice > 0) {
+    console.log(`💰 [VehicleBookingScreen] Calcul prix heures: ${remainingHours}h × ${hourlyRateValue} = ${hoursPrice}`);
   } else {
     console.log(`⚠️ [VehicleBookingScreen] Pas de calcul heures: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle?.hourly_rental_enabled}, price_per_hour=${vehicle?.price_per_hour}`);
   }
-  
-  const basePrice = daysPrice + hoursPrice; // Prix total (jours + heures)
-  const originalBasePrice = originalDaysPrice + hoursPrice; // Prix original total (jours + heures)
   
   // Calculer les frais de service (10% du prix après réduction pour les véhicules)
   const fees = calculateFees(basePrice, rentalDays, 'vehicle');
@@ -536,9 +551,8 @@ const VehicleBookingScreen: React.FC = () => {
         setLicenseNumber('');
         setLicenseDocumentUrl(null);
         
-        // Fermer automatiquement l'écran et naviguer vers les réservations
-        navigation.navigate('MyVehicleBookings' as never);
-        navigation.goBack();
+        // Fermer automatiquement l'écran et naviguer vers la page du véhicule
+        navigation.goBack(); // Retour à la page précédente (page du véhicule)
         
         // Afficher l'alerte de confirmation (non bloquante)
         setTimeout(() => {
@@ -919,7 +933,7 @@ const VehicleBookingScreen: React.FC = () => {
               </Text>
             </View>
           ) : null}
-          {pricing.discountApplied ? (
+          {pricing.discountApplied && discountAmount > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
                 Réduction {pricing.discountType === 'long_stay' ? 'séjour long' : ''} ({pricing.discountType === 'long_stay' 
@@ -927,7 +941,7 @@ const VehicleBookingScreen: React.FC = () => {
                   : discountConfig.percentage}%)
               </Text>
               <Text style={[styles.summaryValue, { color: '#2E7D32' }]}>
-                -{formatPrice(pricing.discountAmount)}
+                -{formatPrice(discountAmount)}
               </Text>
             </View>
           ) : null}

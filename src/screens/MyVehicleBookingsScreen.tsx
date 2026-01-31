@@ -186,9 +186,21 @@ const MyVehicleBookingsScreen: React.FC = () => {
     const vehicle = booking.vehicle;
     const vehicleImage = vehicle?.images?.[0] || vehicle?.vehicle_photos?.[0]?.url || null;
     const rentalDays = booking.rental_days || 1;
+    const rentalHours = booking.rental_hours || 0;
     
-    // Calculer le total avec frais de service (même logique que InvoiceDisplay)
-    const basePrice = (booking.daily_rate || 0) * rentalDays;
+    // Calculer le prix des jours
+    const daysPrice = (booking.daily_rate || 0) * rentalDays;
+    
+    // Calculer le prix des heures supplémentaires si applicable
+    // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
+    const hourlyRate = booking.hourly_rate || vehicle?.price_per_hour || 0;
+    let hoursPrice = 0;
+    if (rentalHours > 0 && hourlyRate > 0) {
+      hoursPrice = rentalHours * hourlyRate;
+    }
+    
+    // Prix de base = prix des jours + prix des heures
+    const basePrice = daysPrice + hoursPrice;
     const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
     const commissionRates = getCommissionRates('vehicle');
     // Calculer les frais de service avec TVA (10% + 20% TVA = 12% total)
@@ -226,6 +238,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
                 </Text>
                 <Text style={styles.daysText}>
                   {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
+                  {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
                 </Text>
               </View>
             </View>

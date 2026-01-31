@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VehicleBooking } from '../types';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
-import DateGuestsSelector from './DateGuestsSelector';
+import { VehicleDateTimeSelector } from './VehicleDateTimeSelector';
 import { formatPrice } from '../utils/priceCalculator';
 
 interface VehicleModificationModalProps {
@@ -33,6 +33,8 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const { modifyBooking, loading, getBookingPendingRequest } = useVehicleBookingModifications();
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [startDateTime, setStartDateTime] = useState<string | undefined>(undefined);
+  const [endDateTime, setEndDateTime] = useState<string | undefined>(undefined);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -40,6 +42,8 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
     if (booking && visible) {
       setStartDate(booking.start_date);
       setEndDate(booking.end_date);
+      setStartDateTime(booking.start_datetime);
+      setEndDateTime(booking.end_datetime);
       setMessage('');
     }
   }, [booking, visible]);
@@ -65,12 +69,54 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
     return diffDays + 1; // +1 pour inclure le jour de départ
   };
 
-  const rentalDays = calculateRentalDays();
-  const totalPrice = dailyRate * rentalDays;
+  // Calculer les heures restantes si applicable
+  const calculateRemainingHours = () => {
+    if (!startDateTime || !endDateTime || !vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
+      return 0;
+    }
+    
+    const start = new Date(startDateTime);
+    const end = new Date(endDateTime);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return 0;
+    }
+    
+    const diffTime = end.getTime() - start.getTime();
+    const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
+    
+    // Calculer les jours complets directement à partir des heures totales
+    const fullDaysFromHours = Math.floor(totalHours / 24);
+    const hoursInFullDays = fullDaysFromHours * 24;
+    const remainingHours = totalHours - hoursInFullDays;
+    
+    return remainingHours > 0 ? remainingHours : 0;
+  };
 
-  const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }) => {
-    if (dates.checkIn) setStartDate(dates.checkIn);
-    if (dates.checkOut) setEndDate(dates.checkOut);
+  const rentalDays = calculateRentalDays();
+  const remainingHours = calculateRemainingHours();
+  
+  // Calculer le prix : jours + heures
+  // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
+  const hourlyRate = booking.hourly_rate || vehicle?.price_per_hour || 0;
+  let daysPrice = dailyRate * rentalDays;
+  let hoursPrice = 0;
+  if (remainingHours > 0 && hourlyRate > 0) {
+    hoursPrice = remainingHours * hourlyRate;
+  }
+  const totalPrice = daysPrice + hoursPrice;
+
+  const handleDateTimeChange = (start: string | undefined, end: string | undefined) => {
+    if (start) {
+      const startDateObj = new Date(start);
+      setStartDate(startDateObj.toISOString().split('T')[0]);
+      setStartDateTime(start);
+    }
+    if (end) {
+      const endDateObj = new Date(end);
+      setEndDate(endDateObj.toISOString().split('T')[0]);
+      setEndDateTime(end);
+    }
   };
 
   const handleSubmit = async () => {
@@ -107,13 +153,21 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
       return;
     }
 
+    if (!startDateTime || !endDateTime) {
+      Alert.alert('Erreur', 'Veuillez sélectionner les dates et heures de prise et de rendu');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await modifyBooking({
         bookingId: booking.id,
         requestedStartDate: startDate,
         requestedEndDate: endDate,
+        requestedStartDateTime: startDateTime,
+        requestedEndDateTime: endDateTime,
         requestedRentalDays: rentalDays,
+        requestedRentalHours: remainingHours,
         requestedTotalPrice: totalPrice,
         message: message.trim() || undefined,
       });
@@ -184,14 +238,12 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 
             {/* Nouvelles dates */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Nouvelles dates</Text>
-              <DateGuestsSelector
-                checkIn={startDate}
-                checkOut={endDate}
-                adults={1}
-                children={0}
-                babies={0}
-                onDateGuestsChange={handleDateGuestsChange}
+              <Text style={styles.sectionTitle}>Nouvelles dates et heures</Text>
+              <VehicleDateTimeSelector
+                vehicleId={vehicle?.id || ''}
+                startDateTime={startDateTime}
+                endDateTime={endDateTime}
+                onDateTimeChange={handleDateTimeChange}
               />
               {rentalDays > 0 && (
                 <View style={styles.summaryBox}>
@@ -199,12 +251,21 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                     <Text style={styles.summaryLabel}>Durée:</Text>
                     <Text style={styles.summaryValue}>
                       {rentalDays} jour{rentalDays > 1 ? 's' : ''}
+                      {remainingHours > 0 && ` et ${remainingHours} heure${remainingHours > 1 ? 's' : ''}`}
                     </Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Prix par jour:</Text>
                     <Text style={styles.summaryValue}>{formatPrice(dailyRate)}</Text>
                   </View>
+                  {remainingHours > 0 && hourlyRate > 0 && (
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Prix des heures supplémentaires:</Text>
+                      <Text style={styles.summaryValue}>
+                        {formatPrice(remainingHours * hourlyRate)} ({remainingHours} h × {formatPrice(hourlyRate)}/h)
+                      </Text>
+                    </View>
+                  )}
                   <View style={[styles.summaryRow, styles.totalRow]}>
                     <Text style={styles.totalLabel}>Nouveau total:</Text>
                     <Text style={styles.totalValue}>{formatPrice(totalPrice)}</Text>

@@ -210,8 +210,21 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const calculateNetEarnings = (booking: VehicleBooking) => {
     if (booking.status === 'cancelled') return 0;
     
-    // Prix de base = daily_rate × rental_days
-    const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
+    // Calculer le prix des jours
+    const rentalDays = booking.rental_days || 0;
+    const rentalHours = booking.rental_hours || 0;
+    const daysPrice = (booking.daily_rate || 0) * rentalDays;
+    
+    // Calculer le prix des heures supplémentaires si applicable
+    // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
+    const hourlyRate = booking.hourly_rate || booking.vehicle?.price_per_hour || 0;
+    let hoursPrice = 0;
+    if (rentalHours > 0 && hourlyRate > 0) {
+      hoursPrice = rentalHours * hourlyRate;
+    }
+    
+    // Prix de base = prix des jours + prix des heures
+    const basePrice = daysPrice + hoursPrice;
     // Appliquer la réduction si elle existe
     const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
     // Commission avec TVA (2% + 20% TVA = 2.4%)
@@ -401,6 +414,16 @@ const HostVehicleBookingsScreen: React.FC = () => {
             <Ionicons name="calendar-outline" size={16} color="#666" />
             <Text style={styles.detailText}>
               {formatDate(item.start_date)} → {formatDate(item.end_date)}
+              {(item.rental_days || 0) > 0 ? (
+                <Text style={styles.detailText}>
+                  {' '}({item.rental_days} jour{item.rental_days > 1 ? 's' : ''}
+                  {item.rental_hours && item.rental_hours > 0 && ` et ${item.rental_hours} heure${item.rental_hours > 1 ? 's' : ''}`})
+                </Text>
+              ) : item.rental_hours && item.rental_hours > 0 ? (
+                <Text style={styles.detailText}>
+                  {' '}({item.rental_hours} heure{item.rental_hours > 1 ? 's' : ''})
+                </Text>
+              ) : null}
             </Text>
           </View>
           <View style={styles.detailRow}>

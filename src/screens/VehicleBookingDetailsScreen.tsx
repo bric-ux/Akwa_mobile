@@ -88,6 +88,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
             model,
             images,
             owner_id,
+            hourly_rental_enabled,
+            price_per_hour,
             location:locations (
               id,
               name
@@ -135,7 +137,12 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         id: bookingData.id,
         vehicle_id: bookingData.vehicle_id,
         renter_id: bookingData.renter_id,
-        vehicle: bookingData.vehicle ? 'présent' : 'absent'
+        vehicle: bookingData.vehicle ? 'présent' : 'absent',
+        rental_days: bookingData.rental_days,
+        rental_hours: bookingData.rental_hours,
+        hourly_rate: bookingData.hourly_rate,
+        hourly_rental_enabled: bookingData.vehicle?.hourly_rental_enabled,
+        price_per_hour: bookingData.vehicle?.price_per_hour
       });
 
       // Charger les infos du propriétaire séparément si le véhicule existe
@@ -324,6 +331,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
               {pendingRequest.requested_rental_days !== booking.rental_days && (
                 <Text style={styles.modificationRequestInfo}>
                   Durée: {pendingRequest.requested_rental_days} jour{pendingRequest.requested_rental_days > 1 ? 's' : ''}
+                  {pendingRequest.requested_rental_hours && pendingRequest.requested_rental_hours > 0 && ` et ${pendingRequest.requested_rental_hours} heure${pendingRequest.requested_rental_hours > 1 ? 's' : ''}`}
                 </Text>
               )}
               {pendingRequest.requested_total_price !== booking.total_price && (
@@ -426,6 +434,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                   payment_method: payment?.payment_method || booking.payment_method,
                   status: booking.status,
                   rental_days: booking.rental_days, // Passer rental_days pour le calcul correct
+                  rental_hours: booking.rental_hours || 0, // Passer rental_hours pour l'affichage
+                  hourly_rate: booking.hourly_rate || 0, // Passer hourly_rate de la réservation
                   vehicle: {
                     rules: booking.vehicle?.rules || [],
                     discount_enabled: booking.vehicle?.discount_enabled,
@@ -434,6 +444,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                     long_stay_discount_enabled: booking.vehicle?.long_stay_discount_enabled,
                     long_stay_discount_min_days: booking.vehicle?.long_stay_discount_min_days,
                     long_stay_discount_percentage: booking.vehicle?.long_stay_discount_percentage,
+                    hourly_rental_enabled: booking.vehicle?.hourly_rental_enabled,
+                    price_per_hour: booking.vehicle?.price_per_hour,
                   },
                 } as any}
                 pricePerUnit={booking.daily_rate || 0}

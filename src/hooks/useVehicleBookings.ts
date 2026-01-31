@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { VehicleBooking, VehicleBookingStatus } from '../types';
 import { useIdentityVerification } from './useIdentityVerification';
-import { calculateTotalPrice, calculateFees } from './usePricing';
+import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours } from './usePricing';
 
 export interface VehicleBookingData {
   vehicleId: string;
@@ -122,17 +122,22 @@ export const useVehicleBookings = () => {
         const diffTime = end.getTime() - start.getTime();
         const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
         
-        // Calculer le nombre de jours complets (comme sur le site web: différence + 1)
+        // Calculer les jours complets à partir des heures totales (plus précis)
+        const fullDaysFromHours = Math.floor(totalHours / 24);
+        
+        // Calculer le nombre de jours selon les dates (pour validation et affichage)
+        let rentalDaysFromDates = 1;
         if (startDate !== endDate) {
           const startDateOnly = new Date(startDate + 'T00:00:00');
           const endDateOnly = new Date(endDate + 'T00:00:00');
           const diffTimeDays = endDateOnly.getTime() - startDateOnly.getTime();
           const diffDays = Math.ceil(diffTimeDays / (1000 * 60 * 60 * 24));
-          rentalDays = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
-        } else {
-          // Même jour : au moins 1 jour
-          rentalDays = 1;
+          rentalDaysFromDates = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
         }
+        
+        // Utiliser le maximum entre les deux pour être sûr d'avoir le bon nombre de jours
+        // Mais prioriser fullDaysFromHours si > 0 pour le calcul des heures restantes
+        rentalDays = Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates);
 
         if (rentalDays < 1) {
           throw new Error('La date de fin ne peut pas être avant la date de début');
@@ -143,14 +148,19 @@ export const useVehicleBookings = () => {
         }
         
         // Calculer les heures restantes : durée totale - (jours complets × 24 heures)
-        // Exemple: 13 jours et 2 heures = 314 heures totales - (13 × 24) = 314 - 312 = 2 heures
-        const hoursInFullDays = rentalDays * 24;
+        // Utiliser fullDaysFromHours pour le calcul des heures, pas rentalDays
+        // Exemple: 177 heures totales = 7 jours complets (168h) + 9 heures restantes
+        const hoursInFullDays = fullDaysFromHours * 24;
         const remainingHours = totalHours - hoursInFullDays;
+        
+        console.log(`⏱️ [useVehicleBookings] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}, rentalDays=${rentalDays}`);
         
         // Stocker les heures supplémentaires pour le calcul du prix (si > 0)
         if (remainingHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
           rentalHours = remainingHours;
-          console.log(`⏱️ [useVehicleBookings] Calcul heures restantes: ${totalHours}h totales - ${hoursInFullDays}h (${rentalDays} jours) = ${remainingHours}h restantes`);
+          console.log(`✅ [useVehicleBookings] Heures restantes calculées: ${remainingHours}h`);
+        } else {
+          console.log(`⚠️ [useVehicleBookings] Pas d'heures restantes: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle.hourly_rental_enabled}, price_per_hour=${vehicle.price_per_hour}`);
         }
       }
 
@@ -201,24 +211,32 @@ export const useVehicleBookings = () => {
           percentage: vehicle.long_stay_discount_percentage || null
         } : undefined;
         
-        // Calculer le prix des jours avec réductions
-        const pricing = calculateTotalPrice(dailyRate, rentalDays, discountConfig, longStayDiscountConfig);
-        let daysPrice = pricing.totalPrice; // Prix des jours après réduction
-        discountAmount = pricing.discountAmount || 0;
-        discountApplied = pricing.discountApplied || false;
-        originalTotal = pricing.originalTotal || (dailyRate * rentalDays);
+        // Utiliser la fonction centralisée pour calculer le prix avec heures et réductions
+        const hourlyRateValue = (rentalHours && rentalHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) 
+          ? vehicle.price_per_hour 
+          : 0;
         
-        // Ajouter le prix des heures supplémentaires si applicable
-        // Exemple: 13 jours + 2 heures = (13 jours au prix par jour) + (2 heures au prix par heure)
-        if (rentalHours && rentalHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
-          hourlyRate = vehicle.price_per_hour;
-          const hoursPrice = hourlyRate * rentalHours;
-          basePrice = daysPrice + hoursPrice;
-          originalTotal = originalTotal + hoursPrice; // Ajouter les heures au total original
-          console.log(`💰 [useVehicleBookings] Calcul combiné: ${rentalDays} jours (${daysPrice} FCFA) + ${rentalHours} heures (${hoursPrice} FCFA) = ${basePrice} FCFA`);
-        } else {
-          basePrice = daysPrice;
+        const priceCalculation = calculateVehiclePriceWithHours(
+          dailyRate,
+          rentalDays,
+          rentalHours || 0,
+          hourlyRateValue,
+          discountConfig,
+          longStayDiscountConfig
+        );
+        
+        const daysPrice = priceCalculation.daysPrice;
+        const hoursPrice = priceCalculation.hoursPrice;
+        basePrice = priceCalculation.basePrice;
+        originalTotal = priceCalculation.originalTotal;
+        discountAmount = priceCalculation.discountAmount;
+        discountApplied = priceCalculation.discountApplied;
+        
+        if (hourlyRateValue > 0) {
+          hourlyRate = hourlyRateValue;
         }
+        
+        console.log(`💰 [useVehicleBookings] Calcul combiné: ${rentalDays} jours (${priceCalculation.daysPrice} FCFA) + ${rentalHours || 0} heures (${hoursPrice} FCFA) = ${priceCalculation.totalBeforeDiscount} FCFA, réduction: ${discountAmount} FCFA, total: ${basePrice} FCFA`);
       }
       
       // Calculer les frais de service (10% + TVA du prix après réduction pour les véhicules)
@@ -258,6 +276,11 @@ export const useVehicleBookings = () => {
       } else {
         bookingInsert.rental_days = rentalDays;
         bookingInsert.daily_rate = dailyRate;
+        // Ajouter rental_hours si il y a des heures restantes
+        if (rentalHours && rentalHours > 0) {
+          bookingInsert.rental_hours = rentalHours;
+          bookingInsert.hourly_rate = hourlyRate || vehicle.price_per_hour || 0;
+        }
         bookingInsert.discount_applied = discountApplied;
         bookingInsert.discount_amount = discountAmount;
         bookingInsert.original_total = originalTotal;
@@ -350,8 +373,12 @@ export const useVehicleBookings = () => {
               ownerPhone: ownerProfile?.phone || '',
               startDate: bookingData.startDate,
               endDate: bookingData.endDate,
+              startDateTime: bookingData.startDateTime,
+              endDateTime: bookingData.endDateTime,
               rentalDays: rentalDays,
+              rentalHours: rentalHours || 0,
               dailyRate: booking.daily_rate || vehicle?.price_per_day || 0,
+              hourlyRate: hourlyRate || vehicle?.price_per_hour || 0,
               basePrice: basePrice, // Prix après réduction (pour calculer le revenu net)
               totalPrice: totalPrice,
               ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
@@ -359,7 +386,7 @@ export const useVehicleBookings = () => {
               pickupLocation: bookingData.pickupLocation || '',
               isInstantBooking: true,
               paymentMethod: bookingData.paymentMethod || booking.payment_method || '',
-              discountAmount: pricing.discountAmount || 0, // Montant de la réduction
+              discountAmount: discountAmount || 0, // Montant de la réduction
               vehicleDiscountEnabled: vehicle.discount_enabled || false,
               vehicleDiscountMinDays: vehicle.discount_min_days || null,
               vehicleDiscountPercentage: vehicle.discount_percentage || null,
@@ -426,8 +453,12 @@ export const useVehicleBookings = () => {
               ownerPhone: ownerProfile?.phone || '',
               startDate: bookingData.startDate,
               endDate: bookingData.endDate,
+              startDateTime: bookingData.startDateTime,
+              endDateTime: bookingData.endDateTime,
               rentalDays: rentalDays,
+              rentalHours: rentalHours || 0,
               dailyRate: booking.daily_rate || vehicle?.price_per_day || 0,
+              hourlyRate: hourlyRate || vehicle?.price_per_hour || 0,
               basePrice: basePrice, // Prix après réduction (pour calculer le revenu net)
               totalPrice: totalPrice,
               ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
@@ -436,6 +467,13 @@ export const useVehicleBookings = () => {
               message: bookingData.messageToOwner || '',
               isInstantBooking: false,
               paymentMethod: bookingData.paymentMethod || booking.payment_method || '',
+              discountAmount: discountAmount || 0, // Montant de la réduction
+              vehicleDiscountEnabled: vehicle.discount_enabled || false,
+              vehicleDiscountMinDays: vehicle.discount_min_days || null,
+              vehicleDiscountPercentage: vehicle.discount_percentage || null,
+              vehicleLongStayDiscountEnabled: vehicle.long_stay_discount_enabled || false,
+              vehicleLongStayDiscountMinDays: vehicle.long_stay_discount_min_days || null,
+              vehicleLongStayDiscountPercentage: vehicle.long_stay_discount_percentage || null,
             };
             
             console.log('📧 [useVehicleBookings] Email data envoyé:', {
@@ -754,7 +792,9 @@ export const useVehicleBookings = () => {
             startDate: formatDate(booking.start_date),
             endDate: formatDate(booking.end_date),
             rentalDays: booking.rental_days,
+            rentalHours: booking.rental_hours || 0,
             dailyRate: booking.daily_rate,
+            hourlyRate: booking.hourly_rate || vehicle?.price_per_hour || 0,
             basePrice: calculatedBasePrice, // Prix après réduction (calculé à partir de totalPrice)
             totalPrice: booking.total_price,
             ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire

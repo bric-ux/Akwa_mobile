@@ -22,10 +22,12 @@ interface VehicleModificationRequest {
   original_start_date: string;
   original_end_date: string;
   original_rental_days: number;
+  original_rental_hours?: number;
   original_total_price: number;
   requested_start_date: string;
   requested_end_date: string;
   requested_rental_days: number;
+  requested_rental_hours?: number;
   requested_total_price: number;
   renter_message: string | null;
   status: string;
@@ -115,12 +117,14 @@ const HostVehicleModificationRequestCard: React.FC<HostVehicleModificationReques
             <View style={styles.changeContent}>
               <Text style={styles.originalValue}>
                 {formatDate(request.original_start_date)} - {formatDate(request.original_end_date)}
-                {' '}({request.original_rental_days} jour{request.original_rental_days > 1 ? 's' : ''})
+                {' '}({request.original_rental_days} jour{request.original_rental_days > 1 ? 's' : ''}
+                {request.original_rental_hours && request.original_rental_hours > 0 && ` et ${request.original_rental_hours} heure${request.original_rental_hours > 1 ? 's' : ''}`})
               </Text>
               <Ionicons name="arrow-forward" size={16} color="#2E7D32" style={styles.arrow} />
               <Text style={styles.requestedValue}>
                 {formatDate(request.requested_start_date)} - {formatDate(request.requested_end_date)}
-                {' '}({request.requested_rental_days} jour{request.requested_rental_days > 1 ? 's' : ''})
+                {' '}({request.requested_rental_days} jour{request.requested_rental_days > 1 ? 's' : ''}
+                {request.requested_rental_hours && request.requested_rental_hours > 0 && ` et ${request.requested_rental_hours} heure${request.requested_rental_hours > 1 ? 's' : ''}`})
               </Text>
             </View>
           </View>

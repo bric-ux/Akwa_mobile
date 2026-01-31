@@ -162,15 +162,17 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const daysPrice = (booking.daily_rate || 0) * rentalDays;
   
   // Calculer le prix des heures supplémentaires si applicable
+  // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
+  const hourlyRate = booking.hourly_rate || booking.vehicle?.price_per_hour || 0;
   let hoursPrice = 0;
-  if (rentalHours > 0 && booking.vehicle?.hourly_rental_enabled && booking.vehicle?.price_per_hour) {
-    hoursPrice = rentalHours * booking.vehicle.price_per_hour;
+  if (rentalHours > 0 && hourlyRate > 0) {
+    hoursPrice = rentalHours * hourlyRate;
   }
   
   // Prix de base = prix des jours + prix des heures
   const basePrice = daysPrice + hoursPrice;
   
-  // Appliquer la réduction si elle existe (sur le prix des jours uniquement)
+  // Appliquer la réduction si elle existe (sur le total : jours + heures)
   const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
   const renterServiceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
   // Commission de 2% sur le prix APRÈS réduction
@@ -519,6 +521,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                     status: booking.status,
                     rental_days: booking.rental_days, // Passer rental_days pour le calcul correct
                     rental_hours: booking.rental_hours || 0, // Passer rental_hours pour l'affichage
+                    hourly_rate: booking.hourly_rate || 0, // Passer hourly_rate de la réservation
                     vehicle: {
                       rules: booking.vehicle?.rules || [],
                       discount_enabled: booking.vehicle?.discount_enabled,

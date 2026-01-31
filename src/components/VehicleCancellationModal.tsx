@@ -89,8 +89,20 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
     // Vérifier si la réservation est en cours
     const isInProgress = startDateNormalized <= today && today <= endDateNormalized;
     
-    const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
-    const dailyRate = booking.daily_rate || (basePrice / (booking.rental_days || 1));
+    // Calculer le prix des jours
+    const rentalDays = booking.rental_days || 0;
+    const rentalHours = booking.rental_hours || 0;
+    const daysPrice = (booking.daily_rate || 0) * rentalDays;
+    
+    // Calculer le prix des heures supplémentaires si applicable
+    let hoursPrice = 0;
+    if (rentalHours > 0 && booking.vehicle?.hourly_rental_enabled && booking.vehicle?.price_per_hour) {
+      hoursPrice = rentalHours * booking.vehicle.price_per_hour;
+    }
+    
+    // Prix de base = prix des jours + prix des heures
+    const basePrice = daysPrice + hoursPrice;
+    const dailyRate = booking.daily_rate || (daysPrice / (rentalDays || 1));
 
     if (isInProgress) {
       // Annulation EN COURS de location

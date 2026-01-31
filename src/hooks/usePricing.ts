@@ -189,6 +189,74 @@ export function calculateHostCommission(
 /**
  * Calcule le prix total final avec tous les frais
  */
+/**
+ * Calcule le prix total d'une réservation de véhicule avec heures et réductions
+ * Cette fonction centralise le calcul pour garantir la cohérence partout
+ * @param dailyRate - Prix par jour
+ * @param rentalDays - Nombre de jours
+ * @param rentalHours - Nombre d'heures supplémentaires (optionnel)
+ * @param hourlyRate - Prix par heure (optionnel)
+ * @param discountConfig - Configuration de réduction normale
+ * @param longStayDiscountConfig - Configuration de réduction long séjour (optionnel)
+ * @returns Objet avec tous les prix calculés
+ */
+export function calculateVehiclePriceWithHours(
+  dailyRate: number,
+  rentalDays: number,
+  rentalHours: number = 0,
+  hourlyRate: number = 0,
+  discountConfig: DiscountConfig,
+  longStayDiscountConfig?: DiscountConfig
+): {
+  daysPrice: number; // Prix des jours (sans réduction)
+  hoursPrice: number; // Prix des heures
+  totalBeforeDiscount: number; // Total avant réduction (jours + heures)
+  discountPercentage: number; // Pourcentage de réduction calculé
+  discountAmount: number; // Montant de la réduction (appliqué sur le total)
+  basePrice: number; // Prix après réduction (jours + heures - réduction)
+  originalTotal: number; // Prix original total (jours + heures)
+  discountApplied: boolean; // Si une réduction a été appliquée
+  discountType?: 'normal' | 'long_stay'; // Type de réduction
+} {
+  // 1. Calculer le prix des jours (sans réduction)
+  const daysPrice = dailyRate * rentalDays;
+  
+  // 2. Calculer le prix des heures supplémentaires si applicable
+  const hoursPrice = (rentalHours > 0 && hourlyRate > 0) ? rentalHours * hourlyRate : 0;
+  
+  // 3. Calculer le total avant réduction
+  const totalBeforeDiscount = daysPrice + hoursPrice;
+  const originalTotal = totalBeforeDiscount;
+  
+  // 4. Calculer la réduction sur les jours uniquement (pour obtenir le pourcentage)
+  const pricing = calculateTotalPrice(dailyRate, rentalDays, discountConfig, longStayDiscountConfig);
+  
+  // 5. Calculer le pourcentage de réduction
+  const discountPercentage = pricing.originalTotal > 0 && pricing.discountAmount > 0
+    ? pricing.discountAmount / pricing.originalTotal
+    : 0;
+  
+  // 6. Appliquer le même pourcentage sur le total (jours + heures)
+  const discountAmount = discountPercentage > 0
+    ? Math.round(totalBeforeDiscount * discountPercentage)
+    : 0;
+  
+  // 7. Calculer le prix après réduction
+  const basePrice = totalBeforeDiscount - discountAmount;
+  
+  return {
+    daysPrice,
+    hoursPrice,
+    totalBeforeDiscount,
+    discountPercentage,
+    discountAmount,
+    basePrice,
+    originalTotal,
+    discountApplied: pricing.discountApplied,
+    discountType: pricing.discountType
+  };
+}
+
 export function calculateFinalPrice(
   basePrice: number,
   nights: number,

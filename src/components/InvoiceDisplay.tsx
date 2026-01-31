@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Modal, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getCommissionRates, type ServiceType } from '../lib/commissions';
-import { calculateTotalPrice, calculateHostCommission, type DiscountConfig } from '../hooks/usePricing';
+import { calculateTotalPrice, calculateHostCommission, calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import akwaHomeLogo from '../../assets/images/akwahome_logo.png';
@@ -354,8 +354,18 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   // Pour les véhicules, calculer le prix des heures supplémentaires si applicable
   let hoursPrice = 0;
   const rentalHours = serviceType === 'vehicle' ? ((booking as any).rental_hours || 0) : 0;
-  if (serviceType === 'vehicle' && rentalHours > 0 && (booking as any).vehicle?.hourly_rental_enabled && (booking as any).vehicle?.price_per_hour) {
-    hoursPrice = rentalHours * (booking as any).vehicle.price_per_hour;
+  // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
+  const hourlyRate = serviceType === 'vehicle' 
+    ? ((booking as any).hourly_rate || (booking as any).hourlyRate || (booking as any).vehicle?.price_per_hour || 0)
+    : 0;
+  console.log(`🔍 [InvoiceDisplay] rental_hours: ${rentalHours}, hourly_rate: ${hourlyRate}, vehicle:`, {
+    hourly_rental_enabled: (booking as any).vehicle?.hourly_rental_enabled,
+    price_per_hour: (booking as any).vehicle?.price_per_hour,
+    booking_hourly_rate: (booking as any).hourly_rate
+  });
+  if (serviceType === 'vehicle' && rentalHours > 0 && hourlyRate > 0) {
+    hoursPrice = rentalHours * hourlyRate;
+    console.log(`💰 [InvoiceDisplay] Calcul prix heures: ${rentalHours}h × ${hourlyRate} = ${hoursPrice}`);
   }
   
   // Prix de base = prix des jours + prix des heures
@@ -403,9 +413,21 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       } : undefined;
       
       try {
-        // La réduction s'applique uniquement sur les jours, pas sur les heures
-        const pricing = calculateTotalPrice(pricePerUnit, nights, discountConfig, longStayDiscountConfig);
-        discountAmount = pricing.discountAmount || 0;
+        // Utiliser la fonction centralisée pour calculer la réduction sur le total (jours + heures)
+        // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
+        const hourlyRateValue = (rentalHours > 0 && hourlyRate > 0)
+          ? hourlyRate
+          : 0;
+        
+        const priceCalculation = calculateVehiclePriceWithHours(
+          pricePerUnit,
+          nights,
+          rentalHours,
+          hourlyRateValue,
+          discountConfig,
+          longStayDiscountConfig
+        );
+        discountAmount = priceCalculation.discountAmount;
       } catch (error) {
         console.error('Erreur lors du calcul de la réduction véhicule dans InvoiceDisplay:', error);
         // En cas d'erreur, utiliser la valeur stockée
@@ -420,12 +442,10 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     discountAmount = booking.discount_amount || 0;
   }
   
-  // Prix après réduction : la réduction s'applique uniquement sur les jours, pas sur les heures
-  // Pour les véhicules : (prix_jours - réduction) + prix_heures
+  // Prix après réduction : la réduction s'applique sur le total (jours + heures)
+  // Pour les véhicules : (prix_jours + prix_heures) - réduction
   // Pour les propriétés : prix_total - réduction (comme avant)
-  const priceAfterDiscount = serviceType === 'vehicle' && hoursPrice > 0
-    ? (daysPrice - discountAmount) + hoursPrice
-    : basePrice - discountAmount;
+  const priceAfterDiscount = basePrice - discountAmount;
   const actualDiscountAmount = discountAmount;
   const effectiveTaxes = providedTaxes !== undefined 
     ? providedTaxes 
@@ -569,7 +589,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           startDate: checkIn,
           endDate: checkOut,
           rentalDays: nights,
+          rentalHours: rentalHours,
           dailyRate: pricePerUnit,
+          hourlyRate: hourlyRate,
           basePrice: priceAfterDiscount,
           totalPrice: totalPaidByTraveler,
           discountAmount: actualDiscountAmount,
@@ -729,11 +751,15 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
               </View>
             )}
             
-            {serviceType === 'vehicle' && approvedModification.original_rental_days !== approvedModification.requested_rental_days && (
+            {serviceType === 'vehicle' && (approvedModification.original_rental_days !== approvedModification.requested_rental_days || (approvedModification.original_rental_hours || 0) !== (approvedModification.requested_rental_hours || 0)) && (
               <View style={styles.extensionRow}>
                 <Text style={styles.extensionLabel}>Durée de location:</Text>
                 <Text style={styles.extensionValue}>
-                  {String(approvedModification.original_rental_days || 0)} jour{approvedModification.original_rental_days > 1 ? 's' : ''} → {String(approvedModification.requested_rental_days || 0)} jour{approvedModification.requested_rental_days > 1 ? 's' : ''}
+                  {String(approvedModification.original_rental_days || 0)} jour{approvedModification.original_rental_days > 1 ? 's' : ''}
+                  {approvedModification.original_rental_hours && approvedModification.original_rental_hours > 0 && ` et ${approvedModification.original_rental_hours} heure${approvedModification.original_rental_hours > 1 ? 's' : ''}`}
+                  {' → '}
+                  {String(approvedModification.requested_rental_days || 0)} jour{approvedModification.requested_rental_days > 1 ? 's' : ''}
+                  {approvedModification.requested_rental_hours && approvedModification.requested_rental_hours > 0 && ` et ${approvedModification.requested_rental_hours} heure${approvedModification.requested_rental_hours > 1 ? 's' : ''}`}
                 </Text>
               </View>
             )}
@@ -791,22 +817,40 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         <View style={styles.financialSection}>
           <Text style={styles.financialTitle}>Détails du paiement</Text>
           
-          {/* Prix initial */}
+          {/* Prix des jours */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'}
-              {serviceType === 'vehicle' && rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`})
+              {String(nights)} {serviceType === 'property' ? 'nuit' : 'jour'}{nights > 1 ? 's' : ''} × {formatPriceFCFA(pricePerUnit)}/{serviceType === 'property' ? 'nuit' : 'jour'}
             </Text>
-            <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
+            <Text style={styles.financialValue}>{formatPriceFCFA(daysPrice)}</Text>
           </View>
           
           {/* Prix des heures supplémentaires pour les véhicules */}
-          {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && (booking as any).vehicle?.price_per_hour && (
+          {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && hourlyRate > 0 && (
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>
-                Prix des heures supplémentaires ({rentalHours} h × {formatPriceFCFA((booking as any).vehicle.price_per_hour)}/h)
+                {rentalHours} heure{rentalHours > 1 ? 's' : ''} × {formatPriceFCFA(hourlyRate)}/h
               </Text>
               <Text style={styles.financialValue}>{formatPriceFCFA(hoursPrice)}</Text>
+            </View>
+          )}
+          
+          {/* Total avant réduction */}
+          {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>
+                Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'}
+                {serviceType === 'vehicle' && rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`})
+              </Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
+            </View>
+          )}
+          {(!serviceType || serviceType !== 'vehicle' || rentalHours === 0 || hoursPrice === 0) && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>
+                Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'})
+              </Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
             </View>
           )}
 
@@ -909,22 +953,40 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Détails du paiement du voyageur/locataire */}
           <Text style={styles.financialTitle}>Détails du paiement {serviceType === 'property' ? 'du voyageur' : 'du locataire'}</Text>
           
-          {/* Prix initial */}
+          {/* Prix des jours */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'}
-              {serviceType === 'vehicle' && rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`})
+              {String(nights)} {serviceType === 'property' ? 'nuit' : 'jour'}{nights > 1 ? 's' : ''} × {formatPriceFCFA(pricePerUnit)}/{serviceType === 'property' ? 'nuit' : 'jour'}
             </Text>
-            <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
+            <Text style={styles.financialValue}>{formatPriceFCFA(daysPrice)}</Text>
           </View>
           
           {/* Prix des heures supplémentaires pour les véhicules */}
-          {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && (booking as any).vehicle?.price_per_hour && (
+          {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && hourlyRate > 0 && (
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>
-                Prix des heures supplémentaires ({rentalHours} h × {formatPriceFCFA((booking as any).vehicle.price_per_hour)}/h)
+                {rentalHours} heure{rentalHours > 1 ? 's' : ''} × {formatPriceFCFA(hourlyRate)}/h
               </Text>
               <Text style={styles.financialValue}>{formatPriceFCFA(hoursPrice)}</Text>
+            </View>
+          )}
+          
+          {/* Total avant réduction */}
+          {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>
+                Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'}
+                {serviceType === 'vehicle' && rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`})
+              </Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
+            </View>
+          )}
+          {(!serviceType || serviceType !== 'vehicle' || rentalHours === 0 || hoursPrice === 0) && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>
+                Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'})
+              </Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
             </View>
           )}
 
