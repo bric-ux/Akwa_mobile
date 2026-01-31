@@ -302,12 +302,22 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               </View>
               <View style={styles.dateGrid}>
                 <View style={styles.dateItem}>
-                  <Text style={styles.dateLabel}>Début</Text>
+                  <Text style={styles.dateLabel}>Prise du véhicule</Text>
                   <Text style={styles.dateValue}>{formatDate(booking.start_date)}</Text>
+                  {booking.start_datetime && (
+                    <Text style={[styles.dateValue, { fontSize: 12, color: '#666', marginTop: 2 }]}>
+                      {new Date(booking.start_datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  )}
                 </View>
                 <View style={styles.dateItem}>
-                  <Text style={styles.dateLabel}>Fin</Text>
+                  <Text style={styles.dateLabel}>Rendu du véhicule</Text>
                   <Text style={styles.dateValue}>{formatDate(booking.end_date)}</Text>
+                  {booking.end_datetime && (
+                    <Text style={[styles.dateValue, { fontSize: 12, color: '#666', marginTop: 2 }]}>
+                      {new Date(booking.end_datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  )}
                 </View>
               </View>
               <View style={styles.separator} />

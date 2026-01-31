@@ -7,7 +7,9 @@ import {
   Modal,
   Platform,
   ScrollView,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -27,19 +29,56 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   const [showModal, setShowModal] = useState(false);
   const [pickingField, setPickingField] = useState<'startDate' | 'startTime' | 'endDate' | 'endTime' | null>(null);
   
-  // États temporaires
-  const [tempStartDate, setTempStartDate] = useState<Date>(
-    startDateTime ? new Date(startDateTime) : new Date()
-  );
-  const [tempStartTime, setTempStartTime] = useState<Date>(
-    startDateTime ? new Date(startDateTime) : new Date()
-  );
-  const [tempEndDate, setTempEndDate] = useState<Date>(
-    endDateTime ? new Date(endDateTime) : new Date()
-  );
-  const [tempEndTime, setTempEndTime] = useState<Date>(
-    endDateTime ? new Date(endDateTime) : new Date()
-  );
+  // Fonction pour créer une date avec une heure par défaut
+  const createDefaultDateTime = (date: Date, defaultHour: number, defaultMinute: number = 0): Date => {
+    const newDate = new Date(date);
+    newDate.setHours(defaultHour, defaultMinute, 0, 0);
+    return newDate;
+  };
+
+  // États temporaires - initialiser avec des heures par défaut (09:00 et 18:00)
+  const getInitialStartDate = (): Date => {
+    if (startDateTime) {
+      return new Date(startDateTime);
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  };
+
+  const getInitialStartTime = (): Date => {
+    if (startDateTime) {
+      return new Date(startDateTime);
+    }
+    const now = new Date();
+    const defaultTime = new Date(now);
+    defaultTime.setHours(9, 0, 0, 0); // 09:00 par défaut
+    return defaultTime;
+  };
+
+  const getInitialEndDate = (): Date => {
+    if (endDateTime) {
+      return new Date(endDateTime);
+    }
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    return tomorrow;
+  };
+
+  const getInitialEndTime = (): Date => {
+    if (endDateTime) {
+      return new Date(endDateTime);
+    }
+    const defaultTime = new Date();
+    defaultTime.setHours(18, 0, 0, 0); // 18:00 par défaut
+    return defaultTime;
+  };
+
+  const [tempStartDate, setTempStartDate] = useState<Date>(getInitialStartDate());
+  const [tempStartTime, setTempStartTime] = useState<Date>(getInitialStartTime());
+  const [tempEndDate, setTempEndDate] = useState<Date>(getInitialEndDate());
+  const [tempEndTime, setTempEndTime] = useState<Date>(getInitialEndTime());
 
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('fr-FR', {
@@ -240,34 +279,19 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   const handleCancel = () => {
     setShowModal(false);
     setPickingField(null);
-    // Réinitialiser les valeurs temporaires
-    if (startDateTime) {
-      const start = new Date(startDateTime);
-      setTempStartDate(start);
-      setTempStartTime(start);
-    }
-    if (endDateTime) {
-      const end = new Date(endDateTime);
-      setTempEndDate(end);
-      setTempEndTime(end);
-    }
-  };
-
-  const openModal = () => {
-    // Initialiser les valeurs temporaires
+    // Réinitialiser les valeurs temporaires avec les valeurs par défaut
     if (startDateTime) {
       const start = new Date(startDateTime);
       setTempStartDate(start);
       setTempStartTime(start);
     } else {
-      const now = new Date();
-      setTempStartDate(now);
-      const minTime = new Date(now);
-      minTime.setHours(minTime.getHours() + 1);
-      minTime.setMinutes(0);
-      setTempStartTime(minTime);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      setTempStartDate(today);
+      const defaultStartTime = new Date(today);
+      defaultStartTime.setHours(9, 0, 0, 0);
+      setTempStartTime(defaultStartTime);
     }
-    
     if (endDateTime) {
       const end = new Date(endDateTime);
       setTempEndDate(end);
@@ -276,9 +300,42 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       const endDate = new Date(tempStartDate);
       endDate.setDate(endDate.getDate() + 1);
       setTempEndDate(endDate);
-      const endTime = new Date(endDate);
-      endTime.setHours(8, 0, 0, 0);
-      setTempEndTime(endTime);
+      const defaultEndTime = new Date(endDate);
+      defaultEndTime.setHours(18, 0, 0, 0);
+      setTempEndTime(defaultEndTime);
+    }
+  };
+
+  const openModal = () => {
+    // Initialiser les valeurs temporaires avec des valeurs par défaut cohérentes
+    if (startDateTime) {
+      const start = new Date(startDateTime);
+      setTempStartDate(start);
+      setTempStartTime(start);
+    } else {
+      // Date de début : aujourd'hui
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      setTempStartDate(today);
+      // Heure par défaut : 09:00 (au lieu de l'heure actuelle)
+      const defaultStartTime = new Date(today);
+      defaultStartTime.setHours(9, 0, 0, 0);
+      setTempStartTime(defaultStartTime);
+    }
+    
+    if (endDateTime) {
+      const end = new Date(endDateTime);
+      setTempEndDate(end);
+      setTempEndTime(end);
+    } else {
+      // Date de fin : jour suivant la date de début
+      const endDate = new Date(tempStartDate);
+      endDate.setDate(endDate.getDate() + 1);
+      setTempEndDate(endDate);
+      // Heure par défaut : 18:00
+      const defaultEndTime = new Date(endDate);
+      defaultEndTime.setHours(18, 0, 0, 0);
+      setTempEndTime(defaultEndTime);
     }
     
     setShowModal(true);
@@ -384,9 +441,11 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
         transparent
         animationType="slide"
         onRequestClose={handleCancel}
+        statusBarTranslucent={true}
       >
+        <StatusBar backgroundColor="rgba(0, 0, 0, 0.5)" barStyle="light-content" />
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <SafeAreaView style={styles.modalContent} edges={['top', 'bottom']}>
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={handleCancel}>
                 <Text style={styles.cancelButton}>Annuler</Text>
@@ -489,7 +548,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
                 />
               </View>
             )}
-          </View>
+          </SafeAreaView>
         </View>
       </Modal>
 

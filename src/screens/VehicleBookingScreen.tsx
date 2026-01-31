@@ -23,7 +23,7 @@ import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import { useVehicleAvailabilityCalendar } from '../hooks/useVehicleAvailabilityCalendar';
 import { formatPrice } from '../utils/priceCalculator';
-import DateGuestsSelector from '../components/DateGuestsSelector';
+import { VehicleDateTimeSelector } from '../components/VehicleDateTimeSelector';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { calculateTotalPrice, calculateFees, DiscountConfig } from '../hooks/usePricing';
 import { getCommissionRates } from '../lib/commissions';
@@ -48,6 +48,8 @@ const VehicleBookingScreen: React.FC = () => {
   const [loadingVehicle, setLoadingVehicle] = useState(true);
   const [startDate, setStartDate] = useState<string>(searchDates.checkIn || '');
   const [endDate, setEndDate] = useState<string>(searchDates.checkOut || '');
+  const [startDateTime, setStartDateTime] = useState<string | undefined>(undefined);
+  const [endDateTime, setEndDateTime] = useState<string | undefined>(undefined);
   const [message, setMessage] = useState('');
   const [hasLicense, setHasLicense] = useState(false);
   const [licenseYears, setLicenseYears] = useState('');
@@ -125,12 +127,37 @@ const VehicleBookingScreen: React.FC = () => {
     }
     // Sauvegarder les dates dans le contexte
     saveSearchDates({
-      checkIn: dates.checkIn,
-      checkOut: dates.checkOut,
+      checkIn: dates.checkIn || startDate,
+      checkOut: dates.checkOut || endDate,
       adults: guests.adults,
       children: guests.children,
       babies: guests.babies,
     });
+  };
+
+  const handleDateTimeChange = (start: string | undefined, end: string | undefined) => {
+    if (start) {
+      const startDateObj = new Date(start);
+      setStartDate(startDateObj.toISOString().split('T')[0]);
+      setStartDateTime(start);
+    }
+    if (end) {
+      const endDateObj = new Date(end);
+      setEndDate(endDateObj.toISOString().split('T')[0]);
+      setEndDateTime(end);
+    }
+    // Sauvegarder les dates dans le contexte
+    if (start && end) {
+      const startDateObj = new Date(start);
+      const endDateObj = new Date(end);
+      saveSearchDates({
+        checkIn: startDateObj.toISOString().split('T')[0],
+        checkOut: endDateObj.toISOString().split('T')[0],
+        adults: 1,
+        children: 0,
+        babies: 0,
+      });
+    }
   };
 
   // Fonction pour uploader le document du permis
@@ -389,6 +416,8 @@ const VehicleBookingScreen: React.FC = () => {
         vehicleId: vehicle.id,
         startDate: startDateStr,
         endDate: endDateStr,
+        startDateTime: startDateTime,
+        endDateTime: endDateTime,
         messageToOwner: message.trim() || undefined,
         licenseDocumentUrl: licenseDocumentUrl || undefined,
         hasLicense: isLicenseRequired ? hasLicense : undefined,
@@ -564,16 +593,11 @@ const VehicleBookingScreen: React.FC = () => {
 
         {/* Dates */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dates de location</Text>
-          <DateGuestsSelector
-            checkIn={startDate}
-            checkOut={endDate}
-            adults={1}
-            children={0}
-            babies={0}
-            onDateGuestsChange={handleDateGuestsChange}
-            isDateUnavailable={isDateUnavailable}
-            isDateRangeUnavailable={isDateRangeUnavailable}
+          <Text style={styles.sectionTitle}>Dates et heures de location</Text>
+          <VehicleDateTimeSelector
+            startDateTime={startDateTime}
+            endDateTime={endDateTime}
+            onDateTimeChange={handleDateTimeChange}
           />
           {rentalDays > 0 ? (
             <Text style={styles.rentalDaysText}>
