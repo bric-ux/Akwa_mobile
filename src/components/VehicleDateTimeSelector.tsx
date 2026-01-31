@@ -402,7 +402,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
     return pickingField === 'startDate' || pickingField === 'endDate' ? 'date' : 'time';
   };
 
-  // Calculer la durée
+  // Calculer la durée - utiliser la même logique que lors de la création de la réservation
   const startFull = new Date(tempStartDate);
   startFull.setHours(tempStartTime.getHours());
   startFull.setMinutes(tempStartTime.getMinutes());
@@ -410,9 +410,32 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   endFull.setHours(tempEndTime.getHours());
   endFull.setMinutes(tempEndTime.getMinutes());
   const totalHours = Math.ceil((endFull.getTime() - startFull.getTime()) / (1000 * 60 * 60));
-  // Calculer les jours complets (floor) et les heures restantes
-  const diffDays = Math.floor(totalHours / 24);
-  const diffHours = totalHours % 24;
+  
+  // Calculer les jours complets à partir des heures totales
+  const fullDaysFromHours = Math.floor(totalHours / 24);
+  
+  // Calculer le nombre de jours selon les dates (pour validation et affichage)
+  // Utiliser la même logique que lors de la création de la réservation
+  let rentalDaysFromDates = 1;
+  const startDateOnly = new Date(tempStartDate);
+  startDateOnly.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(tempEndDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  
+  if (startDateOnly.getTime() !== endDateOnly.getTime()) {
+    const diffTimeDays = endDateOnly.getTime() - startDateOnly.getTime();
+    const diffDays = Math.ceil(diffTimeDays / (1000 * 60 * 60 * 24));
+    rentalDaysFromDates = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
+  }
+  
+  // Utiliser le maximum entre les deux pour être sûr d'avoir le bon nombre de jours
+  // C'est la même logique que dans useVehicleBookings.ts
+  const diffDays = Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates);
+  
+  // Calculer les heures restantes : durée totale - (jours complets × 24 heures)
+  // Utiliser fullDaysFromHours pour le calcul des heures, pas diffDays
+  const hoursInFullDays = fullDaysFromHours * 24;
+  const diffHours = totalHours - hoursInFullDays;
 
   return (
     <View style={styles.container}>

@@ -296,7 +296,14 @@ const VehicleBookingDetailsScreen: React.FC = () => {
 
   const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed';
   const commissionRates = getCommissionRates('vehicle');
-  const basePrice = booking.daily_rate * booking.rental_days;
+  
+  // Calculer le prix en tenant compte des heures
+  const rentalDays = booking.rental_days || 0;
+  const rentalHours = booking.rental_hours || 0;
+  const daysPrice = (booking.daily_rate || 0) * rentalDays;
+  const hourlyRate = booking.hourly_rate || booking.vehicle?.price_per_hour || 0;
+  const hoursPrice = rentalHours > 0 && hourlyRate > 0 ? rentalHours * hourlyRate : 0;
+  const basePrice = daysPrice + hoursPrice - (booking.discount_amount || 0); // Prix après réduction
   const renterServiceFee = Math.round(basePrice * (commissionRates.travelerFeePercent / 100));
 
   return (

@@ -16,6 +16,7 @@ import { VehicleBooking } from '../types';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import { VehicleDateTimeSelector } from './VehicleDateTimeSelector';
 import { formatPrice } from '../utils/priceCalculator';
+import { calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
 
 interface VehicleModificationModalProps {
   visible: boolean;
@@ -40,6 +41,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 
   useEffect(() => {
     if (booking && visible) {
+      // Pré-remplir avec les dates/heures actuelles de la réservation
       setStartDate(booking.start_date);
       setEndDate(booking.end_date);
       setStartDateTime(booking.start_datetime);
@@ -53,58 +55,215 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const vehicle = booking.vehicle;
   const dailyRate = booking.daily_rate || vehicle?.price_per_day || 0;
 
-  const calculateRentalDays = () => {
-    if (!startDate || !endDate) return 0;
-    
-    // Si les dates sont identiques, c'est 1 jour de location
-    if (startDate === endDate) {
-      return 1;
+  // Calculer les heures totales et les heures restantes si applicable
+  // C'est la source de vérité pour déterminer les jours et heures de location
+  const calculateRentalDuration = () => {
+    // Si les datetime sont disponibles, les utiliser pour un calcul précis
+    if (startDateTime && endDateTime) {
+      const start = new Date(startDateTime);
+      const end = new Date(endDateTime);
+      
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        const diffTime = end.getTime() - start.getTime();
+        const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
+        
+        // Calculer les jours complets directement à partir des heures totales
+        const fullDaysFromHours = Math.floor(totalHours / 24);
+        
+        // Calculer le nombre de jours selon les dates (pour validation et affichage)
+        // Utiliser la même logique que lors de la création de la réservation
+        // Extraire les dates des datetime si startDate/endDate ne sont pas disponibles
+        const effectiveStartDate = startDate || start.toISOString().split('T')[0];
+        const effectiveEndDate = endDate || end.toISOString().split('T')[0];
+        
+        let rentalDaysFromDates = 1;
+        if (effectiveStartDate !== effectiveEndDate) {
+          const startDateOnly = new Date(effectiveStartDate + 'T00:00:00');
+          const endDateOnly = new Date(effectiveEndDate + 'T00:00:00');
+          const diffTimeDays = endDateOnly.getTime() - startDateOnly.getTime();
+          const diffDays = Math.ceil(diffTimeDays / (1000 * 60 * 60 * 24));
+          rentalDaysFromDates = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
+        }
+        
+        console.log('🔍 [VehicleModificationModal] Calcul jours:', {
+          totalHours,
+          fullDaysFromHours,
+          effectiveStartDate,
+          effectiveEndDate,
+          rentalDaysFromDates,
+          calculatedRentalDays: Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates)
+        });
+        
+        // Utiliser le maximum entre les deux pour être sûr d'avoir le bon nombre de jours
+        // Mais prioriser fullDaysFromHours si > 0 pour le calcul des heures restantes
+        // C'est la même logique que dans useVehicleBookings.ts
+        const rentalDays = Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates);
+        
+        // Calculer les heures restantes : durée totale - (jours complets × 24 heures)
+        // Utiliser fullDaysFromHours pour le calcul des heures, pas rentalDays
+        const hoursInFullDays = fullDaysFromHours * 24;
+        const remainingHours = totalHours - hoursInFullDays;
+        
+        // Logique de facturation :
+        // - Si moins de 24h : facturer 1 jour minimum (pas d'heures supplémentaires)
+        // - Si 24h ou plus : facturer les jours complets + les heures restantes
+        let finalRentalDays: number;
+        let finalRemainingHours: number;
+        
+        if (totalHours < 24) {
+          // Moins de 24h : facturer 1 jour minimum, pas d'heures supplémentaires
+          finalRentalDays = 1;
+          finalRemainingHours = 0;
+        } else {
+          // 24h ou plus : utiliser rentalDays calculé (max entre fullDaysFromHours et rentalDaysFromDates)
+          // et les heures restantes basées sur fullDaysFromHours
+          finalRentalDays = rentalDays;
+          finalRemainingHours = remainingHours > 0 ? remainingHours : 0;
+        }
+        
+        return { 
+          rentalDays: finalRentalDays, 
+          remainingHours: finalRemainingHours, 
+          totalHours 
+        };
+      }
     }
     
-    // Si les dates sont différentes, calculer la différence
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T00:00:00');
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays + 1; // +1 pour inclure le jour de départ
+    // Si les datetime ne sont pas disponibles, retourner 0 (pas de calcul basé sur les valeurs de la réservation)
+    // L'utilisateur doit sélectionner les nouvelles dates/heures
+    return { rentalDays: 0, remainingHours: 0, totalHours: 0 };
   };
 
-  // Calculer les heures restantes si applicable
-  const calculateRemainingHours = () => {
-    if (!startDateTime || !endDateTime || !vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
-      return 0;
-    }
-    
-    const start = new Date(startDateTime);
-    const end = new Date(endDateTime);
-    
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return 0;
-    }
-    
-    const diffTime = end.getTime() - start.getTime();
-    const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
-    
-    // Calculer les jours complets directement à partir des heures totales
-    const fullDaysFromHours = Math.floor(totalHours / 24);
-    const hoursInFullDays = fullDaysFromHours * 24;
-    const remainingHours = totalHours - hoursInFullDays;
-    
-    return remainingHours > 0 ? remainingHours : 0;
-  };
-
-  const rentalDays = calculateRentalDays();
-  const remainingHours = calculateRemainingHours();
+  const durationCalculation = calculateRentalDuration();
+  const rentalDays = durationCalculation.rentalDays;
+  const remainingHours = durationCalculation.remainingHours;
   
-  // Calculer le prix : jours + heures
+  // Vérifier si les dates/heures ont été modifiées par rapport à la réservation actuelle
+  const hasDatesChanged = startDateTime !== booking.start_datetime || endDateTime !== booking.end_datetime;
+  const hasDurationChanged = rentalDays !== (booking.rental_days || 0) || remainingHours !== (booking.rental_hours || 0);
+  const hasModification = hasDatesChanged || hasDurationChanged;
+  
   // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
   const hourlyRate = booking.hourly_rate || vehicle?.price_per_hour || 0;
-  let daysPrice = dailyRate * rentalDays;
-  let hoursPrice = 0;
-  if (remainingHours > 0 && hourlyRate > 0) {
-    hoursPrice = remainingHours * hourlyRate;
-  }
-  const totalPrice = daysPrice + hoursPrice;
+  
+  // Calculer les valeurs de la réservation actuelle
+  const currentRentalDays = booking.rental_days || 0;
+  const currentRentalHours = booking.rental_hours || 0;
+  const currentDailyRate = booking.daily_rate || vehicle?.price_per_day || 0;
+  const currentHourlyRate = booking.hourly_rate || vehicle?.price_per_hour || 0;
+  const currentDaysPrice = currentDailyRate * currentRentalDays;
+  const currentHoursPrice = currentRentalHours > 0 && currentHourlyRate > 0 ? currentRentalHours * currentHourlyRate : 0;
+  const currentBasePrice = currentDaysPrice + currentHoursPrice;
+  const currentDiscountAmount = booking.discount_amount || 0;
+  const currentPriceAfterDiscount = currentBasePrice - currentDiscountAmount;
+  const currentServiceFee = Math.round(currentPriceAfterDiscount * 0.12); // 10% + 20% TVA = 12%
+  const currentTotalPrice = currentPriceAfterDiscount + currentServiceFee;
+  
+  // Calculer le surplus (différence entre nouvelles et anciennes valeurs)
+  const daysDifference = rentalDays - currentRentalDays;
+  const hoursDifference = remainingHours - currentRentalHours;
+  
+  // Pour le calcul du surplus, utiliser le tarif horaire actuel de la réservation
+  const surplusDaysPrice = daysDifference > 0 ? daysDifference * dailyRate : 0;
+  const surplusHoursPrice = hoursDifference > 0 && currentHourlyRate > 0 ? hoursDifference * currentHourlyRate : 0;
+  const surplusBasePrice = surplusDaysPrice + surplusHoursPrice;
+  
+  // Debug: vérifier le calcul du surplus
+  console.log('🔍 [VehicleModificationModal] Calcul surplus détaillé:', {
+    daysDifference,
+    hoursDifference,
+    dailyRate,
+    currentHourlyRate,
+    vehiclePricePerHour: vehicle?.price_per_hour,
+    surplusDaysPrice,
+    surplusHoursPrice,
+    surplusBasePrice
+  });
+  
+  // Debug: afficher les informations actuelles et le surplus
+  console.log('📊 [VehicleModificationModal] === RÉSERVATION ACTUELLE ===');
+  console.log('📅 Dates actuelles:', {
+    startDate: booking.start_date,
+    endDate: booking.end_date,
+    startDateTime: booking.start_datetime,
+    endDateTime: booking.end_datetime
+  });
+  console.log('⏱️ Durée actuelle:', {
+    rentalDays: currentRentalDays,
+    rentalHours: currentRentalHours,
+    totalHours: (currentRentalDays * 24) + currentRentalHours
+  });
+  console.log('💰 Prix actuel:', {
+    dailyRate: currentDailyRate,
+    hourlyRate: currentHourlyRate,
+    daysPrice: currentDaysPrice,
+    hoursPrice: currentHoursPrice,
+    basePrice: currentBasePrice,
+    discountAmount: currentDiscountAmount,
+    priceAfterDiscount: currentPriceAfterDiscount,
+    serviceFee: currentServiceFee,
+    totalPrice: currentTotalPrice
+  });
+  
+  console.log('📊 [VehicleModificationModal] === NOUVELLES VALEURS ===');
+  console.log('📅 Nouvelles dates:', {
+    startDate,
+    endDate,
+    startDateTime,
+    endDateTime
+  });
+  console.log('⏱️ Nouvelle durée:', {
+    rentalDays,
+    remainingHours,
+    totalHours: durationCalculation.totalHours
+  });
+  
+  console.log('📊 [VehicleModificationModal] === SURPLUS (DIFFÉRENCE) ===');
+  console.log('📈 Différence:', {
+    daysDifference,
+    hoursDifference,
+    totalHoursDifference: (daysDifference * 24) + hoursDifference
+  });
+  console.log('💰 Prix du surplus:', {
+    surplusDaysPrice,
+    surplusHoursPrice,
+    surplusBasePrice
+  });
+  
+  // Configuration des réductions
+  const discountConfig: DiscountConfig = {
+    enabled: vehicle?.discount_enabled || false,
+    minNights: vehicle?.discount_min_days || null,
+    percentage: vehicle?.discount_percentage || null
+  };
+  
+  const longStayDiscountConfig: DiscountConfig | undefined = vehicle?.long_stay_discount_enabled ? {
+    enabled: vehicle.long_stay_discount_enabled || false,
+    minNights: vehicle.long_stay_discount_min_days || null,
+    percentage: vehicle.long_stay_discount_percentage || null
+  } : undefined;
+  
+  // Utiliser la fonction centralisée pour calculer le prix avec heures et réductions
+  const priceCalculation = calculateVehiclePriceWithHours(
+    dailyRate,
+    rentalDays,
+    remainingHours,
+    hourlyRate,
+    discountConfig,
+    longStayDiscountConfig
+  );
+  
+  const daysPrice = priceCalculation.daysPrice;
+  const hoursPrice = priceCalculation.hoursPrice;
+  const basePrice = priceCalculation.basePrice; // Prix après réduction
+  const discountAmount = priceCalculation.discountAmount;
+  
+  // Calculer les frais de service avec TVA (10% + 20% TVA = 12% total)
+  const commissionRates = { travelerFeePercent: 10, hostFeePercent: 2 };
+  const serviceFeeHT = Math.round(basePrice * (commissionRates.travelerFeePercent / 100));
+  const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
+  const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
+  const totalPrice = basePrice + effectiveServiceFee; // Total avec frais de service
 
   const handleDateTimeChange = (start: string | undefined, end: string | undefined) => {
     if (start) {
@@ -160,6 +319,23 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      // Debug: vérifier les données avant envoi
+      console.log('📤 [VehicleModificationModal] Données de modification:', {
+        bookingId: booking.id,
+        requestedStartDate: startDate,
+        requestedEndDate: endDate,
+        requestedStartDateTime: startDateTime,
+        requestedEndDateTime: endDateTime,
+        requestedRentalDays: rentalDays,
+        requestedRentalHours: remainingHours,
+        requestedTotalPrice: totalPrice,
+        daysPrice,
+        hoursPrice,
+        basePrice,
+        discountAmount,
+        effectiveServiceFee
+      });
+      
       const result = await modifyBooking({
         bookingId: booking.id,
         requestedStartDate: startDate,
@@ -231,6 +407,13 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                 </Text>
               </View>
               <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Durée actuelle:</Text>
+                <Text style={styles.infoValue}>
+                  {booking.rental_days || 0} jour{(booking.rental_days || 0) > 1 ? 's' : ''}
+                  {booking.rental_hours && booking.rental_hours > 0 && ` et ${booking.rental_hours} heure${booking.rental_hours > 1 ? 's' : ''}`}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Prix actuel:</Text>
                 <Text style={styles.infoValue}>{formatPrice(booking.total_price || 0)}</Text>
               </View>
@@ -245,7 +428,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                 endDateTime={endDateTime}
                 onDateTimeChange={handleDateTimeChange}
               />
-              {rentalDays > 0 && (
+              {hasModification && rentalDays > 0 && (
                 <View style={styles.summaryBox}>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Durée:</Text>
@@ -255,17 +438,33 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                     </Text>
                   </View>
                   <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Prix par jour:</Text>
-                    <Text style={styles.summaryValue}>{formatPrice(dailyRate)}</Text>
+                    <Text style={styles.summaryLabel}>Prix des jours:</Text>
+                    <Text style={styles.summaryValue}>
+                      {formatPrice(daysPrice)} ({rentalDays} jour{rentalDays > 1 ? 's' : ''} × {formatPrice(dailyRate)})
+                    </Text>
                   </View>
-                  {remainingHours > 0 && hourlyRate > 0 && (
+                  {remainingHours > 0 && hoursPrice > 0 && hourlyRate > 0 && (
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryLabel}>Prix des heures supplémentaires:</Text>
                       <Text style={styles.summaryValue}>
-                        {formatPrice(remainingHours * hourlyRate)} ({remainingHours} h × {formatPrice(hourlyRate)}/h)
+                        {formatPrice(hoursPrice)} ({remainingHours} h × {formatPrice(hourlyRate)}/h)
                       </Text>
                     </View>
                   )}
+                  {discountAmount > 0 && (
+                    <View style={styles.summaryRow}>
+                      <Text style={[styles.summaryLabel, { color: '#059669' }]}>Réduction appliquée:</Text>
+                      <Text style={[styles.summaryValue, { color: '#059669' }]}>-{formatPrice(discountAmount)}</Text>
+                    </View>
+                  )}
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Prix après réduction:</Text>
+                    <Text style={styles.summaryValue}>{formatPrice(basePrice)}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Frais de service (10% + TVA):</Text>
+                    <Text style={styles.summaryValue}>{formatPrice(effectiveServiceFee)}</Text>
+                  </View>
                   <View style={[styles.summaryRow, styles.totalRow]}>
                     <Text style={styles.totalLabel}>Nouveau total:</Text>
                     <Text style={styles.totalValue}>{formatPrice(totalPrice)}</Text>

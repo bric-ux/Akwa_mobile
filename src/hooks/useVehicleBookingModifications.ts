@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Alert } from 'react-native';
+import { calculateHostCommission } from './usePricing';
 
 export interface VehicleBookingModificationData {
   bookingId: string;
@@ -37,6 +38,14 @@ export const useVehicleBookingModifications = () => {
             id,
             owner_id,
             price_per_day,
+            price_per_hour,
+            hourly_rental_enabled,
+            discount_enabled,
+            discount_min_days,
+            discount_percentage,
+            long_stay_discount_enabled,
+            long_stay_discount_min_days,
+            long_stay_discount_percentage,
             title,
             brand,
             model
@@ -126,6 +135,17 @@ export const useVehicleBookingModifications = () => {
           const vehicleTitle = booking.vehicle.title || `${booking.vehicle.brand} ${booking.vehicle.model}`;
           const renterName = `${booking.renter?.first_name || ''} ${booking.renter?.last_name || ''}`.trim();
 
+          // Calculer les revenus nets pour l'email
+          // Pour l'ancien : basePrice = totalPrice / 1.12
+          const oldBasePrice = Math.round((booking.total_price || 0) / 1.12);
+          const oldHostCommissionData = calculateHostCommission(oldBasePrice, 'vehicle');
+          const oldOwnerNetRevenue = oldBasePrice - oldHostCommissionData.hostCommission;
+          
+          // Pour le nouveau : basePrice = totalPrice / 1.12
+          const newBasePrice = Math.round((data.requestedTotalPrice || 0) / 1.12);
+          const newHostCommissionData = calculateHostCommission(newBasePrice, 'vehicle');
+          const newOwnerNetRevenue = newBasePrice - newHostCommissionData.hostCommission;
+
           // Email au propriétaire
           if (ownerProfile.data?.email) {
             await supabase.functions.invoke('send-email', {
@@ -145,7 +165,11 @@ export const useVehicleBookingModifications = () => {
                   newRentalDays: data.requestedRentalDays,
                   newRentalHours: data.requestedRentalHours || 0,
                   oldTotalPrice: booking.total_price,
+                  oldBasePrice: oldBasePrice,
+                  oldOwnerNetRevenue: oldOwnerNetRevenue,
                   newTotalPrice: data.requestedTotalPrice,
+                  newBasePrice: newBasePrice,
+                  newOwnerNetRevenue: newOwnerNetRevenue,
                   message: data.message || null,
                 },
               },
@@ -254,6 +278,17 @@ export const useVehicleBookingModifications = () => {
           ? `${renterProfile.first_name || ''} ${renterProfile.last_name || ''}`.trim() 
           : 'Un locataire';
 
+        // Calculer les revenus nets pour l'email
+        // Pour l'original : basePrice = totalPrice / 1.12
+        const originalBasePrice = Math.round((booking.total_price || 0) / 1.12);
+        const originalHostCommissionData = calculateHostCommission(originalBasePrice, 'vehicle');
+        const originalOwnerNetRevenue = originalBasePrice - originalHostCommissionData.hostCommission;
+        
+        // Pour le demandé : basePrice = totalPrice / 1.12
+        const requestedBasePrice = Math.round((data.requestedTotalPrice || 0) / 1.12);
+        const requestedHostCommissionData = calculateHostCommission(requestedBasePrice, 'vehicle');
+        const requestedOwnerNetRevenue = requestedBasePrice - requestedHostCommissionData.hostCommission;
+
         // Email au propriétaire
         if (ownerProfile?.email) {
           await supabase.functions.invoke('send-email', {
@@ -269,11 +304,15 @@ export const useVehicleBookingModifications = () => {
                 originalDays: booking.rental_days,
                 originalHours: booking.rental_hours || 0,
                 originalPrice: booking.total_price,
+                originalBasePrice: originalBasePrice,
+                originalOwnerNetRevenue: originalOwnerNetRevenue,
                 requestedStartDate: data.requestedStartDate,
                 requestedEndDate: data.requestedEndDate,
                 requestedDays: data.requestedRentalDays,
                 requestedHours: data.requestedRentalHours || 0,
                 requestedPrice: data.requestedTotalPrice,
+                requestedBasePrice: requestedBasePrice,
+                requestedOwnerNetRevenue: requestedOwnerNetRevenue,
                 renterMessage: data.message || null,
                 bookingId: booking.id,
               },
@@ -409,6 +448,8 @@ export const useVehicleBookingModifications = () => {
             vehicle_id,
             renter_id,
             daily_rate,
+            hourly_rate,
+            rental_hours,
             pickup_location,
             security_deposit,
             vehicles(
@@ -418,7 +459,9 @@ export const useVehicleBookingModifications = () => {
               year,
               fuel_type,
               owner_id,
-              price_per_day
+              price_per_day,
+              price_per_hour,
+              hourly_rental_enabled
             ),
             renter:profiles!vehicle_bookings_renter_id_fkey(
               first_name,
@@ -510,10 +553,11 @@ export const useVehicleBookingModifications = () => {
           : 'Propriétaire';
 
         // Calculer le revenu net du propriétaire
-        // totalPrice = basePrice + serviceFee (10% de basePrice)
-        // Donc : basePrice = totalPrice / 1.10
-        const calculatedBasePrice = Math.round((request.requested_total_price || 0) / 1.10);
-        const ownerNetRevenue = calculatedBasePrice - Math.round(calculatedBasePrice * 0.02);
+        // totalPrice = basePrice + serviceFee (10% + 20% TVA = 12% de basePrice)
+        // Donc : basePrice = totalPrice / 1.12
+        const calculatedBasePrice = Math.round((request.requested_total_price || 0) / 1.12);
+        const hostCommissionData = calculateHostCommission(calculatedBasePrice, 'vehicle');
+        const ownerNetRevenue = calculatedBasePrice - hostCommissionData.hostCommission;
         
         const emailData = {
           bookingId: request.booking_id,
@@ -533,7 +577,9 @@ export const useVehicleBookingModifications = () => {
           rentalDays: request.requested_rental_days,
           rentalHours: request.requested_rental_hours || 0,
           dailyRate: bookingData.daily_rate || vehicle.price_per_day || 0,
-          hourlyRate: vehicle.price_per_hour || 0,
+          hourlyRate: request.requested_rental_hours && request.requested_rental_hours > 0 
+            ? (bookingData.hourly_rate || vehicle.price_per_hour || 0)
+            : 0,
           basePrice: calculatedBasePrice, // Prix après réduction (calculé à partir de totalPrice)
           totalPrice: request.requested_total_price,
           ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
