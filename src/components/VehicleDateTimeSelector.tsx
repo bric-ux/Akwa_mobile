@@ -409,8 +409,10 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   const endFull = new Date(tempEndDate);
   endFull.setHours(tempEndTime.getHours());
   endFull.setMinutes(tempEndTime.getMinutes());
-  const diffHours = Math.ceil((endFull.getTime() - startFull.getTime()) / (1000 * 60 * 60));
-  const diffDays = Math.ceil((endFull.getTime() - startFull.getTime()) / (1000 * 60 * 60 * 24));
+  const totalHours = Math.ceil((endFull.getTime() - startFull.getTime()) / (1000 * 60 * 60));
+  // Calculer les jours complets (floor) et les heures restantes
+  const diffDays = Math.floor(totalHours / 24);
+  const diffHours = totalHours % 24;
 
   return (
     <View style={styles.container}>
@@ -426,7 +428,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
                 Rendu: {formatDate(new Date(endDateTime))} à {formatTime(new Date(endDateTime))}
               </Text>
               <Text style={styles.duration}>
-                Durée: {diffDays > 0 ? `${diffDays} jour${diffDays > 1 ? 's' : ''} ` : ''}{diffHours % 24 > 0 ? `${diffHours % 24}h` : ''}
+                Durée: {diffDays > 0 ? `${diffDays} jour${diffDays > 1 ? 's' : ''} ` : ''}{diffHours > 0 ? `${diffHours}h` : ''}
               </Text>
             </>
           ) : (
@@ -528,8 +530,8 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
                 <Text style={styles.previewTitle}>Durée de location</Text>
                 <Text style={styles.previewValue}>
                   {diffDays > 0 && `${diffDays} jour${diffDays > 1 ? 's' : ''} `}
-                  {diffHours % 24 > 0 && `${diffHours % 24} heure${(diffHours % 24) > 1 ? 's' : ''}`}
-                  {diffDays === 0 && diffHours % 24 === 0 && '1 heure'}
+                  {diffHours > 0 && `${diffHours} heure${diffHours > 1 ? 's' : ''}`}
+                  {diffDays === 0 && diffHours === 0 && '1 heure'}
                 </Text>
               </View>
             </ScrollView>

@@ -118,13 +118,20 @@ export const useVehicleBookings = () => {
         }
       } else {
         // Validation pour location par jour
-        // Calculer le nombre de jours (comme sur le site web: différence + 1)
+        // Calculer la durée totale en heures entre start et end datetime
+        const diffTime = end.getTime() - start.getTime();
+        const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
+        
+        // Calculer le nombre de jours complets (comme sur le site web: différence + 1)
         if (startDate !== endDate) {
           const startDateOnly = new Date(startDate + 'T00:00:00');
           const endDateOnly = new Date(endDate + 'T00:00:00');
-          const diffTime = endDateOnly.getTime() - startDateOnly.getTime();
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const diffTimeDays = endDateOnly.getTime() - startDateOnly.getTime();
+          const diffDays = Math.ceil(diffTimeDays / (1000 * 60 * 60 * 24));
           rentalDays = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
+        } else {
+          // Même jour : au moins 1 jour
+          rentalDays = 1;
         }
 
         if (rentalDays < 1) {
@@ -133,6 +140,17 @@ export const useVehicleBookings = () => {
 
         if (rentalDays < (vehicle.minimum_rental_days || 1)) {
           throw new Error(`La location minimum est de ${vehicle.minimum_rental_days || 1} jour(s)`);
+        }
+        
+        // Calculer les heures restantes : durée totale - (jours complets × 24 heures)
+        // Exemple: 13 jours et 2 heures = 314 heures totales - (13 × 24) = 314 - 312 = 2 heures
+        const hoursInFullDays = rentalDays * 24;
+        const remainingHours = totalHours - hoursInFullDays;
+        
+        // Stocker les heures supplémentaires pour le calcul du prix (si > 0)
+        if (remainingHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
+          rentalHours = remainingHours;
+          console.log(`⏱️ [useVehicleBookings] Calcul heures restantes: ${totalHours}h totales - ${hoursInFullDays}h (${rentalDays} jours) = ${remainingHours}h restantes`);
         }
       }
 
@@ -183,12 +201,24 @@ export const useVehicleBookings = () => {
           percentage: vehicle.long_stay_discount_percentage || null
         } : undefined;
         
-        // Calculer le prix avec réductions
+        // Calculer le prix des jours avec réductions
         const pricing = calculateTotalPrice(dailyRate, rentalDays, discountConfig, longStayDiscountConfig);
-        basePrice = pricing.totalPrice; // Prix après réduction
+        let daysPrice = pricing.totalPrice; // Prix des jours après réduction
         discountAmount = pricing.discountAmount || 0;
         discountApplied = pricing.discountApplied || false;
         originalTotal = pricing.originalTotal || (dailyRate * rentalDays);
+        
+        // Ajouter le prix des heures supplémentaires si applicable
+        // Exemple: 13 jours + 2 heures = (13 jours au prix par jour) + (2 heures au prix par heure)
+        if (rentalHours && rentalHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
+          hourlyRate = vehicle.price_per_hour;
+          const hoursPrice = hourlyRate * rentalHours;
+          basePrice = daysPrice + hoursPrice;
+          originalTotal = originalTotal + hoursPrice; // Ajouter les heures au total original
+          console.log(`💰 [useVehicleBookings] Calcul combiné: ${rentalDays} jours (${daysPrice} FCFA) + ${rentalHours} heures (${hoursPrice} FCFA) = ${basePrice} FCFA`);
+        } else {
+          basePrice = daysPrice;
+        }
       }
       
       // Calculer les frais de service (10% + TVA du prix après réduction pour les véhicules)

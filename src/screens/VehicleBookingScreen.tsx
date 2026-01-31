@@ -312,6 +312,53 @@ const VehicleBookingScreen: React.FC = () => {
 
   const rentalDays = calculateRentalDays();
   
+  // Calculer les heures restantes si applicable
+  const calculateRemainingHours = () => {
+    console.log(`🔍 [VehicleBookingScreen] calculateRemainingHours - startDateTime: ${startDateTime}, endDateTime: ${endDateTime}`);
+    console.log(`🔍 [VehicleBookingScreen] calculateRemainingHours - vehicle:`, {
+      hourly_rental_enabled: vehicle?.hourly_rental_enabled,
+      price_per_hour: vehicle?.price_per_hour,
+      rentalDays
+    });
+    
+    if (!startDateTime || !endDateTime) {
+      console.log(`⚠️ [VehicleBookingScreen] Pas de startDateTime ou endDateTime`);
+      return 0;
+    }
+    
+    if (!vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
+      console.log(`⚠️ [VehicleBookingScreen] Véhicule ne supporte pas la location par heure`);
+      return 0;
+    }
+    
+    const start = new Date(startDateTime);
+    const end = new Date(endDateTime);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      console.log(`⚠️ [VehicleBookingScreen] Dates invalides`);
+      return 0;
+    }
+    
+    const diffTime = end.getTime() - start.getTime();
+    const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
+    
+    // Calculer les jours complets directement à partir des heures totales
+    // Exemple: 260 heures = 10 jours complets (10 × 24 = 240h) + 20 heures restantes
+    // Ne pas utiliser rentalDays car il inclut un +1 et est calculé à partir des dates sans heures
+    const fullDaysFromHours = Math.floor(totalHours / 24);
+    const hoursInFullDays = fullDaysFromHours * 24;
+    const remainingHours = totalHours - hoursInFullDays;
+    
+    console.log(`🔍 [VehicleBookingScreen] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}`);
+    
+    return remainingHours > 0 ? remainingHours : 0;
+  };
+  
+  const remainingHours = calculateRemainingHours();
+  
+  // Log pour déboguer
+  console.log(`🔍 [VehicleBookingScreen] Résumé - rentalDays: ${rentalDays}, remainingHours: ${remainingHours}, startDateTime: ${startDateTime}, endDateTime: ${endDateTime}`);
+  
   // Calculer le prix de base par jour (en tenant compte des tarifs hebdomadaires/mensuels)
   const getBasePricePerDay = () => {
     if (!rentalDays || !vehicle) return vehicle?.price_per_day || 0;
@@ -350,8 +397,22 @@ const VehicleBookingScreen: React.FC = () => {
     percentage: vehicle?.long_stay_discount_percentage || null
   } : undefined;
   
+  // Calculer le prix des jours avec réductions
   const pricing = calculateTotalPrice(basePricePerDay, rentalDays, discountConfig, longStayDiscountConfig);
-  const basePrice = pricing.totalPrice; // Prix après réduction
+  let daysPrice = pricing.totalPrice; // Prix des jours après réduction
+  const originalDaysPrice = pricing.originalTotal; // Prix original des jours (avant réduction)
+  
+  // Ajouter le prix des heures restantes si applicable
+  let hoursPrice = 0;
+  if (remainingHours > 0 && vehicle?.hourly_rental_enabled && vehicle?.price_per_hour) {
+    hoursPrice = remainingHours * vehicle.price_per_hour;
+    console.log(`💰 [VehicleBookingScreen] Calcul prix heures: ${remainingHours}h × ${vehicle.price_per_hour} = ${hoursPrice}`);
+  } else {
+    console.log(`⚠️ [VehicleBookingScreen] Pas de calcul heures: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle?.hourly_rental_enabled}, price_per_hour=${vehicle?.price_per_hour}`);
+  }
+  
+  const basePrice = daysPrice + hoursPrice; // Prix total (jours + heures)
+  const originalBasePrice = originalDaysPrice + hoursPrice; // Prix original total (jours + heures)
   
   // Calculer les frais de service (10% du prix après réduction pour les véhicules)
   const fees = calculateFees(basePrice, rentalDays, 'vehicle');
@@ -636,7 +697,8 @@ const VehicleBookingScreen: React.FC = () => {
           />
           {rentalDays > 0 ? (
             <Text style={styles.rentalDaysText}>
-              {rentalDays} jour{rentalDays > 1 ? 's' : ''} de location
+              {rentalDays} jour{rentalDays > 1 ? 's' : ''}
+              {remainingHours > 0 && ` et ${remainingHours} heure${remainingHours > 1 ? 's' : ''}`} de location
             </Text>
           ) : null}
           {availabilityError ? (
@@ -811,9 +873,40 @@ const VehicleBookingScreen: React.FC = () => {
             </Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Nombre de jours</Text>
-            <Text style={styles.summaryValue}>{rentalDays}</Text>
+            <Text style={styles.summaryLabel}>Durée de location</Text>
+            <Text style={styles.summaryValue}>
+              {rentalDays} jour{rentalDays > 1 ? 's' : ''}
+              {remainingHours > 0 && ` et ${remainingHours} heure${remainingHours > 1 ? 's' : ''}`}
+            </Text>
           </View>
+          {/* Détail du calcul : jours */}
+          <View style={styles.summaryRow}>
+            <View style={{ flex: 1, flexShrink: 1 }}>
+              <Text style={styles.summaryLabel} numberOfLines={2}>
+                {rentalDays} jour{rentalDays > 1 ? 's' : ''} × {formatPrice(basePricePerDay)}/jour
+              </Text>
+            </View>
+            <Text style={styles.summaryValue}>
+              {formatPrice(originalDaysPrice)}
+            </Text>
+          </View>
+          {/* Détail du calcul : heures */}
+          {(() => {
+            const shouldShowHours = remainingHours > 0 && vehicle?.price_per_hour && hoursPrice > 0;
+            console.log(`🔍 [VehicleBookingScreen] Affichage heures - shouldShowHours: ${shouldShowHours}, remainingHours: ${remainingHours}, price_per_hour: ${vehicle?.price_per_hour}, hoursPrice: ${hoursPrice}`);
+            return shouldShowHours ? (
+              <View style={styles.summaryRow}>
+                <View style={{ flex: 1, flexShrink: 1 }}>
+                  <Text style={styles.summaryLabel} numberOfLines={2}>
+                    {remainingHours} heure{remainingHours > 1 ? 's' : ''} × {formatPrice(vehicle.price_per_hour)}/h
+                  </Text>
+                </View>
+                <Text style={styles.summaryValue}>
+                  {formatPrice(hoursPrice)}
+                </Text>
+              </View>
+            ) : null;
+          })()}
           {basePricePerDay !== vehicle.price_per_day ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Tarif préférentiel appliqué</Text>
@@ -841,11 +934,6 @@ const VehicleBookingScreen: React.FC = () => {
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Sous-total</Text>
             <Text style={styles.summaryValue}>
-              {pricing.discountApplied ? (
-                <Text style={{ textDecorationLine: 'line-through', color: '#999', fontSize: 14 }}>
-                  {formatPrice(pricing.originalTotal)}{' '}
-                </Text>
-              ) : null}
               {formatPrice(basePrice)}
             </Text>
           </View>
