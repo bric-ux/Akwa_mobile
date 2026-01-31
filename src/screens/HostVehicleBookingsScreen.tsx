@@ -262,25 +262,20 @@ const HostVehicleBookingsScreen: React.FC = () => {
       };
 
       let isCurrentlyRented = false;
-      let hasActiveBookings = false;
 
       vehicleBookings.forEach(booking => {
-        // Ne compter que les réservations non terminées et non annulées comme actives
-        const isCompleted = isBookingCompleted(booking);
         const isCancelled = booking.status === 'cancelled';
         
-        if (isCompleted || isCancelled) {
-          // Les réservations terminées ou annulées ne comptent pas comme actives
-          if (isCompleted && !isCancelled) stats.completed++;
-          if (isCancelled) stats.cancelled++;
-          return; // Ne pas les compter comme actives
+        if (isCancelled) {
+          stats.cancelled++;
+          return; // Les réservations annulées ne comptent pas comme actives
         }
 
         // Vérifier si la réservation est en cours (dates chevauchent aujourd'hui)
+        // Cette vérification doit être faite AVANT de vérifier si elle est terminée
         if (isBookingInProgress(booking)) {
           stats.inProgress++;
-          isCurrentlyRented = true;
-          hasActiveBookings = true;
+          isCurrentlyRented = true; // Le véhicule est occupé à l'instant T
           // Si en cours, c'est aussi confirmed
           if (booking.status === 'confirmed') {
             stats.confirmed++;
@@ -288,8 +283,21 @@ const HostVehicleBookingsScreen: React.FC = () => {
           return;
         }
 
+        // Vérifier si la réservation est terminée
+        const isCompleted = isBookingCompleted(booking);
+        const endDate = new Date(booking.end_date);
+        endDate.setHours(0, 0, 0, 0);
+        // Une réservation est terminée si endDate < today OU si endDate === today (sauf si elle est en cours, déjà géré ci-dessus)
+        const isEndedToday = endDate.getTime() === today.getTime();
+        
+        if (isCompleted || isEndedToday) {
+          // Les réservations terminées ne comptent pas comme actives
+          stats.completed++;
+          return; // Ne pas les compter comme actives
+        }
+
         // Les réservations pending ne bloquent pas la disponibilité (elles sont en attente de confirmation)
-        // Seules les réservations confirmed ou in_progress bloquent la disponibilité
+        // Seules les réservations en cours (isCurrentlyRented) rendent le véhicule indisponible
         if (booking.status === 'pending') {
           stats.pending++;
           // Ne pas mettre hasActiveBookings = true pour pending car elles ne bloquent pas la disponibilité
@@ -297,21 +305,15 @@ const HostVehicleBookingsScreen: React.FC = () => {
           // Vérifier que la réservation confirmed n'est pas encore terminée
           const startDate = new Date(booking.start_date);
           startDate.setHours(0, 0, 0, 0);
-          const endDate = new Date(booking.end_date);
-          endDate.setHours(0, 0, 0, 0);
           
-          // Une réservation confirmed est active si :
-          // 1. Elle n'est pas encore terminée (endDate >= today)
-          // 2. ET elle n'est pas déjà complétée (double vérification avec isBookingCompleted)
-          // 3. ET elle n'est pas annulée
-          if (endDate >= today && !isCompleted && !isCancelled) {
+          // Compter les réservations confirmed pour les statistiques
+          if (endDate > today) {
             stats.confirmed++;
-            hasActiveBookings = true; // Seules les confirmed bloquent la disponibilité
+            // Ne pas mettre hasActiveBookings = true ici car le véhicule n'est pas encore occupé
+            // hasActiveBookings sera true uniquement si isCurrentlyRented est true (réservation en cours)
           } else {
-            // Si la date de fin est passée ou si elle est complétée, c'est une réservation terminée
-            if (!isCancelled) {
-              stats.completed++;
-            }
+            // Si la date de fin est passée ou égale à aujourd'hui, c'est une réservation terminée
+            stats.completed++;
           }
         }
       });
@@ -321,7 +323,9 @@ const HostVehicleBookingsScreen: React.FC = () => {
         bookings: vehicleBookings,
         stats,
         isCurrentlyRented,
-        isAvailable: !hasActiveBookings, // Disponible si pas de réservations confirmées ou en cours (pas les pending)
+        // Le véhicule est indisponible uniquement s'il est occupé à l'instant T (isCurrentlyRented)
+        // Les réservations futures confirmées ne rendent pas le véhicule indisponible
+        isAvailable: !isCurrentlyRented,
       };
     });
 

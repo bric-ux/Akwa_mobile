@@ -279,3 +279,7 @@ Il existe **3 systèmes différents** pour afficher les factures :
 4. **Ajouter la politique AkwaHome** dans le PDF email et l'affichage mobile
 5. **Uniformiser** le format visuel entre les 3 systèmes
 
+
+
+
+
