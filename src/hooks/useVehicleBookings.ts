@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { VehicleBooking, VehicleBookingStatus } from '../types';
 import { useIdentityVerification } from './useIdentityVerification';
-import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours } from './usePricing';
+import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
 
 export interface VehicleBookingData {
   vehicleId: string;
@@ -355,8 +355,9 @@ export const useVehicleBookings = () => {
 
           if (isAutoBooking) {
             // Réservation automatique - Envoyer les emails de confirmation immédiatement
-            // Calculer le revenu net du propriétaire (prix après réduction - commission 2%)
-            const ownerNetRevenue = basePrice - Math.round(basePrice * 0.02);
+            // Calculer le revenu net du propriétaire (prix après réduction - commission avec TVA)
+            const hostCommissionData = calculateHostCommission(basePrice, 'vehicle');
+            const ownerNetRevenue = basePrice - hostCommissionData.hostCommission;
             
             const emailData = {
               bookingId: booking.id,
@@ -427,8 +428,9 @@ export const useVehicleBookings = () => {
             });
           } else {
             // Réservation sur demande - Envoyer les emails de demande
-            // Calculer le revenu net du propriétaire (prix après réduction - commission 2%)
-            const ownerNetRevenue = basePrice - Math.round(basePrice * 0.02);
+            // Calculer le revenu net du propriétaire (prix après réduction - commission avec TVA)
+            const hostCommissionData = calculateHostCommission(basePrice, 'vehicle');
+            const ownerNetRevenue = basePrice - hostCommissionData.hostCommission;
             
             console.log('📧 [useVehicleBookings] Calcul revenu net propriétaire:', {
               basePrice,
@@ -771,10 +773,11 @@ export const useVehicleBookings = () => {
           };
 
           // Calculer le revenu net du propriétaire
-          // totalPrice = basePrice + serviceFee (10% de basePrice)
-          // Donc : basePrice = totalPrice / 1.10
-          const calculatedBasePrice = Math.round((booking.total_price || 0) / 1.10);
-          const ownerNetRevenue = calculatedBasePrice - Math.round(calculatedBasePrice * 0.02);
+          // totalPrice = basePrice + serviceFee (10% + 20% TVA = 12% de basePrice)
+          // Donc : basePrice = totalPrice / 1.12
+          const calculatedBasePrice = Math.round((booking.total_price || 0) / 1.12);
+          const hostCommissionData = calculateHostCommission(calculatedBasePrice, 'vehicle');
+          const ownerNetRevenue = calculatedBasePrice - hostCommissionData.hostCommission;
 
           const emailData = {
             bookingId: booking.id,

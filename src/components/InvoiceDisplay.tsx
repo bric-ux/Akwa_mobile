@@ -594,6 +594,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           hourlyRate: hourlyRate,
           basePrice: priceAfterDiscount,
           totalPrice: totalPaidByTraveler,
+          ownerNetRevenue: serviceType === 'vehicle' && type === 'host' ? hostNetAmount : undefined, // Revenu net du propriétaire pour les véhicules
           discountAmount: actualDiscountAmount,
           vehicleDiscountEnabled: booking.vehicle?.discount_enabled || false,
           vehicleDiscountMinDays: booking.vehicle?.discount_min_days || null,
