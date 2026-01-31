@@ -837,6 +837,10 @@ export const useVehicles = () => {
       if (vehicleData.features !== undefined) updateData.features = vehicleData.features;
       if (vehicleData.rules !== undefined) updateData.rules = vehicleData.rules;
       if (vehicleData.is_active !== undefined) updateData.is_active = vehicleData.is_active;
+      // Champs de location par heure
+      if (vehicleData.hourly_rental_enabled !== undefined) updateData.hourly_rental_enabled = vehicleData.hourly_rental_enabled;
+      if (vehicleData.price_per_hour !== undefined) updateData.price_per_hour = vehicleData.price_per_hour;
+      if (vehicleData.minimum_rental_hours !== undefined) updateData.minimum_rental_hours = vehicleData.minimum_rental_hours;
 
       const { data, error: updateError } = await supabase
         .from('vehicles')

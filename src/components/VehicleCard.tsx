@@ -107,6 +107,11 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
               <Text style={styles.priceText}>
                 {formatPrice(vehicle.price_per_day)}/jour
               </Text>
+              {vehicle.hourly_rental_enabled && vehicle.price_per_hour && (
+                <Text style={styles.priceTextHourly}>
+                  {formatPrice(vehicle.price_per_hour)}/h
+                </Text>
+              )}
             </View>
 
             {/* Badge type de véhicule */}
@@ -315,11 +320,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
+    alignItems: 'flex-end',
   },
   priceText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  priceTextHourly: {
+    color: '#e67e22',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
   },
   typeBadge: {
     position: 'absolute',

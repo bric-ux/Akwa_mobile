@@ -191,6 +191,12 @@ const VehicleDetailsScreen: React.FC = () => {
                     <Text style={styles.price}>{formatPrice(vehicle.price_per_day) || '0 FCFA'}</Text>
                     <Text style={styles.priceUnit}>/jour</Text>
                   </View>
+                  {vehicle.hourly_rental_enabled && vehicle.price_per_hour && (
+                    <View style={styles.priceValueRow}>
+                      <Text style={[styles.price, styles.priceHourly]}>{formatPrice(vehicle.price_per_hour) || '0 FCFA'}</Text>
+                      <Text style={styles.priceUnit}>/heure</Text>
+                    </View>
+                  )}
                 </View>
                 {(vehicle.rating > 0) ? (
                   <View style={styles.ratingBadge}>
@@ -677,6 +683,11 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginLeft: 6,
     fontWeight: '500',
+  },
+  priceHourly: {
+    fontSize: 20,
+    color: '#e67e22',
+    marginTop: 4,
   },
   ratingBadge: {
     flexDirection: 'row',
