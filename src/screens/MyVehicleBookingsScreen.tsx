@@ -187,12 +187,15 @@ const MyVehicleBookingsScreen: React.FC = () => {
     const vehicleImage = vehicle?.images?.[0] || vehicle?.vehicle_photos?.[0]?.url || null;
     const rentalDays = booking.rental_days || 1;
     
-    // Calculer le total avec frais de service pour s'assurer qu'il est toujours correct
+    // Calculer le total avec frais de service (même logique que InvoiceDisplay)
     const basePrice = (booking.daily_rate || 0) * rentalDays;
     const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
     const commissionRates = getCommissionRates('vehicle');
-    const serviceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
-    const totalWithServiceFee = priceAfterDiscount + serviceFee;
+    // Calculer les frais de service avec TVA (10% + 20% TVA = 12% total)
+    const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+    const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
+    const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
+    const totalWithServiceFee = priceAfterDiscount + effectiveServiceFee;
 
     return (
       <View style={styles.bookingCard}>
@@ -239,16 +242,6 @@ const MyVehicleBookingsScreen: React.FC = () => {
               {formatPrice(totalWithServiceFee)}
             </Text>
           </View>
-          {(booking.discount_amount && booking.discount_amount > 0) ? (
-            <View style={styles.discountInfo}>
-              <Text style={styles.discountText}>
-                Réduction: -{formatPrice(booking.discount_amount)}
-              </Text>
-              <Text style={styles.discountSubtext}>
-                Prix de base: {formatPrice((booking.daily_rate || 0) * (booking.rental_days || 0))}
-              </Text>
-            </View>
-          ) : null}
 
           {booking.message_to_owner ? (
             <View style={styles.messageContainer}>
