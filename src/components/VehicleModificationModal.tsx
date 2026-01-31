@@ -439,15 +439,21 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Prix des jours:</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatPrice(daysPrice)} ({rentalDays} jour{rentalDays > 1 ? 's' : ''} × {formatPrice(dailyRate)})
+                    <Text style={styles.summaryValue} numberOfLines={2}>
+                      {formatPrice(daysPrice)}{'\n'}
+                      <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                        ({rentalDays} jour{rentalDays > 1 ? 's' : ''} × {formatPrice(dailyRate)})
+                      </Text>
                     </Text>
                   </View>
                   {remainingHours > 0 && hoursPrice > 0 && hourlyRate > 0 && (
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Prix des heures supplémentaires:</Text>
-                      <Text style={styles.summaryValue}>
-                        {formatPrice(hoursPrice)} ({remainingHours} h × {formatPrice(hourlyRate)}/h)
+                      <Text style={styles.summaryLabel}>Prix des heures:</Text>
+                      <Text style={styles.summaryValue} numberOfLines={2}>
+                        {formatPrice(hoursPrice)}{'\n'}
+                        <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                          ({remainingHours} h × {formatPrice(hourlyRate)}/h)
+                        </Text>
                       </Text>
                     </View>
                   )}
@@ -584,16 +590,23 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
   summaryLabel: {
     fontSize: 14,
     color: '#6b7280',
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 8,
   },
   summaryValue: {
     fontSize: 14,
     fontWeight: '500',
     color: '#1f2937',
+    flex: 1,
+    flexShrink: 1,
+    textAlign: 'right',
   },
   totalRow: {
     marginTop: 8,
