@@ -18,7 +18,7 @@ import { useVehicles } from '../hooks/useVehicles';
 import { VehicleBooking } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { VEHICLE_COLORS } from '../constants/colors';
-import { getCommissionRates } from '../lib/commissions';
+import { calculateHostCommission } from '../hooks/usePricing';
 import { Image } from 'react-native';
 import { ScrollView } from 'react-native';
 import { safeGoBack } from '../utils/navigation';
@@ -206,7 +206,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
     return endDate < today;
   };
 
-  // Calculer les gains nets pour une réservation
+  // Calculer les gains nets pour une réservation (avec TVA sur la commission)
   const calculateNetEarnings = (booking: VehicleBooking) => {
     if (booking.status === 'cancelled') return 0;
     
@@ -214,10 +214,10 @@ const HostVehicleBookingsScreen: React.FC = () => {
     const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
     // Appliquer la réduction si elle existe
     const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
-    const commissionRates = getCommissionRates('vehicle');
-    // Commission de 2% sur le prix APRÈS réduction
-    const ownerCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
-    return priceAfterDiscount - ownerCommission;
+    // Commission avec TVA (2% + 20% TVA = 2.4%)
+    const hostCommissionData = calculateHostCommission(priceAfterDiscount, 'vehicle');
+    const hostCommission = hostCommissionData.hostCommission;
+    return priceAfterDiscount - hostCommission;
   };
 
   const filteredBookings = bookings.filter(booking => {
@@ -403,14 +403,6 @@ const HostVehicleBookingsScreen: React.FC = () => {
               {formatDate(item.start_date)} → {formatDate(item.end_date)}
             </Text>
           </View>
-          {(item.discount_amount && item.discount_amount > 0) ? (
-            <View style={styles.detailRow}>
-              <Ionicons name="pricetag-outline" size={16} color="#f59e0b" />
-              <Text style={styles.discountDetailText}>
-                Réduction: -{item.discount_amount.toLocaleString('fr-FR')} FCFA
-              </Text>
-            </View>
-          ) : null}
           <View style={styles.detailRow}>
             <Ionicons name="cash-outline" size={16} color="#10b981" />
             <Text style={[styles.detailText, styles.netEarnings]}>
