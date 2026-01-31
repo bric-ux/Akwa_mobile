@@ -161,6 +161,50 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const ownerCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
   const ownerNetAmount = priceAfterDiscount - ownerCommission;
 
+  // Déterminer le type de réduction appliquée et le pourcentage
+  const getDiscountInfo = () => {
+    if (!booking.discount_amount || booking.discount_amount <= 0 || !booking.vehicle) {
+      return null;
+    }
+
+    const rentalDays = booking.rental_days || 0;
+    const vehicle = booking.vehicle;
+
+    // Vérifier si c'est une réduction long séjour
+    if (
+      vehicle.long_stay_discount_enabled &&
+      vehicle.long_stay_discount_min_days &&
+      vehicle.long_stay_discount_percentage &&
+      rentalDays >= vehicle.long_stay_discount_min_days
+    ) {
+      return {
+        type: 'long_stay',
+        label: 'Réduction long séjour',
+        percentage: vehicle.long_stay_discount_percentage,
+        minDays: vehicle.long_stay_discount_min_days,
+      };
+    }
+
+    // Vérifier si c'est une réduction normale
+    if (
+      vehicle.discount_enabled &&
+      vehicle.discount_min_days &&
+      vehicle.discount_percentage &&
+      rentalDays >= vehicle.discount_min_days
+    ) {
+      return {
+        type: 'normal',
+        label: 'Réduction',
+        percentage: vehicle.discount_percentage,
+        minDays: vehicle.discount_min_days,
+      };
+    }
+
+    return null;
+  };
+
+  const discountInfo = getDiscountInfo();
+
 
   const handleViewLicenseDocument = async (documentUrl: string) => {
     try {
@@ -404,31 +448,26 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               </View>
             )}
 
-            {/* Informations de prix et réduction - avant la facture */}
-            {booking.discount_amount && booking.discount_amount > 0 && (
+            {/* Informations de réduction */}
+            {discountInfo && (
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
                   <Ionicons name="pricetag-outline" size={20} color="#1e293b" />
-                  <Text style={styles.cardTitle}>Informations de prix</Text>
+                  <Text style={styles.cardTitle}>Réduction appliquée</Text>
                 </View>
-                <View style={styles.priceInfo}>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>Prix de base</Text>
-                    <Text style={styles.priceValue}>
-                      {((booking.daily_rate || 0) * (booking.rental_days || 0)).toLocaleString('fr-FR')} FCFA
-                    </Text>
+                <View style={styles.discountInfoContainer}>
+                  <View style={styles.discountRow}>
+                    <Text style={styles.discountInfoLabel}>Type de réduction:</Text>
+                    <Text style={styles.discountInfoValue}>{discountInfo.label}</Text>
                   </View>
-                  <View style={styles.priceRow}>
-                    <Text style={[styles.priceLabel, styles.discountLabel]}>Réduction appliquée</Text>
-                    <Text style={[styles.priceValue, styles.discountValue]}>
-                      -{booking.discount_amount.toLocaleString('fr-FR')} FCFA
-                    </Text>
+                  <View style={styles.discountRow}>
+                    <Text style={styles.discountInfoLabel}>Pourcentage:</Text>
+                    <Text style={styles.discountInfoValue}>{discountInfo.percentage}%</Text>
                   </View>
-                  <View style={styles.separator} />
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>Prix après réduction</Text>
-                    <Text style={styles.priceValue}>
-                      {((booking.daily_rate || 0) * (booking.rental_days || 0) - (booking.discount_amount || 0)).toLocaleString('fr-FR')} FCFA
+                  <View style={styles.discountRow}>
+                    <Text style={styles.discountInfoLabel}>Montant de la réduction:</Text>
+                    <Text style={[styles.discountInfoValue, styles.discountAmount]}>
+                      -{booking.discount_amount?.toLocaleString('fr-FR')} FCFA
                     </Text>
                   </View>
                 </View>
@@ -903,6 +942,28 @@ const styles = StyleSheet.create({
   },
   priceInfo: {
     padding: 16,
+  },
+  discountInfoContainer: {
+    marginTop: 8,
+  },
+  discountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  discountInfoLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  discountInfoValue: {
+    fontSize: 14,
+    color: '#1e293b',
+    fontWeight: '600',
+  },
+  discountAmount: {
+    color: '#10b981',
   },
   discountLabel: {
     color: '#10b981',
