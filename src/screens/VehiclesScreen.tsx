@@ -29,6 +29,7 @@ import VehicleBrandAutocomplete from '../components/VehicleBrandAutocomplete';
 import { LocationResult } from '../hooks/useLocationSearch';
 import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
+import { VehicleDateTimeSelector } from '../components/VehicleDateTimeSelector';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { useAuth } from '../services/AuthContext';
 import { safeGoBack } from '../utils/navigation';
@@ -51,6 +52,8 @@ const VehiclesScreen: React.FC = () => {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [startDate, setStartDate] = useState<string>(searchDates.checkIn || '');
   const [endDate, setEndDate] = useState<string>(searchDates.checkOut || '');
+  const [startDateTime, setStartDateTime] = useState<string>('');
+  const [endDateTime, setEndDateTime] = useState<string>('');
   const scrollY = useRef(new Animated.Value(0)).current;
 
   // Synchroniser avec le contexte quand il change
@@ -78,12 +81,15 @@ const VehiclesScreen: React.FC = () => {
     const searchFilters: VehicleFilters = {
       ...filters,
       search: searchQuery.trim() || undefined,
-      // Inclure les dates si sélectionnées
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
+      // Inclure les dates/heures si sélectionnées (priorité aux datetime)
+      startDateTime: startDateTime || undefined,
+      endDateTime: endDateTime || undefined,
+      startDate: !startDateTime && startDate ? startDate : undefined,
+      endDate: !endDateTime && endDate ? endDate : undefined,
+      rentalType: startDateTime && endDateTime ? 'hourly' : undefined,
     };
     fetchVehicles(searchFilters);
-  }, [filters, searchQuery, startDate, endDate]);
+  }, [filters, searchQuery, startDate, endDate, startDateTime, endDateTime]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -114,11 +120,22 @@ const VehiclesScreen: React.FC = () => {
       search: searchQuery.trim() || undefined,
       // Si on a une localisation sélectionnée, utiliser son nom pour la recherche hiérarchique
       locationName: selectedLocationName || filters.locationName,
-      // Ajouter les dates si sélectionnées
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
+      // Ajouter les dates/heures si sélectionnées (priorité aux datetime)
+      startDateTime: startDateTime || undefined,
+      endDateTime: endDateTime || undefined,
+      startDate: !startDateTime && startDate ? startDate : undefined,
+      endDate: !endDateTime && endDate ? endDate : undefined,
+      rentalType: startDateTime && endDateTime ? 'hourly' : undefined,
     };
     fetchVehicles(searchFilters);
+  };
+
+  const handleDateTimeChange = (start: string, end: string) => {
+    setStartDateTime(start);
+    setEndDateTime(end);
+    // Extraire aussi les dates pour compatibilité
+    setStartDate(start.split('T')[0]);
+    setEndDate(end.split('T')[0]);
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
@@ -141,6 +158,8 @@ const VehiclesScreen: React.FC = () => {
     setSelectedLocationName('');
     setStartDate('');
     setEndDate('');
+    setStartDateTime('');
+    setEndDateTime('');
   };
 
   const removeFilter = (filterKey: keyof VehicleFilters) => {
@@ -536,16 +555,13 @@ const VehiclesScreen: React.FC = () => {
                   keyboardShouldPersistTaps="handled"
                 >
                   <View style={styles.searchInputs}>
-                    {/* Dates de location - en premier pour plus de visibilité */}
+                    {/* Dates et heures de location - en premier pour plus de visibilité */}
                     <View style={styles.searchFieldContainer}>
-                      <Text style={styles.searchFieldLabel}>Dates de location</Text>
-                      <DateGuestsSelector
-                        checkIn={startDate}
-                        checkOut={endDate}
-                        adults={1}
-                        children={0}
-                        babies={0}
-                        onDateGuestsChange={handleDateGuestsChange}
+                      <Text style={styles.searchFieldLabel}>Dates et heures de prise/rendu *</Text>
+                      <VehicleDateTimeSelector
+                        startDateTime={startDateTime}
+                        endDateTime={endDateTime}
+                        onDateTimeChange={handleDateTimeChange}
                       />
                     </View>
 

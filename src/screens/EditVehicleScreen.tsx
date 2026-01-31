@@ -96,9 +96,14 @@ const EditVehicleScreen: React.FC = () => {
     auto_booking: false,
     features: [] as string[],
     rules: [] as string[],
+    // Location par heure
+    hourly_rental_enabled: false,
+    price_per_hour: '',
+    minimum_rental_hours: '1',
   });
 
   const [images, setImages] = useState<string[]>([]);
+  const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [customFeature, setCustomFeature] = useState('');
   const [customRule, setCustomRule] = useState('');
@@ -122,9 +127,27 @@ const EditVehicleScreen: React.FC = () => {
           .eq('vehicle_id', vehicleId)
           .order('display_order', { ascending: true });
 
-        const photoUrls = photos && photos.length > 0 
-          ? photos.map(p => p.url)
-          : (vehicleData.images || []);
+        if (photos && photos.length > 0) {
+          // Utiliser les photos avec leurs métadonnées
+          const photosWithMetadata = photos.map((p: any) => ({
+            uri: p.url,
+            category: p.category || 'exterior',
+            displayOrder: p.display_order || 0,
+            isMain: p.is_main || false,
+          }));
+          setSelectedImages(photosWithMetadata);
+          setImages(photos.map((p: any) => p.url));
+        } else {
+          // Fallback sur images si pas de photos structurées
+          const photoUrls = vehicleData.images || [];
+          setImages(photoUrls);
+          setSelectedImages(photoUrls.map((url, index) => ({
+            uri: url,
+            category: 'exterior',
+            displayOrder: index,
+            isMain: index === 0,
+          })));
+        }
 
         setFormData({
           title: vehicleData.title || '',
@@ -148,9 +171,11 @@ const EditVehicleScreen: React.FC = () => {
           auto_booking: vehicleData.auto_booking || false,
           features: vehicleData.features || [],
           rules: vehicleData.rules || [],
+          hourly_rental_enabled: vehicleData.hourly_rental_enabled || false,
+          price_per_hour: vehicleData.price_per_hour?.toString() || '',
+          minimum_rental_hours: vehicleData.minimum_rental_hours?.toString() || '1',
         });
         
-        setImages(photoUrls);
       }
     } catch (err) {
       console.error('Erreur lors du chargement du véhicule:', err);
@@ -180,11 +205,43 @@ const EditVehicleScreen: React.FC = () => {
     if (!result.canceled && result.assets) {
       const newImages = result.assets.map(asset => asset.uri);
       setImages(prev => [...prev, ...newImages]);
+      // Ajouter aussi aux selectedImages avec métadonnées
+      const newSelectedImages = newImages.map((url, index) => ({
+        uri: url,
+        category: 'exterior',
+        displayOrder: selectedImages.length + index,
+        isMain: selectedImages.length === 0 && index === 0, // Première photo devient principale si aucune n'existe
+      }));
+      setSelectedImages(prev => {
+        const updated = [...prev, ...newSelectedImages];
+        // S'assurer qu'il y a au moins une photo principale
+        const hasMain = updated.some(img => img.isMain);
+        if (!hasMain && updated.length > 0) {
+          updated[0].isMain = true;
+        }
+        return updated;
+      });
     }
   };
 
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
+    setSelectedImages(prev => {
+      const removed = prev[index];
+      const updated = prev.filter((_, i) => i !== index);
+      // Si la photo supprimée était principale et qu'il reste des photos, marquer la première comme principale
+      if (removed?.isMain && updated.length > 0) {
+        updated[0].isMain = true;
+      }
+      return updated;
+    });
+  };
+
+  const setMainImage = (index: number) => {
+    setSelectedImages(prev => prev.map((img, i) => ({
+      ...img,
+      isMain: i === index
+    })));
   };
 
   const toggleFeature = (feature: string) => {
@@ -278,7 +335,17 @@ const EditVehicleScreen: React.FC = () => {
       security_deposit: parseInt(formData.security_deposit) || 0,
       minimum_rental_days: parseInt(formData.minimum_rental_days) || 1,
       auto_booking: formData.auto_booking,
+      hourly_rental_enabled: formData.hourly_rental_enabled,
+      price_per_hour: formData.hourly_rental_enabled && formData.price_per_hour ? parseInt(formData.price_per_hour) : null,
+      minimum_rental_hours: formData.hourly_rental_enabled ? parseInt(formData.minimum_rental_hours) || 1 : null,
       images: images,
+      // Passer les informations sur les photos (isMain, category, displayOrder)
+      photos: selectedImages.map((img) => ({
+        uri: img.uri,
+        category: img.category,
+        displayOrder: img.displayOrder,
+        isMain: img.isMain || false,
+      })),
       features: formData.features,
       rules: formData.rules,
     });
@@ -555,6 +622,65 @@ const EditVehicleScreen: React.FC = () => {
             />
           </View>
 
+          {/* Location par heure */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Location par heure</Text>
+            
+            <View style={styles.checkboxContainer}>
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => {
+                  const newValue = !formData.hourly_rental_enabled;
+                  setFormData(prev => ({
+                    ...prev,
+                    hourly_rental_enabled: newValue,
+                    price_per_hour: newValue ? prev.price_per_hour : '',
+                    minimum_rental_hours: newValue ? prev.minimum_rental_hours : '1',
+                  }));
+                }}
+              >
+                <View style={[
+                  styles.checkbox,
+                  formData.hourly_rental_enabled && styles.checkboxChecked
+                ]}>
+                  {formData.hourly_rental_enabled && (
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                  )}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>
+                    Activer la location par heure
+                  </Text>
+                  <Text style={styles.checkboxDescription}>
+                    Permettre aux locataires de louer votre véhicule à l'heure
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {formData.hourly_rental_enabled && (
+              <View style={styles.hourlySection}>
+                <Text style={styles.label}>Prix par heure (XOF) *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 5000"
+                  value={formData.price_per_hour}
+                  onChangeText={(value) => handleInputChange('price_per_hour', value)}
+                  keyboardType="numeric"
+                />
+
+                <Text style={styles.label}>Durée minimum de location (heures)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="1"
+                  value={formData.minimum_rental_hours}
+                  onChangeText={(value) => handleInputChange('minimum_rental_hours', value)}
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
+          </View>
+
           {/* Réservation automatique */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Type de réservation</Text>
@@ -581,17 +707,32 @@ const EditVehicleScreen: React.FC = () => {
               <Ionicons name="camera-outline" size={24} color="#2E7D32" />
               <Text style={styles.addPhotoText}>Ajouter des photos</Text>
             </TouchableOpacity>
-            {images.length > 0 && (
+            {selectedImages.length > 0 && (
               <View style={styles.imagesContainer}>
-                {images.map((uri, index) => (
+                {selectedImages.map((img, index) => (
                   <View key={index} style={styles.imageWrapper}>
-                    <Image source={{ uri }} style={styles.image} />
+                    <Image source={{ uri: img.uri }} style={styles.image} />
+                    {img.isMain && (
+                      <View style={styles.mainPhotoBadge}>
+                        <Ionicons name="star" size={12} color="#fff" />
+                        <Text style={styles.mainPhotoBadgeText}>Principale</Text>
+                      </View>
+                    )}
                     <TouchableOpacity
                       style={styles.removeImageButton}
                       onPress={() => removeImage(index)}
                     >
                       <Ionicons name="close-circle" size={24} color="#e74c3c" />
                     </TouchableOpacity>
+                    {!img.isMain && (
+                      <TouchableOpacity
+                        style={styles.setMainButton}
+                        onPress={() => setMainImage(index)}
+                      >
+                        <Ionicons name="star-outline" size={16} color="#2E7D32" />
+                        <Text style={styles.setMainButtonText}>Principale</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))}
               </View>
@@ -963,6 +1104,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
+  },
+  checkboxContainer: {
+    marginTop: 8,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  checkboxLabelContainer: {
+    flex: 1,
+  },
+  checkboxLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  checkboxDescription: {
+    fontSize: 14,
+    color: '#666',
+  },
+  hourlySection: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
   },
 });
 

@@ -333,6 +333,9 @@ export interface Vehicle {
   price_per_day: number;
   price_per_week: number | null;
   price_per_month: number | null;
+  price_per_hour?: number | null;
+  hourly_rental_enabled?: boolean;
+  minimum_rental_hours?: number;
   security_deposit: number;
   is_active: boolean;
   is_featured: boolean;
@@ -374,14 +377,21 @@ export interface VehiclePhoto {
   created_at: string;
 }
 
+export type RentalType = 'daily' | 'hourly';
+
 export interface VehicleBooking {
   id: string;
   vehicle_id: string;
   renter_id: string;
+  rental_type?: RentalType;
   start_date: string;
   end_date: string;
+  start_datetime?: string | null;
+  end_datetime?: string | null;
   rental_days: number;
+  rental_hours?: number | null;
   daily_rate: number;
+  hourly_rate?: number | null;
   total_price: number;
   security_deposit: number;
   status: VehicleBookingStatus;
@@ -440,6 +450,10 @@ export interface VehicleFilters {
   locationName?: string; // Nom de la localisation pour recherche hiérarchique
   startDate?: string;
   endDate?: string;
+  startDateTime?: string; // Date et heure de début pour recherche par heure
+  endDateTime?: string; // Date et heure de fin pour recherche par heure
+  hourlyRentalOnly?: boolean; // Filtrer uniquement les véhicules avec location par heure
+  rentalType?: RentalType; // Type de location recherché: 'daily' ou 'hourly'
   features?: string[];
   search?: string;
 }

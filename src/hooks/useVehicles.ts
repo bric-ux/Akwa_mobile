@@ -193,9 +193,45 @@ export const useVehicles = () => {
         .order('rating', { ascending: false })
         .order('created_at', { ascending: false });
 
-      // Filtrer par dates de disponibilité si startDate et endDate sont fournis
+      // Filtrer par disponibilité (jour ou heure selon le type)
       let availableVehicles = data || [];
-      if (filters?.startDate && filters?.endDate) {
+      
+      // Si recherche par heure
+      if (filters?.startDateTime && filters?.endDateTime && filters?.rentalType === 'hourly') {
+        const startDateTime = new Date(filters.startDateTime);
+        const endDateTime = new Date(filters.endDateTime);
+        
+        // Vérifier la disponibilité pour chaque véhicule
+        const availabilityChecks = await Promise.all(
+          availableVehicles.map(async (vehicle: any) => {
+            try {
+              const { data: availabilityData, error: availabilityError } = await supabase
+                .rpc('check_vehicle_hourly_availability', {
+                  p_vehicle_id: vehicle.id,
+                  p_start_datetime: startDateTime.toISOString(),
+                  p_end_datetime: endDateTime.toISOString(),
+                  p_exclude_booking_id: null
+                });
+              
+              if (availabilityError) {
+                console.error('Error checking hourly availability:', availabilityError);
+                return false;
+              }
+              
+              return availabilityData === true;
+            } catch (error) {
+              console.error('Error in availability check:', error);
+              return false;
+            }
+          })
+        );
+        
+        availableVehicles = availableVehicles.filter((_: any, index: number) => 
+          availabilityChecks[index]
+        );
+      }
+      // Si recherche par jour (comportement existant)
+      else if (filters?.startDate && filters?.endDate) {
         // Normaliser les dates au format YYYY-MM-DD pour éviter les problèmes de fuseau horaire
         const normalizeDate = (dateStr: string) => {
           if (!dateStr) return '';
@@ -660,7 +696,16 @@ export const useVehicles = () => {
 
       // Si des photos sont fournies, les uploader et créer les entrées vehicle_photos
       if (vehicleData.images && vehicleData.images.length > 0) {
+        // Récupérer les informations sur les photos si disponibles
+        const photosInfo = (vehicleData as any).photos || [];
+        
         const photoPromises = vehicleData.images.map(async (imageUrl, index) => {
+          // Trouver les informations de la photo correspondante
+          const photoInfo = photosInfo[index] || {};
+          const isMain = photoInfo.isMain || (index === 0 && !photosInfo.some((p: any) => p.isMain));
+          const category = photoInfo.category || 'exterior';
+          const displayOrder = photoInfo.displayOrder !== undefined ? photoInfo.displayOrder : index;
+          
           // Si c'est une URI locale, on doit l'uploader
           if (imageUrl.startsWith('file://') || imageUrl.startsWith('content://')) {
             // Uploader l'image vers Supabase Storage
@@ -690,18 +735,18 @@ export const useVehicles = () => {
             return {
               vehicle_id: data.id,
               url: publicUrl,
-              category: index === 0 ? 'exterior' : 'exterior',
-              is_main: index === 0,
-              display_order: index,
+              category: category,
+              is_main: isMain,
+              display_order: displayOrder,
             };
           } else {
             // URL déjà publique
             return {
               vehicle_id: data.id,
               url: imageUrl,
-              category: index === 0 ? 'exterior' : 'exterior',
-              is_main: index === 0,
-              display_order: index,
+              category: category,
+              is_main: isMain,
+              display_order: displayOrder,
             };
           }
         });
@@ -709,6 +754,21 @@ export const useVehicles = () => {
         const photos = (await Promise.all(photoPromises)).filter(Boolean);
         
         if (photos.length > 0) {
+          // S'assurer qu'il n'y a qu'une seule photo principale
+          const mainPhotos = photos.filter((p: any) => p.is_main);
+          if (mainPhotos.length > 1) {
+            // Si plusieurs photos sont marquées principales, ne garder que la première
+            const firstMainIndex = photos.findIndex((p: any) => p.is_main);
+            photos.forEach((p: any, index: number) => {
+              if (index !== firstMainIndex) {
+                p.is_main = false;
+              }
+            });
+          } else if (mainPhotos.length === 0 && photos.length > 0) {
+            // Si aucune photo principale, marquer la première
+            photos[0].is_main = true;
+          }
+          
           const { error: photosError } = await supabase
             .from('vehicle_photos')
             .insert(photos);
@@ -797,8 +857,17 @@ export const useVehicles = () => {
           .delete()
           .eq('vehicle_id', vehicleId);
 
+        // Récupérer les informations sur les photos si disponibles
+        const photosInfo = (vehicleData as any).photos || [];
+        
         // Uploader et ajouter les nouvelles photos
         const photoPromises = vehicleData.images.map(async (imageUri, index) => {
+          // Trouver les informations de la photo correspondante
+          const photoInfo = photosInfo[index] || {};
+          const isMain = photoInfo.isMain || (index === 0 && !photosInfo.some((p: any) => p.isMain));
+          const category = photoInfo.category || 'exterior';
+          const displayOrder = photoInfo.displayOrder !== undefined ? photoInfo.displayOrder : index;
+          
           // Si c'est une URI locale, on doit l'uploader
           if (imageUri.startsWith('file://') || imageUri.startsWith('content://')) {
             const fileName = `vehicle-${vehicleId}-${Date.now()}-${index}.jpg`;
@@ -827,18 +896,18 @@ export const useVehicles = () => {
             return {
               vehicle_id: vehicleId,
               url: publicUrl,
-              category: 'exterior',
-              is_main: index === 0,
-              display_order: index,
+              category: category,
+              is_main: isMain,
+              display_order: displayOrder,
             };
           } else {
             // URL déjà publique
             return {
               vehicle_id: vehicleId,
               url: imageUri,
-              category: 'exterior',
-              is_main: index === 0,
-              display_order: index,
+              category: category,
+              is_main: isMain,
+              display_order: displayOrder,
             };
           }
         });
@@ -846,6 +915,21 @@ export const useVehicles = () => {
         const photos = (await Promise.all(photoPromises)).filter(Boolean);
         
         if (photos.length > 0) {
+          // S'assurer qu'il n'y a qu'une seule photo principale
+          const mainPhotos = photos.filter((p: any) => p.is_main);
+          if (mainPhotos.length > 1) {
+            // Si plusieurs photos sont marquées principales, ne garder que la première
+            const firstMainIndex = photos.findIndex((p: any) => p.is_main);
+            photos.forEach((p: any, index: number) => {
+              if (index !== firstMainIndex) {
+                p.is_main = false;
+              }
+            });
+          } else if (mainPhotos.length === 0 && photos.length > 0) {
+            // Si aucune photo principale, marquer la première
+            photos[0].is_main = true;
+          }
+          
           const { error: photosError } = await supabase
             .from('vehicle_photos')
             .insert(photos);

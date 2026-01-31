@@ -6,8 +6,11 @@ import { calculateTotalPrice, calculateFees } from './usePricing';
 
 export interface VehicleBookingData {
   vehicleId: string;
-  startDate: string;
-  endDate: string;
+  rentalType?: 'daily' | 'hourly'; // Type de location: 'daily' par défaut pour rétrocompatibilité
+  startDate?: string; // Pour compatibilité (sera converti en startDateTime)
+  endDate?: string; // Pour compatibilité (sera converti en endDateTime)
+  startDateTime: string; // OBLIGATOIRE - Date et heure de début (ISO string)
+  endDateTime: string; // OBLIGATOIRE - Date et heure de fin (ISO string)
   pickupLocation?: string;
   dropoffLocation?: string;
   messageToOwner?: string;
@@ -51,26 +54,40 @@ export const useVehicleBookings = () => {
         return { success: false, error: 'IDENTITY_NOT_VERIFIED' };
       }
 
-      // Calculer le nombre de jours (comme sur le site web: différence + 1)
-      // Si les dates sont identiques, c'est 1 jour de location
-      let rentalDays = 1;
-      if (bookingData.startDate !== bookingData.endDate) {
-        const start = new Date(bookingData.startDate + 'T00:00:00');
-        const end = new Date(bookingData.endDate + 'T00:00:00');
-        const diffTime = end.getTime() - start.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        rentalDays = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
+      // Les heures sont maintenant obligatoires pour toutes les réservations
+      if (!bookingData.startDateTime || !bookingData.endDateTime) {
+        // Si on a startDate/endDate mais pas startDateTime/endDateTime, convertir
+        if (bookingData.startDate && bookingData.endDate) {
+          // Utiliser les dates fournies avec des heures par défaut (00:00 pour début, 23:59 pour fin)
+          const startDateObj = new Date(bookingData.startDate + 'T00:00:00');
+          const endDateObj = new Date(bookingData.endDate + 'T23:59:59');
+          bookingData.startDateTime = startDateObj.toISOString();
+          bookingData.endDateTime = endDateObj.toISOString();
+        } else {
+          throw new Error('Les dates et heures de début et de fin sont requises');
+        }
       }
 
-      // Permettre les locations d'un jour minimum (ex: du 1er au 1er janvier = 1 jour)
-      if (rentalDays < 1) {
-        throw new Error('La date de fin ne peut pas être avant la date de début');
+      const startDateTime = bookingData.startDateTime;
+      const endDateTime = bookingData.endDateTime;
+      const start = new Date(startDateTime);
+      const end = new Date(endDateTime);
+
+      if (end <= start) {
+        throw new Error('L\'heure de fin doit être après l\'heure de début');
       }
 
+      // Extraire les dates pour les champs start_date et end_date (pour compatibilité)
+      const startDate = start.toISOString().split('T')[0];
+      const endDate = end.toISOString().split('T')[0];
+
+      // Déterminer le type de location
+      const rentalType = bookingData.rentalType || 'daily';
+      
       // Récupérer les informations du véhicule pour calculer le prix
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('price_per_day, minimum_rental_days, auto_booking, security_deposit, discount_enabled, discount_min_days, discount_percentage, long_stay_discount_enabled, long_stay_discount_min_days, long_stay_discount_percentage')
+        .select('price_per_day, price_per_hour, hourly_rental_enabled, minimum_rental_days, minimum_rental_hours, auto_booking, security_deposit, discount_enabled, discount_min_days, discount_percentage, long_stay_discount_enabled, long_stay_discount_min_days, long_stay_discount_percentage')
         .eq('id', bookingData.vehicleId)
         .single();
 
@@ -78,118 +95,147 @@ export const useVehicleBookings = () => {
         throw new Error('Véhicule introuvable');
       }
 
-      if (rentalDays < (vehicle.minimum_rental_days || 1)) {
-        throw new Error(`La location minimum est de ${vehicle.minimum_rental_days || 1} jour(s)`);
+      // Validation selon le type de location
+      let rentalDays = 1;
+      let rentalHours: number | null = null;
+
+      if (rentalType === 'hourly') {
+        // Validation pour location par heure
+        if (!vehicle.hourly_rental_enabled) {
+          throw new Error('Ce véhicule ne propose pas la location par heure');
+        }
+
+        if (!vehicle.price_per_hour || vehicle.price_per_hour <= 0) {
+          throw new Error('Le prix par heure n\'est pas défini pour ce véhicule');
+        }
+
+        // Calculer le nombre d'heures
+        const diffTime = end.getTime() - start.getTime();
+        rentalHours = Math.ceil(diffTime / (1000 * 60 * 60)); // Arrondir à l'heure supérieure
+
+        if (rentalHours < (vehicle.minimum_rental_hours || 1)) {
+          throw new Error(`La location minimum est de ${vehicle.minimum_rental_hours || 1} heure(s)`);
+        }
+      } else {
+        // Validation pour location par jour
+        // Calculer le nombre de jours (comme sur le site web: différence + 1)
+        if (startDate !== endDate) {
+          const startDateOnly = new Date(startDate + 'T00:00:00');
+          const endDateOnly = new Date(endDate + 'T00:00:00');
+          const diffTime = endDateOnly.getTime() - startDateOnly.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          rentalDays = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
+        }
+
+        if (rentalDays < 1) {
+          throw new Error('La date de fin ne peut pas être avant la date de début');
+        }
+
+        if (rentalDays < (vehicle.minimum_rental_days || 1)) {
+          throw new Error(`La location minimum est de ${vehicle.minimum_rental_days || 1} jour(s)`);
+        }
       }
 
-      // Vérifier la disponibilité (pending, confirmed - les réservations terminées ne bloquent pas)
-      const { data: existingBookings, error: availabilityError } = await supabase
-        .from('vehicle_bookings')
-        .select('id, start_date, end_date, status')
-        .eq('vehicle_id', bookingData.vehicleId)
-        .in('status', ['pending', 'confirmed'])
-        .gte('end_date', new Date().toISOString().split('T')[0]);
+      // Vérifier la disponibilité en utilisant toujours la fonction SQL (qui prend en compte les heures)
+      const { data: isAvailable, error: availabilityError } = await supabase
+        .rpc('check_vehicle_hourly_availability', {
+          p_vehicle_id: bookingData.vehicleId,
+          p_start_datetime: startDateTime,
+          p_end_datetime: endDateTime,
+          p_exclude_booking_id: null
+        });
 
       if (availabilityError) {
-        throw availabilityError;
+        throw new Error('Erreur lors de la vérification de disponibilité');
       }
 
-      // Vérifier les dates bloquées manuellement
-      const { data: blockedDates, error: blockedError } = await supabase
-        .from('vehicle_blocked_dates')
-        .select('start_date, end_date, reason')
-        .eq('vehicle_id', bookingData.vehicleId)
-        .gte('end_date', new Date().toISOString().split('T')[0]);
-
-      if (blockedError) {
-        console.error('Blocked dates check error:', blockedError);
+      if (!isAvailable) {
+        throw new Error('Ce véhicule n\'est pas disponible pour ce créneau (dates et heures)');
       }
 
-      // Vérifier les conflits avec les réservations existantes
-      const bookingStart = new Date(bookingData.startDate);
-      const bookingEnd = new Date(bookingData.endDate);
-      
-      const hasBookingConflict = existingBookings?.some(booking => {
-        const existingStart = new Date(booking.start_date);
-        const existingEnd = new Date(booking.end_date);
+      // Calculer le prix total selon le type de location
+      let basePrice: number;
+      let discountAmount = 0;
+      let discountApplied = false;
+      let originalTotal: number;
+      let dailyRate: number | null = null;
+      let hourlyRate: number | null = null;
+
+      if (rentalType === 'hourly') {
+        // Pour location par heure : pas de réductions, prix simple
+        hourlyRate = vehicle.price_per_hour!;
+        basePrice = hourlyRate * rentalHours!;
+        originalTotal = basePrice;
+      } else {
+        // Pour location par jour : utiliser la logique existante avec réductions
+        dailyRate = vehicle.price_per_day;
         
-        return (
-          (bookingStart <= existingEnd && bookingEnd >= existingStart)
-        );
-      });
-
-      if (hasBookingConflict) {
-        throw new Error('Ce véhicule n\'est pas disponible pour ces dates');
-      }
-
-      // Vérifier les conflits avec les dates bloquées
-      const hasBlockedConflict = blockedDates?.some(({ start_date, end_date }) => {
-        const blockedStart = new Date(start_date);
-        const blockedEnd = new Date(end_date);
+        // Configuration des réductions
+        const discountConfig = {
+          enabled: vehicle.discount_enabled || false,
+          minNights: vehicle.discount_min_days || null,
+          percentage: vehicle.discount_percentage || null
+        };
         
-        return (
-          (bookingStart <= blockedEnd && bookingEnd >= blockedStart)
-        );
-      });
-
-      if (hasBlockedConflict) {
-        throw new Error('Ces dates sont bloquées par le propriétaire');
+        const longStayDiscountConfig = vehicle.long_stay_discount_enabled ? {
+          enabled: vehicle.long_stay_discount_enabled || false,
+          minNights: vehicle.long_stay_discount_min_days || null,
+          percentage: vehicle.long_stay_discount_percentage || null
+        } : undefined;
+        
+        // Calculer le prix avec réductions
+        const pricing = calculateTotalPrice(dailyRate, rentalDays, discountConfig, longStayDiscountConfig);
+        basePrice = pricing.totalPrice; // Prix après réduction
+        discountAmount = pricing.discountAmount || 0;
+        discountApplied = pricing.discountApplied || false;
+        originalTotal = pricing.originalTotal || (dailyRate * rentalDays);
       }
-
-      // Calculer le prix total avec réductions et frais de service
-      const dailyRate = vehicle.price_per_day;
       
-      // Configuration des réductions
-      const discountConfig = {
-        enabled: vehicle.discount_enabled || false,
-        minNights: vehicle.discount_min_days || null,
-        percentage: vehicle.discount_percentage || null
-      };
-      
-      const longStayDiscountConfig = vehicle.long_stay_discount_enabled ? {
-        enabled: vehicle.long_stay_discount_enabled || false,
-        minNights: vehicle.long_stay_discount_min_days || null,
-        percentage: vehicle.long_stay_discount_percentage || null
-      } : undefined;
-      
-      // Calculer le prix avec réductions
-      const pricing = calculateTotalPrice(dailyRate, rentalDays, discountConfig, longStayDiscountConfig);
-      const basePrice = pricing.totalPrice; // Prix après réduction
-      const discountAmount = pricing.discountAmount || 0;
-      const discountApplied = pricing.discountApplied || false;
-      const originalTotal = pricing.originalTotal || (dailyRate * rentalDays);
-      
-      // Calculer les frais de service (10% du prix après réduction pour les véhicules)
-      const fees = calculateFees(basePrice, rentalDays, 'vehicle');
+      // Calculer les frais de service (10% + TVA du prix après réduction pour les véhicules)
+      const fees = calculateFees(basePrice, rentalType === 'hourly' ? rentalHours! : rentalDays, 'vehicle');
       const totalPrice = basePrice + fees.serviceFee; // Total avec frais de service
       
       // Déterminer le statut initial en fonction de auto_booking
       const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
 
-      // Créer la réservation avec les données de réduction
+      // Créer la réservation avec les données selon le type
+      // Les datetime sont maintenant toujours présents
+      const bookingInsert: any = {
+        vehicle_id: bookingData.vehicleId,
+        renter_id: user.id,
+        rental_type: rentalType,
+        start_date: startDate,
+        end_date: endDate,
+        start_datetime: startDateTime, // Toujours présent maintenant
+        end_datetime: endDateTime, // Toujours présent maintenant
+        total_price: totalPrice, // Total avec frais de service
+        security_deposit: vehicle.security_deposit ?? 0,
+        pickup_location: bookingData.pickupLocation || null,
+        dropoff_location: bookingData.dropoffLocation || null,
+        message_to_owner: bookingData.messageToOwner || null,
+        special_requests: bookingData.specialRequests || null,
+        has_license: bookingData.hasLicense || false,
+        license_years: bookingData.licenseYears ? parseInt(bookingData.licenseYears) : null,
+        license_number: bookingData.licenseNumber || null,
+        status: initialStatus,
+      };
+
+      if (rentalType === 'hourly') {
+        bookingInsert.rental_hours = rentalHours;
+        bookingInsert.hourly_rate = hourlyRate;
+        bookingInsert.rental_days = 0; // Pas de jours pour location par heure
+        bookingInsert.daily_rate = 0; // Pas de tarif journalier
+      } else {
+        bookingInsert.rental_days = rentalDays;
+        bookingInsert.daily_rate = dailyRate;
+        bookingInsert.discount_applied = discountApplied;
+        bookingInsert.discount_amount = discountAmount;
+        bookingInsert.original_total = originalTotal;
+      }
+
       const { data: booking, error: bookingError } = await supabase
         .from('vehicle_bookings')
-        .insert({
-          vehicle_id: bookingData.vehicleId,
-          renter_id: user.id,
-          start_date: bookingData.startDate,
-          end_date: bookingData.endDate,
-          rental_days: rentalDays,
-          daily_rate: dailyRate,
-          total_price: totalPrice, // Total avec frais de service
-          security_deposit: vehicle.security_deposit ?? 0,
-          pickup_location: bookingData.pickupLocation || null,
-          dropoff_location: bookingData.dropoffLocation || null,
-          message_to_owner: bookingData.messageToOwner || null,
-          special_requests: bookingData.specialRequests || null,
-          has_license: bookingData.hasLicense || false,
-          license_years: bookingData.licenseYears ? parseInt(bookingData.licenseYears) : null,
-          license_number: bookingData.licenseNumber || null,
-          status: initialStatus,
-          discount_applied: discountApplied,
-          discount_amount: discountAmount,
-          original_total: originalTotal,
-        })
+        .insert(bookingInsert)
         .select(`
           *,
           vehicle:vehicles (

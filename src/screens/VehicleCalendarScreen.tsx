@@ -16,6 +16,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { RootStackParamList } from '../types';
+import { VehicleDateTimeSelector } from '../components/VehicleDateTimeSelector';
 
 type VehicleCalendarRouteProp = RouteProp<RootStackParamList, 'VehicleCalendar'>;
 
@@ -24,6 +25,9 @@ interface BlockedDate {
   start_date: string;
   end_date: string;
   reason: string | null;
+  period_type?: 'daily' | 'hourly';
+  start_datetime?: string;
+  end_datetime?: string;
 }
 
 const formatDateToISO = (date: Date): string => {
@@ -47,6 +51,9 @@ const VehicleCalendarScreen: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [blockType, setBlockType] = useState<'daily' | 'hourly'>('daily');
+  const [startDateTime, setStartDateTime] = useState<string>('');
+  const [endDateTime, setEndDateTime] = useState<string>('');
 
   useEffect(() => {
     loadUnavailableDates();
@@ -189,8 +196,13 @@ const VehicleCalendarScreen: React.FC = () => {
   };
 
   const handleBlockDates = async () => {
-    if (!selectedStartDate || !selectedEndDate) {
+    if (blockType === 'daily' && (!selectedStartDate || !selectedEndDate)) {
       Alert.alert('Erreur', 'Veuillez sélectionner une période complète');
+      return;
+    }
+    
+    if (blockType === 'hourly' && (!startDateTime || !endDateTime)) {
+      Alert.alert('Erreur', 'Veuillez sélectionner un créneau horaire');
       return;
     }
 
@@ -199,27 +211,46 @@ const VehicleCalendarScreen: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non connecté');
 
+      let insertData: any = {
+        vehicle_id: vehicleId,
+        reason: reason.trim() || 'Blocage manuel',
+        created_by: user.id,
+        period_type: blockType,
+      };
+
+      if (blockType === 'daily') {
+        insertData.start_date = formatDateToISO(selectedStartDate!);
+        insertData.end_date = formatDateToISO(selectedEndDate!);
+      } else {
+        // Blocage par heure
+        const startDate = new Date(startDateTime);
+        const endDate = new Date(endDateTime);
+        insertData.start_datetime = startDate.toISOString();
+        insertData.end_datetime = endDate.toISOString();
+        // Pour compatibilité, on remplit aussi start_date et end_date
+        insertData.start_date = formatDateToISO(startDate);
+        insertData.end_date = formatDateToISO(endDate);
+      }
+
       const { error } = await supabase
         .from('vehicle_blocked_dates')
-        .insert({
-          vehicle_id: vehicleId,
-          start_date: formatDateToISO(selectedStartDate),
-          end_date: formatDateToISO(selectedEndDate),
-          reason: reason.trim() || 'Blocage manuel',
-          created_by: user.id,
-        });
+        .insert(insertData);
 
       if (error) throw error;
 
-      Alert.alert(
-        'Succès',
-        `Les dates du ${formatDate(selectedStartDate)} au ${formatDate(selectedEndDate)} ont été bloquées.`
-      );
+      const message = blockType === 'daily'
+        ? `Les dates du ${formatDate(selectedStartDate!)} au ${formatDate(selectedEndDate!)} ont été bloquées.`
+        : `Le créneau du ${new Date(startDateTime).toLocaleString('fr-FR')} au ${new Date(endDateTime).toLocaleString('fr-FR')} a été bloqué.`;
+
+      Alert.alert('Succès', message);
 
       setSelectedStartDate(null);
       setSelectedEndDate(null);
       setReason('');
       setIsSelectingRange(false);
+      setBlockType('daily');
+      setStartDateTime('');
+      setEndDateTime('');
       await loadBlockedDates();
     } catch (error: any) {
       console.error('Erreur lors du blocage des dates:', error);
@@ -302,8 +333,110 @@ const VehicleCalendarScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
+        {/* Type de blocage */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Type de blocage</Text>
+          <View style={styles.blockTypeContainer}>
+            <TouchableOpacity
+              style={[
+                styles.blockTypeButton,
+                blockType === 'daily' && styles.blockTypeButtonActive
+              ]}
+              onPress={() => {
+                setBlockType('daily');
+                setStartDateTime('');
+                setEndDateTime('');
+              }}
+            >
+              <Text style={[
+                styles.blockTypeButtonText,
+                blockType === 'daily' && styles.blockTypeButtonTextActive
+              ]}>
+                Par jour
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.blockTypeButton,
+                blockType === 'hourly' && styles.blockTypeButtonActive
+              ]}
+              onPress={() => {
+                setBlockType('hourly');
+                setSelectedStartDate(null);
+                setSelectedEndDate(null);
+                setIsSelectingRange(false);
+              }}
+            >
+              <Text style={[
+                styles.blockTypeButtonText,
+                blockType === 'hourly' && styles.blockTypeButtonTextActive
+              ]}>
+                Par heure
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Section de sélection pour blocage par heure */}
+        {blockType === 'hourly' && (
+          <View style={styles.selectionSection}>
+            <View style={styles.selectionCard}>
+              <Text style={styles.selectionTitle}>Sélectionner un créneau horaire</Text>
+              <VehicleDateTimeSelector
+                startDateTime={startDateTime}
+                endDateTime={endDateTime}
+                onDateTimeChange={(start, end) => {
+                  setStartDateTime(start);
+                  setEndDateTime(end);
+                }}
+              />
+            </View>
+
+            <View style={styles.inputSection}>
+              <Text style={styles.label}>Raison (optionnel)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={reason}
+                onChangeText={setReason}
+                placeholder="Ex: Maintenance, vacances personnelles..."
+                multiline
+              />
+            </View>
+
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.blockButton]}
+                onPress={handleBlockDates}
+                disabled={loading || !startDateTime || !endDateTime}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="lock-closed-outline" size={20} color="#fff" />
+                    <Text style={styles.actionButtonText}>Bloquer</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.cancelButton]}
+                onPress={() => {
+                  setStartDateTime('');
+                  setEndDateTime('');
+                  setReason('');
+                }}
+              >
+                <Ionicons name="close" size={20} color="#fff" />
+                <Text style={styles.actionButtonText}>Annuler</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Calendrier */}
-        <View style={styles.calendarSection}>
+        {blockType === 'daily' && (
+          <View style={styles.calendarSection}>
           <View style={styles.calendarHeader}>
             <TouchableOpacity onPress={() => navigateMonth('prev')}>
               <Ionicons name="chevron-back" size={24} color={VEHICLE_COLORS.primary} />
@@ -373,9 +506,10 @@ const VehicleCalendarScreen: React.FC = () => {
             })}
           </View>
         </View>
+        )}
 
-        {/* Section de sélection */}
-        {(selectedStartDate || isSelectingRange) && (
+        {/* Section de sélection pour blocage par jour */}
+        {blockType === 'daily' && (selectedStartDate || isSelectingRange) && (
           <View style={styles.selectionSection}>
             <View style={[
               styles.selectionCard,
@@ -491,12 +625,16 @@ const VehicleCalendarScreen: React.FC = () => {
                     </Text>
                   </View>
                   <Text style={styles.periodDate}>
-                    {blocked.start_date === blocked.end_date ? (
-                      formatDateShort(new Date(blocked.start_date))
-                    ) : (
-                      `${formatDateShort(new Date(blocked.start_date))} → ${formatDateShort(new Date(blocked.end_date))}`
-                    )}
+                    {blocked.period_type === 'hourly' && blocked.start_datetime && blocked.end_datetime
+                      ? `${new Date(blocked.start_datetime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} → ${new Date(blocked.end_datetime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                      : blocked.start_date === blocked.end_date
+                        ? formatDateShort(new Date(blocked.start_date))
+                        : `${formatDateShort(new Date(blocked.start_date))} → ${formatDateShort(new Date(blocked.end_date))}`
+                    }
                   </Text>
+                  {blocked.period_type === 'hourly' && (
+                    <Text style={styles.periodSubtext}>Blocage horaire</Text>
+                  )}
                 </View>
                 <TouchableOpacity
                   onPress={() => {
@@ -805,6 +943,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#991b1b',
     fontWeight: '500',
+  },
+  periodSubtext: {
+    fontSize: 12,
+    color: '#dc2626',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  blockTypeContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  blockTypeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  blockTypeButtonActive: {
+    backgroundColor: VEHICLE_COLORS.primary,
+    borderColor: VEHICLE_COLORS.primary,
+  },
+  blockTypeButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  blockTypeButtonTextActive: {
+    color: '#fff',
+    fontWeight: '600',
   },
   legend: {
     flexDirection: 'row',

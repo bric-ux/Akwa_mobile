@@ -145,6 +145,10 @@ const AddVehicleScreen: React.FC = () => {
     long_stay_discount_enabled: false,
     long_stay_discount_min_days: '30',
     long_stay_discount_percentage: '20',
+    // Location par heure
+    hourly_rental_enabled: false,
+    price_per_hour: '',
+    minimum_rental_hours: '1',
   });
 
   const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
@@ -443,9 +447,24 @@ const AddVehicleScreen: React.FC = () => {
       Alert.alert('Erreur', 'Veuillez saisir une année valide');
       return;
     }
+    // Validation: au moins prix par jour OU (location par heure activée avec prix par heure)
     if (!formData.price_per_day || parseFloat(formData.price_per_day) <= 0) {
-      Alert.alert('Erreur', 'Veuillez saisir un prix par jour valide');
-      return;
+      if (!formData.hourly_rental_enabled || !formData.price_per_hour || parseFloat(formData.price_per_hour) <= 0) {
+        Alert.alert('Erreur', 'Veuillez saisir un prix par jour valide, ou activer la location par heure avec un prix par heure');
+        return;
+      }
+    }
+    
+    // Si location par heure activée, valider le prix par heure
+    if (formData.hourly_rental_enabled) {
+      if (!formData.price_per_hour || parseFloat(formData.price_per_hour) <= 0) {
+        Alert.alert('Erreur', 'Veuillez saisir un prix par heure valide');
+        return;
+      }
+      if (!formData.minimum_rental_hours || parseInt(formData.minimum_rental_hours) < 1) {
+        Alert.alert('Erreur', 'La durée minimum de location par heure doit être d\'au moins 1 heure');
+        return;
+      }
     }
     if (!formData.location_name) {
       Alert.alert('Erreur', 'Veuillez sélectionner une localisation');
@@ -503,11 +522,21 @@ const AddVehicleScreen: React.FC = () => {
       price_per_month: formData.price_per_month ? parseInt(formData.price_per_month) : undefined,
       security_deposit: parseInt(formData.security_deposit) || 0,
       minimum_rental_days: parseInt(formData.minimum_rental_days) || 1,
+      hourly_rental_enabled: formData.hourly_rental_enabled,
+      price_per_hour: formData.hourly_rental_enabled && formData.price_per_hour ? parseInt(formData.price_per_hour) : undefined,
+      minimum_rental_hours: formData.hourly_rental_enabled ? parseInt(formData.minimum_rental_hours) || 1 : undefined,
       title: formData.title.trim(),
       description: formData.description.trim(),
       features: formData.features,
       rules: formData.rules,
       images: selectedImages.map(img => img.uri),
+      // Passer les informations sur les photos (isMain, category, displayOrder)
+      photos: selectedImages.map((img, index) => ({
+        uri: img.uri,
+        category: img.category,
+        displayOrder: img.displayOrder,
+        isMain: img.isMain || false,
+      })),
       has_insurance: formData.has_insurance,
       insurance_details: formData.insurance_details || undefined,
       with_driver: formData.with_driver,
@@ -779,6 +808,65 @@ const AddVehicleScreen: React.FC = () => {
               onChangeText={(value) => handleInputChange('minimum_rental_days', value)}
               keyboardType="numeric"
             />
+          </View>
+
+          {/* Location par heure */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Location par heure</Text>
+            
+            <View style={styles.checkboxContainer}>
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => {
+                  const newValue = !formData.hourly_rental_enabled;
+                  setFormData(prev => ({
+                    ...prev,
+                    hourly_rental_enabled: newValue,
+                    price_per_hour: newValue ? prev.price_per_hour : '',
+                    minimum_rental_hours: newValue ? prev.minimum_rental_hours : '1',
+                  }));
+                }}
+              >
+                <View style={[
+                  styles.checkbox,
+                  formData.hourly_rental_enabled && styles.checkboxChecked
+                ]}>
+                  {formData.hourly_rental_enabled && (
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                  )}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>
+                    Activer la location par heure
+                  </Text>
+                  <Text style={styles.checkboxDescription}>
+                    Permettre aux locataires de louer votre véhicule à l'heure
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {formData.hourly_rental_enabled && (
+              <View style={styles.hourlySection}>
+                <Text style={styles.label}>Prix par heure (XOF) *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 5000"
+                  value={formData.price_per_hour}
+                  onChangeText={(value) => handleInputChange('price_per_hour', value)}
+                  keyboardType="numeric"
+                />
+
+                <Text style={styles.label}>Durée minimum de location (heures)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="1"
+                  value={formData.minimum_rental_hours}
+                  onChangeText={(value) => handleInputChange('minimum_rental_hours', value)}
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
           </View>
 
           {/* Assurance */}
@@ -1763,6 +1851,14 @@ const styles = StyleSheet.create({
   checkboxDescription: {
     fontSize: 14,
     color: '#666',
+  },
+  hourlySection: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
   },
   warningContainer: {
     flexDirection: 'row',
