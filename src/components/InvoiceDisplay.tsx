@@ -381,7 +381,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       nights = Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)) + 1;
     } else {
       // Pour les propriétés: calcul standard
-      nights = Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24));
+      const calculatedNights = Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24));
+      nights = calculatedNights > 0 ? calculatedNights : 1; // Minimum 1 nuit
     }
   }
   
@@ -509,8 +510,11 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       taxesFromBooking: booking.properties?.taxes,
       taxesPerNight,
       nights,
+      checkIn,
+      checkOut,
       effectiveTaxes,
-      willShow: effectiveTaxes > 0
+      willShow: effectiveTaxes > 0,
+      serviceType
     });
   }
   
@@ -1103,11 +1107,11 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </>
           )}
 
-          {/* Taxe de séjour */}
-          {effectiveTaxes > 0 && (
+          {/* Taxe de séjour - toujours afficher si taxesPerNight > 0 */}
+          {(effectiveTaxes > 0 || (serviceType === 'property' && taxesPerNight > 0 && nights > 0)) && (
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>Taxe de séjour</Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes)}</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes > 0 ? effectiveTaxes : taxesPerNight * nights)}</Text>
             </View>
           )}
 
