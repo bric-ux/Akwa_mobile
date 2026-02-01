@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -79,6 +79,20 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   const [tempStartTime, setTempStartTime] = useState<Date>(getInitialStartTime());
   const [tempEndDate, setTempEndDate] = useState<Date>(getInitialEndDate());
   const [tempEndTime, setTempEndTime] = useState<Date>(getInitialEndTime());
+
+  // Mettre à jour les états temporaires quand les props changent
+  useEffect(() => {
+    if (startDateTime) {
+      const start = new Date(startDateTime);
+      setTempStartDate(start);
+      setTempStartTime(start);
+    }
+    if (endDateTime) {
+      const end = new Date(endDateTime);
+      setTempEndDate(end);
+      setTempEndTime(end);
+    }
+  }, [startDateTime, endDateTime]);
 
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('fr-FR', {
@@ -402,40 +416,56 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
     return pickingField === 'startDate' || pickingField === 'endDate' ? 'date' : 'time';
   };
 
-  // Calculer la durée - utiliser la même logique que lors de la création de la réservation
+  // Fonction pour calculer la durée à partir de dates/heures
+  const calculateDuration = (start: Date, end: Date) => {
+    const totalHours = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60));
+    
+    const fullDaysFromHours = Math.floor(totalHours / 24);
+    
+    // Calculer le nombre de jours selon les dates
+    let rentalDaysFromDates = 1;
+    const startDateOnly = new Date(start);
+    startDateOnly.setHours(0, 0, 0, 0);
+    const endDateOnly = new Date(end);
+    endDateOnly.setHours(0, 0, 0, 0);
+    
+    if (startDateOnly.getTime() !== endDateOnly.getTime()) {
+      const diffTimeDays = endDateOnly.getTime() - startDateOnly.getTime();
+      const diffDays = Math.ceil(diffTimeDays / (1000 * 60 * 60 * 24));
+      rentalDaysFromDates = diffDays + 1;
+    }
+    
+    // Logique de facturation
+    let days: number;
+    let hours: number;
+    
+    if (totalHours < 24) {
+      days = 1;
+      hours = 0;
+    } else {
+      days = Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates);
+      const hoursInFullDays = fullDaysFromHours * 24;
+      hours = totalHours - hoursInFullDays;
+    }
+    
+    return { diffDays: days, diffHours: hours };
+  };
+
+  // Calculer la durée pour l'affichage dans le sélecteur (utiliser les props)
+  const displayDuration = startDateTime && endDateTime
+    ? calculateDuration(new Date(startDateTime), new Date(endDateTime))
+    : { diffDays: 0, diffHours: 0 };
+
+  // Calculer la durée pour l'aperçu dans le modal (utiliser les valeurs temporaires)
   const startFull = new Date(tempStartDate);
   startFull.setHours(tempStartTime.getHours());
   startFull.setMinutes(tempStartTime.getMinutes());
   const endFull = new Date(tempEndDate);
   endFull.setHours(tempEndTime.getHours());
   endFull.setMinutes(tempEndTime.getMinutes());
-  const totalHours = Math.ceil((endFull.getTime() - startFull.getTime()) / (1000 * 60 * 60));
-  
-  // Calculer les jours complets à partir des heures totales
-  const fullDaysFromHours = Math.floor(totalHours / 24);
-  
-  // Calculer le nombre de jours selon les dates (pour validation et affichage)
-  // Utiliser la même logique que lors de la création de la réservation
-  let rentalDaysFromDates = 1;
-  const startDateOnly = new Date(tempStartDate);
-  startDateOnly.setHours(0, 0, 0, 0);
-  const endDateOnly = new Date(tempEndDate);
-  endDateOnly.setHours(0, 0, 0, 0);
-  
-  if (startDateOnly.getTime() !== endDateOnly.getTime()) {
-    const diffTimeDays = endDateOnly.getTime() - startDateOnly.getTime();
-    const diffDays = Math.ceil(diffTimeDays / (1000 * 60 * 60 * 24));
-    rentalDaysFromDates = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
-  }
-  
-  // Utiliser le maximum entre les deux pour être sûr d'avoir le bon nombre de jours
-  // C'est la même logique que dans useVehicleBookings.ts
-  const diffDays = Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates);
-  
-  // Calculer les heures restantes : durée totale - (jours complets × 24 heures)
-  // Utiliser fullDaysFromHours pour le calcul des heures, pas diffDays
-  const hoursInFullDays = fullDaysFromHours * 24;
-  const diffHours = totalHours - hoursInFullDays;
+  const previewDuration = calculateDuration(startFull, endFull);
+  const diffDays = previewDuration.diffDays;
+  const diffHours = previewDuration.diffHours;
 
   return (
     <View style={styles.container}>
@@ -451,7 +481,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
                 Rendu: {formatDate(new Date(endDateTime))} à {formatTime(new Date(endDateTime))}
               </Text>
               <Text style={styles.duration}>
-                Durée: {diffDays > 0 ? `${diffDays} jour${diffDays > 1 ? 's' : ''} ` : ''}{diffHours > 0 ? `${diffHours}h` : ''}
+                Durée: {displayDuration.diffDays > 0 ? `${displayDuration.diffDays} jour${displayDuration.diffDays > 1 ? 's' : ''}` : ''}{displayDuration.diffHours > 0 ? ` et ${displayDuration.diffHours} heure${displayDuration.diffHours > 1 ? 's' : ''}` : ''}
               </Text>
             </>
           ) : (
@@ -552,9 +582,8 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
               <View style={styles.previewSection}>
                 <Text style={styles.previewTitle}>Durée de location</Text>
                 <Text style={styles.previewValue}>
-                  {diffDays > 0 && `${diffDays} jour${diffDays > 1 ? 's' : ''} `}
-                  {diffHours > 0 && `${diffHours} heure${diffHours > 1 ? 's' : ''}`}
-                  {diffDays === 0 && diffHours === 0 && '1 heure'}
+                  {diffDays > 0 ? `${diffDays} jour${diffDays > 1 ? 's' : ''}` : '1 jour'}
+                  {diffHours > 0 ? ` et ${diffHours} heure${diffHours > 1 ? 's' : ''}` : ''}
                 </Text>
               </View>
             </ScrollView>

@@ -17,6 +17,7 @@ import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifi
 import { VehicleDateTimeSelector } from './VehicleDateTimeSelector';
 import { formatPrice } from '../utils/priceCalculator';
 import { calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
+import VehicleModificationSurplusPaymentModal from './VehicleModificationSurplusPaymentModal';
 
 interface VehicleModificationModalProps {
   visible: boolean;
@@ -38,6 +39,16 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const [endDateTime, setEndDateTime] = useState<string | undefined>(undefined);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pendingModificationData, setPendingModificationData] = useState<any>(null);
+  const [surplusBreakdown, setSurplusBreakdown] = useState<{
+    daysPriceDiff?: number;
+    hoursPriceDiff?: number;
+    discountDiff?: number;
+    serviceFeeDiff?: number;
+    serviceFeeHTDiff?: number;
+    serviceFeeVATDiff?: number;
+  } | null>(null);
 
   useEffect(() => {
     if (booking && visible) {
@@ -317,43 +328,80 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
       return;
     }
 
+    // Calculer la différence de prix
+    const priceDifference = totalPrice - currentTotalPrice;
+    
+    // Calculer le breakdown du surplus
+    // Calculer les frais de service actuels pour la comparaison
+    const currentServiceFeeHT = Math.round(currentPriceAfterDiscount * 0.10);
+    const currentServiceFeeVAT = Math.round(currentServiceFeeHT * 0.20);
+    
+    const calculatedSurplusBreakdown = {
+      daysPriceDiff: daysPrice - currentDaysPrice,
+      hoursPriceDiff: hoursPrice - currentHoursPrice,
+      discountDiff: currentDiscountAmount - discountAmount,
+      serviceFeeHTDiff: serviceFeeHT - currentServiceFeeHT,
+      serviceFeeVATDiff: serviceFeeVAT - currentServiceFeeVAT,
+      serviceFeeDiff: effectiveServiceFee - currentServiceFee,
+    };
+    setSurplusBreakdown(calculatedSurplusBreakdown);
+
+    // Préparer les données de modification
+    const modificationData = {
+      bookingId: booking.id,
+      requestedStartDate: startDate,
+      requestedEndDate: endDate,
+      requestedStartDateTime: startDateTime,
+      requestedEndDateTime: endDateTime,
+      requestedRentalDays: rentalDays,
+      requestedRentalHours: remainingHours,
+      requestedTotalPrice: totalPrice,
+      message: message.trim() || undefined,
+    };
+
+    // Si le surplus est positif, afficher le modal de paiement
+    if (priceDifference > 0) {
+      setPendingModificationData(modificationData);
+      setShowPaymentModal(true);
+    } else {
+      // Si pas de surplus, soumettre directement
+      setIsSubmitting(true);
+      try {
+        const result = await modifyBooking(modificationData);
+
+        if (result.success) {
+          Alert.alert('Succès', 'La réservation a été modifiée avec succès');
+          onModified();
+          onClose();
+        } else {
+          Alert.alert('Erreur', result.error || 'Impossible de modifier la réservation');
+        }
+      } catch (error: any) {
+        Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
+  const handlePaymentComplete = async () => {
+    if (!pendingModificationData) return;
+    
+    // Réinitialiser les valeurs
+    setSurplusBreakdown(null);
+    
+    // Soumettre la demande après le paiement
     setIsSubmitting(true);
     try {
-      // Debug: vérifier les données avant envoi
-      console.log('📤 [VehicleModificationModal] Données de modification:', {
-        bookingId: booking.id,
-        requestedStartDate: startDate,
-        requestedEndDate: endDate,
-        requestedStartDateTime: startDateTime,
-        requestedEndDateTime: endDateTime,
-        requestedRentalDays: rentalDays,
-        requestedRentalHours: remainingHours,
-        requestedTotalPrice: totalPrice,
-        daysPrice,
-        hoursPrice,
-        basePrice,
-        discountAmount,
-        effectiveServiceFee
-      });
+      const result = await modifyBooking(pendingModificationData);
       
-      const result = await modifyBooking({
-        bookingId: booking.id,
-        requestedStartDate: startDate,
-        requestedEndDate: endDate,
-        requestedStartDateTime: startDateTime,
-        requestedEndDateTime: endDateTime,
-        requestedRentalDays: rentalDays,
-        requestedRentalHours: remainingHours,
-        requestedTotalPrice: totalPrice,
-        message: message.trim() || undefined,
-      });
-
       if (result.success) {
-        Alert.alert('Succès', 'La réservation a été modifiée avec succès');
+        setPendingModificationData(null);
+        Alert.alert('Succès', 'La demande de modification a été soumise avec succès');
         onModified();
         onClose();
       } else {
-        Alert.alert('Erreur', result.error || 'Impossible de modifier la réservation');
+        Alert.alert('Erreur', result.error || 'Impossible de soumettre la demande de modification');
       }
     } catch (error: any) {
       Alert.alert('Erreur', error.message || 'Une erreur est survenue');
@@ -516,6 +564,23 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
           </View>
         </SafeAreaView>
       </View>
+
+      {/* Modal de paiement du surplus */}
+      <VehicleModificationSurplusPaymentModal
+        visible={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setPendingModificationData(null);
+          setSurplusBreakdown(null);
+        }}
+        surplusAmount={totalPrice > currentTotalPrice ? totalPrice - currentTotalPrice : 0}
+        bookingId={booking.id}
+        onPaymentComplete={handlePaymentComplete}
+        vehicleTitle={vehicle?.title || `${vehicle?.brand} ${vehicle?.model}`}
+        originalTotalPrice={currentTotalPrice}
+        newTotalPrice={totalPrice}
+        priceBreakdown={surplusBreakdown || undefined}
+      />
     </Modal>
   );
 };
