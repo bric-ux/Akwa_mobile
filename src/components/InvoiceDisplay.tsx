@@ -502,6 +502,18 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     : (booking.properties?.taxes || 0);
   const effectiveTaxes = serviceType === 'property' ? taxesPerNight * nights : 0;
   
+  // Debug pour la taxe de séjour
+  if (__DEV__ && serviceType === 'property') {
+    console.log('🔍 [InvoiceDisplay] Taxe de séjour:', {
+      providedTaxes,
+      taxesFromBooking: booking.properties?.taxes,
+      taxesPerNight,
+      nights,
+      effectiveTaxes,
+      willShow: effectiveTaxes > 0
+    });
+  }
+  
   // Calculer les frais de service avec TVA
   const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
   const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
@@ -996,14 +1008,6 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             <Text style={styles.vatInvoiceButtonText}>Voir facture avec TVA</Text>
           </TouchableOpacity>
 
-          {/* Taxes */}
-          {effectiveTaxes > 0 && (
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Taxes locales</Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes)}</Text>
-            </View>
-          )}
-
           <View style={styles.separator} />
 
           {/* Total */}
@@ -1099,6 +1103,14 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </>
           )}
 
+          {/* Taxe de séjour */}
+          {effectiveTaxes > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Taxe de séjour</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes)}</Text>
+            </View>
+          )}
+
           {/* Frais de ménage */}
           {effectiveCleaningFee > 0 && (
             <View style={styles.financialRow}>
@@ -1130,14 +1142,6 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
               <Text style={styles.vatDetailValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
             </View>
           </View>
-
-          {/* Taxes */}
-          {effectiveTaxes > 0 && (
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Taxes locales</Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes)}</Text>
-            </View>
-          )}
 
           <View style={styles.separator} />
 
