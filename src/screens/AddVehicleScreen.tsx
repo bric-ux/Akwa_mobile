@@ -138,6 +138,7 @@ const AddVehicleScreen: React.FC = () => {
     insurance_expiration_date: null as Date | null,
     insurance_details: '',
     with_driver: false,
+    driver_fee: '',
     requires_license: true,
     min_license_years: '0',
     discount_enabled: false,
@@ -549,6 +550,7 @@ const AddVehicleScreen: React.FC = () => {
         ? formData.insurance_expiration_date.toISOString() 
         : (formData.insurance_expiration_date ? String(formData.insurance_expiration_date) : undefined),
       with_driver: formData.with_driver,
+      driver_fee: formData.with_driver && formData.driver_fee ? parseInt(formData.driver_fee) : 0,
       requires_license: formData.requires_license,
       min_license_years: parseInt(formData.min_license_years) || 0,
       discount_enabled: formData.discount_enabled,
@@ -1076,6 +1078,23 @@ const AddVehicleScreen: React.FC = () => {
                 </Text>
               </View>
             </TouchableOpacity>
+
+            {/* Surplus chauffeur */}
+            {formData.with_driver && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Surplus chauffeur (FCFA)</Text>
+                <Text style={styles.hintText}>
+                  Surplus à payer par le locataire pour le service de chauffeur
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 5000"
+                  value={formData.driver_fee}
+                  onChangeText={(value) => handleInputChange('driver_fee', value)}
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
 
             {/* Exigences de permis */}
             <View style={styles.licenseSection}>

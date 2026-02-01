@@ -19,6 +19,7 @@ export interface VehicleBookingData {
   hasLicense?: boolean;
   licenseYears?: string;
   licenseNumber?: string;
+  useDriver?: boolean; // Si le locataire choisit d'utiliser le chauffeur (quand with_driver est true)
 }
 
 export const useVehicleBookings = () => {
@@ -247,9 +248,15 @@ export const useVehicleBookings = () => {
         console.log(`💰 [useVehicleBookings] Calcul combiné: ${rentalDays} jours (${priceCalculation.daysPrice} FCFA) + ${rentalHours || 0} heures (${hoursPrice} FCFA) = ${priceCalculation.totalBeforeDiscount} FCFA, réduction: ${discountAmount} FCFA, total: ${basePrice} FCFA`);
       }
       
+      // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire choisit le chauffeur
+      const driverFee = (vehicle.with_driver && bookingData.useDriver === true && (vehicle as any).driver_fee) 
+        ? (vehicle as any).driver_fee 
+        : 0;
+      const basePriceWithDriver = basePrice + driverFee;
+      
       // Calculer les frais de service (10% + TVA du prix après réduction pour les véhicules)
-      const fees = calculateFees(basePrice, rentalType === 'hourly' ? rentalHours! : rentalDays, 'vehicle');
-      const totalPrice = basePrice + fees.serviceFee; // Total avec frais de service
+      const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours! : rentalDays, 'vehicle');
+      const totalPrice = basePriceWithDriver + fees.serviceFee; // Total avec frais de service
       
       // Déterminer le statut initial en fonction de auto_booking
       const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
@@ -273,6 +280,7 @@ export const useVehicleBookings = () => {
         has_license: bookingData.hasLicense || false,
         license_years: bookingData.licenseYears ? parseInt(bookingData.licenseYears) : null,
         license_number: bookingData.licenseNumber || null,
+        with_driver: bookingData.useDriver === true, // Stocker si le locataire a choisi le chauffeur
         status: initialStatus,
       };
 
@@ -814,7 +822,8 @@ export const useVehicleBookings = () => {
             securityDeposit: booking.security_deposit || 0,
             pickupLocation: booking.pickup_location || '',
             isInstantBooking: false, // Confirmation manuelle = pas instantanée
-            withDriver: vehicle?.with_driver || false, // Ajouté pour afficher si avec chauffeur
+            withDriver: booking.with_driver === true, // Si le locataire a choisi le chauffeur
+            vehicleDriverFee: (booking.with_driver === true && vehicle?.with_driver && (vehicle as any).driver_fee) ? (vehicle as any).driver_fee : 0, // Surplus chauffeur
           };
 
           // Email au locataire avec PDF

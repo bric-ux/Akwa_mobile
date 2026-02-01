@@ -406,29 +406,42 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   
   // Prix de base = prix des jours + prix des heures
   const daysPrice = pricePerUnit * nights;
-  const basePrice = daysPrice + hoursPrice;
   
-  // Recalculer la réduction pour être sûr d'avoir la bonne valeur (comme dans PropertyBookingDetailsScreen)
+  // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire a choisi le chauffeur
+  const driverFee = (serviceType === 'vehicle' && (booking as any).vehicle?.with_driver && (booking as any).vehicle?.driver_fee && (booking as any).with_driver) 
+    ? (booking as any).vehicle.driver_fee 
+    : 0;
+  
+  const basePrice = daysPrice + hoursPrice + driverFee;
+  
+  // Utiliser la valeur stockée en priorité, sinon recalculer
   let discountAmount = 0;
   if (serviceType === 'property' && booking.properties) {
-    const discountConfig: DiscountConfig = {
-      enabled: booking.properties.discount_enabled || false,
-      minNights: booking.properties.discount_min_nights || null,
-      percentage: booking.properties.discount_percentage || null
-    };
-    const longStayDiscountConfig: DiscountConfig | undefined = booking.properties.long_stay_discount_enabled ? {
-      enabled: booking.properties.long_stay_discount_enabled || false,
-      minNights: booking.properties.long_stay_discount_min_nights || null,
-      percentage: booking.properties.long_stay_discount_percentage || null
-    } : undefined;
-    
-    try {
-      const pricing = calculateTotalPrice(pricePerUnit, nights, discountConfig, longStayDiscountConfig);
-      discountAmount = pricing.discountAmount || 0;
-    } catch (error) {
-      console.error('Erreur lors du calcul de la réduction dans InvoiceDisplay:', error);
-      // En cas d'erreur, utiliser la valeur stockée
-      discountAmount = booking.discount_amount || 0;
+    // Pour les propriétés, utiliser la valeur stockée en priorité (comme pour les véhicules)
+    if (booking.discount_amount && booking.discount_amount > 0) {
+      // Utiliser la valeur stockée en priorité
+      discountAmount = booking.discount_amount;
+    } else {
+      // Sinon, recalculer la réduction
+      const discountConfig: DiscountConfig = {
+        enabled: booking.properties.discount_enabled || false,
+        minNights: booking.properties.discount_min_nights || null,
+        percentage: booking.properties.discount_percentage || null
+      };
+      const longStayDiscountConfig: DiscountConfig | undefined = booking.properties.long_stay_discount_enabled ? {
+        enabled: booking.properties.long_stay_discount_enabled || false,
+        minNights: booking.properties.long_stay_discount_min_nights || null,
+        percentage: booking.properties.long_stay_discount_percentage || null
+      } : undefined;
+      
+      try {
+        const pricing = calculateTotalPrice(pricePerUnit, nights, discountConfig, longStayDiscountConfig);
+        discountAmount = pricing.discountAmount || 0;
+      } catch (error) {
+        console.error('Erreur lors du calcul de la réduction dans InvoiceDisplay:', error);
+        // En cas d'erreur, utiliser la valeur stockée
+        discountAmount = booking.discount_amount || 0;
+      }
     }
   } else if (serviceType === 'vehicle') {
     // Pour les véhicules, utiliser la valeur stockée si disponible, sinon recalculer
@@ -483,9 +496,11 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   // Pour les propriétés : prix_total - réduction (comme avant)
   const priceAfterDiscount = basePrice - discountAmount;
   const actualDiscountAmount = discountAmount;
-  const effectiveTaxes = providedTaxes !== undefined 
+  // La taxe de séjour est par nuit, donc multiplier par le nombre de nuits
+  const taxesPerNight = providedTaxes !== undefined 
     ? providedTaxes 
     : (booking.properties?.taxes || 0);
+  const effectiveTaxes = serviceType === 'property' ? taxesPerNight * nights : 0;
   
   // Calculer les frais de service avec TVA
   const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
@@ -897,6 +912,14 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </View>
           )}
           
+          {/* Surplus chauffeur pour les véhicules */}
+          {serviceType === 'vehicle' && driverFee > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Surplus chauffeur</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(driverFee)}</Text>
+            </View>
+          )}
+          
           {/* Total avant réduction */}
           {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && (
             <View style={styles.financialRow}>
@@ -1030,6 +1053,14 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
                 {rentalHours} heure{rentalHours > 1 ? 's' : ''} × {formatPriceFCFA(hourlyRate)}/h
               </Text>
               <Text style={styles.financialValue}>{formatPriceFCFA(hoursPrice)}</Text>
+            </View>
+          )}
+          
+          {/* Surplus chauffeur pour les véhicules */}
+          {serviceType === 'vehicle' && driverFee > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Surplus chauffeur</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(driverFee)}</Text>
             </View>
           )}
           

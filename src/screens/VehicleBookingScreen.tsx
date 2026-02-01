@@ -460,9 +460,13 @@ const VehicleBookingScreen: React.FC = () => {
     console.log(`⚠️ [VehicleBookingScreen] Pas de calcul heures: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle?.hourly_rental_enabled}, price_per_hour=${vehicle?.price_per_hour}`);
   }
   
+  // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire choisit le chauffeur
+  const driverFee = (withDriver && useDriver === true && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
+  const basePriceWithDriver = basePrice + driverFee;
+  
   // Calculer les frais de service (10% du prix après réduction pour les véhicules)
-  const fees = calculateFees(basePrice, rentalDays, 'vehicle');
-  const totalPrice = basePrice + fees.serviceFee;
+  const fees = calculateFees(basePriceWithDriver, rentalDays, 'vehicle');
+  const totalPrice = basePriceWithDriver + fees.serviceFee;
   
   const securityDeposit = vehicle?.security_deposit || 0;
 
@@ -567,6 +571,7 @@ const VehicleBookingScreen: React.FC = () => {
         hasLicense: isLicenseRequired ? hasLicense : undefined,
         licenseYears: isLicenseRequired && hasLicense ? licenseYears : undefined,
         licenseNumber: isLicenseRequired && hasLicense ? licenseNumber : undefined,
+        useDriver: withDriver ? useDriver : undefined,
       });
 
       if (result.success) {
@@ -739,6 +744,7 @@ const VehicleBookingScreen: React.FC = () => {
             startDateTime={startDateTime}
             endDateTime={endDateTime}
             onDateTimeChange={handleDateTimeChange}
+            hourlyRentalEnabled={vehicle?.hourly_rental_enabled || false}
           />
           {startDateTime && endDateTime && (rentalDays > 0 || remainingHours > 0) ? (
             <Text style={styles.rentalDaysText}>
@@ -986,6 +992,12 @@ const VehicleBookingScreen: React.FC = () => {
               {formatPrice(basePrice)}
             </Text>
           </View>
+          {driverFee > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Surplus chauffeur</Text>
+              <Text style={styles.summaryValue}>{formatPrice(driverFee)}</Text>
+            </View>
+          )}
           {fees.serviceFee > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Frais de service</Text>

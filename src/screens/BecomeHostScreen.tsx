@@ -130,6 +130,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     
     // Frais et règles
     cleaningFee: '',
+    taxes: '',
     freeCleaningMinDays: '',
     houseRules: '',
     minimumNights: '1',
@@ -252,6 +253,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         hostEmail: application.email || '',
         hostPhone: application.phone || '',
         cleaningFee: application.cleaning_fee?.toString() || '',
+        taxes: application.taxes?.toString() || '',
         freeCleaningMinDays: application.free_cleaning_min_days?.toString() || '',
         houseRules: '',
         minimumNights: application.minimum_nights?.toString() || '1',
@@ -697,7 +699,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       'propertyType', 'location', 'guests', 'bedrooms', 'bathrooms',
       'title', 'description', 'price', 'addressDetails',
       'hostFullName', 'hostEmail', 'hostPhone', 'hostGuide',
-      'cleaningFee', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage', 'longStayDiscountMinNights', 'longStayDiscountPercentage',
+      'cleaningFee', 'taxes', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage', 'longStayDiscountMinNights', 'longStayDiscountPercentage',
       'autoBooking', 'cancellationPolicy'
     ];
     
@@ -1058,6 +1060,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       longStayDiscountMinNights: formData.longStayDiscountEnabled ? parseInt(formData.longStayDiscountMinNights) || undefined : undefined,
       longStayDiscountPercentage: formData.longStayDiscountEnabled ? parseInt(formData.longStayDiscountPercentage) || undefined : undefined,
       cleaningFee: parseInt(formData.cleaningFee) || 0,
+      taxes: parseInt(formData.taxes) || 0,
       freeCleaningMinDays: formData.freeCleaningMinDays ? parseInt(formData.freeCleaningMinDays) || undefined : undefined,
     };
 
@@ -1929,6 +1932,23 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             placeholderTextColor="#999"
             returnKeyType="next"
             onSubmitEditing={() => handleInputSubmit('cleaningFee')}
+          />
+        </View>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Taxe de séjour (FCFA)</Text>
+          <Text style={styles.helpText}>
+            Taxe de séjour payée par le voyageur (optionnel)
+          </Text>
+          <TextInput
+            ref={(ref) => { inputRefs.current['taxes'] = ref; }}
+            style={styles.input}
+            value={formData.taxes}
+            onChangeText={(value) => handleInputChange('taxes', value)}
+            placeholder="0"
+            keyboardType="numeric"
+            placeholderTextColor="#999"
+            returnKeyType="next"
+            onSubmitEditing={() => handleInputSubmit('taxes')}
           />
         </View>
       </View>

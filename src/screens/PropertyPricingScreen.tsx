@@ -37,6 +37,7 @@ const PropertyPricingScreen: React.FC = () => {
   // État pour le prix de base
   const [basePrice, setBasePrice] = useState<string>('');
   const [propertyTitle, setPropertyTitle] = useState<string>('');
+  const [taxes, setTaxes] = useState<string>('');
   
   // État pour la tarification
   const [discountEnabled, setDiscountEnabled] = useState(false);
@@ -79,6 +80,7 @@ const PropertyPricingScreen: React.FC = () => {
       if (data) {
         setPropertyTitle(data.title || '');
         setBasePrice(data.price_per_night?.toString() || '');
+        setTaxes(data.taxes?.toString() || '0');
         setDiscountEnabled(data.discount_enabled || false);
         setDiscountMinNights(data.discount_min_nights?.toString() || '');
         setDiscountPercentage(data.discount_percentage?.toString() || '');
@@ -393,6 +395,7 @@ const PropertyPricingScreen: React.FC = () => {
 
       const updates: any = {
         price_per_night: basePrice ? parseInt(basePrice) : null,
+        taxes: taxes ? parseInt(taxes) : 0,
         discount_enabled: discountEnabled,
         discount_min_nights: discountMinNights ? parseInt(discountMinNights) : null,
         discount_percentage: discountPercentage ? parseFloat(discountPercentage) : null,
@@ -724,6 +727,19 @@ const PropertyPricingScreen: React.FC = () => {
                 <Text style={styles.helpText}>
                   Ce prix sera utilisé par défaut pour toutes les dates sans prix personnalisé
                 </Text>
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Taxe de séjour (XOF)</Text>
+                <Text style={styles.helpText}>
+                  Taxe de séjour payée par le voyageur (optionnel)
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={taxes}
+                  onChangeText={setTaxes}
+                  placeholder="Ex: 0"
+                  keyboardType="numeric"
+                />
               </View>
             </View>
           </View>

@@ -90,6 +90,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
             owner_id,
             hourly_rental_enabled,
             price_per_hour,
+            with_driver,
+            driver_fee,
             location:locations (
               id,
               name
@@ -445,6 +447,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                   rental_days: booking.rental_days, // Passer rental_days pour le calcul correct
                   rental_hours: booking.rental_hours || 0, // Passer rental_hours pour l'affichage
                   hourly_rate: booking.hourly_rate || 0, // Passer hourly_rate de la réservation
+                  with_driver: booking.with_driver === true, // Si le locataire a choisi le chauffeur
                   vehicle: {
                     rules: booking.vehicle?.rules || [],
                     discount_enabled: booking.vehicle?.discount_enabled,
@@ -456,6 +459,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                     hourly_rental_enabled: booking.vehicle?.hourly_rental_enabled,
                     price_per_hour: booking.vehicle?.price_per_hour,
                     with_driver: booking.vehicle?.with_driver, // Ajouté pour afficher si avec chauffeur
+                    driver_fee: booking.vehicle?.driver_fee || 0, // Surplus chauffeur
                   },
                 } as any}
                 pricePerUnit={booking.daily_rate || 0}

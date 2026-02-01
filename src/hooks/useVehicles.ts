@@ -615,6 +615,7 @@ export const useVehicles = () => {
           rules: vehicleData.rules || [],
           // Nouveaux champs du site web
           with_driver: (vehicleData as any).with_driver || false,
+          driver_fee: (vehicleData as any).driver_fee || 0,
           has_insurance: (vehicleData as any).has_insurance || false,
           insurance_details: (vehicleData as any).insurance_details || null,
           insurance_expiration_date: (vehicleData as any).insurance_expiration_date || null,
@@ -835,6 +836,9 @@ export const useVehicles = () => {
       if (vehicleData.hourly_rental_enabled !== undefined) updateData.hourly_rental_enabled = vehicleData.hourly_rental_enabled;
       if (vehicleData.price_per_hour !== undefined) updateData.price_per_hour = vehicleData.price_per_hour;
       if (vehicleData.minimum_rental_hours !== undefined) updateData.minimum_rental_hours = vehicleData.minimum_rental_hours;
+      // Champs chauffeur
+      if ((vehicleData as any).with_driver !== undefined) updateData.with_driver = (vehicleData as any).with_driver;
+      if ((vehicleData as any).driver_fee !== undefined) updateData.driver_fee = (vehicleData as any).driver_fee || 0;
 
       const { data, error: updateError } = await supabase
         .from('vehicles')

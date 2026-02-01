@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Linking,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -519,8 +520,8 @@ const HostVehicleBookingsScreen: React.FC = () => {
                 setMessageModalVisible(true);
               }}
             >
-              <Ionicons name="chatbubble-outline" size={16} color="#3b82f6" />
-              <Text style={[styles.actionButtonSmallText, { color: '#3b82f6' }]}>Contacter</Text>
+              <Ionicons name="chatbubble-outline" size={isSmallScreen ? 14 : 16} color="#3b82f6" />
+              <Text style={[styles.actionButtonSmallText, { color: '#3b82f6' }]} numberOfLines={1} adjustsFontSizeToFit={true} minimumFontScale={0.7}>Contacter</Text>
             </TouchableOpacity>
           ) : null}
 
@@ -870,6 +871,9 @@ const HostVehicleBookingsScreen: React.FC = () => {
   );
 };
 
+const { width } = Dimensions.get('window');
+const isSmallScreen = width < 375; // iPhone SE, iPhone 8, etc.
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1069,7 +1073,7 @@ const styles = StyleSheet.create({
   },
   actionButtonsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: isSmallScreen ? 6 : 8,
     marginTop: 12,
     flexWrap: 'wrap',
   },
@@ -1078,17 +1082,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: isSmallScreen ? 6 : 12,
     borderRadius: 8,
     borderWidth: 1,
-    gap: 6,
+    gap: isSmallScreen ? 4 : 6,
     flex: 1,
-    minWidth: 100,
+    minWidth: isSmallScreen ? 75 : 100,
+    flexShrink: 1,
   },
   actionButtonSmallText: {
-    fontSize: 13,
+    fontSize: isSmallScreen ? 11 : 13,
     fontWeight: '500',
     color: VEHICLE_COLORS.primary,
+    flexShrink: 1,
   },
   detailsButton: {
     borderColor: VEHICLE_COLORS.primary,

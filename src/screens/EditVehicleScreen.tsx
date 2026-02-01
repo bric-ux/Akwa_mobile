@@ -100,6 +100,9 @@ const EditVehicleScreen: React.FC = () => {
     hourly_rental_enabled: false,
     price_per_hour: '',
     minimum_rental_hours: '1',
+    // Chauffeur
+    with_driver: false,
+    driver_fee: '',
   });
 
   const [images, setImages] = useState<string[]>([]);
@@ -174,6 +177,8 @@ const EditVehicleScreen: React.FC = () => {
           hourly_rental_enabled: vehicleData.hourly_rental_enabled || false,
           price_per_hour: vehicleData.price_per_hour?.toString() || '',
           minimum_rental_hours: vehicleData.minimum_rental_hours?.toString() || '1',
+          with_driver: (vehicleData as any).with_driver || false,
+          driver_fee: (vehicleData as any).driver_fee?.toString() || '0',
         });
         
       }
@@ -338,6 +343,8 @@ const EditVehicleScreen: React.FC = () => {
       hourly_rental_enabled: formData.hourly_rental_enabled,
       price_per_hour: formData.hourly_rental_enabled && formData.price_per_hour ? parseInt(formData.price_per_hour) : null,
       minimum_rental_hours: formData.hourly_rental_enabled ? parseInt(formData.minimum_rental_hours) || 1 : null,
+      with_driver: formData.with_driver,
+      driver_fee: formData.with_driver && formData.driver_fee ? parseInt(formData.driver_fee) : 0,
       images: images,
       // Passer les informations sur les photos (isMain, category, displayOrder)
       photos: selectedImages.map((img) => ({
@@ -677,6 +684,58 @@ const EditVehicleScreen: React.FC = () => {
                   onChangeText={(value) => handleInputChange('minimum_rental_hours', value)}
                   keyboardType="numeric"
                 />
+              </View>
+            )}
+          </View>
+
+          {/* Avec chauffeur */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Service de chauffeur</Text>
+            
+            <View style={styles.checkboxContainer}>
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => {
+                  const newValue = !formData.with_driver;
+                  setFormData(prev => ({
+                    ...prev,
+                    with_driver: newValue,
+                    driver_fee: newValue ? prev.driver_fee : '0',
+                  }));
+                }}
+              >
+                <View style={[
+                  styles.checkbox,
+                  formData.with_driver && styles.checkboxChecked
+                ]}>
+                  {formData.with_driver && (
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                  )}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>
+                    Proposé avec chauffeur
+                  </Text>
+                  <Text style={styles.checkboxDescription}>
+                    Je peux fournir un chauffeur pour ce véhicule
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {formData.with_driver && (
+              <View style={styles.hourlySection}>
+                <Text style={styles.label}>Surplus chauffeur (XOF) *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 5000"
+                  value={formData.driver_fee}
+                  onChangeText={(value) => handleInputChange('driver_fee', value)}
+                  keyboardType="numeric"
+                />
+                <Text style={styles.hintText}>
+                  Surplus à payer par le locataire pour le service de chauffeur
+                </Text>
               </View>
             )}
           </View>

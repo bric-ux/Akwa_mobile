@@ -45,7 +45,7 @@ export const useEmailService = () => {
     });
   };
 
-  const sendBookingRequest = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number, message?: string) => {
+  const sendBookingRequest = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number, message?: string, discountAmount?: number, property?: any) => {
     return sendEmail({
       type: 'booking_request',
       to: hostEmail,
@@ -55,9 +55,15 @@ export const useEmailService = () => {
         propertyTitle,
         checkIn,
         checkOut,
+        checkInDate: checkIn,
+        checkOutDate: checkOut,
         guests,
         totalPrice,
-        message
+        message,
+        discountAmount: discountAmount || 0,
+        nights: property ? Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)) : undefined,
+        pricePerNight: property?.price_per_night || 0,
+        property: property || undefined
       }
     });
   };

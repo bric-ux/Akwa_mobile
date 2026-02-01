@@ -31,6 +31,8 @@ const VehiclePricingScreen: React.FC = () => {
   const [pricePerMonth, setPricePerMonth] = useState('');
   const [pricePerHour, setPricePerHour] = useState('');
   const [securityDeposit, setSecurityDeposit] = useState('');
+  const [driverFee, setDriverFee] = useState('');
+  const [withDriver, setWithDriver] = useState(false);
 
   useEffect(() => {
     loadVehicle();
@@ -43,6 +45,8 @@ const VehiclePricingScreen: React.FC = () => {
       setPricePerMonth(vehicle.price_per_month?.toString() || '');
       setPricePerHour((vehicle as any).price_per_hour?.toString() || '');
       setSecurityDeposit(vehicle.security_deposit?.toString() || '');
+      setDriverFee((vehicle as any).driver_fee?.toString() || '0');
+      setWithDriver((vehicle as any).with_driver || false);
     }
   }, [vehicle]);
 
@@ -68,6 +72,7 @@ const VehiclePricingScreen: React.FC = () => {
         price_per_month: pricePerMonth ? parseInt(pricePerMonth, 10) : null,
         price_per_hour: pricePerHour ? parseInt(pricePerHour, 10) : null,
         security_deposit: securityDeposit ? parseInt(securityDeposit, 10) : null,
+        driver_fee: driverFee ? parseInt(driverFee, 10) : 0,
       } as any);
 
       if (result.success) {
@@ -261,13 +266,45 @@ const VehiclePricingScreen: React.FC = () => {
                 </View>
               )}
               {securityDeposit && (
-                <View style={[styles.previewRow, styles.previewRowBorder]}>
+                <View style={styles.previewRow}>
                   <Text style={styles.previewLabel}>Caution:</Text>
                   <Text style={styles.previewValue}>
                     {parseInt(securityDeposit, 10).toLocaleString('fr-FR')} XOF
                   </Text>
                 </View>
               )}
+              {withDriver && driverFee && (
+                <View style={[styles.previewRow, styles.previewRowBorder]}>
+                  <Text style={styles.previewLabel}>Surplus chauffeur:</Text>
+                  <Text style={styles.previewValue}>
+                    {parseInt(driverFee, 10).toLocaleString('fr-FR')} XOF
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Surplus chauffeur */}
+        {withDriver && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="person-outline" size={20} color="#475569" />
+              <Text style={styles.sectionTitle}>Surplus chauffeur</Text>
+            </View>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Surplus chauffeur (XOF)</Text>
+              <Text style={styles.hint}>
+                Surplus à payer par le locataire pour le service de chauffeur
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={driverFee}
+                onChangeText={setDriverFee}
+                placeholder="Ex: 5000"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+              />
             </View>
           </View>
         )}

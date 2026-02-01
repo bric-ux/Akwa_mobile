@@ -8,6 +8,7 @@ import {
   Platform,
   ScrollView,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,7 @@ interface VehicleDateTimeSelectorProps {
   endDateTime?: string; // ISO string
   onDateTimeChange: (startDateTime: string, endDateTime: string) => void;
   isDateUnavailable?: (date: Date) => boolean;
+  hourlyRentalEnabled?: boolean; // Si false, mode simplifié : nombre de jours + date/heure départ
 }
 
 export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = ({
@@ -25,9 +27,13 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   endDateTime,
   onDateTimeChange,
   isDateUnavailable,
+  hourlyRentalEnabled = false,
 }) => {
   const [showModal, setShowModal] = useState(false);
-  const [pickingField, setPickingField] = useState<'startDate' | 'startTime' | 'endDate' | 'endTime' | null>(null);
+  const [pickingField, setPickingField] = useState<'startDate' | 'startTime' | 'endDate' | 'endTime' | 'rentalDays' | null>(null);
+  
+  // Mode simplifié : nombre de jours de location
+  const [rentalDays, setRentalDays] = useState<string>('1');
   
   // Fonction pour créer une date avec une heure par défaut
   const createDefaultDateTime = (date: Date, defaultHour: number, defaultMinute: number = 0): Date => {
@@ -95,7 +101,33 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       setTempEndDate(end);
       setTempEndTime(end);
     }
-  }, [startDateTime, endDateTime]);
+    
+    // Calculer le nombre de jours si on est en mode simplifié et qu'on a des dates
+    if (!hourlyRentalEnabled && startDateTime && endDateTime) {
+      const start = new Date(startDateTime);
+      const end = new Date(endDateTime);
+      const diffTime = end.getTime() - start.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        setRentalDays(diffDays.toString());
+      }
+    }
+  }, [startDateTime, endDateTime, hourlyRentalEnabled]);
+  
+  // Calculer automatiquement la date/heure de rendu dans le mode simplifié
+  useEffect(() => {
+    if (!hourlyRentalEnabled && tempStartDate && tempStartTime && rentalDays) {
+      const days = parseInt(rentalDays) || 1;
+      const calculatedEndDate = new Date(tempStartDate);
+      calculatedEndDate.setDate(calculatedEndDate.getDate() + days);
+      
+      // Même heure que le départ
+      const calculatedEndTime = new Date(tempStartTime);
+      
+      setTempEndDate(calculatedEndDate);
+      setTempEndTime(calculatedEndTime);
+    }
+  }, [hourlyRentalEnabled, tempStartDate, tempStartTime, rentalDays]);
 
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('fr-FR', {
@@ -261,8 +293,26 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   };
 
   const handleConfirm = () => {
+    // Mode simplifié : calculer automatiquement la date/heure de rendu
+    if (!hourlyRentalEnabled) {
+      const days = parseInt(rentalDays) || 1;
+      if (days < 1) {
+        alert('Le nombre de jours doit être au moins 1');
+        return;
+      }
+      
+      // Calculer la date de rendu
+      const calculatedEndDate = new Date(tempStartDate);
+      calculatedEndDate.setDate(calculatedEndDate.getDate() + days);
+      
+      // Même heure que le départ
+      const calculatedEndTime = new Date(tempStartTime);
+      
+      setTempEndDate(calculatedEndDate);
+      setTempEndTime(calculatedEndTime);
+    }
+    
     // Combiner date et heure pour start
-    // Créer la date en UTC directement avec l'heure locale pour éviter les conversions
     const startYear = tempStartDate.getFullYear();
     const startMonth = tempStartDate.getMonth();
     const startDay = tempStartDate.getDate();
@@ -489,14 +539,18 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
           {startDateTime && endDateTime ? (
             <>
               <Text style={styles.label}>
-                Prise: {formatDate(new Date(startDateTime))} à {formatTime(new Date(startDateTime))}
+                {!hourlyRentalEnabled ? 'Départ' : 'Prise'}: {formatDate(new Date(startDateTime))} à {formatTime(new Date(startDateTime))}
               </Text>
               <Text style={styles.label}>
-                Rendu: {formatDate(new Date(endDateTime))} à {formatTime(new Date(endDateTime))}
+                {!hourlyRentalEnabled ? 'Retour' : 'Rendu'}: {formatDate(new Date(endDateTime))} à {formatTime(new Date(endDateTime))}
               </Text>
             </>
           ) : (
-            <Text style={styles.placeholder}>Sélectionner dates et heures de prise/rendu</Text>
+            <Text style={styles.placeholder}>
+              {!hourlyRentalEnabled 
+                ? 'Sélectionner la durée et la date/heure de départ'
+                : 'Sélectionner dates et heures de prise/rendu'}
+            </Text>
           )}
         </View>
         <Ionicons name="chevron-forward" size={20} color="#666" />
@@ -523,71 +577,147 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
             </View>
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {/* Prise du véhicule */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Prise du véhicule</Text>
-                
-                <View style={styles.fieldRow}>
-                  <TouchableOpacity
-                    style={styles.fieldButton}
-                    onPress={() => setPickingField('startDate')}
-                  >
-                    <Ionicons name="calendar-outline" size={20} color="#e67e22" />
-                    <View style={styles.fieldContent}>
-                      <Text style={styles.fieldLabel}>Date</Text>
-                      <Text style={styles.fieldValue}>{formatDate(tempStartDate)}</Text>
+              {/* Mode simplifié : Nombre de jours + Date/Heure départ */}
+              {!hourlyRentalEnabled ? (
+                <>
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Durée de location</Text>
+                    <View style={styles.fieldRow}>
+                      <View style={styles.fieldButton}>
+                        <Ionicons name="calendar-number-outline" size={20} color="#e67e22" />
+                        <View style={styles.fieldContent}>
+                          <Text style={styles.fieldLabel}>Nombre de jours</Text>
+                          <TextInput
+                            style={styles.numberInput}
+                            value={rentalDays}
+                            onChangeText={(text) => {
+                              const num = parseInt(text) || 0;
+                              if (num >= 1) {
+                                setRentalDays(text);
+                              } else if (text === '') {
+                                setRentalDays('');
+                              }
+                            }}
+                            keyboardType="numeric"
+                            placeholder="1"
+                            placeholderTextColor="#999"
+                          />
+                        </View>
+                      </View>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color="#999" />
-                  </TouchableOpacity>
-                </View>
+                  </View>
 
-                <View style={styles.fieldRow}>
-                  <TouchableOpacity
-                    style={styles.fieldButton}
-                    onPress={() => setPickingField('startTime')}
-                  >
-                    <Ionicons name="time-outline" size={20} color="#e67e22" />
-                    <View style={styles.fieldContent}>
-                      <Text style={styles.fieldLabel}>Heure</Text>
-                      <Text style={styles.fieldValue}>{formatTime(tempStartTime)}</Text>
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Date et heure de départ</Text>
+                    
+                    <View style={styles.fieldRow}>
+                      <TouchableOpacity
+                        style={styles.fieldButton}
+                        onPress={() => setPickingField('startDate')}
+                      >
+                        <Ionicons name="calendar-outline" size={20} color="#e67e22" />
+                        <View style={styles.fieldContent}>
+                          <Text style={styles.fieldLabel}>Date de départ</Text>
+                          <Text style={styles.fieldValue}>{formatDate(tempStartDate)}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#999" />
+                      </TouchableOpacity>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color="#999" />
-                  </TouchableOpacity>
-                </View>
-              </View>
 
-              {/* Rendu du véhicule */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Rendu du véhicule</Text>
-                
-                <View style={styles.fieldRow}>
-                  <TouchableOpacity
-                    style={styles.fieldButton}
-                    onPress={() => setPickingField('endDate')}
-                  >
-                    <Ionicons name="calendar-outline" size={20} color="#e67e22" />
-                    <View style={styles.fieldContent}>
-                      <Text style={styles.fieldLabel}>Date</Text>
-                      <Text style={styles.fieldValue}>{formatDate(tempEndDate)}</Text>
+                    <View style={styles.fieldRow}>
+                      <TouchableOpacity
+                        style={styles.fieldButton}
+                        onPress={() => setPickingField('startTime')}
+                      >
+                        <Ionicons name="time-outline" size={20} color="#e67e22" />
+                        <View style={styles.fieldContent}>
+                          <Text style={styles.fieldLabel}>Heure de départ</Text>
+                          <Text style={styles.fieldValue}>{formatTime(tempStartTime)}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#999" />
+                      </TouchableOpacity>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color="#999" />
-                  </TouchableOpacity>
-                </View>
+                  </View>
 
-                <View style={styles.fieldRow}>
-                  <TouchableOpacity
-                    style={styles.fieldButton}
-                    onPress={() => setPickingField('endTime')}
-                  >
-                    <Ionicons name="time-outline" size={20} color="#e67e22" />
-                    <View style={styles.fieldContent}>
-                      <Text style={styles.fieldLabel}>Heure</Text>
-                      <Text style={styles.fieldValue}>{formatTime(tempEndTime)}</Text>
+                  {/* Aperçu de la date/heure de rendu (calculée automatiquement) */}
+                  <View style={styles.infoSection}>
+                    <Ionicons name="information-circle-outline" size={20} color="#0369a1" />
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoTitle}>Date et heure de rendu (calculée automatiquement)</Text>
+                      <Text style={styles.infoValue}>
+                        {formatDate(tempEndDate)} à {formatTime(tempEndTime)}
+                      </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color="#999" />
-                  </TouchableOpacity>
-                </View>
-              </View>
+                  </View>
+                </>
+              ) : (
+                <>
+                  {/* Mode complet : Date/Heure départ + Date/Heure rendu */}
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Prise du véhicule</Text>
+                    
+                    <View style={styles.fieldRow}>
+                      <TouchableOpacity
+                        style={styles.fieldButton}
+                        onPress={() => setPickingField('startDate')}
+                      >
+                        <Ionicons name="calendar-outline" size={20} color="#e67e22" />
+                        <View style={styles.fieldContent}>
+                          <Text style={styles.fieldLabel}>Date</Text>
+                          <Text style={styles.fieldValue}>{formatDate(tempStartDate)}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#999" />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.fieldRow}>
+                      <TouchableOpacity
+                        style={styles.fieldButton}
+                        onPress={() => setPickingField('startTime')}
+                      >
+                        <Ionicons name="time-outline" size={20} color="#e67e22" />
+                        <View style={styles.fieldContent}>
+                          <Text style={styles.fieldLabel}>Heure</Text>
+                          <Text style={styles.fieldValue}>{formatTime(tempStartTime)}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#999" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Rendu du véhicule</Text>
+                    
+                    <View style={styles.fieldRow}>
+                      <TouchableOpacity
+                        style={styles.fieldButton}
+                        onPress={() => setPickingField('endDate')}
+                      >
+                        <Ionicons name="calendar-outline" size={20} color="#e67e22" />
+                        <View style={styles.fieldContent}>
+                          <Text style={styles.fieldLabel}>Date</Text>
+                          <Text style={styles.fieldValue}>{formatDate(tempEndDate)}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#999" />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.fieldRow}>
+                      <TouchableOpacity
+                        style={styles.fieldButton}
+                        onPress={() => setPickingField('endTime')}
+                      >
+                        <Ionicons name="time-outline" size={20} color="#e67e22" />
+                        <View style={styles.fieldContent}>
+                          <Text style={styles.fieldLabel}>Heure</Text>
+                          <Text style={styles.fieldValue}>{formatTime(tempEndTime)}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#999" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </>
+              )}
 
               {/* Aperçu de la durée */}
               <View style={styles.previewSection}>
@@ -755,6 +885,41 @@ const styles = StyleSheet.create({
   },
   previewValue: {
     fontSize: 18,
+    fontWeight: '600',
+    color: '#0369a1',
+  },
+  numberInput: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    minWidth: 60,
+  },
+  infoSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#e0f2fe',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  infoContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  infoTitle: {
+    fontSize: 12,
+    color: '#0369a1',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  infoValue: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#0369a1',
   },

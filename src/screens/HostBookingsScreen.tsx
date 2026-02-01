@@ -10,6 +10,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   ScrollView,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -481,8 +482,8 @@ const HostBookingsScreen: React.FC = () => {
                 }
               }}
             >
-              <Ionicons name="chatbubble-outline" size={16} color="#e67e22" />
-              <Text style={[styles.actionButtonText, styles.contactButtonText]}>Contacter</Text>
+              <Ionicons name="chatbubble-outline" size={isSmallScreen ? 14 : 16} color="#e67e22" />
+              <Text style={[styles.actionButtonText, styles.contactButtonText]} numberOfLines={1} adjustsFontSizeToFit={true} minimumFontScale={0.7}>Contacter</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.profileButton]}
@@ -940,6 +941,9 @@ const HostBookingsScreen: React.FC = () => {
   );
 };
 
+const { width } = Dimensions.get('window');
+const isSmallScreen = width < 375; // iPhone SE, iPhone 8, etc.
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1157,21 +1161,22 @@ const styles = StyleSheet.create({
   actionButtonsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: isSmallScreen ? 6 : 8,
     marginTop: 8,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: isSmallScreen ? 6 : 12,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#2E7D32',
     backgroundColor: '#fff',
     flex: 1,
-    minWidth: 100,
+    minWidth: isSmallScreen ? 75 : 100,
     justifyContent: 'center',
+    flexShrink: 1,
   },
   contactButton: {
     borderColor: '#e67e22',
@@ -1200,10 +1205,11 @@ const styles = StyleSheet.create({
     borderColor: '#F44336',
   },
   actionButtonText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 11 : 14,
     color: '#2E7D32',
     fontWeight: '500',
-    marginLeft: 4,
+    marginLeft: isSmallScreen ? 3 : 4,
+    flexShrink: 1,
   },
   emptyContainer: {
     flex: 1,

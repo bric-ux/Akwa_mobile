@@ -459,10 +459,10 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Nouvelles dates et heures</Text>
               <VehicleDateTimeSelector
-                vehicleId={vehicle?.id || ''}
                 startDateTime={startDateTime}
                 endDateTime={endDateTime}
                 onDateTimeChange={handleDateTimeChange}
+                hourlyRentalEnabled={vehicle?.hourly_rental_enabled || false}
               />
               {hasModification && rentalDays > 0 && (
                 <View style={styles.summaryBox}>

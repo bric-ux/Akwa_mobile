@@ -512,7 +512,21 @@ export const useBookings = () => {
               bookingData.checkOutDate,
               bookingData.guestsCount,
               bookingData.totalPrice,
-              bookingData.messageToHost
+              bookingData.messageToHost,
+              bookingData.discountAmount || 0,
+              {
+                title: propertyInfo.title,
+                address: propertyInfo.address || '',
+                city_name: propertyInfo.locations?.name || '',
+                price_per_night: propertyInfo.price_per_night || 0,
+                cleaning_fee: propertyInfo.cleaning_fee || 0,
+                service_fee: propertyInfo.service_fee || 0,
+                taxes: propertyInfo.taxes || 0,
+                cancellation_policy: propertyInfo.cancellation_policy || 'flexible',
+                check_in_time: propertyInfo.check_in_time,
+                check_out_time: propertyInfo.check_out_time,
+                house_rules: propertyInfo.house_rules
+              }
             );
 
             // Délai pour éviter le rate limit
