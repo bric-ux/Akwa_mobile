@@ -80,7 +80,7 @@ const VehicleCalendarScreen: React.FC = () => {
       
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('vehicle_bookings')
-        .select('id, start_date, end_date, status')
+        .select('id, start_date, end_date, start_datetime, end_datetime, status')
         .eq('vehicle_id', vehicleId)
         .in('status', ['pending', 'confirmed'])
         .gte('end_date', todayStr)
@@ -162,7 +162,7 @@ const VehicleCalendarScreen: React.FC = () => {
 
                 if (error) throw error;
                 Alert.alert('Succès', 'Les dates ont été débloquées avec succès.');
-                await loadBlockedDates();
+                await loadUnavailableDates();
               } catch (error: any) {
                 console.error('Erreur lors du déblocage des dates:', error);
                 Alert.alert('Erreur', error.message || 'Impossible de débloquer les dates');
@@ -251,7 +251,7 @@ const VehicleCalendarScreen: React.FC = () => {
       setBlockType('daily');
       setStartDateTime('');
       setEndDateTime('');
-      await loadBlockedDates();
+      await loadUnavailableDates();
     } catch (error: any) {
       console.error('Erreur lors du blocage des dates:', error);
       Alert.alert('Erreur', error.message || 'Impossible de bloquer les dates');
@@ -301,6 +301,24 @@ const VehicleCalendarScreen: React.FC = () => {
       day: 'numeric',
       month: 'short',
     });
+  };
+
+  const formatDateWithTime = (dateString: string, dateTimeString?: string) => {
+    const date = new Date(dateString);
+    const dateFormatted = date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    if (dateTimeString) {
+      const time = new Date(dateTimeString);
+      const timeFormatted = time.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return `${dateFormatted} à ${timeFormatted}`;
+    }
+    return dateFormatted;
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -596,7 +614,9 @@ const VehicleCalendarScreen: React.FC = () => {
                     </Text>
                   </View>
                   <Text style={styles.periodDate}>
-                    {booking.start_date === booking.end_date ? (
+                    {booking.start_datetime && booking.end_datetime ? (
+                      `${formatDateWithTime(booking.start_date, booking.start_datetime)} au ${formatDateWithTime(booking.end_date, booking.end_datetime)}`
+                    ) : booking.start_date === booking.end_date ? (
                       formatDateShort(new Date(booking.start_date))
                     ) : (
                       `${formatDateShort(new Date(booking.start_date))} → ${formatDateShort(new Date(booking.end_date))}`
@@ -656,7 +676,7 @@ const VehicleCalendarScreen: React.FC = () => {
 
                               if (error) throw error;
                               Alert.alert('Succès', 'Les dates ont été débloquées avec succès.');
-                              await loadBlockedDates();
+                              await loadUnavailableDates();
                             } catch (error: any) {
                               console.error('Erreur lors du déblocage des dates:', error);
                               Alert.alert('Erreur', error.message || 'Impossible de débloquer les dates');

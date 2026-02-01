@@ -79,21 +79,26 @@ const formatDate = (dateString?: string): string => {
 
 const formatDateWithTime = (dateString?: string, dateTimeString?: string): string => {
   if (!dateString) return '-';
-  const date = new Date(dateString);
-  const dateFormatted = date.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-  if (dateTimeString) {
-    const time = new Date(dateTimeString);
-    const timeFormatted = time.toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit',
+  try {
+    const date = new Date(dateString);
+    const dateFormatted = date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
     });
-    return `${dateFormatted} à ${timeFormatted}`;
+    if (dateTimeString) {
+      const time = new Date(dateTimeString);
+      const timeFormatted = time.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return `${dateFormatted} à ${timeFormatted}`;
+    }
+    return dateFormatted;
+  } catch (error) {
+    console.error('Erreur formatage date:', error);
+    return dateString;
   }
-  return dateFormatted;
 };
 
 const formatDateTime = (dateString?: string): string => {
@@ -607,6 +612,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           ownerPhone: hostPhone,
           startDate: checkIn,
           endDate: checkOut,
+          startDateTime: approvedModification?.requested_start_datetime || (booking as any).start_datetime || undefined,
+          endDateTime: approvedModification?.requested_end_datetime || (booking as any).end_datetime || undefined,
           rentalDays: nights,
           rentalHours: rentalHours,
           dailyRate: pricePerUnit,

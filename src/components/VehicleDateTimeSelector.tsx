@@ -254,18 +254,25 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
 
   const handleConfirm = () => {
     // Combiner date et heure pour start
-    const start = new Date(tempStartDate);
-    start.setHours(tempStartTime.getHours());
-    start.setMinutes(tempStartTime.getMinutes());
-    start.setSeconds(0);
-    start.setMilliseconds(0);
+    // Créer la date en UTC directement avec l'heure locale pour éviter les conversions
+    const startYear = tempStartDate.getFullYear();
+    const startMonth = tempStartDate.getMonth();
+    const startDay = tempStartDate.getDate();
+    const startHours = tempStartTime.getHours();
+    const startMinutes = tempStartTime.getMinutes();
+    
+    // Créer une date UTC avec l'heure locale (Côte d'Ivoire = GMT+0, donc UTC = heure locale)
+    const start = new Date(Date.UTC(startYear, startMonth, startDay, startHours, startMinutes, 0, 0));
 
     // Combiner date et heure pour end
-    const end = new Date(tempEndDate);
-    end.setHours(tempEndTime.getHours());
-    end.setMinutes(tempEndTime.getMinutes());
-    end.setSeconds(0);
-    end.setMilliseconds(0);
+    const endYear = tempEndDate.getFullYear();
+    const endMonth = tempEndDate.getMonth();
+    const endDay = tempEndDate.getDate();
+    const endHours = tempEndTime.getHours();
+    const endMinutes = tempEndTime.getMinutes();
+    
+    // Créer une date UTC avec l'heure locale
+    const end = new Date(Date.UTC(endYear, endMonth, endDay, endHours, endMinutes, 0, 0));
 
     // Vérifications finales
     const now = new Date();

@@ -35,7 +35,8 @@ import { useAuth } from '../services/AuthContext';
 import { safeGoBack } from '../utils/navigation';
 import { VEHICLE_COLORS } from '../constants/colors';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+const isSmallScreen = width < 360 || height < 640; // Écrans de 3.12 pouces et moins
 
 const VehiclesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -825,15 +826,15 @@ const styles = StyleSheet.create({
   },
   heroSection: {
     backgroundColor: '#1e293b', // slate-900
-    paddingTop: 16,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
+    paddingTop: isSmallScreen ? 12 : 16,
+    paddingBottom: isSmallScreen ? 24 : 40,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     position: 'relative',
     overflow: 'hidden',
   },
   heroContent: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: isSmallScreen ? 12 : 16,
   },
   heroBadge: {
     flexDirection: 'row',
@@ -851,16 +852,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   heroTitle: {
-    fontSize: 32,
+    fontSize: isSmallScreen ? 24 : 32,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 12,
+    marginBottom: isSmallScreen ? 8 : 12,
     textAlign: 'center',
   },
   heroSubtitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 13 : 16,
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
+    paddingHorizontal: isSmallScreen ? 8 : 0,
   },
   heroAddVehicleBtn: {
     flexDirection: 'row',
@@ -868,18 +870,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: VEHICLE_COLORS.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingVertical: isSmallScreen ? 10 : 12,
+    paddingHorizontal: isSmallScreen ? 18 : 24,
     borderRadius: 12,
-    marginTop: 20,
+    marginTop: isSmallScreen ? 12 : 20,
   },
   heroAddVehicleBtnText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: isSmallScreen ? 14 : 16,
     fontWeight: '600',
   },
   searchBarContainer: {
-    marginTop: 24,
+    marginTop: isSmallScreen ? 16 : 24,
     paddingHorizontal: 0,
   },
   searchBar: {
