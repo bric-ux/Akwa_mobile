@@ -107,7 +107,8 @@ const AddVehicleScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { addVehicle, loading } = useVehicles();
+  const { addVehicle } = useVehicles();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -494,16 +495,21 @@ const AddVehicleScreen: React.FC = () => {
     // Ensure all selected images have been uploaded and have public URLs
     const imagesToUpload = selectedImages.filter(img => !img.uri.startsWith('http'));
     if (imagesToUpload.length > 0) {
+      console.log('⚠️ [AddVehicleScreen] Images non uploadées:', imagesToUpload.length);
       Alert.alert('Images non uploadées', 'Veuillez attendre que toutes les images soient uploadées avant de soumettre.');
       return;
     }
 
+    console.log('📸 [AddVehicleScreen] Toutes les images sont uploadées:', selectedImages.length);
+
     // Get user profile info
+    console.log('👤 [AddVehicleScreen] Récupération du profil utilisateur...');
     const { data: profile } = await supabase
       .from('profiles')
       .select('first_name, last_name, email, phone')
       .eq('user_id', user.id)
       .single();
+    console.log('✅ [AddVehicleScreen] Profil récupéré:', profile ? 'OK' : 'NULL');
 
     // Préparer les données pour la table vehicles (comme sur le site web)
     const vehiclePayload: Partial<any> = {
@@ -539,6 +545,9 @@ const AddVehicleScreen: React.FC = () => {
       })),
       has_insurance: formData.has_insurance,
       insurance_details: formData.insurance_details || undefined,
+      insurance_expiration_date: formData.insurance_expiration_date && formData.insurance_expiration_date instanceof Date 
+        ? formData.insurance_expiration_date.toISOString() 
+        : (formData.insurance_expiration_date ? String(formData.insurance_expiration_date) : undefined),
       with_driver: formData.with_driver,
       requires_license: formData.requires_license,
       min_license_years: parseInt(formData.min_license_years) || 0,
@@ -550,27 +559,38 @@ const AddVehicleScreen: React.FC = () => {
       long_stay_discount_percentage: formData.long_stay_discount_enabled ? parseInt(formData.long_stay_discount_percentage) || 20 : undefined,
     };
 
-    const result = await addVehicle(vehiclePayload);
+    setIsSubmitting(true);
+    try {
+      console.log('🚀 [AddVehicleScreen] Soumission du véhicule...', { vehiclePayload });
+      const result = await addVehicle(vehiclePayload);
+      console.log('✅ [AddVehicleScreen] Résultat:', result);
 
-    if (result.success) {
-      Alert.alert(
-        'Véhicule soumis',
-        'Votre véhicule a été soumis avec succès !\n\nIl sera examiné par un administrateur et vous serez notifié une fois approuvé.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                navigation.navigate('MyVehicles' as never);
-              }
+      if (result.success) {
+        Alert.alert(
+          'Véhicule soumis',
+          'Votre véhicule a été soumis avec succès !\n\nIl sera examiné par un administrateur et vous serez notifié une fois approuvé.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate('MyVehicles' as never);
+                }
+              },
             },
-          },
-        ]
-      );
-    } else {
-      Alert.alert('Erreur', result.error || 'Une erreur est survenue lors de l\'ajout du véhicule');
+          ]
+        );
+      } else {
+        console.error('❌ [AddVehicleScreen] Erreur:', result.error);
+        Alert.alert('Erreur', result.error || 'Une erreur est survenue lors de l\'ajout du véhicule');
+      }
+    } catch (error: any) {
+      console.error('❌ [AddVehicleScreen] Exception:', error);
+      Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors de l\'ajout du véhicule');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1349,11 +1369,11 @@ const AddVehicleScreen: React.FC = () => {
           </View>
 
           <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
             onPress={handleSubmit}
-            disabled={loading}
+            disabled={isSubmitting}
           >
-            {loading ? (
+            {isSubmitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <>

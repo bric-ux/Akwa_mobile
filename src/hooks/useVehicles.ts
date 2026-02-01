@@ -606,6 +606,9 @@ export const useVehicles = () => {
           price_per_month: vehicleData.price_per_month || null,
           security_deposit: vehicleData.security_deposit || 0,
           minimum_rental_days: vehicleData.minimum_rental_days || 1,
+          hourly_rental_enabled: (vehicleData as any).hourly_rental_enabled || false,
+          price_per_hour: (vehicleData as any).price_per_hour || null,
+          minimum_rental_hours: (vehicleData as any).minimum_rental_hours || null,
           images: vehicleData.images || [],
           documents: vehicleData.documents || [],
           features: vehicleData.features || [],
@@ -614,6 +617,7 @@ export const useVehicles = () => {
           with_driver: (vehicleData as any).with_driver || false,
           has_insurance: (vehicleData as any).has_insurance || false,
           insurance_details: (vehicleData as any).insurance_details || null,
+          insurance_expiration_date: (vehicleData as any).insurance_expiration_date || null,
           requires_license: (vehicleData as any).requires_license !== false,
           min_license_years: (vehicleData as any).min_license_years || 0,
           discount_enabled: (vehicleData as any).discount_enabled || false,
@@ -630,11 +634,15 @@ export const useVehicles = () => {
         .single();
 
       if (insertError) {
+        console.error('❌ [useVehicles] Erreur insertion véhicule:', insertError);
         throw insertError;
       }
+      
+      console.log('✅ [useVehicles] Véhicule inséré avec succès:', data.id);
 
       // Send notification emails (comme sur le site web)
       try {
+        console.log('📧 [useVehicles] Envoi des emails de notification...');
         const { data: ownerProfile } = await supabase
           .from('profiles')
           .select('first_name, last_name, email, phone')
@@ -655,76 +663,64 @@ export const useVehicles = () => {
           
           // Email au propriétaire du véhicule
           if (ownerProfile.email) {
-            await supabase.functions.invoke('send-email', {
-              body: {
-                type: 'vehicle_application_submitted',
-                to: ownerProfile.email,
-                data: emailData
-              }
-            });
+            try {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'vehicle_application_submitted',
+                  to: ownerProfile.email,
+                  data: emailData
+                }
+              });
+              console.log('✅ [useVehicles] Email propriétaire envoyé');
+            } catch (emailError) {
+              console.error('❌ [useVehicles] Erreur email propriétaire:', emailError);
+            }
           }
           
           // Email à l'admin
-          await supabase.functions.invoke('send-email', {
-            body: {
-              type: 'vehicle_submitted',
-              to: 'contact@akwahome.com',
-              data: emailData
-            }
-          });
+          try {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'vehicle_submitted',
+                to: 'contact@akwahome.com',
+                data: emailData
+              }
+            });
+            console.log('✅ [useVehicles] Email admin envoyé');
+          } catch (emailError) {
+            console.error('❌ [useVehicles] Erreur email admin:', emailError);
+          }
         }
       } catch (emailError) {
-        console.error('Error sending vehicle submission email:', emailError);
+        console.error('❌ [useVehicles] Erreur globale envoi emails:', emailError);
         // Ne pas bloquer la création si l'email échoue
       }
 
       // Si des photos sont fournies, les uploader et créer les entrées vehicle_photos
       if (vehicleData.images && vehicleData.images.length > 0) {
-        // Récupérer les informations sur les photos si disponibles
-        const photosInfo = (vehicleData as any).photos || [];
-        
-        const photoPromises = vehicleData.images.map(async (imageUrl, index) => {
-          // Trouver les informations de la photo correspondante
-          const photoInfo = photosInfo[index] || {};
-          const isMain = photoInfo.isMain || (index === 0 && !photosInfo.some((p: any) => p.isMain));
-          const category = photoInfo.category || 'exterior';
-          const displayOrder = photoInfo.displayOrder !== undefined ? photoInfo.displayOrder : index;
+        try {
+          console.log('📸 [useVehicles] Début upload des photos...');
+          // Récupérer les informations sur les photos si disponibles
+          const photosInfo = (vehicleData as any).photos || [];
           
+          const photoPromises = vehicleData.images.map(async (imageUrl, index) => {
+            try {
+              // Trouver les informations de la photo correspondante
+              const photoInfo = photosInfo[index] || {};
+              const isMain = photoInfo.isMain || (index === 0 && !photosInfo.some((p: any) => p.isMain));
+              const category = photoInfo.category || 'exterior';
+              const displayOrder = photoInfo.displayOrder !== undefined ? photoInfo.displayOrder : index;
+              
           // Si c'est une URI locale, on doit l'uploader
+          // MAIS normalement, les images devraient déjà être uploadées avant d'appeler addVehicle
+          // Si on reçoit encore une URI locale, c'est une erreur, on la saute
           if (imageUrl.startsWith('file://') || imageUrl.startsWith('content://')) {
-            // Uploader l'image vers Supabase Storage
-            const fileName = `vehicle-${data.id}-${Date.now()}-${index}.jpg`;
-            const filePath = `${user.id}/vehicles/${fileName}`;
-            
-            const response = await fetch(imageUrl);
-            const arrayBuffer = await response.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
-
-            const { error: uploadError } = await supabase.storage
-              .from('property-images')
-              .upload(filePath, uint8Array, {
-                contentType: 'image/jpeg',
-                upsert: true,
-              });
-
-            if (uploadError) {
-              console.error('Erreur upload image:', uploadError);
-              return null;
-            }
-
-            const { data: { publicUrl } } = supabase.storage
-              .from('property-images')
-              .getPublicUrl(filePath);
-
-            return {
-              vehicle_id: data.id,
-              url: publicUrl,
-              category: category,
-              is_main: isMain,
-              display_order: displayOrder,
-            };
+            console.warn(`⚠️ [useVehicles] Image ${index + 1} a une URI locale (devrait être uploadée avant):`, imageUrl);
+            // Ne pas uploader ici pour éviter les blocages - les images devraient être uploadées avant
+            return null;
           } else {
             // URL déjà publique
+            console.log(`✅ [useVehicles] Image ${index + 1} déjà publique:`, imageUrl.substring(0, 50) + '...');
             return {
               vehicle_id: data.id,
               url: imageUrl,
@@ -733,42 +729,56 @@ export const useVehicles = () => {
               display_order: displayOrder,
             };
           }
-        });
+            } catch (photoError: any) {
+              console.error(`❌ [useVehicles] Erreur pour photo ${index + 1}:`, photoError);
+              return null;
+            }
+          });
 
-        const photos = (await Promise.all(photoPromises)).filter(Boolean);
-        
-        if (photos.length > 0) {
-          // S'assurer qu'il n'y a qu'une seule photo principale
-          const mainPhotos = photos.filter((p: any) => p.is_main);
-          if (mainPhotos.length > 1) {
-            // Si plusieurs photos sont marquées principales, ne garder que la première
-            const firstMainIndex = photos.findIndex((p: any) => p.is_main);
-            photos.forEach((p: any, index: number) => {
-              if (index !== firstMainIndex) {
-                p.is_main = false;
-              }
-            });
-          } else if (mainPhotos.length === 0 && photos.length > 0) {
-            // Si aucune photo principale, marquer la première
-            photos[0].is_main = true;
-          }
+          const photos = (await Promise.all(photoPromises)).filter(Boolean);
+          console.log(`📸 [useVehicles] ${photos.length} photo(s) prête(s) à être insérée(s)`);
           
-          const { error: photosError } = await supabase
-            .from('vehicle_photos')
-            .insert(photos);
+          if (photos.length > 0) {
+            // S'assurer qu'il n'y a qu'une seule photo principale
+            const mainPhotos = photos.filter((p: any) => p.is_main);
+            if (mainPhotos.length > 1) {
+              // Si plusieurs photos sont marquées principales, ne garder que la première
+              const firstMainIndex = photos.findIndex((p: any) => p.is_main);
+              photos.forEach((p: any, index: number) => {
+                if (index !== firstMainIndex) {
+                  p.is_main = false;
+                }
+              });
+            } else if (mainPhotos.length === 0 && photos.length > 0) {
+              // Si aucune photo principale, marquer la première
+              photos[0].is_main = true;
+            }
+            
+            const { error: photosError } = await supabase
+              .from('vehicle_photos')
+              .insert(photos);
 
-          if (photosError) {
-            console.error('Erreur lors de l\'insertion des photos:', photosError);
+            if (photosError) {
+              console.error('❌ [useVehicles] Erreur lors de l\'insertion des photos:', photosError);
+            } else {
+              console.log('✅ [useVehicles] Photos insérées avec succès');
+            }
           }
+        } catch (photosError: any) {
+          console.error('❌ [useVehicles] Erreur globale lors du traitement des photos:', photosError);
+          // Ne pas bloquer la création du véhicule si les photos échouent
         }
       }
 
+      console.log('✅ [useVehicles] Véhicule créé avec succès, ID:', data.id);
       return { success: true, vehicle: data };
     } catch (err: any) {
-      console.error('Erreur lors de l\'ajout du véhicule:', err);
-      setError(err.message || 'Erreur lors de l\'ajout du véhicule');
-      return { success: false, error: err.message };
+      console.error('❌ [useVehicles] Erreur lors de l\'ajout du véhicule:', err);
+      const errorMessage = err.message || err.details || 'Erreur lors de l\'ajout du véhicule';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
+      console.log('🔄 [useVehicles] Fin de addVehicle, setLoading(false)');
       setLoading(false);
     }
   }, []);
