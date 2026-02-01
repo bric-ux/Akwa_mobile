@@ -152,32 +152,32 @@ const VehicleBookingScreen: React.FC = () => {
       
       // Logique corrigée : utiliser les heures réelles comme base principale
       // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
-      // Si totalHours < 24 : facturer 1 jour minimum
+      // Si totalHours < 24 : ne pas facturer de jour complet, seulement les heures (rentalDays = 0)
       if (totalHours >= 24) {
         return fullDaysFromHours; // Utiliser directement les jours calculés à partir des heures
       } else {
-        return 1; // Minimum 1 jour pour toute location
+        return 0; // Pas de jour complet pour une location de moins de 24 heures
       }
     }
     
     // Fallback : utiliser les dates si les datetime ne sont pas disponibles
+    // Dans ce cas, on calcule une estimation basée sur les dates uniquement
     if (!startDate || !endDate) return 0;
     
-    // Normaliser les dates pour éviter les problèmes de fuseau horaire
-    // Les dates sont au format "YYYY-MM-DD", on peut les comparer directement
+    // Si les dates sont identiques, c'est au minimum 1 jour de location
     if (startDate === endDate) {
-      // Si les dates sont identiques, c'est 1 jour de location
       return 1;
     }
     
-    // Si les dates sont différentes, calculer la différence
+    // Si les dates sont différentes, calculer la différence en jours
+    // Sans les heures, on suppose une location d'une journée complète par jour calendaire
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T00:00:00');
     const diffTime = end.getTime() - start.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    // Ajouter 1 pour inclure le jour de départ
-    // Ex: du 1er au 2 janvier = 1 jour de différence + 1 = 2 jours
-    return diffDays + 1;
+    // Ne pas ajouter +1 : si startDate = 2026-02-01 et endDate = 2026-02-02, 
+    // la différence est de 1 jour, donc retourner 1 (pas 2)
+    return diffDays;
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
@@ -370,14 +370,19 @@ const VehicleBookingScreen: React.FC = () => {
     
     // Calculer les jours complets directement à partir des heures totales
     // Exemple: 260 heures = 10 jours complets (10 × 24 = 240h) + 20 heures restantes
-    // Ne pas utiliser rentalDays car il inclut un +1 et est calculé à partir des dates sans heures
     const fullDaysFromHours = Math.floor(totalHours / 24);
     const hoursInFullDays = fullDaysFromHours * 24;
     const remainingHours = totalHours - hoursInFullDays;
     
     console.log(`🔍 [VehicleBookingScreen] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}`);
     
-    return remainingHours > 0 ? remainingHours : 0;
+    // Si totalHours < 24, toutes les heures sont "restantes" (pas de jour complet)
+    // Si totalHours >= 24, on retourne seulement les heures au-delà des jours complets
+    if (totalHours < 24) {
+      return totalHours; // Toutes les heures sont facturées comme heures, pas de jour complet
+    } else {
+      return remainingHours > 0 ? remainingHours : 0;
+    }
   };
   
   const remainingHours = calculateRemainingHours();
@@ -508,9 +513,9 @@ const VehicleBookingScreen: React.FC = () => {
 
     // Comparer les dates en format string pour éviter les problèmes de fuseau horaire
     // Le format "YYYY-MM-DD" est lexicographiquement comparable
-    // Permettre l'égalité pour les locations d'un jour (ex: du 1er au 1er janvier)
-    if (endDate < startDate) {
-      Alert.alert('Erreur', 'La date de fin ne peut pas être avant la date de début');
+    // La date de fin doit être strictement supérieure à la date de début
+    if (endDate <= startDate) {
+      Alert.alert('Erreur', 'La date de rendu doit être strictement supérieure à la date de prise. Vous ne pouvez pas commencer et terminer la location le même jour.');
       return;
     }
 
@@ -735,10 +740,11 @@ const VehicleBookingScreen: React.FC = () => {
             endDateTime={endDateTime}
             onDateTimeChange={handleDateTimeChange}
           />
-          {rentalDays > 0 ? (
+          {startDateTime && endDateTime && (rentalDays > 0 || remainingHours > 0) ? (
             <Text style={styles.rentalDaysText}>
-              {rentalDays} jour{rentalDays > 1 ? 's' : ''}
-              {remainingHours > 0 && ` et ${remainingHours} heure${remainingHours > 1 ? 's' : ''}`} de location
+              {rentalDays > 0 && `${rentalDays} jour${rentalDays > 1 ? 's' : ''}`}
+              {rentalDays > 0 && remainingHours > 0 && ' et '}
+              {remainingHours > 0 && `${remainingHours} heure${remainingHours > 1 ? 's' : ''}`} de location
             </Text>
           ) : null}
           {availabilityError ? (
@@ -915,21 +921,24 @@ const VehicleBookingScreen: React.FC = () => {
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Durée de location</Text>
             <Text style={styles.summaryValue}>
-              {rentalDays} jour{rentalDays > 1 ? 's' : ''}
-              {remainingHours > 0 && ` et ${remainingHours} heure${remainingHours > 1 ? 's' : ''}`}
+              {rentalDays > 0 && `${rentalDays} jour${rentalDays > 1 ? 's' : ''}`}
+              {rentalDays > 0 && remainingHours > 0 && ' et '}
+              {remainingHours > 0 && `${remainingHours} heure${remainingHours > 1 ? 's' : ''}`}
             </Text>
           </View>
           {/* Détail du calcul : jours */}
-          <View style={styles.summaryRow}>
-            <View style={{ flex: 1, flexShrink: 1 }}>
-              <Text style={styles.summaryLabel} numberOfLines={2}>
-                {rentalDays} jour{rentalDays > 1 ? 's' : ''} × {formatPrice(basePricePerDay)}/jour
+          {rentalDays > 0 && (
+            <View style={styles.summaryRow}>
+              <View style={{ flex: 1, flexShrink: 1 }}>
+                <Text style={styles.summaryLabel} numberOfLines={2}>
+                  {rentalDays} jour{rentalDays > 1 ? 's' : ''} × {formatPrice(basePricePerDay)}/jour
+                </Text>
+              </View>
+              <Text style={styles.summaryValue}>
+                {formatPrice(originalDaysPrice)}
               </Text>
             </View>
-            <Text style={styles.summaryValue}>
-              {formatPrice(originalDaysPrice)}
-            </Text>
-          </View>
+          )}
           {/* Détail du calcul : heures */}
           {(() => {
             const shouldShowHours = remainingHours > 0 && vehicle?.price_per_hour && hoursPrice > 0;

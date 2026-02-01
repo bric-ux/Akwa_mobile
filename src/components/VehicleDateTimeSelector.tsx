@@ -51,8 +51,9 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       return new Date(startDateTime);
     }
     const now = new Date();
+    // Utiliser l'heure actuelle arrondie à l'heure supérieure
     const defaultTime = new Date(now);
-    defaultTime.setHours(9, 0, 0, 0); // 09:00 par défaut
+    defaultTime.setHours(now.getHours() + 1, 0, 0, 0); // Heure actuelle + 1 heure
     return defaultTime;
   };
 
@@ -70,8 +71,10 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
     if (endDateTime) {
       return new Date(endDateTime);
     }
-    const defaultTime = new Date();
-    defaultTime.setHours(18, 0, 0, 0); // 18:00 par défaut
+    const now = new Date();
+    // Utiliser l'heure actuelle + 1 heure (pour la date de fin, qui est généralement demain)
+    const defaultTime = new Date(now);
+    defaultTime.setHours(now.getHours() + 1, 0, 0, 0); // Heure actuelle + 1 heure
     return defaultTime;
   };
 
@@ -141,11 +144,14 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
           setTempStartTime(minTime);
         }
         
-        // Si la date de fin est avant la nouvelle date de début, ajuster
+        // Si la date de fin est avant ou égale à la nouvelle date de début, ajuster au lendemain
         const endDateOnly = new Date(tempEndDate);
         endDateOnly.setHours(0, 0, 0, 0);
-        if (endDateOnly.getTime() < startDateOnly.getTime()) {
-          setTempEndDate(selectedDate);
+        if (endDateOnly.getTime() <= startDateOnly.getTime()) {
+          // Forcer la date de fin à être au moins le lendemain
+          const nextDay = new Date(selectedDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          setTempEndDate(nextDay);
         }
         
         if (Platform.OS === 'android') {
@@ -175,16 +181,16 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
           setTempStartTime(startCombined);
         }
         
-        // Si même date, ajuster l'heure de fin
+        // Si même date, forcer la date de fin au lendemain
         const endDateCheck = new Date(tempEndDate);
         endDateCheck.setHours(0, 0, 0, 0);
         if (endDateCheck.getTime() === startDateCheck.getTime()) {
-          const minEndTime = new Date(startCombined);
-          minEndTime.setHours(minEndTime.getHours() + 1);
-          minEndTime.setMinutes(0);
-          if (tempEndTime.getTime() <= minEndTime.getTime()) {
-            setTempEndTime(minEndTime);
-          }
+          // Forcer la date de fin au lendemain
+          const nextDay = new Date(tempStartDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          setTempEndDate(nextDay);
+          // Ajuster l'heure de fin à la même heure que l'heure de début
+          setTempEndTime(startCombined);
         }
         
         if (Platform.OS === 'android') {
@@ -206,17 +212,19 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
           return;
         }
         
-        setTempEndDate(selectedDate);
-        
-        // Si même date, ajuster l'heure de fin
+        // Si même date, forcer au lendemain
         if (newEndDateOnly.getTime() === startDateOnlyCheck.getTime()) {
+          alert('La date de rendu doit être strictement supérieure à la date de prise. La date de fin a été ajustée au lendemain.');
+          const nextDay = new Date(selectedDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          setTempEndDate(nextDay);
+          // Ajuster l'heure de fin à la même heure que l'heure de début
           const startCombined = new Date(tempStartDate);
           startCombined.setHours(tempStartTime.getHours());
           startCombined.setMinutes(tempStartTime.getMinutes());
-          const minEndTime = new Date(startCombined);
-          minEndTime.setHours(minEndTime.getHours() + 1);
-          minEndTime.setMinutes(0);
-          setTempEndTime(minEndTime);
+          setTempEndTime(startCombined);
+        } else {
+          setTempEndDate(selectedDate);
         }
         
         if (Platform.OS === 'android') {
@@ -278,6 +286,15 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
     const now = new Date();
     if (start <= now) {
       alert('L\'heure de début doit être dans le futur');
+      return;
+    }
+
+    // Vérifier que la date de fin est strictement supérieure à la date de début
+    const startDateOnly = new Date(startYear, startMonth, startDay);
+    const endDateOnly = new Date(endYear, endMonth, endDay);
+    
+    if (startDateOnly.getTime() >= endDateOnly.getTime()) {
+      alert('La date de rendu doit être strictement supérieure à la date de prise. Vous ne pouvez pas commencer et terminer la location le même jour.');
       return;
     }
 

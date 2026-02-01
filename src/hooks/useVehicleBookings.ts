@@ -81,6 +81,11 @@ export const useVehicleBookings = () => {
       const startDate = start.toISOString().split('T')[0];
       const endDate = end.toISOString().split('T')[0];
 
+      // Validation : la date de fin doit être strictement supérieure à la date de début
+      if (endDate <= startDate) {
+        throw new Error('La date de rendu doit être strictement supérieure à la date de prise. Vous ne pouvez pas commencer et terminer la location le même jour.');
+      }
+
       // Déterminer le type de location
       const rentalType = bookingData.rentalType || 'daily';
       
@@ -127,19 +132,21 @@ export const useVehicleBookings = () => {
         
         // Logique corrigée : utiliser les heures réelles comme base principale
         // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
-        // Si totalHours < 24 : facturer 1 jour minimum
+        // Si totalHours < 24 : ne pas facturer de jour complet, seulement les heures (rentalDays = 0)
         // Ne pas utiliser les jours calendaires qui peuvent donner des résultats incorrects
         if (totalHours >= 24) {
           rentalDays = fullDaysFromHours; // Utiliser directement les jours calculés à partir des heures
         } else {
-          rentalDays = 1; // Minimum 1 jour pour toute location
+          rentalDays = 0; // Pas de jour complet pour une location de moins de 24 heures
         }
 
-        if (rentalDays < 1) {
-          throw new Error('La date de fin ne peut pas être avant la date de début');
+        // Validation : si totalHours < 24, on doit avoir hourly_rental_enabled
+        if (totalHours < 24 && (!vehicle.hourly_rental_enabled || !vehicle.price_per_hour)) {
+          throw new Error('Les locations de moins de 24 heures nécessitent un tarif horaire');
         }
 
-        if (rentalDays < (vehicle.minimum_rental_days || 1)) {
+        // Validation du minimum de jours (seulement si rentalDays > 0)
+        if (rentalDays > 0 && rentalDays < (vehicle.minimum_rental_days || 1)) {
           throw new Error(`La location minimum est de ${vehicle.minimum_rental_days || 1} jour(s)`);
         }
         
@@ -151,9 +158,14 @@ export const useVehicleBookings = () => {
         
         console.log(`⏱️ [useVehicleBookings] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}, rentalDays=${rentalDays}`);
         
-        // Stocker les heures supplémentaires pour le calcul du prix (si > 0)
-        if (remainingHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
-          rentalHours = remainingHours;
+        // Stocker les heures pour le calcul du prix
+        // Si totalHours < 24, toutes les heures sont facturées comme heures (pas de jour complet)
+        // Si totalHours >= 24, on facture les jours complets + les heures restantes
+        if (totalHours < 24 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
+          rentalHours = totalHours; // Toutes les heures sont facturées comme heures, pas de jour complet
+          console.log(`✅ [useVehicleBookings] Location < 24h: ${totalHours}h facturées comme heures`);
+        } else if (remainingHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
+          rentalHours = remainingHours; // Heures au-delà des jours complets
           console.log(`✅ [useVehicleBookings] Heures restantes calculées: ${remainingHours}h`);
         } else {
           console.log(`⚠️ [useVehicleBookings] Pas d'heures restantes: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle.hourly_rental_enabled}, price_per_hour=${vehicle.price_per_hour}`);
