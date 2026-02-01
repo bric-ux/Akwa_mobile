@@ -29,6 +29,7 @@ const VehiclePricingScreen: React.FC = () => {
   const [pricePerDay, setPricePerDay] = useState('');
   const [pricePerWeek, setPricePerWeek] = useState('');
   const [pricePerMonth, setPricePerMonth] = useState('');
+  const [pricePerHour, setPricePerHour] = useState('');
   const [securityDeposit, setSecurityDeposit] = useState('');
 
   useEffect(() => {
@@ -40,6 +41,7 @@ const VehiclePricingScreen: React.FC = () => {
       setPricePerDay(vehicle.price_per_day?.toString() || '');
       setPricePerWeek(vehicle.price_per_week?.toString() || '');
       setPricePerMonth(vehicle.price_per_month?.toString() || '');
+      setPricePerHour((vehicle as any).price_per_hour?.toString() || '');
       setSecurityDeposit(vehicle.security_deposit?.toString() || '');
     }
   }, [vehicle]);
@@ -64,8 +66,9 @@ const VehiclePricingScreen: React.FC = () => {
         price_per_day: pricePerDay ? parseInt(pricePerDay, 10) : null,
         price_per_week: pricePerWeek ? parseInt(pricePerWeek, 10) : null,
         price_per_month: pricePerMonth ? parseInt(pricePerMonth, 10) : null,
+        price_per_hour: pricePerHour ? parseInt(pricePerHour, 10) : null,
         security_deposit: securityDeposit ? parseInt(securityDeposit, 10) : null,
-      });
+      } as any);
 
       if (result.success) {
         Alert.alert('Succès', 'Les tarifs ont été enregistrés');
@@ -178,6 +181,28 @@ const VehiclePricingScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Prix par heure */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="time-outline" size={20} color="#475569" />
+            <Text style={styles.sectionTitle}>Prix par heure (optionnel)</Text>
+          </View>
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Tarif horaire (XOF)</Text>
+            <TextInput
+              style={styles.input}
+              value={pricePerHour}
+              onChangeText={setPricePerHour}
+              placeholder="Ex: 5000"
+              keyboardType="numeric"
+              placeholderTextColor="#999"
+            />
+            <Text style={styles.hint}>
+              Laissez vide si vous ne proposez pas de location à l'heure
+            </Text>
+          </View>
+        </View>
+
         {/* Caution */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -224,6 +249,14 @@ const VehiclePricingScreen: React.FC = () => {
                   <Text style={styles.previewLabel}>Prix par mois:</Text>
                   <Text style={styles.previewValue}>
                     {parseInt(pricePerMonth, 10).toLocaleString('fr-FR')} XOF
+                  </Text>
+                </View>
+              )}
+              {pricePerHour && (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Prix par heure:</Text>
+                  <Text style={styles.previewValue}>
+                    {parseInt(pricePerHour, 10).toLocaleString('fr-FR')} XOF
                   </Text>
                 </View>
               )}

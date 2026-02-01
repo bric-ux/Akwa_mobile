@@ -81,34 +81,22 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
         // Calculer les jours complets directement à partir des heures totales
         const fullDaysFromHours = Math.floor(totalHours / 24);
         
-        // Calculer le nombre de jours selon les dates (pour validation et affichage)
-        // Utiliser la même logique que lors de la création de la réservation
-        // Extraire les dates des datetime si startDate/endDate ne sont pas disponibles
-        const effectiveStartDate = startDate || start.toISOString().split('T')[0];
-        const effectiveEndDate = endDate || end.toISOString().split('T')[0];
-        
-        let rentalDaysFromDates = 1;
-        if (effectiveStartDate !== effectiveEndDate) {
-          const startDateOnly = new Date(effectiveStartDate + 'T00:00:00');
-          const endDateOnly = new Date(effectiveEndDate + 'T00:00:00');
-          const diffTimeDays = endDateOnly.getTime() - startDateOnly.getTime();
-          const diffDays = Math.ceil(diffTimeDays / (1000 * 60 * 60 * 24));
-          rentalDaysFromDates = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
+        // Logique corrigée : utiliser les heures réelles comme base principale
+        // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
+        // Si totalHours < 24 : facturer 1 jour minimum
+        // Ne pas utiliser les jours calendaires qui peuvent donner des résultats incorrects
+        let rentalDays: number;
+        if (totalHours >= 24) {
+          rentalDays = fullDaysFromHours; // Utiliser directement les jours calculés à partir des heures
+        } else {
+          rentalDays = 1; // Minimum 1 jour pour toute location
         }
         
         console.log('🔍 [VehicleModificationModal] Calcul jours:', {
           totalHours,
           fullDaysFromHours,
-          effectiveStartDate,
-          effectiveEndDate,
-          rentalDaysFromDates,
-          calculatedRentalDays: Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates)
+          rentalDays
         });
-        
-        // Utiliser le maximum entre les deux pour être sûr d'avoir le bon nombre de jours
-        // Mais prioriser fullDaysFromHours si > 0 pour le calcul des heures restantes
-        // C'est la même logique que dans useVehicleBookings.ts
-        const rentalDays = Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates);
         
         // Calculer les heures restantes : durée totale - (jours complets × 24 heures)
         // Utiliser fullDaysFromHours pour le calcul des heures, pas rentalDays

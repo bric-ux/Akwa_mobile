@@ -125,19 +125,15 @@ export const useVehicleBookings = () => {
         // Calculer les jours complets à partir des heures totales (plus précis)
         const fullDaysFromHours = Math.floor(totalHours / 24);
         
-        // Calculer le nombre de jours selon les dates (pour validation et affichage)
-        let rentalDaysFromDates = 1;
-        if (startDate !== endDate) {
-          const startDateOnly = new Date(startDate + 'T00:00:00');
-          const endDateOnly = new Date(endDate + 'T00:00:00');
-          const diffTimeDays = endDateOnly.getTime() - startDateOnly.getTime();
-          const diffDays = Math.ceil(diffTimeDays / (1000 * 60 * 60 * 24));
-          rentalDaysFromDates = diffDays + 1; // Ajouter 1 pour inclure le jour de départ
+        // Logique corrigée : utiliser les heures réelles comme base principale
+        // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
+        // Si totalHours < 24 : facturer 1 jour minimum
+        // Ne pas utiliser les jours calendaires qui peuvent donner des résultats incorrects
+        if (totalHours >= 24) {
+          rentalDays = fullDaysFromHours; // Utiliser directement les jours calculés à partir des heures
+        } else {
+          rentalDays = 1; // Minimum 1 jour pour toute location
         }
-        
-        // Utiliser le maximum entre les deux pour être sûr d'avoir le bon nombre de jours
-        // Mais prioriser fullDaysFromHours si > 0 pour le calcul des heures restantes
-        rentalDays = Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates);
 
         if (rentalDays < 1) {
           throw new Error('La date de fin ne peut pas être avant la date de début');
@@ -794,6 +790,8 @@ export const useVehicleBookings = () => {
             ownerPhone: ownerProfile?.phone || '',
             startDate: formatDate(booking.start_date),
             endDate: formatDate(booking.end_date),
+            startDateTime: booking.start_datetime || undefined, // Ajouté pour corriger NaN NaN
+            endDateTime: booking.end_datetime || undefined, // Ajouté pour corriger NaN NaN
             rentalDays: booking.rental_days,
             rentalHours: booking.rental_hours || 0,
             dailyRate: booking.daily_rate,
@@ -804,6 +802,7 @@ export const useVehicleBookings = () => {
             securityDeposit: booking.security_deposit || 0,
             pickupLocation: booking.pickup_location || '',
             isInstantBooking: false, // Confirmation manuelle = pas instantanée
+            withDriver: vehicle?.with_driver || false, // Ajouté pour afficher si avec chauffeur
           };
 
           // Email au locataire avec PDF

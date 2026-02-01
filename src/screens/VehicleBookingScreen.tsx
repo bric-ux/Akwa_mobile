@@ -135,6 +135,32 @@ const VehicleBookingScreen: React.FC = () => {
   const isLicenseRequired = (withDriver && useDriver === false) || (!withDriver && requiresLicense);
 
   const calculateRentalDays = () => {
+    // Utiliser les heures réelles si disponibles, sinon utiliser les dates
+    if (startDateTime && endDateTime) {
+      const start = new Date(startDateTime);
+      const end = new Date(endDateTime);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return 0;
+      }
+      
+      const diffTime = end.getTime() - start.getTime();
+      const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
+      
+      // Calculer les jours complets à partir des heures totales (plus précis)
+      const fullDaysFromHours = Math.floor(totalHours / 24);
+      
+      // Logique corrigée : utiliser les heures réelles comme base principale
+      // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
+      // Si totalHours < 24 : facturer 1 jour minimum
+      if (totalHours >= 24) {
+        return fullDaysFromHours; // Utiliser directement les jours calculés à partir des heures
+      } else {
+        return 1; // Minimum 1 jour pour toute location
+      }
+    }
+    
+    // Fallback : utiliser les dates si les datetime ne sont pas disponibles
     if (!startDate || !endDate) return 0;
     
     // Normaliser les dates pour éviter les problèmes de fuseau horaire

@@ -429,20 +429,9 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
     
     const fullDaysFromHours = Math.floor(totalHours / 24);
     
-    // Calculer le nombre de jours selon les dates
-    let rentalDaysFromDates = 1;
-    const startDateOnly = new Date(start);
-    startDateOnly.setHours(0, 0, 0, 0);
-    const endDateOnly = new Date(end);
-    endDateOnly.setHours(0, 0, 0, 0);
-    
-    if (startDateOnly.getTime() !== endDateOnly.getTime()) {
-      const diffTimeDays = endDateOnly.getTime() - startDateOnly.getTime();
-      const diffDays = Math.ceil(diffTimeDays / (1000 * 60 * 60 * 24));
-      rentalDaysFromDates = diffDays + 1;
-    }
-    
-    // Logique de facturation
+    // Logique corrigée : utiliser les heures réelles comme base principale
+    // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
+    // Si totalHours < 24 : facturer 1 jour minimum
     let days: number;
     let hours: number;
     
@@ -450,7 +439,8 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       days = 1;
       hours = 0;
     } else {
-      days = Math.max(fullDaysFromHours > 0 ? fullDaysFromHours : 1, rentalDaysFromDates);
+      // Utiliser directement les jours calculés à partir des heures (plus précis)
+      days = fullDaysFromHours;
       const hoursInFullDays = fullDaysFromHours * 24;
       hours = totalHours - hoursInFullDays;
     }
@@ -486,9 +476,6 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
               </Text>
               <Text style={styles.label}>
                 Rendu: {formatDate(new Date(endDateTime))} à {formatTime(new Date(endDateTime))}
-              </Text>
-              <Text style={styles.duration}>
-                Durée: {displayDuration.diffDays > 0 ? `${displayDuration.diffDays} jour${displayDuration.diffDays > 1 ? 's' : ''}` : ''}{displayDuration.diffHours > 0 ? ` et ${displayDuration.diffHours} heure${displayDuration.diffHours > 1 ? 's' : ''}` : ''}
               </Text>
             </>
           ) : (

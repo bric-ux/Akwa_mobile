@@ -142,7 +142,9 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         rental_hours: bookingData.rental_hours,
         hourly_rate: bookingData.hourly_rate,
         hourly_rental_enabled: bookingData.vehicle?.hourly_rental_enabled,
-        price_per_hour: bookingData.vehicle?.price_per_hour
+        price_per_hour: bookingData.vehicle?.price_per_hour,
+        start_datetime: bookingData.start_datetime, // Ajouté pour debug
+        end_datetime: bookingData.end_datetime, // Ajouté pour debug
       });
 
       // Charger les infos du propriétaire séparément si le véhicule existe
@@ -433,6 +435,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                   id: booking.id,
                   start_date: booking.start_date,
                   end_date: booking.end_date,
+                  start_datetime: booking.start_datetime, // Ajouté pour afficher les heures
+                  end_datetime: booking.end_datetime, // Ajouté pour afficher les heures
                   total_price: booking.total_price,
                   discount_amount: booking.discount_amount,
                   discount_applied: booking.discount_applied,
@@ -451,6 +455,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                     long_stay_discount_percentage: booking.vehicle?.long_stay_discount_percentage,
                     hourly_rental_enabled: booking.vehicle?.hourly_rental_enabled,
                     price_per_hour: booking.vehicle?.price_per_hour,
+                    with_driver: booking.vehicle?.with_driver, // Ajouté pour afficher si avec chauffeur
                   },
                 } as any}
                 pricePerUnit={booking.daily_rate || 0}

@@ -358,6 +358,18 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const checkIn = booking.check_in_date || booking.start_date || '';
   const checkOut = booking.check_out_date || booking.end_date || '';
   
+  // Debug pour vérifier les valeurs de start_datetime et end_datetime
+  if (serviceType === 'vehicle' && __DEV__) {
+    console.log('🔍 [InvoiceDisplay] Dates véhicule:', {
+      checkIn,
+      checkOut,
+      start_datetime: (booking as any).start_datetime,
+      end_datetime: (booking as any).end_datetime,
+      approvedModification_start: approvedModification?.requested_start_datetime,
+      approvedModification_end: approvedModification?.requested_end_datetime,
+    });
+  }
+  
   // Pour les véhicules, utiliser rental_days si disponible, sinon calculer avec +1 (comme lors de la création)
   // Pour les propriétés, utiliser le calcul standard
   let nights = 1;
@@ -630,6 +642,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           vehicleLongStayDiscountPercentage: booking.vehicle?.long_stay_discount_percentage || null,
           securityDeposit: booking.vehicle?.security_deposit || 0,
           paymentMethod: effectivePaymentMethod,
+          withDriver: booking.vehicle?.with_driver || false, // Ajouté pour afficher si avec chauffeur
         };
       }
 
@@ -716,7 +729,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             {serviceType === 'vehicle' 
               ? formatDateWithTime(
                   approvedModification?.requested_start_date || checkIn, 
-                  approvedModification?.requested_start_datetime || (booking as any).start_datetime
+                  approvedModification?.requested_start_datetime || (booking as any).start_datetime || undefined
                 )
               : formatDate(checkIn)}
           </Text>
@@ -729,7 +742,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             {serviceType === 'vehicle' 
               ? formatDateWithTime(
                   approvedModification?.requested_end_date || checkOut, 
-                  approvedModification?.requested_end_datetime || (booking as any).end_datetime
+                  approvedModification?.requested_end_datetime || (booking as any).end_datetime || undefined
                 )
               : formatDate(checkOut)}
           </Text>
@@ -745,6 +758,14 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             ` et ${(booking as any).rental_hours} heure${(booking as any).rental_hours > 1 ? 's' : ''}`}
         </Text>
       </View>
+
+      {/* Avec chauffeur (véhicules uniquement) */}
+      {serviceType === 'vehicle' && (booking as any).vehicle?.with_driver && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Service</Text>
+          <Text style={styles.sectionValue}>Location avec chauffeur</Text>
+        </View>
+      )}
 
       {/* Nombre de voyageurs (propriétés uniquement) */}
       {serviceType === 'property' && booking.guests_count && (

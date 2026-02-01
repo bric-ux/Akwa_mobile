@@ -525,6 +525,8 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                     id: booking.id,
                     start_date: booking.start_date,
                     end_date: booking.end_date,
+                    start_datetime: booking.start_datetime, // Ajouté pour afficher les heures
+                    end_datetime: booking.end_datetime, // Ajouté pour afficher les heures
                     total_price: booking.total_price,
                     created_at: booking.created_at,
                     discount_amount: booking.discount_amount,
@@ -542,6 +544,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                       long_stay_discount_enabled: booking.vehicle?.long_stay_discount_enabled,
                       long_stay_discount_min_days: booking.vehicle?.long_stay_discount_min_days,
                       long_stay_discount_percentage: booking.vehicle?.long_stay_discount_percentage,
+                      with_driver: booking.vehicle?.with_driver, // Ajouté pour afficher si avec chauffeur
                     },
                   } as any}
                   pricePerUnit={booking.daily_rate || 0}
