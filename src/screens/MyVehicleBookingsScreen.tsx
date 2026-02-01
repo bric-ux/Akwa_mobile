@@ -159,6 +159,24 @@ const MyVehicleBookingsScreen: React.FC = () => {
     });
   };
 
+  const formatDateWithTime = (dateString: string, dateTimeString?: string) => {
+    const date = new Date(dateString);
+    const dateFormatted = date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    if (dateTimeString) {
+      const time = new Date(dateTimeString);
+      const timeFormatted = time.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return `${dateFormatted} à ${timeFormatted}`;
+    }
+    return dateFormatted;
+  };
+
   const filteredBookings = bookings.filter(booking => {
     if (selectedFilter === 'all') return true;
     const status = getBookingStatus(booking);
@@ -233,13 +251,15 @@ const MyVehicleBookingsScreen: React.FC = () => {
               </Text>
               <View style={styles.dateRow}>
                 <Ionicons name="calendar-outline" size={14} color="#666" />
-                <Text style={styles.dateText}>
-                  {formatDate(booking.start_date)} - {formatDate(booking.end_date)}
-                </Text>
-                <Text style={styles.daysText}>
-                  {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
-                  {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
-                </Text>
+                <View style={styles.dateContainer}>
+                  <Text style={styles.dateText}>
+                    {formatDateWithTime(booking.start_date, booking.start_datetime)} au {formatDateWithTime(booking.end_date, booking.end_datetime)}
+                  </Text>
+                  <Text style={styles.daysText}>
+                    {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
+                    {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -687,8 +707,13 @@ const styles = StyleSheet.create({
   },
   dateRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 6,
+    flexWrap: 'wrap',
+  },
+  dateContainer: {
+    flex: 1,
+    flexShrink: 1,
   },
   dateText: {
     fontSize: 12,
@@ -699,6 +724,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#2E7D32',
     fontWeight: '600',
+    flexShrink: 1,
   },
   statusBadge: {
     paddingHorizontal: 12,

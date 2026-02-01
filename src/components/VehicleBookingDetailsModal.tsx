@@ -117,6 +117,24 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
     });
   };
 
+  const formatDateWithTime = (dateString: string, dateTimeString?: string) => {
+    const date = new Date(dateString);
+    const dateFormatted = date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    if (dateTimeString) {
+      const time = new Date(dateTimeString);
+      const timeFormatted = time.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return `${dateFormatted} à ${timeFormatted}`;
+    }
+    return dateFormatted;
+  };
+
   const getStatusBadge = (status: string) => {
     const statusConfig: { [key: string]: { color: string; label: string; icon: string } } = {
       pending: { color: '#f59e0b', label: 'En attente', icon: 'time-outline' },
@@ -321,21 +339,15 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
               <View style={styles.dateGrid}>
                 <View style={styles.dateItem}>
                   <Text style={styles.dateLabel}>Prise du véhicule</Text>
-                  <Text style={styles.dateValue}>{formatDate(booking.start_date)}</Text>
-                  {booking.start_datetime && (
-                    <Text style={[styles.dateValue, { fontSize: 12, color: '#666', marginTop: 2 }]}>
-                      {new Date(booking.start_datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                  )}
+                  <Text style={styles.dateValue}>
+                    {formatDateWithTime(booking.start_date, booking.start_datetime)}
+                  </Text>
                 </View>
                 <View style={styles.dateItem}>
                   <Text style={styles.dateLabel}>Rendu du véhicule</Text>
-                  <Text style={styles.dateValue}>{formatDate(booking.end_date)}</Text>
-                  {booking.end_datetime && (
-                    <Text style={[styles.dateValue, { fontSize: 12, color: '#666', marginTop: 2 }]}>
-                      {new Date(booking.end_datetime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                  )}
+                  <Text style={styles.dateValue}>
+                    {formatDateWithTime(booking.end_date, booking.end_datetime)}
+                  </Text>
                 </View>
               </View>
               <View style={styles.separator} />

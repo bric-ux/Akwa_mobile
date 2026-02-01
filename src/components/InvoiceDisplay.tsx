@@ -77,6 +77,25 @@ const formatDate = (dateString?: string): string => {
   });
 };
 
+const formatDateWithTime = (dateString?: string, dateTimeString?: string): string => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  const dateFormatted = date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  if (dateTimeString) {
+    const time = new Date(dateTimeString);
+    const timeFormatted = time.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    return `${dateFormatted} à ${timeFormatted}`;
+  }
+  return dateFormatted;
+};
+
 const formatDateTime = (dateString?: string): string => {
   if (!dateString) return '-';
   const date = new Date(dateString);
@@ -686,13 +705,27 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           <Text style={styles.sectionLabel}>
             {serviceType === 'property' ? 'Arrivée' : 'Début'}
           </Text>
-          <Text style={styles.sectionValue}>{formatDate(checkIn)}</Text>
+          <Text style={styles.sectionValue}>
+            {serviceType === 'vehicle' 
+              ? formatDateWithTime(
+                  approvedModification?.requested_start_date || checkIn, 
+                  approvedModification?.requested_start_datetime || (booking as any).start_datetime
+                )
+              : formatDate(checkIn)}
+          </Text>
         </View>
         <View style={styles.dateItem}>
           <Text style={styles.sectionLabel}>
             {serviceType === 'property' ? 'Départ' : 'Fin'}
           </Text>
-          <Text style={styles.sectionValue}>{formatDate(checkOut)}</Text>
+          <Text style={styles.sectionValue}>
+            {serviceType === 'vehicle' 
+              ? formatDateWithTime(
+                  approvedModification?.requested_end_date || checkOut, 
+                  approvedModification?.requested_end_datetime || (booking as any).end_datetime
+                )
+              : formatDate(checkOut)}
+          </Text>
         </View>
       </View>
 
@@ -726,9 +759,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             <View style={styles.extensionRow}>
               <Text style={styles.extensionLabel}>Dates originales:</Text>
               <Text style={styles.extensionValue}>
-                {serviceType === 'property' 
+                {serviceType === 'property'
                   ? `${formatDate(approvedModification.original_check_in)} - ${formatDate(approvedModification.original_check_out)}`
-                  : `${formatDate(approvedModification.original_start_date)} - ${formatDate(approvedModification.original_end_date)}`
+                  : `${formatDateWithTime(approvedModification.original_start_date, approvedModification.original_start_datetime)} au ${formatDateWithTime(approvedModification.original_end_date, approvedModification.original_end_datetime)}`
                 }
               </Text>
             </View>
@@ -738,7 +771,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
               <Text style={[styles.extensionValue, styles.extensionValueNew]}>
                 {serviceType === 'property'
                   ? `${formatDate(approvedModification.requested_check_in)} - ${formatDate(approvedModification.requested_check_out)}`
-                  : `${formatDate(approvedModification.requested_start_date)} - ${formatDate(approvedModification.requested_end_date)}`
+                  : `${formatDateWithTime(approvedModification.requested_start_date, approvedModification.requested_start_datetime)} au ${formatDateWithTime(approvedModification.requested_end_date, approvedModification.requested_end_datetime)}`
                 }
               </Text>
             </View>

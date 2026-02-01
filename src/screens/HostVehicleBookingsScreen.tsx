@@ -154,6 +154,24 @@ const HostVehicleBookingsScreen: React.FC = () => {
     });
   };
 
+  const formatDateWithTime = (dateString: string, dateTimeString?: string) => {
+    const date = new Date(dateString);
+    const dateFormatted = date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    if (dateTimeString) {
+      const time = new Date(dateTimeString);
+      const timeFormatted = time.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return `${dateFormatted} à ${timeFormatted}`;
+    }
+    return dateFormatted;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
@@ -412,19 +430,22 @@ const HostVehicleBookingsScreen: React.FC = () => {
         <View style={styles.bookingDetails}>
           <View style={styles.detailRow}>
             <Ionicons name="calendar-outline" size={16} color="#666" />
-            <Text style={styles.detailText}>
-              {formatDate(item.start_date)} → {formatDate(item.end_date)}
-              {(item.rental_days || 0) > 0 ? (
-                <Text style={styles.detailText}>
-                  {' '}({item.rental_days} jour{item.rental_days > 1 ? 's' : ''}
-                  {item.rental_hours && item.rental_hours > 0 && ` et ${item.rental_hours} heure${item.rental_hours > 1 ? 's' : ''}`})
-                </Text>
-              ) : item.rental_hours && item.rental_hours > 0 ? (
-                <Text style={styles.detailText}>
-                  {' '}({item.rental_hours} heure{item.rental_hours > 1 ? 's' : ''})
-                </Text>
-              ) : null}
-            </Text>
+            <View style={styles.detailTextContainer}>
+              <Text style={styles.detailText}>
+                {formatDateWithTime(item.start_date, item.start_datetime)} au {formatDateWithTime(item.end_date, item.end_datetime)}
+                {'\n'}
+                {(item.rental_days || 0) > 0 ? (
+                  <Text style={styles.detailText}>
+                    {item.rental_days} jour{item.rental_days > 1 ? 's' : ''}
+                    {item.rental_hours && item.rental_hours > 0 && ` et ${item.rental_hours} heure${item.rental_hours > 1 ? 's' : ''}`}
+                  </Text>
+                ) : item.rental_hours && item.rental_hours > 0 ? (
+                  <Text style={styles.detailText}>
+                    {item.rental_hours} heure{item.rental_hours > 1 ? 's' : ''}
+                  </Text>
+                ) : null}
+              </Text>
+            </View>
           </View>
           <View style={styles.detailRow}>
             <Ionicons name="cash-outline" size={16} color="#10b981" />
@@ -985,12 +1006,17 @@ const styles = StyleSheet.create({
   },
   detailRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
+  },
+  detailTextContainer: {
+    flex: 1,
+    flexShrink: 1,
   },
   detailText: {
     fontSize: 14,
     color: '#666',
+    flexShrink: 1,
   },
   discountDetailText: {
     fontSize: 14,
