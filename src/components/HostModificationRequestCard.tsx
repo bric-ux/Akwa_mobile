@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BookingModificationRequest } from '../hooks/useBookingModifications';
 import { useBookingModifications } from '../hooks/useBookingModifications';
+import { calculateHostCommission } from '../hooks/usePricing';
 
 interface HostModificationRequestCardProps {
   request: BookingModificationRequest;
@@ -51,6 +52,17 @@ const HostModificationRequestCard: React.FC<HostModificationRequestCardProps> = 
   };
 
   const priceDifference = request.requested_total_price - request.original_total_price;
+  
+  // Calculer le surplus payé par le locataire (différence de prix total)
+  const surplusPaid = priceDifference > 0 ? priceDifference : 0;
+  
+  // Calculer le gain net du propriétaire sur le surplus
+  // Le surplus est la différence de prix total, mais le propriétaire reçoit seulement la base après commission
+  // On doit calculer la base du surplus, puis soustraire la commission
+  const surplusBasePrice = surplusPaid > 0 ? Math.round(surplusPaid / 1.12) : 0; // Diviser par 1.12 pour obtenir la base (sans les 12% de frais de service)
+  const hostCommissionData = surplusBasePrice > 0 ? calculateHostCommission(surplusBasePrice, 'property') : { hostCommission: 0, hostCommissionHT: 0, hostCommissionVAT: 0 };
+  const ownerNetGainOnSurplus = surplusBasePrice - hostCommissionData.hostCommission;
+  
   const originalNights = Math.ceil(
     (new Date(request.original_check_out).getTime() - new Date(request.original_check_in).getTime()) 
     / (1000 * 60 * 60 * 24)
@@ -135,12 +147,21 @@ const HostModificationRequestCard: React.FC<HostModificationRequestCardProps> = 
             <Text style={styles.priceLabel}>Nouveau total</Text>
             <View style={styles.priceRow}>
               <Text style={styles.priceValue}>{formatPrice(request.requested_total_price)}</Text>
-              {priceDifference !== 0 && (
-                <Text style={[styles.priceDifference, priceDifference > 0 ? styles.priceIncrease : styles.priceDecrease]}>
-                  {priceDifference > 0 ? '+' : ''}{formatPrice(priceDifference)}
-                </Text>
-              )}
             </View>
+            {surplusPaid > 0 && (
+              <View style={styles.surplusInfo}>
+                <Text style={styles.surplusLabel}>Surplus payé par le locataire:</Text>
+                <Text style={styles.surplusValue}>{formatPrice(surplusPaid)}</Text>
+                <Text style={styles.netGainLabel}>Votre gain net sur le surplus:</Text>
+                <Text style={styles.netGainValue}>{formatPrice(ownerNetGainOnSurplus)}</Text>
+              </View>
+            )}
+            {priceDifference < 0 && (
+              <View style={styles.surplusInfo}>
+                <Text style={styles.refundLabel}>Remboursement:</Text>
+                <Text style={styles.refundValue}>{formatPrice(Math.abs(priceDifference))}</Text>
+              </View>
+            )}
           </View>
 
           {/* Message du voyageur */}
@@ -385,6 +406,44 @@ const styles = StyleSheet.create({
   },
   priceDecrease: {
     color: '#27ae60',
+  },
+  surplusInfo: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  surplusLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+  },
+  surplusValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#dc2626',
+    marginBottom: 8,
+  },
+  netGainLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+  },
+  netGainValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  refundLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  refundValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#059669',
   },
   messageContainer: {
     flexDirection: 'row',

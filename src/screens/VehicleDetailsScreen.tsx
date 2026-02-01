@@ -344,7 +344,7 @@ const VehicleDetailsScreen: React.FC = () => {
                     </View>
                     <View style={styles.optionContent}>
                       <Text style={styles.optionTitle}>Permis requis</Text>
-                      <Text style={styles.optionDescription} numberOfLines={2}>
+                      <Text style={styles.optionDescription}>
                         {((vehicle as any).min_license_years || 0) > 0 
                           ? `Permis valide requis - ${String((vehicle as any).min_license_years || 0)} an(s) minimum`
                           : 'Permis valide requis'}

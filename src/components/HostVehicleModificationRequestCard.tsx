@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
+import { calculateHostCommission } from '../hooks/usePricing';
 
 interface VehicleModificationRequest {
   id: string;
@@ -72,6 +73,16 @@ const HostVehicleModificationRequestCard: React.FC<HostVehicleModificationReques
   };
 
   const priceDifference = request.requested_total_price - request.original_total_price;
+  
+  // Calculer le surplus payé par le locataire (différence de prix total)
+  const surplusPaid = priceDifference > 0 ? priceDifference : 0;
+  
+  // Calculer le gain net du propriétaire sur le surplus
+  // Le surplus est la différence de prix total, mais le propriétaire reçoit seulement la base après commission
+  // On doit calculer la base du surplus, puis soustraire la commission
+  const surplusBasePrice = surplusPaid > 0 ? Math.round(surplusPaid / 1.12) : 0; // Diviser par 1.12 pour obtenir la base (sans les 12% de frais de service)
+  const hostCommissionData = surplusBasePrice > 0 ? calculateHostCommission(surplusBasePrice, 'vehicle') : { hostCommission: 0, hostCommissionHT: 0, hostCommissionVAT: 0 };
+  const ownerNetGainOnSurplus = surplusBasePrice - hostCommissionData.hostCommission;
 
   const handleApprove = async () => {
     const result = await approveModificationRequest(request.id, responseMessage || undefined);
@@ -129,6 +140,22 @@ const HostVehicleModificationRequestCard: React.FC<HostVehicleModificationReques
             </View>
           </View>
 
+          {/* Durée */}
+          <View style={styles.changeRow}>
+            <Ionicons name="time-outline" size={18} color="#666" />
+            <View style={styles.changeContent}>
+              <Text style={styles.originalValue}>
+                {request.original_rental_days} jour{request.original_rental_days > 1 ? 's' : ''}
+                {request.original_rental_hours && request.original_rental_hours > 0 && ` et ${request.original_rental_hours} heure${request.original_rental_hours > 1 ? 's' : ''}`}
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color="#2E7D32" style={styles.arrow} />
+              <Text style={styles.requestedValue}>
+                {request.requested_rental_days} jour{request.requested_rental_days > 1 ? 's' : ''}
+                {request.requested_rental_hours && request.requested_rental_hours > 0 && ` et ${request.requested_rental_hours} heure${request.requested_rental_hours > 1 ? 's' : ''}`}
+              </Text>
+            </View>
+          </View>
+
           {/* Prix */}
           <View style={styles.changeRow}>
             <Ionicons name="cash-outline" size={18} color="#666" />
@@ -139,12 +166,21 @@ const HostVehicleModificationRequestCard: React.FC<HostVehicleModificationReques
               <Ionicons name="arrow-forward" size={16} color="#2E7D32" style={styles.arrow} />
               <Text style={[styles.requestedValue, priceDifference !== 0 && (priceDifference > 0 ? styles.priceIncrease : styles.priceDecrease)]}>
                 {formatPrice(request.requested_total_price)}
-                {priceDifference !== 0 && (
-                  <Text style={styles.priceDiff}>
-                    {' '}({priceDifference > 0 ? '+' : ''}{formatPrice(priceDifference)})
-                  </Text>
-                )}
               </Text>
+              {surplusPaid > 0 && (
+                <View style={styles.surplusInfo}>
+                  <Text style={styles.surplusLabel}>Surplus payé par le locataire:</Text>
+                  <Text style={styles.surplusValue}>{formatPrice(surplusPaid)}</Text>
+                  <Text style={styles.netGainLabel}>Votre gain net sur le surplus:</Text>
+                  <Text style={styles.netGainValue}>{formatPrice(ownerNetGainOnSurplus)}</Text>
+                </View>
+              )}
+              {priceDifference < 0 && (
+                <View style={styles.surplusInfo}>
+                  <Text style={styles.refundLabel}>Remboursement:</Text>
+                  <Text style={styles.refundValue}>{formatPrice(Math.abs(priceDifference))}</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -372,6 +408,44 @@ const styles = StyleSheet.create({
   priceDiff: {
     fontSize: 12,
     fontWeight: 'normal',
+  },
+  surplusInfo: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  surplusLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+  },
+  surplusValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#dc2626',
+    marginBottom: 8,
+  },
+  netGainLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
+  },
+  netGainValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  refundLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  refundValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#059669',
   },
   messageContainer: {
     marginTop: 12,

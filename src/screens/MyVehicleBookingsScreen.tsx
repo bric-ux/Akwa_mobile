@@ -273,14 +273,13 @@ const MyVehicleBookingsScreen: React.FC = () => {
               <Text style={styles.modificationRequestDates}>
                 Nouvelles dates proposées: {formatDate(pendingRequests[booking.id].requested_start_date)} - {formatDate(pendingRequests[booking.id].requested_end_date)}
               </Text>
-              {pendingRequests[booking.id].requested_rental_days !== booking.rental_days && (
-                <Text style={styles.modificationRequestInfo}>
-                  Durée: {String(pendingRequests[booking.id].requested_rental_days || 0)} jour{(pendingRequests[booking.id].requested_rental_days || 0) > 1 ? 's' : ''}
-                </Text>
-              )}
+              <Text style={styles.modificationRequestInfo}>
+                Durée: {String(pendingRequests[booking.id].requested_rental_days || 0)} jour{(pendingRequests[booking.id].requested_rental_days || 0) > 1 ? 's' : ''}
+                {pendingRequests[booking.id].requested_rental_hours && pendingRequests[booking.id].requested_rental_hours > 0 && ` et ${pendingRequests[booking.id].requested_rental_hours} heure${pendingRequests[booking.id].requested_rental_hours > 1 ? 's' : ''}`}
+              </Text>
               {pendingRequests[booking.id].requested_total_price !== booking.total_price && (
                 <Text style={styles.modificationRequestInfo}>
-                  Nouveau prix: {formatPrice(pendingRequests[booking.id].requested_total_price)}
+                  Prix payé en surplus: {formatPrice(pendingRequests[booking.id].requested_total_price - booking.total_price)}
                 </Text>
               )}
               <TouchableOpacity

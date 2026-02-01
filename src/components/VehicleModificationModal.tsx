@@ -478,51 +478,100 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
               />
               {hasModification && rentalDays > 0 && (
                 <View style={styles.summaryBox}>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Durée:</Text>
-                    <Text style={styles.summaryValue}>
-                      {rentalDays} jour{rentalDays > 1 ? 's' : ''}
-                      {remainingHours > 0 && ` et ${remainingHours} heure${remainingHours > 1 ? 's' : ''}`}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Prix des jours:</Text>
-                    <Text style={styles.summaryValue} numberOfLines={2}>
-                      {formatPrice(daysPrice)}{'\n'}
-                      <Text style={{ fontSize: 12, color: '#6b7280' }}>
-                        ({rentalDays} jour{rentalDays > 1 ? 's' : ''} × {formatPrice(dailyRate)})
-                      </Text>
-                    </Text>
-                  </View>
-                  {remainingHours > 0 && hoursPrice > 0 && hourlyRate > 0 && (
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Prix des heures:</Text>
-                      <Text style={styles.summaryValue} numberOfLines={2}>
-                        {formatPrice(hoursPrice)}{'\n'}
-                        <Text style={{ fontSize: 12, color: '#6b7280' }}>
-                          ({remainingHours} h × {formatPrice(hourlyRate)}/h)
-                        </Text>
-                      </Text>
-                    </View>
-                  )}
-                  {discountAmount > 0 && (
-                    <View style={styles.summaryRow}>
-                      <Text style={[styles.summaryLabel, { color: '#059669' }]}>Réduction appliquée:</Text>
-                      <Text style={[styles.summaryValue, { color: '#059669' }]}>-{formatPrice(discountAmount)}</Text>
-                    </View>
-                  )}
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Prix après réduction:</Text>
-                    <Text style={styles.summaryValue}>{formatPrice(basePrice)}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Frais de service (10% + TVA):</Text>
-                    <Text style={styles.summaryValue}>{formatPrice(effectiveServiceFee)}</Text>
-                  </View>
-                  <View style={[styles.summaryRow, styles.totalRow]}>
-                    <Text style={styles.totalLabel}>Nouveau total:</Text>
-                    <Text style={styles.totalValue}>{formatPrice(totalPrice)}</Text>
-                  </View>
+                  {/* Calculer les différences */}
+                  {(() => {
+                    const daysDiff = rentalDays - currentRentalDays;
+                    const hoursDiff = remainingHours - currentRentalHours;
+                    const daysPriceDiff = daysPrice - currentDaysPrice;
+                    const hoursPriceDiff = hoursPrice - currentHoursPrice;
+                    const discountDiff = currentDiscountAmount - discountAmount;
+                    const basePriceDiff = basePrice - currentPriceAfterDiscount;
+                    const serviceFeeDiff = effectiveServiceFee - currentServiceFee;
+                    const totalDiff = totalPrice - currentTotalPrice;
+                    
+                    return (
+                      <>
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>Durée:</Text>
+                          <Text style={styles.summaryValue}>
+                            {daysDiff !== 0 || hoursDiff !== 0 ? (
+                              <>
+                                {daysDiff !== 0 && `${daysDiff} jour${Math.abs(daysDiff) > 1 ? 's' : ''}`}
+                                {daysDiff !== 0 && hoursDiff !== 0 && ' et '}
+                                {hoursDiff !== 0 && `${hoursDiff} heure${Math.abs(hoursDiff) > 1 ? 's' : ''}`}
+                              </>
+                            ) : (
+                              'Aucun changement'
+                            )}
+                          </Text>
+                        </View>
+                        {(daysPriceDiff !== 0 || hoursPriceDiff !== 0) && (
+                          <>
+                            {daysPriceDiff !== 0 && (
+                              <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Prix des jours:</Text>
+                                <Text style={styles.summaryValue} numberOfLines={2}>
+                                  {daysPriceDiff > 0 ? '+' : ''}{formatPrice(daysPriceDiff)}{'\n'}
+                                  <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                                    ({daysDiff > 0 ? '+' : ''}{daysDiff} jour{Math.abs(daysDiff) > 1 ? 's' : ''} × {formatPrice(dailyRate)})
+                                  </Text>
+                                </Text>
+                              </View>
+                            )}
+                            {hoursPriceDiff !== 0 && hoursDiff !== 0 && hourlyRate > 0 && (
+                              <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Prix des heures:</Text>
+                                <Text style={styles.summaryValue} numberOfLines={2}>
+                                  {hoursPriceDiff > 0 ? '+' : ''}{formatPrice(hoursPriceDiff)}{'\n'}
+                                  <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                                    ({hoursDiff > 0 ? '+' : ''}{hoursDiff} h × {formatPrice(hourlyRate)}/h)
+                                  </Text>
+                                </Text>
+                              </View>
+                            )}
+                          </>
+                        )}
+                        {discountDiff !== 0 && (
+                          <View style={styles.summaryRow}>
+                            <Text style={[styles.summaryLabel, discountDiff > 0 ? { color: '#059669' } : { color: '#e74c3c' }]}>
+                              {discountDiff > 0 ? 'Réduction supplémentaire:' : 'Réduction réduite:'}
+                            </Text>
+                            <Text style={[styles.summaryValue, discountDiff > 0 ? { color: '#059669' } : { color: '#e74c3c' }]}>
+                              {discountDiff > 0 ? '+' : ''}{formatPrice(discountDiff)}
+                            </Text>
+                          </View>
+                        )}
+                        {basePriceDiff !== 0 && discountDiff !== 0 && (
+                          <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Prix après réduction:</Text>
+                            <Text style={styles.summaryValue}>
+                              {basePriceDiff > 0 ? '+' : ''}{formatPrice(basePriceDiff)}
+                            </Text>
+                          </View>
+                        )}
+                        {serviceFeeDiff !== 0 && (
+                          <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Frais de service:</Text>
+                            <Text style={styles.summaryValue}>
+                              {serviceFeeDiff > 0 ? '+' : ''}{formatPrice(serviceFeeDiff)}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={[styles.summaryRow, styles.totalRow]}>
+                          <Text style={styles.totalLabel}>
+                            {totalDiff > 0 ? 'Surplus à payer:' : totalDiff < 0 ? 'Remboursement:' : 'Aucun changement'}
+                          </Text>
+                          <Text style={[styles.totalValue, totalDiff > 0 ? { color: '#e67e22' } : totalDiff < 0 ? { color: '#059669' } : { color: '#6b7280' }]}>
+                            {totalDiff > 0 
+                              ? `+${formatPrice(totalDiff)}`
+                              : totalDiff < 0
+                              ? formatPrice(Math.abs(totalDiff))
+                              : formatPrice(0)}
+                          </Text>
+                        </View>
+                      </>
+                    );
+                  })()}
                 </View>
               )}
             </View>

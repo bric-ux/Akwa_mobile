@@ -112,8 +112,57 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
         }
       );
 
-      if (paymentError) throw paymentError;
+      if (paymentError) {
+        console.error('❌ [VehicleModificationSurplusPaymentModal] Erreur Edge Function:', paymentError);
+        console.error('❌ [VehicleModificationSurplusPaymentModal] Type erreur:', typeof paymentError);
+        console.error('❌ [VehicleModificationSurplusPaymentModal] Erreur complète:', JSON.stringify(paymentError, Object.getOwnPropertyNames(paymentError), 2));
+        
+        // Essayer d'extraire le message d'erreur depuis différentes sources
+        let errorMessage = 'Erreur lors de la création du paiement';
+        
+        // Vérifier si l'erreur a un message direct
+        if (paymentError.message) {
+          errorMessage = paymentError.message;
+        }
+        
+        // Vérifier si l'erreur a un contexte avec une réponse
+        const errorAny = paymentError as any;
+        if (errorAny.context?.response) {
+          try {
+            // Cloner la réponse pour pouvoir la lire
+            const responseClone = errorAny.context.response.clone();
+            const responseText = await responseClone.text();
+            console.error('❌ [VehicleModificationSurplusPaymentModal] Réponse erreur (text):', responseText);
+            
+            try {
+              const errorBody = JSON.parse(responseText);
+              console.error('❌ [VehicleModificationSurplusPaymentModal] Réponse erreur (parsed):', errorBody);
+              if (errorBody.error) {
+                errorMessage = errorBody.error;
+              } else if (errorBody.message) {
+                errorMessage = errorBody.message;
+              }
+            } catch (parseError) {
+              // Si le parsing échoue, utiliser le texte brut si disponible
+              if (responseText && responseText.trim()) {
+                errorMessage = responseText;
+              }
+            }
+          } catch (extractError) {
+            console.error('❌ [VehicleModificationSurplusPaymentModal] Erreur extraction message:', extractError);
+          }
+        }
+        
+        // Vérifier si le résultat contient une erreur
+        if (paymentResult && !paymentResult.success && paymentResult.error) {
+          errorMessage = paymentResult.error;
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
       if (!paymentResult?.success) {
+        console.error('❌ [VehicleModificationSurplusPaymentModal] Résultat non réussi:', paymentResult);
         throw new Error(paymentResult?.error || 'Erreur lors de la création du paiement');
       }
 
@@ -145,10 +194,29 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
         onClose();
       }, 2000);
     } catch (error: any) {
-      console.error('Erreur paiement surplus:', error);
+      console.error('❌ [VehicleModificationSurplusPaymentModal] Erreur paiement surplus:', error);
+      console.error('❌ [VehicleModificationSurplusPaymentModal] Détails erreur:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        context: error.context,
+      });
+      
+      // Extraire le message d'erreur le plus détaillé possible
+      let errorMessage = 'Impossible de traiter le paiement. Veuillez réessayer.';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.error) {
+        errorMessage = error.error;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       Alert.alert(
-        'Erreur',
-        error.message || 'Impossible de traiter le paiement. Veuillez réessayer.'
+        'Erreur de paiement',
+        errorMessage,
+        [{ text: 'OK' }]
       );
     } finally {
       setLoading(false);
