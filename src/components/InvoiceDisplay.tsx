@@ -729,7 +729,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             N° {booking.id.substring(0, 8).toUpperCase()}
           </Text>
           <Text style={styles.rccmNumber}>
-            RCCM: CI-ABJ-2025-B12-06694
+            NCC:2507662T
           </Text>
         </View>
       </View>
