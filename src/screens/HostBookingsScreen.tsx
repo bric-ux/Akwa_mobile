@@ -29,6 +29,8 @@ import HostBookingDetailsModal from '../components/HostBookingDetailsModal';
 import { useGuestReviews } from '../hooks/useGuestReviews';
 import { useBookingModifications, BookingModificationRequest } from '../hooks/useBookingModifications';
 import HostModificationRequestCard from '../components/HostModificationRequestCard';
+import { getCommissionRates } from '../lib/commissions';
+import { calculateHostCommission } from '../hooks/usePricing';
 
 const HostBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -356,6 +358,40 @@ const HostBookingsScreen: React.FC = () => {
     return 'https://via.placeholder.com/150';
   };
 
+  // Calculer le montant net que l'hôte reçoit - EXACTEMENT comme dans InvoiceDisplay.tsx
+  const calculateHostNetAmount = (booking: HostBooking): number => {
+    if (booking.status === 'cancelled') return 0;
+
+    // Calculer le nombre de nuits
+    const checkIn = new Date(booking.check_in_date);
+    const checkOut = new Date(booking.check_out_date);
+    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+
+    // EXACTEMENT comme dans InvoiceDisplay.tsx ligne 408-552
+    const pricePerUnit = booking.properties?.price_per_night || 0;
+    const basePrice = pricePerUnit * nights;
+    const discountAmount = booking.discount_amount || 0;
+    const priceAfterDiscount = basePrice - discountAmount;
+
+    // Frais de ménage - avec logique free_cleaning_min_days
+    let effectiveCleaningFee = booking.properties?.cleaning_fee || 0;
+    if (booking.properties?.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days) {
+      effectiveCleaningFee = 0;
+    }
+
+    // Taxe de séjour
+    const taxesPerNight = booking.properties?.taxes || 0;
+    const effectiveTaxes = taxesPerNight * nights;
+
+    // Commission hôte - EXACTEMENT comme dans InvoiceDisplay ligne 527-530
+    const hostCommissionData = calculateHostCommission(priceAfterDiscount, 'property');
+    const hostCommission = hostCommissionData.hostCommission;
+
+    // Le versement hôte inclut : prix après réduction + frais de ménage + taxe de séjour - commission
+    // EXACTEMENT comme dans InvoiceDisplay ligne 552
+    return priceAfterDiscount + effectiveCleaningFee + effectiveTaxes - hostCommission;
+  };
+
   const renderBookingCard = ({ item }: { item: HostBooking }) => (
     <View style={styles.bookingCard}>
       <View style={styles.bookingHeader}>
@@ -404,9 +440,9 @@ const HostBookingsScreen: React.FC = () => {
         </View>
         
         <View style={styles.detailRow}>
-          <Ionicons name="cash" size={16} color="#666" />
-          <Text style={styles.detailText}>
-            {item.total_price.toLocaleString('fr-FR')} CFA
+          <Ionicons name="cash" size={16} color="#10b981" />
+          <Text style={[styles.detailText, { color: '#10b981', fontWeight: '600' }]}>
+            Vous recevez : {calculateHostNetAmount(item).toLocaleString('fr-FR')} FCFA
           </Text>
         </View>
       </View>

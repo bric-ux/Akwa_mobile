@@ -17,6 +17,7 @@ import { useHostBookings } from '../hooks/useHostBookings';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { getCommissionRates } from '../lib/commissions';
+import { calculateHostCommission } from '../hooks/usePricing';
 
 interface DetailedStats {
   totalProperties: number;
@@ -121,7 +122,7 @@ const HostStatsScreen: React.FC = () => {
       );
       confirmedBookingsCount = confirmed.length;
       
-      // Calculer les revenus nets (après déduction des commissions)
+      // Calculer les revenus nets - EXACTEMENT comme dans InvoiceDisplay.tsx (mobile)
       const commissionRates = getCommissionRates('property');
       const calculateNetEarnings = (booking: any) => {
         if (booking.status === 'cancelled') return 0;
@@ -134,7 +135,7 @@ const HostStatsScreen: React.FC = () => {
           nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
         }
         
-        // Récupérer le prix par nuit depuis la propriété ou calculer depuis total_price
+        // Récupérer le prix par nuit depuis la propriété
         const pricePerNight = (booking as any).property?.price_per_night || 
                              (booking as any).properties?.price_per_night || 0;
         
@@ -145,9 +146,25 @@ const HostStatsScreen: React.FC = () => {
         const discountAmount = (booking as any).discount_amount || 0;
         const priceAfterDiscount = basePrice - discountAmount;
         
-        // Commission de 2% sur le prix APRÈS réduction
-        const hostCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
-        return priceAfterDiscount - hostCommission;
+        // Frais de ménage - avec logique free_cleaning_min_days comme dans InvoiceDisplay
+        let effectiveCleaningFee = (booking as any).property?.cleaning_fee || 
+                                  (booking as any).properties?.cleaning_fee || 0;
+        if ((booking as any).properties?.free_cleaning_min_days && nights >= (booking as any).properties.free_cleaning_min_days) {
+          effectiveCleaningFee = 0;
+        }
+        
+        // Taxe de séjour
+        const taxesPerNight = (booking as any).property?.taxes || 
+                             (booking as any).properties?.taxes || 0;
+        const effectiveTaxes = taxesPerNight * nights;
+        
+        // Commission hôte - EXACTEMENT comme dans InvoiceDisplay ligne 527-530
+        const hostCommissionData = calculateHostCommission(priceAfterDiscount, 'property');
+        const hostCommission = hostCommissionData.hostCommission;
+        
+        // Le versement hôte inclut : prix après réduction + frais de ménage + taxe de séjour - commission
+        // EXACTEMENT comme dans InvoiceDisplay ligne 552
+        return priceAfterDiscount + effectiveCleaningFee + effectiveTaxes - hostCommission;
       };
 
       confirmed.forEach(booking => {

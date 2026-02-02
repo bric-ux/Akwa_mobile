@@ -1116,19 +1116,19 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </>
           )}
 
-          {/* Taxe de séjour - toujours afficher si taxesPerNight > 0 */}
-          {(effectiveTaxes > 0 || (serviceType === 'property' && taxesPerNight > 0 && nights > 0)) && (
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Taxe de séjour</Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes > 0 ? effectiveTaxes : taxesPerNight * nights)}</Text>
-            </View>
-          )}
-
           {/* Frais de ménage */}
           {effectiveCleaningFee > 0 && (
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>Frais de ménage</Text>
               <Text style={styles.financialValue}>{formatPriceFCFA(effectiveCleaningFee)}</Text>
+            </View>
+          )}
+
+          {/* Taxe de séjour - toujours afficher si taxesPerNight > 0 */}
+          {(effectiveTaxes > 0 || (serviceType === 'property' && taxesPerNight > 0 && nights > 0)) && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Taxe de séjour</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes > 0 ? effectiveTaxes : taxesPerNight * nights)}</Text>
             </View>
           )}
 
@@ -1155,14 +1155,6 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
               <Text style={styles.vatDetailValue}>{formatPriceFCFA(effectiveServiceFee)}</Text>
             </View>
           </View>
-
-          {/* Taxe de séjour - toujours afficher si taxesPerNight > 0 */}
-          {(effectiveTaxes > 0 || (serviceType === 'property' && taxesPerNight > 0 && nights > 0)) && (
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Taxe de séjour</Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes > 0 ? effectiveTaxes : taxesPerNight * nights)}</Text>
-            </View>
-          )}
 
           <View style={styles.separator} />
 
