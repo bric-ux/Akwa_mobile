@@ -14,6 +14,7 @@ export interface HostBooking {
   children_count: number;
   infants_count: number;
   total_price: number;
+  host_net_amount?: number | null;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   message_to_host?: string;
   special_requests?: string;
@@ -77,10 +78,21 @@ export const useHostBookings = () => {
       console.log('🔄 [useHostBookings] Chargement des réservations hôte pour:', user.id);
       
       // Première requête : récupérer les réservations avec les propriétés
+      // Inclure explicitement tous les champs nécessaires pour le calcul
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
           *,
+          id,
+          check_in_date,
+          check_out_date,
+          guests_count,
+          total_price,
+          status,
+          host_net_amount,
+          discount_amount,
+          discount_applied,
+          original_total,
           properties!inner(
             id,
             title,
@@ -93,6 +105,7 @@ export const useHostBookings = () => {
             cleaning_fee,
             service_fee,
             taxes,
+            free_cleaning_min_days,
             discount_enabled,
             discount_min_nights,
             discount_percentage,
@@ -151,6 +164,24 @@ export const useHostBookings = () => {
         guest_profile: profilesMap.get(booking.guest_id) || null
       }));
 
+      // Log pour vérifier que discount_amount est bien récupéré
+      if (data && data.length > 0) {
+        const sampleBooking = data[0];
+        console.log('📊 [useHostBookings] Vérification données récupérées (première réservation):', {
+          id: sampleBooking.id,
+          discount_amount: sampleBooking.discount_amount,
+          discount_amount_type: typeof sampleBooking.discount_amount,
+          discount_applied: sampleBooking.discount_applied,
+          host_net_amount: sampleBooking.host_net_amount,
+          total_price: sampleBooking.total_price,
+          has_properties: !!sampleBooking.properties,
+          property_price_per_night: sampleBooking.properties?.price_per_night,
+          property_cleaning_fee: sampleBooking.properties?.cleaning_fee,
+          property_taxes: sampleBooking.properties?.taxes,
+          property_free_cleaning_min_days: sampleBooking.properties?.free_cleaning_min_days,
+        });
+      }
+
       if (error) {
         console.error('❌ [useHostBookings] Erreur lors du chargement:', error);
         setError('Erreur lors du chargement des réservations');
@@ -185,6 +216,10 @@ export const useHostBookings = () => {
         .from('bookings')
         .select(`
           *,
+          host_net_amount,
+          discount_amount,
+          discount_applied,
+          original_total,
           properties!inner(
             id,
             title,
@@ -194,7 +229,11 @@ export const useHostBookings = () => {
             cleaning_fee,
             service_fee,
             taxes,
+            free_cleaning_min_days,
             cancellation_policy,
+            check_in_time,
+            check_out_time,
+            house_rules,
             locations:location_id(id, name, type, latitude, longitude, parent_id)
           )
         `)
@@ -311,8 +350,10 @@ export const useHostBookings = () => {
                 checkOut: bookingData.check_out_date,
                 guestsCount: bookingData.guests_count,
                 totalPrice: bookingData.total_price,
+                host_net_amount: bookingData.host_net_amount, // Inclure pour cohérence
                 discountApplied: bookingData.discount_applied || false,
                 discountAmount: bookingData.discount_amount || 0,
+                originalTotal: bookingData.original_total || bookingData.total_price,
                 property: {
                   title: bookingData.properties.title,
                   address: bookingData.properties.address || '',
@@ -322,6 +363,7 @@ export const useHostBookings = () => {
                   cleaning_fee: bookingData.properties.cleaning_fee || 0,
                   service_fee: bookingData.properties.service_fee || 0,
                   taxes: bookingData.properties.taxes || 0,
+                  free_cleaning_min_days: bookingData.properties.free_cleaning_min_days || null, // Important pour le calcul
                   cancellation_policy: bookingData.properties.cancellation_policy || 'flexible',
                   check_in_time: bookingData.properties.check_in_time,
                   check_out_time: bookingData.properties.check_out_time,
@@ -369,8 +411,10 @@ export const useHostBookings = () => {
                 checkOut: bookingData.check_out_date,
                 guestsCount: bookingData.guests_count,
                 totalPrice: bookingData.total_price,
+                host_net_amount: bookingData.host_net_amount, // Inclure host_net_amount stocké
                 discountApplied: bookingData.discount_applied || false,
                 discountAmount: bookingData.discount_amount || 0,
+                originalTotal: bookingData.original_total || bookingData.total_price,
                 property: {
                   title: bookingData.properties.title,
                   address: bookingData.properties.address || '',
@@ -380,6 +424,7 @@ export const useHostBookings = () => {
                   cleaning_fee: bookingData.properties.cleaning_fee || 0,
                   service_fee: bookingData.properties.service_fee || 0,
                   taxes: bookingData.properties.taxes || 0,
+                  free_cleaning_min_days: bookingData.properties.free_cleaning_min_days || null, // Important pour le calcul
                   cancellation_policy: bookingData.properties.cancellation_policy || 'flexible',
                   check_in_time: bookingData.properties.check_in_time,
                   check_out_time: bookingData.properties.check_out_time,
@@ -403,6 +448,13 @@ export const useHostBookings = () => {
                 payment_plan: bookingData.payment_plan || ''
               }
             };
+            
+            console.log('📧 [useHostBookings] Envoi email hôte avec PDF, données:', {
+              bookingId: hostEmailData.data.bookingId,
+              host_net_amount: hostEmailData.data.host_net_amount,
+              discountAmount: hostEmailData.data.discountAmount,
+              free_cleaning_min_days: hostEmailData.data.property.free_cleaning_min_days,
+            });
 
             const hostEmailResult = await supabase.functions.invoke('send-email', { body: hostEmailData });
             if (hostEmailResult.error) {

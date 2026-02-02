@@ -151,8 +151,8 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
               </View>
             </View>
 
-            {/* Facture - uniquement pour les réservations confirmées ou terminées, pas annulées */}
-            {isConfirmed && booking.status !== 'cancelled' && (
+            {/* Détails du paiement - afficher pour toutes les réservations sauf annulées */}
+            {booking.status !== 'cancelled' && (
               <>
                 <View style={styles.section}>
                   <InvoiceDisplay

@@ -18,6 +18,7 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { getCommissionRates } from '../lib/commissions';
 import { calculateHostCommission } from '../hooks/usePricing';
+import { calculateHostNetAmount } from '../lib/hostNetAmount';
 
 interface DetailedStats {
   totalProperties: number;
@@ -158,13 +159,22 @@ const HostStatsScreen: React.FC = () => {
                              (booking as any).properties?.taxes || 0;
         const effectiveTaxes = taxesPerNight * nights;
         
-        // Commission hôte - EXACTEMENT comme dans InvoiceDisplay ligne 527-530
-        const hostCommissionData = calculateHostCommission(priceAfterDiscount, 'property');
-        const hostCommission = hostCommissionData.hostCommission;
+        // Utiliser host_net_amount stocké si disponible, sinon utiliser la fonction centralisée
+        if ((booking as any).host_net_amount !== undefined && (booking as any).host_net_amount !== null) {
+          return (booking as any).host_net_amount;
+        }
         
-        // Le versement hôte inclut : prix après réduction + frais de ménage + taxe de séjour - commission
-        // EXACTEMENT comme dans InvoiceDisplay ligne 552
-        return priceAfterDiscount + effectiveCleaningFee + effectiveTaxes - hostCommission;
+        // Utiliser la fonction centralisée pour les anciennes réservations
+        return calculateHostNetAmount({
+          pricePerNight: pricePerNight,
+          nights: nights,
+          discountAmount: discountAmount,
+          cleaningFee: effectiveCleaningFee,
+          taxesPerNight: taxesPerNight,
+          freeCleaningMinDays: (booking as any).properties?.free_cleaning_min_days || null,
+          status: (booking as any).status || 'confirmed',
+          serviceType: 'property',
+        }).hostNetAmount;
       };
 
       confirmed.forEach(booking => {

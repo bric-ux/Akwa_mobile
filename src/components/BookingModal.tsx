@@ -521,6 +521,23 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
     const pricing = calculateTotal();
     
+    // Extraire discountAmount et discountApplied depuis pricing.pricing
+    // Le discountAmount doit inclure la réduction de la propriété + la réduction du voucher
+    const propertyDiscountAmount = pricing.pricing.discountAmount || 0;
+    const voucherDiscountAmount = pricing.voucherDiscountAmount || 0;
+    const totalDiscountAmount = propertyDiscountAmount + voucherDiscountAmount;
+    const discountApplied = pricing.pricing.discountApplied || pricing.voucherApplied || false;
+    const originalTotal = pricing.pricing.originalTotal || pricing.finalTotal;
+    
+    console.log('🔍 [BookingModal] Données de réduction:', {
+      propertyDiscountAmount,
+      voucherDiscountAmount,
+      totalDiscountAmount,
+      discountApplied,
+      originalTotal,
+      finalTotal: pricing.finalTotal
+    });
+    
     const result = await createBooking({
       propertyId: property.id,
       checkInDate: formatDateForAPI(checkIn),
@@ -530,6 +547,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
       childrenCount: children,
       infantsCount: infants,
       totalPrice: pricing.finalTotal,
+      discountAmount: totalDiscountAmount, // Inclure la réduction totale (propriété + voucher)
+      discountApplied: discountApplied,
+      originalTotal: originalTotal,
       messageToHost: message.trim() || undefined,
       voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
       paymentMethod: selectedPaymentMethod,

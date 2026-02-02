@@ -33,6 +33,7 @@ export interface Booking {
   children_count: number;
   infants_count: number;
   total_price: number;
+  host_net_amount?: number | null;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   message_to_host?: string;
   special_requests?: string;
@@ -118,7 +119,7 @@ export const useBookings = () => {
       // Récupérer les infos de la propriété
       const { data: propertyData, error: propertyError } = await supabase
         .from('properties')
-        .select('auto_booking, minimum_nights, max_guests')
+        .select('auto_booking, minimum_nights, max_guests, price_per_night, cleaning_fee, taxes, free_cleaning_min_days')
         .eq('id', bookingData.propertyId)
         .single();
 
@@ -233,7 +234,57 @@ export const useBookings = () => {
       // IMPORTANT: Déterminer AVANT la création pour éviter les problèmes de timing
       const initialStatus = propertyData.auto_booking ? 'confirmed' : 'pending';
 
+      // Calculer host_net_amount en utilisant la fonction centralisée
+      // (nights est déjà calculé plus haut pour la vérification du minimum)
+      const { calculateHostNetAmount } = await import('../lib/hostNetAmount');
+      const hostNetAmountParams = {
+        pricePerNight: propertyData.price_per_night || 0,
+        nights: nights,
+        discountAmount: bookingData.discountAmount || 0,
+        cleaningFee: propertyData.cleaning_fee || 0,
+        taxesPerNight: propertyData.taxes || 0,
+        freeCleaningMinDays: propertyData.free_cleaning_min_days || null,
+        status: initialStatus,
+        serviceType: 'property' as const,
+      };
+      
+      // Log pour debug
+      console.log('🔍 [useBookings Mobile] Calcul host_net_amount:', {
+        pricePerNight: hostNetAmountParams.pricePerNight,
+        nights: hostNetAmountParams.nights,
+        discountAmount: hostNetAmountParams.discountAmount,
+        cleaningFee: hostNetAmountParams.cleaningFee,
+        taxesPerNight: hostNetAmountParams.taxesPerNight,
+        freeCleaningMinDays: hostNetAmountParams.freeCleaningMinDays,
+        status: hostNetAmountParams.status,
+      });
+      
+      const hostNetAmountResult = calculateHostNetAmount(hostNetAmountParams);
+      
+      // Log du résultat
+      console.log('🔍 [useBookings Mobile] Résultat calcul host_net_amount:', {
+        basePrice: hostNetAmountResult.basePrice,
+        priceAfterDiscount: hostNetAmountResult.priceAfterDiscount,
+        effectiveCleaningFee: hostNetAmountResult.effectiveCleaningFee,
+        effectiveTaxes: hostNetAmountResult.effectiveTaxes,
+        hostCommissionHT: hostNetAmountResult.hostCommissionHT,
+        hostCommissionVAT: hostNetAmountResult.hostCommissionVAT,
+        hostCommission: hostNetAmountResult.hostCommission,
+        hostNetAmount: hostNetAmountResult.hostNetAmount,
+      });
+
+      // Log avant insertion
+      console.log('💾 [useBookings Mobile] Valeur host_net_amount à stocker:', hostNetAmountResult.hostNetAmount);
+      
       // Créer la réservation
+      // Log avant insertion pour vérifier les valeurs
+      console.log('💾 [useBookings Mobile] Valeurs à stocker:', {
+        discount_amount: bookingData.discountAmount || 0,
+        discount_applied: bookingData.discountApplied || false,
+        original_total: bookingData.originalTotal || bookingData.totalPrice,
+        host_net_amount: hostNetAmountResult.hostNetAmount,
+      });
+      
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -246,6 +297,7 @@ export const useBookings = () => {
           children_count: bookingData.childrenCount || 0,
           infants_count: bookingData.infantsCount || 0,
           total_price: bookingData.totalPrice,
+          host_net_amount: hostNetAmountResult.hostNetAmount,
           message_to_host: bookingData.messageToHost,
           special_requests: bookingData.messageToHost,
           discount_applied: bookingData.discountApplied || false,
@@ -255,7 +307,13 @@ export const useBookings = () => {
           payment_plan: bookingData.paymentPlan || null,
           status: initialStatus,
         })
-        .select()
+        .select(`
+          *,
+          discount_amount,
+          discount_applied,
+          original_total,
+          host_net_amount
+        `)
         .single();
 
       if (bookingError) {
@@ -263,6 +321,9 @@ export const useBookings = () => {
         setError('Erreur lors de la création de la réservation');
         return { success: false, error: `Erreur lors de la création de la réservation: ${bookingError.message}` };
       }
+      
+      // Log après insertion pour vérifier la valeur stockée
+      console.log('✅ [useBookings Mobile] Réservation créée avec host_net_amount:', booking?.host_net_amount);
 
       // Marquer le code promotionnel comme utilisé si un code a été fourni
       if (bookingData.voucherCode && booking?.id) {
@@ -301,6 +362,7 @@ export const useBookings = () => {
             cleaning_fee,
             service_fee,
             taxes,
+            free_cleaning_min_days,
             cancellation_policy,
             check_in_time,
             check_out_time,
@@ -453,6 +515,7 @@ export const useBookings = () => {
                   checkOut: bookingData.checkOutDate,
                   guestsCount: bookingData.guestsCount,
                   totalPrice: bookingData.totalPrice,
+                  host_net_amount: (booking as any).host_net_amount, // Inclure host_net_amount stocké
                   discountApplied: bookingData.discountApplied || false,
                   discountAmount: bookingData.discountAmount || 0,
                   property: {
@@ -503,6 +566,7 @@ export const useBookings = () => {
             console.log('✅ [useBookings] Réservation en attente - envoi emails de demande');
             
             // Email de notification à l'hôte
+            // Inclure host_net_amount dans l'email de demande
             await sendBookingRequest(
               hostProfile.email,
               hostName,
@@ -522,11 +586,13 @@ export const useBookings = () => {
                 cleaning_fee: propertyInfo.cleaning_fee || 0,
                 service_fee: propertyInfo.service_fee || 0,
                 taxes: propertyInfo.taxes || 0,
+                free_cleaning_min_days: propertyInfo.free_cleaning_min_days || null, // Inclure free_cleaning_min_days
                 cancellation_policy: propertyInfo.cancellation_policy || 'flexible',
                 check_in_time: propertyInfo.check_in_time,
                 check_out_time: propertyInfo.check_out_time,
                 house_rules: propertyInfo.house_rules
-              }
+              },
+              booking?.host_net_amount || hostNetAmountResult.hostNetAmount // Inclure host_net_amount
             );
 
             // Délai pour éviter le rate limit

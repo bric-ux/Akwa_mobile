@@ -243,7 +243,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                 
                 {priceBreakdown.taxesDiff !== undefined && priceBreakdown.taxesDiff !== 0 && (
                   <View style={styles.priceDetailRow}>
-                    <Text style={styles.priceDetailLabel}>Différence taxes:</Text>
+                    <Text style={styles.priceDetailLabel}>Différence taxe de séjour:</Text>
                     <Text style={[styles.priceDetailValue, priceBreakdown.taxesDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
                       {priceBreakdown.taxesDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.taxesDiff)}
                     </Text>

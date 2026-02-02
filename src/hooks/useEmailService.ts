@@ -45,7 +45,7 @@ export const useEmailService = () => {
     });
   };
 
-  const sendBookingRequest = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number, message?: string, discountAmount?: number, property?: any) => {
+  const sendBookingRequest = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number, message?: string, discountAmount?: number, property?: any, hostNetAmount?: number) => {
     return sendEmail({
       type: 'booking_request',
       to: hostEmail,
@@ -61,9 +61,13 @@ export const useEmailService = () => {
         totalPrice,
         message,
         discountAmount: discountAmount || 0,
+        host_net_amount: hostNetAmount, // Inclure host_net_amount pour l'affichage dans l'email
         nights: property ? Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)) : undefined,
         pricePerNight: property?.price_per_night || 0,
-        property: property || undefined
+        property: property ? {
+          ...property,
+          free_cleaning_min_days: property.free_cleaning_min_days || null, // S'assurer que free_cleaning_min_days est inclus
+        } : undefined
       }
     });
   };

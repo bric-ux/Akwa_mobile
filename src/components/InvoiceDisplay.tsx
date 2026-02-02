@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, Modal, ScrollView, Ale
 import { Ionicons } from '@expo/vector-icons';
 import { getCommissionRates, type ServiceType } from '../lib/commissions';
 import { calculateTotalPrice, calculateHostCommission, calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
+import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../lib/hostNetAmount';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import akwaHomeLogo from '../../assets/images/akwahome_logo.png';
@@ -418,12 +419,15 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   // Utiliser la valeur stockée en priorité, sinon recalculer
   let discountAmount = 0;
   if (serviceType === 'property' && booking.properties) {
-    // Pour les propriétés, utiliser la valeur stockée en priorité (comme pour les véhicules)
-    if (booking.discount_amount && booking.discount_amount > 0) {
-      // Utiliser la valeur stockée en priorité
+    // Pour les propriétés, TOUJOURS utiliser la valeur stockée si elle existe (même si 0)
+    // Ne recalculer QUE si discount_amount est null/undefined (anciennes réservations)
+    if (booking.discount_amount !== undefined && booking.discount_amount !== null) {
+      // Utiliser la valeur stockée en priorité (même si elle est 0)
       discountAmount = booking.discount_amount;
+      console.log('📊 [InvoiceDisplay] Utilisation discount_amount stocké:', discountAmount);
     } else {
-      // Sinon, recalculer la réduction
+      // Sinon, recalculer la réduction (pour les anciennes réservations)
+      console.log('⚠️ [InvoiceDisplay] discount_amount non disponible, recalcul...');
       const discountConfig: DiscountConfig = {
         enabled: booking.properties.discount_enabled || false,
         minNights: booking.properties.discount_min_nights || null,
@@ -438,10 +442,11 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       try {
         const pricing = calculateTotalPrice(pricePerUnit, nights, discountConfig, longStayDiscountConfig);
         discountAmount = pricing.discountAmount || 0;
+        console.log('📊 [InvoiceDisplay] Réduction recalculée:', discountAmount);
       } catch (error) {
         console.error('Erreur lors du calcul de la réduction dans InvoiceDisplay:', error);
-        // En cas d'erreur, utiliser la valeur stockée
-        discountAmount = booking.discount_amount || 0;
+        // En cas d'erreur, utiliser 0
+        discountAmount = 0;
       }
     }
   } else if (serviceType === 'vehicle') {
@@ -548,8 +553,38 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     : (booking.total_price && Math.abs(booking.total_price - calculatedTotal) <= 100) 
       ? booking.total_price 
       : calculatedTotal;
-  // Le versement hôte inclut : prix après réduction + frais de ménage + taxe de séjour - commission
-  const hostNetAmount = booking.status === 'cancelled' ? 0 : (priceAfterDiscount + effectiveCleaningFee + effectiveTaxes - hostCommission);
+  // Utiliser host_net_amount stocké si disponible, sinon utiliser la fonction centralisée
+  // MAIS toujours recalculer pour vérifier la cohérence et utiliser la valeur calculée
+  let hostNetAmount: number;
+  
+  // Log pour debug
+  console.log('📊 [InvoiceDisplay] Calcul host_net_amount:', {
+    host_net_amount_stocké: (booking as any).host_net_amount,
+    discount_amount_utilisé: actualDiscountAmount,
+    pricePerNight: pricePerUnit,
+    nights: nights,
+    cleaningFee: effectiveCleaningFee,
+    taxesPerNight: taxesPerNight,
+  });
+  
+  // Toujours recalculer pour garantir la cohérence (utiliser la valeur calculée)
+  const result = calculateHostNetAmountCentralized({
+    pricePerNight: pricePerUnit,
+    nights: nights,
+    discountAmount: actualDiscountAmount,
+    cleaningFee: effectiveCleaningFee,
+    taxesPerNight: taxesPerNight,
+    freeCleaningMinDays: booking.properties?.free_cleaning_min_days || null,
+    status: booking.status || 'confirmed',
+    serviceType: serviceType,
+  });
+  hostNetAmount = result.hostNetAmount;
+  
+  console.log('📊 [InvoiceDisplay] Résultat calcul:', {
+    host_net_amount_calculé: hostNetAmount,
+    host_net_amount_stocké: (booking as any).host_net_amount,
+    différence: (booking as any).host_net_amount ? (hostNetAmount - (booking as any).host_net_amount) : 0,
+  });
   const akwaHomeTotalRevenue = effectiveServiceFee + hostCommission;
 
   // Fonction pour envoyer la facture par email

@@ -239,6 +239,7 @@ export type RootStackParamList = {
   AdminPenalties: undefined;
   AdminRefunds: undefined;
   AdminRevenue: undefined;
+  AdminBookingCalculationTest: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
   PropertyManagement: { propertyId: string }; // Gestion de propriété avec photos et options

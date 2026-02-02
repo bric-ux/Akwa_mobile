@@ -415,6 +415,13 @@ const AdminDashboardScreen: React.FC = () => {
           />
 
           <QuickAction
+            title="Test des Calculs"
+            description="Testez les calculs de réservation avec logs détaillés"
+            icon="calculator-outline"
+            onPress={() => navigation.navigate('AdminBookingCalculationTest' as never)}
+          />
+
+          <QuickAction
             title="Validation des véhicules"
             description="Approuver ou rejeter les demandes de véhicules"
             icon="car-outline"

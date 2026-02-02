@@ -30,7 +30,7 @@ import { useGuestReviews } from '../hooks/useGuestReviews';
 import { useBookingModifications, BookingModificationRequest } from '../hooks/useBookingModifications';
 import HostModificationRequestCard from '../components/HostModificationRequestCard';
 import { getCommissionRates } from '../lib/commissions';
-import { calculateHostCommission } from '../hooks/usePricing';
+import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../lib/hostNetAmount';
 
 const HostBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -358,38 +358,67 @@ const HostBookingsScreen: React.FC = () => {
     return 'https://via.placeholder.com/150';
   };
 
-  // Calculer le montant net que l'hôte reçoit - EXACTEMENT comme dans InvoiceDisplay.tsx
-  const calculateHostNetAmount = (booking: HostBooking): number => {
-    if (booking.status === 'cancelled') return 0;
-
-    // Calculer le nombre de nuits
+  // Utiliser host_net_amount stocké si disponible, sinon utiliser la fonction centralisée
+  const getHostNetAmount = (booking: HostBooking): number => {
     const checkIn = new Date(booking.check_in_date);
     const checkOut = new Date(booking.check_out_date);
     const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-
-    // EXACTEMENT comme dans InvoiceDisplay.tsx ligne 408-552
-    const pricePerUnit = booking.properties?.price_per_night || 0;
-    const basePrice = pricePerUnit * nights;
-    const discountAmount = booking.discount_amount || 0;
-    const priceAfterDiscount = basePrice - discountAmount;
-
-    // Frais de ménage - avec logique free_cleaning_min_days
-    let effectiveCleaningFee = booking.properties?.cleaning_fee || 0;
-    if (booking.properties?.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days) {
-      effectiveCleaningFee = 0;
+    
+    // Vérifier que discount_amount est bien récupéré
+    const discountAmount = booking.discount_amount !== undefined && booking.discount_amount !== null 
+      ? booking.discount_amount 
+      : 0;
+    
+    // Vérifier que toutes les données nécessaires sont présentes
+    if (discountAmount === 0 && booking.discount_applied) {
+      console.warn('⚠️ [HostBookingsScreen] ATTENTION: discount_applied=true mais discount_amount=0 pour réservation', booking.id);
     }
-
-    // Taxe de séjour
-    const taxesPerNight = booking.properties?.taxes || 0;
-    const effectiveTaxes = taxesPerNight * nights;
-
-    // Commission hôte - EXACTEMENT comme dans InvoiceDisplay ligne 527-530
-    const hostCommissionData = calculateHostCommission(priceAfterDiscount, 'property');
-    const hostCommission = hostCommissionData.hostCommission;
-
-    // Le versement hôte inclut : prix après réduction + frais de ménage + taxe de séjour - commission
-    // EXACTEMENT comme dans InvoiceDisplay ligne 552
-    return priceAfterDiscount + effectiveCleaningFee + effectiveTaxes - hostCommission;
+    
+    // Toujours recalculer pour vérifier la cohérence
+    const calculated = calculateHostNetAmountCentralized({
+      pricePerNight: booking.properties?.price_per_night || 0,
+      nights: nights,
+      discountAmount: discountAmount,
+      cleaningFee: booking.properties?.cleaning_fee || 0,
+      taxesPerNight: booking.properties?.taxes || 0,
+      freeCleaningMinDays: booking.properties?.free_cleaning_min_days || null,
+      status: booking.status || 'confirmed',
+      serviceType: 'property',
+    });
+    
+    // Log pour debug avec vérification des données
+    console.log('📊 [HostBookingsScreen] Calcul host_net_amount pour réservation', booking.id, {
+      host_net_amount_stocké: booking.host_net_amount,
+      host_net_amount_calculé: calculated.hostNetAmount,
+      différence: booking.host_net_amount ? (calculated.hostNetAmount - booking.host_net_amount) : 0,
+      données_récupérées: {
+        discount_amount: booking.discount_amount,
+        discount_applied: booking.discount_applied,
+        discount_amount_type: typeof booking.discount_amount,
+        discount_amount_is_null: booking.discount_amount === null,
+        discount_amount_is_undefined: booking.discount_amount === undefined,
+      },
+      paramètres_calcul: {
+        pricePerNight: booking.properties?.price_per_night || 0,
+        nights: nights,
+        discountAmount: discountAmount,
+        cleaningFee: booking.properties?.cleaning_fee || 0,
+        taxesPerNight: booking.properties?.taxes || 0,
+        freeCleaningMinDays: booking.properties?.free_cleaning_min_days || null,
+      },
+      détails_calcul: {
+        basePrice: calculated.basePrice,
+        priceAfterDiscount: calculated.priceAfterDiscount,
+        effectiveCleaningFee: calculated.effectiveCleaningFee,
+        effectiveTaxes: calculated.effectiveTaxes,
+        hostCommissionHT: calculated.hostCommissionHT,
+        hostCommissionVAT: calculated.hostCommissionVAT,
+        hostCommission: calculated.hostCommission,
+      }
+    });
+    
+    // Utiliser la valeur calculée (plus fiable que la valeur stockée qui peut être incorrecte)
+    return calculated.hostNetAmount;
   };
 
   const renderBookingCard = ({ item }: { item: HostBooking }) => (
@@ -442,7 +471,7 @@ const HostBookingsScreen: React.FC = () => {
         <View style={styles.detailRow}>
           <Ionicons name="cash" size={16} color="#10b981" />
           <Text style={[styles.detailText, { color: '#10b981', fontWeight: '600' }]}>
-            Vous recevez : {calculateHostNetAmount(item).toLocaleString('fr-FR')} FCFA
+            Vous recevez : {getHostNetAmount(item).toLocaleString('fr-FR')} FCFA
           </Text>
         </View>
       </View>

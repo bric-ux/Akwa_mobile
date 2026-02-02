@@ -192,9 +192,16 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   
   // Appliquer la réduction si elle existe (sur le total : jours + heures)
   const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
-  const renterServiceFee = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
-  // Commission de 2% sur le prix APRÈS réduction
-  const ownerCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+  
+  // Frais de service voyageur avec TVA
+  const renterServiceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+  const renterServiceFeeVAT = Math.round(renterServiceFeeHT * 0.20);
+  const renterServiceFee = renterServiceFeeHT + renterServiceFeeVAT;
+  
+  // Commission propriétaire avec TVA (2% + 20% TVA = 2.4% TTC)
+  const ownerCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+  const ownerCommissionVAT = Math.round(ownerCommissionHT * 0.20);
+  const ownerCommission = ownerCommissionHT + ownerCommissionVAT; // TTC
   const ownerNetAmount = priceAfterDiscount - ownerCommission;
 
   // Déterminer le type de réduction appliquée et le pourcentage

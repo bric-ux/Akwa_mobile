@@ -161,16 +161,19 @@ const VehicleOwnerStatsScreen: React.FC = () => {
   }
 
   // Calculer les statistiques par véhicule
-  const commissionRates = getCommissionRates('vehicle');
   const calculateNetEarnings = (booking: VehicleBooking) => {
     if (booking.status === 'cancelled') return 0;
     
-    // Prix de base = daily_rate × rental_days
+    // Utiliser la fonction centralisée pour garantir la cohérence
     const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
-    // Appliquer la réduction si elle existe
     const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
-    // Commission de 2% sur le prix APRÈS réduction
-    const ownerCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+    
+    // Commission avec TVA (2% + 20% TVA = 2.4% TTC)
+    const commissionRates = getCommissionRates('vehicle');
+    const ownerCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+    const ownerCommissionVAT = Math.round(ownerCommissionHT * 0.20);
+    const ownerCommission = ownerCommissionHT + ownerCommissionVAT; // TTC
+    
     return priceAfterDiscount - ownerCommission;
   };
 
