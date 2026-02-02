@@ -148,7 +148,9 @@ export function calculateFees(
   const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
   const serviceFee = serviceFeeHT + serviceFeeVAT;
   
-  const taxes = propertyFees?.taxes || 0;
+  // Taxes (taxe de séjour par nuit, donc multiplier par le nombre de nuits)
+  const taxesPerNight = propertyFees?.taxes || 0;
+  const taxes = taxesPerNight * nights;
   
   const totalFees = cleaningFee + serviceFee + taxes;
   

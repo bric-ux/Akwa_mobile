@@ -548,7 +548,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     : (booking.total_price && Math.abs(booking.total_price - calculatedTotal) <= 100) 
       ? booking.total_price 
       : calculatedTotal;
-  const hostNetAmount = booking.status === 'cancelled' ? 0 : (priceAfterDiscount - hostCommission);
+  // Le versement hôte inclut : prix après réduction + frais de ménage + taxe de séjour - commission
+  const hostNetAmount = booking.status === 'cancelled' ? 0 : (priceAfterDiscount + effectiveCleaningFee + effectiveTaxes - hostCommission);
   const akwaHomeTotalRevenue = effectiveServiceFee + hostCommission;
 
   // Fonction pour envoyer la facture par email
@@ -979,6 +980,14 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </View>
           )}
 
+          {/* Taxe de séjour - toujours afficher si taxesPerNight > 0 */}
+          {(effectiveTaxes > 0 || (serviceType === 'property' && taxesPerNight > 0 && nights > 0)) && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Taxe de séjour</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes > 0 ? effectiveTaxes : taxesPerNight * nights)}</Text>
+            </View>
+          )}
+
           {/* Frais de service avec détails TVA */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
@@ -1147,6 +1156,14 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </View>
           </View>
 
+          {/* Taxe de séjour - toujours afficher si taxesPerNight > 0 */}
+          {(effectiveTaxes > 0 || (serviceType === 'property' && taxesPerNight > 0 && nights > 0)) && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Taxe de séjour</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes > 0 ? effectiveTaxes : taxesPerNight * nights)}</Text>
+            </View>
+          )}
+
           <View style={styles.separator} />
 
           {/* Total payé par le voyageur */}
@@ -1189,6 +1206,22 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             <View style={styles.financialRow}>
               <Text style={styles.financialLabel}>Montant de la réservation</Text>
               <Text style={styles.financialValue}>{formatPriceFCFA(priceAfterDiscount)}</Text>
+            </View>
+          )}
+
+          {/* Frais de ménage */}
+          {effectiveCleaningFee > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Frais de ménage</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveCleaningFee)}</Text>
+            </View>
+          )}
+
+          {/* Taxe de séjour */}
+          {effectiveTaxes > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={styles.financialLabel}>Taxe de séjour</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(effectiveTaxes)}</Text>
             </View>
           )}
 

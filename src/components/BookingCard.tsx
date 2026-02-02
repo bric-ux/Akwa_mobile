@@ -258,8 +258,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
     const isFreeCleaningApplicable = booking.properties.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days;
     const cleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
     
-    // Taxes
-    const taxes = booking.properties.taxes || 0;
+    // Taxes (taxe de séjour par nuit, donc multiplier par le nombre de nuits)
+    const taxesPerNight = booking.properties.taxes || 0;
+    const taxes = taxesPerNight * nights;
     
     // Total payé : prix après réduction + frais de service + frais de ménage + taxes
     const calculatedTotal = priceAfterDiscount + effectiveServiceFee + cleaningFee + taxes;
