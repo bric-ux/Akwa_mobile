@@ -643,20 +643,27 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           checkOut: checkOut,
           guestsCount: booking.guests_count,
           totalPrice: totalPaidByTraveler,
+          host_net_amount: hostNetAmount, // Inclure host_net_amount calculé
           discountApplied: actualDiscountAmount > 0,
           discountAmount: actualDiscountAmount,
+          discount_applied: actualDiscountAmount > 0,
+          discount_amount: actualDiscountAmount, // Utiliser snake_case
+          originalTotal: booking.original_total || booking.total_price || totalPaidByTraveler,
+          status: booking.status || 'confirmed',
+          serviceType: 'property',
           property: {
             title: propertyOrVehicleTitle || '',
             address: booking.properties?.address || '',
             city_name: booking.properties?.locations?.name || '',
             price_per_night: pricePerUnit,
-            cleaning_fee: effectiveCleaningFee,
-            service_fee: serviceFeeHT,
-            taxes: effectiveTaxes,
+            cleaning_fee: booking.properties?.cleaning_fee || 0, // Utiliser la valeur brute, pas effectiveCleaningFee
+            service_fee: booking.properties?.service_fee || 0,
+            taxes: taxesPerNight, // Utiliser taxesPerNight (par nuit), pas effectiveTaxes
+            free_cleaning_min_days: booking.properties?.free_cleaning_min_days || null, // Important pour le calcul
             cancellation_policy: booking.properties?.cancellation_policy || 'flexible',
             check_in_time: booking.properties?.check_in_time,
             check_out_time: booking.properties?.check_out_time,
-            house_rules: booking.properties?.house_rules,
+            house_rules: booking.properties?.house_rules || '',
           },
           guest: {
             first_name: travelerName?.split(' ')[0] || '',
@@ -671,6 +678,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             phone: hostPhone,
           },
           payment_method: effectivePaymentMethod,
+          payment_plan: booking.payment_plan || '',
         };
       } else {
         // Pour les véhicules - format attendu par l'Edge Function
