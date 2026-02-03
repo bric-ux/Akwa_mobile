@@ -311,6 +311,13 @@ export const useBookingModifications = () => {
               check_out_time,
               house_rules,
               cancellation_policy,
+              free_cleaning_min_days,
+              discount_enabled,
+              discount_min_nights,
+              discount_percentage,
+              long_stay_discount_enabled,
+              long_stay_discount_min_nights,
+              long_stay_discount_percentage,
               locations(
                 name,
                 type
@@ -349,6 +356,17 @@ export const useBookingModifications = () => {
 
       if (updateError) throw updateError;
 
+      // Récupérer la réservation mise à jour pour obtenir les nouvelles valeurs (discount_amount, etc.)
+      const { data: updatedBooking, error: fetchUpdatedError } = await supabase
+        .from('bookings')
+        .select('discount_amount, discount_applied, original_total')
+        .eq('id', request.booking_id)
+        .single();
+
+      if (fetchUpdatedError) {
+        console.warn('⚠️ Impossible de récupérer la réservation mise à jour, utilisation des valeurs de la demande:', fetchUpdatedError);
+      }
+
       // Récupérer les profils du voyageur et de l'hôte
       const { data: guestProfile } = await supabase
         .from('profiles')
@@ -378,10 +396,11 @@ export const useBookingModifications = () => {
           totalPrice: request.requested_total_price,
           total_price: request.requested_total_price,
           pricePerNight: request.booking?.properties?.price_per_night || 0,
-          discountAmount: request.booking?.discount_amount || 0,
-          discount_amount: request.booking?.discount_amount || 0,
-          discountApplied: request.booking?.discount_applied || false,
-          discount_applied: request.booking?.discount_applied || false,
+          discountAmount: updatedBooking?.discount_amount ?? request.booking?.discount_amount ?? 0,
+          discount_amount: updatedBooking?.discount_amount ?? request.booking?.discount_amount ?? 0,
+          discountApplied: updatedBooking?.discount_applied ?? request.booking?.discount_applied ?? false,
+          discount_applied: updatedBooking?.discount_applied ?? request.booking?.discount_applied ?? false,
+          original_total: updatedBooking?.original_total ?? request.booking?.original_total ?? undefined,
           cleaningFee: request.booking?.properties?.cleaning_fee || 0,
           property: {
             title: request.booking?.properties?.title || 'Votre réservation',
@@ -392,6 +411,13 @@ export const useBookingModifications = () => {
             cleaning_fee: request.booking?.properties?.cleaning_fee || 0,
             service_fee: request.booking?.properties?.service_fee || 0,
             taxes: request.booking?.properties?.taxes || 0,
+            free_cleaning_min_days: request.booking?.properties?.free_cleaning_min_days || null,
+            discount_enabled: request.booking?.properties?.discount_enabled || false,
+            discount_min_nights: request.booking?.properties?.discount_min_nights || null,
+            discount_percentage: request.booking?.properties?.discount_percentage || null,
+            long_stay_discount_enabled: request.booking?.properties?.long_stay_discount_enabled || false,
+            long_stay_discount_min_nights: request.booking?.properties?.long_stay_discount_min_nights || null,
+            long_stay_discount_percentage: request.booking?.properties?.long_stay_discount_percentage || null,
             cancellation_policy: request.booking?.properties?.cancellation_policy || 'flexible',
             check_in_time: request.booking?.properties?.check_in_time,
             check_out_time: request.booking?.properties?.check_out_time,
