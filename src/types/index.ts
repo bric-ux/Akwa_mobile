@@ -252,6 +252,7 @@ export type RootStackParamList = {
   PropertyBookingDetails: { bookingId: string };
   VehicleBookingDetails: { bookingId: string };
   Favorites: undefined;
+  Profile: undefined;
   Messaging: undefined;
   MessagingDebug: undefined;
   Conciergerie: undefined;

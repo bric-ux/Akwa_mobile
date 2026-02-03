@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useUserProfile, clearProfileCache } from '../hooks/useUserProfile';
 import { useAuth } from '../services/AuthContext';
@@ -23,10 +23,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicles } from '../hooks/useVehicles';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
+import BottomNavigationBar from '../components/BottomNavigationBar';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const { user, signOut } = useAuth();
+  
+  // Détecter si on est dans le TabNavigator (ProfileTab) ou dans le Stack (Profile)
+  const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab';
   const { t } = useLanguage();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
@@ -393,7 +398,9 @@ const ProfileScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView 
+        contentContainerStyle={[styles.scrollContainer, { paddingBottom: 80 }]}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
@@ -568,6 +575,9 @@ const ProfileScreen: React.FC = () => {
           onClose={handleCloseEmailVerification}
         />
       )}
+      
+      {/* Menu de navigation en bas - seulement si on est dans le Stack, pas dans le TabNavigator */}
+      {!isInTabNavigator && <BottomNavigationBar activeScreen="compte" />}
     </SafeAreaView>
   );
 };

@@ -22,6 +22,7 @@ import { Conversation, Message } from '../types';
 import ConversationList from '../components/ConversationList';
 import MessageBubble from '../components/MessageBubble';
 import { useLanguage } from '../contexts/LanguageContext';
+import BottomNavigationBar from '../components/BottomNavigationBar';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -30,6 +31,11 @@ const MessagingScreen: React.FC = () => {
   const route = useRoute();
   const { t } = useLanguage();
   const { user } = useAuth();
+  
+  // Détecter si on est dans le TabNavigator (MessagingTab) ou dans le Stack (Messaging)
+  // Si route.name est 'MessagingTab', on est dans le TabNavigator et on ne doit pas afficher le BottomNavigationBar
+  // Si route.name est 'Messaging', on est dans le Stack et on doit afficher le BottomNavigationBar
+  const isInTabNavigator = route.name === 'MessagingTab' || route.name === 'HostMessagingTab' || route.name === 'VehicleOwnerMessagingTab';
   
   // Récupérer l'ID de conversation et de propriété depuis les paramètres de navigation
   const conversationId = (route.params as any)?.conversationId;
@@ -478,9 +484,11 @@ const MessagingScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       {showConversations ? renderConversationList() : renderChatView()}
       
+      {/* Menu de navigation en bas - seulement si on est dans le Stack, pas dans le TabNavigator */}
+      {showConversations && !isInTabNavigator && <BottomNavigationBar activeScreen="messages" />}
     </SafeAreaView>
   );
 };
@@ -502,14 +510,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    marginTop: 0, // S'assurer qu'il n'y a pas d'espace en haut
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#000',
+    flex: 1, // Prendre l'espace disponible
   },
   searchButton: {
     padding: 8,
+    marginLeft: 8, // Espacement depuis le titre
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chatContainer: {
     flex: 1,

@@ -359,31 +359,10 @@ const AppNavigator = () => {
       <Stack.Navigator
         initialRouteName="Home"
         screenOptions={{
-          headerStyle: {
-            backgroundColor: HOST_COLORS.primary,
-          },
-          headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-          headerBackTitle: 'Retour',
-          // Animation de retour de gauche vers la droite (comme iOS)
-          gestureDirection: 'horizontal',
+          headerShown: false, // Pas de header par défaut
+          // Transition simple sans animation complexe
+          animationTypeForReplace: 'push',
           gestureEnabled: true,
-          cardStyleInterpolator: ({ current, layouts }) => {
-            return {
-              cardStyle: {
-                transform: [
-                  {
-                    translateX: current.progress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-layouts.screen.width, 0],
-                    }),
-                  },
-                ],
-              },
-            };
-          },
         }}
       >
         <Stack.Screen 
@@ -582,7 +561,26 @@ const AppNavigator = () => {
           component={MessagingScreen}
           options={{ 
             title: 'Messages',
+            headerShown: false, // Pas de header vert
             headerBackTitle: 'Retour'
+          }}
+        />
+        <Stack.Screen 
+          name="Favorites" 
+          component={FavoritesScreen}
+          options={{ 
+            title: 'Favoris',
+            headerBackTitle: 'Retour',
+            headerShown: false
+          }}
+        />
+        <Stack.Screen 
+          name="Profile" 
+          component={ProfileScreen}
+          options={{ 
+            title: 'Mon compte',
+            headerBackTitle: 'Retour',
+            headerShown: false
           }}
         />
             <Stack.Screen 

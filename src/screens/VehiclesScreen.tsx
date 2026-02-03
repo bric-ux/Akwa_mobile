@@ -30,10 +30,12 @@ import { LocationResult } from '../hooks/useLocationSearch';
 import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import { VehicleDateTimeSelector } from '../components/VehicleDateTimeSelector';
+import VehicleDateTimePickerModal from '../components/VehicleDateTimePickerModal';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { useAuth } from '../services/AuthContext';
 import { safeGoBack } from '../utils/navigation';
-import { VEHICLE_COLORS } from '../constants/colors';
+import { VEHICLE_COLORS, TRAVELER_COLORS } from '../constants/colors';
+import VehicleMapView from '../components/VehicleMapView';
 
 const { width, height } = Dimensions.get('window');
 const isSmallScreen = width < 360 || height < 640; // Écrans de 3.12 pouces et moins
@@ -56,6 +58,41 @@ const VehiclesScreen: React.FC = () => {
   const [startDateTime, setStartDateTime] = useState<string>('');
   const [endDateTime, setEndDateTime] = useState<string>('');
   const scrollY = useRef(new Animated.Value(0)).current;
+  
+  // AMÉLIORATION: États pour le nouveau design avec carte
+  const [isMapView, setIsMapView] = useState(true); // Carte par défaut
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
+  const [showRentalModeModal, setShowRentalModeModal] = useState(false);
+  
+  // Fonction pour calculer la durée en heures
+  const calculateRentalHours = (): number => {
+    if (!startDateTime || !endDateTime) return 0;
+    const start = new Date(startDateTime);
+    const end = new Date(endDateTime);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+    const diffTime = end.getTime() - start.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60));
+  };
+  
+  const rentalHours = calculateRentalHours();
+  
+  // Fonction pour formater la date/heure pour l'affichage
+  const formatDateTime = (dateTime: string | null): string => {
+    if (!dateTime) return '';
+    const date = new Date(dateTime);
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('fr-FR', { 
+      weekday: 'short', 
+      day: 'numeric', 
+      month: 'short' 
+    }) + ' à ' + date.toLocaleTimeString('fr-FR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
 
   // Synchroniser avec le contexte quand il change
   useEffect(() => {
@@ -362,122 +399,161 @@ const VehiclesScreen: React.FC = () => {
 
   if (loading && vehicles.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.newContainer} edges={['top']}>
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={TRAVELER_COLORS.primary} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header avec bouton retour */}
-      <SafeAreaView style={styles.headerContainer} edges={['top']}>
-        <View style={styles.topHeader}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => safeGoBack(navigation, 'Home')}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
-            <View style={styles.headerTitleRow}>
-              <Ionicons name="car-outline" size={20} color="#fff" />
-              <Text style={styles.topHeaderTitle}>Location de véhicules</Text>
-            </View>
-          </View>
-          <View style={styles.headerPlaceholder} />
-        </View>
-      </SafeAreaView>
-
-      <SafeAreaView edges={[]} style={styles.safeArea}>
-        {/* Hero Section avec gradient - FIXE */}
-        <View style={styles.heroSection}>
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>Trouvez le véhicule parfait</Text>
-            <Text style={styles.heroSubtitle}>
-              SUV, berlines, motos et plus encore. Paiement en espèces uniquement.
-            </Text>
-            <TouchableOpacity
-              style={styles.heroAddVehicleBtn}
-              onPress={() => {
-                if (user) {
-                  navigation.navigate('AddVehicle' as never);
-                } else {
-                  navigation.navigate('Auth' as never, { redirect: '/add-vehicle' } as never);
-                }
-              }}
-            >
-              <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.heroAddVehicleBtnText}>Proposer mon véhicule</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Barre de recherche intégrée */}
-          <View style={styles.searchBarContainer}>
-            <TouchableOpacity
-              style={styles.searchBar}
-              activeOpacity={0.7}
-              onPress={() => setShowSearchModal(true)}
-            >
-              <Ionicons name="search" size={18} color="#64748b" />
-              <View style={styles.searchTextWrapper}>
-                {searchQuery ? (
-                  <Text style={styles.searchText} numberOfLines={1}>
-                    {searchQuery}
-                  </Text>
-                ) : selectedLocationName ? (
-                  <Text style={styles.searchText} numberOfLines={1}>
-                    {selectedLocationName}
-                  </Text>
-                ) : (
-                  <Text style={styles.searchPlaceholder}>
-                    Marque, modèle, titre...
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowFilters(true)}
-                style={styles.filterIconBtn}
-              >
-                <Ionicons name="options-outline" size={20} color="#2563eb" />
-                {getActiveFiltersCount() > 0 && (
-                  <View style={styles.filterBadge}>
-                    <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSearch}
-                style={styles.searchIconBtn}
-              >
-                <Ionicons name="search" size={20} color="#fff" />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </SafeAreaView>
-
-      {/* Liste des véhicules avec header */}
-      <FlatList
-        data={vehicles}
-        renderItem={renderVehicle}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={!loading ? renderEmptyState : null}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#2563eb']}
-            tintColor="#2563eb"
+    <View style={styles.newContainer}>
+      {/* Carte en arrière-plan */}
+      {isMapView && (
+        <View style={styles.mapContainer}>
+          <VehicleMapView
+            vehicles={vehicles}
+            onVehiclePress={(vehicleId) => {
+              const vehicle = vehicles.find(v => v.id === vehicleId);
+              if (vehicle) handleVehiclePress(vehicle);
+            }}
+            userLocation={userLocation}
           />
-        }
-        showsVerticalScrollIndicator={false}
-        style={styles.flatList}
-        ListHeaderComponent={
-          <View style={styles.listHeader}>
+        </View>
+      )}
+      
+      {/* Overlay avec header et filtres en haut */}
+      <SafeAreaView style={styles.overlayContainer} edges={['top']}>
+        {/* Header avec position et dates/heures */}
+        <View style={styles.topHeaderBar}>
+          <TouchableOpacity 
+            style={styles.locationSection}
+            onPress={() => setShowSearchModal(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="location" size={18} color={TRAVELER_COLORS.primary} />
+            <View style={styles.locationTextContainer}>
+              <Text style={styles.locationText} numberOfLines={1}>
+                {selectedLocationName ? selectedLocationName.split(',')[0] || selectedLocationName : 'Position actuelle'}
+              </Text>
+              <Text style={styles.locationSubtext} numberOfLines={1}>
+                {selectedLocationName && selectedLocationName.includes(',') 
+                  ? selectedLocationName.split(',').slice(1).join(',').trim() || selectedLocationName
+                  : selectedLocationName || 'Sélectionner un lieu'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.dateTimeSection}
+            onPress={() => setShowDateTimePicker(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="calendar-outline" size={18} color={TRAVELER_COLORS.primary} />
+            <View style={styles.dateTimeTextContainer}>
+              {startDateTime && endDateTime ? (
+                <>
+                  <Text style={styles.dateTimeText}>
+                    {new Date(startDateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} {new Date(startDateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                  <Text style={styles.dateTimeText}>
+                    {new Date(endDateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} {new Date(endDateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.dateTimePlaceholder}>Quand ?</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Barre de filtres en haut */}
+        <View style={styles.filtersBar}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersBarContent}
+          >
+            {/* Type de véhicule */}
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowVehicleTypeModal(true)}
+            >
+              <Text style={styles.filterButtonText}>
+                {filters.vehicleType || 'Type de véhicule'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={TRAVELER_COLORS.primary} />
+            </TouchableOpacity>
+            
+            {/* Mode de location */}
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowRentalModeModal(true)}
+            >
+              <Text style={styles.filterButtonText}>Mode de location</Text>
+              <Ionicons name="chevron-down" size={16} color={TRAVELER_COLORS.primary} />
+            </TouchableOpacity>
+            
+            {/* Plus de filtres */}
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowFilters(true)}
+            >
+              <Ionicons name="options-outline" size={18} color={TRAVELER_COLORS.primary} />
+              <Text style={styles.filterButtonText}>Plus de filtres</Text>
+              {getActiveFiltersCount() > 0 && (
+                <View style={styles.filterDot}>
+                  <View style={styles.filterDotInner} />
+                </View>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+      
+      {/* Bouton Liste en bas à gauche (si vue carte) */}
+      {isMapView && (
+        <TouchableOpacity
+          style={styles.listButton}
+          onPress={() => setIsMapView(false)}
+        >
+          <Ionicons name="list" size={20} color="#fff" />
+          <Text style={styles.listButtonText}>Liste</Text>
+        </TouchableOpacity>
+      )}
+      
+      {/* Bouton Carte flottant (si vue liste) */}
+      {!isMapView && (
+        <TouchableOpacity
+          style={styles.mapButton}
+          onPress={() => setIsMapView(true)}
+        >
+          <Ionicons name="map" size={20} color="#fff" />
+          <Text style={styles.mapButtonText}>Carte</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Liste des véhicules (seulement si pas en vue carte) */}
+      {!isMapView && (
+        <FlatList
+          data={vehicles}
+          renderItem={renderVehicle}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={!loading ? renderEmptyState : null}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[TRAVELER_COLORS.primary]}
+              tintColor={TRAVELER_COLORS.primary}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          style={styles.flatList}
+          ListHeaderComponent={
+            <View style={styles.listHeader}>
             {/* Section contenu */}
             <View style={styles.contentSection}>
               {/* En-tête avec titre */}
@@ -653,9 +729,10 @@ const VehiclesScreen: React.FC = () => {
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
-          </View>
-        }
-      />
+            </View>
+          }
+        />
+      )}
 
       {/* Modal de recherche */}
       <Modal
@@ -764,6 +841,76 @@ const VehiclesScreen: React.FC = () => {
         </SafeAreaView>
       </Modal>
 
+      {/* Menu de navigation en bas */}
+      <View style={styles.bottomNavigation}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => {
+            // Naviguer vers HomeTab (Explorer pour résidences meublées)
+            (navigation as any).navigate('Home', { screen: 'HomeTab' });
+          }}
+        >
+          <Ionicons name="search-outline" size={24} color="#999" />
+          <Text style={styles.navLabel}>Explorer</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => {
+            // Déjà sur la page de recherche véhicules
+          }}
+        >
+          <Ionicons name="car" size={24} color={TRAVELER_COLORS.primary} />
+          <Text style={[styles.navLabel, styles.navLabelActive]}>Recherche</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => {
+            // Navigation directe vers l'écran Messaging (du Stack)
+            navigation.navigate('Messaging' as never);
+          }}
+        >
+          <Ionicons name="chatbubbles-outline" size={24} color="#999" />
+          <Text style={styles.navLabel}>Messages</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => {
+            // Navigation directe vers l'écran Favorites (du Stack)
+            navigation.navigate('Favorites' as never);
+          }}
+        >
+          <Ionicons name="heart-outline" size={24} color="#999" />
+          <Text style={styles.navLabel}>Favoris</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => {
+            // Navigation directe vers l'écran Profile (du Stack)
+            navigation.navigate('Profile' as never);
+          }}
+        >
+          <Ionicons name="person-outline" size={24} color="#999" />
+          <Text style={styles.navLabel}>Mon compte</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Modal de sélection dates/heures - Style overlay en bas */}
+      <VehicleDateTimePickerModal
+        visible={showDateTimePicker}
+        startDateTime={startDateTime}
+        endDateTime={endDateTime}
+        onClose={() => setShowDateTimePicker(false)}
+        onConfirm={(start, end) => {
+          setStartDateTime(start);
+          setEndDateTime(end);
+          handleDateTimeChange(start, end);
+        }}
+      />
+      
 
       <VehicleFiltersModal
         visible={showFilters}
@@ -1406,6 +1553,293 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  // AMÉLIORATION: Nouveaux styles pour le design avec carte
+  newContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  mapContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  overlayContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  topHeaderBar: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 60,
+  },
+  locationSection: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginRight: 16,
+    paddingRight: 12,
+  },
+  locationTextContainer: {
+    flex: 1,
+  },
+  locationText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#333',
+    lineHeight: 18,
+  },
+  locationSubtext: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  dateTimeSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexShrink: 0,
+  },
+  dateTimeTextContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  dateTimeText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#333',
+    lineHeight: 18,
+  },
+  dateTimePlaceholder: {
+    fontSize: 13,
+    color: '#999',
+    fontWeight: '500',
+  },
+  filtersBar: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  filtersBarContent: {
+    gap: 8,
+    paddingRight: 16,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  filterDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: TRAVELER_COLORS.primary,
+    marginLeft: 4,
+  },
+  filterDotInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: TRAVELER_COLORS.primary,
+  },
+  listButton: {
+    position: 'absolute',
+    bottom: 100,
+    left: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: TRAVELER_COLORS.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 20,
+  },
+  listButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  mapButton: {
+    position: 'absolute',
+    bottom: 100,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: TRAVELER_COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 25,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 20,
+  },
+  mapButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  bottomNavigation: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
+    zIndex: 20,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  navLabel: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  navLabelActive: {
+    color: TRAVELER_COLORS.primary,
+    fontWeight: '600',
+  },
+  dateTimeSelectorRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  dateTimeOval: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: TRAVELER_COLORS.primary,
+  },
+  dateTimeOvalInactive: {
+    borderColor: '#e0e0e0',
+    backgroundColor: '#fafafa',
+  },
+  dateTimeLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  dateTimeValue: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
+  },
+  searchButton: {
+    backgroundColor: TRAVELER_COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: TRAVELER_COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  searchButtonDisabled: {
+    backgroundColor: '#ccc',
+    shadowOpacity: 0,
+  },
+  searchButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalSafeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    minHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+  },
+  modalBody: {
+    padding: 20,
   },
 });
 

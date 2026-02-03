@@ -9,12 +9,13 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Property } from '../types';
 import { useFavorites } from '../hooks/useFavorites';
 import { useAuth } from '../services/AuthContext';
 import PropertyCard from '../components/PropertyCard';
+import BottomNavigationBar from '../components/BottomNavigationBar';
 
 const FavoritesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -77,9 +78,13 @@ const FavoritesScreen: React.FC = () => {
     />
   );
 
+  // Détecter si on est dans le TabNavigator (FavoritesTab) ou dans le Stack (Favorites)
+  const route = useRoute();
+  const isInTabNavigator = route.name === 'FavoritesTab';
+
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <Ionicons name="heart-outline" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>Connexion requise</Text>
@@ -93,23 +98,25 @@ const FavoritesScreen: React.FC = () => {
             <Text style={styles.exploreButtonText}>Se connecter</Text>
           </TouchableOpacity>
         </View>
+        {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
       </SafeAreaView>
     );
   }
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <Text style={styles.loadingText}>Chargement de vos favoris...</Text>
         </View>
+        {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
       </SafeAreaView>
     );
   }
 
   if (favorites.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <Ionicons name="heart-outline" size={80} color="#ccc" />
           <Text style={styles.emptyTitle}>Aucun favori</Text>
@@ -117,6 +124,7 @@ const FavoritesScreen: React.FC = () => {
             Explorez nos hébergements et ajoutez vos favoris en cliquant sur le cœur
           </Text>
         </View>
+        {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
       </SafeAreaView>
     );
   }
@@ -134,9 +142,12 @@ const FavoritesScreen: React.FC = () => {
         data={favorites}
         renderItem={renderFavoriteItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={[styles.listContainer, { paddingBottom: 80 }]}
         showsVerticalScrollIndicator={false}
       />
+      
+      {/* Menu de navigation en bas - seulement si on est dans le Stack, pas dans le TabNavigator */}
+      {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
     </SafeAreaView>
   );
 };

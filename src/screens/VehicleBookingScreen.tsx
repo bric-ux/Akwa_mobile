@@ -745,6 +745,10 @@ const VehicleBookingScreen: React.FC = () => {
             endDateTime={endDateTime}
             onDateTimeChange={handleDateTimeChange}
             hourlyRentalEnabled={vehicle?.hourly_rental_enabled || false}
+            pricePerDay={basePricePerDay}
+            pricePerHour={vehicle?.price_per_hour || 0}
+            discountConfig={discountConfig}
+            longStayDiscountConfig={longStayDiscountConfig}
           />
           {startDateTime && endDateTime && (rentalDays > 0 || remainingHours > 0) ? (
             <Text style={styles.rentalDaysText}>
