@@ -24,3 +24,4 @@ COMMENT ON COLUMN vehicles.auto_booking IS 'Si true, les réservations sont auto
 
 
 
+

@@ -660,6 +660,13 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             service_fee: booking.properties?.service_fee || 0,
             taxes: taxesPerNight, // Utiliser taxesPerNight (par nuit), pas effectiveTaxes
             free_cleaning_min_days: booking.properties?.free_cleaning_min_days || null, // Important pour le calcul
+            // BUG FIX: Ajouter les données de réduction pour que le PDF puisse recalculer correctement
+            discount_enabled: booking.properties?.discount_enabled || false,
+            discount_min_nights: booking.properties?.discount_min_nights || null,
+            discount_percentage: booking.properties?.discount_percentage || null,
+            long_stay_discount_enabled: booking.properties?.long_stay_discount_enabled || false,
+            long_stay_discount_min_nights: booking.properties?.long_stay_discount_min_nights || null,
+            long_stay_discount_percentage: booking.properties?.long_stay_discount_percentage || null,
             cancellation_policy: booking.properties?.cancellation_policy || 'flexible',
             check_in_time: booking.properties?.check_in_time,
             check_out_time: booking.properties?.check_out_time,
