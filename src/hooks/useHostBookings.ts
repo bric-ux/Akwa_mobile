@@ -364,6 +364,13 @@ export const useHostBookings = () => {
                   service_fee: bookingData.properties.service_fee || 0,
                   taxes: bookingData.properties.taxes || 0,
                   free_cleaning_min_days: bookingData.properties.free_cleaning_min_days || null, // Important pour le calcul
+                  // BUG FIX: Ajouter les données de réduction pour que le PDF puisse recalculer correctement
+                  discount_enabled: bookingData.properties.discount_enabled || false,
+                  discount_min_nights: bookingData.properties.discount_min_nights || null,
+                  discount_percentage: bookingData.properties.discount_percentage || null,
+                  long_stay_discount_enabled: bookingData.properties.long_stay_discount_enabled || false,
+                  long_stay_discount_min_nights: bookingData.properties.long_stay_discount_min_nights || null,
+                  long_stay_discount_percentage: bookingData.properties.long_stay_discount_percentage || null,
                   cancellation_policy: bookingData.properties.cancellation_policy || 'flexible',
                   check_in_time: bookingData.properties.check_in_time,
                   check_out_time: bookingData.properties.check_out_time,
@@ -425,6 +432,13 @@ export const useHostBookings = () => {
                   service_fee: bookingData.properties.service_fee || 0,
                   taxes: bookingData.properties.taxes || 0,
                   free_cleaning_min_days: bookingData.properties.free_cleaning_min_days || null, // Important pour le calcul
+                  // BUG FIX: Ajouter les données de réduction pour que le PDF puisse recalculer correctement
+                  discount_enabled: bookingData.properties.discount_enabled || false,
+                  discount_min_nights: bookingData.properties.discount_min_nights || null,
+                  discount_percentage: bookingData.properties.discount_percentage || null,
+                  long_stay_discount_enabled: bookingData.properties.long_stay_discount_enabled || false,
+                  long_stay_discount_min_nights: bookingData.properties.long_stay_discount_min_nights || null,
+                  long_stay_discount_percentage: bookingData.properties.long_stay_discount_percentage || null,
                   cancellation_policy: bookingData.properties.cancellation_policy || 'flexible',
                   check_in_time: bookingData.properties.check_in_time,
                   check_out_time: bookingData.properties.check_out_time,

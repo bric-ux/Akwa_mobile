@@ -724,7 +724,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           vehicleLongStayDiscountPercentage: booking.vehicle?.long_stay_discount_percentage || null,
           securityDeposit: booking.vehicle?.security_deposit || 0,
           paymentMethod: effectivePaymentMethod,
-          withDriver: booking.vehicle?.with_driver || false, // Ajouté pour afficher si avec chauffeur
+          withDriver: (booking as any).with_driver || booking.vehicle?.with_driver || false, // Vérifier booking.with_driver en priorité
+          vehicleDriverFee: booking.vehicle?.driver_fee || 0, // BUG FIX: Ajouter vehicleDriverFee pour le calcul PDF
         };
       }
 

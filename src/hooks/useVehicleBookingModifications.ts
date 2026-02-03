@@ -582,10 +582,20 @@ export const useVehicleBookingModifications = () => {
             : 0,
           basePrice: calculatedBasePrice, // Prix après réduction (calculé à partir de totalPrice)
           totalPrice: request.requested_total_price,
+          discountAmount: request.requested_total_price - calculatedBasePrice, // Calculer la réduction
           ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
           securityDeposit: bookingData.security_deposit || 0,
           pickupLocation: bookingData.pickup_location || '',
           isInstantBooking: false,
+          // BUG FIX: Ajouter les données de réduction pour que le PDF puisse recalculer correctement
+          vehicleDiscountEnabled: vehicle.discount_enabled || false,
+          vehicleDiscountMinDays: vehicle.discount_min_days || null,
+          vehicleDiscountPercentage: vehicle.discount_percentage || null,
+          vehicleLongStayDiscountEnabled: vehicle.long_stay_discount_enabled || false,
+          vehicleLongStayDiscountMinDays: vehicle.long_stay_discount_min_days || null,
+          vehicleLongStayDiscountPercentage: vehicle.long_stay_discount_percentage || null,
+          vehicleDriverFee: vehicle.driver_fee || 0,
+          withDriver: bookingData.with_driver || false,
         };
 
         // Email au locataire avec PDF
