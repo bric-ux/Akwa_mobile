@@ -532,9 +532,9 @@ const VehiclesScreen: React.FC = () => {
       {/* Header et filtres - intégrés dans le flux normal en mode liste, overlay en mode carte */}
       <SafeAreaView style={isMapView ? styles.overlayContainer : styles.headerContainer} edges={['top']}>
         {/* Header avec position et dates/heures */}
-        <View style={styles.topHeaderBar}>
+        <View style={[styles.topHeaderBar, isMapView && styles.topHeaderBarTransparent]}>
           <TouchableOpacity 
-            style={styles.locationSection}
+            style={[styles.locationSection, isMapView && styles.locationSectionMap]}
             onPress={() => setShowSearchModal(true)}
             activeOpacity={0.7}
           >
@@ -552,7 +552,7 @@ const VehiclesScreen: React.FC = () => {
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.dateTimeSection}
+            style={[styles.dateTimeSection, isMapView && styles.dateTimeSectionMap]}
             onPress={() => setShowDateTimePicker(true)}
             activeOpacity={0.7}
           >
@@ -575,7 +575,7 @@ const VehiclesScreen: React.FC = () => {
         </View>
         
         {/* Barre de filtres en haut */}
-        <View style={styles.filtersBar}>
+        <View style={[styles.filtersBar, isMapView && styles.filtersBarTransparent]}>
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false}
@@ -1840,6 +1840,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 60,
   },
+  topHeaderBarTransparent: {
+    backgroundColor: 'transparent', // Complètement transparent pour laisser voir la carte
+    borderBottomWidth: 0, // Pas de bordure en mode carte
+    borderBottomColor: 'transparent',
+    paddingBottom: 8, // Réduire l'espacement en bas
+  },
   locationSection: {
     flex: 1,
     flexDirection: 'row',
@@ -1847,6 +1853,18 @@ const styles = StyleSheet.create({
     gap: 10,
     marginRight: 16,
     paddingRight: 12,
+  },
+  locationSectionMap: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginRight: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   locationTextContainer: {
     flex: 1,
@@ -1869,6 +1887,17 @@ const styles = StyleSheet.create({
     gap: 10,
     flexShrink: 0,
   },
+  dateTimeSectionMap: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   dateTimeTextContainer: {
     flexDirection: 'column',
     alignItems: 'flex-start',
@@ -1885,11 +1914,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filtersBar: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: '#ffffff',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  filtersBarTransparent: {
+    backgroundColor: 'transparent', // Complètement transparent pour laisser voir la carte
+    borderBottomWidth: 0, // Pas de bordure en mode carte
+    borderBottomColor: 'transparent',
+    paddingTop: 4, // Réduire l'espacement en haut
   },
   filtersBarContent: {
     gap: 8,
@@ -1932,12 +1967,12 @@ const styles = StyleSheet.create({
   listButton: {
     position: 'absolute',
     bottom: 100,
-    left: 16,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: TRAVELER_COLORS.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderRadius: 25,
     gap: 8,
     shadowColor: '#000',
