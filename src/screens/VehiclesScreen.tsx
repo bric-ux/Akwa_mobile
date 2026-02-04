@@ -662,7 +662,10 @@ const VehiclesScreen: React.FC = () => {
           data={vehicles}
           renderItem={renderVehicle}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[
+            styles.list,
+            { paddingTop: insets.top + 60 + 60 + 20 } // SafeArea top + topHeaderBar (~60) + filtersBar (~60) + margin
+          ]}
           ListEmptyComponent={!loading ? renderEmptyState : null}
           refreshControl={
             <RefreshControl
