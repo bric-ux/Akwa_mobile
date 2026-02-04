@@ -16,10 +16,11 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
 import { Vehicle, VehicleFilters } from '../types';
 import VehicleCard from '../components/VehicleCard';
@@ -1055,62 +1056,7 @@ const VehiclesScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Menu de navigation en bas */}
-      <View style={styles.bottomNavigation}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => {
-            // Naviguer vers HomeTab (Explorer pour résidences meublées)
-            (navigation as any).navigate('Home', { screen: 'HomeTab' });
-          }}
-        >
-          <Ionicons name="search-outline" size={24} color="#999" />
-          <Text style={styles.navLabel}>Explorer</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => {
-            // Déjà sur la page de recherche véhicules
-          }}
-        >
-          <Ionicons name="car" size={24} color={TRAVELER_COLORS.primary} />
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Recherche</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => {
-            // Navigation directe vers l'écran Messaging (du Stack)
-            navigation.navigate('Messaging' as never);
-          }}
-        >
-          <Ionicons name="chatbubbles-outline" size={24} color="#999" />
-          <Text style={styles.navLabel}>Messages</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => {
-            // Navigation directe vers l'écran Favorites (du Stack)
-            navigation.navigate('Favorites' as never);
-          }}
-        >
-          <Ionicons name="heart-outline" size={24} color="#999" />
-          <Text style={styles.navLabel}>Favoris</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => {
-            // Navigation directe vers l'écran Profile (du Stack)
-            navigation.navigate('Profile' as never);
-          }}
-        >
-          <Ionicons name="person-outline" size={24} color="#999" />
-          <Text style={styles.navLabel}>Mon compte</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Le menu de navigation en bas est maintenant géré par VehicleTabNavigator */}
 
       {/* Modal de sélection dates/heures - Style overlay en bas */}
       <VehicleDateTimePickerModal

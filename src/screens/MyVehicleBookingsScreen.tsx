@@ -437,7 +437,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
       {selectedFilter === 'all' && (
         <TouchableOpacity
           style={styles.exploreButton}
-          onPress={() => navigation.navigate('Vehicles' as never)}
+          onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
         >
           <Text style={styles.exploreButtonText}>Découvrir des véhicules</Text>
         </TouchableOpacity>

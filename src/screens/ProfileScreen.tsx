@@ -31,7 +31,7 @@ const ProfileScreen: React.FC = () => {
   const { user, signOut } = useAuth();
   
   // Détecter si on est dans le TabNavigator (ProfileTab) ou dans le Stack (Profile)
-  const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab';
+  const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab';
   const { t } = useLanguage();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef, CommonActions } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -6,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
-import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
+import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS } from '../constants/colors';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -79,12 +80,13 @@ import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
 import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
 
 // Types
-import { RootStackParamList, TabParamList, HostTabParamList, VehicleOwnerTabParamList } from '../types';
+import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList } from '../types';
 import HostAccountScreen from '../screens/HostAccountScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 const HostTab = createBottomTabNavigator<HostTabParamList>();
+const VehicleTab = createBottomTabNavigator<VehicleTabParamList>();
 const VehicleOwnerTab = createBottomTabNavigator<VehicleOwnerTabParamList>();
 
 // Tab Navigator
@@ -263,6 +265,89 @@ const VehicleOwnerTabNavigator = () => {
   );
 };
 
+// Vehicle Tab Navigator (pour la recherche de véhicules par les voyageurs)
+const VehicleTabNavigator = () => {
+  return (
+    <VehicleTab.Navigator
+      initialRouteName="VehiclesTab"
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+
+          if (route.name === 'VehicleExplorerTab') {
+            iconName = focused ? 'search' : 'search-outline';
+          } else if (route.name === 'VehiclesTab') {
+            iconName = focused ? 'car' : 'car-outline';
+          } else if (route.name === 'VehicleMessagingTab') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          } else if (route.name === 'VehicleFavoritesTab') {
+            iconName = focused ? 'heart' : 'heart-outline';
+          } else if (route.name === 'VehicleProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else {
+            iconName = 'car-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: TRAVELER_COLORS.primary,
+        tabBarInactiveTintColor: 'gray',
+        headerShown: false,
+      })}
+    >
+      <VehicleTab.Screen 
+        name="VehicleExplorerTab" 
+        component={HomeScreen}
+        options={{ tabBarLabel: 'Explorer' }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Empêcher la navigation par défaut
+            e.preventDefault();
+            // Demander confirmation
+            Alert.alert(
+              'Retour à la recherche',
+              'Voulez-vous vraiment retourner sur la recherche de résidences meublées ?',
+              [
+                {
+                  text: 'Annuler',
+                  style: 'cancel',
+                },
+                {
+                  text: 'Oui',
+                  onPress: () => {
+                    // Naviguer vers Home (TabNavigator principal)
+                    (navigation as any).navigate('Home');
+                  },
+                },
+              ]
+            );
+          },
+        })}
+      />
+      <VehicleTab.Screen 
+        name="VehiclesTab" 
+        component={VehiclesScreen}
+        options={{ tabBarLabel: 'Recherche' }}
+      />
+      <VehicleTab.Screen 
+        name="VehicleMessagingTab" 
+        component={MessagingScreen}
+        options={{ tabBarLabel: 'Messages' }}
+      />
+      <VehicleTab.Screen 
+        name="VehicleFavoritesTab" 
+        component={FavoritesScreen}
+        options={{ tabBarLabel: 'Favoris' }}
+      />
+      <VehicleTab.Screen 
+        name="VehicleProfileTab" 
+        component={ProfileScreen}
+        options={{ tabBarLabel: 'Mon compte' }}
+      />
+    </VehicleTab.Navigator>
+  );
+};
+
 // Main Stack Navigator
 const AppNavigator = () => {
   const navigationRef = useNavigationContainerRef();
@@ -360,9 +445,10 @@ const AppNavigator = () => {
         initialRouteName="Home"
         screenOptions={{
           headerShown: false, // Pas de header par défaut
-          // Transition simple sans animation complexe
-          animationTypeForReplace: 'push',
           gestureEnabled: true,
+          // Transitions cohérentes pour tous les écrans
+          presentation: 'card',
+          animationTypeForReplace: 'push',
         }}
       >
         <Stack.Screen 
@@ -378,6 +464,11 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="VehicleOwnerSpace" 
           component={VehicleOwnerTabNavigator}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="VehicleSpace" 
+          component={VehicleTabNavigator}
           options={{ headerShown: false }}
         />
         <Stack.Screen 
@@ -804,7 +895,7 @@ const AppNavigator = () => {
               component={VehiclesScreen}
               options={{ 
                 title: 'Location de véhicules',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -812,7 +903,7 @@ const AppNavigator = () => {
               component={VehicleDetailsScreen}
               options={{ 
                 title: 'Détails du véhicule',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -820,7 +911,7 @@ const AppNavigator = () => {
               component={VehicleBookingScreen}
               options={{ 
                 title: 'Réservation véhicule',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -828,7 +919,7 @@ const AppNavigator = () => {
               component={AddVehicleScreen}
               options={{ 
                 title: 'Ajouter un véhicule',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -836,7 +927,7 @@ const AppNavigator = () => {
               component={MyVehiclesScreen}
               options={{ 
                 title: 'Mes véhicules',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -844,7 +935,7 @@ const AppNavigator = () => {
               component={EditVehicleScreen}
               options={{ 
                 title: 'Modifier le véhicule',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -852,7 +943,7 @@ const AppNavigator = () => {
               component={VehicleManagementScreen}
               options={{ 
                 title: 'Gestion du véhicule',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -860,7 +951,7 @@ const AppNavigator = () => {
               component={VehicleCalendarScreen}
               options={{ 
                 title: 'Calendrier du véhicule',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -868,7 +959,7 @@ const AppNavigator = () => {
               component={VehiclePricingScreen}
               options={{ 
                 title: 'Tarification du véhicule',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -876,7 +967,7 @@ const AppNavigator = () => {
               component={VehicleReviewsScreen}
               options={{ 
                 title: 'Avis du véhicule',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -884,7 +975,7 @@ const AppNavigator = () => {
               component={HostVehicleBookingsScreen}
               options={{ 
                 title: 'Réservations de véhicules',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 
@@ -892,7 +983,7 @@ const AppNavigator = () => {
               component={MyVehicleBookingsScreen}
               options={{ 
                 title: 'Mes réservations véhicules',
-                headerShown: false 
+                headerShown: false,
               }}
             />
             <Stack.Screen 

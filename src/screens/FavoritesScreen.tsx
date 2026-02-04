@@ -80,7 +80,7 @@ const FavoritesScreen: React.FC = () => {
 
   // Détecter si on est dans le TabNavigator (FavoritesTab) ou dans le Stack (Favorites)
   const route = useRoute();
-  const isInTabNavigator = route.name === 'FavoritesTab';
+  const isInTabNavigator = route.name === 'FavoritesTab' || route.name === 'VehicleFavoritesTab';
 
   if (!user) {
     return (

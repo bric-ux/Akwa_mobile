@@ -148,7 +148,7 @@ const HomeScreen: React.FC = () => {
             </Text>
             <TouchableOpacity
               style={styles.vehiclesPromoButton}
-              onPress={() => navigation.navigate('Vehicles' as never)}
+              onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
             >
               <Text style={styles.vehiclesPromoButtonText}>Découvrir les véhicules</Text>
               <Ionicons name="arrow-forward" size={18} color="#fff" />

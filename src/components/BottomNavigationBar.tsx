@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { TRAVELER_COLORS } from '../constants/colors';
@@ -18,9 +18,51 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
       <TouchableOpacity
         style={styles.navItem}
         onPress={() => {
-          // Naviguer vers HomeTab (Explorer pour résidences meublées)
-          // Utiliser navigate au lieu de push pour éviter de recréer l'écran
-          (navigation as any).navigate('Home', { screen: 'HomeTab' });
+          // Vérifier si on est dans la section véhicule
+          const state = navigation.getState();
+          const currentRoute = state.routes[state.index];
+          
+          // Liste des écrans de la section véhicule
+          const vehicleScreens = [
+            'Vehicles',
+            'VehicleDetails',
+            'VehicleBooking',
+            'AddVehicle',
+            'MyVehicles',
+            'EditVehicle',
+            'VehicleManagement',
+            'VehicleCalendar',
+            'VehiclePricing',
+            'VehicleReviews',
+            'HostVehicleBookings',
+            'MyVehicleBookings',
+          ];
+          
+          const isInVehicleSection = vehicleScreens.includes(currentRoute.name);
+          
+          if (isInVehicleSection) {
+            // Demander confirmation avant de quitter la section véhicule
+            Alert.alert(
+              'Retour à la recherche',
+              'Voulez-vous vraiment retourner sur la recherche de résidences meublées ?',
+              [
+                {
+                  text: 'Annuler',
+                  style: 'cancel',
+                },
+                {
+                  text: 'Oui',
+                  onPress: () => {
+                    // Naviguer vers HomeTab (Explorer pour résidences meublées)
+                    (navigation as any).navigate('Home', { screen: 'HomeTab' });
+                  },
+                },
+              ]
+            );
+          } else {
+            // Naviguer directement si on n'est pas dans la section véhicule
+            (navigation as any).navigate('Home', { screen: 'HomeTab' });
+          }
         }}
       >
         <Ionicons 
@@ -99,8 +141,20 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
       <TouchableOpacity
         style={styles.navItem}
         onPress={() => {
-          // Utiliser le TabNavigator au lieu du Stack pour éviter le rechargement
-          (navigation as any).navigate('Home', { screen: 'ProfileTab' });
+          // Vérifier si on est déjà sur Profile pour éviter les doublons
+          const state = navigation.getState();
+          const currentRoute = state.routes[state.index];
+          
+          // Si on est déjà sur Profile (Stack) ou ProfileTab, ne rien faire
+          if (currentRoute.name === 'Profile' || currentRoute.name === 'ProfileTab') {
+            // Si on peut revenir en arrière, le faire
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            }
+          } else {
+            // Sinon, naviguer vers ProfileTab
+            (navigation as any).navigate('Home', { screen: 'ProfileTab' });
+          }
         }}
       >
         <Ionicons 

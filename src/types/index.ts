@@ -287,6 +287,14 @@ export type HostTabParamList = {
   HostProfileTab: undefined;
 };
 
+export type VehicleTabParamList = {
+  VehicleExplorerTab: undefined;
+  VehiclesTab: undefined;
+  VehicleMessagingTab: { conversationId?: string };
+  VehicleFavoritesTab: undefined;
+  VehicleProfileTab: undefined;
+};
+
 export type VehicleOwnerTabParamList = {
   VehicleOwnerVehiclesTab: undefined;
   VehicleOwnerBookingsTab: undefined;
