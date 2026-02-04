@@ -67,7 +67,7 @@ const VehiclesScreen: React.FC = () => {
   const scrollY = useRef(new Animated.Value(0)).current;
   
   // AMÉLIORATION: États pour le nouveau design avec carte
-  const [isMapView, setIsMapView] = useState(true); // Carte par défaut
+  const [isMapView, setIsMapView] = useState(false); // Liste par défaut
   const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -514,7 +514,7 @@ const VehiclesScreen: React.FC = () => {
 
   return (
     <View style={styles.newContainer}>
-      {/* Carte en arrière-plan */}
+      {/* Carte en arrière-plan (seulement en mode carte) */}
       {isMapView && (
         <View style={styles.mapContainer}>
           <VehicleMapView
@@ -529,8 +529,8 @@ const VehiclesScreen: React.FC = () => {
         </View>
       )}
       
-      {/* Overlay avec header et filtres en haut */}
-      <SafeAreaView style={styles.overlayContainer} edges={['top']}>
+      {/* Header et filtres - intégrés dans le flux normal en mode liste, overlay en mode carte */}
+      <SafeAreaView style={isMapView ? styles.overlayContainer : styles.headerContainer} edges={['top']}>
         {/* Header avec position et dates/heures */}
         <View style={styles.topHeaderBar}>
           <TouchableOpacity 
@@ -662,10 +662,7 @@ const VehiclesScreen: React.FC = () => {
           data={vehicles}
           renderItem={renderVehicle}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={[
-            styles.list,
-            { paddingTop: insets.top + 60 + 60 + 20 } // SafeArea top + topHeaderBar (~60) + filtersBar (~60) + margin
-          ]}
+          contentContainerStyle={styles.list}
           ListEmptyComponent={!loading ? renderEmptyState : null}
           refreshControl={
             <RefreshControl
@@ -1820,6 +1817,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 0,
+  },
+  headerContainer: {
+    backgroundColor: '#ffffff',
+    zIndex: 10,
   },
   overlayContainer: {
     position: 'absolute',
