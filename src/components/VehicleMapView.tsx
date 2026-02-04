@@ -147,24 +147,6 @@ const VehicleMapView: React.FC<VehicleMapViewProps> = ({
           })
         }).addTo(map);
 
-        var popupContent = '<div style="padding: 12px; min-width: 200px;">';
-        if (markerData.count === 1) {
-          popupContent += '<div style="font-weight: 700; font-size: 16px; margin-bottom: 8px;">' + markerData.vehicleTitles[0] + '</div>';
-          popupContent += '<div style="font-weight: 700; font-size: 18px; color: ${TRAVELER_COLORS.primary}; margin-bottom: 12px;">' + markerData.vehiclePrices[0] + '/jour</div>';
-          popupContent += '<button onclick="selectVehicle(\\'' + markerData.vehicleIds[0] + '\\')" style="width: 100%; background: ${TRAVELER_COLORS.primary}; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: 700; cursor: pointer;">Voir les détails</button>';
-        } else {
-          popupContent += '<div style="font-weight: 700; font-size: 16px; margin-bottom: 12px;">' + markerData.count + ' véhicules disponibles</div>';
-          markerData.vehicleTitles.forEach(function(title, index) {
-            popupContent += '<div onclick="selectVehicle(\\'' + markerData.vehicleIds[index] + '\\')" style="padding: 8px; margin-bottom: 8px; background: #f8f9fa; border-radius: 8px; cursor: pointer;">';
-            popupContent += '<div style="font-weight: 700; font-size: 14px;">' + title + '</div>';
-            popupContent += '<div style="font-weight: 700; font-size: 16px; color: ${TRAVELER_COLORS.primary};">' + markerData.vehiclePrices[index] + '/jour</div>';
-            popupContent += '</div>';
-          });
-        }
-        popupContent += '</div>';
-        
-        marker.bindPopup(popupContent);
-        
         marker.on('click', function() {
           if (window.ReactNativeWebView) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -176,15 +158,6 @@ const VehicleMapView: React.FC<VehicleMapViewProps> = ({
         });
       });
 
-      window.selectVehicle = function(vehicleId) {
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'vehicleGroupClick',
-            vehicleIds: [vehicleId],
-            count: 1
-          }));
-        }
-      };
 
       setTimeout(function() {
         map.invalidateSize();
