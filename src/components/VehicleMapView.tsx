@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Vehicle } from '../types';
@@ -8,6 +8,7 @@ import { useCurrency } from '../hooks/useCurrency';
 interface VehicleMapViewProps {
   vehicles: Vehicle[];
   onVehiclePress?: (vehicleId: string) => void;
+  onVehicleGroupPress?: (vehicleIds: string[]) => void;
   center?: { lat: number; lng: number };
   zoom?: number;
   userLocation?: { lat: number; lng: number };
@@ -16,66 +17,68 @@ interface VehicleMapViewProps {
 const VehicleMapView: React.FC<VehicleMapViewProps> = ({
   vehicles,
   onVehiclePress,
-  center = { lat: 5.3600, lng: -4.0083 }, // Abidjan par défaut
+  onVehicleGroupPress,
+  center = { lat: 5.3600, lng: -4.0083 },
   zoom = 12,
   userLocation,
 }) => {
-  const webViewRef = useRef<WebView>(null);
-  const { formatPrice, currency, currencySymbol } = useCurrency();
-  const [mapHtml, setMapHtml] = useState('');
+  const { formatPrice } = useCurrency();
 
-  useEffect(() => {
-    const createMapHTML = () => {
-      const markers: string[] = [];
+  const mapHtml = useMemo(() => {
+    // Grouper les véhicules par coordonnées
+    const vehiclesByLocation = new Map<string, Vehicle[]>();
+    
+    vehicles.forEach((vehicle) => {
+      const lat = (vehicle as any).latitude || (vehicle as any).lat || (vehicle.location as any)?.latitude || null;
+      const lng = (vehicle as any).longitude || (vehicle as any).lng || (vehicle.location as any)?.longitude || null;
       
-      console.log('🗺️ [VehicleMapView] Création de la carte avec', vehicles.length, 'véhicules');
-      
-      vehicles.forEach((vehicle) => {
-        // Vérifier plusieurs propriétés possibles pour les coordonnées
-        // Les véhicules ont location_id qui référence locations avec latitude/longitude
-        const lat = vehicle.latitude || vehicle.lat || (vehicle.location as any)?.latitude || null;
-        const lng = vehicle.longitude || vehicle.lng || (vehicle.location as any)?.longitude || null;
+      if (lat && lng) {
+        const latNum = parseFloat(lat.toString());
+        const lngNum = parseFloat(lng.toString());
         
-        if (lat && lng) {
-          const latNum = parseFloat(lat.toString());
-          const lngNum = parseFloat(lng.toString());
+        if (!isNaN(latNum) && !isNaN(lngNum) && latNum !== 0 && lngNum !== 0) {
+          const roundedLat = Math.round(latNum * 10000) / 10000;
+          const roundedLng = Math.round(lngNum * 10000) / 10000;
+          const locationKey = `${roundedLat},${roundedLng}`;
           
-          if (!isNaN(latNum) && !isNaN(lngNum) && latNum !== 0 && lngNum !== 0) {
-            const price = vehicle.price_per_day || 0;
-            const formattedPrice = formatPrice(price);
-            const vehicleTitle = vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`.trim();
-            const vehicleImage = vehicle.images?.[0] || vehicle.vehicle_photos?.[0]?.url || '';
-            
-            console.log('📍 [VehicleMapView] Ajout marqueur:', vehicleTitle, 'à', latNum, lngNum);
-            
-            markers.push(`
-              {
-                lat: ${latNum},
-                lng: ${lngNum},
-                id: '${vehicle.id}',
-                title: ${JSON.stringify(vehicleTitle)},
-                price: ${price},
-                formattedPrice: ${JSON.stringify(formattedPrice)},
-                image: ${JSON.stringify(vehicleImage || '')},
-                brand: ${JSON.stringify(vehicle.brand || '')},
-                model: ${JSON.stringify(vehicle.model || '')}
-              }
-            `);
-          } else {
-            console.log('⚠️ [VehicleMapView] Coordonnées invalides pour véhicule:', vehicle.id, latNum, lngNum);
+          if (!vehiclesByLocation.has(locationKey)) {
+            vehiclesByLocation.set(locationKey, []);
           }
-        } else {
-          console.log('⚠️ [VehicleMapView] Pas de coordonnées pour véhicule:', vehicle.id, 'location:', vehicle.location);
+          vehiclesByLocation.get(locationKey)!.push(vehicle);
         }
+      }
+    });
+
+    // Créer les marqueurs comme dans SearchMapView
+    const markers: string[] = [];
+    vehiclesByLocation.forEach((vehiclesAtLocation, locationKey) => {
+      const [latStr, lngStr] = locationKey.split(',');
+      const latNum = parseFloat(latStr);
+      const lngNum = parseFloat(lngStr);
+      
+      const count = vehiclesAtLocation.length;
+      const vehicleIds = vehiclesAtLocation.map(v => v.id);
+      const vehicleTitles = vehiclesAtLocation.map(v => v.title || `${(v as any).brand || ''} ${(v as any).model || ''}`.trim());
+      const vehiclePrices = vehiclesAtLocation.map(v => {
+        const price = (v as any).price_per_day || 0;
+        return formatPrice(price);
       });
       
-      console.log('🗺️ [VehicleMapView] Total marqueurs créés:', markers.length);
+      // Créer un objet JavaScript comme chaîne, comme dans SearchMapView
+      markers.push(`{
+        position: [${latNum}, ${lngNum}],
+        count: ${count},
+        vehicleIds: ${JSON.stringify(vehicleIds)},
+        vehicleTitles: ${JSON.stringify(vehicleTitles)},
+        vehiclePrices: ${JSON.stringify(vehiclePrices)}
+      }`);
+    });
 
-      const centerLat = center.lat;
-      const centerLng = center.lng;
-      const zoomLevel = zoom;
+    const centerLat = center.lat;
+    const centerLng = center.lng;
+    const zoomLevel = zoom;
 
-      return `
+    return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -83,151 +86,149 @@ const VehicleMapView: React.FC<VehicleMapViewProps> = ({
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body { margin: 0; padding: 0; overflow: hidden; }
+    body { margin: 0; padding: 0; }
     #map { width: 100%; height: 100vh; }
     .vehicle-marker {
       background: ${TRAVELER_COLORS.primary};
       color: white;
-      border-radius: 20px;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 700;
-      white-space: nowrap;
-      box-shadow: 0 2px 8px rgba(230, 126, 34, 0.4);
-      border: 2px solid white;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-width: 60px;
-    }
-    .vehicle-marker:hover {
-      background: ${TRAVELER_COLORS.dark};
-      transform: scale(1.1);
-      z-index: 1000;
-    }
-    .vehicle-popup {
-      max-width: 250px;
-    }
-    .vehicle-popup-content {
-      padding: 0;
-    }
-    .vehicle-popup-image {
-      width: 100%;
-      height: 120px;
-      object-fit: cover;
-      border-radius: 8px 8px 0 0;
-    }
-    .vehicle-popup-info {
-      padding: 12px;
-    }
-    .vehicle-popup-title {
-      font-weight: 700;
-      font-size: 14px;
-      color: #0f172a;
-      margin-bottom: 4px;
-    }
-    .vehicle-popup-price {
-      font-weight: 700;
-      font-size: 16px;
-      color: ${TRAVELER_COLORS.primary};
-      margin-top: 8px;
-    }
-    .user-location-marker {
-      background: #2563eb;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(230, 126, 34, 0.4);
       border: 3px solid white;
-      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .vehicle-marker-count {
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: -2px;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script>
-    var map = L.map('map').setView([${centerLat}, ${centerLng}], ${zoomLevel});
-    
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20
-    }).addTo(map);
-
-    ${userLocation ? `
-    // Marqueur position utilisateur
-    var userMarker = L.marker([${userLocation.lat}, ${userLocation.lng}], {
-      icon: L.divIcon({
-        className: 'user-location-marker',
-        html: '<div class="user-location-marker"></div>',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
-      })
-    }).addTo(map);
-    ` : ''}
-
-    const vehicles = [${markers.join(',\n          ')}];
-    
-    vehicles.forEach((vehicle) => {
-      const marker = L.marker([vehicle.lat, vehicle.lng], {
-        icon: L.divIcon({
-          className: 'vehicle-marker',
-          html: '<div class="vehicle-marker">' + vehicle.formattedPrice + '</div>',
-          iconSize: [100, 30],
-          iconAnchor: [50, 15]
-        })
+    try {
+      var map = L.map('map').setView([${centerLat}, ${centerLng}], ${zoomLevel});
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
       }).addTo(map);
 
-      const popupContent = vehicle.image 
-        ? '<div class="vehicle-popup-content"><img src="' + vehicle.image + '" class="vehicle-popup-image" /><div class="vehicle-popup-info"><div class="vehicle-popup-title">' + vehicle.title + '</div><div class="vehicle-popup-price">' + vehicle.formattedPrice + ' /jour</div></div></div>'
-        : '<div class="vehicle-popup-content"><div class="vehicle-popup-info"><div class="vehicle-popup-title">' + vehicle.title + '</div><div class="vehicle-popup-price">' + vehicle.formattedPrice + ' /jour</div></div></div>';
-      
-      const popup = L.popup({
-        maxWidth: 250,
-        className: 'vehicle-popup'
-      }).setContent(popupContent);
+      ${userLocation ? `
+      var userMarker = L.marker([${userLocation.lat}, ${userLocation.lng}], {
+        icon: L.divIcon({
+          className: 'user-location-marker',
+          html: '<div style="background: #2563eb; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);"></div>',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        })
+      }).addTo(map);
+      ` : ''}
 
-      marker.bindPopup(popup);
+      const markers = [${markers.length > 0 ? markers.join(',\n          ') : ''}];
       
-      marker.on('click', function() {
+      markers.forEach(function(markerData) {
+        var keyIcon = markerData.count > 1 
+          ? '<div class="vehicle-marker">🔑<div class="vehicle-marker-count">' + markerData.count + '</div></div>'
+          : '<div class="vehicle-marker">🔑</div>';
+        
+        var marker = L.marker(markerData.position, {
+          icon: L.divIcon({
+            className: 'vehicle-marker',
+            html: keyIcon,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+          })
+        }).addTo(map);
+
+        var popupContent = '<div style="padding: 12px; min-width: 200px;">';
+        if (markerData.count === 1) {
+          popupContent += '<div style="font-weight: 700; font-size: 16px; margin-bottom: 8px;">' + markerData.vehicleTitles[0] + '</div>';
+          popupContent += '<div style="font-weight: 700; font-size: 18px; color: ${TRAVELER_COLORS.primary}; margin-bottom: 12px;">' + markerData.vehiclePrices[0] + '/jour</div>';
+          popupContent += '<button onclick="selectVehicle(\\'' + markerData.vehicleIds[0] + '\\')" style="width: 100%; background: ${TRAVELER_COLORS.primary}; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: 700; cursor: pointer;">Voir les détails</button>';
+        } else {
+          popupContent += '<div style="font-weight: 700; font-size: 16px; margin-bottom: 12px;">' + markerData.count + ' véhicules disponibles</div>';
+          markerData.vehicleTitles.forEach(function(title, index) {
+            popupContent += '<div onclick="selectVehicle(\\'' + markerData.vehicleIds[index] + '\\')" style="padding: 8px; margin-bottom: 8px; background: #f8f9fa; border-radius: 8px; cursor: pointer;">';
+            popupContent += '<div style="font-weight: 700; font-size: 14px;">' + title + '</div>';
+            popupContent += '<div style="font-weight: 700; font-size: 16px; color: ${TRAVELER_COLORS.primary};">' + markerData.vehiclePrices[index] + '/jour</div>';
+            popupContent += '</div>';
+          });
+        }
+        popupContent += '</div>';
+        
+        marker.bindPopup(popupContent);
+        
+        marker.on('click', function() {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'vehicleGroupClick',
+              vehicleIds: markerData.vehicleIds,
+              count: markerData.count
+            }));
+          }
+        });
+      });
+
+      window.selectVehicle = function(vehicleId) {
         if (window.ReactNativeWebView) {
           window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'vehicleClick',
-            vehicleId: vehicle.id
+            type: 'vehicleGroupClick',
+            vehicleIds: [vehicleId],
+            count: 1
           }));
         }
-      });
-    });
+      };
+
+      setTimeout(function() {
+        map.invalidateSize();
+      }, 200);
+    } catch(error) {
+      console.error('Erreur carte:', error);
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'mapError',
+          error: error.toString()
+        }));
+      }
+    }
   </script>
 </body>
 </html>
-      `;
-    };
-
-    setMapHtml(createMapHTML());
+    `;
   }, [vehicles, center, zoom, userLocation, formatPrice]);
 
   const handleMessage = (event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'vehicleClick' && onVehiclePress) {
-        onVehiclePress(data.vehicleId);
+      
+      if (data.type === 'vehicleGroupClick') {
+        if (onVehicleGroupPress && data.vehicleIds) {
+          onVehicleGroupPress(data.vehicleIds);
+        } else if (onVehiclePress && data.vehicleIds && data.vehicleIds.length > 0) {
+          onVehiclePress(data.vehicleIds[0]);
+        }
       }
     } catch (error) {
-      console.error('Erreur parsing message WebView:', error);
+      console.error('❌ [VehicleMapView] Erreur parsing message:', error);
     }
   };
 
   return (
     <View style={styles.container}>
       <WebView
-        ref={webViewRef}
         source={{ html: mapHtml }}
         style={styles.webview}
         onMessage={handleMessage}
         javaScriptEnabled={true}
         domStorageEnabled={true}
-        startInLoadingState={true}
-        scalesPageToFit={true}
+        scrollEnabled={true}
       />
     </View>
   );

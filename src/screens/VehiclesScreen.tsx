@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,6 +67,8 @@ const VehiclesScreen: React.FC = () => {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showVehicleTypeModal, setShowVehicleTypeModal] = useState(false);
   const [showRentalModeModal, setShowRentalModeModal] = useState(false);
+  const [selectedVehicleGroup, setSelectedVehicleGroup] = useState<string[]>([]);
+  const [filteredVehiclesForList, setFilteredVehiclesForList] = useState<Vehicle[]>([]);
   
   // Fonction pour calculer la durée en heures
   const calculateRentalHours = (): number => {
@@ -93,6 +96,13 @@ const VehiclesScreen: React.FC = () => {
       minute: '2-digit' 
     });
   };
+
+  // Réinitialiser la liste filtrée quand les véhicules changent
+  useEffect(() => {
+    if (selectedVehicleGroup.length === 0) {
+      setFilteredVehiclesForList([]);
+    }
+  }, [vehicles, selectedVehicleGroup]);
 
   // Synchroniser avec le contexte quand il change
   useEffect(() => {
@@ -139,6 +149,13 @@ const VehiclesScreen: React.FC = () => {
 
   const handleVehiclePress = (vehicle: Vehicle) => {
     navigation.navigate('VehicleDetails' as never, { vehicleId: vehicle.id } as never);
+  };
+
+  const handleVehicleGroupPress = (vehicleIds: string[]) => {
+    // Afficher la liste horizontale avec les véhicules de ce groupe
+    setSelectedVehicleGroup(vehicleIds);
+    const groupVehicles = vehicles.filter(v => vehicleIds.includes(v.id));
+    setFilteredVehiclesForList(groupVehicles);
   };
 
   const handleFilterChange = (newFilters: VehicleFilters) => {
@@ -418,6 +435,7 @@ const VehiclesScreen: React.FC = () => {
               const vehicle = vehicles.find(v => v.id === vehicleId);
               if (vehicle) handleVehiclePress(vehicle);
             }}
+            onVehicleGroupPress={handleVehicleGroupPress}
             userLocation={userLocation}
           />
         </View>
@@ -841,6 +859,80 @@ const VehiclesScreen: React.FC = () => {
         </SafeAreaView>
       </Modal>
 
+      {/* Liste horizontale de véhicules en bas (mode carte uniquement) - seulement quand on clique sur une clé */}
+      {isMapView && filteredVehiclesForList.length > 0 && (
+        <View style={styles.vehiclesHorizontalList}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.vehiclesHorizontalListContent}
+            snapToInterval={width * 0.85 + 16}
+            decelerationRate="fast"
+          >
+            {filteredVehiclesForList.map((vehicle) => {
+              const vehicleImages = vehicle.images || vehicle.vehicle_photos?.map((p: any) => p.url) || [];
+              const mainImage = vehicleImages[0] || '';
+              const vehicleTitle = vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''} ${vehicle.year || ''}`.trim();
+              
+              return (
+                <TouchableOpacity
+                  key={vehicle.id}
+                  style={styles.vehicleHorizontalCard}
+                  onPress={() => handleVehiclePress(vehicle)}
+                  activeOpacity={0.9}
+                >
+                  {/* Image */}
+                  <View style={styles.vehicleHorizontalCardImageContainer}>
+                    {mainImage ? (
+                      <Image
+                        source={{ uri: mainImage }}
+                        style={styles.vehicleHorizontalCardImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[styles.vehicleHorizontalCardImage, styles.vehicleHorizontalCardImagePlaceholder]}>
+                        <Ionicons name="car-outline" size={40} color="#ccc" />
+                      </View>
+                    )}
+                    {/* Badge optionnel - peut être ajouté plus tard si nécessaire */}
+                  </View>
+                  
+                  {/* Contenu */}
+                  <View style={styles.vehicleHorizontalCardContent}>
+                    <Text style={styles.vehicleHorizontalCardTitle} numberOfLines={1}>
+                      {vehicleTitle}
+                    </Text>
+                    
+                    {/* Note */}
+                    {vehicle.rating > 0 && (
+                      <View style={styles.vehicleHorizontalCardRating}>
+                        <Ionicons name="star" size={14} color={TRAVELER_COLORS.primary} />
+                        <Text style={styles.vehicleHorizontalCardRatingText}>
+                          {vehicle.rating.toFixed(1)}({vehicle.review_count || 0})
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {/* Prix */}
+                    <View style={styles.vehicleHorizontalCardPrice}>
+                      {vehicle.hourly_rental_enabled && vehicle.price_per_hour && (
+                        <Text style={styles.vehicleHorizontalCardPriceText}>
+                          À partir de {formatPrice(vehicle.price_per_hour)} /h
+                        </Text>
+                      )}
+                      <Text style={styles.vehicleHorizontalCardPriceText}>
+                        {vehicle.hourly_rental_enabled && vehicle.price_per_hour ? ' • ' : ''}
+                        {formatPrice(vehicle.price_per_day)} /jour
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Menu de navigation en bas */}
       <View style={styles.bottomNavigation}>
         <TouchableOpacity
@@ -910,6 +1002,7 @@ const VehiclesScreen: React.FC = () => {
           handleDateTimeChange(start, end);
         }}
       />
+
       
 
       <VehicleFiltersModal
@@ -1840,6 +1933,89 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 20,
+  },
+  vehiclesHorizontalList: {
+    position: 'absolute',
+    bottom: 80,
+    left: 0,
+    right: 0,
+    height: 200,
+    zIndex: 10,
+  },
+  vehiclesHorizontalListContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  vehicleHorizontalCard: {
+    width: width * 0.85,
+    marginRight: 12,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  vehicleHorizontalCardImageContainer: {
+    width: '100%',
+    height: 120,
+    position: 'relative',
+  },
+  vehicleHorizontalCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  vehicleHorizontalCardImagePlaceholder: {
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vehicleHorizontalCardBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#000',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  vehicleHorizontalCardBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  vehicleHorizontalCardContent: {
+    padding: 12,
+  },
+  vehicleHorizontalCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 6,
+  },
+  vehicleHorizontalCardRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 4,
+  },
+  vehicleHorizontalCardRatingText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  vehicleHorizontalCardPrice: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  vehicleHorizontalCardPriceText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: TRAVELER_COLORS.primary,
   },
 });
 
