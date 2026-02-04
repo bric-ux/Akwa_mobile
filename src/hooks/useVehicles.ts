@@ -89,6 +89,11 @@ export const useVehicles = () => {
         query = query.eq('hourly_rental_enabled', true);
       }
 
+      // Filtrer par service de chauffeur
+      if (filters?.withDriver !== undefined) {
+        query = query.eq('with_driver', filters.withDriver);
+      }
+
       // Recherche hiérarchique par localisation (comme pour les propriétés)
       let locationIds: string[] | null = null;
       

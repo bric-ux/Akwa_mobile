@@ -23,9 +23,10 @@ import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import { useVehicleAvailabilityCalendar } from '../hooks/useVehicleAvailabilityCalendar';
 import { formatPrice } from '../utils/priceCalculator';
-import { VehicleDateTimeSelector } from '../components/VehicleDateTimeSelector';
+import VehicleDateTimePickerModal from '../components/VehicleDateTimePickerModal';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, DiscountConfig } from '../hooks/usePricing';
+import { TRAVELER_COLORS } from '../constants/colors';
 import { getCommissionRates } from '../lib/commissions';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -48,8 +49,9 @@ const VehicleBookingScreen: React.FC = () => {
   const [loadingVehicle, setLoadingVehicle] = useState(true);
   const [startDate, setStartDate] = useState<string>(searchDates.checkIn || '');
   const [endDate, setEndDate] = useState<string>(searchDates.checkOut || '');
-  const [startDateTime, setStartDateTime] = useState<string | undefined>(undefined);
-  const [endDateTime, setEndDateTime] = useState<string | undefined>(undefined);
+  const [startDateTime, setStartDateTime] = useState<string | null>(null);
+  const [endDateTime, setEndDateTime] = useState<string | null>(null);
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [message, setMessage] = useState('');
   const [hasLicense, setHasLicense] = useState(false);
   const [licenseYears, setLicenseYears] = useState('');
@@ -83,11 +85,19 @@ const VehicleBookingScreen: React.FC = () => {
 
   // Initialiser les dates depuis le contexte si disponibles
   useEffect(() => {
-    if (searchDates.checkIn) {
+    if (searchDates.checkIn && !startDateTime) {
       setStartDate(searchDates.checkIn);
+      // Créer une date/heure par défaut (9h)
+      const defaultStart = new Date(searchDates.checkIn);
+      defaultStart.setHours(9, 0, 0, 0);
+      setStartDateTime(defaultStart.toISOString());
     }
-    if (searchDates.checkOut) {
+    if (searchDates.checkOut && !endDateTime) {
       setEndDate(searchDates.checkOut);
+      // Créer une date/heure par défaut (18h)
+      const defaultEnd = new Date(searchDates.checkOut);
+      defaultEnd.setHours(18, 0, 0, 0);
+      setEndDateTime(defaultEnd.toISOString());
     }
   }, [searchDates.checkIn, searchDates.checkOut]);
 
@@ -198,29 +208,23 @@ const VehicleBookingScreen: React.FC = () => {
     });
   };
 
-  const handleDateTimeChange = (start: string | undefined, end: string | undefined) => {
-    if (start) {
-      const startDateObj = new Date(start);
-      setStartDate(startDateObj.toISOString().split('T')[0]);
-      setStartDateTime(start);
-    }
-    if (end) {
-      const endDateObj = new Date(end);
-      setEndDate(endDateObj.toISOString().split('T')[0]);
-      setEndDateTime(end);
-    }
+  const handleDateTimeChange = (start: string, end: string) => {
+    const startDateObj = new Date(start);
+    const endDateObj = new Date(end);
+    
+    setStartDate(startDateObj.toISOString().split('T')[0]);
+    setStartDateTime(start);
+    setEndDate(endDateObj.toISOString().split('T')[0]);
+    setEndDateTime(end);
+    
     // Sauvegarder les dates dans le contexte
-    if (start && end) {
-      const startDateObj = new Date(start);
-      const endDateObj = new Date(end);
-      saveSearchDates({
-        checkIn: startDateObj.toISOString().split('T')[0],
-        checkOut: endDateObj.toISOString().split('T')[0],
-        adults: 1,
-        children: 0,
-        babies: 0,
-      });
-    }
+    saveSearchDates({
+      checkIn: startDateObj.toISOString().split('T')[0],
+      checkOut: endDateObj.toISOString().split('T')[0],
+      adults: 1,
+      children: 0,
+      babies: 0,
+    });
   };
 
   // Fonction pour uploader le document du permis
@@ -740,16 +744,28 @@ const VehicleBookingScreen: React.FC = () => {
         {/* Dates */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Dates et heures de location</Text>
-          <VehicleDateTimeSelector
-            startDateTime={startDateTime}
-            endDateTime={endDateTime}
-            onDateTimeChange={handleDateTimeChange}
-            hourlyRentalEnabled={vehicle?.hourly_rental_enabled || false}
-            pricePerDay={basePricePerDay}
-            pricePerHour={vehicle?.price_per_hour || 0}
-            discountConfig={discountConfig}
-            longStayDiscountConfig={longStayDiscountConfig}
-          />
+          <TouchableOpacity
+            style={styles.dateTimeButton}
+            onPress={() => setShowDateTimePicker(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="calendar-outline" size={20} color={TRAVELER_COLORS.primary} />
+            <View style={styles.dateTimeButtonContent}>
+              {startDateTime && endDateTime ? (
+                <>
+                  <Text style={styles.dateTimeButtonText}>
+                    {new Date(startDateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} {new Date(startDateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                  <Text style={styles.dateTimeButtonText}>
+                    {new Date(endDateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} {new Date(endDateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.dateTimeButtonPlaceholder}>Sélectionner les dates et heures</Text>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
           {startDateTime && endDateTime && (rentalDays > 0 || remainingHours > 0) ? (
             <Text style={styles.rentalDaysText}>
               {rentalDays > 0 && `${rentalDays} jour${rentalDays > 1 ? 's' : ''}`}
@@ -1092,6 +1108,17 @@ const VehicleBookingScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de sélection dates/heures */}
+      <VehicleDateTimePickerModal
+        visible={showDateTimePicker}
+        startDateTime={startDateTime}
+        endDateTime={endDateTime}
+        onClose={() => setShowDateTimePicker(false)}
+        onConfirm={(start, end) => {
+          handleDateTimeChange(start, end);
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -1539,6 +1566,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  dateTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    gap: 12,
+  },
+  dateTimeButtonContent: {
+    flex: 1,
+  },
+  dateTimeButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  dateTimeButtonPlaceholder: {
+    fontSize: 15,
+    color: '#999',
   },
 });
 

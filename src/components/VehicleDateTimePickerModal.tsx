@@ -269,12 +269,12 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       const hourIndex = targetDate.getHours();
       
       // Centrer l'élément sélectionné dans le ScrollView
-      // Le contentContainerStyle a un paddingVertical de 75px
-      // Donc le premier item commence à y=75, pas y=0
+      // Le contentContainerStyle a un paddingVertical de 60px
+      // Donc le premier item commence à y=60, pas y=0
       // Formule : (paddingTop + index * itemHeight) - (scrollViewHeight / 2) + (itemHeight / 2)
-      const itemHeight = 58; // 50px height + 4px margin top + 4px margin bottom
-      const scrollViewHeight = 200;
-      const paddingTop = 75; // paddingVertical du contentContainerStyle
+      const itemHeight = 46; // 40px height + 3px margin top + 3px margin bottom
+      const scrollViewHeight = 160;
+      const paddingTop = 60; // paddingVertical du contentContainerStyle
       
       if (datesScrollRef.current && dateIndex >= 0) {
         // Position de l'item : paddingTop + (index * itemHeight)
@@ -437,7 +437,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                     style={styles.pickerScroll}
                     contentContainerStyle={styles.pickerScrollContent}
                     showsVerticalScrollIndicator={false}
-                    snapToInterval={58}
+                    snapToInterval={46}
                     decelerationRate="fast"
                   >
                     {dates.map((date, index) => {
@@ -489,7 +489,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                     style={styles.pickerScroll}
                     contentContainerStyle={styles.pickerScrollContent}
                     showsVerticalScrollIndicator={false}
-                    snapToInterval={58}
+                    snapToInterval={46}
                     decelerationRate="fast"
                   >
                     {hours.map((hour) => {
@@ -590,7 +590,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                     style={styles.pickerScroll}
                     contentContainerStyle={styles.pickerScrollContent}
                     showsVerticalScrollIndicator={false}
-                    snapToInterval={58}
+                    snapToInterval={46}
                     decelerationRate="fast"
                   >
                     {dates.map((date, index) => {
@@ -641,7 +641,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                     style={styles.pickerScroll}
                     contentContainerStyle={styles.pickerScrollContent}
                     showsVerticalScrollIndicator={false}
-                    snapToInterval={58}
+                    snapToInterval={46}
                     decelerationRate="fast"
                   >
                     {hours.map((hour) => {
@@ -1032,24 +1032,24 @@ const styles = StyleSheet.create({
     maxWidth: 120,
   },
   pickerScroll: {
-    height: 200,
+    height: 160,
     width: '100%',
   },
   pickerScrollContent: {
     alignItems: 'center',
-    paddingVertical: 75,
+    paddingVertical: 60,
   },
   pickerItem: {
     width: '100%',
-    height: 50,
-    borderRadius: 12,
+    height: 40,
+    borderRadius: 10,
     backgroundColor: '#f8f8f8',
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 4,
+    marginVertical: 3,
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   pickerItemSelected: {
     backgroundColor: TRAVELER_COLORS.primary,
@@ -1060,7 +1060,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   pickerText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#666',
     textAlign: 'center',
@@ -1074,7 +1074,7 @@ const styles = StyleSheet.create({
   },
   minutesDisplay: {
     // Utilise les mêmes styles que pickerItem pour l'alignement
-    marginTop: 75, // Aligner avec le paddingVertical du ScrollView
+    marginTop: 60, // Aligner avec le paddingVertical du ScrollView
   },
   confirmButton: {
     backgroundColor: TRAVELER_COLORS.primary,

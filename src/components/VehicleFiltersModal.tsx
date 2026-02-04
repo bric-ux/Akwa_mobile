@@ -201,13 +201,14 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
 
   const getActiveFiltersCount = () => {
     let count = 0;
-    if (filters.vehicleType) count++;
+    // vehicleType n'est pas compté car il est géré en dehors du modal
     if (filters.brand) count++;
     if (filters.transmission) count++;
     if (filters.fuelType) count++;
     if (filters.seats) count++;
     if (priceMin) count++;
     if (priceMax) count++;
+    if (filters.withDriver !== undefined) count++;
     if (selectedFeatures.length > 0) count++;
     return count;
   };
@@ -249,37 +250,6 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
                   }))
                 }
               />
-            </View>
-
-            {/* Type de véhicule */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Type de véhicule</Text>
-              <View style={styles.optionsContainer}>
-                {VEHICLE_TYPES.map(type => (
-                  <TouchableOpacity
-                    key={type.value}
-                    style={[
-                      styles.option,
-                      filters.vehicleType === type.value && styles.optionSelected,
-                    ]}
-                    onPress={() =>
-                      setFilters(prev => ({
-                        ...prev,
-                        vehicleType: prev.vehicleType === type.value ? undefined : type.value,
-                      }))
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        filters.vehicleType === type.value && styles.optionTextSelected,
-                      ]}
-                    >
-                      {type.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
 
             {/* Transmission */}
@@ -399,6 +369,67 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
                     keyboardType="numeric"
                   />
                 </View>
+              </View>
+            </View>
+
+            {/* Véhicule avec chauffeur */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Service de chauffeur</Text>
+              <View style={styles.optionsContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.option,
+                    filters.withDriver === true && styles.optionSelected,
+                  ]}
+                  onPress={() =>
+                    setFilters(prev => ({
+                      ...prev,
+                      withDriver: prev.withDriver === true ? undefined : true,
+                    }))
+                  }
+                >
+                  <Ionicons 
+                    name={filters.withDriver === true ? "checkmark-circle" : "ellipse-outline"} 
+                    size={18} 
+                    color={filters.withDriver === true ? "#fff" : "#64748b"} 
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text
+                    style={[
+                      styles.optionText,
+                      filters.withDriver === true && styles.optionTextSelected,
+                    ]}
+                  >
+                    Avec chauffeur
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.option,
+                    filters.withDriver === false && styles.optionSelected,
+                  ]}
+                  onPress={() =>
+                    setFilters(prev => ({
+                      ...prev,
+                      withDriver: prev.withDriver === false ? undefined : false,
+                    }))
+                  }
+                >
+                  <Ionicons 
+                    name={filters.withDriver === false ? "checkmark-circle" : "ellipse-outline"} 
+                    size={18} 
+                    color={filters.withDriver === false ? "#fff" : "#64748b"} 
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text
+                    style={[
+                      styles.optionText,
+                      filters.withDriver === false && styles.optionTextSelected,
+                    ]}
+                  >
+                    Sans chauffeur
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 

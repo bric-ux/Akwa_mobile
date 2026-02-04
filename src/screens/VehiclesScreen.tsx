@@ -28,6 +28,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import VehicleFiltersModal from '../components/VehicleFiltersModal';
 import VehicleTypeModal from '../components/VehicleTypeModal';
 import RentalModeModal from '../components/RentalModeModal';
+import { supabase } from '../services/supabase';
 import { LocationResult, useLocationSearch } from '../hooks/useLocationSearch';
 import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
@@ -90,6 +91,9 @@ const VehiclesScreen: React.FC = () => {
   const [showRentalModeModal, setShowRentalModeModal] = useState(false);
   const [selectedVehicleGroup, setSelectedVehicleGroup] = useState<string[]>([]);
   const [filteredVehiclesForList, setFilteredVehiclesForList] = useState<Vehicle[]>([]);
+  const [pendingVehicleForAvailability, setPendingVehicleForAvailability] = useState<Vehicle | null>(null);
+  const [showAlternativeVehiclesModal, setShowAlternativeVehiclesModal] = useState(false);
+  const [alternativeVehicles, setAlternativeVehicles] = useState<Vehicle[]>([]);
   
   // Fonction pour calculer la durée en heures
   const calculateRentalHours = (): number => {
@@ -168,8 +172,107 @@ const VehiclesScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleVehiclePress = (vehicle: Vehicle) => {
-    navigation.navigate('VehicleDetails' as never, { vehicleId: vehicle.id } as never);
+  const handleVehiclePress = async (vehicle: Vehicle) => {
+    // Si les dates ne sont pas définies, ouvrir le modal de dates avec un message
+    if (!startDateTime || !endDateTime) {
+      setPendingVehicleForAvailability(vehicle);
+      setShowDateTimePicker(true);
+      return;
+    }
+    
+    // Si les dates sont définies, vérifier la disponibilité
+    try {
+      const { data: isAvailable, error: availabilityError } = await supabase
+        .rpc('check_vehicle_hourly_availability', {
+          p_vehicle_id: vehicle.id,
+          p_start_datetime: startDateTime,
+          p_end_datetime: endDateTime,
+          p_exclude_booking_id: null
+        });
+      
+      if (availabilityError) {
+        Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
+        return;
+      }
+      
+      if (!isAvailable) {
+        // Le véhicule n'est pas disponible, chercher des alternatives dans la même ville
+        const vehicleCity = vehicle.location_name?.split(',')[0]?.trim() || vehicle.location_name;
+        if (vehicleCity) {
+          const alternatives = vehicles.filter(v => 
+            v.id !== vehicle.id && 
+            (v.location_name?.includes(vehicleCity) || v.location_name === vehicleCity)
+          );
+          if (alternatives.length > 0) {
+            setAlternativeVehicles(alternatives);
+            setShowAlternativeVehiclesModal(true);
+            return;
+          }
+        }
+        Alert.alert(
+          'Véhicule indisponible',
+          'Ce véhicule n\'est pas disponible pour les dates sélectionnées. Veuillez choisir d\'autres dates.'
+        );
+        return;
+      }
+      
+      // Le véhicule est disponible, naviguer vers la page de réservation
+      navigation.navigate('VehicleBooking' as never, { vehicleId: vehicle.id } as never);
+    } catch (error) {
+      console.error('Erreur lors de la vérification de disponibilité:', error);
+      Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
+    }
+  };
+  
+  const handleAvailabilityCheckAfterDateSelection = async (start: string, end: string) => {
+    if (!pendingVehicleForAvailability) {
+      return;
+    }
+    
+    const vehicle = pendingVehicleForAvailability;
+    setPendingVehicleForAvailability(null);
+    
+    try {
+      const { data: isAvailable, error: availabilityError } = await supabase
+        .rpc('check_vehicle_hourly_availability', {
+          p_vehicle_id: vehicle.id,
+          p_start_datetime: start,
+          p_end_datetime: end,
+          p_exclude_booking_id: null
+        });
+      
+      if (availabilityError) {
+        Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
+        return;
+      }
+      
+      if (!isAvailable) {
+        // Le véhicule n'est pas disponible, chercher des alternatives dans la même ville
+        const vehicleCity = vehicle.location_name?.split(',')[0]?.trim() || vehicle.location_name;
+        if (vehicleCity) {
+          const alternatives = vehicles.filter(v => 
+            v.id !== vehicle.id && 
+            (v.location_name?.includes(vehicleCity) || v.location_name === vehicleCity)
+          );
+          if (alternatives.length > 0) {
+            setAlternativeVehicles(alternatives);
+            setShowAlternativeVehiclesModal(true);
+            return;
+          }
+        }
+        Alert.alert(
+          'Véhicule indisponible',
+          'Ce véhicule n\'est pas disponible pour les dates sélectionnées. Veuillez choisir d\'autres dates.'
+        );
+        return;
+      }
+      
+      // Le véhicule est disponible, naviguer vers la page de réservation
+      navigation.navigate('VehicleBooking' as never, { vehicleId: vehicle.id } as never);
+    } catch (error) {
+      console.error('Erreur lors de la vérification de disponibilité:', error);
+      Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
+    }
   };
 
   const handleVehicleGroupPress = (vehicleIds: string[]) => {
@@ -406,6 +509,15 @@ const VehiclesScreen: React.FC = () => {
     setStartDate(newStartDate);
     setEndDate(newEndDate);
     
+    // Sauvegarder les dates dans le contexte pour qu'elles soient disponibles dans VehicleBookingScreen
+    saveSearchDates({
+      checkIn: newStartDate,
+      checkOut: newEndDate,
+      adults: 1,
+      children: 0,
+      babies: 0,
+    });
+    
     // Appeler fetchVehicles automatiquement si les deux dates sont définies
     if (newStartDate && newEndDate) {
       const searchFilters: VehicleFilters = {
@@ -538,6 +650,7 @@ const VehiclesScreen: React.FC = () => {
     if (filters.endDate) count++;
     if (filters.autoBooking !== undefined) count++;
     if (filters.rentalType) count++;
+    if (filters.withDriver !== undefined) count++;
     return count;
   };
 
@@ -854,7 +967,31 @@ const VehiclesScreen: React.FC = () => {
                             const newFilters = { ...filters };
                             delete newFilters.priceMin;
                             delete newFilters.priceMax;
+                            
+                            // Inclure les autres filtres
+                            newFilters.search = searchQuery.trim() || undefined;
+                            newFilters.locationName = selectedLocationName || filters.locationName;
+                            
+                            // Inclure les dates si elles sont définies
+                            if (startDate && endDate) {
+                              newFilters.startDate = startDate;
+                              newFilters.endDate = endDate;
+                              newFilters.rentalType = undefined;
+                            }
+                            
                             setFilters(newFilters);
+                            
+                            // Nettoyer et appeler fetchVehicles
+                            const cleanedFilters: VehicleFilters = Object.fromEntries(
+                              Object.entries(newFilters).filter(([_, value]) => {
+                                if (value === undefined || value === '') return false;
+                                if (Array.isArray(value) && value.length === 0) return false;
+                                return true;
+                              })
+                            ) as VehicleFilters;
+                            
+                            console.log(`🔄 [VehiclesScreen] Filtre prix supprimé - Appel fetchVehicles:`, cleanedFilters);
+                            fetchVehicles(cleanedFilters);
                           }}
                         >
                           <Ionicons name="close" size={12} color="#2563eb" />
@@ -901,10 +1038,45 @@ const VehiclesScreen: React.FC = () => {
                         </Text>
                         <TouchableOpacity
                           onPress={() => {
-                            removeFilter('startDate');
-                            removeFilter('endDate');
+                            const newFilters = { ...filters };
+                            delete newFilters.startDate;
+                            delete newFilters.endDate;
+                            
+                            // Réinitialiser aussi les dates locales
+                            setStartDate('');
+                            setEndDate('');
+                            setStartDateTime('');
+                            setEndDateTime('');
+                            
+                            // Inclure les autres filtres
+                            newFilters.search = searchQuery.trim() || undefined;
+                            newFilters.locationName = selectedLocationName || filters.locationName;
+                            
+                            setFilters(newFilters);
+                            
+                            // Nettoyer et appeler fetchVehicles
+                            const cleanedFilters: VehicleFilters = Object.fromEntries(
+                              Object.entries(newFilters).filter(([_, value]) => {
+                                if (value === undefined || value === '') return false;
+                                if (Array.isArray(value) && value.length === 0) return false;
+                                return true;
+                              })
+                            ) as VehicleFilters;
+                            
+                            console.log(`🔄 [VehiclesScreen] Filtre dates supprimé - Appel fetchVehicles:`, cleanedFilters);
+                            fetchVehicles(cleanedFilters);
                           }}
                         >
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {filters.withDriver !== undefined && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>
+                          {filters.withDriver ? 'Avec chauffeur' : 'Sans chauffeur'}
+                        </Text>
+                        <TouchableOpacity onPress={() => removeFilter('withDriver')}>
                           <Ionicons name="close" size={12} color="#2563eb" />
                         </TouchableOpacity>
                       </View>
@@ -919,33 +1091,20 @@ const VehiclesScreen: React.FC = () => {
                         </TouchableOpacity>
                       </View>
                     )}
-                    <TouchableOpacity style={styles.clearBtn} onPress={handleResetFilters}>
-                      <Text style={styles.clearText}>Tout effacer</Text>
-                    </TouchableOpacity>
                   </ScrollView>
                 </View>
               )}
 
-              {/* Nombre de résultats et bouton afficher tous */}
-              <View style={styles.resultsRow}>
-                {vehicles && vehicles.length > 0 && (
+              {/* Nombre de résultats */}
+              {vehicles && vehicles.length > 0 && (
+                <View style={styles.resultsRow}>
                   <View style={styles.resultsCount}>
                     <Text style={styles.resultsCountText}>
                       <Text style={styles.resultsCountBold}>{vehicles.length}</Text> véhicule{vehicles.length > 1 ? 's' : ''} disponible{vehicles.length > 1 ? 's' : ''}
                     </Text>
                   </View>
-                )}
-                <TouchableOpacity
-                  style={styles.showAllBtn}
-                  onPress={() => {
-                    console.log(`🔄 [VehiclesScreen] Bouton "Afficher tous les véhicules" cliqué`);
-                    fetchVehicles({});
-                  }}
-                >
-                  <Ionicons name="list-outline" size={16} color="#2563eb" />
-                  <Text style={styles.showAllBtnText}>Afficher tous les véhicules</Text>
-                </TouchableOpacity>
-              </View>
+                </View>
+              )}
             </View>
 
             {error && (
@@ -1166,11 +1325,19 @@ const VehiclesScreen: React.FC = () => {
         visible={showDateTimePicker}
         startDateTime={startDateTime}
         endDateTime={endDateTime}
-        onClose={() => setShowDateTimePicker(false)}
+        onClose={() => {
+          setShowDateTimePicker(false);
+          setPendingVehicleForAvailability(null);
+        }}
         onConfirm={(start, end) => {
           setStartDateTime(start);
           setEndDateTime(end);
           handleDateTimeChange(start, end);
+          
+          // Si on vérifie la disponibilité d'un véhicule, appeler la vérification
+          if (pendingVehicleForAvailability) {
+            handleAvailabilityCheckAfterDateSelection(start, end);
+          }
         }}
       />
 
@@ -1260,6 +1427,88 @@ const VehiclesScreen: React.FC = () => {
         }}
         selectedMode={filters.autoBooking === true ? 'auto_booking' : filters.autoBooking === false ? 'on_demand' : undefined}
       />
+
+      {/* Modal véhicules alternatifs */}
+      <Modal
+        visible={showAlternativeVehiclesModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAlternativeVehiclesModal(false)}
+      >
+        <View style={styles.alternativeVehiclesModalOverlay}>
+          <View style={styles.alternativeVehiclesModalContent}>
+            <SafeAreaView edges={['top']} style={styles.alternativeVehiclesModalSafeArea}>
+              <View style={styles.alternativeVehiclesModalHeader}>
+                <View style={styles.alternativeVehiclesModalHeaderLeft}>
+                  <Ionicons name="information-circle" size={24} color={TRAVELER_COLORS.primary} />
+                  <View style={styles.alternativeVehiclesModalHeaderText}>
+                    <Text style={styles.alternativeVehiclesModalTitle}>
+                      Véhicule indisponible
+                    </Text>
+                    <Text style={styles.alternativeVehiclesModalSubtitle}>
+                      Ce véhicule n'est pas disponible pour les dates sélectionnées. Voici d'autres options dans la même ville :
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowAlternativeVehiclesModal(false)}
+                  style={styles.alternativeVehiclesModalClose}
+                >
+                  <Ionicons name="close" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+              
+              <FlatList
+                data={alternativeVehicles}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.alternativeVehicleCard}
+                    onPress={() => {
+                      setShowAlternativeVehiclesModal(false);
+                      handleVehiclePress(item);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    {item.images && item.images.length > 0 && (
+                      <Image
+                        source={{ uri: item.images[0] }}
+                        style={styles.alternativeVehicleImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                    <View style={styles.alternativeVehicleContent}>
+                      <Text style={styles.alternativeVehicleTitle} numberOfLines={1}>
+                        {item.title || `${item.brand || ''} ${item.model || ''}`.trim()}
+                      </Text>
+                      {item.rating > 0 && (
+                        <View style={styles.alternativeVehicleRating}>
+                          <Ionicons name="star" size={14} color={TRAVELER_COLORS.primary} />
+                          <Text style={styles.alternativeVehicleRatingText}>
+                            {item.rating.toFixed(1)} ({item.review_count || 0})
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={styles.alternativeVehiclePrice}>
+                        {formatPrice(item.price_per_day)} /jour
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#999" />
+                  </TouchableOpacity>
+                )}
+                contentContainerStyle={styles.alternativeVehiclesList}
+                ListEmptyComponent={
+                  <View style={styles.alternativeVehiclesEmpty}>
+                    <Text style={styles.alternativeVehiclesEmptyText}>
+                      Aucun autre véhicule disponible dans cette ville
+                    </Text>
+                  </View>
+                }
+              />
+            </SafeAreaView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -2400,6 +2649,103 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: TRAVELER_COLORS.primary,
+  },
+  alternativeVehiclesModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  alternativeVehiclesModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    minHeight: '50%',
+  },
+  alternativeVehiclesModalSafeArea: {
+    flex: 1,
+  },
+  alternativeVehiclesModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  alternativeVehiclesModalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+    marginRight: 12,
+    gap: 12,
+  },
+  alternativeVehiclesModalHeaderText: {
+    flex: 1,
+  },
+  alternativeVehiclesModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 8,
+  },
+  alternativeVehiclesModalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  alternativeVehiclesModalClose: {
+    padding: 4,
+  },
+  alternativeVehiclesList: {
+    padding: 20,
+  },
+  alternativeVehicleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  alternativeVehicleImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  alternativeVehicleContent: {
+    flex: 1,
+  },
+  alternativeVehicleTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  alternativeVehicleRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 4,
+  },
+  alternativeVehicleRatingText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  alternativeVehiclePrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: TRAVELER_COLORS.primary,
+  },
+  alternativeVehiclesEmpty: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  alternativeVehiclesEmptyText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
 });
 
