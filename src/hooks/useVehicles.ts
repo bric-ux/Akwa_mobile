@@ -84,6 +84,11 @@ export const useVehicles = () => {
         query = query.eq('auto_booking', filters.autoBooking);
       }
 
+      // Filtrer par type de location (hourly vs daily)
+      if (filters?.rentalType === 'hourly') {
+        query = query.eq('hourly_rental_enabled', true);
+      }
+
       // Recherche hiérarchique par localisation (comme pour les propriétés)
       let locationIds: string[] | null = null;
       

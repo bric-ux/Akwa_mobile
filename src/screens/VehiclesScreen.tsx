@@ -189,19 +189,68 @@ const VehiclesScreen: React.FC = () => {
   };
 
   const handleFilterChange = (newFilters: VehicleFilters) => {
-    setFilters(newFilters);
+    // Inclure les autres filtres existants
+    const combinedFilters: VehicleFilters = {
+      ...newFilters,
+      search: searchQuery.trim() || undefined,
+      locationName: selectedLocationName || newFilters.locationName,
+    };
+    
+    // Inclure les dates si elles sont définies
+    if (startDate && endDate) {
+      combinedFilters.startDate = startDate;
+      combinedFilters.endDate = endDate;
+      combinedFilters.rentalType = undefined;
+    }
+    
+    setFilters(combinedFilters);
+    
+    // Nettoyer et appeler fetchVehicles
+    const cleanedFilters: VehicleFilters = Object.fromEntries(
+      Object.entries(combinedFilters).filter(([_, value]) => {
+        if (value === undefined || value === '') return false;
+        if (Array.isArray(value) && value.length === 0) return false;
+        return true;
+      })
+    ) as VehicleFilters;
+    
+    console.log(`🔄 [VehiclesScreen] Filtres modifiés depuis modal - Appel fetchVehicles:`, cleanedFilters);
+    fetchVehicles(cleanedFilters);
   };
 
   const handleLocationSelect = (location: LocationResult) => {
     setSelectedLocationName(location.name);
-    setFilters({
+    
+    const newFilters: VehicleFilters = {
       ...filters,
       locationName: location.name, // Utiliser le nom pour la recherche hiérarchique
       locationId: undefined, // Ne plus utiliser locationId pour la recherche hiérarchique
-    });
+      search: searchQuery.trim() || undefined,
+    };
+    
+    // Inclure les dates si elles sont définies
+    if (startDate && endDate) {
+      newFilters.startDate = startDate;
+      newFilters.endDate = endDate;
+      newFilters.rentalType = undefined;
+    }
+    
+    setFilters(newFilters);
     setShowSearchModal(false);
     setLocationSearchQuery('');
     setLocationSearchResults([]);
+    
+    // Nettoyer et appeler fetchVehicles
+    const cleanedFilters: VehicleFilters = Object.fromEntries(
+      Object.entries(newFilters).filter(([_, value]) => {
+        if (value === undefined || value === '') return false;
+        if (Array.isArray(value) && value.length === 0) return false;
+        return true;
+      })
+    ) as VehicleFilters;
+    
+    console.log(`🔄 [VehiclesScreen] Localisation sélectionnée - Appel fetchVehicles:`, cleanedFilters);
+    fetchVehicles(cleanedFilters);
   };
 
   // Charger les villes populaires quand la modal s'ouvre
@@ -441,10 +490,36 @@ const VehiclesScreen: React.FC = () => {
   const removeFilter = (filterKey: keyof VehicleFilters) => {
     const newFilters = { ...filters };
     delete newFilters[filterKey];
-    setFilters(newFilters);
+    
     if (filterKey === 'locationId' || filterKey === 'locationName') {
       setSelectedLocationName('');
+      newFilters.locationName = undefined;
+      newFilters.locationId = undefined;
     }
+    
+    // Inclure les autres filtres
+    newFilters.search = searchQuery.trim() || undefined;
+    
+    // Inclure les dates si elles sont définies
+    if (startDate && endDate) {
+      newFilters.startDate = startDate;
+      newFilters.endDate = endDate;
+      newFilters.rentalType = undefined;
+    }
+    
+    setFilters(newFilters);
+    
+    // Nettoyer et appeler fetchVehicles
+    const cleanedFilters: VehicleFilters = Object.fromEntries(
+      Object.entries(newFilters).filter(([_, value]) => {
+        if (value === undefined || value === '') return false;
+        if (Array.isArray(value) && value.length === 0) return false;
+        return true;
+      })
+    ) as VehicleFilters;
+    
+    console.log(`🔄 [VehiclesScreen] Filtre "${filterKey}" supprimé - Appel fetchVehicles:`, cleanedFilters);
+    fetchVehicles(cleanedFilters);
   };
 
   const getActiveFiltersCount = () => {
@@ -461,6 +536,8 @@ const VehiclesScreen: React.FC = () => {
     if (filters.search) count++;
     if (filters.startDate) count++;
     if (filters.endDate) count++;
+    if (filters.autoBooking !== undefined) count++;
+    if (filters.rentalType) count++;
     return count;
   };
 
@@ -652,6 +729,7 @@ const VehiclesScreen: React.FC = () => {
             // Fermer l'encart quand on passe en mode liste
             setSelectedVehicleGroup([]);
             setFilteredVehiclesForList([]);
+            console.log(`🔄 [VehiclesScreen] Switch vers mode liste - Filtres conservés:`, filters);
             setIsMapView(false);
           }}
         >
@@ -671,6 +749,8 @@ const VehiclesScreen: React.FC = () => {
             // Fermer l'encart quand on passe en mode carte
             setSelectedVehicleGroup([]);
             setFilteredVehiclesForList([]);
+            console.log(`🔄 [VehiclesScreen] Switch vers mode carte - Filtres conservés:`, filters);
+            console.log(`🔄 [VehiclesScreen] Nombre de véhicules filtrés:`, vehicles.length);
             setIsMapView(true);
           }}
         >
@@ -1108,10 +1188,33 @@ const VehiclesScreen: React.FC = () => {
         visible={showVehicleTypeModal}
         onClose={() => setShowVehicleTypeModal(false)}
         onSelect={(type) => {
-          setFilters(prev => ({
-            ...prev,
+          const newFilters = {
+            ...filters,
             vehicleType: type,
-          }));
+            search: searchQuery.trim() || undefined,
+            locationName: selectedLocationName || filters.locationName,
+          };
+          
+          // Inclure les dates si elles sont définies
+          if (startDate && endDate) {
+            newFilters.startDate = startDate;
+            newFilters.endDate = endDate;
+            newFilters.rentalType = undefined;
+          }
+          
+          setFilters(newFilters);
+          
+          // Nettoyer et appeler fetchVehicles
+          const cleanedFilters: VehicleFilters = Object.fromEntries(
+            Object.entries(newFilters).filter(([_, value]) => {
+              if (value === undefined || value === '') return false;
+              if (Array.isArray(value) && value.length === 0) return false;
+              return true;
+            })
+          ) as VehicleFilters;
+          
+          console.log(`🔄 [VehiclesScreen] Type de véhicule sélectionné - Appel fetchVehicles:`, cleanedFilters);
+          fetchVehicles(cleanedFilters);
         }}
         selectedType={filters.vehicleType}
       />
@@ -1121,19 +1224,39 @@ const VehiclesScreen: React.FC = () => {
         visible={showRentalModeModal}
         onClose={() => setShowRentalModeModal(false)}
         onSelect={(mode) => {
+          const newFilters = { ...filters };
+          
           if (mode === undefined) {
             // Désélectionner
-            setFilters(prev => {
-              const newFilters = { ...prev };
-              delete newFilters.autoBooking;
-              return newFilters;
-            });
+            delete newFilters.autoBooking;
           } else {
-            setFilters(prev => ({
-              ...prev,
-              autoBooking: mode === 'auto_booking',
-            }));
+            newFilters.autoBooking = mode === 'auto_booking';
           }
+          
+          // Inclure les autres filtres
+          newFilters.search = searchQuery.trim() || undefined;
+          newFilters.locationName = selectedLocationName || filters.locationName;
+          
+          // Inclure les dates si elles sont définies
+          if (startDate && endDate) {
+            newFilters.startDate = startDate;
+            newFilters.endDate = endDate;
+            newFilters.rentalType = undefined;
+          }
+          
+          setFilters(newFilters);
+          
+          // Nettoyer et appeler fetchVehicles
+          const cleanedFilters: VehicleFilters = Object.fromEntries(
+            Object.entries(newFilters).filter(([_, value]) => {
+              if (value === undefined || value === '') return false;
+              if (Array.isArray(value) && value.length === 0) return false;
+              return true;
+            })
+          ) as VehicleFilters;
+          
+          console.log(`🔄 [VehiclesScreen] Mode de location sélectionné - Appel fetchVehicles:`, cleanedFilters);
+          fetchVehicles(cleanedFilters);
         }}
         selectedMode={filters.autoBooking === true ? 'auto_booking' : filters.autoBooking === false ? 'on_demand' : undefined}
       />
