@@ -256,29 +256,55 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     }
   }, [mode, rentalDays, tempStartDate]);
 
-  // Scroll vers la date/heure sélectionnée quand on change d'onglet
+  // Fonction pour scroller vers une date/heure spécifique (centré)
+  const scrollToDateAndHour = (targetDate: Date, delay: number = 200) => {
+    setTimeout(() => {
+      // Trouver l'index de la date sélectionnée
+      const dateIndex = dates.findIndex(date => {
+        return date.getDate() === targetDate.getDate() &&
+               date.getMonth() === targetDate.getMonth() &&
+               date.getFullYear() === targetDate.getFullYear();
+      });
+      
+      const hourIndex = targetDate.getHours();
+      
+      // Centrer l'élément sélectionné dans le ScrollView
+      // Le contentContainerStyle a un paddingVertical de 75px
+      // Donc le premier item commence à y=75, pas y=0
+      // Formule : (paddingTop + index * itemHeight) - (scrollViewHeight / 2) + (itemHeight / 2)
+      const itemHeight = 58; // 50px height + 4px margin top + 4px margin bottom
+      const scrollViewHeight = 200;
+      const paddingTop = 75; // paddingVertical du contentContainerStyle
+      
+      if (datesScrollRef.current && dateIndex >= 0) {
+        // Position de l'item : paddingTop + (index * itemHeight)
+        // Pour centrer : position - (hauteur visible / 2) + (hauteur item / 2)
+        const itemPosition = paddingTop + (dateIndex * itemHeight);
+        const scrollPosition = itemPosition - (scrollViewHeight / 2) + (itemHeight / 2);
+        datesScrollRef.current.scrollTo({ y: Math.max(0, scrollPosition), animated: true });
+      }
+      if (hoursScrollRef.current && hourIndex >= 0) {
+        // Même calcul pour les heures
+        const itemPosition = paddingTop + (hourIndex * itemHeight);
+        const scrollPosition = itemPosition - (scrollViewHeight / 2) + (itemHeight / 2);
+        hoursScrollRef.current.scrollTo({ y: Math.max(0, scrollPosition), animated: true });
+      }
+    }, delay);
+  };
+
+  // Scroll pour le mode "sélection manuelle" (utilise currentDate qui change selon activeTab)
   useEffect(() => {
-    if (visible) {
-      setTimeout(() => {
-        // Trouver l'index de la date sélectionnée
-        const dateIndex = dates.findIndex(date => {
-          return date.getDate() === currentDate.getDate() &&
-                 date.getMonth() === currentDate.getMonth() &&
-                 date.getFullYear() === currentDate.getFullYear();
-        });
-        
-        const hourIndex = currentDate.getHours();
-        
-        if (datesScrollRef.current && dateIndex >= 0) {
-          datesScrollRef.current.scrollTo({ y: dateIndex * 58, animated: true });
-        }
-        if (hoursScrollRef.current && hourIndex >= 0) {
-          hoursScrollRef.current.scrollTo({ y: hourIndex * 58, animated: true });
-        }
-        // Plus besoin de scroller les minutes car c'est toujours 00
-      }, 100);
+    if (visible && mode === 'manual') {
+      scrollToDateAndHour(currentDate, 200);
     }
-  }, [currentDate, visible, activeTab]);
+  }, [currentDate, visible, activeTab, mode]);
+
+  // Scroll pour le mode "par nombre de jours" (utilise tempStartDate)
+  useEffect(() => {
+    if (visible && mode === 'days') {
+      scrollToDateAndHour(tempStartDate, 200);
+    }
+  }, [tempStartDate, visible, mode]);
 
   if (!visible) return null;
 
@@ -391,6 +417,19 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
 
               {/* Sélecteurs Date et Heure */}
               <View style={styles.pickerContainer}>
+                {/* Titres des colonnes */}
+                <View style={styles.pickerColumnHeader}>
+                  <Text style={styles.pickerColumnTitle}>Date</Text>
+                </View>
+                <View style={styles.pickerColumnHeader}>
+                  <Text style={styles.pickerColumnTitle}>Heure</Text>
+                </View>
+                <View style={styles.pickerColumnHeader}>
+                  <Text style={styles.pickerColumnTitle}>Minutes</Text>
+                </View>
+              </View>
+              
+              <View style={styles.pickerContainer}>
                 {/* Colonne Date */}
                 <View style={styles.pickerColumn}>
                   <ScrollView
@@ -482,8 +521,8 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                 
                 {/* Colonne Minutes - seulement 00 */}
                 <View style={styles.pickerColumn}>
-                  <View style={styles.minutesDisplay}>
-                    <Text style={styles.minutesDisplayText}>
+                  <View style={[styles.pickerItem, styles.minutesDisplay]}>
+                    <Text style={styles.pickerText}>
                       00
                     </Text>
                   </View>
@@ -527,6 +566,19 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                     {formatDate(tempEndDate)} à {formatTime(tempEndDate)}
                   </Text>
                 </TouchableOpacity>
+              </View>
+
+              {/* Titres des colonnes */}
+              <View style={styles.pickerContainer}>
+                <View style={styles.pickerColumnHeader}>
+                  <Text style={styles.pickerColumnTitle}>Date</Text>
+                </View>
+                <View style={styles.pickerColumnHeader}>
+                  <Text style={styles.pickerColumnTitle}>Heure</Text>
+                </View>
+                <View style={styles.pickerColumnHeader}>
+                  <Text style={styles.pickerColumnTitle}>Minutes</Text>
+                </View>
               </View>
 
               {/* Trois colonnes scrollables : Date, Heures, Minutes */}
@@ -617,8 +669,8 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                 
                 {/* Colonne Minutes - seulement 00 */}
                 <View style={styles.pickerColumn}>
-                  <View style={styles.minutesDisplay}>
-                    <Text style={styles.minutesDisplayText}>
+                  <View style={[styles.pickerItem, styles.minutesDisplay]}>
+                    <Text style={styles.pickerText}>
                       00
                     </Text>
                   </View>
@@ -958,9 +1010,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-start',
-    paddingVertical: 20,
+    paddingVertical: 10,
     gap: 12,
     flex: 1,
+  },
+  pickerColumnHeader: {
+    flex: 1,
+    alignItems: 'center',
+    maxWidth: 120,
+    paddingBottom: 8,
+  },
+  pickerColumnTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#999',
+    textTransform: 'uppercase',
   },
   pickerColumn: {
     flex: 1,
@@ -1009,22 +1073,8 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   minutesDisplay: {
-    width: '100%',
-    height: 50,
-    borderRadius: 12,
-    backgroundColor: '#f8f8f8',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 4,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    paddingHorizontal: 8,
-  },
-  minutesDisplayText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
-    textAlign: 'center',
+    // Utilise les mêmes styles que pickerItem pour l'alignement
+    marginTop: 75, // Aligner avec le paddingVertical du ScrollView
   },
   confirmButton: {
     backgroundColor: TRAVELER_COLORS.primary,
