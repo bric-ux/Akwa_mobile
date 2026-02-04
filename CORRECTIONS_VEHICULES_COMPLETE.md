@@ -327,3 +327,4 @@ if (canApplyLongStay && bookingData.vehicleLongStayDiscountPercentage) {
 - **Corrections réduction long séjour** : `CORRECTION_REDUCTION_LONG_SEJOUR.md`
 - **Corrections véhicules** : `CORRECTIONS_VEHICULES_COMPLETE.md` (ce fichier)
 
+

@@ -17,7 +17,7 @@ import {
   TouchableWithoutFeedback,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
@@ -25,9 +25,7 @@ import { Vehicle, VehicleFilters } from '../types';
 import VehicleCard from '../components/VehicleCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import VehicleFiltersModal from '../components/VehicleFiltersModal';
-import LocationSearchInput from '../components/LocationSearchInput';
-import VehicleBrandAutocomplete from '../components/VehicleBrandAutocomplete';
-import { LocationResult } from '../hooks/useLocationSearch';
+import { LocationResult, useLocationSearch } from '../hooks/useLocationSearch';
 import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import { VehicleDateTimeSelector } from '../components/VehicleDateTimeSelector';
@@ -48,12 +46,19 @@ const VehiclesScreen: React.FC = () => {
   const { formatPrice } = useCurrency();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState<VehicleFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocationName, setSelectedLocationName] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [locationSearchQuery, setLocationSearchQuery] = useState('');
+  const [locationSearchResults, setLocationSearchResults] = useState<LocationResult[]>([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [shouldFocusInput, setShouldFocusInput] = useState(false);
+  const locationInputRef = useRef<TextInput>(null);
+  const { searchLocations, getPopularLocations } = useLocationSearch();
   const [startDate, setStartDate] = useState<string>(searchDates.checkIn || '');
   const [endDate, setEndDate] = useState<string>(searchDates.checkOut || '');
   const [startDateTime, setStartDateTime] = useState<string>('');
@@ -178,7 +183,80 @@ const VehiclesScreen: React.FC = () => {
       locationName: location.name, // Utiliser le nom pour la recherche hiérarchique
       locationId: undefined, // Ne plus utiliser locationId pour la recherche hiérarchique
     });
+    setShowSearchModal(false);
+    setLocationSearchQuery('');
+    setLocationSearchResults([]);
   };
+
+  // Charger les villes populaires quand la modal s'ouvre
+  useEffect(() => {
+    if (showSearchModal && locationSearchQuery.length === 0) {
+      setIsSearchingLocation(true);
+      getPopularLocations().then((results) => {
+        setLocationSearchResults(results);
+        setIsSearchingLocation(false);
+      }).catch(() => {
+        setIsSearchingLocation(false);
+      });
+      
+      // Délai avant de focuser pour éviter le conflit avec la barre de statut
+      setTimeout(() => {
+        setShouldFocusInput(true);
+        locationInputRef.current?.focus();
+      }, 300);
+    } else if (!showSearchModal) {
+      setShouldFocusInput(false);
+    }
+  }, [showSearchModal]); // Seulement quand la modal s'ouvre
+
+  // Recherche de localisation en temps réel
+  useEffect(() => {
+    if (!showSearchModal) {
+      return;
+    }
+
+    let timeoutId: NodeJS.Timeout;
+
+    if (locationSearchQuery.length >= 2) {
+      setIsSearchingLocation(true);
+      timeoutId = setTimeout(async () => {
+        try {
+          const results = await searchLocations(locationSearchQuery);
+          setLocationSearchResults(results);
+        } catch (error) {
+          console.error('Erreur recherche localisation:', error);
+          setLocationSearchResults([]);
+        } finally {
+          setIsSearchingLocation(false);
+        }
+      }, 300);
+    } else if (locationSearchQuery.length === 0) {
+      // Recharger les villes populaires si le champ est vidé
+      setIsSearchingLocation(true);
+      getPopularLocations().then((results) => {
+        setLocationSearchResults(results);
+        setIsSearchingLocation(false);
+      }).catch(() => {
+        setIsSearchingLocation(false);
+      });
+    } else {
+      setLocationSearchResults([]);
+      setIsSearchingLocation(false);
+    }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [locationSearchQuery]); // Seulement quand la requête change
+
+  // Réinitialiser quand la modal se ferme
+  useEffect(() => {
+    if (!showSearchModal) {
+      setLocationSearchQuery('');
+      setLocationSearchResults([]);
+      setIsSearchingLocation(false);
+    }
+  }, [showSearchModal]);
 
   const handleSearch = () => {
     console.log(`🔍 [VehiclesScreen] handleSearch - État actuel:`, {
@@ -462,7 +540,7 @@ const VehiclesScreen: React.FC = () => {
             <Ionicons name="location" size={18} color={TRAVELER_COLORS.primary} />
             <View style={styles.locationTextContainer}>
               <Text style={styles.locationText} numberOfLines={1}>
-                {selectedLocationName ? selectedLocationName.split(',')[0] || selectedLocationName : 'Position actuelle'}
+                {selectedLocationName ? selectedLocationName.split(',')[0] || selectedLocationName : 'Localisation'}
               </Text>
               <Text style={styles.locationSubtext} numberOfLines={1}>
                 {selectedLocationName && selectedLocationName.includes(',') 
@@ -777,19 +855,19 @@ const VehiclesScreen: React.FC = () => {
         />
       )}
 
-      {/* Modal de recherche */}
+      {/* Modal de sélection de localisation - Interface intégrée moderne */}
       <Modal
         visible={showSearchModal}
         transparent
         animationType="slide"
         onRequestClose={() => setShowSearchModal(false)}
-        statusBarTranslucent={false}
+        statusBarTranslucent={true}
       >
-        <SafeAreaView edges={['top', 'bottom']} style={styles.searchModalSafeArea}>
+        <View style={styles.searchModalSafeArea}>
           <KeyboardAvoidingView
             style={styles.searchModalOverlay}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
           >
             <TouchableOpacity
               style={styles.searchModalBackdrop}
@@ -798,8 +876,13 @@ const VehiclesScreen: React.FC = () => {
             >
               <TouchableWithoutFeedback>
                 <View style={styles.searchModalContent}>
-                  <View style={styles.searchModalHeader}>
-                    <Text style={styles.searchModalTitle}>Rechercher un véhicule</Text>
+                  <View style={[styles.searchModalHeaderSafeArea, { paddingTop: Math.max(insets.top, 8) }]}>
+                    {/* Header */}
+                    <View style={styles.searchModalHeader}>
+                    <View style={styles.searchModalHeaderLeft}>
+                      <Ionicons name="location" size={24} color={TRAVELER_COLORS.primary} />
+                      <Text style={styles.searchModalTitle}>Choisir une localisation</Text>
+                    </View>
                     <TouchableOpacity
                       onPress={() => setShowSearchModal(false)}
                       style={styles.closeBtn}
@@ -807,81 +890,95 @@ const VehiclesScreen: React.FC = () => {
                       <Ionicons name="close" size={24} color="#0f172a" />
                     </TouchableOpacity>
                   </View>
-
-                <ScrollView
-                  style={styles.searchModalScroll}
-                  contentContainerStyle={styles.searchModalScrollContent}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <View style={styles.searchInputs}>
-                    {/* Dates et heures de location - en premier pour plus de visibilité */}
-                    <View style={styles.searchFieldContainer}>
-                      <Text style={styles.searchFieldLabel}>Dates et heures de prise/rendu *</Text>
-                      <VehicleDateTimeSelector
-                        startDateTime={startDateTime}
-                        endDateTime={endDateTime}
-                        onDateTimeChange={handleDateTimeChange}
-                      />
-                    </View>
-
-                    <View style={styles.searchFieldContainer}>
-                      <Text style={styles.searchFieldLabel}>Marque ou modèle</Text>
-                      <VehicleBrandAutocomplete
-                        value={searchQuery}
-                        onChange={setSearchQuery}
-                        placeholder="Ex: Toyota, Mercedes, BMW..."
-                        style={styles.brandAutocomplete}
-                      />
-                    </View>
-
-                    <View style={styles.searchFieldContainer}>
-                      <Text style={styles.searchFieldLabel}>Localisation</Text>
-                      <LocationSearchInput
-                        value={selectedLocationName}
-                        onChangeText={setSelectedLocationName}
-                        onLocationSelect={handleLocationSelect}
-                        placeholder="Ville, commune ou quartier"
-                        style={styles.modalLocationInput}
-                      />
-                    </View>
                   </View>
 
-                  <View style={styles.searchModalActions}>
-                    <TouchableOpacity
-                      style={styles.modalFilterBtn}
-                      onPress={() => {
-                        setShowSearchModal(false);
-                        setShowFilters(true);
-                      }}
-                    >
-                      <Ionicons name="options-outline" size={18} color="#2563eb" />
-                      <Text style={styles.modalFilterBtnText} numberOfLines={1} ellipsizeMode="tail">
-                        Filtres
-                      </Text>
-                      {getActiveFiltersCount() > 0 && (
-                        <View style={styles.modalBadge}>
-                          <Text style={styles.modalBadgeText}>{getActiveFiltersCount()}</Text>
+                  {/* Champ de recherche intégré */}
+                  <View style={styles.locationSearchContainer}>
+                    <Ionicons name="search" size={20} color="#666" style={styles.locationSearchIcon} />
+                    <TextInput
+                      ref={locationInputRef}
+                      style={styles.locationSearchInput}
+                      placeholder="Rechercher une ville, commune ou quartier..."
+                      placeholderTextColor="#999"
+                      value={locationSearchQuery}
+                      onChangeText={setLocationSearchQuery}
+                      autoFocus={shouldFocusInput}
+                      returnKeyType="search"
+                      blurOnSubmit={false}
+                    />
+                    {isSearchingLocation && (
+                      <ActivityIndicator size="small" color={TRAVELER_COLORS.primary} style={styles.locationSearchLoader} />
+                    )}
+                    {locationSearchQuery.length > 0 && (
+                      <TouchableOpacity
+                        onPress={() => setLocationSearchQuery('')}
+                        style={styles.locationSearchClear}
+                      >
+                        <Ionicons name="close-circle" size={20} color="#999" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Liste des résultats */}
+                  <FlatList
+                    data={locationSearchResults}
+                    keyExtractor={(item) => item.id}
+                    style={styles.locationResultsList}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                      !isSearchingLocation && locationSearchQuery.length >= 2 ? (
+                        <View style={styles.locationEmptyContainer}>
+                          <Ionicons name="search" size={48} color="#ccc" />
+                          <Text style={styles.locationEmptyText}>
+                            Aucun résultat pour "{locationSearchQuery}"
+                          </Text>
                         </View>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.modalSearchBtn}
-                      onPress={() => {
-                        handleSearch();
-                        setShowSearchModal(false);
-                      }}
-                    >
-                      <Ionicons name="search" size={20} color="#ffffff" />
-                      <Text style={styles.modalSearchBtnText}>Rechercher</Text>
-                    </TouchableOpacity>
-                  </View>
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-        </SafeAreaView>
+                      ) : !isSearchingLocation && locationSearchQuery.length === 0 ? (
+                        <View style={styles.locationEmptyContainer}>
+                          <Ionicons name="location-outline" size={48} color="#ccc" />
+                          <Text style={styles.locationEmptyText}>
+                            Commencez à taper pour rechercher
+                          </Text>
+                        </View>
+                      ) : null
+                    }
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.locationResultItem}
+                        onPress={() => handleLocationSelect(item)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.locationResultIconContainer}>
+                          <Ionicons
+                            name={item.type === 'city' ? 'location' : item.type === 'commune' ? 'map' : 'home'}
+                            size={22}
+                            color={item.type === 'city' ? '#2563eb' : item.type === 'commune' ? '#10b981' : '#64748b'}
+                          />
+                        </View>
+                        <View style={styles.locationResultContent}>
+                          <Text style={styles.locationResultName}>{item.name}</Text>
+                          <View style={styles.locationResultMeta}>
+                            {item.type === 'city' && (
+                              <Text style={styles.locationResultType}>Ville</Text>
+                            )}
+                            {item.type === 'commune' && (
+                              <Text style={styles.locationResultType}>Commune</Text>
+                            )}
+                            {item.type === 'neighborhood' && item.commune && (
+                              <Text style={styles.locationResultType}>{item.commune} • Quartier</Text>
+                            )}
+                          </View>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#ccc" />
+                      </TouchableOpacity>
+                    )}
+                  />
+                </View>
+              </TouchableWithoutFeedback>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* Liste horizontale de véhicules en bas - seulement quand on clique sur une clé */}
@@ -1521,7 +1618,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     maxHeight: '90%',
-    minHeight: '75%',
+    minHeight: '80%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
@@ -1531,6 +1628,9 @@ const styles = StyleSheet.create({
   },
   searchModalHeaderSafeArea: {
     backgroundColor: '#ffffff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 8,
   },
   searchModalScroll: {
     flex: 1,
@@ -1542,18 +1642,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
     backgroundColor: '#ffffff',
   },
+  searchModalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
   searchModalTitle: {
-    fontSize: 26,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '700',
     color: '#0f172a',
-    letterSpacing: -0.5,
+    flex: 1,
   },
   closeBtn: {
     width: 40,
@@ -1671,6 +1777,87 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  // Styles pour la recherche de localisation intégrée
+  locationSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+  },
+  locationSearchIcon: {
+    marginRight: 12,
+  },
+  locationSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#0f172a',
+    padding: 0,
+  },
+  locationSearchLoader: {
+    marginLeft: 8,
+  },
+  locationSearchClear: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  locationResultsList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  locationResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  locationResultIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  locationResultContent: {
+    flex: 1,
+  },
+  locationResultName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  locationResultMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  locationResultType: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  locationEmptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  locationEmptyText: {
+    fontSize: 16,
+    color: '#94a3b8',
+    marginTop: 16,
+    textAlign: 'center',
   },
   // AMÉLIORATION: Nouveaux styles pour le design avec carte
   newContainer: {

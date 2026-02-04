@@ -182,3 +182,4 @@ Pour valider complètement :
 4. Vérifier que les montants dans le PDF sont corrects (réduction, taxe, etc.)
 5. Vérifier les logs pour s'assurer qu'il n'y a pas d'erreurs
 
+

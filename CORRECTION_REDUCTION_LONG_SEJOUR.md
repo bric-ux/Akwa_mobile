@@ -221,3 +221,4 @@ Après correction, pour une réservation avec réduction long séjour :
 - [ ] Test avec une vraie réservation (à faire)
 - [ ] Vérification des logs en production (à faire)
 
+

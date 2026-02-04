@@ -177,3 +177,4 @@ Les PDFs générés lors de la confirmation par l'hôte devraient maintenant :
 - ✅ Afficher la réduction long séjour si elle s'applique (avec priorité)
 - ✅ Utiliser la valeur stockée si le calcul retourne 0 mais qu'une valeur existe
 
+

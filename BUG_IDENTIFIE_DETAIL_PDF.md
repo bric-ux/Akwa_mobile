@@ -269,3 +269,4 @@ Après correction, vérifier que :
 2. ✅ La réduction est identique dans les deux (-1 500 FCFA)
 3. ✅ Le total payé reste identique (89 084 FCFA)
 
+

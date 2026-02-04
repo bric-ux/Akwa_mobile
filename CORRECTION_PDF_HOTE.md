@@ -116,3 +116,4 @@ Le problème était uniquement que les **données de réduction n'étaient pas e
 - [ ] Test avec une vraie réservation (à faire)
 - [ ] Vérification que le PDF hôte affiche les bons montants (à faire)
 
+

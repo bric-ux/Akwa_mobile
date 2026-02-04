@@ -121,3 +121,4 @@ Après toutes les corrections :
 - [x] Logique de calcul cohérente avec le mobile
 - [ ] Tests avec de vraies réservations (à faire)
 
+

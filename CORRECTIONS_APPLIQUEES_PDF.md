@@ -201,3 +201,4 @@ npx supabase functions deploy send-email
 - **Différences réelles** : `DIFFERENCES_REELES_DETAIL_PDF.md`
 - **Corrections appliquées** : `CORRECTIONS_APPLIQUEES_PDF.md` (ce fichier)
 
+

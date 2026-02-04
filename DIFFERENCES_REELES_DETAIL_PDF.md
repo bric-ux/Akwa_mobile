@@ -214,3 +214,4 @@ WHERE title LIKE '%H.Asso%';
 4. **Moyen terme** : Créer une fonction centralisée pour tous les calculs
 5. **Long terme** : Ajouter des tests unitaires pour vérifier la cohérence des calculs
 
+
