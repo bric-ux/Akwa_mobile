@@ -152,6 +152,15 @@ const VehiclesScreen: React.FC = () => {
   };
 
   const handleVehicleGroupPress = (vehicleIds: string[]) => {
+    // Si on reclique sur le même groupe, fermer l'encart
+    if (selectedVehicleGroup.length > 0 && 
+        selectedVehicleGroup.length === vehicleIds.length &&
+        selectedVehicleGroup.every(id => vehicleIds.includes(id))) {
+      setSelectedVehicleGroup([]);
+      setFilteredVehiclesForList([]);
+      return;
+    }
+    
     // Afficher la liste horizontale avec les véhicules de ce groupe
     setSelectedVehicleGroup(vehicleIds);
     const groupVehicles = vehicles.filter(v => vehicleIds.includes(v.id));
@@ -533,8 +542,16 @@ const VehiclesScreen: React.FC = () => {
       {/* Bouton Liste en bas à gauche (si vue carte) */}
       {isMapView && (
         <TouchableOpacity
-          style={styles.listButton}
-          onPress={() => setIsMapView(false)}
+          style={[
+            styles.listButton,
+            filteredVehiclesForList.length > 0 && styles.listButtonWithBottomSheet
+          ]}
+          onPress={() => {
+            // Fermer l'encart quand on passe en mode liste
+            setSelectedVehicleGroup([]);
+            setFilteredVehiclesForList([]);
+            setIsMapView(false);
+          }}
         >
           <Ionicons name="list" size={20} color="#fff" />
           <Text style={styles.listButtonText}>Liste</Text>
@@ -544,8 +561,16 @@ const VehiclesScreen: React.FC = () => {
       {/* Bouton Carte flottant (si vue liste) */}
       {!isMapView && (
         <TouchableOpacity
-          style={styles.mapButton}
-          onPress={() => setIsMapView(true)}
+          style={[
+            styles.mapButton,
+            filteredVehiclesForList.length > 0 && styles.mapButtonWithBottomSheet
+          ]}
+          onPress={() => {
+            // Fermer l'encart quand on passe en mode carte
+            setSelectedVehicleGroup([]);
+            setFilteredVehiclesForList([]);
+            setIsMapView(true);
+          }}
         >
           <Ionicons name="map" size={20} color="#fff" />
           <Text style={styles.mapButtonText}>Carte</Text>
@@ -859,8 +884,8 @@ const VehiclesScreen: React.FC = () => {
         </SafeAreaView>
       </Modal>
 
-      {/* Liste horizontale de véhicules en bas (mode carte uniquement) - seulement quand on clique sur une clé */}
-      {isMapView && filteredVehiclesForList.length > 0 && (
+      {/* Liste horizontale de véhicules en bas - seulement quand on clique sur une clé */}
+      {filteredVehiclesForList.length > 0 && (
         <View style={styles.vehiclesHorizontalList}>
           <ScrollView
             horizontal
@@ -1783,7 +1808,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-    zIndex: 20,
+    zIndex: 30,
+  },
+  listButtonWithBottomSheet: {
+    bottom: 280,
   },
   listButtonText: {
     color: '#fff',
@@ -1806,7 +1834,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-    zIndex: 20,
+    zIndex: 30,
+  },
+  mapButtonWithBottomSheet: {
+    bottom: 280,
   },
   mapButtonText: {
     color: '#fff',
