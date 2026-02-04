@@ -7,12 +7,15 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { calculateHostNetAmount, HostNetAmountResult } from '../lib/hostNetAmount';
 import { getCommissionRates } from '../lib/commissions';
+import { calculateVehiclePriceWithHours, calculateFees, calculateHostCommission, DiscountConfig } from '../hooks/usePricing';
+import { supabase } from '../services/supabase';
 
 interface CalculationLog {
   timestamp: string;
@@ -27,10 +30,16 @@ interface VehicleCalculationResult {
   daysPrice: number;
   hoursPrice: number;
   priceAfterDiscount: number;
+  priceAfterDiscountWithDriver: number;
+  driverFee: number;
+  serviceFee: number;
+  totalPrice: number;
+  discountAmount: number;
   ownerCommissionHT: number;
   ownerCommissionVAT: number;
   ownerCommission: number;
   ownerNetAmount: number;
+  securityDeposit: number;
 }
 
 const AdminBookingCalculationTestScreen: React.FC = () => {
@@ -60,8 +69,37 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
     rentalHours: '0',
     discountAmount: '0',
     discountPercent: '0',
+    discountMinDays: '0',
+    longStayDiscountPercent: '0',
+    longStayDiscountMinDays: '0',
+    driverFee: '0',
+    securityDeposit: '0',
+    withDriver: false,
     status: 'confirmed',
+    // Informations pour l'envoi des factures
+    renterName: 'Test Locataire',
+    renterEmail: '',
+    ownerName: 'Test Propriétaire',
+    ownerEmail: '',
+    vehicleBrand: 'Toyota',
+    vehicleModel: 'Corolla',
+    vehicleYear: '2020',
+    fuelType: 'Essence',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startDateTime: (() => {
+      const date = new Date();
+      date.setHours(9, 0, 0, 0);
+      return date.toISOString();
+    })(),
+    endDateTime: (() => {
+      const date = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+      date.setHours(18, 0, 0, 0);
+      return date.toISOString();
+    })(),
   });
+
+  const [sendingInvoices, setSendingInvoices] = useState(false);
 
   const addLog = (
     type: 'property' | 'vehicle',
@@ -144,48 +182,97 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
     const rentalDays = Number(vehicleForm.rentalDays);
     const hourlyRate = Number(vehicleForm.hourlyRate);
     const rentalHours = Number(vehicleForm.rentalHours);
+    const driverFee = Number(vehicleForm.driverFee);
+    const securityDeposit = Number(vehicleForm.securityDeposit);
+    const withDriver = vehicleForm.withDriver;
 
-    const daysPrice = dailyRate * rentalDays;
-    const hoursPrice = hourlyRate * rentalHours;
-    const basePrice = daysPrice + hoursPrice;
+    // Configuration des réductions
+    const discountConfig: DiscountConfig = {
+      enabled: Number(vehicleForm.discountPercent) > 0 || Number(vehicleForm.discountAmount) > 0,
+      minNights: Number(vehicleForm.discountMinDays) > 0 ? Number(vehicleForm.discountMinDays) : null,
+      percentage: Number(vehicleForm.discountPercent) > 0 ? Number(vehicleForm.discountPercent) : null,
+    };
 
-    stepByStep.push(`1️⃣ Prix des jours: ${dailyRate} × ${rentalDays} = ${daysPrice} FCFA`);
+    const longStayDiscountConfig: DiscountConfig | undefined = Number(vehicleForm.longStayDiscountPercent) > 0 ? {
+      enabled: true,
+      minNights: Number(vehicleForm.longStayDiscountMinDays) > 0 ? Number(vehicleForm.longStayDiscountMinDays) : null,
+      percentage: Number(vehicleForm.longStayDiscountPercent),
+    } : undefined;
+
+    // Utiliser la fonction centralisée pour calculer le prix avec heures et réductions
+    const priceCalculation = calculateVehiclePriceWithHours(
+      dailyRate,
+      rentalDays,
+      rentalHours,
+      hourlyRate,
+      discountConfig,
+      longStayDiscountConfig
+    );
+
+    const daysPrice = priceCalculation.daysPrice;
+    const hoursPrice = priceCalculation.hoursPrice;
+    const basePrice = priceCalculation.basePrice; // Prix après réduction (sans chauffeur)
+    const discountAmount = priceCalculation.discountAmount;
+
+    stepByStep.push(`1️⃣ Prix des jours: ${dailyRate} × ${rentalDays} = ${daysPrice.toLocaleString('fr-FR')} FCFA`);
     if (rentalHours > 0) {
-      stepByStep.push(`2️⃣ Prix des heures: ${hourlyRate} × ${rentalHours} = ${hoursPrice} FCFA`);
+      stepByStep.push(`2️⃣ Prix des heures: ${hourlyRate} × ${rentalHours} = ${hoursPrice.toLocaleString('fr-FR')} FCFA`);
     }
-    stepByStep.push(`3️⃣ Prix de base: ${daysPrice} + ${hoursPrice} = ${basePrice} FCFA`);
+    stepByStep.push(`3️⃣ Prix de base (jours + heures): ${daysPrice.toLocaleString('fr-FR')} + ${hoursPrice.toLocaleString('fr-FR')} = ${priceCalculation.totalBeforeDiscount.toLocaleString('fr-FR')} FCFA`);
 
-    let discountAmount = Number(vehicleForm.discountAmount);
-    if (Number(vehicleForm.discountPercent) > 0 && discountAmount === 0) {
-      discountAmount = Math.round(basePrice * (Number(vehicleForm.discountPercent) / 100));
-      stepByStep.push(`4️⃣ Réduction calculée: ${basePrice} × ${vehicleForm.discountPercent}% = ${discountAmount} FCFA`);
-    } else if (discountAmount > 0) {
-      stepByStep.push(`4️⃣ Réduction appliquée: ${discountAmount} FCFA`);
+    if (discountAmount > 0) {
+      stepByStep.push(`4️⃣ Réduction appliquée: ${discountAmount.toLocaleString('fr-FR')} FCFA`);
+      stepByStep.push(`5️⃣ Prix après réduction: ${priceCalculation.totalBeforeDiscount.toLocaleString('fr-FR')} - ${discountAmount.toLocaleString('fr-FR')} = ${basePrice.toLocaleString('fr-FR')} FCFA`);
+    } else {
+      stepByStep.push(`4️⃣ Aucune réduction appliquée`);
+      stepByStep.push(`5️⃣ Prix après réduction: ${basePrice.toLocaleString('fr-FR')} FCFA`);
     }
 
-    const priceAfterDiscount = basePrice - discountAmount;
-    stepByStep.push(`5️⃣ Prix après réduction: ${basePrice} - ${discountAmount} = ${priceAfterDiscount} FCFA`);
+    // Ajouter le surplus chauffeur si applicable
+    const effectiveDriverFee = (withDriver && driverFee > 0) ? driverFee : 0;
+    const priceAfterDiscountWithDriver = basePrice + effectiveDriverFee;
 
-    const commissionRates = getCommissionRates('vehicle');
-    const ownerCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
-    const ownerCommissionVAT = Math.round(ownerCommissionHT * 0.20);
-    const ownerCommission = ownerCommissionHT + ownerCommissionVAT;
+    if (effectiveDriverFee > 0) {
+      stepByStep.push(`6️⃣ Surplus chauffeur: ${effectiveDriverFee.toLocaleString('fr-FR')} FCFA`);
+      stepByStep.push(`7️⃣ Prix après réduction + chauffeur: ${basePrice.toLocaleString('fr-FR')} + ${effectiveDriverFee.toLocaleString('fr-FR')} = ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} FCFA`);
+    } else {
+      stepByStep.push(`6️⃣ Pas de surplus chauffeur`);
+    }
 
-    stepByStep.push(`6️⃣ Commission HT (2%): ${priceAfterDiscount} × 2% = ${ownerCommissionHT} FCFA`);
-    stepByStep.push(`7️⃣ Commission TVA (20%): ${ownerCommissionHT} × 20% = ${ownerCommissionVAT} FCFA`);
-    stepByStep.push(`8️⃣ Commission TTC: ${ownerCommissionHT} + ${ownerCommissionVAT} = ${ownerCommission} FCFA`);
+    // Calculer les frais de service (10% HT + 20% TVA = 12% TTC)
+    const fees = calculateFees(priceAfterDiscountWithDriver, rentalDays, 'vehicle');
+    const totalPrice = priceAfterDiscountWithDriver + fees.serviceFee;
+
+    stepByStep.push(`8️⃣ Frais de service HT (10%): ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} × 10% = ${fees.serviceFeeHT.toLocaleString('fr-FR')} FCFA`);
+    stepByStep.push(`9️⃣ Frais de service TVA (20%): ${fees.serviceFeeHT.toLocaleString('fr-FR')} × 20% = ${fees.serviceFeeVAT.toLocaleString('fr-FR')} FCFA`);
+    stepByStep.push(`🔟 Frais de service TTC: ${fees.serviceFeeHT.toLocaleString('fr-FR')} + ${fees.serviceFeeVAT.toLocaleString('fr-FR')} = ${fees.serviceFee.toLocaleString('fr-FR')} FCFA`);
+    stepByStep.push(`1️⃣1️⃣ Total payé par locataire: ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} + ${fees.serviceFee.toLocaleString('fr-FR')} = ${totalPrice.toLocaleString('fr-FR')} FCFA`);
+
+    // Calculer la commission propriétaire (2% HT + 20% TVA = 2.4% TTC)
+    const hostCommissionData = calculateHostCommission(priceAfterDiscountWithDriver, 'vehicle');
+    const ownerNetAmount = priceAfterDiscountWithDriver - hostCommissionData.hostCommission + securityDeposit;
+
+    stepByStep.push(`1️⃣2️⃣ Commission HT (2%): ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} × 2% = ${hostCommissionData.hostCommissionHT.toLocaleString('fr-FR')} FCFA`);
+    stepByStep.push(`1️⃣3️⃣ Commission TVA (20%): ${hostCommissionData.hostCommissionHT.toLocaleString('fr-FR')} × 20% = ${hostCommissionData.hostCommissionVAT.toLocaleString('fr-FR')} FCFA`);
+    stepByStep.push(`1️⃣4️⃣ Commission TTC: ${hostCommissionData.hostCommissionHT.toLocaleString('fr-FR')} + ${hostCommissionData.hostCommissionVAT.toLocaleString('fr-FR')} = ${hostCommissionData.hostCommission.toLocaleString('fr-FR')} FCFA`);
     stepByStep.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    stepByStep.push(`✅ MONTANT NET PROPRIÉTAIRE: ${priceAfterDiscount} - ${ownerCommission} = ${priceAfterDiscount - ownerCommission} FCFA`);
+    stepByStep.push(`✅ MONTANT NET PROPRIÉTAIRE: ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} - ${hostCommissionData.hostCommission.toLocaleString('fr-FR')} + ${securityDeposit.toLocaleString('fr-FR')} (caution) = ${ownerNetAmount.toLocaleString('fr-FR')} FCFA`);
 
     const result: VehicleCalculationResult = {
       basePrice,
       daysPrice,
       hoursPrice,
-      priceAfterDiscount,
-      ownerCommissionHT,
-      ownerCommissionVAT,
-      ownerCommission,
-      ownerNetAmount: priceAfterDiscount - ownerCommission,
+      priceAfterDiscount: basePrice,
+      priceAfterDiscountWithDriver,
+      driverFee: effectiveDriverFee,
+      serviceFee: fees.serviceFee,
+      totalPrice,
+      discountAmount,
+      ownerCommissionHT: hostCommissionData.hostCommissionHT,
+      ownerCommissionVAT: hostCommissionData.hostCommissionVAT,
+      ownerCommission: hostCommissionData.hostCommission,
+      ownerNetAmount,
+      securityDeposit,
     };
 
     if (vehicleForm.status === 'cancelled') {
@@ -199,6 +286,110 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
     console.log('📝 Étapes détaillées:', stepByStep);
 
     addLog('vehicle', vehicleForm, result, stepByStep);
+  };
+
+  const sendInvoices = async () => {
+    if (!vehicleResult) {
+      Alert.alert('Erreur', 'Veuillez d\'abord calculer les prix');
+      return;
+    }
+
+    if (!vehicleForm.renterEmail || !vehicleForm.ownerEmail) {
+      Alert.alert('Erreur', 'Veuillez remplir les emails du locataire et du propriétaire');
+      return;
+    }
+
+    setSendingInvoices(true);
+
+    try {
+      // Générer un ID de réservation de test
+      const testBookingId = `test-${Date.now()}`;
+
+      // Préparer les données pour l'email
+      const emailData = {
+        bookingId: testBookingId,
+        vehicleTitle: `${vehicleForm.vehicleBrand} ${vehicleForm.vehicleModel}`,
+        vehicleBrand: vehicleForm.vehicleBrand,
+        vehicleModel: vehicleForm.vehicleModel,
+        vehicleYear: vehicleForm.vehicleYear,
+        fuelType: vehicleForm.fuelType,
+        renterName: vehicleForm.renterName,
+        renterEmail: vehicleForm.renterEmail,
+        renterPhone: '',
+        ownerName: vehicleForm.ownerName,
+        ownerEmail: vehicleForm.ownerEmail,
+        ownerPhone: '',
+        startDate: vehicleForm.startDate,
+        endDate: vehicleForm.endDate,
+        startDateTime: vehicleForm.startDateTime,
+        endDateTime: vehicleForm.endDateTime,
+        rentalDays: Number(vehicleForm.rentalDays),
+        rentalHours: Number(vehicleForm.rentalHours),
+        dailyRate: Number(vehicleForm.dailyRate),
+        hourlyRate: Number(vehicleForm.hourlyRate),
+        basePrice: vehicleResult.priceAfterDiscountWithDriver, // Prix après réduction + chauffeur
+        totalPrice: vehicleResult.totalPrice,
+        ownerNetRevenue: vehicleResult.ownerNetAmount, // Revenu net du propriétaire (inclut la caution)
+        securityDeposit: vehicleResult.securityDeposit,
+        driverFee: vehicleResult.driverFee,
+        withDriver: vehicleForm.withDriver,
+        pickupLocation: '',
+        isInstantBooking: vehicleForm.status === 'confirmed',
+        paymentMethod: 'espèces',
+        discountAmount: vehicleResult.discountAmount,
+        vehicleDiscountEnabled: Number(vehicleForm.discountPercent) > 0,
+        vehicleDiscountMinDays: Number(vehicleForm.discountMinDays) > 0 ? Number(vehicleForm.discountMinDays) : null,
+        vehicleDiscountPercentage: Number(vehicleForm.discountPercent) > 0 ? Number(vehicleForm.discountPercent) : null,
+        vehicleLongStayDiscountEnabled: Number(vehicleForm.longStayDiscountPercent) > 0,
+        vehicleLongStayDiscountMinDays: Number(vehicleForm.longStayDiscountMinDays) > 0 ? Number(vehicleForm.longStayDiscountMinDays) : null,
+        vehicleLongStayDiscountPercentage: Number(vehicleForm.longStayDiscountPercent) > 0 ? Number(vehicleForm.longStayDiscountPercent) : null,
+      };
+
+      // Envoyer l'email au locataire
+      const renterResponse = await supabase.functions.invoke('send-email', {
+        body: {
+          type: 'vehicle_booking_confirmed_renter',
+          to: vehicleForm.renterEmail,
+          data: emailData
+        }
+      });
+
+      if (renterResponse.error) {
+        console.error('❌ Erreur envoi email locataire:', renterResponse.error);
+        Alert.alert('Erreur', `Impossible d'envoyer l'email au locataire: ${renterResponse.error.message}`);
+        setSendingInvoices(false);
+        return;
+      }
+
+      // Envoyer l'email au propriétaire
+      const ownerResponse = await supabase.functions.invoke('send-email', {
+        body: {
+          type: 'vehicle_booking_confirmed_owner',
+          to: vehicleForm.ownerEmail,
+          data: emailData
+        }
+      });
+
+      if (ownerResponse.error) {
+        console.error('❌ Erreur envoi email propriétaire:', ownerResponse.error);
+        Alert.alert('Erreur', `Impossible d'envoyer l'email au propriétaire: ${ownerResponse.error.message}`);
+        setSendingInvoices(false);
+        return;
+      }
+
+      Alert.alert(
+        'Succès',
+        `Les factures ont été envoyées avec succès !\n\n📧 Locataire: ${vehicleForm.renterEmail}\n📧 Propriétaire: ${vehicleForm.ownerEmail}`,
+        [{ text: 'OK' }]
+      );
+
+      console.log('✅ Factures envoyées avec succès');
+    } catch (error: any) {
+      console.error('❌ Erreur lors de l\'envoi des factures:', error);
+      Alert.alert('Erreur', `Une erreur est survenue: ${error.message || 'Erreur inconnue'}`);
+    } finally {
+      setSendingInvoices(false);
+    }
   };
 
   const renderPropertyForm = () => (
@@ -413,6 +604,79 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
       </View>
 
       <View style={styles.inputGroup}>
+        <Text style={styles.label}>Réduction minimum jours</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.discountMinDays}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, discountMinDays: text })}
+          keyboardType="numeric"
+          placeholder="Ex: 3"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Réduction long séjour (%)</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.longStayDiscountPercent}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, longStayDiscountPercent: text })}
+          keyboardType="numeric"
+          placeholder="Ex: 15"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Réduction long séjour minimum jours</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.longStayDiscountMinDays}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, longStayDiscountMinDays: text })}
+          keyboardType="numeric"
+          placeholder="Ex: 7"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Surplus chauffeur (FCFA)</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.driverFee}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, driverFee: text })}
+          keyboardType="numeric"
+          placeholder="Ex: 5000"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Caution (FCFA)</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.securityDeposit}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, securityDeposit: text })}
+          keyboardType="numeric"
+          placeholder="Ex: 50000"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Avec chauffeur</Text>
+        <View style={styles.radioGroup}>
+          <TouchableOpacity
+            style={[styles.radioButton, vehicleForm.withDriver && styles.radioButtonActive]}
+            onPress={() => setVehicleForm({ ...vehicleForm, withDriver: true })}
+          >
+            <Text style={[styles.radioText, vehicleForm.withDriver && styles.radioTextActive]}>Oui</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.radioButton, !vehicleForm.withDriver && styles.radioButtonActive]}
+            onPress={() => setVehicleForm({ ...vehicleForm, withDriver: false })}
+          >
+            <Text style={[styles.radioText, !vehicleForm.withDriver && styles.radioTextActive]}>Non</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.inputGroup}>
         <Text style={styles.label}>Statut</Text>
         <View style={styles.radioGroup}>
           <TouchableOpacity
@@ -436,6 +700,95 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
         </View>
       </View>
 
+      <View style={styles.separatorSection} />
+
+      <Text style={styles.sectionSubtitle}>Informations pour l'envoi des factures</Text>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Nom locataire</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.renterName}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, renterName: text })}
+          placeholder="Ex: Jean Dupont"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Email locataire *</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.renterEmail}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, renterEmail: text })}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          placeholder="locataire@example.com"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Nom propriétaire</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.ownerName}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, ownerName: text })}
+          placeholder="Ex: Marie Martin"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Email propriétaire *</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.ownerEmail}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, ownerEmail: text })}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          placeholder="proprietaire@example.com"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Marque véhicule</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.vehicleBrand}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, vehicleBrand: text })}
+          placeholder="Ex: Toyota"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Modèle véhicule</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.vehicleModel}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, vehicleModel: text })}
+          placeholder="Ex: Corolla"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Année véhicule</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.vehicleYear}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, vehicleYear: text })}
+          keyboardType="numeric"
+          placeholder="Ex: 2020"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Type de carburant</Text>
+        <TextInput
+          style={styles.input}
+          value={vehicleForm.fuelType}
+          onChangeText={(text) => setVehicleForm({ ...vehicleForm, fuelType: text })}
+          placeholder="Ex: Essence"
+        />
+      </View>
+
       <TouchableOpacity style={styles.calculateButton} onPress={calculateVehicle}>
         <Ionicons name="calculator-outline" size={20} color="#fff" />
         <Text style={styles.calculateButtonText}>Calculer</Text>
@@ -455,13 +808,43 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
             </View>
           )}
           <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Prix de base:</Text>
-            <Text style={styles.resultValue}>{vehicleResult.basePrice.toLocaleString('fr-FR')} FCFA</Text>
+            <Text style={styles.resultLabel}>Prix de base (jours + heures):</Text>
+            <Text style={styles.resultValue}>{(vehicleResult.daysPrice + vehicleResult.hoursPrice).toLocaleString('fr-FR')} FCFA</Text>
           </View>
+          {vehicleResult.discountAmount > 0 && (
+            <View style={styles.resultRow}>
+              <Text style={[styles.resultLabel, { color: '#2E7D32' }]}>Réduction appliquée:</Text>
+              <Text style={[styles.resultValue, { color: '#2E7D32' }]}>-{vehicleResult.discountAmount.toLocaleString('fr-FR')} FCFA</Text>
+            </View>
+          )}
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Prix après réduction:</Text>
             <Text style={styles.resultValue}>{vehicleResult.priceAfterDiscount.toLocaleString('fr-FR')} FCFA</Text>
           </View>
+          {vehicleResult.driverFee > 0 && (
+            <View style={styles.resultRow}>
+              <Text style={styles.resultLabel}>Surplus chauffeur:</Text>
+              <Text style={styles.resultValue}>{vehicleResult.driverFee.toLocaleString('fr-FR')} FCFA</Text>
+            </View>
+          )}
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Prix après réduction + chauffeur:</Text>
+            <Text style={styles.resultValue}>{vehicleResult.priceAfterDiscountWithDriver.toLocaleString('fr-FR')} FCFA</Text>
+          </View>
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Frais de service (12% TTC):</Text>
+            <Text style={styles.resultValue}>{vehicleResult.serviceFee.toLocaleString('fr-FR')} FCFA</Text>
+          </View>
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Total payé par locataire:</Text>
+            <Text style={[styles.resultValue, { color: '#2E7D32', fontWeight: 'bold' }]}>{vehicleResult.totalPrice.toLocaleString('fr-FR')} FCFA</Text>
+          </View>
+          {vehicleResult.securityDeposit > 0 && (
+            <View style={styles.resultRow}>
+              <Text style={styles.resultLabel}>Caution:</Text>
+              <Text style={styles.resultValue}>{vehicleResult.securityDeposit.toLocaleString('fr-FR')} FCFA</Text>
+            </View>
+          )}
           <View style={styles.separator} />
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Commission HT (2%):</Text>
@@ -480,6 +863,26 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
             <Text style={styles.finalResultLabel}>Montant net propriétaire:</Text>
             <Text style={styles.finalResultValue}>{vehicleResult.ownerNetAmount.toLocaleString('fr-FR')} FCFA</Text>
           </View>
+
+          {/* Bouton pour envoyer les factures */}
+          <View style={styles.separator} />
+          <TouchableOpacity 
+            style={[styles.sendInvoiceButton, sendingInvoices && styles.sendInvoiceButtonDisabled]} 
+            onPress={sendInvoices}
+            disabled={sendingInvoices || !vehicleForm.renterEmail || !vehicleForm.ownerEmail}
+          >
+            {sendingInvoices ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="mail-outline" size={20} color="#fff" />
+                <Text style={styles.sendInvoiceButtonText}>Envoyer les factures</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          {(!vehicleForm.renterEmail || !vehicleForm.ownerEmail) && (
+            <Text style={styles.warningText}>⚠️ Veuillez remplir les emails du locataire et du propriétaire</Text>
+          )}
         </View>
       )}
     </View>
@@ -626,6 +1029,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
     color: '#000',
+  },
+  sectionSubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 24,
+    marginBottom: 12,
+    color: '#007AFF',
+  },
+  separatorSection: {
+    height: 1,
+    backgroundColor: '#ddd',
+    marginVertical: 16,
   },
   inputGroup: {
     marginBottom: 16,
@@ -812,6 +1227,32 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     color: '#333',
     marginBottom: 4,
+  },
+  sendInvoiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2E7D32',
+    paddingVertical: 14,
+    borderRadius: 8,
+    marginTop: 16,
+    gap: 8,
+  },
+  sendInvoiceButtonDisabled: {
+    backgroundColor: '#999',
+    opacity: 0.6,
+  },
+  sendInvoiceButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 8,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
 
