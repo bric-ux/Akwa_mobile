@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TRAVELER_COLORS } from '../constants/colors';
+import { Ionicons } from '@expo/vector-icons';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -28,6 +30,8 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   onConfirm,
 }) => {
   const [activeTab, setActiveTab] = useState<'start' | 'end'>('start');
+  const [mode, setMode] = useState<'manual' | 'days'>('manual'); // 'manual' = sélection manuelle, 'days' = nombre de jours
+  const [rentalDays, setRentalDays] = useState<string>('1');
   const [tempStartDate, setTempStartDate] = useState<Date>(() => {
     if (startDateTime) return new Date(startDateTime);
     const now = new Date();
@@ -241,6 +245,17 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     onClose();
   };
 
+  // Calculer automatiquement la date de fin si on est en mode "jours"
+  useEffect(() => {
+    if (mode === 'days' && rentalDays) {
+      const days = parseInt(rentalDays) || 1;
+      const calculatedEndDate = new Date(tempStartDate);
+      calculatedEndDate.setDate(calculatedEndDate.getDate() + days);
+      calculatedEndDate.setHours(tempStartDate.getHours(), 0, 0, 0);
+      setTempEndDate(calculatedEndDate);
+    }
+  }, [mode, rentalDays, tempStartDate]);
+
   // Scroll vers la date/heure sélectionnée quand on change d'onglet
   useEffect(() => {
     if (visible) {
@@ -281,137 +296,350 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       />
       <View style={styles.container}>
         <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-          {/* Onglets Début/Fin - Style arrondi comme dans l'image */}
-          <View style={styles.tabsContainer}>
-            <TouchableOpacity
-              style={[styles.tabButton, activeTab === 'start' && styles.tabButtonActive]}
-              onPress={() => setActiveTab('start')}
+          <View style={styles.contentWrapper}>
+            {/* Contenu scrollable */}
+            <ScrollView
+              style={styles.contentScroll}
+              contentContainerStyle={styles.contentScrollContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
             >
-              <Text style={[styles.tabButtonText, activeTab === 'start' && styles.tabButtonTextActive]}>
-                Début
-              </Text>
-              <Text style={[styles.tabButtonSubtext, activeTab === 'start' && styles.tabButtonSubtextActive]}>
-                {formatDate(tempStartDate)} à {formatTime(tempStartDate)}
+          {/* Sélecteur de mode */}
+          <View style={styles.modeSelector}>
+            <TouchableOpacity
+              style={[styles.modeButton, mode === 'days' && styles.modeButtonActive]}
+              onPress={() => setMode('days')}
+            >
+              <Ionicons name="calendar-number-outline" size={18} color={mode === 'days' ? TRAVELER_COLORS.primary : '#666'} />
+              <Text style={[styles.modeButtonText, mode === 'days' && styles.modeButtonTextActive]}>
+                Par nombre de jours
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tabButton, activeTab === 'end' && styles.tabButtonActive]}
-              onPress={() => setActiveTab('end')}
+              style={[styles.modeButton, mode === 'manual' && styles.modeButtonActive]}
+              onPress={() => setMode('manual')}
             >
-              <Text style={[styles.tabButtonText, activeTab === 'end' && styles.tabButtonTextActive]}>
-                Fin
-              </Text>
-              <Text style={[styles.tabButtonSubtext, activeTab === 'end' && styles.tabButtonSubtextActive]}>
-                {formatDate(tempEndDate)} à {formatTime(tempEndDate)}
+              <Ionicons name="time-outline" size={18} color={mode === 'manual' ? TRAVELER_COLORS.primary : '#666'} />
+              <Text style={[styles.modeButtonText, mode === 'manual' && styles.modeButtonTextActive]}>
+                Sélection manuelle
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Trois colonnes scrollables : Date, Heures, Minutes */}
-          <View style={styles.pickerContainer}>
-            {/* Colonne Date */}
-            <View style={styles.pickerColumn}>
-              <ScrollView
-                ref={datesScrollRef}
-                style={styles.pickerScroll}
-                contentContainerStyle={styles.pickerScrollContent}
-                showsVerticalScrollIndicator={false}
-                snapToInterval={58}
-                decelerationRate="fast"
-              >
-                {dates.map((date, index) => {
-                  const isDateSelected = 
-                    date.getDate() === currentDate.getDate() &&
-                    date.getMonth() === currentDate.getMonth() &&
-                    date.getFullYear() === currentDate.getFullYear();
-                  
-                  // Vérifier si la date est dans le passé (pour l'onglet début)
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const dateToCheck = new Date(date);
-                  dateToCheck.setHours(0, 0, 0, 0);
-                  const isPast = dateToCheck.getTime() < today.getTime();
-                  
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.pickerItem,
-                        isDateSelected && styles.pickerItemSelected,
-                        isPast && activeTab === 'start' && styles.pickerItemDisabled
-                      ]}
-                      onPress={() => {
-                        if (!(isPast && activeTab === 'start')) {
-                          handleDateSelect(date);
-                        }
-                      }}
-                      disabled={isPast && activeTab === 'start'}
-                    >
-                      <Text style={[
-                        styles.pickerText,
-                        isDateSelected && styles.pickerTextSelected,
-                        isPast && activeTab === 'start' && styles.pickerTextDisabled
-                      ]}>
-                        {formatDate(date)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-            
-            {/* Colonne Heures */}
-            <View style={styles.pickerColumn}>
-              <ScrollView
-                ref={hoursScrollRef}
-                style={styles.pickerScroll}
-                contentContainerStyle={styles.pickerScrollContent}
-                showsVerticalScrollIndicator={false}
-                snapToInterval={58}
-                decelerationRate="fast"
-              >
-                {hours.map((hour) => {
-                  const isHourSelected = currentDate.getHours() === hour;
-                  return (
-                    <TouchableOpacity
-                      key={hour}
-                      style={[
-                        styles.pickerItem,
-                        isHourSelected && styles.pickerItemSelected
-                      ]}
-                      onPress={() => handleHourSelect(hour)}
-                    >
-                      <Text style={[
-                        styles.pickerText,
-                        isHourSelected && styles.pickerTextSelected
-                      ]}>
-                        {hour.toString().padStart(2, '0')}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-            
-            {/* Colonne Minutes - seulement 00 */}
-            <View style={styles.pickerColumn}>
-              <View style={styles.minutesDisplay}>
-                <Text style={styles.minutesDisplayText}>
-                  00
+          {/* Mode par nombre de jours */}
+          {mode === 'days' ? (
+            <>
+              {/* Nombre de jours */}
+              <View style={styles.daysInputContainer}>
+                <Text style={styles.daysInputLabel}>Nombre de jours de location</Text>
+                <View style={styles.daysInputRow}>
+                  <TouchableOpacity
+                    style={styles.daysButton}
+                    onPress={() => {
+                      const current = parseInt(rentalDays) || 1;
+                      if (current > 1) {
+                        setRentalDays((current - 1).toString());
+                      }
+                    }}
+                  >
+                    <Ionicons name="remove" size={20} color={TRAVELER_COLORS.primary} />
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.daysInput}
+                    value={rentalDays}
+                    onChangeText={(text) => {
+                      const num = parseInt(text) || 0;
+                      if (num >= 1 && num <= 365) {
+                        setRentalDays(text);
+                      } else if (text === '') {
+                        setRentalDays('');
+                      }
+                    }}
+                    keyboardType="numeric"
+                    textAlign="center"
+                  />
+                  <TouchableOpacity
+                    style={styles.daysButton}
+                    onPress={() => {
+                      const current = parseInt(rentalDays) || 1;
+                      if (current < 365) {
+                        setRentalDays((current + 1).toString());
+                      }
+                    }}
+                  >
+                    <Ionicons name="add" size={20} color={TRAVELER_COLORS.primary} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.daysInputHint}>
+                  {rentalDays === '1' ? '1 jour' : `${rentalDays} jours`}
                 </Text>
               </View>
-            </View>
+
+              {/* Onglet Début uniquement */}
+              <View style={styles.tabsContainer}>
+                <TouchableOpacity
+                  style={[styles.tabButton, styles.tabButtonFull]}
+                >
+                  <Text style={styles.tabButtonTextActive}>
+                    Date et heure de début
+                  </Text>
+                  <Text style={styles.tabButtonSubtextActive}>
+                    {formatDate(tempStartDate)} à {formatTime(tempStartDate)}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Sélecteurs Date et Heure */}
+              <View style={styles.pickerContainer}>
+                {/* Colonne Date */}
+                <View style={styles.pickerColumn}>
+                  <ScrollView
+                    ref={datesScrollRef}
+                    style={styles.pickerScroll}
+                    contentContainerStyle={styles.pickerScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    snapToInterval={58}
+                    decelerationRate="fast"
+                  >
+                    {dates.map((date, index) => {
+                      const isDateSelected = 
+                        date.getDate() === tempStartDate.getDate() &&
+                        date.getMonth() === tempStartDate.getMonth() &&
+                        date.getFullYear() === tempStartDate.getFullYear();
+                      
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const dateToCheck = new Date(date);
+                      dateToCheck.setHours(0, 0, 0, 0);
+                      const isPast = dateToCheck.getTime() < today.getTime();
+                      
+                      return (
+                        <TouchableOpacity
+                          key={index}
+                          style={[
+                            styles.pickerItem,
+                            isDateSelected && styles.pickerItemSelected,
+                            isPast && styles.pickerItemDisabled
+                          ]}
+                          onPress={() => {
+                            if (!isPast) {
+                              const newDate = new Date(date);
+                              newDate.setHours(tempStartDate.getHours(), 0, 0, 0);
+                              setTempStartDate(newDate);
+                            }
+                          }}
+                          disabled={isPast}
+                        >
+                          <Text style={[
+                            styles.pickerText,
+                            isDateSelected && styles.pickerTextSelected,
+                            isPast && styles.pickerTextDisabled
+                          ]}>
+                            {formatDate(date)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+                
+                {/* Colonne Heures */}
+                <View style={styles.pickerColumn}>
+                  <ScrollView
+                    ref={hoursScrollRef}
+                    style={styles.pickerScroll}
+                    contentContainerStyle={styles.pickerScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    snapToInterval={58}
+                    decelerationRate="fast"
+                  >
+                    {hours.map((hour) => {
+                      const isHourSelected = tempStartDate.getHours() === hour;
+                      return (
+                        <TouchableOpacity
+                          key={hour}
+                          style={[
+                            styles.pickerItem,
+                            isHourSelected && styles.pickerItemSelected
+                          ]}
+                          onPress={() => {
+                            const newDate = new Date(tempStartDate);
+                            newDate.setHours(hour, 0, 0, 0);
+                            setTempStartDate(newDate);
+                          }}
+                        >
+                          <Text style={[
+                            styles.pickerText,
+                            isHourSelected && styles.pickerTextSelected
+                          ]}>
+                            {hour.toString().padStart(2, '0')}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+                
+                {/* Colonne Minutes - seulement 00 */}
+                <View style={styles.pickerColumn}>
+                  <View style={styles.minutesDisplay}>
+                    <Text style={styles.minutesDisplayText}>
+                      00
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Aperçu de la date de fin calculée */}
+              <View style={styles.calculatedEndContainer}>
+                <Ionicons name="information-circle-outline" size={20} color={TRAVELER_COLORS.primary} />
+                <View style={styles.calculatedEndContent}>
+                  <Text style={styles.calculatedEndLabel}>Date et heure de fin (calculée automatiquement)</Text>
+                  <Text style={styles.calculatedEndValue}>
+                    {formatDate(tempEndDate)} à {formatTime(tempEndDate)}
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <>
+              {/* Mode manuel - Onglets Début/Fin */}
+              <View style={styles.tabsContainer}>
+                <TouchableOpacity
+                  style={[styles.tabButton, activeTab === 'start' && styles.tabButtonActive]}
+                  onPress={() => setActiveTab('start')}
+                >
+                  <Text style={[styles.tabButtonText, activeTab === 'start' && styles.tabButtonTextActive]}>
+                    Début
+                  </Text>
+                  <Text style={[styles.tabButtonSubtext, activeTab === 'start' && styles.tabButtonSubtextActive]}>
+                    {formatDate(tempStartDate)} à {formatTime(tempStartDate)}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tabButton, activeTab === 'end' && styles.tabButtonActive]}
+                  onPress={() => setActiveTab('end')}
+                >
+                  <Text style={[styles.tabButtonText, activeTab === 'end' && styles.tabButtonTextActive]}>
+                    Fin
+                  </Text>
+                  <Text style={[styles.tabButtonSubtext, activeTab === 'end' && styles.tabButtonSubtextActive]}>
+                    {formatDate(tempEndDate)} à {formatTime(tempEndDate)}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Trois colonnes scrollables : Date, Heures, Minutes */}
+              <View style={styles.pickerContainer}>
+                {/* Colonne Date */}
+                <View style={styles.pickerColumn}>
+                  <ScrollView
+                    ref={datesScrollRef}
+                    style={styles.pickerScroll}
+                    contentContainerStyle={styles.pickerScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    snapToInterval={58}
+                    decelerationRate="fast"
+                  >
+                    {dates.map((date, index) => {
+                      const isDateSelected = 
+                        date.getDate() === currentDate.getDate() &&
+                        date.getMonth() === currentDate.getMonth() &&
+                        date.getFullYear() === currentDate.getFullYear();
+                      
+                      // Vérifier si la date est dans le passé (pour l'onglet début)
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const dateToCheck = new Date(date);
+                      dateToCheck.setHours(0, 0, 0, 0);
+                      const isPast = dateToCheck.getTime() < today.getTime();
+                      
+                      return (
+                        <TouchableOpacity
+                          key={index}
+                          style={[
+                            styles.pickerItem,
+                            isDateSelected && styles.pickerItemSelected,
+                            isPast && activeTab === 'start' && styles.pickerItemDisabled
+                          ]}
+                          onPress={() => {
+                            if (!(isPast && activeTab === 'start')) {
+                              handleDateSelect(date);
+                            }
+                          }}
+                          disabled={isPast && activeTab === 'start'}
+                        >
+                          <Text style={[
+                            styles.pickerText,
+                            isDateSelected && styles.pickerTextSelected,
+                            isPast && activeTab === 'start' && styles.pickerTextDisabled
+                          ]}>
+                            {formatDate(date)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+                
+                {/* Colonne Heures */}
+                <View style={styles.pickerColumn}>
+                  <ScrollView
+                    ref={hoursScrollRef}
+                    style={styles.pickerScroll}
+                    contentContainerStyle={styles.pickerScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    snapToInterval={58}
+                    decelerationRate="fast"
+                  >
+                    {hours.map((hour) => {
+                      const isHourSelected = currentDate.getHours() === hour;
+                      return (
+                        <TouchableOpacity
+                          key={hour}
+                          style={[
+                            styles.pickerItem,
+                            isHourSelected && styles.pickerItemSelected
+                          ]}
+                          onPress={() => handleHourSelect(hour)}
+                        >
+                          <Text style={[
+                            styles.pickerText,
+                            isHourSelected && styles.pickerTextSelected
+                          ]}>
+                            {hour.toString().padStart(2, '0')}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+                
+                {/* Colonne Minutes - seulement 00 */}
+                <View style={styles.pickerColumn}>
+                  <View style={styles.minutesDisplay}>
+                    <Text style={styles.minutesDisplayText}>
+                      00
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </>
+          )}
+            </ScrollView>
           </View>
 
-          {/* Bouton de confirmation */}
-          <TouchableOpacity
-            style={styles.confirmButton}
-            onPress={handleConfirm}
-          >
-            <Text style={styles.confirmButtonText}>
-              Rechercher pour {durationText}
-            </Text>
-          </TouchableOpacity>
+          {/* Bouton de confirmation fixé en bas (toujours visible) */}
+          <View style={styles.confirmButtonWrapper}>
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={handleConfirm}
+            >
+              <Text style={styles.confirmButtonText}>
+                Rechercher pour {durationText}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       </View>
     </View>
@@ -439,7 +667,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: SCREEN_HEIGHT * 0.7,
+    maxHeight: SCREEN_HEIGHT * 0.85,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -448,6 +676,17 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+    flexDirection: 'column',
+  },
+  contentWrapper: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  contentScroll: {
+    flex: 1,
+  },
+  contentScrollContent: {
+    paddingBottom: 20,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -488,6 +727,232 @@ const styles = StyleSheet.create({
   tabButtonSubtextActive: {
     color: '#333',
     fontWeight: '500',
+  },
+  tabButtonFull: {
+    width: '100%',
+  },
+  modeSelector: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    gap: 6,
+  },
+  modeButtonActive: {
+    backgroundColor: '#fff3e0',
+    borderColor: TRAVELER_COLORS.primary,
+    borderWidth: 1.5,
+  },
+  modeButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#666',
+  },
+  modeButtonTextActive: {
+    color: TRAVELER_COLORS.primary,
+    fontWeight: '600',
+  },
+  daysInputContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#f9fafb',
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  daysInputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  daysInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  daysButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: TRAVELER_COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  daysInput: {
+    width: 80,
+    height: 50,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: TRAVELER_COLORS.primary,
+    fontSize: 24,
+    fontWeight: '700',
+    color: TRAVELER_COLORS.primary,
+  },
+  daysInputHint: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  calculatedEndContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#e0f2fe',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  calculatedEndContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  calculatedEndLabel: {
+    fontSize: 12,
+    color: '#0369a1',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  calculatedEndValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0369a1',
+  },
+  tabButtonFull: {
+    width: '100%',
+  },
+  modeSelector: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    gap: 6,
+  },
+  modeButtonActive: {
+    backgroundColor: '#fff3e0',
+    borderColor: TRAVELER_COLORS.primary,
+    borderWidth: 1.5,
+  },
+  modeButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#666',
+  },
+  modeButtonTextActive: {
+    color: TRAVELER_COLORS.primary,
+    fontWeight: '600',
+  },
+  daysInputContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#f9fafb',
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  daysInputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  daysInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  daysButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: TRAVELER_COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  daysInput: {
+    width: 80,
+    height: 50,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: TRAVELER_COLORS.primary,
+    fontSize: 24,
+    fontWeight: '700',
+    color: TRAVELER_COLORS.primary,
+  },
+  daysInputHint: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  calculatedEndContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#e0f2fe',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  calculatedEndContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  calculatedEndLabel: {
+    fontSize: 12,
+    color: '#0369a1',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  calculatedEndValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0369a1',
   },
   pickerContainer: {
     flexDirection: 'row',
@@ -565,15 +1030,32 @@ const styles = StyleSheet.create({
     backgroundColor: TRAVELER_COLORS.primary,
     paddingVertical: 16,
     marginHorizontal: 20,
-    marginBottom: 20,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: TRAVELER_COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   confirmButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  confirmButtonWrapper: {
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
+    minHeight: 80,
   },
 });
 
