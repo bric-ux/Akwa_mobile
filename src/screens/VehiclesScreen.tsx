@@ -26,6 +26,8 @@ import { Vehicle, VehicleFilters } from '../types';
 import VehicleCard from '../components/VehicleCard';
 import { useLanguage } from '../contexts/LanguageContext';
 import VehicleFiltersModal from '../components/VehicleFiltersModal';
+import VehicleTypeModal from '../components/VehicleTypeModal';
+import RentalModeModal from '../components/RentalModeModal';
 import { LocationResult, useLocationSearch } from '../hooks/useLocationSearch';
 import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
@@ -36,8 +38,21 @@ import { useAuth } from '../services/AuthContext';
 import { safeGoBack } from '../utils/navigation';
 import { VEHICLE_COLORS, TRAVELER_COLORS } from '../constants/colors';
 import VehicleMapView from '../components/VehicleMapView';
+import { VehicleType } from '../types';
 
 const { width, height } = Dimensions.get('window');
+
+// Types de véhicules pour l'affichage
+const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
+  { value: 'car', label: 'Voiture' },
+  { value: 'suv', label: 'SUV' },
+  { value: 'van', label: 'Van' },
+  { value: 'truck', label: 'Camion' },
+  { value: 'motorcycle', label: 'Moto' },
+  { value: 'scooter', label: 'Scooter' },
+  { value: 'bicycle', label: 'Vélo' },
+  { value: 'other', label: 'Autre' },
+];
 const isSmallScreen = width < 360 || height < 640; // Écrans de 3.12 pouces et moins
 
 const VehiclesScreen: React.FC = () => {
@@ -587,7 +602,9 @@ const VehiclesScreen: React.FC = () => {
               onPress={() => setShowVehicleTypeModal(true)}
             >
               <Text style={styles.filterButtonText}>
-                {filters.vehicleType || 'Type de véhicule'}
+                {filters.vehicleType 
+                  ? VEHICLE_TYPES.find(t => t.value === filters.vehicleType)?.label || filters.vehicleType
+                  : 'Type de véhicule'}
               </Text>
               <Ionicons name="chevron-down" size={16} color={TRAVELER_COLORS.primary} />
             </TouchableOpacity>
@@ -597,7 +614,13 @@ const VehiclesScreen: React.FC = () => {
               style={styles.filterButton}
               onPress={() => setShowRentalModeModal(true)}
             >
-              <Text style={styles.filterButtonText}>Mode de location</Text>
+              <Text style={styles.filterButtonText}>
+                {filters.autoBooking === true 
+                  ? 'Réservation automatique'
+                  : filters.autoBooking === false
+                  ? 'Location sur demande'
+                  : 'Mode de location'}
+              </Text>
               <Ionicons name="chevron-down" size={16} color={TRAVELER_COLORS.primary} />
             </TouchableOpacity>
             
@@ -1078,6 +1101,41 @@ const VehiclesScreen: React.FC = () => {
         onClose={() => setShowFilters(false)}
         onApply={handleFilterChange}
         initialFilters={filters}
+      />
+
+      {/* Modal Type de véhicule */}
+      <VehicleTypeModal
+        visible={showVehicleTypeModal}
+        onClose={() => setShowVehicleTypeModal(false)}
+        onSelect={(type) => {
+          setFilters(prev => ({
+            ...prev,
+            vehicleType: type,
+          }));
+        }}
+        selectedType={filters.vehicleType}
+      />
+
+      {/* Modal Mode de location */}
+      <RentalModeModal
+        visible={showRentalModeModal}
+        onClose={() => setShowRentalModeModal(false)}
+        onSelect={(mode) => {
+          if (mode === undefined) {
+            // Désélectionner
+            setFilters(prev => {
+              const newFilters = { ...prev };
+              delete newFilters.autoBooking;
+              return newFilters;
+            });
+          } else {
+            setFilters(prev => ({
+              ...prev,
+              autoBooking: mode === 'auto_booking',
+            }));
+          }
+        }}
+        selectedMode={filters.autoBooking === true ? 'auto_booking' : filters.autoBooking === false ? 'on_demand' : undefined}
       />
     </View>
   );

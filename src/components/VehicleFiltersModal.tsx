@@ -7,10 +7,13 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { VehicleFilters, VehicleType, TransmissionType, FuelType } from '../types';
+import { TRAVELER_COLORS } from '../constants/colors';
+import { VEHICLE_BRANDS } from './VehicleBrandAutocomplete';
 
 interface VehicleFiltersModalProps {
   visible: boolean;
@@ -54,6 +57,97 @@ const COMMON_FEATURES = [
   'Phares automatiques',
   'Parking assisté',
 ];
+
+// Composant d'autocomplétion pour les marques
+const BrandAutocomplete: React.FC<{
+  value: string;
+  onChange: (brand: string) => void;
+}> = ({ value, onChange }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSuggestions(VEHICLE_BRANDS.slice(0, 10));
+      return;
+    }
+    
+    const filtered = VEHICLE_BRANDS.filter(brand =>
+      brand.toLowerCase().includes(searchQuery.toLowerCase())
+    ).slice(0, 10);
+    
+    setSuggestions(filtered);
+  }, [searchQuery]);
+
+  const handleSelect = (brand: string) => {
+    onChange(brand);
+    setSearchQuery('');
+    setShowSuggestions(false);
+  };
+
+  const handleClear = () => {
+    onChange('');
+    setSearchQuery('');
+    setShowSuggestions(false);
+  };
+
+  return (
+    <View style={styles.brandAutocompleteContainer}>
+      <View style={styles.brandInputContainer}>
+        <Ionicons name="car" size={18} color={TRAVELER_COLORS.primary} />
+        <TextInput
+          style={styles.brandInput}
+          placeholder="Rechercher une marque..."
+          placeholderTextColor="#94a3b8"
+          value={searchQuery || value}
+          onChangeText={(text) => {
+            setSearchQuery(text);
+            setShowSuggestions(true);
+            if (!text) {
+              onChange('');
+            }
+          }}
+          onFocus={() => {
+            if (!value) {
+              setShowSuggestions(true);
+            }
+          }}
+        />
+        {value && (
+          <TouchableOpacity onPress={handleClear}>
+            <Ionicons name="close-circle" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+        )}
+        <Ionicons name="chevron-down" size={18} color="#64748b" />
+      </View>
+      
+      {showSuggestions && suggestions.length > 0 && (
+        <View style={styles.brandSuggestionsContainer}>
+          <FlatList
+            data={suggestions}
+            keyExtractor={(item, index) => `${item}-${index}`}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.brandSuggestionItem}
+                onPress={() => handleSelect(item)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="car-sport" size={18} color={TRAVELER_COLORS.primary} style={{ marginRight: 12 }} />
+                <Text style={styles.brandSuggestionText}>{item}</Text>
+                {value === item && (
+                  <Ionicons name="checkmark-circle" size={18} color={TRAVELER_COLORS.primary} />
+                )}
+              </TouchableOpacity>
+            )}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
+          />
+        </View>
+      )}
+    </View>
+  );
+};
 
 const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
   visible,
@@ -143,6 +237,20 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
           </View>
 
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+            {/* Marque */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Marque</Text>
+              <BrandAutocomplete
+                value={filters.brand || ''}
+                onChange={(brand) =>
+                  setFilters(prev => ({
+                    ...prev,
+                    brand: brand || undefined,
+                  }))
+                }
+              />
+            </View>
+
             {/* Type de véhicule */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Type de véhicule</Text>
@@ -377,7 +485,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   badge: {
-    backgroundColor: '#2563eb',
+    backgroundColor: TRAVELER_COLORS.primary,
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -421,8 +529,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   optionSelected: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: TRAVELER_COLORS.primary,
+    borderColor: TRAVELER_COLORS.primary,
   },
   optionText: {
     fontSize: 15,
@@ -473,8 +581,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   featureTagSelected: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: TRAVELER_COLORS.primary,
+    borderColor: TRAVELER_COLORS.primary,
   },
   featureText: {
     fontSize: 14,
@@ -516,13 +624,60 @@ const styles = StyleSheet.create({
     flex: 2,
     paddingVertical: 16,
     borderRadius: 16,
-    backgroundColor: '#2563eb',
+    backgroundColor: TRAVELER_COLORS.primary,
     alignItems: 'center',
-    shadowColor: '#2563eb',
+    shadowColor: TRAVELER_COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
+  },
+  brandAutocompleteContainer: {
+    marginTop: 8,
+  },
+  brandInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  brandInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#0f172a',
+    fontWeight: '500',
+  },
+  brandSuggestionsContainer: {
+    marginTop: 8,
+    maxHeight: 200,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  brandSuggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  brandSuggestionText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#0f172a',
+    fontWeight: '500',
   },
   applyButtonText: {
     fontSize: 16,

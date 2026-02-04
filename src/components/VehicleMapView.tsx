@@ -19,7 +19,7 @@ const VehicleMapView: React.FC<VehicleMapViewProps> = ({
   onVehiclePress,
   onVehicleGroupPress,
   center = { lat: 5.3600, lng: -4.0083 },
-  zoom = 12,
+  zoom = 11,
   userLocation,
 }) => {
   const { formatPrice } = useCurrency();

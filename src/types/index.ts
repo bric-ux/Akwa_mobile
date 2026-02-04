@@ -464,6 +464,7 @@ export interface VehicleFilters {
   endDateTime?: string; // Date et heure de fin pour recherche par heure
   hourlyRentalOnly?: boolean; // Filtrer uniquement les véhicules avec location par heure
   rentalType?: RentalType; // Type de location recherché: 'daily' ou 'hourly'
+  autoBooking?: boolean; // Mode de location: true = réservation automatique, false = sur demande
   features?: string[];
   search?: string;
 }

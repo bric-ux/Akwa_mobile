@@ -80,6 +80,10 @@ export const useVehicles = () => {
         query = query.gte('seats', filters.seats);
       }
 
+      if (filters?.autoBooking !== undefined) {
+        query = query.eq('auto_booking', filters.autoBooking);
+      }
+
       // Recherche hiérarchique par localisation (comme pour les propriétés)
       let locationIds: string[] | null = null;
       
