@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Modal,
   ScrollView,
   Dimensions,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -54,6 +55,23 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
     }
   };
 
+  // S'assurer que la galerie est correctement positionnée après l'ouverture
+  useEffect(() => {
+    if (showImageGallery) {
+      // Attendre que l'animation du modal soit terminée avant de scroller
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(() => {
+          if (galleryScrollViewRef.current && currentImageIndex === 0) {
+            galleryScrollViewRef.current.scrollTo({
+              x: 0,
+              animated: false,
+            });
+          }
+        }, 100);
+      });
+    }
+  }, [showImageGallery, currentImageIndex]);
+
   const handlePrevImage = () => {
     const newIndex = currentImageIndex > 0 ? currentImageIndex - 1 : vehicleImages.length - 1;
     setCurrentImageIndex(newIndex);
@@ -82,25 +100,45 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
         <View style={styles.cardLayout}>
           {/* Image */}
           <View style={styles.imageContainer}>
-            <TouchableOpacity
-              onPress={handleImagePress}
-              activeOpacity={0.9}
-              style={styles.imageTouchable}
-            >
-              <Image
-                source={{ 
-                  uri: vehicleImages[0] || 'https://via.placeholder.com/300x200' 
-                }}
-                style={styles.cardImage}
-                resizeMode="cover"
-              />
-              {hasMultipleImages && (
-                <View style={styles.imageCountBadge}>
-                  <Ionicons name="images-outline" size={14} color="#fff" />
-                  <Text style={styles.imageCountText}>{vehicleImages.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            {variant === 'list' ? (
+              // En mode liste, l'image n'est pas cliquable
+              <View style={styles.imageTouchable}>
+                <Image
+                  source={{ 
+                    uri: vehicleImages[0] || 'https://via.placeholder.com/300x200' 
+                  }}
+                  style={styles.cardImage}
+                  resizeMode="cover"
+                />
+                {hasMultipleImages && (
+                  <View style={styles.imageCountBadge}>
+                    <Ionicons name="images-outline" size={14} color="#fff" />
+                    <Text style={styles.imageCountText}>{vehicleImages.length}</Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              // En mode grille, l'image est cliquable pour ouvrir la galerie
+              <TouchableOpacity
+                onPress={handleImagePress}
+                activeOpacity={0.9}
+                style={styles.imageTouchable}
+              >
+                <Image
+                  source={{ 
+                    uri: vehicleImages[0] || 'https://via.placeholder.com/300x200' 
+                  }}
+                  style={styles.cardImage}
+                  resizeMode="cover"
+                />
+                {hasMultipleImages && (
+                  <View style={styles.imageCountBadge}>
+                    <Ionicons name="images-outline" size={14} color="#fff" />
+                    <Text style={styles.imageCountText}>{vehicleImages.length}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
             
             {/* Prix en overlay */}
             <View style={styles.priceOverlay}>
@@ -184,7 +222,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
       animationType="fade"
       onRequestClose={() => setShowImageGallery(false)}
     >
-      <SafeAreaView style={styles.galleryModalContainer}>
+      <SafeAreaView style={styles.galleryModalContainer} edges={['top']}>
         <View style={styles.galleryHeader}>
           <Text style={styles.galleryTitle} numberOfLines={1}>
             {vehicle.title || `${vehicle.brand} ${vehicle.model}`}
@@ -192,12 +230,13 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
           <TouchableOpacity
             style={styles.galleryCloseButton}
             onPress={() => setShowImageGallery(false)}
+            activeOpacity={0.7}
           >
-            <Ionicons name="close" size={24} color="#fff" />
+            <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.galleryImageContainer}>
+        <View style={styles.galleryImageContainer} pointerEvents="box-none">
           <ScrollView
             ref={galleryScrollViewRef}
             horizontal
@@ -408,6 +447,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    zIndex: 1000,
+    elevation: 1000, // Pour Android
   },
   galleryTitle: {
     flex: 1,
@@ -417,12 +458,16 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   galleryCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    zIndex: 1001,
+    elevation: 1001, // Pour Android
   },
   galleryImageContainer: {
     flex: 1,

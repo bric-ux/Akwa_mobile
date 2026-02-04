@@ -555,9 +555,11 @@ export const useVehicleBookingModifications = () => {
         // Calculer le revenu net du propriétaire
         // totalPrice = basePrice + serviceFee (10% + 20% TVA = 12% de basePrice)
         // Donc : basePrice = totalPrice / 1.12
+        // IMPORTANT: Inclure la caution dans le revenu net
         const calculatedBasePrice = Math.round((request.requested_total_price || 0) / 1.12);
         const hostCommissionData = calculateHostCommission(calculatedBasePrice, 'vehicle');
-        const ownerNetRevenue = calculatedBasePrice - hostCommissionData.hostCommission;
+        const securityDeposit = bookingData?.security_deposit || vehicle?.security_deposit || 0;
+        const ownerNetRevenue = calculatedBasePrice - hostCommissionData.hostCommission + securityDeposit;
         
         const emailData = {
           bookingId: request.booking_id,

@@ -13,7 +13,7 @@ import {
   Dimensions,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
@@ -31,6 +31,7 @@ const MessagingScreen: React.FC = () => {
   const route = useRoute();
   const { t } = useLanguage();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   
   // Détecter si on est dans le TabNavigator (MessagingTab) ou dans le Stack (Messaging)
   // Si route.name est 'MessagingTab', on est dans le TabNavigator et on ne doit pas afficher le BottomNavigationBar
@@ -357,7 +358,7 @@ const MessagingScreen: React.FC = () => {
 
   const renderConversationList = () => (
     <View style={styles.conversationContainer}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
         <Text style={styles.headerTitle}>{t('messages.title')}</Text>
         <TouchableOpacity
           style={styles.searchButton}
@@ -484,7 +485,7 @@ const MessagingScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       {showConversations ? renderConversationList() : renderChatView()}
       
       {/* Menu de navigation en bas - seulement si on est dans le Stack, pas dans le TabNavigator */}

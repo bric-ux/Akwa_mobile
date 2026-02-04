@@ -7,6 +7,8 @@ const SEARCH_DATES_KEY = 'search_dates';
 interface SearchDates {
   checkIn?: string;
   checkOut?: string;
+  checkInDateTime?: string; // Date avec heure (ISO string)
+  checkOutDateTime?: string; // Date avec heure (ISO string)
   adults?: number;
   children?: number;
   babies?: number;
@@ -65,6 +67,14 @@ export const SearchDatesProvider: React.FC<{ children: ReactNode }> = ({ childre
       if (newDates.checkOut && newDates.checkOut.trim() !== '') {
         filteredDates.checkOut = newDates.checkOut;
       }
+      if (newDates.checkInDateTime && newDates.checkInDateTime.trim() !== '') {
+        filteredDates.checkInDateTime = newDates.checkInDateTime;
+        console.log('📅 SearchDatesContext - checkInDateTime sauvegardé:', newDates.checkInDateTime);
+      }
+      if (newDates.checkOutDateTime && newDates.checkOutDateTime.trim() !== '') {
+        filteredDates.checkOutDateTime = newDates.checkOutDateTime;
+        console.log('📅 SearchDatesContext - checkOutDateTime sauvegardé:', newDates.checkOutDateTime);
+      }
       if (newDates.adults !== undefined) {
         filteredDates.adults = newDates.adults;
       }
@@ -78,7 +88,7 @@ export const SearchDatesProvider: React.FC<{ children: ReactNode }> = ({ childre
       setDatesState(filteredDates);
       
       // Ne sauvegarder que si au moins une date est définie
-      if (filteredDates.checkIn || filteredDates.checkOut) {
+      if (filteredDates.checkIn || filteredDates.checkOut || filteredDates.checkInDateTime || filteredDates.checkOutDateTime) {
         const jsonString = JSON.stringify(filteredDates);
         await AsyncStorage.setItem(SEARCH_DATES_KEY, jsonString);
         console.log('✅ SearchDatesContext - Dates sauvegardées dans AsyncStorage:', filteredDates);

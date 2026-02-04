@@ -371,9 +371,10 @@ export const useVehicleBookings = () => {
 
           if (isAutoBooking) {
             // Réservation automatique - Envoyer les emails de confirmation immédiatement
-            // Calculer le revenu net du propriétaire (prix après réduction - commission avec TVA)
-            const hostCommissionData = calculateHostCommission(basePrice, 'vehicle');
-            const ownerNetRevenue = basePrice - hostCommissionData.hostCommission;
+            // Calculer le revenu net du propriétaire (prix après réduction + chauffeur - commission avec TVA + caution)
+            // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur)
+            const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
+            const ownerNetRevenue = basePriceWithDriver - hostCommissionData.hostCommission + (vehicle?.security_deposit ?? booking.security_deposit ?? 0);
             
             const emailData = {
               bookingId: booking.id,
@@ -396,10 +397,12 @@ export const useVehicleBookings = () => {
               rentalHours: rentalHours || 0,
               dailyRate: booking.daily_rate || vehicle?.price_per_day || 0,
               hourlyRate: hourlyRate || vehicle?.price_per_hour || 0,
-              basePrice: basePrice, // Prix après réduction (pour calculer le revenu net)
+              basePrice: basePriceWithDriver, // Prix après réduction + chauffeur (pour calculer le revenu net)
               totalPrice: totalPrice,
-              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
+              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire (inclut la caution)
               securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
+              driverFee: driverFee, // Ajouter le surplus chauffeur pour le PDF
+              withDriver: bookingData.useDriver === true,
               pickupLocation: bookingData.pickupLocation || '',
               isInstantBooking: true,
               paymentMethod: bookingData.paymentMethod || booking.payment_method || '',
@@ -444,9 +447,10 @@ export const useVehicleBookings = () => {
             });
           } else {
             // Réservation sur demande - Envoyer les emails de demande
-            // Calculer le revenu net du propriétaire (prix après réduction - commission avec TVA)
-            const hostCommissionData = calculateHostCommission(basePrice, 'vehicle');
-            const ownerNetRevenue = basePrice - hostCommissionData.hostCommission;
+            // Calculer le revenu net du propriétaire (prix après réduction + chauffeur - commission avec TVA + caution)
+            // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur)
+            const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
+            const ownerNetRevenue = basePriceWithDriver - hostCommissionData.hostCommission + (vehicle?.security_deposit ?? booking.security_deposit ?? 0);
             
             console.log('📧 [useVehicleBookings] Calcul revenu net propriétaire:', {
               basePrice,
@@ -477,10 +481,12 @@ export const useVehicleBookings = () => {
               rentalHours: rentalHours || 0,
               dailyRate: booking.daily_rate || vehicle?.price_per_day || 0,
               hourlyRate: hourlyRate || vehicle?.price_per_hour || 0,
-              basePrice: basePrice, // Prix après réduction (pour calculer le revenu net)
+              basePrice: basePriceWithDriver, // Prix après réduction + chauffeur (pour calculer le revenu net)
               totalPrice: totalPrice,
-              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
+              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire (inclut la caution)
               securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
+              driverFee: driverFee, // Ajouter le surplus chauffeur pour le PDF
+              withDriver: bookingData.useDriver === true,
               pickupLocation: bookingData.pickupLocation || '',
               message: bookingData.messageToOwner || '',
               isInstantBooking: false,
@@ -791,9 +797,10 @@ export const useVehicleBookings = () => {
           // Calculer le revenu net du propriétaire
           // totalPrice = basePrice + serviceFee (10% + 20% TVA = 12% de basePrice)
           // Donc : basePrice = totalPrice / 1.12
+          // IMPORTANT: Inclure la caution dans le revenu net
           const calculatedBasePrice = Math.round((booking.total_price || 0) / 1.12);
           const hostCommissionData = calculateHostCommission(calculatedBasePrice, 'vehicle');
-          const ownerNetRevenue = calculatedBasePrice - hostCommissionData.hostCommission;
+          const ownerNetRevenue = calculatedBasePrice - hostCommissionData.hostCommission + (booking.security_deposit || 0);
 
           const emailData = {
             bookingId: booking.id,

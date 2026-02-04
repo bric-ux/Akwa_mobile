@@ -216,8 +216,10 @@ const VehiclesScreen: React.FC = () => {
         return;
       }
       
-      // Le véhicule est disponible, naviguer vers la page de réservation
-      navigation.navigate('VehicleBooking' as never, { vehicleId: vehicle.id } as never);
+      // Le véhicule est disponible, naviguer vers la page de détails du véhicule
+      // L'utilisateur pourra ensuite cliquer sur "Réserver" depuis cette page
+      // Le modal est déjà fermé dans onConfirm, on peut naviguer directement
+      navigation.navigate('VehicleDetails' as never, { vehicleId: vehicle.id } as never);
     } catch (error) {
       console.error('Erreur lors de la vérification de disponibilité:', error);
       Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
@@ -267,8 +269,10 @@ const VehiclesScreen: React.FC = () => {
         return;
       }
       
-      // Le véhicule est disponible, naviguer vers la page de réservation
-      navigation.navigate('VehicleBooking' as never, { vehicleId: vehicle.id } as never);
+      // Le véhicule est disponible, naviguer vers la page de détails du véhicule
+      // L'utilisateur pourra ensuite cliquer sur "Réserver" depuis cette page
+      // Le modal est déjà fermé dans onConfirm, on peut naviguer directement
+      navigation.navigate('VehicleDetails' as never, { vehicleId: vehicle.id } as never);
     } catch (error) {
       console.error('Erreur lors de la vérification de disponibilité:', error);
       Alert.alert('Erreur', 'Impossible de vérifier la disponibilité du véhicule');
@@ -501,6 +505,19 @@ const VehiclesScreen: React.FC = () => {
   };
 
   const handleDateTimeChange = (start: string, end: string) => {
+    console.log(`🕐 [VehiclesScreen] handleDateTimeChange - REÇU:`, {
+      start,
+      end,
+      startDate: start.split('T')[0],
+      startTime: start.split('T')[1],
+      startHours: new Date(start).getHours(),
+      startMinutes: new Date(start).getMinutes(),
+      endDate: end.split('T')[0],
+      endTime: end.split('T')[1],
+      endHours: new Date(end).getHours(),
+      endMinutes: new Date(end).getMinutes(),
+    });
+    
     setStartDateTime(start);
     setEndDateTime(end);
     // Extraire aussi les dates pour compatibilité
@@ -509,13 +526,29 @@ const VehiclesScreen: React.FC = () => {
     setStartDate(newStartDate);
     setEndDate(newEndDate);
     
-    // Sauvegarder les dates dans le contexte pour qu'elles soient disponibles dans VehicleBookingScreen
+    console.log(`✅ [VehiclesScreen] handleDateTimeChange - États mis à jour:`, {
+      startDateTime: start,
+      endDateTime: end,
+      startDate: newStartDate,
+      endDate: newEndDate,
+    });
+    
+    // Sauvegarder les dates ET les heures dans le contexte pour qu'elles soient disponibles dans VehicleBookingScreen
     saveSearchDates({
       checkIn: newStartDate,
       checkOut: newEndDate,
+      checkInDateTime: start, // Sauvegarder la date avec heure
+      checkOutDateTime: end, // Sauvegarder la date avec heure
       adults: 1,
       children: 0,
       babies: 0,
+    });
+    
+    console.log(`💾 [VehiclesScreen] Dates et heures sauvegardées dans contexte:`, {
+      checkIn: newStartDate,
+      checkOut: newEndDate,
+      checkInDateTime: start,
+      checkOutDateTime: end,
     });
     
     // Appeler fetchVehicles automatiquement si les deux dates sont définies
@@ -766,10 +799,22 @@ const VehiclesScreen: React.FC = () => {
               {startDateTime && endDateTime ? (
                 <>
                   <Text style={styles.dateTimeText}>
-                    {new Date(startDateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} {new Date(startDateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    {(() => {
+                      const startDate = new Date(startDateTime);
+                      const dateStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const timeStr = `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`;
+                      console.log(`📅 [VehiclesScreen] Affichage début: ${dateStr} ${timeStr} (startDateTime: ${startDateTime}, heures: ${startDate.getHours()}, minutes: ${startDate.getMinutes()})`);
+                      return `${dateStr} ${timeStr}`;
+                    })()}
                   </Text>
                   <Text style={styles.dateTimeText}>
-                    {new Date(endDateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} {new Date(endDateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    {(() => {
+                      const endDate = new Date(endDateTime);
+                      const dateStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const timeStr = `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+                      console.log(`📅 [VehiclesScreen] Affichage fin: ${dateStr} ${timeStr} (endDateTime: ${endDateTime}, heures: ${endDate.getHours()}, minutes: ${endDate.getMinutes()})`);
+                      return `${dateStr} ${timeStr}`;
+                    })()}
                   </Text>
                 </>
               ) : (
@@ -1334,9 +1379,15 @@ const VehiclesScreen: React.FC = () => {
           setEndDateTime(end);
           handleDateTimeChange(start, end);
           
-          // Si on vérifie la disponibilité d'un véhicule, appeler la vérification
+          // Si on vérifie la disponibilité d'un véhicule, fermer le modal d'abord puis vérifier
           if (pendingVehicleForAvailability) {
-            handleAvailabilityCheckAfterDateSelection(start, end);
+            setShowDateTimePicker(false);
+            // Attendre que le modal se ferme avant de vérifier la disponibilité
+            setTimeout(() => {
+              handleAvailabilityCheckAfterDateSelection(start, end);
+            }, 300);
+          } else {
+            setShowDateTimePicker(false);
           }
         }}
       />

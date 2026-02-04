@@ -12,6 +12,8 @@ import {
   Dimensions,
   Modal,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -62,7 +64,8 @@ const VehicleBookingScreen: React.FC = () => {
   const [useDriver, setUseDriver] = useState<boolean | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const imageScrollViewRef = useRef<ScrollView>(null);
+  const mainScrollViewRef = useRef<ScrollView>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -85,21 +88,64 @@ const VehicleBookingScreen: React.FC = () => {
 
   // Initialiser les dates depuis le contexte si disponibles
   useEffect(() => {
-    if (searchDates.checkIn && !startDateTime) {
+    console.log(`📅 [VehicleBookingScreen] Initialisation depuis contexte:`, {
+      checkIn: searchDates.checkIn,
+      checkOut: searchDates.checkOut,
+      checkInDateTime: searchDates.checkInDateTime,
+      checkOutDateTime: searchDates.checkOutDateTime,
+      startDateTime,
+      endDateTime,
+    });
+    
+    // Priorité 1 : Utiliser checkInDateTime/checkOutDateTime si disponibles (contiennent les heures)
+    if (searchDates.checkInDateTime && !startDateTime) {
+      const startDateObj = new Date(searchDates.checkInDateTime);
+      setStartDate(startDateObj.toISOString().split('T')[0]);
+      setStartDateTime(searchDates.checkInDateTime);
+      console.log(`✅ [VehicleBookingScreen] Utilisation checkInDateTime depuis contexte:`, {
+        checkInDateTime: searchDates.checkInDateTime,
+        date: startDateObj.toISOString().split('T')[0],
+        heures: startDateObj.getHours(),
+        minutes: startDateObj.getMinutes(),
+      });
+    } else if (searchDates.checkIn && !startDateTime) {
+      // Priorité 2 : Utiliser checkIn et créer une date/heure par défaut (9h)
       setStartDate(searchDates.checkIn);
-      // Créer une date/heure par défaut (9h)
       const defaultStart = new Date(searchDates.checkIn);
       defaultStart.setHours(9, 0, 0, 0);
-      setStartDateTime(defaultStart.toISOString());
+      const defaultStartISO = defaultStart.toISOString();
+      console.log(`📅 [VehicleBookingScreen] Création date/heure début par défaut (pas de checkInDateTime):`, {
+        date: searchDates.checkIn,
+        heure: 9,
+        iso: defaultStartISO,
+      });
+      setStartDateTime(defaultStartISO);
     }
-    if (searchDates.checkOut && !endDateTime) {
+    
+    if (searchDates.checkOutDateTime && !endDateTime) {
+      const endDateObj = new Date(searchDates.checkOutDateTime);
+      setEndDate(endDateObj.toISOString().split('T')[0]);
+      setEndDateTime(searchDates.checkOutDateTime);
+      console.log(`✅ [VehicleBookingScreen] Utilisation checkOutDateTime depuis contexte:`, {
+        checkOutDateTime: searchDates.checkOutDateTime,
+        date: endDateObj.toISOString().split('T')[0],
+        heures: endDateObj.getHours(),
+        minutes: endDateObj.getMinutes(),
+      });
+    } else if (searchDates.checkOut && !endDateTime) {
+      // Priorité 2 : Utiliser checkOut et créer une date/heure par défaut (18h)
       setEndDate(searchDates.checkOut);
-      // Créer une date/heure par défaut (18h)
       const defaultEnd = new Date(searchDates.checkOut);
       defaultEnd.setHours(18, 0, 0, 0);
-      setEndDateTime(defaultEnd.toISOString());
+      const defaultEndISO = defaultEnd.toISOString();
+      console.log(`📅 [VehicleBookingScreen] Création date/heure fin par défaut (pas de checkOutDateTime):`, {
+        date: searchDates.checkOut,
+        heure: 18,
+        iso: defaultEndISO,
+      });
+      setEndDateTime(defaultEndISO);
     }
-  }, [searchDates.checkIn, searchDates.checkOut]);
+  }, [searchDates.checkIn, searchDates.checkOut, searchDates.checkInDateTime, searchDates.checkOutDateTime]);
 
   // Vérifier la disponibilité en temps réel quand les dates/heures changent
   useEffect(() => {
@@ -162,11 +208,17 @@ const VehicleBookingScreen: React.FC = () => {
       
       // Logique corrigée : utiliser les heures réelles comme base principale
       // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
-      // Si totalHours < 24 : ne pas facturer de jour complet, seulement les heures (rentalDays = 0)
+      // Si totalHours < 24 : 
+      //   - Si le véhicule supporte la location par heure : rentalDays = 0 (facturer seulement les heures)
+      //   - Si le véhicule ne supporte pas la location par heure : rentalDays = 1 (minimum 1 jour)
       if (totalHours >= 24) {
         return fullDaysFromHours; // Utiliser directement les jours calculés à partir des heures
       } else {
-        return 0; // Pas de jour complet pour une location de moins de 24 heures
+        // Si le véhicule ne supporte pas la location par heure, facturer au minimum 1 jour
+        if (!vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
+          return 1; // Minimum 1 jour pour les véhicules sans location horaire
+        }
+        return 0; // Pas de jour complet pour une location de moins de 24 heures avec location horaire
       }
     }
     
@@ -209,18 +261,35 @@ const VehicleBookingScreen: React.FC = () => {
   };
 
   const handleDateTimeChange = (start: string, end: string) => {
+    console.log(`🔄 [VehicleBookingScreen] handleDateTimeChange appelé avec:`, { start, end });
     const startDateObj = new Date(start);
     const endDateObj = new Date(end);
+    
+    console.log(`🔄 [VehicleBookingScreen] Dates parsées:`, {
+      startDateObj: startDateObj.toISOString(),
+      startHours: startDateObj.getHours(),
+      startMinutes: startDateObj.getMinutes(),
+      endDateObj: endDateObj.toISOString(),
+      endHours: endDateObj.getHours(),
+      endMinutes: endDateObj.getMinutes(),
+    });
     
     setStartDate(startDateObj.toISOString().split('T')[0]);
     setStartDateTime(start);
     setEndDate(endDateObj.toISOString().split('T')[0]);
     setEndDateTime(end);
     
-    // Sauvegarder les dates dans le contexte
+    console.log(`✅ [VehicleBookingScreen] États mis à jour:`, {
+      startDateTime: start,
+      endDateTime: end,
+    });
+    
+    // Sauvegarder les dates ET les heures dans le contexte
     saveSearchDates({
       checkIn: startDateObj.toISOString().split('T')[0],
       checkOut: endDateObj.toISOString().split('T')[0],
+      checkInDateTime: start, // Sauvegarder avec les heures
+      checkOutDateTime: end,   // Sauvegarder avec les heures
       adults: 1,
       children: 0,
       babies: 0,
@@ -356,11 +425,6 @@ const VehicleBookingScreen: React.FC = () => {
       return 0;
     }
     
-    if (!vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
-      console.log(`⚠️ [VehicleBookingScreen] Véhicule ne supporte pas la location par heure`);
-      return 0;
-    }
-    
     const start = new Date(startDateTime);
     const end = new Date(endDateTime);
     
@@ -379,6 +443,13 @@ const VehicleBookingScreen: React.FC = () => {
     const remainingHours = totalHours - hoursInFullDays;
     
     console.log(`🔍 [VehicleBookingScreen] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}`);
+    
+    // Si le véhicule ne supporte pas la location par heure, ne pas retourner d'heures restantes
+    // (elles seront facturées comme partie d'un jour minimum)
+    if (!vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
+      console.log(`⚠️ [VehicleBookingScreen] Véhicule ne supporte pas la location par heure - heures non facturées séparément`);
+      return 0;
+    }
     
     // Si totalHours < 24, toutes les heures sont "restantes" (pas de jour complet)
     // Si totalHours >= 24, on retourne seulement les heures au-delà des jours complets
@@ -675,13 +746,23 @@ const VehicleBookingScreen: React.FC = () => {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          ref={mainScrollViewRef}
+        >
         {/* Véhicule */}
         <View style={styles.vehicleCard}>
           {vehicleImages.length > 0 ? (
             <View style={styles.imageContainer}>
               <ScrollView
-                ref={scrollViewRef}
+                ref={imageScrollViewRef}
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
@@ -754,10 +835,22 @@ const VehicleBookingScreen: React.FC = () => {
               {startDateTime && endDateTime ? (
                 <>
                   <Text style={styles.dateTimeButtonText}>
-                    {new Date(startDateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} {new Date(startDateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    {(() => {
+                      const startDate = new Date(startDateTime);
+                      const dateStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const timeStr = `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`;
+                      console.log(`📅 [VehicleBookingScreen] Affichage début: ${dateStr} ${timeStr} (startDateTime: ${startDateTime})`);
+                      return `${dateStr} ${timeStr}`;
+                    })()}
                   </Text>
                   <Text style={styles.dateTimeButtonText}>
-                    {new Date(endDateTime).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} {new Date(endDateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    {(() => {
+                      const endDate = new Date(endDateTime);
+                      const dateStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const timeStr = `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+                      console.log(`📅 [VehicleBookingScreen] Affichage fin: ${dateStr} ${timeStr} (endDateTime: ${endDateTime})`);
+                      return `${dateStr} ${timeStr}`;
+                    })()}
                   </Text>
                 </>
               ) : (
@@ -1035,7 +1128,8 @@ const VehicleBookingScreen: React.FC = () => {
             </View>
           ) : null}
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Bouton de réservation */}
       <View style={styles.footer}>
@@ -1170,6 +1264,9 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,

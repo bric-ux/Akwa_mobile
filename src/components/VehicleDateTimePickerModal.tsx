@@ -80,9 +80,14 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   const setCurrentDate = activeTab === 'start' ? setTempStartDate : setTempEndDate;
 
   const handleDateSelect = (date: Date) => {
+    console.log(`📅 [VehicleDateTimePickerModal] handleDateSelect - activeTab: ${activeTab}, date sélectionnée:`, date.toISOString());
     const newDate = new Date(date);
     // Toujours mettre les minutes à 00
-    newDate.setHours(currentDate.getHours(), 0, 0, 0);
+    // Préserver l'heure de la date actuelle (tempStartDate ou tempEndDate selon l'onglet)
+    const currentHour = activeTab === 'start' ? tempStartDate.getHours() : tempEndDate.getHours();
+    newDate.setHours(currentHour, 0, 0, 0);
+    
+    console.log(`📅 [VehicleDateTimePickerModal] handleDateSelect - Heure préservée: ${currentHour}, nouvelle date:`, newDate.toISOString());
     
     // Si c'est la date de début et que c'est aujourd'hui, arrondir à l'heure supérieure
     if (activeTab === 'start') {
@@ -96,11 +101,17 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
         const now = new Date();
         const roundedHour = now.getHours() + 1;
         newDate.setHours(roundedHour, 0, 0, 0);
+        console.log(`📅 [VehicleDateTimePickerModal] Date de début = aujourd'hui, heure ajustée à: ${roundedHour}`);
       }
       
+      console.log(`📅 [VehicleDateTimePickerModal] Mise à jour tempStartDate:`, {
+        avant: tempStartDate.toISOString(),
+        après: newDate.toISOString(),
+      });
       setTempStartDate(newDate);
       
       // Si la nouvelle date de début est après la date de fin, ajuster la date de fin
+      // MAIS seulement si la date de fin a déjà été modifiée par l'utilisateur
       const startDateOnly = new Date(newDate);
       startDateOnly.setHours(0, 0, 0, 0);
       const endDateOnly = new Date(tempEndDate);
@@ -111,36 +122,40 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
         const adjustedEndDate = new Date(newDate);
         adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
         adjustedEndDate.setHours(tempEndDate.getHours(), 0, 0, 0);
+        console.log(`⚠️ [VehicleDateTimePickerModal] Date de fin ajustée car <= date de début:`, {
+          avant: tempEndDate.toISOString(),
+          après: adjustedEndDate.toISOString(),
+        });
         setTempEndDate(adjustedEndDate);
       }
     } else {
       // Si on sélectionne une date de fin
+      console.log(`📅 [VehicleDateTimePickerModal] Mise à jour tempEndDate:`, {
+        avant: tempEndDate.toISOString(),
+        après: newDate.toISOString(),
+      });
       setTempEndDate(newDate);
       
-      // Si la nouvelle date de fin est avant la date de début, ajuster la date de début
-      const startDateOnly = new Date(tempStartDate);
-      startDateOnly.setHours(0, 0, 0, 0);
-      const endDateOnly = new Date(newDate);
-      endDateOnly.setHours(0, 0, 0, 0);
-      
-      if (endDateOnly.getTime() <= startDateOnly.getTime()) {
-        // Ajuster la date de début au jour précédent de la date de fin
-        const adjustedStartDate = new Date(newDate);
-        adjustedStartDate.setDate(adjustedStartDate.getDate() - 1);
-        adjustedStartDate.setHours(tempStartDate.getHours(), 0, 0, 0);
-        setTempStartDate(adjustedStartDate);
-      }
+      // NE PAS ajuster automatiquement la date de début si elle est après la date de fin
+      // L'utilisateur peut vouloir sélectionner d'abord la date de fin, puis la date de début
+      // La validation se fera dans handleConfirm
     }
   };
 
   const handleHourSelect = (hour: number) => {
-    const newDate = new Date(currentDate);
+    console.log(`🕐 [VehicleDateTimePickerModal] handleHourSelect - activeTab: ${activeTab}, heure sélectionnée: ${hour}`);
+    
+    // Utiliser la date actuelle selon l'onglet (tempStartDate ou tempEndDate)
+    const currentDateToUse = activeTab === 'start' ? tempStartDate : tempEndDate;
+    const newDate = new Date(currentDateToUse);
     // Toujours mettre les minutes à 00
     newDate.setHours(hour, 0, 0, 0);
     
+    console.log(`🕐 [VehicleDateTimePickerModal] handleHourSelect - Date actuelle:`, currentDateToUse.toISOString(), `Nouvelle date:`, newDate.toISOString());
+    
     // Vérifier si c'est aujourd'hui et si l'heure est dans le passé
     const now = new Date();
-    const dateOnly = new Date(currentDate);
+    const dateOnly = new Date(currentDateToUse);
     dateOnly.setHours(0, 0, 0, 0);
     const todayOnly = new Date(now);
     todayOnly.setHours(0, 0, 0, 0);
@@ -151,24 +166,34 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       const roundedHour = minTime.getHours() + 1;
       minTime.setHours(roundedHour, 0, 0, 0);
       newDate.setTime(minTime.getTime());
+      console.log(`⚠️ [VehicleDateTimePickerModal] Heure ajustée car dans le passé: ${roundedHour}`);
     }
     
     if (activeTab === 'start') {
+      console.log(`🕐 [VehicleDateTimePickerModal] Mise à jour tempStartDate:`, {
+        avant: tempStartDate.toISOString(),
+        après: newDate.toISOString(),
+      });
       setTempStartDate(newDate);
       // Si la date/heure de début est après la date de fin, ajuster la date de fin
       if (newDate.getTime() >= tempEndDate.getTime()) {
         const adjustedEndDate = new Date(newDate);
         adjustedEndDate.setHours(adjustedEndDate.getHours() + 1, 0, 0, 0);
+        console.log(`⚠️ [VehicleDateTimePickerModal] Date de fin ajustée car <= date de début:`, {
+          avant: tempEndDate.toISOString(),
+          après: adjustedEndDate.toISOString(),
+        });
         setTempEndDate(adjustedEndDate);
       }
     } else {
+      console.log(`🕐 [VehicleDateTimePickerModal] Mise à jour tempEndDate:`, {
+        avant: tempEndDate.toISOString(),
+        après: newDate.toISOString(),
+      });
       setTempEndDate(newDate);
-      // Si la date/heure de fin est avant la date de début, ajuster la date de début
-      if (newDate.getTime() <= tempStartDate.getTime()) {
-        const adjustedStartDate = new Date(newDate);
-        adjustedStartDate.setHours(adjustedStartDate.getHours() - 1, 0, 0, 0);
-        setTempStartDate(adjustedStartDate);
-      }
+      // NE PAS ajuster automatiquement la date de début si elle est après la date de fin
+      // L'utilisateur peut vouloir sélectionner d'abord la date de fin, puis la date de début
+      // La validation se fera dans handleConfirm
     }
   };
 
@@ -220,6 +245,15 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     const finalEndDate = new Date(tempEndDate);
     finalEndDate.setMinutes(0, 0, 0);
     
+    console.log(`🕐 [VehicleDateTimePickerModal] handleConfirm - AVANT ajustements:`, {
+      tempStartDate: tempStartDate.toISOString(),
+      tempStartDateHours: tempStartDate.getHours(),
+      tempStartDateMinutes: tempStartDate.getMinutes(),
+      tempEndDate: tempEndDate.toISOString(),
+      tempEndDateHours: tempEndDate.getHours(),
+      tempEndDateMinutes: tempEndDate.getMinutes(),
+    });
+    
     // Vérification finale : s'assurer que la date de fin est après la date de début
     const startDateOnly = new Date(finalStartDate);
     startDateOnly.setHours(0, 0, 0, 0);
@@ -230,6 +264,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       // Si la date de fin est avant ou égale à la date de début, ajuster
       finalEndDate.setTime(finalStartDate.getTime());
       finalEndDate.setHours(finalEndDate.getHours() + 1, 0, 0, 0);
+      console.log(`⚠️ [VehicleDateTimePickerModal] Date de fin ajustée car <= date de début`);
     }
     
     // Vérifier que la date de début n'est pas dans le passé
@@ -239,9 +274,24 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       const roundedHour = now.getHours() + 1;
       finalStartDate.setTime(now.getTime());
       finalStartDate.setHours(roundedHour, 0, 0, 0);
+      console.log(`⚠️ [VehicleDateTimePickerModal] Date de début ajustée car dans le passé`);
     }
     
-    onConfirm(finalStartDate.toISOString(), finalEndDate.toISOString());
+    const startISO = finalStartDate.toISOString();
+    const endISO = finalEndDate.toISOString();
+    
+    console.log(`✅ [VehicleDateTimePickerModal] handleConfirm - FINAL:`, {
+      startISO,
+      startDate: finalStartDate.toISOString().split('T')[0],
+      startHours: finalStartDate.getHours(),
+      startMinutes: finalStartDate.getMinutes(),
+      endISO,
+      endDate: finalEndDate.toISOString().split('T')[0],
+      endHours: finalEndDate.getHours(),
+      endMinutes: finalEndDate.getMinutes(),
+    });
+    
+    onConfirm(startISO, endISO);
     onClose();
   };
 
@@ -305,6 +355,47 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       scrollToDateAndHour(tempStartDate, 200);
     }
   }, [tempStartDate, visible, mode]);
+
+  // Mettre à jour tempStartDate et tempEndDate UNIQUEMENT quand le modal s'ouvre (visible passe de false à true)
+  // ou quand startDateTime/endDateTime changent depuis l'extérieur
+  // Ne pas réinitialiser quand on change d'onglet (activeTab)
+  const hasInitializedRef = useRef(false);
+  useEffect(() => {
+    if (visible && !hasInitializedRef.current) {
+      // Première ouverture du modal : initialiser depuis les props
+      if (startDateTime) {
+        const newStartDate = new Date(startDateTime);
+        newStartDate.setMinutes(0, 0, 0);
+        setTempStartDate(newStartDate);
+        console.log(`🔄 [VehicleDateTimePickerModal] Initialisation tempStartDate depuis props:`, {
+          startDateTime,
+          newStartDate: newStartDate.toISOString(),
+          heures: newStartDate.getHours(),
+        });
+      }
+      if (endDateTime) {
+        const newEndDate = new Date(endDateTime);
+        newEndDate.setMinutes(0, 0, 0);
+        setTempEndDate(newEndDate);
+        console.log(`🔄 [VehicleDateTimePickerModal] Initialisation tempEndDate depuis props:`, {
+          endDateTime,
+          newEndDate: newEndDate.toISOString(),
+          heures: newEndDate.getHours(),
+        });
+      }
+      hasInitializedRef.current = true;
+    } else if (!visible) {
+      // Modal fermé : réinitialiser le flag pour la prochaine ouverture
+      hasInitializedRef.current = false;
+    }
+  }, [visible, startDateTime, endDateTime]);
+  
+  // Scroller vers la date/heure actuelle quand on change d'onglet (sans réinitialiser les valeurs)
+  useEffect(() => {
+    if (visible && mode === 'manual') {
+      scrollToDateAndHour(currentDate, 200);
+    }
+  }, [activeTab, visible, mode]); // Seulement quand activeTab change, pas quand currentDate change
 
   if (!visible) return null;
 

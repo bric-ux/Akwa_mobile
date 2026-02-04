@@ -8,6 +8,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -122,7 +124,16 @@ const VehiclePricingScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Prix par jour */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -308,7 +319,8 @@ const VehiclePricingScreen: React.FC = () => {
             </View>
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -360,6 +372,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#666',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   content: {
     flex: 1,
