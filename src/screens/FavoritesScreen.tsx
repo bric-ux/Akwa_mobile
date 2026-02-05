@@ -11,22 +11,37 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Property } from '../types';
+import { Property, Vehicle } from '../types';
 import { useFavorites } from '../hooks/useFavorites';
+import { useVehicleFavorites } from '../hooks/useVehicleFavorites';
 import { useAuth } from '../services/AuthContext';
 import PropertyCard from '../components/PropertyCard';
+import VehicleCard from '../components/VehicleCard';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 
 const FavoritesScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const { user } = useAuth();
-  const { getFavorites, removeFavorite, loading } = useFavorites();
+  const { getFavorites, removeFavorite, loading: propertiesLoading } = useFavorites();
+  const { getFavorites: getVehicleFavorites, removeFavorite: removeVehicleFavorite, loading: vehiclesLoading } = useVehicleFavorites();
   const [favorites, setFavorites] = useState<Property[]>([]);
+  const [vehicleFavorites, setVehicleFavorites] = useState<Vehicle[]>([]);
+  const [activeTab, setActiveTab] = useState<'properties' | 'vehicles'>('vehicles');
+  
+  // Détecter si on est dans le TabNavigator véhicules
+  const isVehicleFavoritesTab = route.name === 'VehicleFavoritesTab';
+  const loading = propertiesLoading || vehiclesLoading;
 
   const loadFavorites = async () => {
     try {
-      const favoritesData = await getFavorites();
-      setFavorites(favoritesData);
+      // Charger les deux types de favoris
+      const [propertiesData, vehiclesData] = await Promise.all([
+        getFavorites(),
+        getVehicleFavorites()
+      ]);
+      setFavorites(propertiesData);
+      setVehicleFavorites(vehiclesData);
     } catch (error) {
       console.error('Erreur lors du chargement des favoris:', error);
       Alert.alert('Erreur', 'Impossible de charger vos favoris');
@@ -40,6 +55,7 @@ const FavoritesScreen: React.FC = () => {
         loadFavorites();
       } else {
         setFavorites([]);
+        setVehicleFavorites([]);
       }
     }, [user])
   );
@@ -66,8 +82,34 @@ const FavoritesScreen: React.FC = () => {
     );
   };
 
+  const removeVehicleFromFavorites = async (vehicleId: string) => {
+    Alert.alert(
+      'Supprimer des favoris',
+      'Êtes-vous sûr de vouloir supprimer ce véhicule de vos favoris ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeVehicleFavorite(vehicleId);
+              setVehicleFavorites(prev => prev.filter(fav => fav.id !== vehicleId));
+            } catch (error: any) {
+              Alert.alert('Erreur', error.message || 'Impossible de supprimer des favoris');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handlePropertyPress = (property: Property) => {
     navigation.navigate('PropertyDetails', { propertyId: property.id });
+  };
+
+  const handleVehiclePress = (vehicle: Vehicle) => {
+    navigation.navigate('VehicleDetails', { vehicleId: vehicle.id });
   };
 
   const renderFavoriteItem = ({ item }: { item: Property }) => (
@@ -78,8 +120,15 @@ const FavoritesScreen: React.FC = () => {
     />
   );
 
+  const renderVehicleFavoriteItem = ({ item }: { item: Vehicle }) => (
+    <VehicleCard
+      vehicle={item}
+      onPress={handleVehiclePress}
+      variant="list"
+    />
+  );
+
   // Détecter si on est dans le TabNavigator (FavoritesTab) ou dans le Stack (Favorites)
-  const route = useRoute();
   const isInTabNavigator = route.name === 'FavoritesTab' || route.name === 'VehicleFavoritesTab';
 
   if (!user) {
@@ -114,14 +163,23 @@ const FavoritesScreen: React.FC = () => {
     );
   }
 
-  if (favorites.length === 0) {
+  // Filtrer les items selon l'onglet actif
+  const getDisplayItems = () => {
+    if (activeTab === 'properties') return favorites;
+    return vehicleFavorites;
+  };
+
+  const displayItems = getDisplayItems();
+  const totalCount = favorites.length + vehicleFavorites.length;
+
+  if (totalCount === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <Ionicons name="heart-outline" size={80} color="#ccc" />
           <Text style={styles.emptyTitle}>Aucun favori</Text>
           <Text style={styles.emptySubtitle}>
-            Explorez nos hébergements et ajoutez vos favoris en cliquant sur le cœur
+            Explorez nos hébergements et véhicules, puis ajoutez vos favoris en cliquant sur le cœur
           </Text>
         </View>
         {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
@@ -134,13 +192,33 @@ const FavoritesScreen: React.FC = () => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mes Favoris</Text>
         <Text style={styles.headerSubtitle}>
-          {favorites.length} propriété{favorites.length > 1 ? 's' : ''} sauvegardée{favorites.length > 1 ? 's' : ''}
+          {totalCount} favori{totalCount > 1 ? 's' : ''} ({favorites.length} résidence{favorites.length > 1 ? 's' : ''}, {vehicleFavorites.length} véhicule{vehicleFavorites.length > 1 ? 's' : ''})
         </Text>
+      </View>
+
+      {/* Onglets */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'vehicles' && styles.tabActive]}
+          onPress={() => setActiveTab('vehicles')}
+        >
+          <Text style={[styles.tabText, activeTab === 'vehicles' && styles.tabTextActive]}>
+            Véhicules ({vehicleFavorites.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'properties' && styles.tabActive]}
+          onPress={() => setActiveTab('properties')}
+        >
+          <Text style={[styles.tabText, activeTab === 'properties' && styles.tabTextActive]}>
+            Résidences ({favorites.length})
+          </Text>
+        </TouchableOpacity>
       </View>
       
       <FlatList
-        data={favorites}
-        renderItem={renderFavoriteItem}
+        data={displayItems}
+        renderItem={activeTab === 'vehicles' ? renderVehicleFavoriteItem : renderFavoriteItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.listContainer, { paddingBottom: 80 }]}
         showsVerticalScrollIndicator={false}
@@ -290,6 +368,32 @@ const styles = StyleSheet.create({
   exploreButtonText: {
     fontSize: 16,
     color: '#fff',
+    fontWeight: '600',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    paddingHorizontal: 20,
+  },
+  tab: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginRight: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: '#2E7D32',
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  tabTextActive: {
+    color: '#2E7D32',
     fontWeight: '600',
   },
 });

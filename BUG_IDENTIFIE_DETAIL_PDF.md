@@ -270,3 +270,4 @@ Après correction, vérifier que :
 3. ✅ Le total payé reste identique (89 084 FCFA)
 
 
+

@@ -112,3 +112,4 @@ Les PDFs générés lors de la confirmation par l'hôte prennent maintenant corr
 Les calculs sont cohérents avec l'affichage mobile.
 
 
+

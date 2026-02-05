@@ -235,3 +235,4 @@ const ownerNetRevenue = calculatedBasePriceWithDriver - hostCommissionData.hostC
 - Oublier de récupérer `driverFee` depuis `booking.with_driver` et `vehicle.driver_fee`
 - Mélanger `totalPrice` (avec service fee) et `basePrice` (sans service fee) dans les calculs
 
+

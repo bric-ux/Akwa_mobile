@@ -334,3 +334,4 @@ Rendu : 12/03/2026 à 09:00 (calculé automatiquement)
 Ces améliorations peuvent être implémentées progressivement sans casser l'existant.
 
 
+

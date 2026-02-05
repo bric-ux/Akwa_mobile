@@ -9,12 +9,15 @@ import {
   ScrollView,
   Dimensions,
   InteractionManager,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Vehicle } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useVehicleFavorites } from '../hooks/useVehicleFavorites';
+import { useAuthRedirect } from '../hooks/useAuthRedirect';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -27,9 +30,12 @@ interface VehicleCardProps {
 const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = 'list' }) => {
   const { formatPrice } = useCurrency();
   const { t } = useLanguage();
+  const { requireAuthForFavorites } = useAuthRedirect();
+  const { toggleFavorite, isFavoriteSync, loading: favoriteLoading, cacheVersion, refreshCache } = useVehicleFavorites();
   const [showImageGallery, setShowImageGallery] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const galleryScrollViewRef = useRef<ScrollView>(null);
+  const [isFavorited, setIsFavorited] = useState(() => isFavoriteSync(vehicle.id));
 
   const getVehicleTypeIcon = (type: string) => {
     switch (type) {
@@ -44,8 +50,29 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
     }
   };
 
-  const vehicleImages = vehicle.images || vehicle.photos?.map((p: any) => p.url) || [];
+  const vehicleImages = vehicle.images || vehicle.vehicle_photos?.map((p: any) => p.url) || [];
   const hasMultipleImages = vehicleImages.length > 1;
+
+  // Synchroniser l'état des favoris avec le cache quand le cache change ou quand le véhicule change
+  useEffect(() => {
+    setIsFavorited(isFavoriteSync(vehicle.id));
+  }, [vehicle.id, cacheVersion]);
+
+  const handleFavoritePress = async (e: any) => {
+    e.stopPropagation();
+    
+    requireAuthForFavorites(async () => {
+      try {
+        const newFavoriteState = await toggleFavorite(vehicle.id);
+        // Mettre à jour immédiatement l'état local
+        setIsFavorited(newFavoriteState);
+        // Rafraîchir le cache pour s'assurer de la synchronisation
+        await refreshCache();
+      } catch (error: any) {
+        Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
+      }
+    });
+  };
 
   const handleImagePress = (e: any) => {
     e.stopPropagation();
@@ -157,6 +184,19 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
               <Ionicons name={getVehicleTypeIcon(vehicle.vehicle_type) as any} size={16} color="#fff" />
               <Text style={styles.typeText}>{vehicle.vehicle_type?.toUpperCase() || 'VEHICULE'}</Text>
             </View>
+
+            {/* Bouton favoris */}
+            <TouchableOpacity
+              style={[styles.favoriteButton, isFavorited && styles.favoriteButtonActive]}
+              onPress={handleFavoritePress}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={isFavorited ? 'heart' : 'heart-outline'}
+                size={22}
+                color={isFavorited ? '#ef4444' : '#fff'}
+              />
+            </TouchableOpacity>
           </View>
         
         {/* Contenu de la carte */}
@@ -388,6 +428,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  favoriteButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  favoriteButtonActive: {
+    borderColor: '#ef4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
   },
   cardContent: {
     padding: 16,

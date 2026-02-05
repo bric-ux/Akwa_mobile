@@ -274,10 +274,10 @@ const VehicleTabNavigator = () => {
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
 
-          if (route.name === 'VehicleExplorerTab') {
-            iconName = focused ? 'search' : 'search-outline';
-          } else if (route.name === 'VehiclesTab') {
+          if (route.name === 'VehiclesTab') {
             iconName = focused ? 'car' : 'car-outline';
+          } else if (route.name === 'VehicleBookingsTab') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
           } else if (route.name === 'VehicleMessagingTab') {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           } else if (route.name === 'VehicleFavoritesTab') {
@@ -296,38 +296,14 @@ const VehicleTabNavigator = () => {
       })}
     >
       <VehicleTab.Screen 
-        name="VehicleExplorerTab" 
-        component={HomeScreen}
-        options={{ tabBarLabel: 'Explorer' }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            // Empêcher la navigation par défaut
-            e.preventDefault();
-            // Demander confirmation
-            Alert.alert(
-              'Retour à la recherche',
-              'Voulez-vous vraiment retourner sur la recherche de résidences meublées ?',
-              [
-                {
-                  text: 'Annuler',
-                  style: 'cancel',
-                },
-                {
-                  text: 'Oui',
-                  onPress: () => {
-                    // Naviguer vers Home (TabNavigator principal)
-                    (navigation as any).navigate('Home');
-                  },
-                },
-              ]
-            );
-          },
-        })}
-      />
-      <VehicleTab.Screen 
         name="VehiclesTab" 
         component={VehiclesScreen}
         options={{ tabBarLabel: 'Recherche' }}
+      />
+      <VehicleTab.Screen 
+        name="VehicleBookingsTab" 
+        component={MyVehicleBookingsScreen}
+        options={{ tabBarLabel: 'Réservations' }}
       />
       <VehicleTab.Screen 
         name="VehicleMessagingTab" 

@@ -15,34 +15,54 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useVehicleBookings } from '../hooks/useVehicleBookings';
+import { useBookings, Booking } from '../hooks/useBookings';
 import { useAuth } from '../services/AuthContext';
 import { VehicleBooking } from '../types';
 import { formatPrice } from '../utils/priceCalculator';
 import VehicleCancellationModal from '../components/VehicleCancellationModal';
 import VehicleModificationModal from '../components/VehicleModificationModal';
 import VehicleReviewModal from '../components/VehicleReviewModal';
+import BookingCard from '../components/BookingCard';
+import ReviewModal from '../components/ReviewModal';
+import CancellationDialog from '../components/CancellationDialog';
+import BookingModificationModal from '../components/BookingModificationModal';
 import { useVehicleReviews } from '../hooks/useVehicleReviews';
+import { useReviews } from '../hooks/useReviews';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
+import { useBookingModifications } from '../hooks/useBookingModifications';
 import { getCommissionRates } from '../lib/commissions';
 
 const MyVehicleBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { getMyBookings, loading } = useVehicleBookings();
+  const { getMyBookings, loading: vehiclesLoading } = useVehicleBookings();
+  const { getUserBookings, loading: propertiesLoading } = useBookings();
   const { canReviewVehicle } = useVehicleReviews();
+  const { canUserReviewProperty } = useReviews();
   const { getBookingPendingRequest, cancelModificationRequest } = useVehicleBookingModifications();
+  const { getBookingPendingRequest: getPropertyBookingPendingRequest } = useBookingModifications();
   const [cancellingRequests, setCancellingRequests] = useState<{ [key: string]: boolean }>({});
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
+  const [propertyBookings, setPropertyBookings] = useState<Booking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: any }>({});
+  const [activeTab, setActiveTab] = useState<'vehicles' | 'properties'>('vehicles');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
   const [cancellationModalVisible, setCancellationModalVisible] = useState(false);
+  const [propertyCancellationDialogVisible, setPropertyCancellationDialogVisible] = useState(false);
   const [selectedBookingForCancellation, setSelectedBookingForCancellation] = useState<VehicleBooking | null>(null);
+  const [selectedPropertyBookingForCancellation, setSelectedPropertyBookingForCancellation] = useState<Booking | null>(null);
   const [modificationModalVisible, setModificationModalVisible] = useState(false);
+  const [propertyModificationModalVisible, setPropertyModificationModalVisible] = useState(false);
   const [selectedBookingForModification, setSelectedBookingForModification] = useState<VehicleBooking | null>(null);
+  const [selectedPropertyBookingForModification, setSelectedPropertyBookingForModification] = useState<Booking | null>(null);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [propertyReviewModalVisible, setPropertyReviewModalVisible] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<VehicleBooking | null>(null);
+  const [selectedPropertyBookingForReview, setSelectedPropertyBookingForReview] = useState<Booking | null>(null);
   const [canReview, setCanReview] = useState<{ [key: string]: boolean }>({});
+  const [canReviewProperty, setCanReviewProperty] = useState<Record<string, boolean>>({});
+  const loading = vehiclesLoading || propertiesLoading;
 
   const getBookingStatus = (booking: VehicleBooking): string => {
     if (booking.status === 'cancelled') return 'cancelled';
@@ -62,14 +82,38 @@ const MyVehicleBookingsScreen: React.FC = () => {
     return booking.status || 'pending';
   };
 
+  const isStayCompleted = (checkOutDate: string): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkout = new Date(checkOutDate);
+    checkout.setHours(0, 0, 0, 0);
+    return checkout < today;
+  };
+
+  const isPropertyBookingInProgress = (booking: Booking) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkIn = new Date(booking.check_in_date);
+    checkIn.setHours(0, 0, 0, 0);
+    const checkOut = new Date(booking.check_out_date);
+    checkOut.setHours(0, 0, 0, 0);
+    return booking.status === 'confirmed' && checkIn <= today && checkOut >= today;
+  };
+
   const loadBookings = async () => {
     try {
-      const userBookings = await getMyBookings();
-      setBookings(userBookings);
+      // Charger les deux types de réservations en parallèle
+      const [userVehicleBookings, userPropertyBookings] = await Promise.all([
+        getMyBookings(),
+        getUserBookings()
+      ]);
       
-      // Charger les demandes de modification en attente pour chaque réservation
+      setBookings(userVehicleBookings);
+      setPropertyBookings(userPropertyBookings);
+      
+      // Charger les demandes de modification en attente pour chaque réservation de véhicule
       const requestsMap: { [key: string]: any } = {};
-      for (const booking of userBookings) {
+      for (const booking of userVehicleBookings) {
         if (booking.id) {
           try {
             const request = await getBookingPendingRequest(booking.id);
@@ -83,18 +127,38 @@ const MyVehicleBookingsScreen: React.FC = () => {
       }
       setPendingRequests(requestsMap);
       
-      // Vérifier pour chaque réservation terminée si l'utilisateur peut noter le véhicule
+      // Vérifier pour chaque réservation de véhicule terminée si l'utilisateur peut noter le véhicule
       const canReviewMap: { [key: string]: boolean } = {};
-      for (const booking of userBookings) {
+      for (const booking of userVehicleBookings) {
         const status = getBookingStatus(booking);
         if (status === 'completed' && booking.status !== 'cancelled') {
-          // Vérifier si peut noter le véhicule
           if (booking.vehicle?.id && booking.id) {
             canReviewMap[booking.id] = await canReviewVehicle(booking.id);
           }
         }
       }
       setCanReview(canReviewMap);
+
+      // Vérifier pour chaque réservation de propriété terminée si l'utilisateur peut noter la propriété
+      const canReviewPropertyPromises = userPropertyBookings
+        .filter(booking => 
+          (booking.status === 'confirmed' || booking.status === 'completed') &&
+          isStayCompleted(booking.check_out_date)
+        )
+        .map(async (booking) => {
+          const canReview = await canUserReviewProperty(
+            booking.property_id,
+            booking.id
+          );
+          return { bookingId: booking.id, canReview };
+        });
+      
+      const canReviewPropertyResults = await Promise.all(canReviewPropertyPromises);
+      const canReviewPropertyMapResult: Record<string, boolean> = {};
+      canReviewPropertyResults.forEach(({ bookingId, canReview }) => {
+        canReviewPropertyMapResult[bookingId] = canReview;
+      });
+      setCanReviewProperty(canReviewPropertyMapResult);
     } catch (err) {
       console.error('Erreur lors du chargement des réservations:', err);
     }
@@ -178,10 +242,26 @@ const MyVehicleBookingsScreen: React.FC = () => {
   };
 
   const filteredBookings = bookings.filter(booking => {
-    if (selectedFilter === 'all') return true;
     const status = getBookingStatus(booking);
+    if (selectedFilter === 'all') return true;
+    if (selectedFilter === 'in_progress') return status === 'in_progress';
     return status === selectedFilter;
   });
+
+  const filteredPropertyBookings = propertyBookings.filter(booking => {
+    if (selectedFilter === 'all') return true;
+    if (selectedFilter === 'in_progress') return isPropertyBookingInProgress(booking);
+    return booking.status === selectedFilter;
+  });
+
+  // Obtenir les items à afficher selon l'onglet actif
+  const getDisplayItems = () => {
+    if (activeTab === 'vehicles') return filteredBookings;
+    return filteredPropertyBookings;
+  };
+
+  const displayItems = getDisplayItems();
+  const totalCount = bookings.length + propertyBookings.length;
 
   const canModifyBooking = (booking: VehicleBooking) => {
     // Ne peut pas modifier si annulée ou terminée
@@ -424,26 +504,122 @@ const MyVehicleBookingsScreen: React.FC = () => {
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons name="car-outline" size={64} color="#ccc" />
-      <Text style={styles.emptyTitle}>Aucune réservation de véhicule</Text>
-      <Text style={styles.emptySubtitle}>
-        {selectedFilter === 'all' 
-          ? 'Vous n\'avez pas encore de réservations de véhicules'
-          : `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()}`
-        }
-      </Text>
-      {selectedFilter === 'all' && (
-        <TouchableOpacity
-          style={styles.exploreButton}
-          onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
-        >
-          <Text style={styles.exploreButtonText}>Découvrir des véhicules</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+  const handlePropertyCancelBooking = (booking: Booking) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkOutDate = new Date(booking.check_out_date);
+    checkOutDate.setHours(0, 0, 0, 0);
+
+    if (booking.status === 'completed') {
+      Alert.alert('Impossible d\'annuler', 'Cette réservation est terminée et ne peut plus être annulée.');
+      return;
+    }
+
+    if (booking.status === 'cancelled') {
+      Alert.alert('Réservation annulée', 'Cette réservation est déjà annulée.');
+      return;
+    }
+
+    if (checkOutDate < today) {
+      Alert.alert('Impossible d\'annuler', 'Cette réservation concerne des dates passées et ne peut plus être annulée.');
+      return;
+    }
+
+    setSelectedPropertyBookingForCancellation(booking);
+    setPropertyCancellationDialogVisible(true);
+  };
+
+  const handlePropertyModifyBooking = async (booking: Booking) => {
+    if (booking.status === 'completed' || booking.status === 'cancelled') {
+      Alert.alert('Impossible de modifier', 'Cette réservation ne peut plus être modifiée.');
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkout = new Date(booking.check_out_date);
+    checkout.setHours(0, 0, 0, 0);
+    
+    if (checkout < today) {
+      Alert.alert('Impossible de modifier', 'Cette réservation est terminée et ne peut plus être modifiée.');
+      return;
+    }
+    
+    try {
+      const pendingRequest = await getPropertyBookingPendingRequest(booking.id);
+      if (pendingRequest) {
+        Alert.alert(
+          'Demande en cours',
+          'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse de l\'hôte ou annuler la demande existante.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    } catch (error) {
+      console.error('Erreur vérification demande:', error);
+    }
+    
+    setSelectedPropertyBookingForModification(booking);
+    setPropertyModificationModalVisible(true);
+  };
+
+  const handlePropertyViewProperty = (propertyId: string) => {
+    navigation.navigate('PropertyDetails', { propertyId });
+  };
+
+  const handlePropertyLeaveReview = (booking: Booking) => {
+    setSelectedPropertyBookingForReview(booking);
+    setPropertyReviewModalVisible(true);
+  };
+
+  const renderPropertyBookingItem = ({ item: booking }: { item: Booking }) => (
+    <BookingCard
+      booking={booking}
+      onViewProperty={handlePropertyViewProperty}
+      onCancelBooking={handlePropertyCancelBooking}
+      onLeaveReview={handlePropertyLeaveReview}
+      onModifyBooking={handlePropertyModifyBooking}
+      canReview={canReviewProperty[booking.id] || false}
+    />
   );
+
+  const renderEmptyState = () => {
+    const hasAnyBookings = totalCount > 0;
+    const emptyMessage = activeTab === 'vehicles' 
+      ? 'Aucune réservation de véhicule'
+      : 'Aucune réservation de résidence meublée';
+    
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons name={activeTab === 'properties' ? 'home-outline' : 'car-outline'} size={64} color="#ccc" />
+        <Text style={styles.emptyTitle}>{emptyMessage}</Text>
+        <Text style={styles.emptySubtitle}>
+          {selectedFilter === 'all' 
+            ? hasAnyBookings 
+              ? `Aucune réservation ${activeTab === 'vehicles' ? 'de véhicule' : 'de résidence'} ${getStatusText(selectedFilter).toLowerCase()}`
+              : 'Vous n\'avez pas encore de réservations'
+            : `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()}`
+          }
+        </Text>
+        {!hasAnyBookings && (
+          <TouchableOpacity
+            style={styles.exploreButton}
+            onPress={() => {
+              if (activeTab === 'properties') {
+                (navigation as any).navigate('Home', { screen: 'HomeTab' });
+              } else {
+                (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' });
+              }
+            }}
+          >
+            <Text style={styles.exploreButtonText}>
+              {activeTab === 'properties' ? 'Explorer les résidences' : 'Découvrir des véhicules'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   const renderFilterButton = (filter: typeof selectedFilter, label: string) => (
     <TouchableOpacity
@@ -485,14 +661,29 @@ const MyVehicleBookingsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mes réservations véhicules</Text>
         <View style={styles.placeholder} />
+        <Text style={styles.headerTitle}>Mes réservations</Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      {/* Onglets */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'vehicles' && styles.tabActive]}
+          onPress={() => setActiveTab('vehicles')}
+        >
+          <Text style={[styles.tabText, activeTab === 'vehicles' && styles.tabTextActive]}>
+            Véhicules ({bookings.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'properties' && styles.tabActive]}
+          onPress={() => setActiveTab('properties')}
+        >
+          <Text style={[styles.tabText, activeTab === 'properties' && styles.tabTextActive]}>
+            Résidences ({propertyBookings.length})
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Filtres */}
@@ -517,8 +708,8 @@ const MyVehicleBookingsScreen: React.FC = () => {
         </View>
       ) : (
         <FlatList
-          data={filteredBookings}
-          renderItem={renderBookingItem}
+          data={displayItems}
+          renderItem={activeTab === 'properties' ? renderPropertyBookingItem : renderBookingItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           refreshControl={
@@ -569,7 +760,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
         />
       )}
 
-      {/* Modal d'avis */}
+      {/* Modal d'avis véhicule */}
       {selectedBookingForReview && selectedBookingForReview.vehicle && (
         <VehicleReviewModal
           visible={reviewModalVisible}
@@ -584,6 +775,65 @@ const MyVehicleBookingsScreen: React.FC = () => {
             loadBookings();
             setReviewModalVisible(false);
             setSelectedBookingForReview(null);
+          }}
+        />
+      )}
+
+      {/* Modals pour les réservations de propriétés */}
+      <ReviewModal
+        visible={propertyReviewModalVisible}
+        onClose={() => {
+          setPropertyReviewModalVisible(false);
+          setSelectedPropertyBookingForReview(null);
+        }}
+        propertyId={selectedPropertyBookingForReview?.property_id || ''}
+        bookingId={selectedPropertyBookingForReview?.id || ''}
+        onReviewSubmitted={() => {
+          loadBookings();
+          setPropertyReviewModalVisible(false);
+          setSelectedPropertyBookingForReview(null);
+        }}
+      />
+
+      {selectedPropertyBookingForCancellation && (
+        <CancellationDialog
+          visible={propertyCancellationDialogVisible}
+          onClose={() => {
+            setPropertyCancellationDialogVisible(false);
+            setSelectedPropertyBookingForCancellation(null);
+          }}
+          booking={{
+            id: selectedPropertyBookingForCancellation.id,
+            check_in_date: selectedPropertyBookingForCancellation.check_in_date,
+            check_out_date: selectedPropertyBookingForCancellation.check_out_date,
+            total_price: selectedPropertyBookingForCancellation.total_price,
+            status: selectedPropertyBookingForCancellation.status,
+            properties: {
+              title: selectedPropertyBookingForCancellation.properties?.title || 'Propriété',
+              price_per_night: selectedPropertyBookingForCancellation.properties?.price_per_night || 0,
+              cancellation_policy: selectedPropertyBookingForCancellation.properties?.cancellation_policy || null,
+            },
+          }}
+          onCancelled={() => {
+            loadBookings();
+            setPropertyCancellationDialogVisible(false);
+            setSelectedPropertyBookingForCancellation(null);
+          }}
+        />
+      )}
+
+      {selectedPropertyBookingForModification && (
+        <BookingModificationModal
+          visible={propertyModificationModalVisible}
+          onClose={() => {
+            setPropertyModificationModalVisible(false);
+            setSelectedPropertyBookingForModification(null);
+          }}
+          booking={selectedPropertyBookingForModification}
+          onModificationRequested={() => {
+            loadBookings();
+            setPropertyModificationModalVisible(false);
+            setSelectedPropertyBookingForModification(null);
           }}
         />
       )}
@@ -951,6 +1201,32 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#666',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    paddingHorizontal: 20,
+  },
+  tab: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginRight: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: '#2E7D32',
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  tabTextActive: {
+    color: '#2E7D32',
+    fontWeight: '600',
   },
 });
 

@@ -114,3 +114,4 @@ Les corrections appliquées garantissent que :
 - Les calculs sont cohérents entre l'affichage mobile et le PDF
 
 
+

@@ -178,3 +178,4 @@ Les PDFs générés lors de la confirmation par l'hôte devraient maintenant :
 - ✅ Utiliser la valeur stockée si le calcul retourne 0 mais qu'une valeur existe
 
 
+

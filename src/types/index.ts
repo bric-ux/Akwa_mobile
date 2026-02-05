@@ -288,8 +288,8 @@ export type HostTabParamList = {
 };
 
 export type VehicleTabParamList = {
-  VehicleExplorerTab: undefined;
   VehiclesTab: undefined;
+  VehicleBookingsTab: undefined;
   VehicleMessagingTab: { conversationId?: string };
   VehicleFavoritesTab: undefined;
   VehicleProfileTab: undefined;

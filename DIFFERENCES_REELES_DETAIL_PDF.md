@@ -215,3 +215,4 @@ WHERE title LIKE '%H.Asso%';
 5. **Long terme** : Ajouter des tests unitaires pour vérifier la cohérence des calculs
 
 
+

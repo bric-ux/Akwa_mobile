@@ -81,6 +81,7 @@ const VehiclesScreen: React.FC = () => {
   const [startDateTime, setStartDateTime] = useState<string>('');
   const [endDateTime, setEndDateTime] = useState<string>('');
   const scrollY = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   
   // AMÉLIORATION: États pour le nouveau design avec carte
   const [isMapView, setIsMapView] = useState(false); // Liste par défaut
@@ -161,6 +162,47 @@ const VehiclesScreen: React.FC = () => {
       hasLoadedOnceRef.current = true;
     }
   }, [fetchVehicles]);
+
+  // Animation de pulsation pour le bouton de retour aux résidences
+  useEffect(() => {
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.15,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseAnimation.start();
+    return () => pulseAnimation.stop();
+  }, []);
+
+  const handleBackToProperties = () => {
+    // Demander confirmation avant de quitter la section véhicule
+    Alert.alert(
+      'Retour aux résidences meublées',
+      'Voulez-vous vraiment retourner sur la recherche de résidences meublées ?',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Oui',
+          onPress: () => {
+            // Naviguer vers la recherche de résidences meublées
+            (navigation as any).navigate('Home', { screen: 'HomeTab' });
+          },
+        },
+      ]
+    );
+  };
   
   // SUPPRIMÉ: useEffect automatique qui causait des appels multiples
   // Les recherches se font maintenant uniquement via handleSearch(), handleDateTimeChange() ou handleDateGuestsChange()
@@ -767,6 +809,24 @@ const VehiclesScreen: React.FC = () => {
         </View>
       )}
       
+      {/* Bouton flottant animé pour revenir aux résidences meublées - au milieu du côté droit */}
+      <Animated.View
+        style={[
+          styles.backToPropertiesButton,
+          {
+            transform: [{ scale: pulseAnim }],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backToPropertiesButtonInner}
+          onPress={handleBackToProperties}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="home" size={20} color="#fff" />
+        </TouchableOpacity>
+      </Animated.View>
+
       {/* Header et filtres - intégrés dans le flux normal en mode liste, overlay en mode carte */}
       <SafeAreaView style={isMapView ? styles.overlayContainer : styles.headerContainer} edges={['top']}>
         {/* Header avec position et dates/heures */}
@@ -2447,7 +2507,7 @@ const styles = StyleSheet.create({
   },
   listButton: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 70,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -2464,7 +2524,7 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   listButtonWithBottomSheet: {
-    bottom: 280,
+    bottom: 250,
   },
   listButtonText: {
     color: '#fff',
@@ -2473,7 +2533,7 @@ const styles = StyleSheet.create({
   },
   mapButton: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 70,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -2490,7 +2550,7 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   mapButtonWithBottomSheet: {
-    bottom: 280,
+    bottom: 250,
   },
   mapButtonText: {
     color: '#fff',
@@ -2797,6 +2857,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     textAlign: 'center',
+  },
+  backToPropertiesButton: {
+    position: 'absolute',
+    right: 16,
+    top: '50%',
+    marginTop: -25, // Moitié de la hauteur du bouton (50px / 2)
+    zIndex: 1000,
+    elevation: 10,
+  },
+  backToPropertiesButtonInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#2E7D32',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#2E7D32',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
 });
 

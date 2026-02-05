@@ -222,3 +222,4 @@ Après correction, pour une réservation avec réduction long séjour :
 - [ ] Vérification des logs en production (à faire)
 
 
+
