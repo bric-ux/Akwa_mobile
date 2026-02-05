@@ -342,10 +342,6 @@ const MyVehicleBookingsScreen: React.FC = () => {
                 <Text style={styles.dateText}>
                   {formatDateWithTime(booking.start_date, booking.start_datetime)} - {formatDateWithTime(booking.end_date, booking.end_datetime)}
                 </Text>
-                <Text style={styles.daysText}>
-                  {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
-                  {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
-                </Text>
               </View>
             </View>
           </View>
@@ -402,13 +398,6 @@ const MyVehicleBookingsScreen: React.FC = () => {
         )}
 
         <View style={styles.bookingDetails}>
-          <View style={styles.durationInfo}>
-            <Ionicons name="time-outline" size={16} color="#666" />
-            <Text style={styles.durationText}>
-              {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
-              {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
-            </Text>
-          </View>
           <View style={styles.priceContainer}>
             <Text style={styles.priceText}>
               {formatPrice(totalWithServiceFee)}

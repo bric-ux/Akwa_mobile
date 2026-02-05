@@ -832,15 +832,15 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         </View>
       </View>
 
-      {/* Durée */}
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Durée</Text>
-        <Text style={styles.sectionValue}>
-          {String(nights)} {serviceType === 'property' ? `nuit${nights > 1 ? 's' : ''}` : `jour${nights > 1 ? 's' : ''}`}
-          {serviceType === 'vehicle' && (booking as any).rental_hours && (booking as any).rental_hours > 0 && 
-            ` et ${(booking as any).rental_hours} heure${(booking as any).rental_hours > 1 ? 's' : ''}`}
-        </Text>
-      </View>
+      {/* Durée - uniquement pour les propriétés */}
+      {serviceType === 'property' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Durée</Text>
+          <Text style={styles.sectionValue}>
+            {String(nights)} {`nuit${nights > 1 ? 's' : ''}`}
+          </Text>
+        </View>
+      )}
 
       {/* Avec chauffeur (véhicules uniquement) */}
       {serviceType === 'vehicle' && (booking as any).vehicle?.with_driver && (
@@ -989,23 +989,12 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           )}
           
           {/* Total avant réduction */}
-          {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && (
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>
-                Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'}
-                {serviceType === 'vehicle' && rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`})
-              </Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
-            </View>
-          )}
-          {(!serviceType || serviceType !== 'vehicle' || rentalHours === 0 || hoursPrice === 0) && (
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>
-                Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'})
-              </Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
-            </View>
-          )}
+          <View style={styles.financialRow}>
+            <Text style={styles.financialLabel}>
+              Prix initial{serviceType === 'property' ? ` (${String(nights)} ${nights > 1 ? 'nuits' : 'nuit'})` : ''}
+            </Text>
+            <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
+          </View>
 
           {/* Réduction */}
           {actualDiscountAmount > 0 && (
@@ -1133,23 +1122,12 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           )}
           
           {/* Total avant réduction */}
-          {serviceType === 'vehicle' && rentalHours > 0 && hoursPrice > 0 && (
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>
-                Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'}
-                {serviceType === 'vehicle' && rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`})
-              </Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
-            </View>
-          )}
-          {(!serviceType || serviceType !== 'vehicle' || rentalHours === 0 || hoursPrice === 0) && (
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>
-                Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'})
-              </Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
-            </View>
-          )}
+          <View style={styles.financialRow}>
+            <Text style={styles.financialLabel}>
+              Prix initial{serviceType === 'property' ? ` (${String(nights)} ${nights > 1 ? 'nuits' : 'nuit'})` : ''}
+            </Text>
+            <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
+          </View>
 
           {/* Réduction */}
           {actualDiscountAmount > 0 && (
@@ -1223,7 +1201,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Prix initial */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              Prix initial ({String(nights)} {serviceType === 'property' ? 'nuits' : 'jours'})
+              Prix initial{serviceType === 'property' ? ` (${String(nights)} ${nights > 1 ? 'nuits' : 'nuit'})` : ''}
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(basePrice)}</Text>
           </View>
