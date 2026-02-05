@@ -307,10 +307,18 @@ const MyVehicleBookingsScreen: React.FC = () => {
     const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
     const totalWithServiceFee = priceAfterDiscount + effectiveServiceFee;
 
+    const handleViewDetails = () => {
+      (navigation as any).navigate('VehicleBookingDetails', { bookingId: booking.id });
+    };
+
     return (
-      <View style={styles.bookingCard}>
+      <TouchableOpacity
+        style={styles.bookingCard}
+        onPress={handleViewDetails}
+        activeOpacity={0.8}
+      >
         <View style={styles.bookingHeader}>
-          <View style={styles.bookingTitleRow}>
+          <View style={styles.vehicleInfo}>
             {vehicleImage ? (
               <Image
                 source={{ uri: vehicleImage }}
@@ -322,50 +330,33 @@ const MyVehicleBookingsScreen: React.FC = () => {
                 <Ionicons name="car-outline" size={32} color="#ccc" />
               </View>
             )}
-            <View style={styles.bookingInfo}>
-              <Text style={styles.vehicleTitle}>
+            <View style={styles.vehicleDetails}>
+              <Text style={styles.vehicleTitle} numberOfLines={2}>
                 {vehicle?.title || `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim() || 'Véhicule'}
               </Text>
               <Text style={styles.vehicleLocation}>
                 📍 {vehicle?.location?.name || 'Localisation inconnue'}
               </Text>
-              <View style={styles.dateRow}>
-                <Ionicons name="calendar-outline" size={14} color="#666" />
-                <View style={styles.dateContainer}>
-                  <Text style={styles.dateText}>
-                    {formatDateWithTime(booking.start_date, booking.start_datetime)} au {formatDateWithTime(booking.end_date, booking.end_datetime)}
-                  </Text>
-                  <Text style={styles.daysText}>
-                    {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
-                    {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
-                  </Text>
-                </View>
+              <View style={styles.dateContainer}>
+                <Text style={styles.dateText}>
+                  {formatDateWithTime(booking.start_date, booking.start_datetime)} - {formatDateWithTime(booking.end_date, booking.end_datetime)}
+                </Text>
+                <Text style={styles.daysText}>
+                  {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
+                  {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
+                </Text>
               </View>
             </View>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-            <Text style={styles.statusText}>{getStatusText(status)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.bookingDetails}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Total</Text>
-            <Text style={styles.priceValue}>
-              {formatPrice(totalWithServiceFee)}
-            </Text>
-          </View>
-
-          {booking.message_to_owner ? (
-            <View style={styles.messageContainer}>
-              <Text style={styles.messageLabel}>Votre message :</Text>
-              <Text style={styles.messageText}>{booking.message_to_owner}</Text>
+          <View style={styles.statusContainer}>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+              <Text style={styles.statusText}>{getStatusText(status)}</Text>
             </View>
-          ) : null}
+          </View>
         </View>
 
         {/* Afficher la demande de modification en cours */}
-        {pendingRequests[booking.id] ? (
+        {pendingRequests[booking.id] && (
           <View style={styles.modificationRequestBanner}>
             <Ionicons name="time-outline" size={18} color="#f39c12" />
             <View style={styles.modificationRequestContent}>
@@ -373,15 +364,6 @@ const MyVehicleBookingsScreen: React.FC = () => {
               <Text style={styles.modificationRequestDates}>
                 Nouvelles dates proposées: {formatDate(pendingRequests[booking.id].requested_start_date)} - {formatDate(pendingRequests[booking.id].requested_end_date)}
               </Text>
-              <Text style={styles.modificationRequestInfo}>
-                Durée: {String(pendingRequests[booking.id].requested_rental_days || 0)} jour{(pendingRequests[booking.id].requested_rental_days || 0) > 1 ? 's' : ''}
-                {pendingRequests[booking.id].requested_rental_hours && pendingRequests[booking.id].requested_rental_hours > 0 && ` et ${pendingRequests[booking.id].requested_rental_hours} heure${pendingRequests[booking.id].requested_rental_hours > 1 ? 's' : ''}`}
-              </Text>
-              {pendingRequests[booking.id].requested_total_price !== booking.total_price && (
-                <Text style={styles.modificationRequestInfo}>
-                  Prix payé en surplus: {formatPrice(pendingRequests[booking.id].requested_total_price - booking.total_price)}
-                </Text>
-              )}
               <TouchableOpacity
                 style={styles.cancelModificationButton}
                 onPress={async () => {
@@ -399,7 +381,6 @@ const MyVehicleBookingsScreen: React.FC = () => {
                           setCancellingRequests(prev => ({ ...prev, [requestId]: true }));
                           const result = await cancelModificationRequest(requestId);
                           if (result.success) {
-                            // Recharger les réservations pour mettre à jour l'affichage
                             await loadBookings();
                           }
                           setCancellingRequests(prev => ({ ...prev, [requestId]: false }));
@@ -417,16 +398,36 @@ const MyVehicleBookingsScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           </View>
-        ) : null}
+        )}
 
-        <View style={styles.actionsRow}>
+        <View style={styles.bookingDetails}>
+          <View style={styles.durationInfo}>
+            <Ionicons name="time-outline" size={16} color="#666" />
+            <Text style={styles.durationText}>
+              {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
+              {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
+            </Text>
+          </View>
+          <View style={styles.priceContainer}>
+            <Text style={styles.priceText}>
+              {formatPrice(totalWithServiceFee)}
+            </Text>
+          </View>
+        </View>
+
+        {booking.message_to_owner && (
+          <View style={styles.messageContainer}>
+            <Text style={styles.messageLabel}>Message au propriétaire :</Text>
+            <Text style={styles.messageText}>{booking.message_to_owner}</Text>
+          </View>
+        )}
+
+        <View style={styles.bookingActions}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => {
-              (navigation as any).navigate('VehicleBookingDetails', { bookingId: booking.id });
-            }}
+            onPress={handleViewDetails}
           >
-            <Ionicons name="receipt-outline" size={18} color="#2563eb" />
+            <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
             <Text style={styles.actionButtonText}>Voir détails</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -437,70 +438,85 @@ const MyVehicleBookingsScreen: React.FC = () => {
               }
             }}
           >
-            <Ionicons name="eye-outline" size={18} color="#2E7D32" />
+            <Ionicons name="eye-outline" size={16} color="#2E7D32" />
             <Text style={styles.actionButtonText}>Voir véhicule</Text>
           </TouchableOpacity>
+
+          {/* Bouton Contacter le propriétaire */}
+          {vehicle && booking.status !== 'cancelled' && vehicle.owner_id && (
+            <View style={styles.contactButtonWrapper}>
+              <ContactOwnerButton
+                vehicle={vehicle}
+                variant="outline"
+                size="small"
+                showIcon={true}
+              />
+            </View>
+          )}
+
+          {status === 'completed' && canReview[booking.id] && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.reviewButton]}
+              onPress={() => {
+                setSelectedBookingForReview(booking);
+                setReviewModalVisible(true);
+              }}
+            >
+              <Ionicons name="star-outline" size={16} color="#FFD700" />
+              <Text style={[styles.actionButtonText, styles.reviewButtonText]}>
+                Avis
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {canModifyBooking(booking) && (
+            <>
+              {!pendingRequests[booking.id] && (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.modifyButton]}
+                  onPress={async () => {
+                    try {
+                      const pendingRequest = await getBookingPendingRequest(booking.id);
+                      if (pendingRequest) {
+                        Alert.alert(
+                          'Demande en cours',
+                          'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse du propriétaire ou annuler la demande existante.'
+                        );
+                        return;
+                      }
+                    } catch (error) {
+                      console.error('Erreur lors de la vérification de la demande en cours:', error);
+                      Alert.alert('Erreur', 'Impossible de vérifier les demandes en cours. Veuillez réessayer.');
+                      return;
+                    }
+                    setSelectedBookingForModification(booking);
+                    setModificationModalVisible(true);
+                  }}
+                >
+                  <Ionicons name="create-outline" size={16} color="#3498db" />
+                  <Text style={[styles.actionButtonText, styles.modifyButtonText]}>
+                    Modifier
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {(status === 'pending' || status === 'confirmed' || status === 'in_progress') && (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.cancelButton]}
+                  onPress={() => {
+                    setSelectedBookingForCancellation(booking);
+                    setCancellationModalVisible(true);
+                  }}
+                >
+                  <Ionicons name="close-outline" size={16} color="#e74c3c" />
+                  <Text style={[styles.actionButtonText, styles.cancelButtonText]}>
+                    Annuler
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
-
-        {/* Bouton Annuler pour les réservations en attente, confirmées ou en cours */}
-        {(status === 'pending' || status === 'confirmed' || status === 'in_progress') && (
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => {
-              setSelectedBookingForCancellation(booking);
-              setCancellationModalVisible(true);
-            }}
-          >
-            <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
-            <Text style={styles.cancelButtonText}>
-              {status === 'pending' ? 'Annuler la demande' : 'Annuler la réservation'}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Bouton Modifier pour les réservations modifiables */}
-        {canModifyBooking(booking) && (
-          <TouchableOpacity
-            style={styles.modifyButton}
-            onPress={async () => {
-              // Vérifier s'il y a déjà une demande de modification en cours
-              try {
-                const pendingRequest = await getBookingPendingRequest(booking.id);
-                if (pendingRequest) {
-                  Alert.alert(
-                    'Demande en cours',
-                    'Vous avez déjà une demande de modification en attente. Veuillez attendre la réponse du propriétaire ou annuler la demande existante.'
-                  );
-                  return;
-                }
-              } catch (error) {
-                console.error('Erreur lors de la vérification de la demande en cours:', error);
-                Alert.alert('Erreur', 'Impossible de vérifier les demandes en cours. Veuillez réessayer.');
-                return;
-              }
-              setSelectedBookingForModification(booking);
-              setModificationModalVisible(true);
-            }}
-          >
-            <Ionicons name="create-outline" size={18} color="#2563eb" />
-            <Text style={styles.modifyButtonText}>Modifier les dates</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Bouton Évaluer le véhicule pour les réservations terminées */}
-        {status === 'completed' && canReview[booking.id] && (
-          <TouchableOpacity
-            style={styles.reviewButton}
-            onPress={() => {
-              setSelectedBookingForReview(booking);
-              setReviewModalVisible(true);
-            }}
-          >
-            <Ionicons name="star-outline" size={18} color="#fbbf24" />
-            <Text style={styles.reviewButtonText}>Évaluer le véhicule</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -914,10 +930,13 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   bookingHeader: {
     flexDirection: 'row',
@@ -925,10 +944,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  bookingTitleRow: {
+  vehicleInfo: {
     flexDirection: 'row',
     flex: 1,
-    marginRight: 12,
   },
   vehicleImage: {
     width: 80,
@@ -941,7 +959,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bookingInfo: {
+  vehicleDetails: {
     flex: 1,
   },
   vehicleTitle: {
@@ -955,15 +973,9 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 8,
   },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
   dateContainer: {
-    flex: 1,
-    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   dateText: {
     fontSize: 12,
@@ -973,63 +985,49 @@ const styles = StyleSheet.create({
   daysText: {
     fontSize: 12,
     color: '#2E7D32',
-    fontWeight: '600',
-    flexShrink: 1,
+    fontWeight: '500',
+  },
+  statusContainer: {
+    alignItems: 'flex-end',
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusText: {
     fontSize: 12,
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   bookingDetails: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-  },
-  priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  priceLabel: {
+  durationInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  durationText: {
     fontSize: 14,
     color: '#666',
+    marginLeft: 4,
   },
-  priceValue: {
-    fontSize: 18,
+  priceContainer: {
+    alignItems: 'flex-end',
+  },
+  priceText: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#2E7D32',
-  },
-  discountInfo: {
-    marginTop: 8,
-    padding: 8,
-    backgroundColor: '#f0fdf4',
-    borderRadius: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: '#10b981',
-  },
-  discountText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#10b981',
-    marginBottom: 2,
-  },
-  discountSubtext: {
-    fontSize: 11,
-    color: '#6b7280',
   },
   messageContainer: {
     backgroundColor: '#f8f9fa',
     padding: 12,
     borderRadius: 8,
-    marginTop: 8,
+    marginBottom: 12,
   },
   messageLabel: {
     fontSize: 12,
@@ -1042,94 +1040,69 @@ const styles = StyleSheet.create({
     color: '#333',
     lineHeight: 20,
   },
-  actionsRow: {
+  bookingActions: {
     flexDirection: 'row',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#2E7D32',
     backgroundColor: '#fff',
+    flex: 1,
+    minWidth: 100,
+    justifyContent: 'center',
   },
   actionButtonText: {
     fontSize: 14,
     color: '#2E7D32',
-    fontWeight: '600',
-    marginLeft: 6,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  contactButton: {
+    borderColor: '#e67e22',
+  },
+  contactButtonText: {
+    color: '#e67e22',
+  },
+  contactButtonWrapper: {
+    flex: 1,
+    minWidth: 100,
   },
   cancelButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ef4444',
-    backgroundColor: '#fff',
-    gap: 8,
+    borderColor: '#e74c3c',
   },
   cancelButtonText: {
-    fontSize: 14,
-    color: '#ef4444',
-    fontWeight: '600',
-  },
-  modifyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2563eb',
-    backgroundColor: '#fff',
-    gap: 8,
-  },
-  modifyButtonText: {
-    fontSize: 14,
-    color: '#2563eb',
-    fontWeight: '600',
+    color: '#e74c3c',
   },
   reviewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#fbbf24',
-    marginTop: 12,
+    borderColor: '#FFD700',
   },
   reviewButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fbbf24',
+    color: '#FFD700',
+  },
+  modifyButton: {
+    borderColor: '#3498db',
+  },
+  modifyButtonText: {
+    color: '#3498db',
   },
   modificationRequestBanner: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     backgroundColor: '#fef3c7',
     padding: 12,
-    borderRadius: 8,
     marginTop: 12,
-    marginBottom: 12,
+    borderRadius: 8,
     borderLeftWidth: 4,
     borderLeftColor: '#f39c12',
-    gap: 10,
+    gap: 8,
   },
   modificationRequestContent: {
     flex: 1,
@@ -1137,18 +1110,12 @@ const styles = StyleSheet.create({
   modificationRequestTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#92400e',
+    color: '#f39c12',
     marginBottom: 4,
   },
   modificationRequestDates: {
     fontSize: 12,
-    color: '#78350f',
-    marginBottom: 2,
-  },
-  modificationRequestInfo: {
-    fontSize: 12,
-    color: '#78350f',
-    marginTop: 2,
+    color: '#856404',
   },
   cancelModificationButton: {
     flexDirection: 'row',

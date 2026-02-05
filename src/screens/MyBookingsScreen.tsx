@@ -29,6 +29,7 @@ import BookingModificationModal from '../components/BookingModificationModal';
 import VehicleModificationModal from '../components/VehicleModificationModal';
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
+import ContactOwnerButton from '../components/ContactOwnerButton';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -385,102 +386,163 @@ const MyBookingsScreen: React.FC = () => {
       return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(amount);
     };
 
+    const handleViewDetails = () => {
+      (navigation as any).navigate('VehicleBookingDetails', { bookingId: booking.id });
+    };
+
     return (
-      <View style={styles.vehicleBookingCard}>
+      <TouchableOpacity
+        style={styles.vehicleBookingCard}
+        onPress={handleViewDetails}
+        activeOpacity={0.8}
+      >
         <View style={styles.vehicleBookingHeader}>
-          <View style={styles.vehicleBookingTitleRow}>
+          <View style={styles.vehicleInfo}>
             {vehicleImage ? (
-              <Image source={{ uri: vehicleImage }} style={styles.vehicleBookingImage} resizeMode="cover" />
+              <Image source={{ uri: vehicleImage }} style={styles.vehicleImage} resizeMode="cover" />
             ) : (
-              <View style={[styles.vehicleBookingImage, styles.vehicleBookingImagePlaceholder]}>
+              <View style={[styles.vehicleImage, styles.vehicleImagePlaceholder]}>
                 <Ionicons name="car-outline" size={32} color="#ccc" />
               </View>
             )}
-            <View style={styles.vehicleBookingInfo}>
-              <Text style={styles.vehicleBookingTitle}>
+            <View style={styles.vehicleDetails}>
+              <Text style={styles.vehicleTitle} numberOfLines={2}>
                 {vehicle?.title || `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim() || 'Véhicule'}
               </Text>
-              <Text style={styles.vehicleBookingLocation}>
+              <Text style={styles.vehicleLocation}>
                 📍 {vehicle?.location?.name || 'Localisation inconnue'}
               </Text>
-              <View style={styles.vehicleBookingDateRow}>
-                <Ionicons name="calendar-outline" size={14} color="#666" />
-                <Text style={styles.vehicleBookingDateText}>
+              <View style={styles.dateContainer}>
+                <Text style={styles.dateText}>
                   {formatDateWithTime(booking.start_date, booking.start_datetime)} - {formatDateWithTime(booking.end_date, booking.end_datetime)}
+                </Text>
+                <Text style={styles.daysText}>
+                  {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
+                  {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
                 </Text>
               </View>
             </View>
           </View>
-          <View style={[styles.vehicleBookingStatusBadge, { backgroundColor: statusColor }]}>
-            <Text style={styles.vehicleBookingStatusText}>{getStatusText(status)}</Text>
+          <View style={styles.statusContainer}>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+              <Text style={styles.statusText}>{getStatusText(status)}</Text>
+            </View>
           </View>
         </View>
-        <View style={styles.vehicleBookingDetails}>
-          <View style={styles.vehicleBookingPriceRow}>
-            <Text style={styles.vehicleBookingPriceLabel}>Total</Text>
-            <Text style={styles.vehicleBookingPriceValue}>{formatPrice(booking.total_price)}</Text>
-          </View>
-        </View>
+
         {/* Afficher la demande de modification en cours */}
         {vehiclePendingRequests[booking.id] && (
-          <View style={styles.vehicleModificationRequestBanner}>
+          <View style={styles.modificationRequestBanner}>
             <Ionicons name="time-outline" size={18} color="#f39c12" />
-            <View style={styles.vehicleModificationRequestContent}>
-              <Text style={styles.vehicleModificationRequestTitle}>Demande de modification en cours</Text>
-              <Text style={styles.vehicleModificationRequestText}>
+            <View style={styles.modificationRequestContent}>
+              <Text style={styles.modificationRequestTitle}>Demande de modification en cours</Text>
+              <Text style={styles.modificationRequestDates}>
                 En attente de réponse du propriétaire
               </Text>
             </View>
           </View>
         )}
 
-        <View style={styles.vehicleBookingActions}>
+        <View style={styles.bookingDetails}>
+          <View style={styles.durationInfo}>
+            <Ionicons name="time-outline" size={16} color="#666" />
+            <Text style={styles.durationText}>
+              {String(rentalDays)} jour{rentalDays > 1 ? 's' : ''}
+              {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
+            </Text>
+          </View>
+          <View style={styles.priceContainer}>
+            <Text style={styles.priceText}>
+              {formatPrice(booking.total_price)}
+            </Text>
+          </View>
+        </View>
+
+        {booking.message_to_owner && (
+          <View style={styles.messageContainer}>
+            <Text style={styles.messageLabel}>Message au propriétaire :</Text>
+            <Text style={styles.messageText}>{booking.message_to_owner}</Text>
+          </View>
+        )}
+
+        <View style={styles.bookingActions}>
           <TouchableOpacity
-            style={styles.vehicleBookingActionButton}
+            style={styles.actionButton}
+            onPress={handleViewDetails}
+          >
+            <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
+            <Text style={styles.actionButtonText}>Voir détails</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
             onPress={() => {
               if (vehicle?.id) {
                 navigation.navigate('VehicleDetails' as never, { vehicleId: vehicle.id } as never);
               }
             }}
           >
-            <Ionicons name="eye-outline" size={18} color="#2E7D32" />
-            <Text style={styles.vehicleBookingActionText}>Voir véhicule</Text>
+            <Ionicons name="eye-outline" size={16} color="#2E7D32" />
+            <Text style={styles.actionButtonText}>Voir véhicule</Text>
           </TouchableOpacity>
-          {canModifyVehicleBooking(booking) && !vehiclePendingRequests[booking.id] && (
-            <TouchableOpacity
-              style={styles.vehicleBookingModifyButton}
-              onPress={() => handleVehicleModifyBooking(booking)}
-            >
-              <Ionicons name="create-outline" size={18} color="#2563eb" />
-              <Text style={styles.vehicleBookingModifyText}>Modifier</Text>
-            </TouchableOpacity>
+
+          {/* Bouton Contacter le propriétaire */}
+          {vehicle && booking.status !== 'cancelled' && vehicle.owner_id && (
+            <View style={styles.contactButtonWrapper}>
+              <ContactOwnerButton
+                vehicle={vehicle}
+                variant="outline"
+                size="small"
+                showIcon={true}
+              />
+            </View>
           )}
-          {(status === 'pending' || status === 'confirmed' || status === 'in_progress') && (
-            <TouchableOpacity
-              style={styles.vehicleBookingCancelButton}
-              onPress={() => {
-                setSelectedVehicleBookingForCancellation(booking);
-                setVehicleCancellationModalVisible(true);
-              }}
-            >
-              <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
-              <Text style={styles.vehicleBookingCancelText}>Annuler</Text>
-            </TouchableOpacity>
-          )}
+
           {status === 'completed' && canReviewVehicleMap[booking.id] && (
             <TouchableOpacity
-              style={styles.vehicleBookingReviewButton}
+              style={[styles.actionButton, styles.reviewButton]}
               onPress={() => {
                 setSelectedVehicleBookingForReview(booking);
                 setVehicleReviewModalVisible(true);
               }}
             >
-              <Ionicons name="star-outline" size={18} color="#fbbf24" />
-              <Text style={styles.vehicleBookingReviewText}>Évaluer</Text>
+              <Ionicons name="star-outline" size={16} color="#FFD700" />
+              <Text style={[styles.actionButtonText, styles.reviewButtonText]}>
+                Avis
+              </Text>
             </TouchableOpacity>
           )}
+
+          {canModifyVehicleBooking(booking) && !vehiclePendingRequests[booking.id] && (
+            <>
+              {handleVehicleModifyBooking && (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.modifyButton]}
+                  onPress={() => handleVehicleModifyBooking(booking)}
+                >
+                  <Ionicons name="create-outline" size={16} color="#3498db" />
+                  <Text style={[styles.actionButtonText, styles.modifyButtonText]}>
+                    Modifier
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {(status === 'pending' || status === 'confirmed' || status === 'in_progress') && (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.cancelButton]}
+                  onPress={() => {
+                    setSelectedVehicleBookingForCancellation(booking);
+                    setVehicleCancellationModalVisible(true);
+                  }}
+                >
+                  <Ionicons name="close-outline" size={16} color="#e74c3c" />
+                  <Text style={[styles.actionButtonText, styles.cancelButtonText]}>
+                    Annuler
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -882,10 +944,13 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   vehicleBookingHeader: {
     flexDirection: 'row',
@@ -893,179 +958,178 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  vehicleBookingTitleRow: {
+  vehicleInfo: {
     flexDirection: 'row',
     flex: 1,
-    marginRight: 12,
   },
-  vehicleBookingImage: {
+  vehicleImage: {
     width: 80,
     height: 80,
     borderRadius: 8,
     marginRight: 12,
   },
-  vehicleBookingImagePlaceholder: {
+  vehicleImagePlaceholder: {
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  vehicleBookingInfo: {
+  vehicleDetails: {
     flex: 1,
   },
-  vehicleBookingTitle: {
+  vehicleTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
   },
-  vehicleBookingLocation: {
+  vehicleLocation: {
     fontSize: 14,
     color: '#666',
     marginBottom: 8,
   },
-  vehicleBookingDateRow: {
+  dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
-  vehicleBookingDateText: {
+  dateText: {
     fontSize: 12,
     color: '#666',
+    marginRight: 8,
   },
-  vehicleBookingStatusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+  daysText: {
+    fontSize: 12,
+    color: '#2E7D32',
+    fontWeight: '500',
   },
-  vehicleBookingStatusText: {
+  statusContainer: {
+    alignItems: 'flex-end',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
     fontSize: 12,
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '500',
   },
-  vehicleBookingDetails: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-  },
-  vehicleBookingPriceRow: {
+  bookingDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
-  vehicleBookingPriceLabel: {
+  durationInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  durationText: {
     fontSize: 14,
     color: '#666',
+    marginLeft: 4,
   },
-  vehicleBookingPriceValue: {
-    fontSize: 18,
+  priceContainer: {
+    alignItems: 'flex-end',
+  },
+  priceText: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#2E7D32',
   },
-  vehicleBookingActions: {
-    flexDirection: 'row',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-    gap: 8,
+  messageContainer: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
   },
-  vehicleBookingActionButton: {
+  messageLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  messageText: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  bookingActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#2E7D32',
     backgroundColor: '#fff',
     flex: 1,
+    minWidth: 100,
     justifyContent: 'center',
   },
-  vehicleBookingActionText: {
+  actionButtonText: {
     fontSize: 14,
     color: '#2E7D32',
-    fontWeight: '600',
-    marginLeft: 6,
+    fontWeight: '500',
+    marginLeft: 4,
   },
-  vehicleBookingCancelButton: {
+  contactButton: {
+    borderColor: '#e67e22',
+  },
+  contactButtonText: {
+    color: '#e67e22',
+  },
+  contactButtonWrapper: {
+    flex: 1,
+    minWidth: 100,
+  },
+  cancelButton: {
+    borderColor: '#e74c3c',
+  },
+  cancelButtonText: {
+    color: '#e74c3c',
+  },
+  reviewButton: {
+    borderColor: '#FFD700',
+  },
+  reviewButtonText: {
+    color: '#FFD700',
+  },
+  modifyButton: {
+    borderColor: '#3498db',
+  },
+  modifyButtonText: {
+    color: '#3498db',
+  },
+  modificationRequestBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ef4444',
-    backgroundColor: '#fff',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  vehicleBookingCancelText: {
-    fontSize: 14,
-    color: '#ef4444',
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  vehicleBookingReviewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#fbbf24',
-    backgroundColor: '#fff',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  vehicleBookingReviewText: {
-    fontSize: 14,
-    color: '#fbbf24',
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  vehicleBookingModifyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2563eb',
-    backgroundColor: '#fff',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  vehicleBookingModifyText: {
-    fontSize: 14,
-    color: '#2563eb',
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  vehicleModificationRequestBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     backgroundColor: '#fef3c7',
     padding: 12,
-    borderRadius: 8,
     marginTop: 12,
-    marginBottom: 12,
+    borderRadius: 8,
     borderLeftWidth: 4,
     borderLeftColor: '#f39c12',
-    gap: 10,
+    gap: 8,
   },
-  vehicleModificationRequestContent: {
+  modificationRequestContent: {
     flex: 1,
   },
-  vehicleModificationRequestTitle: {
+  modificationRequestTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#92400e',
+    color: '#f39c12',
     marginBottom: 4,
   },
-  vehicleModificationRequestText: {
+  modificationRequestDates: {
     fontSize: 12,
-    color: '#78350f',
+    color: '#856404',
   },
 });
 
