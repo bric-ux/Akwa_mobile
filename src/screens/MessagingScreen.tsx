@@ -485,7 +485,7 @@ const MessagingScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       {showConversations ? renderConversationList() : renderChatView()}
       
       {/* Menu de navigation en bas - seulement si on est dans le Stack, pas dans le TabNavigator */}

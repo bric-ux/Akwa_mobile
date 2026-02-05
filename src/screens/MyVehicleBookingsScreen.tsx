@@ -31,6 +31,7 @@ import { useReviews } from '../hooks/useReviews';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import { getCommissionRates } from '../lib/commissions';
+import ContactOwnerButton from '../components/ContactOwnerButton';
 
 const MyVehicleBookingsScreen: React.FC = () => {
   const navigation = useNavigation();

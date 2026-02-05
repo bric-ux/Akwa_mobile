@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import { useProperties } from '../hooks/useProperties';
@@ -248,7 +249,7 @@ const PropertyDetailsScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView style={styles.scrollView}>
       {/* Galerie d'images par catégories */}
       <View style={styles.imageContainer}>
@@ -610,7 +611,7 @@ const PropertyDetailsScreen: React.FC = () => {
         />
       )}
       
-    </View>
+    </SafeAreaView>
   );
 };
 
