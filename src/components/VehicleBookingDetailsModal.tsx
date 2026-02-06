@@ -63,7 +63,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const loadPayment = async () => {
     if (!booking) return;
     try {
-      console.log('🔍 [VehicleBookingDetailsModal] Chargement payment pour booking:', booking.id);
+      if (__DEV__) console.log('🔍 [VehicleBookingDetailsModal] Chargement payment pour booking:', booking.id);
       const { data, error } = await supabase
         .from('vehicle_payments')
         .select('*')
@@ -75,7 +75,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
       if (error) {
         console.error('❌ [VehicleBookingDetailsModal] Erreur chargement payment:', error);
       } else {
-        console.log('✅ [VehicleBookingDetailsModal] Payment chargé:', {
+        if (__DEV__) console.log('✅ [VehicleBookingDetailsModal] Payment chargé:', {
           hasPayment: !!data,
           paymentMethod: data?.payment_method,
           bookingPaymentMethod: booking.payment_method,
@@ -84,7 +84,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
         
         // Si pas de payment mais qu'on a un payment_method dans booking, l'utiliser
         if (!data && booking.payment_method) {
-          console.log('⚠️ [VehicleBookingDetailsModal] Pas de payment mais payment_method dans booking:', booking.payment_method);
+          if (__DEV__) console.log('⚠️ [VehicleBookingDetailsModal] Pas de payment mais payment_method dans booking:', booking.payment_method);
         }
       }
       
@@ -95,11 +95,11 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   };
 
   if (!booking) {
-    console.log('❌ [VehicleBookingDetailsModal] Pas de booking, modal ne s\'affiche pas');
+    if (__DEV__) console.log('❌ [VehicleBookingDetailsModal] Pas de booking, modal ne s\'affiche pas');
     return null;
   }
 
-  console.log('✅ [VehicleBookingDetailsModal] Modal rendu avec booking:', {
+  if (__DEV__) console.log('✅ [VehicleBookingDetailsModal] Modal rendu avec booking:', {
     id: booking.id,
     status: booking.status,
     hasVehicle: !!booking.vehicle,
@@ -158,7 +158,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const owner = vehicle?.owner;
 
   // Debug: vérifier que les données sont présentes
-  console.log('🔍 [VehicleBookingDetailsModal] Données booking:', {
+  if (__DEV__) console.log('🔍 [VehicleBookingDetailsModal] Données booking:', {
     hasBooking: !!booking,
     hasVehicle: !!vehicle,
     hasRenter: !!renter,
@@ -193,16 +193,27 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   // Appliquer la réduction si elle existe (sur le total : jours + heures)
   const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
   
+  // BUG FIX: Ajouter le surplus chauffeur APRÈS la réduction
+  const driverFee = (booking.vehicle?.with_driver && booking.vehicle?.driver_fee && booking.with_driver) 
+    ? booking.vehicle.driver_fee 
+    : 0;
+  const priceAfterDiscountWithDriver = priceAfterDiscount + driverFee; // Prix après réduction + chauffeur
+  
   // Frais de service voyageur avec TVA
-  const renterServiceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+  // BUG FIX: Les frais de service sont calculés sur priceAfterDiscountWithDriver (avec chauffeur)
+  const renterServiceFeeHT = Math.round(priceAfterDiscountWithDriver * (commissionRates.travelerFeePercent / 100));
   const renterServiceFeeVAT = Math.round(renterServiceFeeHT * 0.20);
   const renterServiceFee = renterServiceFeeHT + renterServiceFeeVAT;
   
   // Commission propriétaire avec TVA (2% + 20% TVA = 2.4% TTC)
-  const ownerCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
+  // BUG FIX: La commission est calculée sur priceAfterDiscountWithDriver (avec chauffeur)
+  const ownerCommissionHT = Math.round(priceAfterDiscountWithDriver * (commissionRates.hostFeePercent / 100));
   const ownerCommissionVAT = Math.round(ownerCommissionHT * 0.20);
   const ownerCommission = ownerCommissionHT + ownerCommissionVAT; // TTC
-  const ownerNetAmount = priceAfterDiscount - ownerCommission;
+  
+  // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
+  const securityDeposit = booking.security_deposit || 0;
+  const ownerNetAmount = priceAfterDiscountWithDriver - ownerCommission;
 
   // Déterminer le type de réduction appliquée et le pourcentage
   const getDiscountInfo = () => {
@@ -257,7 +268,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
     }
   };
 
-  console.log('🎯 [VehicleBookingDetailsModal] RENDU - visible:', visible, 'booking:', booking?.id, 'status:', booking?.status);
+  if (__DEV__) console.log('🎯 [VehicleBookingDetailsModal] RENDU - visible:', visible, 'booking:', booking?.id, 'status:', booking?.status);
 
   return (
     <Modal

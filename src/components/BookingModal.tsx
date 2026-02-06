@@ -131,7 +131,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       const childrenToUse = initialChildren !== undefined ? initialChildren : (contextDates.children || 0);
       const babiesToUse = initialBabies !== undefined ? initialBabies : (contextDates.babies || 0);
       
-      console.log('📅 BookingModal - useEffect déclenché:', { 
+      if (__DEV__) console.log('📅 BookingModal - useEffect déclenché:', { 
         visible,
         initialCheckIn, 
         initialCheckOut,
@@ -166,9 +166,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
           if (!isNaN(initialDate.getTime())) {
             const normalizedDate = normalizeDate(initialDate);
             setCheckIn(normalizedDate);
-            console.log('✅ CheckIn initialisé:', normalizedDate);
+            if (__DEV__) console.log('✅ CheckIn initialisé:', normalizedDate);
           } else {
-            console.log('❌ Date checkIn invalide:', checkInToUse);
+            if (__DEV__) console.log('❌ Date checkIn invalide:', checkInToUse);
             setCheckIn(null);
           }
         } catch (e) {
@@ -176,7 +176,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           setCheckIn(null);
         }
       } else {
-        console.log('⚠️ Pas de checkIn disponible');
+        if (__DEV__) console.log('⚠️ Pas de checkIn disponible');
         setCheckIn(null);
       }
       
@@ -195,9 +195,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
           if (!isNaN(initialDate.getTime())) {
             const normalizedDate = normalizeDate(initialDate);
             setCheckOut(normalizedDate);
-            console.log('✅ CheckOut initialisé:', normalizedDate);
+            if (__DEV__) console.log('✅ CheckOut initialisé:', normalizedDate);
           } else {
-            console.log('❌ Date checkOut invalide:', checkOutToUse);
+            if (__DEV__) console.log('❌ Date checkOut invalide:', checkOutToUse);
             setCheckOut(null);
           }
         } catch (e) {
@@ -205,7 +205,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           setCheckOut(null);
         }
       } else {
-        console.log('⚠️ Pas de checkOut disponible');
+        if (__DEV__) console.log('⚠️ Pas de checkOut disponible');
         setCheckOut(null);
       }
       
@@ -229,9 +229,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setChildren(childrenToUse);
         setInfants(babiesToUse);
         lastInitialGuestsRef.current = currentInitialGuests;
-        console.log('✅ Voyageurs initialisés:', { adultsToUse, childrenToUse, babiesToUse });
+        if (__DEV__) console.log('✅ Voyageurs initialisés:', { adultsToUse, childrenToUse, babiesToUse });
       } else {
-        console.log('ℹ️ Voyageurs non réinitialisés (valeurs initiales inchangées, l\'utilisateur peut modifier)');
+        if (__DEV__) console.log('ℹ️ Voyageurs non réinitialisés (valeurs initiales inchangées, l\'utilisateur peut modifier)');
       }
     }
   }, [visible, initialCheckIn, initialCheckOut, initialAdults, initialChildren, initialBabies, contextDates.checkIn, contextDates.checkOut, contextDates.adults, contextDates.children, contextDates.babies]);
@@ -249,7 +249,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       babies: babiesCount !== undefined ? babiesCount : infants,
     };
     
-    console.log('📅 BookingModal - saveDates appelé avec:', {
+    if (__DEV__) console.log('📅 BookingModal - saveDates appelé avec:', {
       checkInDate,
       checkOutDate,
       checkInStr,
@@ -262,10 +262,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
     
     // Notifier le parent (PropertyDetailsScreen)
     if (onDatesChange) {
-      console.log('📅 BookingModal - Appel de onDatesChange avec:', datesToSave);
+      if (__DEV__) console.log('📅 BookingModal - Appel de onDatesChange avec:', datesToSave);
       onDatesChange(datesToSave);
     } else {
-      console.log('⚠️ BookingModal - onDatesChange n\'est pas défini!');
+      if (__DEV__) console.log('⚠️ BookingModal - onDatesChange n\'est pas défini!');
     }
   }, [adults, children, infants, saveSearchDates, onDatesChange]);
 
@@ -310,7 +310,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       
       // Ne sauvegarder que si les valeurs ont changé
       if (lastSavedRef.current !== key) {
-        console.log('📅 BookingModal - Sauvegarde des dates (valeurs changées)');
+        if (__DEV__) console.log('📅 BookingModal - Sauvegarde des dates (valeurs changées)');
         lastSavedRef.current = key;
         
         // Sauvegarder directement sans passer par saveDates pour éviter la boucle
@@ -425,7 +425,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       percentage: property.long_stay_discount_percentage || null
     } : undefined;
     
-    console.log('🔍 Calcul des prix:', {
+    if (__DEV__) console.log('🔍 Calcul des prix:', {
       basePrice,
       nights,
       discountConfig,
@@ -461,7 +461,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       finalTotal = Math.max(0, finalTotal - voucherDiscountAmount);
     }
     
-    console.log('💰 Résultat du calcul:', {
+    if (__DEV__) console.log('💰 Résultat du calcul:', {
       pricing,
       fees,
       finalTotal,
@@ -529,7 +529,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
     const discountApplied = pricing.pricing.discountApplied || pricing.voucherApplied || false;
     const originalTotal = pricing.pricing.originalTotal || pricing.finalTotal;
     
-    console.log('🔍 [BookingModal] Données de réduction:', {
+    if (__DEV__) console.log('🔍 [BookingModal] Données de réduction:', {
       propertyDiscountAmount,
       voucherDiscountAmount,
       totalDiscountAmount,

@@ -276,36 +276,41 @@ export const useVehicles = () => {
         
         console.log(`🔍 [useVehicles] Filtrage par dates avec datetime: ${startDateTime} - ${endDateTime}`);
         
-        // Vérifier la disponibilité pour chaque véhicule en utilisant la fonction SQL
-        const availabilityChecks = await Promise.all(
-          availableVehicles.map(async (vehicle: any) => {
-            try {
-              const { data: isAvailable, error: availabilityError } = await supabase
-                .rpc('check_vehicle_hourly_availability', {
-                  p_vehicle_id: vehicle.id,
-                  p_start_datetime: startDateTime,
-                  p_end_datetime: endDateTime,
-                  p_exclude_booking_id: null
-                });
-              
-              if (availabilityError) {
-                console.error(`❌ [useVehicles] Erreur pour véhicule ${vehicle.id}:`, availabilityError);
+        // Optimisation: Batch processing pour éviter de saturer la connexion
+        // Traiter les véhicules par lots de 10 pour limiter les requêtes parallèles
+        const BATCH_SIZE = 10;
+        const availabilityChecks: boolean[] = [];
+        
+        for (let i = 0; i < availableVehicles.length; i += BATCH_SIZE) {
+          const batch = availableVehicles.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(
+            batch.map(async (vehicle: any) => {
+              try {
+                const { data: isAvailable, error: availabilityError } = await supabase
+                  .rpc('check_vehicle_hourly_availability', {
+                    p_vehicle_id: vehicle.id,
+                    p_start_datetime: startDateTime,
+                    p_end_datetime: endDateTime,
+                    p_exclude_booking_id: null
+                  });
+                
+                if (availabilityError) {
+                  console.error(`❌ [useVehicles] Erreur pour véhicule ${vehicle.id}:`, availabilityError);
+                  return false;
+                }
+                
+                // La fonction SQL retourne true si disponible, false si indisponible
+                const isActuallyAvailable = isAvailable === true;
+                
+                return isActuallyAvailable;
+              } catch (error) {
+                console.error(`❌ [useVehicles] Erreur pour véhicule ${vehicle.id}:`, error);
                 return false;
               }
-              
-              // La fonction SQL retourne true si disponible, false si indisponible
-              // isAvailable peut être true, false, ou null/undefined
-              const isActuallyAvailable = isAvailable === true;
-              
-              console.log(`🔍 [useVehicles] Véhicule ${vehicle.id} (${vehicle.title || vehicle.brand}): isAvailable=${isAvailable} (type: ${typeof isAvailable}), disponible=${isActuallyAvailable}`);
-              
-              return isActuallyAvailable;
-            } catch (error) {
-              console.error(`❌ [useVehicles] Erreur pour véhicule ${vehicle.id}:`, error);
-              return false;
-            }
-          })
-        );
+            })
+          );
+          availabilityChecks.push(...batchResults);
+        }
         
         // Log détaillé des résultats
         const availableCount = availabilityChecks.filter(Boolean).length;

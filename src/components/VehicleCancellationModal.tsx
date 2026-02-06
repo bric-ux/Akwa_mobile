@@ -260,9 +260,13 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         const vehicleTitle = bookingData?.vehicle 
           ? `${bookingData.vehicle.brand || ''} ${bookingData.vehicle.model || ''}`.trim() 
           : 'Véhicule';
-        
-        const startDateFormatted = new Date(booking.start_date).toLocaleDateString('fr-FR');
-        const endDateFormatted = new Date(booking.end_date).toLocaleDateString('fr-FR');
+
+        // BUG FIX: Envoyer les dates brutes (ISO) au lieu des dates formatées
+        // formatDateWithTime attend des dates ISO pour les formater correctement
+        const startDate = booking.start_date;
+        const endDate = booking.end_date;
+        const startDateTime = booking.start_datetime || null;
+        const endDateTime = booking.end_datetime || null;
 
         // Email à l'autre partie ET au locataire qui annule
         if (isOwner && bookingData?.renter?.email) {
@@ -274,8 +278,10 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
               data: {
                 renterName: bookingData.renter.first_name || 'Cher client',
                 vehicleTitle: vehicleTitle,
-                startDate: startDateFormatted,
-                endDate: endDateFormatted,
+                startDate: startDate,
+                endDate: endDate,
+                startDateTime: startDateTime,
+                endDateTime: endDateTime,
                 reason: fullReason,
                 refundAmount: refundAmount, // Utiliser le refundAmount calculé (toujours 100% pour le locataire)
               }
@@ -298,8 +304,10 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                   data: {
                     ownerName: ownerProfile.first_name || 'Cher propriétaire',
                     vehicleTitle: vehicleTitle,
-                    startDate: startDateFormatted,
-                    endDate: endDateFormatted,
+                    startDate: startDate,
+                    endDate: endDate,
+                    startDateTime: startDateTime,
+                    endDateTime: endDateTime,
                     reason: fullReason,
                     penaltyAmount: penalty,
                   }
@@ -317,8 +325,10 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                 data: {
                   renterName: bookingData.renter.first_name || 'Cher client',
                   vehicleTitle: vehicleTitle,
-                  startDate: startDateFormatted,
-                  endDate: endDateFormatted,
+                  startDate: startDate,
+                  endDate: endDate,
+                  startDateTime: startDateTime,
+                  endDateTime: endDateTime,
                   reason: fullReason,
                   penaltyAmount: penalty,
                   refundAmount: refundAmount, // Utiliser le refundAmount calculé
@@ -338,8 +348,10 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
               vehicleTitle: vehicleTitle,
               cancelledBy: isOwner ? 'propriétaire' : 'locataire',
               renterName: bookingData?.renter ? `${bookingData.renter.first_name || ''} ${bookingData.renter.last_name || ''}`.trim() : 'N/A',
-              startDate: startDateFormatted,
-              endDate: endDateFormatted,
+              startDate: startDate,
+              endDate: endDate,
+              startDateTime: startDateTime,
+              endDateTime: endDateTime,
               reason: fullReason,
               penaltyAmount: penalty,
               totalPrice: booking.total_price,

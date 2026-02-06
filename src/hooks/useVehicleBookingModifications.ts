@@ -278,13 +278,14 @@ export const useVehicleBookingModifications = () => {
           ? `${renterProfile.first_name || ''} ${renterProfile.last_name || ''}`.trim() 
           : 'Un locataire';
 
-        // Calculer les revenus nets pour l'email
-        // Pour l'original : basePrice = totalPrice / 1.12
+        // BUG FIX: Calculer correctement les revenus nets pour l'email
+        // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
+        // Pour l'original : basePrice = totalPrice / 1.12 (inclut chauffeur si applicable)
         const originalBasePrice = Math.round((booking.total_price || 0) / 1.12);
         const originalHostCommissionData = calculateHostCommission(originalBasePrice, 'vehicle');
         const originalOwnerNetRevenue = originalBasePrice - originalHostCommissionData.hostCommission;
         
-        // Pour le demandé : basePrice = totalPrice / 1.12
+        // Pour le demandé : basePrice = totalPrice / 1.12 (inclut chauffeur si applicable)
         const requestedBasePrice = Math.round((data.requestedTotalPrice || 0) / 1.12);
         const requestedHostCommissionData = calculateHostCommission(requestedBasePrice, 'vehicle');
         const requestedOwnerNetRevenue = requestedBasePrice - requestedHostCommissionData.hostCommission;
@@ -343,7 +344,7 @@ export const useVehicleBookingModifications = () => {
               bookingId: booking.id,
             };
             
-            console.log('📧 [useVehicleBookingModifications] Envoi email au locataire:', {
+            if (__DEV__) console.log('📧 [useVehicleBookingModifications] Envoi email au locataire:', {
               to: renterProfile.email,
               type: 'vehicle_modification_request_sent',
               data: emailData
@@ -361,8 +362,8 @@ export const useVehicleBookingModifications = () => {
               console.error('❌ [useVehicleBookingModifications] Erreur envoi email au locataire:', emailResponse.error);
               console.error('❌ [useVehicleBookingModifications] Détails erreur:', JSON.stringify(emailResponse.error, null, 2));
             } else {
-              console.log('✅ [useVehicleBookingModifications] Email de confirmation envoyé au locataire:', renterProfile.email);
-              console.log('✅ [useVehicleBookingModifications] Réponse email:', emailResponse.data);
+              if (__DEV__) console.log('✅ [useVehicleBookingModifications] Email de confirmation envoyé au locataire:', renterProfile.email);
+              if (__DEV__) console.log('✅ [useVehicleBookingModifications] Réponse email:', emailResponse.data);
             }
           } catch (renterEmailError: any) {
             console.error('❌ [useVehicleBookingModifications] Erreur lors de l\'envoi de l\'email au locataire:', renterEmailError);
@@ -552,14 +553,38 @@ export const useVehicleBookingModifications = () => {
           ? `${ownerProfile.first_name || ''} ${ownerProfile.last_name || ''}`.trim() 
           : 'Propriétaire';
 
+        // BUG FIX: Calculer correctement le prix après réduction et la réduction
+        // request.requested_total_price est le total payé par le locataire (inclut les frais de service = 12% TTC)
+        const dailyRate = bookingData.daily_rate || vehicle.price_per_day || 0;
+        const hourlyRate = request.requested_rental_hours && request.requested_rental_hours > 0 
+          ? (bookingData.hourly_rate || vehicle.price_per_hour || 0)
+          : 0;
+        const rentalHours = request.requested_rental_hours || 0;
+        const daysPrice = dailyRate * request.requested_rental_days;
+        const hoursPrice = rentalHours > 0 && hourlyRate > 0 ? rentalHours * hourlyRate : 0;
+        const driverFee = (bookingData.with_driver && vehicle.driver_fee) ? vehicle.driver_fee : 0;
+        
+        // Calculer le prix avant réduction (jours + heures uniquement, SANS chauffeur)
+        const totalBeforeDiscount = daysPrice + hoursPrice;
+        
+        // Calculer le prix après réduction + chauffeur (sans service fee)
+        // totalWithServiceFee = priceAfterDiscountWithDriver * 1.12
+        // Donc: priceAfterDiscountWithDriver = totalWithServiceFee / 1.12
+        const totalWithServiceFee = request.requested_total_price; // Total payé par locataire
+        const priceAfterDiscountWithDriver = Math.round(totalWithServiceFee / 1.12); // Prix avant service fee (inclut chauffeur)
+        
+        // Calculer le prix après réduction (sans chauffeur)
+        const priceAfterDiscount = priceAfterDiscountWithDriver - driverFee;
+        
+        // Calculer la réduction sur (jours + heures) uniquement
+        const discountAmount = totalBeforeDiscount - priceAfterDiscount;
+        
         // Calculer le revenu net du propriétaire
-        // totalPrice = basePrice + serviceFee (10% + 20% TVA = 12% de basePrice)
-        // Donc : basePrice = totalPrice / 1.12
-        // IMPORTANT: Inclure la caution dans le revenu net
-        const calculatedBasePrice = Math.round((request.requested_total_price || 0) / 1.12);
-        const hostCommissionData = calculateHostCommission(calculatedBasePrice, 'vehicle');
+        // IMPORTANT: La commission est calculée sur priceAfterDiscountWithDriver (inclut le chauffeur)
+        // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
+        const hostCommissionData = calculateHostCommission(priceAfterDiscountWithDriver, 'vehicle');
         const securityDeposit = bookingData?.security_deposit || vehicle?.security_deposit || 0;
-        const ownerNetRevenue = calculatedBasePrice - hostCommissionData.hostCommission + securityDeposit;
+        const ownerNetRevenue = priceAfterDiscountWithDriver - hostCommissionData.hostCommission;
         
         const emailData = {
           bookingId: request.booking_id,
@@ -577,18 +602,18 @@ export const useVehicleBookingModifications = () => {
           startDate: request.requested_start_date,
           endDate: request.requested_end_date,
           rentalDays: request.requested_rental_days,
-          rentalHours: request.requested_rental_hours || 0,
-          dailyRate: bookingData.daily_rate || vehicle.price_per_day || 0,
-          hourlyRate: request.requested_rental_hours && request.requested_rental_hours > 0 
-            ? (bookingData.hourly_rate || vehicle.price_per_hour || 0)
-            : 0,
-          basePrice: calculatedBasePrice, // Prix après réduction (calculé à partir de totalPrice)
+          rentalHours: rentalHours,
+          dailyRate: dailyRate,
+          hourlyRate: hourlyRate,
+          basePrice: priceAfterDiscountWithDriver, // Prix après réduction + chauffeur
           totalPrice: request.requested_total_price,
-          discountAmount: request.requested_total_price - calculatedBasePrice, // Calculer la réduction
+          discountAmount: discountAmount, // Réduction sur (jours + heures) uniquement
           ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
-          securityDeposit: bookingData.security_deposit || 0,
+          securityDeposit: securityDeposit,
+          driverFee: driverFee, // Ajouter le surplus chauffeur pour le PDF
           pickupLocation: bookingData.pickup_location || '',
           isInstantBooking: false,
+          withDriver: bookingData.with_driver || false,
           // BUG FIX: Ajouter les données de réduction pour que le PDF puisse recalculer correctement
           vehicleDiscountEnabled: vehicle.discount_enabled || false,
           vehicleDiscountMinDays: vehicle.discount_min_days || null,
@@ -596,8 +621,6 @@ export const useVehicleBookingModifications = () => {
           vehicleLongStayDiscountEnabled: vehicle.long_stay_discount_enabled || false,
           vehicleLongStayDiscountMinDays: vehicle.long_stay_discount_min_days || null,
           vehicleLongStayDiscountPercentage: vehicle.long_stay_discount_percentage || null,
-          vehicleDriverFee: vehicle.driver_fee || 0,
-          withDriver: bookingData.with_driver || false,
         };
 
         // Email au locataire avec PDF
@@ -780,7 +803,7 @@ export const useVehicleBookingModifications = () => {
 
       // Envoyer les emails de notification
       try {
-        console.log('📧 [cancelModificationRequest] Données récupérées:', {
+        if (__DEV__) console.log('📧 [cancelModificationRequest] Données récupérées:', {
           requestId,
           bookingId: request.booking_id,
           renterId: request.renter_id,
@@ -812,7 +835,7 @@ export const useVehicleBookingModifications = () => {
           }
         }
 
-        console.log('📧 [cancelModificationRequest] Profils récupérés:', {
+        if (__DEV__) console.log('📧 [cancelModificationRequest] Profils récupérés:', {
           ownerProfile: ownerProfile ? { email: ownerProfile.email, name: `${ownerProfile.first_name} ${ownerProfile.last_name}` } : null,
           renter: renter ? { email: renter.email, name: `${renter.first_name} ${renter.last_name}` } : null,
         });
@@ -844,7 +867,7 @@ export const useVehicleBookingModifications = () => {
             if (emailResponse.error) {
               console.error('❌ [cancelModificationRequest] Erreur envoi email au propriétaire:', emailResponse.error);
             } else {
-              console.log('✅ [cancelModificationRequest] Email d\'annulation envoyé au propriétaire:', ownerProfile.email);
+              if (__DEV__) console.log('✅ [cancelModificationRequest] Email d\'annulation envoyé au propriétaire:', ownerProfile.email);
             }
           } catch (ownerEmailError: any) {
             console.error('❌ [cancelModificationRequest] Erreur lors de l\'envoi de l\'email au propriétaire:', ownerEmailError);
@@ -877,7 +900,7 @@ export const useVehicleBookingModifications = () => {
             if (emailResponse.error) {
               console.error('❌ [cancelModificationRequest] Erreur envoi email au locataire:', emailResponse.error);
             } else {
-              console.log('✅ [cancelModificationRequest] Email d\'annulation envoyé au locataire:', renter.email);
+              if (__DEV__) console.log('✅ [cancelModificationRequest] Email d\'annulation envoyé au locataire:', renter.email);
             }
           } catch (renterEmailError: any) {
             console.error('❌ [cancelModificationRequest] Erreur lors de l\'envoi de l\'email au locataire:', renterEmailError);

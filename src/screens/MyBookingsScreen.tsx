@@ -151,20 +151,26 @@ const MyBookingsScreen: React.FC = () => {
       });
       setCanReviewVehicleMap(canReviewVehicleMapResult);
 
-      // Charger les demandes de modification en attente pour les véhicules
-      const vehicleRequestsMap: { [key: string]: any } = {};
-      for (const booking of userVehicleBookings) {
-        if (booking.id) {
+      // Charger les demandes de modification en attente pour les véhicules (optimisé avec Promise.all)
+      const vehicleRequestsPromises = userVehicleBookings
+        .filter(booking => booking.id)
+        .map(async (booking) => {
           try {
-            const request = await getVehicleBookingPendingRequest(booking.id);
-            if (request) {
-              vehicleRequestsMap[booking.id] = request;
-            }
+            const request = await getVehicleBookingPendingRequest(booking.id!);
+            return { bookingId: booking.id!, request };
           } catch (err) {
             console.error('Erreur chargement demande modification véhicule:', err);
+            return { bookingId: booking.id!, request: null };
           }
+        });
+      
+      const vehicleRequestsResults = await Promise.all(vehicleRequestsPromises);
+      const vehicleRequestsMap: { [key: string]: any } = {};
+      vehicleRequestsResults.forEach(({ bookingId, request }) => {
+        if (request) {
+          vehicleRequestsMap[bookingId] = request;
         }
-      }
+      });
       setVehiclePendingRequests(vehicleRequestsMap);
     } catch (err) {
       console.error('Erreur lors du chargement des réservations:', err);

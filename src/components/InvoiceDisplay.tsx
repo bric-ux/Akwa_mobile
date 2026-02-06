@@ -361,7 +361,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   
   // Debug pour vérifier les valeurs de start_datetime et end_datetime
   if (serviceType === 'vehicle' && __DEV__) {
-    console.log('🔍 [InvoiceDisplay] Dates véhicule:', {
+    if (__DEV__) console.log('🔍 [InvoiceDisplay] Dates véhicule:', {
       checkIn,
       checkOut,
       start_datetime: (booking as any).start_datetime,
@@ -396,25 +396,72 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const hourlyRate = serviceType === 'vehicle' 
     ? ((booking as any).hourly_rate || (booking as any).hourlyRate || (booking as any).vehicle?.price_per_hour || 0)
     : 0;
-  console.log(`🔍 [InvoiceDisplay] rental_hours: ${rentalHours}, hourly_rate: ${hourlyRate}, vehicle:`, {
+  if (__DEV__) console.log(`🔍 [InvoiceDisplay] rental_hours: ${rentalHours}, hourly_rate: ${hourlyRate}, vehicle:`, {
     hourly_rental_enabled: (booking as any).vehicle?.hourly_rental_enabled,
     price_per_hour: (booking as any).vehicle?.price_per_hour,
     booking_hourly_rate: (booking as any).hourly_rate
   });
   if (serviceType === 'vehicle' && rentalHours > 0 && hourlyRate > 0) {
     hoursPrice = rentalHours * hourlyRate;
-    console.log(`💰 [InvoiceDisplay] Calcul prix heures: ${rentalHours}h × ${hourlyRate} = ${hoursPrice}`);
+    if (__DEV__) console.log(`💰 [InvoiceDisplay] Calcul prix heures: ${rentalHours}h × ${hourlyRate} = ${hoursPrice}`);
   }
   
   // Prix de base = prix des jours + prix des heures
   const daysPrice = pricePerUnit * nights;
   
-  // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire a choisi le chauffeur
-  const driverFee = (serviceType === 'vehicle' && (booking as any).vehicle?.with_driver && (booking as any).vehicle?.driver_fee && (booking as any).with_driver) 
-    ? (booking as any).vehicle.driver_fee 
-    : 0;
+  // BUG FIX: Pour les véhicules, basePrice ne doit PAS inclure le chauffeur
+  // Le chauffeur est ajouté APRÈS la réduction
+  const basePrice = daysPrice + hoursPrice; // SANS chauffeur pour véhicules
   
-  const basePrice = daysPrice + hoursPrice + driverFee;
+  // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire a choisi le chauffeur
+  // IMPORTANT: Vérifier booking.with_driver (réservation) ET vehicle.with_driver (véhicule propose chauffeur)
+  // Si booking.with_driver n'est pas disponible, essayer de déduire depuis total_price
+  let driverFee = 0;
+  if (serviceType === 'vehicle') {
+    const vehicleWithDriver = (booking as any).vehicle?.with_driver;
+    const vehicleDriverFee = (booking as any).vehicle?.driver_fee || 0;
+    const bookingWithDriver = (booking as any).with_driver;
+    
+    // Si les deux conditions sont remplies, utiliser le driver_fee
+    if (vehicleWithDriver && vehicleDriverFee > 0 && bookingWithDriver === true) {
+      driverFee = vehicleDriverFee;
+    } else if (vehicleWithDriver && vehicleDriverFee > 0) {
+      // Fallback pour les anciennes réservations où booking.with_driver n'était pas stocké ou est incorrect
+      // Si le véhicule propose un chauffeur, essayer de déduire depuis total_price
+      const priceAfterDiscountTemp = basePrice - (booking.discount_amount || 0);
+      const expectedTotalWithDriver = Math.round((priceAfterDiscountTemp + vehicleDriverFee) * 1.12);
+      const expectedTotalWithoutDriver = Math.round(priceAfterDiscountTemp * 1.12);
+      const actualTotal = booking.total_price || 0;
+      
+      const diffWithDriver = Math.abs(actualTotal - expectedTotalWithDriver);
+      const diffWithoutDriver = Math.abs(actualTotal - expectedTotalWithoutDriver);
+      
+      // Inclure le chauffeur si :
+      // 1. booking.with_driver est null/undefined (ancienne réservation) ET le véhicule propose un chauffeur
+      // 2. Le total correspond mieux avec chauffeur
+      // 3. booking.with_driver est false mais le total suggère qu'il devrait être true (données incorrectes)
+      const shouldIncludeDriver = 
+        (bookingWithDriver === null || bookingWithDriver === undefined) ||
+        (diffWithDriver < diffWithoutDriver && actualTotal > 0) ||
+        (bookingWithDriver === false && diffWithDriver < diffWithoutDriver + 5000); // Marge de 5000 pour éviter les faux positifs
+      
+      if (shouldIncludeDriver) {
+        driverFee = vehicleDriverFee;
+        if (__DEV__) console.log('🔍 [InvoiceDisplay] Chauffeur inclus (fallback):', {
+          actualTotal,
+          expectedTotalWithDriver,
+          expectedTotalWithoutDriver,
+          diffWithDriver,
+          diffWithoutDriver,
+          driverFee,
+          booking_with_driver: bookingWithDriver,
+          vehicle_with_driver: vehicleWithDriver,
+          shouldIncludeDriver
+        });
+      }
+    }
+  }
+  const basePriceWithDriver = serviceType === 'vehicle' ? basePrice + driverFee : basePrice; // AVEC chauffeur pour véhicules
   
   // Utiliser la valeur stockée en priorité, sinon recalculer
   let discountAmount = 0;
@@ -424,10 +471,10 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     if (booking.discount_amount !== undefined && booking.discount_amount !== null) {
       // Utiliser la valeur stockée en priorité (même si elle est 0)
       discountAmount = booking.discount_amount;
-      console.log('📊 [InvoiceDisplay] Utilisation discount_amount stocké:', discountAmount);
+      if (__DEV__) console.log('📊 [InvoiceDisplay] Utilisation discount_amount stocké:', discountAmount);
     } else {
       // Sinon, recalculer la réduction (pour les anciennes réservations)
-      console.log('⚠️ [InvoiceDisplay] discount_amount non disponible, recalcul...');
+      if (__DEV__) console.log('⚠️ [InvoiceDisplay] discount_amount non disponible, recalcul...');
       const discountConfig: DiscountConfig = {
         enabled: booking.properties.discount_enabled || false,
         minNights: booking.properties.discount_min_nights || null,
@@ -442,7 +489,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       try {
         const pricing = calculateTotalPrice(pricePerUnit, nights, discountConfig, longStayDiscountConfig);
         discountAmount = pricing.discountAmount || 0;
-        console.log('📊 [InvoiceDisplay] Réduction recalculée:', discountAmount);
+        if (__DEV__) console.log('📊 [InvoiceDisplay] Réduction recalculée:', discountAmount);
       } catch (error) {
         console.error('Erreur lors du calcul de la réduction dans InvoiceDisplay:', error);
         // En cas d'erreur, utiliser 0
@@ -500,7 +547,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   // Prix après réduction : la réduction s'applique sur le total (jours + heures)
   // Pour les véhicules : (prix_jours + prix_heures) - réduction
   // Pour les propriétés : prix_total - réduction (comme avant)
-  const priceAfterDiscount = basePrice - discountAmount;
+  const priceAfterDiscount = basePrice - discountAmount; // Prix après réduction (sans chauffeur pour véhicules)
+  const priceAfterDiscountWithDriver = serviceType === 'vehicle' ? priceAfterDiscount + driverFee : priceAfterDiscount; // Prix après réduction + chauffeur pour véhicules
   const actualDiscountAmount = discountAmount;
   // La taxe de séjour est par nuit, donc multiplier par le nombre de nuits
   const taxesPerNight = providedTaxes !== undefined 
@@ -524,12 +572,16 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   }
   
   // Calculer les frais de service avec TVA
-  const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+  // BUG FIX: Pour les véhicules, les frais de service sont calculés sur priceAfterDiscountWithDriver (avec chauffeur)
+  const priceForServiceFee = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
+  const serviceFeeHT = Math.round(priceForServiceFee * (commissionRates.travelerFeePercent / 100));
   const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
   const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
   
   // Calculer la commission hôte avec TVA
-  const hostCommissionData = calculateHostCommission(priceAfterDiscount, serviceType);
+  // BUG FIX: Pour les véhicules, la commission est calculée sur priceAfterDiscountWithDriver (avec chauffeur)
+  const priceForCommission = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
+  const hostCommissionData = calculateHostCommission(priceForCommission, serviceType);
   const hostCommission = hostCommissionData.hostCommission;
   const hostCommissionHT = hostCommissionData.hostCommissionHT;
   const hostCommissionVAT = hostCommissionData.hostCommissionVAT;
@@ -544,7 +596,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   }
   
   // Calculer le total payé : prix après réduction + frais de service + frais de ménage + taxes
-  const calculatedTotal = priceAfterDiscount + effectiveServiceFee + effectiveCleaningFee + effectiveTaxes;
+  // BUG FIX: Pour les véhicules, utiliser priceAfterDiscountWithDriver (avec chauffeur)
+  const priceForTotal = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
+  const calculatedTotal = priceForTotal + effectiveServiceFee + effectiveCleaningFee + effectiveTaxes;
   // Pour les véhicules, toujours utiliser le calcul pour s'assurer que les frais de service sont inclus
   // (même si booking.total_price existe, il peut ne pas inclure les frais de service pour les anciennes réservations)
   // Pour les propriétés, utiliser booking.total_price s'il existe et correspond au calcul
@@ -553,34 +607,72 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     : (booking.total_price && Math.abs(booking.total_price - calculatedTotal) <= 100) 
       ? booking.total_price 
       : calculatedTotal;
+  
+  // Récupérer la caution pour les véhicules
+  const securityDeposit = serviceType === 'vehicle' 
+    ? ((booking as any).security_deposit || (booking as any).vehicle?.security_deposit || 0)
+    : 0;
+  
+  if (__DEV__ && serviceType === 'vehicle') {
+    console.log('🔍 [InvoiceDisplay] Caution:', {
+      securityDeposit,
+      booking_security_deposit: (booking as any).security_deposit,
+      vehicle_security_deposit: (booking as any).vehicle?.security_deposit,
+      type
+    });
+  }
   // Utiliser host_net_amount stocké si disponible, sinon utiliser la fonction centralisée
   // MAIS toujours recalculer pour vérifier la cohérence et utiliser la valeur calculée
   let hostNetAmount: number;
   
   // Log pour debug
-  console.log('📊 [InvoiceDisplay] Calcul host_net_amount:', {
+  if (__DEV__) console.log('📊 [InvoiceDisplay] Calcul host_net_amount:', {
     host_net_amount_stocké: (booking as any).host_net_amount,
     discount_amount_utilisé: actualDiscountAmount,
     pricePerNight: pricePerUnit,
     nights: nights,
     cleaningFee: effectiveCleaningFee,
     taxesPerNight: taxesPerNight,
+    serviceType,
+    driverFee,
+    priceAfterDiscount,
+    priceAfterDiscountWithDriver,
+    hostCommission,
+    booking_with_driver: (booking as any).with_driver,
+    vehicle_with_driver: (booking as any).vehicle?.with_driver,
+    vehicle_driver_fee: (booking as any).vehicle?.driver_fee,
   });
   
-  // Toujours recalculer pour garantir la cohérence (utiliser la valeur calculée)
-  const result = calculateHostNetAmountCentralized({
-    pricePerNight: pricePerUnit,
-    nights: nights,
-    discountAmount: actualDiscountAmount,
-    cleaningFee: effectiveCleaningFee,
-    taxesPerNight: taxesPerNight,
-    freeCleaningMinDays: booking.properties?.free_cleaning_min_days || null,
-    status: booking.status || 'confirmed',
-    serviceType: serviceType,
-  });
-  hostNetAmount = result.hostNetAmount;
+  // IMPORTANT: Pour les véhicules, utiliser le calcul direct avec le chauffeur
+  // car calculateHostNetAmountCentralized ne prend pas en compte le chauffeur ni les heures
+  if (serviceType === 'vehicle') {
+    // Pour les véhicules, le revenu net = prix avec chauffeur - commission (sans la caution)
+    // La commission est déjà calculée sur priceAfterDiscountWithDriver (ligne 540)
+    hostNetAmount = priceAfterDiscountWithDriver - hostCommission;
+    
+    if (__DEV__) console.log('📊 [InvoiceDisplay] Calcul revenu net véhicule:', {
+      priceAfterDiscount,
+      driverFee,
+      priceAfterDiscountWithDriver,
+      hostCommission,
+      hostNetAmount,
+    });
+  } else {
+    // Pour les propriétés, utiliser la fonction centralisée
+    const result = calculateHostNetAmountCentralized({
+      pricePerNight: pricePerUnit,
+      nights: nights,
+      discountAmount: actualDiscountAmount,
+      cleaningFee: effectiveCleaningFee,
+      taxesPerNight: taxesPerNight,
+      freeCleaningMinDays: booking.properties?.free_cleaning_min_days || null,
+      status: booking.status || 'confirmed',
+      serviceType: serviceType,
+    });
+    hostNetAmount = result.hostNetAmount;
+  }
   
-  console.log('📊 [InvoiceDisplay] Résultat calcul:', {
+  if (__DEV__) console.log('📊 [InvoiceDisplay] Résultat calcul:', {
     host_net_amount_calculé: hostNetAmount,
     host_net_amount_stocké: (booking as any).host_net_amount,
     différence: (booking as any).host_net_amount ? (hostNetAmount - (booking as any).host_net_amount) : 0,
@@ -1069,6 +1161,19 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             <Text style={styles.totalValue}>{formatPriceFCFA(totalPaidByTraveler)}</Text>
           </View>
 
+          {/* Caution pour les véhicules */}
+          {serviceType === 'vehicle' && securityDeposit > 0 && (
+            <View style={styles.financialRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.financialLabel}>Caution</Text>
+                <Text style={[styles.financialLabel, { fontSize: 12, color: '#666', marginTop: 4 }]}>
+                  À payer en espèces lors de la récupération du véhicule
+                </Text>
+              </View>
+              <Text style={styles.financialValue}>{formatPriceFCFA(securityDeposit)}</Text>
+            </View>
+          )}
+
           {/* Mode de paiement */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>Mode de paiement</Text>
@@ -1192,6 +1297,19 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             <Text style={styles.totalLabel}>Total payé {serviceType === 'property' ? 'par le voyageur' : 'par le locataire'}</Text>
             <Text style={styles.totalValue}>{formatPriceFCFA(totalPaidByTraveler)}</Text>
           </View>
+
+          {/* Caution pour les véhicules */}
+          {serviceType === 'vehicle' && securityDeposit > 0 && (
+            <View style={styles.financialRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.financialLabel}>Caution</Text>
+                <Text style={[styles.financialLabel, { fontSize: 12, color: '#666', marginTop: 4 }]}>
+                  À payer en espèces lors de la récupération du véhicule
+                </Text>
+              </View>
+              <Text style={styles.financialValue}>{formatPriceFCFA(securityDeposit)}</Text>
+            </View>
+          )}
 
           <View style={styles.separator} />
 

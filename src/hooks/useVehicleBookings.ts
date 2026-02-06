@@ -157,19 +157,19 @@ export const useVehicleBookings = () => {
         const hoursInFullDays = fullDaysFromHours * 24;
         const remainingHours = totalHours - hoursInFullDays;
         
-        console.log(`⏱️ [useVehicleBookings] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}, rentalDays=${rentalDays}`);
+        if (__DEV__) console.log(`⏱️ [useVehicleBookings] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}, rentalDays=${rentalDays}`);
         
         // Stocker les heures pour le calcul du prix
         // Si totalHours < 24, toutes les heures sont facturées comme heures (pas de jour complet)
         // Si totalHours >= 24, on facture les jours complets + les heures restantes
         if (totalHours < 24 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
           rentalHours = totalHours; // Toutes les heures sont facturées comme heures, pas de jour complet
-          console.log(`✅ [useVehicleBookings] Location < 24h: ${totalHours}h facturées comme heures`);
+          if (__DEV__) console.log(`✅ [useVehicleBookings] Location < 24h: ${totalHours}h facturées comme heures`);
         } else if (remainingHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
           rentalHours = remainingHours; // Heures au-delà des jours complets
-          console.log(`✅ [useVehicleBookings] Heures restantes calculées: ${remainingHours}h`);
+          if (__DEV__) console.log(`✅ [useVehicleBookings] Heures restantes calculées: ${remainingHours}h`);
         } else {
-          console.log(`⚠️ [useVehicleBookings] Pas d'heures restantes: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle.hourly_rental_enabled}, price_per_hour=${vehicle.price_per_hour}`);
+          if (__DEV__) console.log(`⚠️ [useVehicleBookings] Pas d'heures restantes: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle.hourly_rental_enabled}, price_per_hour=${vehicle.price_per_hour}`);
         }
       }
 
@@ -245,7 +245,7 @@ export const useVehicleBookings = () => {
           hourlyRate = hourlyRateValue;
         }
         
-        console.log(`💰 [useVehicleBookings] Calcul combiné: ${rentalDays} jours (${priceCalculation.daysPrice} FCFA) + ${rentalHours || 0} heures (${hoursPrice} FCFA) = ${priceCalculation.totalBeforeDiscount} FCFA, réduction: ${discountAmount} FCFA, total: ${basePrice} FCFA`);
+        if (__DEV__) console.log(`💰 [useVehicleBookings] Calcul combiné: ${rentalDays} jours (${priceCalculation.daysPrice} FCFA) + ${rentalHours || 0} heures (${hoursPrice} FCFA) = ${priceCalculation.totalBeforeDiscount} FCFA, réduction: ${discountAmount} FCFA, total: ${basePrice} FCFA`);
       }
       
       // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire choisit le chauffeur
@@ -374,7 +374,8 @@ export const useVehicleBookings = () => {
             // Calculer le revenu net du propriétaire (prix après réduction + chauffeur - commission avec TVA + caution)
             // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur)
             const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
-            const ownerNetRevenue = basePriceWithDriver - hostCommissionData.hostCommission + (vehicle?.security_deposit ?? booking.security_deposit ?? 0);
+            // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
+            const ownerNetRevenue = basePriceWithDriver - hostCommissionData.hostCommission;
             
             const emailData = {
               bookingId: booking.id,
@@ -399,7 +400,7 @@ export const useVehicleBookings = () => {
               hourlyRate: hourlyRate || vehicle?.price_per_hour || 0,
               basePrice: basePriceWithDriver, // Prix après réduction + chauffeur (pour calculer le revenu net)
               totalPrice: totalPrice,
-              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire (inclut la caution)
+              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire (sans la caution, payée en espèces)
               securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
               driverFee: driverFee, // Ajouter le surplus chauffeur pour le PDF
               withDriver: bookingData.useDriver === true,
@@ -450,9 +451,10 @@ export const useVehicleBookings = () => {
             // Calculer le revenu net du propriétaire (prix après réduction + chauffeur - commission avec TVA + caution)
             // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur)
             const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
-            const ownerNetRevenue = basePriceWithDriver - hostCommissionData.hostCommission + (vehicle?.security_deposit ?? booking.security_deposit ?? 0);
+            // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
+            const ownerNetRevenue = basePriceWithDriver - hostCommissionData.hostCommission;
             
-            console.log('📧 [useVehicleBookings] Calcul revenu net propriétaire:', {
+            if (__DEV__) console.log('📧 [useVehicleBookings] Calcul revenu net propriétaire:', {
               basePrice,
               totalPrice,
               ownerNetRevenue,
@@ -483,7 +485,7 @@ export const useVehicleBookings = () => {
               hourlyRate: hourlyRate || vehicle?.price_per_hour || 0,
               basePrice: basePriceWithDriver, // Prix après réduction + chauffeur (pour calculer le revenu net)
               totalPrice: totalPrice,
-              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire (inclut la caution)
+              ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire (sans la caution, payée en espèces)
               securityDeposit: vehicle?.security_deposit ?? booking.security_deposit ?? 0,
               driverFee: driverFee, // Ajouter le surplus chauffeur pour le PDF
               withDriver: bookingData.useDriver === true,
@@ -500,7 +502,7 @@ export const useVehicleBookings = () => {
               vehicleLongStayDiscountPercentage: vehicle.long_stay_discount_percentage || null,
             };
             
-            console.log('📧 [useVehicleBookings] Email data envoyé:', {
+            if (__DEV__) console.log('📧 [useVehicleBookings] Email data envoyé:', {
               basePrice: emailData.basePrice,
               totalPrice: emailData.totalPrice,
               ownerNetRevenue: emailData.ownerNetRevenue
@@ -529,7 +531,7 @@ export const useVehicleBookings = () => {
             }
           }
 
-          console.log('✅ [useVehicleBookings] Emails de réservation envoyés');
+          if (__DEV__) console.log('✅ [useVehicleBookings] Emails de réservation envoyés');
         }
       } catch (emailError) {
         console.error('❌ [useVehicleBookings] Erreur envoi email:', emailError);
@@ -556,6 +558,7 @@ export const useVehicleBookings = () => {
         throw new Error('Utilisateur non connecté');
       }
 
+      // IMPORTANT: Inclure driver_fee et with_driver pour le calcul correct du total
       const { data, error: queryError } = await supabase
         .from('vehicle_bookings')
         .select(`
@@ -567,6 +570,9 @@ export const useVehicleBookings = () => {
             model,
             images,
             owner_id,
+            driver_fee,
+            with_driver,
+            security_deposit,
             location:locations (
               id,
               name
@@ -643,6 +649,7 @@ export const useVehicleBookings = () => {
         throw new Error('Vous n\'êtes pas autorisé à voir ces réservations');
       }
 
+      // IMPORTANT: Inclure driver_fee et with_driver pour le calcul correct du revenu net
       const { data, error: queryError } = await supabase
         .from('vehicle_bookings')
         .select(`
@@ -654,6 +661,9 @@ export const useVehicleBookings = () => {
             model,
             images,
             owner_id,
+            driver_fee,
+            with_driver,
+            security_deposit,
             location:locations (
               id,
               name
@@ -864,7 +874,7 @@ export const useVehicleBookings = () => {
             }
           });
 
-          console.log('✅ [useVehicleBookings] Emails de confirmation envoyés');
+          if (__DEV__) console.log('✅ [useVehicleBookings] Emails de confirmation envoyés');
         } catch (emailError) {
           console.error('❌ [useVehicleBookings] Erreur envoi email:', emailError);
           // Ne pas faire échouer la mise à jour si l'email échoue
@@ -944,6 +954,7 @@ export const useVehicleBookings = () => {
       const vehicleIds = vehicles.map(v => v.id);
 
       // Récupérer toutes les réservations pour ces véhicules
+      // IMPORTANT: Inclure driver_fee et with_driver pour le calcul correct du revenu net
       const { data, error: queryError } = await supabase
         .from('vehicle_bookings')
         .select(`
@@ -955,6 +966,9 @@ export const useVehicleBookings = () => {
             model,
             images,
             owner_id,
+            driver_fee,
+            with_driver,
+            security_deposit,
             location:locations (
               id,
               name

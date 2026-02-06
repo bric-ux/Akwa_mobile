@@ -301,12 +301,18 @@ const MyVehicleBookingsScreen: React.FC = () => {
     // Prix de base = prix des jours + prix des heures
     const basePrice = daysPrice + hoursPrice;
     const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
+    
+    // Ajouter le surplus chauffeur si applicable
+    const driverFee = (booking.with_driver && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
+    const priceAfterDiscountWithDriver = priceAfterDiscount + driverFee;
+    
     const commissionRates = getCommissionRates('vehicle');
-    // Calculer les frais de service avec TVA (10% + 20% TVA = 12% total)
-    const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
+    // IMPORTANT: Calculer les frais de service sur priceAfterDiscountWithDriver (inclut le chauffeur)
+    // Frais de service avec TVA (10% + 20% TVA = 12% total)
+    const serviceFeeHT = Math.round(priceAfterDiscountWithDriver * (commissionRates.travelerFeePercent / 100));
     const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
     const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
-    const totalWithServiceFee = priceAfterDiscount + effectiveServiceFee;
+    const totalWithServiceFee = priceAfterDiscountWithDriver + effectiveServiceFee;
 
     const handleViewDetails = () => {
       (navigation as any).navigate('VehicleBookingDetails', { bookingId: booking.id });

@@ -179,7 +179,7 @@ export const useBookings = () => {
         const overlaps = bookingStart < existingEnd && bookingEnd > existingStart;
         
         if (overlaps) {
-          console.log('🔴 Conflit détecté:', {
+          if (__DEV__) console.log('🔴 Conflit détecté:', {
             nouvelle: `${bookingData.checkInDate} - ${bookingData.checkOutDate}`,
             existante: `${booking.check_in_date} - ${booking.check_out_date}`,
             status: booking.status
@@ -249,7 +249,7 @@ export const useBookings = () => {
       };
       
       // Log pour debug
-      console.log('🔍 [useBookings Mobile] Calcul host_net_amount:', {
+      if (__DEV__) console.log('🔍 [useBookings Mobile] Calcul host_net_amount:', {
         pricePerNight: hostNetAmountParams.pricePerNight,
         nights: hostNetAmountParams.nights,
         discountAmount: hostNetAmountParams.discountAmount,
@@ -262,7 +262,7 @@ export const useBookings = () => {
       const hostNetAmountResult = calculateHostNetAmount(hostNetAmountParams);
       
       // Log du résultat
-      console.log('🔍 [useBookings Mobile] Résultat calcul host_net_amount:', {
+      if (__DEV__) console.log('🔍 [useBookings Mobile] Résultat calcul host_net_amount:', {
         basePrice: hostNetAmountResult.basePrice,
         priceAfterDiscount: hostNetAmountResult.priceAfterDiscount,
         effectiveCleaningFee: hostNetAmountResult.effectiveCleaningFee,
@@ -274,11 +274,11 @@ export const useBookings = () => {
       });
 
       // Log avant insertion
-      console.log('💾 [useBookings Mobile] Valeur host_net_amount à stocker:', hostNetAmountResult.hostNetAmount);
+      if (__DEV__) console.log('💾 [useBookings Mobile] Valeur host_net_amount à stocker:', hostNetAmountResult.hostNetAmount);
       
       // Créer la réservation
       // Log avant insertion pour vérifier les valeurs
-      console.log('💾 [useBookings Mobile] Valeurs à stocker:', {
+      if (__DEV__) console.log('💾 [useBookings Mobile] Valeurs à stocker:', {
         discount_amount: bookingData.discountAmount || 0,
         discount_applied: bookingData.discountApplied || false,
         original_total: bookingData.originalTotal || bookingData.totalPrice,
@@ -323,7 +323,7 @@ export const useBookings = () => {
       }
       
       // Log après insertion pour vérifier la valeur stockée
-      console.log('✅ [useBookings Mobile] Réservation créée avec host_net_amount:', booking?.host_net_amount);
+      if (__DEV__) console.log('✅ [useBookings Mobile] Réservation créée avec host_net_amount:', booking?.host_net_amount);
 
       // Marquer le code promotionnel comme utilisé si un code a été fourni
       if (bookingData.voucherCode && booking?.id) {
@@ -396,7 +396,7 @@ export const useBookings = () => {
           // Utiliser initialStatus (déterminé AVANT la création) pour décider quels emails envoyer
           // C'est la même logique que sur le site web pour éviter les problèmes de timing
           if (initialStatus === 'confirmed') {
-            console.log('✅ [useBookings] Réservation automatique détectée - envoi email de confirmation uniquement');
+            if (__DEV__) console.log('✅ [useBookings] Réservation automatique détectée - envoi email de confirmation uniquement');
             // IMPORTANT: Vérifier si un email a déjà été envoyé pour éviter les doublons
             // On envoie l'email UNIQUEMENT depuis le mobile, pas depuis un trigger en base
             // Préparer les données pour le PDF
@@ -441,7 +441,7 @@ export const useBookings = () => {
 
             // Envoyer les emails de confirmation avec PDF (générés automatiquement par send-email)
             try {
-              console.log('📧 [useBookings] Envoi emails de confirmation avec PDF...');
+              if (__DEV__) console.log('📧 [useBookings] Envoi emails de confirmation avec PDF...');
               
               // Email au voyageur avec PDF (généré automatiquement)
               const guestEmailData = {
@@ -491,12 +491,12 @@ export const useBookings = () => {
               };
 
               // Envoyer l'email de confirmation au voyageur (comme sur le site web)
-              console.log('📧 [useBookings] Envoi email de confirmation au voyageur (réservation automatique)');
+                if (__DEV__) console.log('📧 [useBookings] Envoi email de confirmation au voyageur (réservation automatique)');
               const guestEmailResult = await supabase.functions.invoke('send-email', { body: guestEmailData });
               if (guestEmailResult.error) {
                 console.error('❌ [useBookings] Erreur email voyageur:', guestEmailResult.error);
               } else {
-                console.log('✅ [useBookings] Email avec PDF envoyé au voyageur (réservation automatique)');
+                if (__DEV__) console.log('✅ [useBookings] Email avec PDF envoyé au voyageur (réservation automatique)');
               }
 
               // Délai pour éviter le rate limit
@@ -555,7 +555,7 @@ export const useBookings = () => {
               if (hostEmailResult.error) {
                 console.error('❌ [useBookings] Erreur email hôte:', hostEmailResult.error);
               } else {
-                console.log('✅ [useBookings] Email avec PDF envoyé à l\'hôte');
+                if (__DEV__) console.log('✅ [useBookings] Email avec PDF envoyé à l\'hôte');
               }
             } catch (emailError) {
               console.error('❌ [useBookings] Erreur envoi emails:', emailError);
@@ -563,7 +563,7 @@ export const useBookings = () => {
             }
           } else if (initialStatus === 'pending') {
             // Réservation en attente - envoyer les emails de demande (comme sur le site web)
-            console.log('✅ [useBookings] Réservation en attente - envoi emails de demande');
+            if (__DEV__) console.log('✅ [useBookings] Réservation en attente - envoi emails de demande');
             
             // Email de notification à l'hôte
             // Inclure host_net_amount dans l'email de demande
@@ -610,7 +610,7 @@ export const useBookings = () => {
             );
           }
 
-          console.log('✅ [useBookings] Emails de réservation envoyés');
+          if (__DEV__) console.log('✅ [useBookings] Emails de réservation envoyés');
         }
       } catch (emailError) {
         console.error('❌ [useBookings] Erreur envoi email:', emailError);
@@ -714,7 +714,7 @@ export const useBookings = () => {
       if (checkOutDate < today && 
           booking.status !== 'completed' && 
           booking.status !== 'cancelled') {
-        console.log(`Réservation ${booking.id} marquée comme terminée côté client`);
+        if (__DEV__) console.log(`Réservation ${booking.id} marquée comme terminée côté client`);
         return { ...booking, status: 'completed' as const };
       }
       return booking;
@@ -867,7 +867,7 @@ export const useBookings = () => {
               }
             }
           });
-          console.log('✅ Email d\'annulation envoyé au voyageur');
+          if (__DEV__) console.log('✅ Email d\'annulation envoyé au voyageur');
         }
 
         // Email à l'hôte (notification de l'annulation)
@@ -890,7 +890,7 @@ export const useBookings = () => {
               }
             }
           });
-          console.log('✅ Email d\'annulation envoyé à l\'hôte');
+          if (__DEV__) console.log('✅ Email d\'annulation envoyé à l\'hôte');
         }
       } catch (emailError) {
         console.error('❌ Erreur envoi emails annulation:', emailError);

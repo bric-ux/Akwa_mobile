@@ -35,6 +35,67 @@ const calculateRatingFromReviews = async (propertyId: string): Promise<{ rating:
   }
 };
 
+// Fonction optimisée pour calculer les ratings de plusieurs propriétés en une seule requête
+const calculateRatingsFromReviewsBatch = async (propertyIds: string[]): Promise<Map<string, { rating: number; review_count: number }>> => {
+  if (propertyIds.length === 0) {
+    return new Map();
+  }
+
+  try {
+    const { data: reviews, error } = await supabase
+      .from('reviews')
+      .select('property_id, rating, approved')
+      .in('property_id', propertyIds)
+      .eq('approved', true);
+
+    if (error) {
+      logError('❌ Erreur lors du calcul batch des ratings:', error);
+      // Fallback: retourner des valeurs par défaut pour toutes les propriétés
+      const result = new Map<string, { rating: number; review_count: number }>();
+      propertyIds.forEach(id => result.set(id, { rating: 0, review_count: 0 }));
+      return result;
+    }
+
+    // Grouper les avis par property_id et calculer les moyennes
+    const ratingsMap = new Map<string, { rating: number; review_count: number }>();
+    
+    // Initialiser toutes les propriétés avec des valeurs par défaut
+    propertyIds.forEach(id => {
+      ratingsMap.set(id, { rating: 0, review_count: 0 });
+    });
+
+    // Grouper les avis par property_id
+    const reviewsByProperty = new Map<string, number[]>();
+    (reviews || []).forEach(review => {
+      if (!reviewsByProperty.has(review.property_id)) {
+        reviewsByProperty.set(review.property_id, []);
+      }
+      reviewsByProperty.get(review.property_id)!.push(review.rating);
+    });
+
+    // Calculer les moyennes
+    reviewsByProperty.forEach((ratings, propertyId) => {
+      const reviewCount = ratings.length;
+      const rating = reviewCount > 0
+        ? ratings.reduce((sum, r) => sum + r, 0) / reviewCount
+        : 0;
+      
+      ratingsMap.set(propertyId, {
+        rating: Math.round(rating * 100) / 100,
+        review_count: reviewCount
+      });
+    });
+
+    return ratingsMap;
+  } catch (err) {
+    logError('❌ Erreur lors du calcul batch des ratings:', err);
+    // Fallback: retourner des valeurs par défaut
+    const result = new Map<string, { rating: number; review_count: number }>();
+    propertyIds.forEach(id => result.set(id, { rating: 0, review_count: 0 }));
+    return result;
+  }
+};
+
 export const useProperties = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -562,6 +623,10 @@ export const useProperties = () => {
         filteredData = availableProperties;
       }
 
+      // Optimisation: Calculer tous les ratings en une seule requête batch
+      const propertyIds = (filteredData || []).map(p => p.id);
+      const ratingsMap = await calculateRatingsFromReviewsBatch(propertyIds);
+
       // Transformer les données avec les équipements
       const transformedProperties = await Promise.all(
         (filteredData || []).map(async (property) => {
@@ -587,11 +652,8 @@ export const useProperties = () => {
             long_stay_discount_percentage: property.long_stay_discount_percentage
           });
           
-          // Calculer la vraie moyenne des avis et le nombre d'avis
-          // Filtrer uniquement les avis approuvés par l'admin
-          // Calculer dynamiquement rating et review_count depuis les avis approuvés
-          // pour garantir que les valeurs sont toujours à jour dans l'overview
-          const calculatedRating = await calculateRatingFromReviews(property.id);
+          // Récupérer le rating calculé depuis le batch (ou utiliser celui de la DB)
+          const calculatedRating = ratingsMap.get(property.id) || { rating: 0, review_count: 0 };
           
           // Utiliser les valeurs calculées (ou celles de la DB si elles sont plus récentes)
           const finalRating = calculatedRating.rating || property.rating || 0;
@@ -1075,14 +1137,15 @@ export const useProperties = () => {
 
       console.log(`✅ ${data?.length || 0} propriété(s) chargée(s) (rafraîchissement forcé)`);
 
+      // Optimisation: Calculer tous les ratings en une seule requête batch
+      const propertyIds = (data || []).map(p => p.id);
+      const ratingsMap = await calculateRatingsFromReviewsBatch(propertyIds);
+
       // Transformer les données avec les équipements
       const transformedData = await Promise.all(
         (data || []).map(async (property) => {
-          // Calculer la vraie moyenne des avis et le nombre d'avis
-          // Filtrer uniquement les avis approuvés par l'admin
-          // Calculer dynamiquement rating et review_count depuis les avis approuvés
-          // pour garantir que les valeurs sont toujours à jour dans l'overview
-          const calculatedRating = await calculateRatingFromReviews(property.id);
+          // Récupérer le rating calculé depuis le batch (ou utiliser celui de la DB)
+          const calculatedRating = ratingsMap.get(property.id) || { rating: 0, review_count: 0 };
           
           // Utiliser les valeurs calculées (ou celles de la DB si elles sont plus récentes)
           const finalRating = calculatedRating.rating || property.rating || 0;

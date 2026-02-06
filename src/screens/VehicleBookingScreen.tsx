@@ -88,7 +88,7 @@ const VehicleBookingScreen: React.FC = () => {
 
   // Initialiser les dates depuis le contexte si disponibles
   useEffect(() => {
-    console.log(`📅 [VehicleBookingScreen] Initialisation depuis contexte:`, {
+    if (__DEV__) console.log(`📅 [VehicleBookingScreen] Initialisation depuis contexte:`, {
       checkIn: searchDates.checkIn,
       checkOut: searchDates.checkOut,
       checkInDateTime: searchDates.checkInDateTime,
@@ -102,7 +102,7 @@ const VehicleBookingScreen: React.FC = () => {
       const startDateObj = new Date(searchDates.checkInDateTime);
       setStartDate(startDateObj.toISOString().split('T')[0]);
       setStartDateTime(searchDates.checkInDateTime);
-      console.log(`✅ [VehicleBookingScreen] Utilisation checkInDateTime depuis contexte:`, {
+      if (__DEV__) console.log(`✅ [VehicleBookingScreen] Utilisation checkInDateTime depuis contexte:`, {
         checkInDateTime: searchDates.checkInDateTime,
         date: startDateObj.toISOString().split('T')[0],
         heures: startDateObj.getHours(),
@@ -114,7 +114,7 @@ const VehicleBookingScreen: React.FC = () => {
       const defaultStart = new Date(searchDates.checkIn);
       defaultStart.setHours(9, 0, 0, 0);
       const defaultStartISO = defaultStart.toISOString();
-      console.log(`📅 [VehicleBookingScreen] Création date/heure début par défaut (pas de checkInDateTime):`, {
+      if (__DEV__) console.log(`📅 [VehicleBookingScreen] Création date/heure début par défaut (pas de checkInDateTime):`, {
         date: searchDates.checkIn,
         heure: 9,
         iso: defaultStartISO,
@@ -126,7 +126,7 @@ const VehicleBookingScreen: React.FC = () => {
       const endDateObj = new Date(searchDates.checkOutDateTime);
       setEndDate(endDateObj.toISOString().split('T')[0]);
       setEndDateTime(searchDates.checkOutDateTime);
-      console.log(`✅ [VehicleBookingScreen] Utilisation checkOutDateTime depuis contexte:`, {
+      if (__DEV__) console.log(`✅ [VehicleBookingScreen] Utilisation checkOutDateTime depuis contexte:`, {
         checkOutDateTime: searchDates.checkOutDateTime,
         date: endDateObj.toISOString().split('T')[0],
         heures: endDateObj.getHours(),
@@ -138,7 +138,7 @@ const VehicleBookingScreen: React.FC = () => {
       const defaultEnd = new Date(searchDates.checkOut);
       defaultEnd.setHours(18, 0, 0, 0);
       const defaultEndISO = defaultEnd.toISOString();
-      console.log(`📅 [VehicleBookingScreen] Création date/heure fin par défaut (pas de checkOutDateTime):`, {
+      if (__DEV__) console.log(`📅 [VehicleBookingScreen] Création date/heure fin par défaut (pas de checkOutDateTime):`, {
         date: searchDates.checkOut,
         heure: 18,
         iso: defaultEndISO,
@@ -261,11 +261,11 @@ const VehicleBookingScreen: React.FC = () => {
   };
 
   const handleDateTimeChange = (start: string, end: string) => {
-    console.log(`🔄 [VehicleBookingScreen] handleDateTimeChange appelé avec:`, { start, end });
+    if (__DEV__) console.log(`🔄 [VehicleBookingScreen] handleDateTimeChange appelé avec:`, { start, end });
     const startDateObj = new Date(start);
     const endDateObj = new Date(end);
     
-    console.log(`🔄 [VehicleBookingScreen] Dates parsées:`, {
+    if (__DEV__) console.log(`🔄 [VehicleBookingScreen] Dates parsées:`, {
       startDateObj: startDateObj.toISOString(),
       startHours: startDateObj.getHours(),
       startMinutes: startDateObj.getMinutes(),
@@ -279,7 +279,7 @@ const VehicleBookingScreen: React.FC = () => {
     setEndDate(endDateObj.toISOString().split('T')[0]);
     setEndDateTime(end);
     
-    console.log(`✅ [VehicleBookingScreen] États mis à jour:`, {
+    if (__DEV__) console.log(`✅ [VehicleBookingScreen] États mis à jour:`, {
       startDateTime: start,
       endDateTime: end,
     });
@@ -413,15 +413,15 @@ const VehicleBookingScreen: React.FC = () => {
   
   // Calculer les heures restantes si applicable
   const calculateRemainingHours = () => {
-    console.log(`🔍 [VehicleBookingScreen] calculateRemainingHours - startDateTime: ${startDateTime}, endDateTime: ${endDateTime}`);
-    console.log(`🔍 [VehicleBookingScreen] calculateRemainingHours - vehicle:`, {
+    if (__DEV__) console.log(`🔍 [VehicleBookingScreen] calculateRemainingHours - startDateTime: ${startDateTime}, endDateTime: ${endDateTime}`);
+    if (__DEV__) console.log(`🔍 [VehicleBookingScreen] calculateRemainingHours - vehicle:`, {
       hourly_rental_enabled: vehicle?.hourly_rental_enabled,
       price_per_hour: vehicle?.price_per_hour,
       rentalDays
     });
     
     if (!startDateTime || !endDateTime) {
-      console.log(`⚠️ [VehicleBookingScreen] Pas de startDateTime ou endDateTime`);
+      if (__DEV__) console.log(`⚠️ [VehicleBookingScreen] Pas de startDateTime ou endDateTime`);
       return 0;
     }
     
@@ -429,7 +429,7 @@ const VehicleBookingScreen: React.FC = () => {
     const end = new Date(endDateTime);
     
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      console.log(`⚠️ [VehicleBookingScreen] Dates invalides`);
+      if (__DEV__) console.log(`⚠️ [VehicleBookingScreen] Dates invalides`);
       return 0;
     }
     
@@ -442,12 +442,12 @@ const VehicleBookingScreen: React.FC = () => {
     const hoursInFullDays = fullDaysFromHours * 24;
     const remainingHours = totalHours - hoursInFullDays;
     
-    console.log(`🔍 [VehicleBookingScreen] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}`);
+    if (__DEV__) console.log(`🔍 [VehicleBookingScreen] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}`);
     
     // Si le véhicule ne supporte pas la location par heure, ne pas retourner d'heures restantes
     // (elles seront facturées comme partie d'un jour minimum)
     if (!vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
-      console.log(`⚠️ [VehicleBookingScreen] Véhicule ne supporte pas la location par heure - heures non facturées séparément`);
+      if (__DEV__) console.log(`⚠️ [VehicleBookingScreen] Véhicule ne supporte pas la location par heure - heures non facturées séparément`);
       return 0;
     }
     
@@ -463,7 +463,7 @@ const VehicleBookingScreen: React.FC = () => {
   const remainingHours = calculateRemainingHours();
   
   // Log pour déboguer
-  console.log(`🔍 [VehicleBookingScreen] Résumé - rentalDays: ${rentalDays}, remainingHours: ${remainingHours}, startDateTime: ${startDateTime}, endDateTime: ${endDateTime}`);
+  if (__DEV__) console.log(`🔍 [VehicleBookingScreen] Résumé - rentalDays: ${rentalDays}, remainingHours: ${remainingHours}, startDateTime: ${startDateTime}, endDateTime: ${endDateTime}`);
   
   // Calculer le prix de base par jour (en tenant compte des tarifs hebdomadaires/mensuels)
   const getBasePricePerDay = () => {
@@ -530,9 +530,9 @@ const VehicleBookingScreen: React.FC = () => {
   };
   
   if (hoursPrice > 0) {
-    console.log(`💰 [VehicleBookingScreen] Calcul prix heures: ${remainingHours}h × ${hourlyRateValue} = ${hoursPrice}`);
+    if (__DEV__) console.log(`💰 [VehicleBookingScreen] Calcul prix heures: ${remainingHours}h × ${hourlyRateValue} = ${hoursPrice}`);
   } else {
-    console.log(`⚠️ [VehicleBookingScreen] Pas de calcul heures: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle?.hourly_rental_enabled}, price_per_hour=${vehicle?.price_per_hour}`);
+    if (__DEV__) console.log(`⚠️ [VehicleBookingScreen] Pas de calcul heures: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle?.hourly_rental_enabled}, price_per_hour=${vehicle?.price_per_hour}`);
   }
   
   // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire choisit le chauffeur
@@ -839,7 +839,7 @@ const VehicleBookingScreen: React.FC = () => {
                       const startDate = new Date(startDateTime);
                       const dateStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
                       const timeStr = `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`;
-                      console.log(`📅 [VehicleBookingScreen] Affichage début: ${dateStr} ${timeStr} (startDateTime: ${startDateTime})`);
+                      if (__DEV__) console.log(`📅 [VehicleBookingScreen] Affichage début: ${dateStr} ${timeStr} (startDateTime: ${startDateTime})`);
                       return `${dateStr} ${timeStr}`;
                     })()}
                   </Text>
@@ -848,7 +848,7 @@ const VehicleBookingScreen: React.FC = () => {
                       const endDate = new Date(endDateTime);
                       const dateStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
                       const timeStr = `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
-                      console.log(`📅 [VehicleBookingScreen] Affichage fin: ${dateStr} ${timeStr} (endDateTime: ${endDateTime})`);
+                      if (__DEV__) console.log(`📅 [VehicleBookingScreen] Affichage fin: ${dateStr} ${timeStr} (endDateTime: ${endDateTime})`);
                       return `${dateStr} ${timeStr}`;
                     })()}
                   </Text>
@@ -1061,7 +1061,7 @@ const VehicleBookingScreen: React.FC = () => {
           {/* Détail du calcul : heures */}
           {(() => {
             const shouldShowHours = remainingHours > 0 && vehicle?.price_per_hour && hoursPrice > 0;
-            console.log(`🔍 [VehicleBookingScreen] Affichage heures - shouldShowHours: ${shouldShowHours}, remainingHours: ${remainingHours}, price_per_hour: ${vehicle?.price_per_hour}, hoursPrice: ${hoursPrice}`);
+            if (__DEV__) console.log(`🔍 [VehicleBookingScreen] Affichage heures - shouldShowHours: ${shouldShowHours}, remainingHours: ${remainingHours}, price_per_hour: ${vehicle?.price_per_hour}, hoursPrice: ${hoursPrice}`);
             return shouldShowHours ? (
               <View style={styles.summaryRow}>
                 <View style={{ flex: 1, flexShrink: 1 }}>

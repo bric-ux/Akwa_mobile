@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -205,17 +205,19 @@ const BookingCard: React.FC<BookingCardProps> = ({
 
   const effectiveStatus = getEffectiveStatus();
 
-  const nights = Math.ceil(
-    (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) 
-    / (1000 * 60 * 60 * 24)
-  );
+  const nights = useMemo(() => {
+    return Math.ceil(
+      (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) 
+      / (1000 * 60 * 60 * 24)
+    );
+  }, [booking.check_in_date, booking.check_out_date]);
 
   // Calculer le montant total EXACTEMENT comme dans PropertyBookingDetailsScreen
   // Logique: basePrice = pricePerNight * nights
   //          priceAfterDiscount = basePrice - discountAmount
   //          serviceFee = priceAfterDiscount * 12%
   //          total = priceAfterDiscount + serviceFee + cleaningFee + taxes
-  const calculateTotalAmount = (): number => {
+  const calculateTotalAmount = useMemo((): number => {
     if (!booking.properties) return booking.total_price || 0;
     
     const pricePerNight = booking.properties.price_per_night || 0;
@@ -266,12 +268,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
     const calculatedTotal = priceAfterDiscount + effectiveServiceFee + cleaningFee + taxes;
     
     return calculatedTotal;
-  };
+  }, [booking, nights]);
 
-  const totalAmount = calculateTotalAmount();
+  const totalAmount = calculateTotalAmount;
 
   // Calculer aussi le montant de réduction pour l'affichage
-  const calculateDiscountAmount = (): number => {
+  const calculateDiscountAmount = useMemo((): number => {
     if (!booking.properties) return 0;
     
     const basePricePerNight = booking.properties.price_per_night || 0;
@@ -295,9 +297,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
       console.error('Erreur lors du calcul de la réduction:', error);
       return booking.discount_amount || 0;
     }
-  };
+  }, [booking, nights]);
 
-  const discountAmount = calculateDiscountAmount();
+  const discountAmount = calculateDiscountAmount;
   const originalTotal = booking.properties ? (booking.properties.price_per_night || 0) * nights : booking.total_price || 0;
 
   // Fonction pour obtenir l'URL de l'image de la propriété

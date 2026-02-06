@@ -226,6 +226,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
   };
 
   // Calculer les gains nets pour une réservation (avec TVA sur la commission)
+  // IMPORTANT: Doit correspondre au calcul dans useVehicleBookings.ts (ligne 453)
   const calculateNetEarnings = (booking: VehicleBooking) => {
     if (booking.status === 'cancelled') return 0;
     
@@ -246,10 +247,19 @@ const HostVehicleBookingsScreen: React.FC = () => {
     const basePrice = daysPrice + hoursPrice;
     // Appliquer la réduction si elle existe
     const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
-    // Commission avec TVA (2% + 20% TVA = 2.4%)
-    const hostCommissionData = calculateHostCommission(priceAfterDiscount, 'vehicle');
+    
+    // IMPORTANT: Ajouter le surplus chauffeur si applicable (comme dans useVehicleBookings.ts)
+    const driverFee = (booking.with_driver && booking.vehicle?.driver_fee) ? booking.vehicle.driver_fee : 0;
+    const basePriceWithDriver = priceAfterDiscount + driverFee;
+    
+    // Commission avec TVA calculée sur basePriceWithDriver (inclut le chauffeur)
+    // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur)
+    const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
     const hostCommission = hostCommissionData.hostCommission;
-    return priceAfterDiscount - hostCommission;
+    
+    // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
+    // lors de la prise du véhicule et sera remboursée. Le revenu net = prix avec chauffeur - commission
+    return basePriceWithDriver - hostCommission;
   };
 
   const filteredBookings = bookings.filter(booking => {
