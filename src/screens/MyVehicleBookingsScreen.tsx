@@ -287,32 +287,9 @@ const MyVehicleBookingsScreen: React.FC = () => {
     const rentalDays = booking.rental_days || 1;
     const rentalHours = booking.rental_hours || 0;
     
-    // Calculer le prix des jours
-    const daysPrice = (booking.daily_rate || 0) * rentalDays;
-    
-    // Calculer le prix des heures supplémentaires si applicable
-    // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
-    const hourlyRate = booking.hourly_rate || vehicle?.price_per_hour || 0;
-    let hoursPrice = 0;
-    if (rentalHours > 0 && hourlyRate > 0) {
-      hoursPrice = rentalHours * hourlyRate;
-    }
-    
-    // Prix de base = prix des jours + prix des heures
-    const basePrice = daysPrice + hoursPrice;
-    const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
-    
-    // Ajouter le surplus chauffeur si applicable
-    const driverFee = (booking.with_driver && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
-    const priceAfterDiscountWithDriver = priceAfterDiscount + driverFee;
-    
-    const commissionRates = getCommissionRates('vehicle');
-    // IMPORTANT: Calculer les frais de service sur priceAfterDiscountWithDriver (inclut le chauffeur)
-    // Frais de service avec TVA (10% + 20% TVA = 12% total)
-    const serviceFeeHT = Math.round(priceAfterDiscountWithDriver * (commissionRates.travelerFeePercent / 100));
-    const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
-    const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
-    const totalWithServiceFee = priceAfterDiscountWithDriver + effectiveServiceFee;
+    // IMPORTANT: Utiliser total_price stocké directement au lieu de recalculer
+    // C'est le montant réellement payé/prévu et évite les erreurs de calcul
+    const totalWithServiceFee = booking.total_price || 0;
 
     const handleViewDetails = () => {
       (navigation as any).navigate('VehicleBookingDetails', { bookingId: booking.id });

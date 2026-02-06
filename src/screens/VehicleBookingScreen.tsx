@@ -635,6 +635,23 @@ const VehicleBookingScreen: React.FC = () => {
       const startDateStr = startDate;
       const endDateStr = endDate;
 
+      // Préparer useDriver AVANT l'appel
+      const useDriverToPass = withDriver ? (useDriver ?? false) : undefined;
+      
+      // Logs AVANT l'appel pour voir exactement ce qui est passé
+      console.log('📤 [VehicleBookingScreen] AVANT appel createBooking:', {
+        withDriver,
+        useDriver,
+        'useDriver type': typeof useDriver,
+        'useDriver === true': useDriver === true,
+        'useDriver === false': useDriver === false,
+        'useDriver === null': useDriver === null,
+        'useDriverToPass': useDriverToPass,
+        'useDriverToPass === true': useDriverToPass === true,
+        'vehicle.driver_fee': vehicle?.driver_fee,
+        'vehicle.with_driver': vehicle?.with_driver,
+      });
+
       const result = await createBooking({
         vehicleId: vehicle.id,
         startDate: startDateStr,
@@ -646,7 +663,13 @@ const VehicleBookingScreen: React.FC = () => {
         hasLicense: isLicenseRequired ? hasLicense : undefined,
         licenseYears: isLicenseRequired && hasLicense ? licenseYears : undefined,
         licenseNumber: isLicenseRequired && hasLicense ? licenseNumber : undefined,
-        useDriver: withDriver ? useDriver : undefined,
+        useDriver: useDriverToPass,
+      });
+      
+      // Logs APRÈS l'appel pour confirmation
+      console.log('✅ [VehicleBookingScreen] APRÈS appel createBooking:', {
+        success: result.success,
+        'useDriver passé': useDriverToPass,
       });
 
       if (result.success) {
@@ -884,7 +907,15 @@ const VehicleBookingScreen: React.FC = () => {
                   styles.driverOption,
                   useDriver === true && styles.driverOptionActive,
                 ]}
-                onPress={() => setUseDriver(true)}
+                onPress={() => {
+                  console.log('🚗 [VehicleBookingScreen] Sélection "Avec chauffeur"', {
+                    'Avant': useDriver,
+                    'Après': true,
+                    'vehicle.with_driver': vehicle?.with_driver,
+                    'vehicle.driver_fee': vehicle?.driver_fee,
+                  });
+                  setUseDriver(true);
+                }}
               >
                 <Ionicons
                   name={useDriver === true ? 'radio-button-on' : 'radio-button-off'}
@@ -898,7 +929,13 @@ const VehicleBookingScreen: React.FC = () => {
                   styles.driverOption,
                   useDriver === false && styles.driverOptionActive,
                 ]}
-                onPress={() => setUseDriver(false)}
+                onPress={() => {
+                  console.log('🚗 [VehicleBookingScreen] Sélection "Conduire moi-même"', {
+                    'Avant': useDriver,
+                    'Après': false,
+                  });
+                  setUseDriver(false);
+                }}
               >
                 <Ionicons
                   name={useDriver === false ? 'radio-button-on' : 'radio-button-off'}

@@ -93,7 +93,7 @@ export const useVehicleBookings = () => {
       // Récupérer les informations du véhicule pour calculer le prix
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('price_per_day, price_per_hour, hourly_rental_enabled, minimum_rental_days, minimum_rental_hours, auto_booking, security_deposit, discount_enabled, discount_min_days, discount_percentage, long_stay_discount_enabled, long_stay_discount_min_days, long_stay_discount_percentage')
+        .select('price_per_day, price_per_hour, hourly_rental_enabled, minimum_rental_days, minimum_rental_hours, auto_booking, security_deposit, discount_enabled, discount_min_days, discount_percentage, long_stay_discount_enabled, long_stay_discount_min_days, long_stay_discount_percentage, with_driver, driver_fee')
         .eq('id', bookingData.vehicleId)
         .single();
 
@@ -197,12 +197,15 @@ export const useVehicleBookings = () => {
       let originalTotal: number;
       let dailyRate: number | null = null;
       let hourlyRate: number | null = null;
+      let priceCalculation: ReturnType<typeof calculateVehiclePriceWithHours> | null = null;
+      let discountType: 'normal' | 'long_stay' | null = null;
 
       if (rentalType === 'hourly') {
         // Pour location par heure : pas de réductions, prix simple
         hourlyRate = vehicle.price_per_hour!;
-        basePrice = hourlyRate * rentalHours!;
+        basePrice = hourlyRate! * rentalHours!;
         originalTotal = basePrice;
+        discountType = null;
       } else {
         // Pour location par jour : utiliser la logique existante avec réductions
         dailyRate = vehicle.price_per_day;
@@ -225,8 +228,8 @@ export const useVehicleBookings = () => {
           ? vehicle.price_per_hour 
           : 0;
         
-        const priceCalculation = calculateVehiclePriceWithHours(
-          dailyRate,
+        priceCalculation = calculateVehiclePriceWithHours(
+          dailyRate!,
           rentalDays,
           rentalHours || 0,
           hourlyRateValue,
@@ -240,6 +243,7 @@ export const useVehicleBookings = () => {
         originalTotal = priceCalculation.originalTotal;
         discountAmount = priceCalculation.discountAmount;
         discountApplied = priceCalculation.discountApplied;
+        discountType = priceCalculation.discountType || null;
         
         if (hourlyRateValue > 0) {
           hourlyRate = hourlyRateValue;
@@ -249,14 +253,53 @@ export const useVehicleBookings = () => {
       }
       
       // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire choisit le chauffeur
-      const driverFee = (vehicle.with_driver && bookingData.useDriver === true && (vehicle as any).driver_fee) 
-        ? (vehicle as any).driver_fee 
+      // IMPORTANT: Vérifier que useDriver est explicitement true (pas juste truthy)
+      const vehicleWithDriver = (vehicle as any).with_driver === true;
+      const userWantsDriver = bookingData.useDriver === true; // Doit être explicitement true
+      const driverFeeAmount = (vehicle as any).driver_fee || 0;
+      
+      // Logs TOUJOURS affichés pour débogage
+      console.log('🔍 [useVehicleBookings] Vérification chauffeur:', {
+        'vehicle.with_driver': (vehicle as any).with_driver,
+        'vehicleWithDriver (=== true)': vehicleWithDriver,
+        'bookingData.useDriver': bookingData.useDriver,
+        'bookingData.useDriver type': typeof bookingData.useDriver,
+        'userWantsDriver (=== true)': userWantsDriver,
+        'vehicle.driver_fee': (vehicle as any).driver_fee,
+        'driverFeeAmount': driverFeeAmount,
+        'toutes conditions remplies': vehicleWithDriver && userWantsDriver && driverFeeAmount > 0,
+        'condition 1 (vehicleWithDriver)': vehicleWithDriver,
+        'condition 2 (userWantsDriver)': userWantsDriver,
+        'condition 3 (driverFeeAmount > 0)': driverFeeAmount > 0
+      });
+      
+      const driverFee = (vehicleWithDriver && userWantsDriver && driverFeeAmount > 0) 
+        ? driverFeeAmount 
         : 0;
+      
+      console.log('💰 [useVehicleBookings] Calcul driverFee:', {
+        driverFee,
+        basePrice,
+        basePriceWithDriver: basePrice + driverFee,
+        'Pourquoi driverFee est 0?': {
+          'vehicleWithDriver': vehicleWithDriver,
+          'userWantsDriver': userWantsDriver,
+          'driverFeeAmount > 0': driverFeeAmount > 0,
+          'Toutes conditions': vehicleWithDriver && userWantsDriver && driverFeeAmount > 0
+        }
+      });
+      
       const basePriceWithDriver = basePrice + driverFee;
       
       // Calculer les frais de service (10% + TVA du prix après réduction pour les véhicules)
       const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours! : rentalDays, 'vehicle');
       const totalPrice = basePriceWithDriver + fees.serviceFee; // Total avec frais de service
+      
+      // Calculer le revenu net du propriétaire (prix avec chauffeur - commission)
+      // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur)
+      const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
+      // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
+      const hostNetAmount = basePriceWithDriver - hostCommissionData.hostCommission;
       
       // Déterminer le statut initial en fonction de auto_booking
       const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
@@ -272,6 +315,7 @@ export const useVehicleBookings = () => {
         start_datetime: startDateTime, // Toujours présent maintenant
         end_datetime: endDateTime, // Toujours présent maintenant
         total_price: totalPrice, // Total avec frais de service
+        host_net_amount: hostNetAmount, // Revenu net du propriétaire (stocké pour éviter les recalculs)
         security_deposit: vehicle.security_deposit ?? 0,
         pickup_location: bookingData.pickupLocation || null,
         dropoff_location: bookingData.dropoffLocation || null,
@@ -321,6 +365,107 @@ export const useVehicleBookings = () => {
         throw bookingError;
       }
 
+      // Stocker tous les détails de calcul dans booking_calculation_details
+      // Cela évite tous les recalculs dans les emails, PDFs et affichages
+      try {
+        // Utiliser les valeurs déjà calculées
+        const daysPrice = rentalType === 'hourly' ? 0 : (priceCalculation ? priceCalculation.daysPrice : (dailyRate! * rentalDays));
+        const hoursPrice = rentalType === 'hourly' ? (rentalHours! * hourlyRate!) : (priceCalculation ? priceCalculation.hoursPrice : (rentalHours && hourlyRate ? rentalHours * hourlyRate : 0));
+        const totalBeforeDiscount = rentalType === 'hourly' ? basePrice : (priceCalculation ? priceCalculation.totalBeforeDiscount : (daysPrice + hoursPrice));
+
+        const calculationDetails = {
+          booking_id: booking.id,
+          booking_type: 'vehicle',
+          
+          // Prix de base
+          base_price: basePrice,
+          price_after_discount: basePrice, // basePrice est déjà après réduction
+          base_price_with_driver: basePriceWithDriver,
+          
+          // Réductions
+          discount_amount: discountAmount,
+          discount_applied: discountApplied,
+          original_total: originalTotal,
+          discount_type: discountType,
+          
+          // Frais de service (voyageur)
+          service_fee: fees.serviceFee,
+          service_fee_ht: fees.serviceFeeHT,
+          service_fee_vat: fees.serviceFeeVAT,
+          
+          // Commission propriétaire
+          host_commission: hostCommissionData.hostCommission,
+          host_commission_ht: hostCommissionData.hostCommissionHT,
+          host_commission_vat: hostCommissionData.hostCommissionVAT,
+          
+          // Frais additionnels (0 pour véhicules)
+          effective_cleaning_fee: 0,
+          effective_taxes: 0,
+          
+          // Détails véhicules
+          days_price: daysPrice,
+          hours_price: hoursPrice,
+          driver_fee: driverFee,
+          total_before_discount: totalBeforeDiscount,
+          
+          // Totaux finaux
+          total_price: totalPrice,
+          host_net_amount: hostNetAmount,
+          
+          // Snapshot des données utilisées pour le calcul
+          calculation_snapshot: {
+            serviceType: 'vehicle',
+            rentalType: rentalType,
+            dailyRate: dailyRate,
+            hourlyRate: hourlyRate || null,
+            rentalDays: rentalDays,
+            rentalHours: rentalHours || null,
+            discountConfig: {
+              enabled: vehicle.discount_enabled || false,
+              minDays: vehicle.discount_min_days || null,
+              percentage: vehicle.discount_percentage || null
+            },
+            longStayDiscountConfig: vehicle.long_stay_discount_enabled ? {
+              enabled: vehicle.long_stay_discount_enabled || false,
+              minDays: vehicle.long_stay_discount_min_days || null,
+              percentage: vehicle.long_stay_discount_percentage || null
+            } : null,
+            withDriver: bookingData.useDriver === true,
+            driverFee: driverFee,
+            securityDeposit: vehicle.security_deposit ?? 0,
+            commissionRates: {
+              travelerFeePercent: 10, // 10% HT pour véhicules
+              hostFeePercent: 2 // 2% HT pour véhicules
+            },
+            calculatedAt: new Date().toISOString()
+          }
+        };
+
+        if (__DEV__) {
+          console.log('💾 [useVehicleBookings] Insertion booking_calculation_details:', {
+            booking_id: booking.id,
+            driver_fee: calculationDetails.driver_fee,
+            base_price_with_driver: calculationDetails.base_price_with_driver,
+            total_price: calculationDetails.total_price,
+            'Vérification driverFee avant insertion': driverFee
+          });
+        }
+
+        const { error: calcDetailsError } = await supabase
+          .from('booking_calculation_details')
+          .insert(calculationDetails);
+
+        if (calcDetailsError) {
+          console.error('❌ [useVehicleBookings] Erreur stockage détails calcul:', calcDetailsError);
+          // Ne pas faire échouer la réservation si l'insertion des détails échoue
+        } else {
+          if (__DEV__) console.log('✅ [useVehicleBookings] Détails de calcul stockés pour réservation:', booking.id);
+        }
+      } catch (calcError) {
+        console.error('❌ [useVehicleBookings] Erreur lors du stockage des détails de calcul:', calcError);
+        // Ne pas faire échouer la réservation si l'insertion des détails échoue
+      }
+
       // Sauvegarder le document du permis dans license_documents si uploadé
       // Exactement comme sur le site web
       if (bookingData.licenseDocumentUrl && booking && user) {
@@ -361,10 +506,10 @@ export const useVehicleBookings = () => {
           .single();
 
         if (!vehicleInfoError && vehicleInfo) {
-          const ownerProfile = vehicleInfo.profiles;
+          const ownerProfile = Array.isArray(vehicleInfo.profiles) ? vehicleInfo.profiles[0] : vehicleInfo.profiles;
           const renterProfile = user.user_metadata || {};
-          const renterName = `${renterProfile.first_name || ''} ${renterProfile.last_name || ''}`.trim() || 'Locataire';
-          const ownerName = `${ownerProfile?.first_name || ''} ${ownerProfile?.last_name || ''}`.trim() || 'Propriétaire';
+          const renterName = `${(renterProfile as any).first_name || ''} ${(renterProfile as any).last_name || ''}`.trim() || 'Locataire';
+          const ownerName = `${(ownerProfile as any)?.first_name || ''} ${(ownerProfile as any)?.last_name || ''}`.trim() || 'Propriétaire';
           const vehicleTitle = vehicleInfo.title || `${vehicleInfo.brand || ''} ${vehicleInfo.model || ''}`.trim();
 
           const isAutoBooking = initialStatus === 'confirmed';
@@ -382,14 +527,14 @@ export const useVehicleBookings = () => {
               vehicleTitle: vehicleTitle,
               vehicleBrand: vehicleInfo.brand || '',
               vehicleModel: vehicleInfo.model || '',
-              vehicleYear: vehicle?.year || '',
-              fuelType: vehicle?.fuel_type || '',
+              vehicleYear: (vehicle as any)?.year || '',
+              fuelType: (vehicle as any)?.fuel_type || '',
               renterName: renterName,
               renterEmail: user.email || '',
-              renterPhone: renterProfile.phone || '',
+              renterPhone: (renterProfile as any).phone || '',
               ownerName: ownerName,
-              ownerEmail: ownerProfile?.email || '',
-              ownerPhone: ownerProfile?.phone || '',
+              ownerEmail: (ownerProfile as any)?.email || '',
+              ownerPhone: (ownerProfile as any)?.phone || '',
               startDate: bookingData.startDate,
               endDate: bookingData.endDate,
               startDateTime: bookingData.startDateTime,
@@ -406,7 +551,7 @@ export const useVehicleBookings = () => {
               withDriver: bookingData.useDriver === true,
               pickupLocation: bookingData.pickupLocation || '',
               isInstantBooking: true,
-              paymentMethod: bookingData.paymentMethod || booking.payment_method || '',
+              paymentMethod: (bookingData as any).paymentMethod || booking.payment_method || '',
               discountAmount: discountAmount || 0, // Montant de la réduction
               vehicleDiscountEnabled: vehicle.discount_enabled || false,
               vehicleDiscountMinDays: vehicle.discount_min_days || null,
@@ -432,7 +577,7 @@ export const useVehicleBookings = () => {
               await supabase.functions.invoke('send-email', {
                 body: {
                   type: 'vehicle_booking_confirmed_owner',
-                  to: ownerProfile.email,
+                  to: (ownerProfile as any)?.email || '',
                   data: emailData
                 }
               });
@@ -467,14 +612,14 @@ export const useVehicleBookings = () => {
               vehicleTitle: vehicleTitle,
               vehicleBrand: vehicleInfo.brand || '',
               vehicleModel: vehicleInfo.model || '',
-              vehicleYear: vehicle?.year || '',
-              fuelType: vehicle?.fuel_type || '',
+              vehicleYear: (vehicle as any)?.year || '',
+              fuelType: (vehicle as any)?.fuel_type || '',
               renterName: renterName,
               renterEmail: user.email || '',
-              renterPhone: renterProfile.phone || '',
+              renterPhone: (renterProfile as any).phone || '',
               ownerName: ownerName,
-              ownerEmail: ownerProfile?.email || '',
-              ownerPhone: ownerProfile?.phone || '',
+              ownerEmail: (ownerProfile as any)?.email || '',
+              ownerPhone: (ownerProfile as any)?.phone || '',
               startDate: bookingData.startDate,
               endDate: bookingData.endDate,
               startDateTime: bookingData.startDateTime,
@@ -492,7 +637,7 @@ export const useVehicleBookings = () => {
               pickupLocation: bookingData.pickupLocation || '',
               message: bookingData.messageToOwner || '',
               isInstantBooking: false,
-              paymentMethod: bookingData.paymentMethod || booking.payment_method || '',
+              paymentMethod: (bookingData as any).paymentMethod || booking.payment_method || '',
               discountAmount: discountAmount || 0, // Montant de la réduction
               vehicleDiscountEnabled: vehicle.discount_enabled || false,
               vehicleDiscountMinDays: vehicle.discount_min_days || null,
@@ -524,7 +669,7 @@ export const useVehicleBookings = () => {
               await supabase.functions.invoke('send-email', {
                 body: {
                   type: 'vehicle_booking_request',
-                  to: ownerProfile.email,
+                  to: (ownerProfile as any)?.email || '',
                   data: emailData
                 }
               });
@@ -804,27 +949,38 @@ export const useVehicleBookings = () => {
             });
           };
 
-          // Calculer le revenu net du propriétaire
-          // totalPrice = basePrice + serviceFee (10% + 20% TVA = 12% de basePrice)
-          // Donc : basePrice = totalPrice / 1.12
-          // IMPORTANT: Inclure la caution dans le revenu net
-          const calculatedBasePrice = Math.round((booking.total_price || 0) / 1.12);
-          const hostCommissionData = calculateHostCommission(calculatedBasePrice, 'vehicle');
-          const ownerNetRevenue = calculatedBasePrice - hostCommissionData.hostCommission + (booking.security_deposit || 0);
+          // IMPORTANT: Utiliser host_net_amount stocké si disponible, sinon le calculer
+          // totalPrice = priceAfterDiscountWithDriver + serviceFee (10% + 20% TVA = 12% de priceAfterDiscountWithDriver)
+          // Donc : priceAfterDiscountWithDriver = totalPrice / 1.12
+          // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
+          let ownerNetRevenue: number;
+          let calculatedBasePriceWithDriver: number;
+          
+          if ((booking as any).host_net_amount !== undefined && (booking as any).host_net_amount !== null) {
+            // Utiliser la valeur stockée directement
+            ownerNetRevenue = (booking as any).host_net_amount;
+            // Calculer basePriceWithDriver pour l'email (approximation)
+            calculatedBasePriceWithDriver = Math.round((booking.total_price || 0) / 1.12);
+          } else {
+            // Calculer si non stocké (anciennes réservations)
+            calculatedBasePriceWithDriver = Math.round((booking.total_price || 0) / 1.12);
+            const hostCommissionData = calculateHostCommission(calculatedBasePriceWithDriver, 'vehicle');
+            ownerNetRevenue = calculatedBasePriceWithDriver - hostCommissionData.hostCommission;
+          }
 
           const emailData = {
             bookingId: booking.id,
             vehicleTitle: vehicleTitle,
             vehicleBrand: vehicle?.brand || '',
             vehicleModel: vehicle?.model || '',
-            vehicleYear: vehicle?.year || '',
-            fuelType: vehicle?.fuel_type || '',
+            vehicleYear: (vehicle as any)?.year || '',
+            fuelType: (vehicle as any)?.fuel_type || '',
             renterName: renterName,
             renterEmail: renter?.email || '',
             renterPhone: renter?.phone || '',
             ownerName: ownerName,
-            ownerEmail: ownerProfile?.email || '',
-            ownerPhone: ownerProfile?.phone || '',
+            ownerEmail: (ownerProfile as any)?.email || '',
+            ownerPhone: (ownerProfile as any)?.phone || '',
             startDate: formatDate(booking.start_date),
             endDate: formatDate(booking.end_date),
             startDateTime: booking.start_datetime || undefined, // Ajouté pour corriger NaN NaN
@@ -833,7 +989,7 @@ export const useVehicleBookings = () => {
             rentalHours: booking.rental_hours || 0,
             dailyRate: booking.daily_rate,
             hourlyRate: booking.hourly_rate || vehicle?.price_per_hour || 0,
-            basePrice: calculatedBasePrice, // Prix après réduction (calculé à partir de totalPrice)
+            basePrice: calculatedBasePriceWithDriver, // Prix après réduction + chauffeur (calculé à partir de totalPrice)
             totalPrice: booking.total_price,
             ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
             securityDeposit: booking.security_deposit || 0,

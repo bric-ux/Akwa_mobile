@@ -554,59 +554,142 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const taxesPerNight = providedTaxes !== undefined 
     ? providedTaxes 
     : (booking.properties?.taxes || 0);
-  const effectiveTaxes = serviceType === 'property' ? taxesPerNight * nights : 0;
+  // Note: effectiveTaxes sera déclaré plus bas dans le bloc if/else
   
-  // Debug pour la taxe de séjour
-  if (__DEV__ && serviceType === 'property') {
-    console.log('🔍 [InvoiceDisplay] Taxe de séjour:', {
-      providedTaxes,
-      taxesFromBooking: booking.properties?.taxes,
-      taxesPerNight,
-      nights,
-      checkIn,
-      checkOut,
-      effectiveTaxes,
-      willShow: effectiveTaxes > 0,
-      serviceType
-    });
+  // Debug pour la taxe de séjour (sera fait après déclaration de effectiveTaxes)
+  
+  // ✅ PRIORITÉ ABSOLUE: Récupérer les données stockées AVANT tout calcul
+  // Récupérer les détails de calcul stockés (si disponibles)
+  const [calculationDetails, setCalculationDetails] = useState<any>(null);
+  const [loadingCalcDetails, setLoadingCalcDetails] = useState(false);
+
+  useEffect(() => {
+    const fetchCalculationDetails = async () => {
+      if (!booking?.id) return;
+      
+      setLoadingCalcDetails(true);
+      try {
+        const { data, error } = await supabase
+          .from('booking_calculation_details')
+          .select('*')
+          .eq('booking_id', booking.id)
+          .eq('booking_type', serviceType)
+          .single();
+
+        if (!error && data) {
+          setCalculationDetails(data);
+          if (__DEV__) console.log('✅ [InvoiceDisplay] Détails de calcul récupérés depuis la base:', data);
+        } else {
+          if (__DEV__) console.log('⚠️ [InvoiceDisplay] Pas de détails de calcul stockés, fallback sur recalcul');
+        }
+      } catch (err) {
+        console.error('Erreur récupération détails calcul:', err);
+      } finally {
+        setLoadingCalcDetails(false);
+      }
+    };
+
+    fetchCalculationDetails();
+  }, [booking?.id, serviceType]);
+
+  // ✅ Utiliser DIRECTEMENT les données stockées si disponibles, sinon recalculer (fallback uniquement)
+  let effectiveServiceFee: number;
+  let serviceFeeHT: number;
+  let serviceFeeVAT: number;
+  let hostCommission: number;
+  let hostCommissionHT: number;
+  let hostCommissionVAT: number;
+  let hostNetAmount: number;
+  let effectiveCleaningFee: number;
+  let effectiveTaxes: number;
+  let totalPaidByTraveler: number;
+  let akwaHomeTotalRevenue: number;
+
+  if (calculationDetails) {
+    // ✅ UTILISER DIRECTEMENT les valeurs stockées - AUCUN calcul
+    effectiveServiceFee = calculationDetails.service_fee;
+    serviceFeeHT = calculationDetails.service_fee_ht;
+    serviceFeeVAT = calculationDetails.service_fee_vat;
+    hostCommission = calculationDetails.host_commission;
+    hostCommissionHT = calculationDetails.host_commission_ht;
+    hostCommissionVAT = calculationDetails.host_commission_vat;
+    hostNetAmount = calculationDetails.host_net_amount;
+    effectiveCleaningFee = calculationDetails.effective_cleaning_fee || 0;
+    effectiveTaxes = calculationDetails.effective_taxes || 0;
+    totalPaidByTraveler = calculationDetails.total_price;
+    akwaHomeTotalRevenue = effectiveServiceFee + hostCommission;
+    
+    if (__DEV__) {
+      console.log('✅ [InvoiceDisplay] Utilisation DIRECTE des données stockées - AUCUN recalcul:', {
+        host_net_amount: hostNetAmount,
+        service_fee: effectiveServiceFee,
+        host_commission: hostCommission,
+        total_price: totalPaidByTraveler,
+      });
+    }
+  } else {
+    // ⚠️ FALLBACK: Recalculer uniquement pour les anciennes réservations sans données stockées
+    if (__DEV__) console.log('⚠️ [InvoiceDisplay] Recalcul (fallback pour anciennes réservations)');
+    
+    // Calculer les frais de service avec TVA
+    // BUG FIX: Pour les véhicules, les frais de service sont calculés sur priceAfterDiscountWithDriver (avec chauffeur)
+    const priceForServiceFee = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
+    serviceFeeHT = Math.round(priceForServiceFee * (commissionRates.travelerFeePercent / 100));
+    serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
+    effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
+    
+    // Calculer la commission hôte avec TVA
+    // BUG FIX: Pour les véhicules, la commission est calculée sur priceAfterDiscountWithDriver (avec chauffeur)
+    const priceForCommission = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
+    const hostCommissionData = calculateHostCommission(priceForCommission, serviceType);
+    hostCommission = hostCommissionData.hostCommission;
+    hostCommissionHT = hostCommissionData.hostCommissionHT;
+    hostCommissionVAT = hostCommissionData.hostCommissionVAT;
+    
+    // Calculer les frais de ménage en tenant compte de free_cleaning_min_days
+    // Utiliser le cleaningFee passé en paramètre si fourni, sinon utiliser celui de la propriété
+    effectiveCleaningFee = cleaningFee !== undefined ? cleaningFee : (booking.properties?.cleaning_fee || 0);
+    
+    // Appliquer la logique free_cleaning_min_days si applicable
+    if (serviceType === 'property' && booking.properties?.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days) {
+      effectiveCleaningFee = 0;
+    }
+    
+    // Calculer effectiveTaxes pour le fallback
+    effectiveTaxes = serviceType === 'property' ? taxesPerNight * nights : 0;
+    
+    // Calculer le total payé : prix après réduction + frais de service + frais de ménage + taxes
+    // BUG FIX: Pour les véhicules, utiliser priceAfterDiscountWithDriver (avec chauffeur)
+    const priceForTotal = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
+    const calculatedTotal = priceForTotal + effectiveServiceFee + effectiveCleaningFee + effectiveTaxes;
+    // Pour les véhicules, toujours utiliser le calcul pour s'assurer que les frais de service sont inclus
+    // (même si booking.total_price existe, il peut ne pas inclure les frais de service pour les anciennes réservations)
+    // Pour les propriétés, utiliser booking.total_price s'il existe et correspond au calcul
+    totalPaidByTraveler = (serviceType === 'vehicle') 
+      ? calculatedTotal // Toujours utiliser le calcul pour inclure les frais de service
+      : (booking.total_price && Math.abs(booking.total_price - calculatedTotal) <= 100) 
+        ? booking.total_price 
+        : calculatedTotal;
+    
+    // Calculer hostNetAmount
+    if (serviceType === 'vehicle') {
+      hostNetAmount = priceAfterDiscountWithDriver - hostCommission;
+    } else {
+      const result = calculateHostNetAmountCentralized({
+        pricePerNight: pricePerUnit,
+        nights: nights,
+        discountAmount: actualDiscountAmount,
+        cleaningFee: effectiveCleaningFee,
+        taxesPerNight: taxesPerNight,
+        freeCleaningMinDays: booking.properties?.free_cleaning_min_days || null,
+        status: booking.status || 'confirmed',
+        serviceType: serviceType,
+      });
+      hostNetAmount = result.hostNetAmount;
+    }
+    
+    akwaHomeTotalRevenue = effectiveServiceFee + hostCommission;
   }
-  
-  // Calculer les frais de service avec TVA
-  // BUG FIX: Pour les véhicules, les frais de service sont calculés sur priceAfterDiscountWithDriver (avec chauffeur)
-  const priceForServiceFee = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
-  const serviceFeeHT = Math.round(priceForServiceFee * (commissionRates.travelerFeePercent / 100));
-  const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
-  const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
-  
-  // Calculer la commission hôte avec TVA
-  // BUG FIX: Pour les véhicules, la commission est calculée sur priceAfterDiscountWithDriver (avec chauffeur)
-  const priceForCommission = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
-  const hostCommissionData = calculateHostCommission(priceForCommission, serviceType);
-  const hostCommission = hostCommissionData.hostCommission;
-  const hostCommissionHT = hostCommissionData.hostCommissionHT;
-  const hostCommissionVAT = hostCommissionData.hostCommissionVAT;
-  
-  // Calculer les frais de ménage en tenant compte de free_cleaning_min_days
-  // Utiliser le cleaningFee passé en paramètre si fourni, sinon utiliser celui de la propriété
-  let effectiveCleaningFee = cleaningFee !== undefined ? cleaningFee : (booking.properties?.cleaning_fee || 0);
-  
-  // Appliquer la logique free_cleaning_min_days si applicable
-  if (serviceType === 'property' && booking.properties?.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days) {
-    effectiveCleaningFee = 0;
-  }
-  
-  // Calculer le total payé : prix après réduction + frais de service + frais de ménage + taxes
-  // BUG FIX: Pour les véhicules, utiliser priceAfterDiscountWithDriver (avec chauffeur)
-  const priceForTotal = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
-  const calculatedTotal = priceForTotal + effectiveServiceFee + effectiveCleaningFee + effectiveTaxes;
-  // Pour les véhicules, toujours utiliser le calcul pour s'assurer que les frais de service sont inclus
-  // (même si booking.total_price existe, il peut ne pas inclure les frais de service pour les anciennes réservations)
-  // Pour les propriétés, utiliser booking.total_price s'il existe et correspond au calcul
-  const totalPaidByTraveler = (serviceType === 'vehicle') 
-    ? calculatedTotal // Toujours utiliser le calcul pour inclure les frais de service
-    : (booking.total_price && Math.abs(booking.total_price - calculatedTotal) <= 100) 
-      ? booking.total_price 
-      : calculatedTotal;
   
   // Récupérer la caution pour les véhicules
   const securityDeposit = serviceType === 'vehicle' 
@@ -621,63 +704,6 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       type
     });
   }
-  // Utiliser host_net_amount stocké si disponible, sinon utiliser la fonction centralisée
-  // MAIS toujours recalculer pour vérifier la cohérence et utiliser la valeur calculée
-  let hostNetAmount: number;
-  
-  // Log pour debug
-  if (__DEV__) console.log('📊 [InvoiceDisplay] Calcul host_net_amount:', {
-    host_net_amount_stocké: (booking as any).host_net_amount,
-    discount_amount_utilisé: actualDiscountAmount,
-    pricePerNight: pricePerUnit,
-    nights: nights,
-    cleaningFee: effectiveCleaningFee,
-    taxesPerNight: taxesPerNight,
-    serviceType,
-    driverFee,
-    priceAfterDiscount,
-    priceAfterDiscountWithDriver,
-    hostCommission,
-    booking_with_driver: (booking as any).with_driver,
-    vehicle_with_driver: (booking as any).vehicle?.with_driver,
-    vehicle_driver_fee: (booking as any).vehicle?.driver_fee,
-  });
-  
-  // IMPORTANT: Pour les véhicules, utiliser le calcul direct avec le chauffeur
-  // car calculateHostNetAmountCentralized ne prend pas en compte le chauffeur ni les heures
-  if (serviceType === 'vehicle') {
-    // Pour les véhicules, le revenu net = prix avec chauffeur - commission (sans la caution)
-    // La commission est déjà calculée sur priceAfterDiscountWithDriver (ligne 540)
-    hostNetAmount = priceAfterDiscountWithDriver - hostCommission;
-    
-    if (__DEV__) console.log('📊 [InvoiceDisplay] Calcul revenu net véhicule:', {
-      priceAfterDiscount,
-      driverFee,
-      priceAfterDiscountWithDriver,
-      hostCommission,
-      hostNetAmount,
-    });
-  } else {
-    // Pour les propriétés, utiliser la fonction centralisée
-    const result = calculateHostNetAmountCentralized({
-      pricePerNight: pricePerUnit,
-      nights: nights,
-      discountAmount: actualDiscountAmount,
-      cleaningFee: effectiveCleaningFee,
-      taxesPerNight: taxesPerNight,
-      freeCleaningMinDays: booking.properties?.free_cleaning_min_days || null,
-      status: booking.status || 'confirmed',
-      serviceType: serviceType,
-    });
-    hostNetAmount = result.hostNetAmount;
-  }
-  
-  if (__DEV__) console.log('📊 [InvoiceDisplay] Résultat calcul:', {
-    host_net_amount_calculé: hostNetAmount,
-    host_net_amount_stocké: (booking as any).host_net_amount,
-    différence: (booking as any).host_net_amount ? (hostNetAmount - (booking as any).host_net_amount) : 0,
-  });
-  const akwaHomeTotalRevenue = effectiveServiceFee + hostCommission;
 
   // Fonction pour envoyer la facture par email
   const handleDownloadPDF = async () => {

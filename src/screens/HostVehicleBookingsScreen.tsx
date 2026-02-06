@@ -225,41 +225,12 @@ const HostVehicleBookingsScreen: React.FC = () => {
     return endDate < today;
   };
 
-  // Calculer les gains nets pour une réservation (avec TVA sur la commission)
-  // IMPORTANT: Doit correspondre au calcul dans useVehicleBookings.ts (ligne 453)
+  // IMPORTANT: Utiliser host_net_amount stocké directement au lieu de recalculer
+  // C'est le montant réellement prévu et évite les erreurs de calcul
   const calculateNetEarnings = (booking: VehicleBooking) => {
     if (booking.status === 'cancelled') return 0;
-    
-    // Calculer le prix des jours
-    const rentalDays = booking.rental_days || 0;
-    const rentalHours = booking.rental_hours || 0;
-    const daysPrice = (booking.daily_rate || 0) * rentalDays;
-    
-    // Calculer le prix des heures supplémentaires si applicable
-    // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
-    const hourlyRate = booking.hourly_rate || booking.vehicle?.price_per_hour || 0;
-    let hoursPrice = 0;
-    if (rentalHours > 0 && hourlyRate > 0) {
-      hoursPrice = rentalHours * hourlyRate;
-    }
-    
-    // Prix de base = prix des jours + prix des heures
-    const basePrice = daysPrice + hoursPrice;
-    // Appliquer la réduction si elle existe
-    const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
-    
-    // IMPORTANT: Ajouter le surplus chauffeur si applicable (comme dans useVehicleBookings.ts)
-    const driverFee = (booking.with_driver && booking.vehicle?.driver_fee) ? booking.vehicle.driver_fee : 0;
-    const basePriceWithDriver = priceAfterDiscount + driverFee;
-    
-    // Commission avec TVA calculée sur basePriceWithDriver (inclut le chauffeur)
-    // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur)
-    const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
-    const hostCommission = hostCommissionData.hostCommission;
-    
-    // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
-    // lors de la prise du véhicule et sera remboursée. Le revenu net = prix avec chauffeur - commission
-    return basePriceWithDriver - hostCommission;
+    // Utiliser host_net_amount stocké si disponible, sinon 0
+    return (booking as any).host_net_amount || 0;
   };
 
   const filteredBookings = bookings.filter(booking => {

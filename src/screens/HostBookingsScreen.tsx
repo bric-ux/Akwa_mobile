@@ -358,8 +358,17 @@ const HostBookingsScreen: React.FC = () => {
     return 'https://via.placeholder.com/150';
   };
 
-  // Utiliser host_net_amount stocké si disponible, sinon utiliser la fonction centralisée
+  // ✅ Utiliser DIRECTEMENT host_net_amount stocké, sinon recalculer (fallback uniquement pour anciennes réservations)
   const getHostNetAmount = (booking: HostBooking): number => {
+    // 1. PRIORITÉ ABSOLUE: Utiliser host_net_amount stocké directement dans la réservation
+    if (booking.host_net_amount !== undefined && booking.host_net_amount !== null) {
+      if (__DEV__) console.log('✅ [HostBookingsScreen] Utilisation DIRECTE host_net_amount stocké - AUCUN recalcul:', booking.host_net_amount);
+      return booking.host_net_amount;
+    }
+    
+    // 2. FALLBACK: Recalculer uniquement pour les anciennes réservations sans données stockées
+    if (__DEV__) console.log('⚠️ [HostBookingsScreen] Recalcul (fallback pour anciennes réservations sans host_net_amount)');
+    
     const checkIn = new Date(booking.check_in_date);
     const checkOut = new Date(booking.check_out_date);
     const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
@@ -374,7 +383,7 @@ const HostBookingsScreen: React.FC = () => {
       console.warn('⚠️ [HostBookingsScreen] ATTENTION: discount_applied=true mais discount_amount=0 pour réservation', booking.id);
     }
     
-    // Toujours recalculer pour vérifier la cohérence
+    // Recalculer uniquement en fallback
     const calculated = calculateHostNetAmountCentralized({
       pricePerNight: booking.properties?.price_per_night || 0,
       nights: nights,
@@ -417,7 +426,7 @@ const HostBookingsScreen: React.FC = () => {
       }
     });
     
-    // Utiliser la valeur calculée (plus fiable que la valeur stockée qui peut être incorrecte)
+    // Utiliser la valeur calculée uniquement en fallback (anciennes réservations sans données stockées)
     return calculated.hostNetAmount;
   };
 

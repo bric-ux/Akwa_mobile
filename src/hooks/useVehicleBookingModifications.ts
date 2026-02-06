@@ -510,12 +510,54 @@ export const useVehicleBookingModifications = () => {
         }
       }
       
+      // Calculer host_net_amount pour la modification
+      const totalWithServiceFee = request.requested_total_price;
+      const priceAfterDiscountWithDriver = Math.round(totalWithServiceFee / 1.12);
+      const hostCommissionData = calculateHostCommission(priceAfterDiscountWithDriver, 'vehicle');
+      const hostNetAmount = priceAfterDiscountWithDriver - hostCommissionData.hostCommission;
+      
+      // Ajouter host_net_amount à updateData
+      updateData.host_net_amount = hostNetAmount;
+
       const { error: updateBookingError } = await supabase
         .from('vehicle_bookings')
         .update(updateData)
         .eq('id', request.booking_id);
 
       if (updateBookingError) throw updateBookingError;
+
+      // ✅ Mettre à jour booking_calculation_details
+      const { updateVehicleBookingCalculationDetails } = await import('../lib/updateBookingCalculationDetails');
+      await updateVehicleBookingCalculationDetails(
+        request.booking_id,
+        {
+          start_date: request.requested_start_date,
+          end_date: request.requested_end_date,
+          total_price: request.requested_total_price,
+          rental_days: request.requested_rental_days,
+          rental_hours: request.requested_rental_hours,
+          daily_rate: request.booking.daily_rate,
+          hourly_rate: request.booking.hourly_rate,
+          discount_amount: request.booking.discount_amount,
+          discount_applied: request.booking.discount_applied,
+          original_total: request.booking.original_total,
+          with_driver: request.booking.with_driver,
+        },
+        {
+          price_per_day: vehicle?.price_per_day || 0,
+          price_per_hour: vehicle?.price_per_hour,
+          driver_fee: vehicle?.driver_fee,
+          with_driver: vehicle?.with_driver,
+          discount_enabled: vehicle?.discount_enabled,
+          discount_min_days: vehicle?.discount_min_days,
+          discount_percentage: vehicle?.discount_percentage,
+          long_stay_discount_enabled: vehicle?.long_stay_discount_enabled,
+          long_stay_discount_min_days: vehicle?.long_stay_discount_min_days,
+          long_stay_discount_percentage: vehicle?.long_stay_discount_percentage,
+          security_deposit: vehicle?.security_deposit,
+        },
+        request.booking.status || 'confirmed'
+      );
 
       // Mettre à jour le statut de la demande
       const { error: updateError } = await supabase

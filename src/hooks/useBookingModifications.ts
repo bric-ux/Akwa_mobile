@@ -330,6 +330,24 @@ export const useBookingModifications = () => {
 
       if (fetchError) throw fetchError;
 
+      // Calculer host_net_amount pour la modification
+      const nights = Math.ceil(
+        (new Date(request.requested_check_out).getTime() - new Date(request.requested_check_in).getTime()) 
+        / (1000 * 60 * 60 * 24)
+      );
+
+      const { calculateHostNetAmount } = await import('../lib/hostNetAmount');
+      const hostNetAmountResult = calculateHostNetAmount({
+        pricePerNight: request.booking.properties.price_per_night || 0,
+        nights: nights,
+        discountAmount: request.booking.discount_amount || 0,
+        cleaningFee: request.booking.properties.cleaning_fee || 0,
+        taxesPerNight: request.booking.properties.taxes || 0,
+        freeCleaningMinDays: request.booking.properties.free_cleaning_min_days || null,
+        status: request.booking.status || 'confirmed',
+        serviceType: 'property',
+      });
+
       // Mettre à jour la réservation originale
       const { error: updateBookingError } = await supabase
         .from('bookings')
@@ -338,11 +356,39 @@ export const useBookingModifications = () => {
           check_out_date: request.requested_check_out,
           guests_count: request.requested_guests_count,
           total_price: request.requested_total_price,
+          host_net_amount: hostNetAmountResult.hostNetAmount,
           updated_at: new Date().toISOString()
         })
         .eq('id', request.booking_id);
 
       if (updateBookingError) throw updateBookingError;
+
+      // ✅ Mettre à jour booking_calculation_details
+      const { updatePropertyBookingCalculationDetails } = await import('../lib/updateBookingCalculationDetails');
+      await updatePropertyBookingCalculationDetails(
+        request.booking_id,
+        {
+          check_in_date: request.requested_check_in,
+          check_out_date: request.requested_check_out,
+          total_price: request.requested_total_price,
+          discount_amount: request.booking.discount_amount,
+          discount_applied: request.booking.discount_applied,
+          original_total: request.booking.original_total,
+        },
+        {
+          price_per_night: request.booking.properties.price_per_night || 0,
+          cleaning_fee: request.booking.properties.cleaning_fee,
+          taxes: request.booking.properties.taxes,
+          free_cleaning_min_days: request.booking.properties.free_cleaning_min_days,
+          discount_enabled: request.booking.properties.discount_enabled,
+          discount_min_nights: request.booking.properties.discount_min_nights,
+          discount_percentage: request.booking.properties.discount_percentage,
+          long_stay_discount_enabled: request.booking.properties.long_stay_discount_enabled,
+          long_stay_discount_min_nights: request.booking.properties.long_stay_discount_min_nights,
+          long_stay_discount_percentage: request.booking.properties.long_stay_discount_percentage,
+        },
+        request.booking.status || 'confirmed'
+      );
 
       // Mettre à jour le statut de la demande
       const { error: updateError } = await supabase

@@ -325,6 +325,94 @@ export const useBookings = () => {
       // Log après insertion pour vérifier la valeur stockée
       if (__DEV__) console.log('✅ [useBookings Mobile] Réservation créée avec host_net_amount:', booking?.host_net_amount);
 
+      // Stocker tous les détails de calcul dans booking_calculation_details
+      // Cela évite tous les recalculs dans les emails, PDFs et affichages
+      try {
+        // Calculer les frais de service (12% pour propriétés)
+        const { calculateFees } = await import('./usePricing');
+        const fees = calculateFees(
+          hostNetAmountResult.priceAfterDiscount,
+          nights,
+          'property',
+          {
+            cleaning_fee: propertyData.cleaning_fee || 0,
+            taxes: propertyData.taxes || 0,
+            free_cleaning_min_days: propertyData.free_cleaning_min_days || null
+          }
+        );
+
+        const calculationDetails = {
+          booking_id: booking.id,
+          booking_type: 'property',
+          
+          // Prix de base
+          base_price: hostNetAmountResult.basePrice,
+          price_after_discount: hostNetAmountResult.priceAfterDiscount,
+          base_price_with_driver: null, // N/A pour propriétés
+          
+          // Réductions
+          discount_amount: bookingData.discountAmount || 0,
+          discount_applied: bookingData.discountApplied || false,
+          original_total: bookingData.originalTotal || bookingData.totalPrice,
+          discount_type: bookingData.discountApplied ? 'normal' : null, // TODO: détecter long_stay si applicable
+          
+          // Frais de service (voyageur)
+          service_fee: fees.serviceFee,
+          service_fee_ht: fees.serviceFeeHT,
+          service_fee_vat: fees.serviceFeeVAT,
+          
+          // Commission hôte
+          host_commission: hostNetAmountResult.hostCommission,
+          host_commission_ht: hostNetAmountResult.hostCommissionHT,
+          host_commission_vat: hostNetAmountResult.hostCommissionVAT,
+          
+          // Frais additionnels
+          effective_cleaning_fee: hostNetAmountResult.effectiveCleaningFee,
+          effective_taxes: hostNetAmountResult.effectiveTaxes,
+          
+          // Détails véhicules (null pour propriétés)
+          days_price: null,
+          hours_price: null,
+          driver_fee: null,
+          total_before_discount: null,
+          
+          // Totaux finaux
+          total_price: bookingData.totalPrice,
+          host_net_amount: hostNetAmountResult.hostNetAmount,
+          
+          // Snapshot des données utilisées pour le calcul
+          calculation_snapshot: {
+            serviceType: 'property',
+            pricePerNight: propertyData.price_per_night || 0,
+            nights: nights,
+            discountAmount: bookingData.discountAmount || 0,
+            cleaningFee: propertyData.cleaning_fee || 0,
+            taxesPerNight: propertyData.taxes || 0,
+            freeCleaningMinDays: propertyData.free_cleaning_min_days || null,
+            status: initialStatus,
+            commissionRates: {
+              travelerFeePercent: 12, // 12% pour propriétés
+              hostFeePercent: 2 // 2% pour propriétés
+            },
+            calculatedAt: new Date().toISOString()
+          }
+        };
+
+        const { error: calcDetailsError } = await supabase
+          .from('booking_calculation_details')
+          .insert(calculationDetails);
+
+        if (calcDetailsError) {
+          console.error('❌ [useBookings Mobile] Erreur stockage détails calcul:', calcDetailsError);
+          // Ne pas faire échouer la réservation si l'insertion des détails échoue
+        } else {
+          if (__DEV__) console.log('✅ [useBookings Mobile] Détails de calcul stockés pour réservation:', booking.id);
+        }
+      } catch (calcError) {
+        console.error('❌ [useBookings Mobile] Erreur lors du stockage des détails de calcul:', calcError);
+        // Ne pas faire échouer la réservation si l'insertion des détails échoue
+      }
+
       // Marquer le code promotionnel comme utilisé si un code a été fourni
       if (bookingData.voucherCode && booking?.id) {
         try {
