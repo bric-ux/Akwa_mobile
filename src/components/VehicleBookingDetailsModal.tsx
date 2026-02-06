@@ -40,6 +40,11 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const [modificationModalVisible, setModificationModalVisible] = useState(false);
   const [payment, setPayment] = useState<any>(null);
   const [pendingRequest, setPendingRequest] = useState<any>(null);
+  
+  // ✅ PRIORITÉ ABSOLUE: Récupérer les données stockées depuis booking_calculation_details
+  // IMPORTANT: Tous les hooks doivent être déclarés AVANT tout return conditionnel
+  const [calculationDetails, setCalculationDetails] = useState<any>(null);
+  const [loadingCalcDetails, setLoadingCalcDetails] = useState(false);
 
   useEffect(() => {
     if (booking) {
@@ -49,6 +54,35 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
       }
     }
   }, [booking, isOwner]);
+
+  useEffect(() => {
+    const fetchCalculationDetails = async () => {
+      if (!booking?.id) return;
+      
+      setLoadingCalcDetails(true);
+      try {
+        const { data, error } = await supabase
+          .from('booking_calculation_details')
+          .select('*')
+          .eq('booking_id', booking.id)
+          .eq('booking_type', 'vehicle')
+          .single();
+
+        if (!error && data) {
+          setCalculationDetails(data);
+          console.log('✅ [VehicleBookingDetailsModal] Détails de calcul récupérés depuis la base:', data);
+        } else {
+          console.log('⚠️ [VehicleBookingDetailsModal] Pas de détails de calcul stockés, fallback sur recalcul');
+        }
+      } catch (err) {
+        console.error('Erreur récupération détails calcul:', err);
+      } finally {
+        setLoadingCalcDetails(false);
+      }
+    };
+
+    fetchCalculationDetails();
+  }, [booking?.id]);
 
   const loadPendingRequest = async () => {
     if (!booking?.id) return;
@@ -170,50 +204,34 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
     isOwner
   });
 
-  const commissionRates = getCommissionRates('vehicle');
-  
-  // Calculer les heures restantes si applicable
+  // ✅ UTILISER UNIQUEMENT LES DONNÉES STOCKÉES - AUCUN RECALCUL
+  // Récupérer TOUTES les valeurs depuis calculationDetails si disponible
   const rentalDays = booking.rental_days || 0;
   const rentalHours = booking.rental_hours || 0;
+  const daysPrice = calculationDetails?.days_price ?? 0;
+  const hoursPrice = calculationDetails?.hours_price ?? 0;
+  const basePrice = calculationDetails?.base_price ?? 0;
+  const priceAfterDiscount = calculationDetails?.price_after_discount ?? 0;
+  const driverFee = calculationDetails?.driver_fee ?? 0;
+  const priceAfterDiscountWithDriver = calculationDetails?.base_price_with_driver ?? 0;
+  const renterServiceFee = calculationDetails?.service_fee ?? 0;
+  const renterServiceFeeHT = calculationDetails?.service_fee_ht ?? 0;
+  const renterServiceFeeVAT = calculationDetails?.service_fee_vat ?? 0;
+  const ownerCommission = calculationDetails?.host_commission ?? 0;
+  const ownerCommissionHT = calculationDetails?.host_commission_ht ?? 0;
+  const ownerCommissionVAT = calculationDetails?.host_commission_vat ?? 0;
+  const ownerNetAmount = calculationDetails?.host_net_amount ?? booking.host_net_amount ?? 0;
+  const totalPrice = calculationDetails?.total_price ?? booking.total_price ?? 0;
   
-  // Calculer le prix des jours
-  const daysPrice = (booking.daily_rate || 0) * rentalDays;
-  
-  // Calculer le prix des heures supplémentaires si applicable
-  // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
-  const hourlyRate = booking.hourly_rate || booking.vehicle?.price_per_hour || 0;
-  let hoursPrice = 0;
-  if (rentalHours > 0 && hourlyRate > 0) {
-    hoursPrice = rentalHours * hourlyRate;
-  }
-  
-  // Prix de base = prix des jours + prix des heures
-  const basePrice = daysPrice + hoursPrice;
-  
-  // Appliquer la réduction si elle existe (sur le total : jours + heures)
-  const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
-  
-  // BUG FIX: Ajouter le surplus chauffeur APRÈS la réduction
-  const driverFee = (booking.vehicle?.with_driver && booking.vehicle?.driver_fee && booking.with_driver) 
-    ? booking.vehicle.driver_fee 
-    : 0;
-  const priceAfterDiscountWithDriver = priceAfterDiscount + driverFee; // Prix après réduction + chauffeur
-  
-  // Frais de service voyageur avec TVA
-  // BUG FIX: Les frais de service sont calculés sur priceAfterDiscountWithDriver (avec chauffeur)
-  const renterServiceFeeHT = Math.round(priceAfterDiscountWithDriver * (commissionRates.travelerFeePercent / 100));
-  const renterServiceFeeVAT = Math.round(renterServiceFeeHT * 0.20);
-  const renterServiceFee = renterServiceFeeHT + renterServiceFeeVAT;
-  
-  // Commission propriétaire avec TVA (2% + 20% TVA = 2.4% TTC)
-  // BUG FIX: La commission est calculée sur priceAfterDiscountWithDriver (avec chauffeur)
-  const ownerCommissionHT = Math.round(priceAfterDiscountWithDriver * (commissionRates.hostFeePercent / 100));
-  const ownerCommissionVAT = Math.round(ownerCommissionHT * 0.20);
-  const ownerCommission = ownerCommissionHT + ownerCommissionVAT; // TTC
-  
-  // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
   const securityDeposit = booking.security_deposit || 0;
-  const ownerNetAmount = priceAfterDiscountWithDriver - ownerCommission;
+  
+  if (__DEV__ && calculationDetails) {
+    console.log('✅ [VehicleBookingDetailsModal] Utilisation UNIQUEMENT des données stockées:', {
+      driver_fee: driverFee,
+      total_price: totalPrice,
+      host_net_amount: ownerNetAmount,
+    });
+  }
 
   // Déterminer le type de réduction appliquée et le pourcentage
   const getDiscountInfo = () => {

@@ -407,16 +407,19 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   }
   
   // Prix de base = prix des jours + prix des heures
-  const daysPrice = pricePerUnit * nights;
+  // Ces valeurs seront remplacées par calculationDetails si disponible (voir plus bas)
+  let daysPrice = pricePerUnit * nights;
   
   // BUG FIX: Pour les véhicules, basePrice ne doit PAS inclure le chauffeur
   // Le chauffeur est ajouté APRÈS la réduction
-  const basePrice = daysPrice + hoursPrice; // SANS chauffeur pour véhicules
+  let basePrice = daysPrice + hoursPrice; // SANS chauffeur pour véhicules
   
-  // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire a choisi le chauffeur
-  // IMPORTANT: Vérifier booking.with_driver (réservation) ET vehicle.with_driver (véhicule propose chauffeur)
-  // Si booking.with_driver n'est pas disponible, essayer de déduire depuis total_price
+  // ✅ PRIORITÉ: Récupérer driverFee depuis booking_calculation_details si disponible
+  // Cette partie sera remplacée par les données stockées si calculationDetails existe
+  // On garde ce calcul comme fallback pour les anciennes réservations
   let driverFee = 0;
+  
+  // Ces valeurs seront remplacées par calculationDetails si disponible (voir plus bas)
   if (serviceType === 'vehicle') {
     const vehicleWithDriver = (booking as any).vehicle?.with_driver;
     const vehicleDriverFee = (booking as any).vehicle?.driver_fee || 0;
@@ -547,8 +550,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   // Prix après réduction : la réduction s'applique sur le total (jours + heures)
   // Pour les véhicules : (prix_jours + prix_heures) - réduction
   // Pour les propriétés : prix_total - réduction (comme avant)
-  const priceAfterDiscount = basePrice - discountAmount; // Prix après réduction (sans chauffeur pour véhicules)
-  const priceAfterDiscountWithDriver = serviceType === 'vehicle' ? priceAfterDiscount + driverFee : priceAfterDiscount; // Prix après réduction + chauffeur pour véhicules
+  // Ces valeurs seront remplacées par calculationDetails si disponible (voir plus bas)
+  let priceAfterDiscount = basePrice - discountAmount; // Prix après réduction (sans chauffeur pour véhicules)
+  let priceAfterDiscountWithDriver = serviceType === 'vehicle' ? priceAfterDiscount + driverFee : priceAfterDiscount; // Prix après réduction + chauffeur pour véhicules
   const actualDiscountAmount = discountAmount;
   // La taxe de séjour est par nuit, donc multiplier par le nombre de nuits
   const taxesPerNight = providedTaxes !== undefined 
@@ -607,6 +611,30 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
   if (calculationDetails) {
     // ✅ UTILISER DIRECTEMENT les valeurs stockées - AUCUN calcul
+    // Pour les véhicules, utiliser aussi days_price, hours_price et driver_fee depuis calculationDetails
+    if (serviceType === 'vehicle') {
+      daysPrice = calculationDetails.days_price ?? daysPrice;
+      hoursPrice = calculationDetails.hours_price ?? hoursPrice;
+      basePrice = calculationDetails.base_price ?? basePrice; // ✅ Utiliser base_price stocké
+      priceAfterDiscount = calculationDetails.price_after_discount ?? priceAfterDiscount; // ✅ Utiliser price_after_discount stocké
+      // ✅ IMPORTANT: Utiliser ?? au lieu de || pour éviter que 0 soit remplacé par la valeur par défaut
+      driverFee = calculationDetails.driver_fee ?? 0; // ✅ Utiliser driver_fee stocké (même si 0)
+      priceAfterDiscountWithDriver = calculationDetails.base_price_with_driver ?? (priceAfterDiscount + driverFee); // ✅ Utiliser base_price_with_driver stocké
+      
+      if (__DEV__) {
+        console.log('✅ [InvoiceDisplay] Utilisation données stockées véhicule:', {
+          'calculationDetails.driver_fee': calculationDetails.driver_fee,
+          'driverFee final': driverFee,
+          days_price: daysPrice,
+          hours_price: hoursPrice,
+          base_price: basePrice,
+          price_after_discount: priceAfterDiscount,
+          base_price_with_driver: priceAfterDiscountWithDriver,
+          'type': type, // ✅ Ajouter type pour debug
+        });
+      }
+    }
+    
     effectiveServiceFee = calculationDetails.service_fee;
     serviceFeeHT = calculationDetails.service_fee_ht;
     serviceFeeVAT = calculationDetails.service_fee_vat;
@@ -625,6 +653,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         service_fee: effectiveServiceFee,
         host_commission: hostCommission,
         total_price: totalPaidByTraveler,
+        driver_fee: driverFee, // ✅ Inclure driver_fee dans les logs
       });
     }
   } else {
@@ -1366,13 +1395,21 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </>
           )}
 
-          {/* Montant de la réservation (si pas de réduction, c'est le même que basePrice) */}
-          {actualDiscountAmount === 0 && (
+          {/* Surplus chauffeur pour les véhicules - dans la section "Votre versement" */}
+          {serviceType === 'vehicle' && driverFee > 0 && (
             <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Montant de la réservation</Text>
-              <Text style={styles.financialValue}>{formatPriceFCFA(priceAfterDiscount)}</Text>
+              <Text style={styles.financialLabel}>Surplus chauffeur</Text>
+              <Text style={styles.financialValue}>{formatPriceFCFA(driverFee)}</Text>
             </View>
           )}
+
+          {/* Montant de la réservation (pour véhicules: avec chauffeur si applicable, sinon prix après réduction) */}
+          <View style={styles.financialRow}>
+            <Text style={styles.financialLabel}>Montant de la réservation</Text>
+            <Text style={styles.financialValue}>
+              {formatPriceFCFA(serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount)}
+            </Text>
+          </View>
 
           {/* Frais de ménage */}
           {effectiveCleaningFee > 0 && (
