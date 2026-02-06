@@ -118,6 +118,7 @@ export interface Conversation {
   host_id: string;
   created_at: string;
   updated_at: string;
+  title?: string;
   last_message?: Message;
   unread_count?: number;
   property?: {

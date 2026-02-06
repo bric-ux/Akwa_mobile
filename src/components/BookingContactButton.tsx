@@ -78,11 +78,26 @@ const BookingContactButton: React.FC<BookingContactButtonProps> = ({
         participantName
       });
 
+      // Récupérer le titre de la propriété pour le titre de la conversation
+      let conversationTitle: string | undefined;
+      if (propertyId) {
+        const { data: propertyData } = await supabase
+          .from('properties')
+          .select('title')
+          .eq('id', propertyId)
+          .single();
+        
+        if (propertyData?.title) {
+          conversationTitle = `Résidence - ${propertyData.title}`;
+        }
+      }
+
       const conversationId = await createOrGetConversation(
         propertyId, // propertyId
         isHost ? otherParticipantId : user.id, // hostId
         isHost ? user.id : otherParticipantId, // guestId
-        undefined // vehicleId (pas de véhicule ici)
+        undefined, // vehicleId (pas de véhicule ici)
+        conversationTitle // title
       );
 
       if (conversationId) {

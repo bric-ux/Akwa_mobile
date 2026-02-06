@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VehicleBooking } from '../types';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
-import { VehicleDateTimeSelector } from './VehicleDateTimeSelector';
+import VehicleDateTimePickerModal from './VehicleDateTimePickerModal';
 import { formatPrice } from '../utils/priceCalculator';
 import { calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
 import VehicleModificationSurplusPaymentModal from './VehicleModificationSurplusPaymentModal';
@@ -35,12 +35,13 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const { modifyBooking, loading, getBookingPendingRequest } = useVehicleBookingModifications();
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [startDateTime, setStartDateTime] = useState<string | undefined>(undefined);
-  const [endDateTime, setEndDateTime] = useState<string | undefined>(undefined);
+  const [startDateTime, setStartDateTime] = useState<string | null>(null);
+  const [endDateTime, setEndDateTime] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pendingModificationData, setPendingModificationData] = useState<any>(null);
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [surplusBreakdown, setSurplusBreakdown] = useState<{
     daysPriceDiff?: number;
     hoursPriceDiff?: number;
@@ -55,8 +56,8 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
       // Pré-remplir avec les dates/heures actuelles de la réservation
       setStartDate(booking.start_date);
       setEndDate(booking.end_date);
-      setStartDateTime(booking.start_datetime);
-      setEndDateTime(booking.end_datetime);
+      setStartDateTime(booking.start_datetime || null);
+      setEndDateTime(booking.end_datetime || null);
       setMessage('');
     }
   }, [booking, visible]);
@@ -264,17 +265,14 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
   const totalPrice = basePrice + effectiveServiceFee; // Total avec frais de service
 
-  const handleDateTimeChange = (start: string | undefined, end: string | undefined) => {
-    if (start) {
-      const startDateObj = new Date(start);
-      setStartDate(startDateObj.toISOString().split('T')[0]);
-      setStartDateTime(start);
-    }
-    if (end) {
-      const endDateObj = new Date(end);
-      setEndDate(endDateObj.toISOString().split('T')[0]);
-      setEndDateTime(end);
-    }
+  const handleDateTimeChange = (start: string, end: string) => {
+    const startDateObj = new Date(start);
+    setStartDate(startDateObj.toISOString().split('T')[0]);
+    setStartDateTime(start);
+    
+    const endDateObj = new Date(end);
+    setEndDate(endDateObj.toISOString().split('T')[0]);
+    setEndDateTime(end);
   };
 
   const handleSubmit = async () => {
@@ -458,12 +456,38 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
             {/* Nouvelles dates */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Nouvelles dates et heures</Text>
-              <VehicleDateTimeSelector
-                startDateTime={startDateTime}
-                endDateTime={endDateTime}
-                onDateTimeChange={handleDateTimeChange}
-                hourlyRentalEnabled={vehicle?.hourly_rental_enabled || false}
-              />
+              <TouchableOpacity
+                style={styles.dateTimeButton}
+                onPress={() => setShowDateTimePicker(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="calendar-outline" size={20} color="#2563eb" />
+                <View style={styles.dateTimeButtonContent}>
+                  {startDateTime && endDateTime ? (
+                    <>
+                      <Text style={styles.dateTimeButtonText}>
+                        {(() => {
+                          const startDate = new Date(startDateTime);
+                          const dateStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                          const timeStr = startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                          return `${dateStr} à ${timeStr}`;
+                        })()}
+                      </Text>
+                      <Text style={styles.dateTimeButtonSubtext}>
+                        {(() => {
+                          const endDate = new Date(endDateTime);
+                          const dateStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                          const timeStr = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                          return `Jusqu'au ${dateStr} à ${timeStr}`;
+                        })()}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.dateTimeButtonText}>Sélectionner les dates et heures</Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#999" />
+              </TouchableOpacity>
               {hasModification && rentalDays > 0 && (
                 <View style={styles.summaryBox}>
                   {/* Calculer les différences */}
@@ -618,6 +642,17 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
         newTotalPrice={totalPrice}
         priceBreakdown={surplusBreakdown || undefined}
       />
+
+      {/* Modal de sélection dates/heures */}
+      <VehicleDateTimePickerModal
+        visible={showDateTimePicker}
+        startDateTime={startDateTime}
+        endDateTime={endDateTime}
+        onClose={() => setShowDateTimePicker(false)}
+        onConfirm={(start, end) => {
+          handleDateTimeChange(start, end);
+        }}
+      />
     </Modal>
   );
 };
@@ -767,6 +802,30 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: '#6b7280',
     fontSize: 14,
+  },
+  dateTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  dateTimeButtonContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  dateTimeButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  dateTimeButtonSubtext: {
+    fontSize: 13,
+    color: '#6b7280',
   },
 });
 

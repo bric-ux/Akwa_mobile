@@ -67,11 +67,16 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
         guestId: user.id
       });
 
+      // Construire le titre de la conversation
+      const vehicleTitle = vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`.trim() || 'Véhicule';
+      const conversationTitle = `Véhicule - ${vehicleTitle}`;
+
       const conversationId = await createOrGetConversation(
         undefined, // propertyId (pas de propriété ici)
         vehicle.owner_id, // hostId (le propriétaire est l'hôte)
         user.id, // guestId (l'utilisateur est l'invité)
-        vehicle.id // vehicleId
+        vehicle.id, // vehicleId
+        conversationTitle // title
       );
       
       console.log('✅ [ContactOwnerButton] Conversation ID obtenu:', conversationId);

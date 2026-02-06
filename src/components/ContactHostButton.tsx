@@ -67,11 +67,16 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
         guestId: user.id
       });
 
+      // Construire le titre de la conversation
+      const propertyTitle = property.title || 'Résidence';
+      const conversationTitle = `Résidence - ${propertyTitle}`;
+
       const conversationId = await createOrGetConversation(
         property.id, // propertyId
         property.host_id, // hostId
         user.id, // guestId
-        undefined // vehicleId (pas de véhicule ici)
+        undefined, // vehicleId (pas de véhicule ici)
+        conversationTitle // title
       );
 
       if (conversationId) {

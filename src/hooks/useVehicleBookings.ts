@@ -927,6 +927,14 @@ export const useVehicleBookings = () => {
       // Si la réservation est confirmée, envoyer les emails
       if (status === 'confirmed') {
         try {
+          // ✅ PRIORITÉ: Récupérer les données stockées depuis booking_calculation_details
+          const { data: calculationDetails } = await supabase
+            .from('booking_calculation_details')
+            .select('*')
+            .eq('booking_id', booking.id)
+            .eq('booking_type', 'vehicle')
+            .single();
+
           // Récupérer les informations du propriétaire
           const { data: ownerProfile } = await supabase
             .from('profiles')
@@ -949,27 +957,35 @@ export const useVehicleBookings = () => {
             });
           };
 
-          // IMPORTANT: Utiliser host_net_amount stocké si disponible, sinon le calculer
-          // totalPrice = priceAfterDiscountWithDriver + serviceFee (10% + 20% TVA = 12% de priceAfterDiscountWithDriver)
-          // Donc : priceAfterDiscountWithDriver = totalPrice / 1.12
-          // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
+          // ✅ Utiliser les données stockées si disponibles, sinon fallback sur recalcul
           let ownerNetRevenue: number;
-          let calculatedBasePriceWithDriver: number;
+          let basePriceWithDriver: number;
+          let driverFee: number;
           
-          if ((booking as any).host_net_amount !== undefined && (booking as any).host_net_amount !== null) {
-            // Utiliser la valeur stockée directement
-            ownerNetRevenue = (booking as any).host_net_amount;
-            // Calculer basePriceWithDriver pour l'email (approximation)
-            calculatedBasePriceWithDriver = Math.round((booking.total_price || 0) / 1.12);
+          if (calculationDetails) {
+            // ✅ UTILISER DIRECTEMENT les valeurs stockées - AUCUN recalcul
+            ownerNetRevenue = calculationDetails.host_net_amount;
+            basePriceWithDriver = calculationDetails.base_price_with_driver || calculationDetails.price_after_discount;
+            driverFee = calculationDetails.driver_fee || 0;
+            
+            if (__DEV__) {
+              console.log('✅ [useVehicleBookings] Utilisation données stockées pour email confirmation:', {
+                host_net_amount: ownerNetRevenue,
+                base_price_with_driver: basePriceWithDriver,
+                driver_fee: driverFee,
+              });
+            }
           } else {
-            // Calculer si non stocké (anciennes réservations)
-            calculatedBasePriceWithDriver = Math.round((booking.total_price || 0) / 1.12);
-            const hostCommissionData = calculateHostCommission(calculatedBasePriceWithDriver, 'vehicle');
-            ownerNetRevenue = calculatedBasePriceWithDriver - hostCommissionData.hostCommission;
+            // ⚠️ FALLBACK: Recalculer uniquement pour les anciennes réservations sans données stockées
+            if (__DEV__) console.log('⚠️ [useVehicleBookings] Pas de données stockées, recalcul pour ancienne réservation');
+            basePriceWithDriver = Math.round((booking.total_price || 0) / 1.12);
+            const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
+            ownerNetRevenue = basePriceWithDriver - hostCommissionData.hostCommission;
+            driverFee = (booking.with_driver === true && vehicle?.with_driver && (vehicle as any).driver_fee) ? (vehicle as any).driver_fee : 0;
           }
 
           const emailData = {
-            bookingId: booking.id,
+            bookingId: booking.id, // ✅ CRUCIAL: bookingId doit être présent pour que le PDF récupère les données stockées
             vehicleTitle: vehicleTitle,
             vehicleBrand: vehicle?.brand || '',
             vehicleModel: vehicle?.model || '',
@@ -983,20 +999,21 @@ export const useVehicleBookings = () => {
             ownerPhone: (ownerProfile as any)?.phone || '',
             startDate: formatDate(booking.start_date),
             endDate: formatDate(booking.end_date),
-            startDateTime: booking.start_datetime || undefined, // Ajouté pour corriger NaN NaN
-            endDateTime: booking.end_datetime || undefined, // Ajouté pour corriger NaN NaN
+            startDateTime: booking.start_datetime || undefined,
+            endDateTime: booking.end_datetime || undefined,
             rentalDays: booking.rental_days,
             rentalHours: booking.rental_hours || 0,
             dailyRate: booking.daily_rate,
             hourlyRate: booking.hourly_rate || vehicle?.price_per_hour || 0,
-            basePrice: calculatedBasePriceWithDriver, // Prix après réduction + chauffeur (calculé à partir de totalPrice)
+            basePrice: basePriceWithDriver, // ✅ Utiliser la valeur stockée
             totalPrice: booking.total_price,
-            ownerNetRevenue: ownerNetRevenue, // Revenu net du propriétaire
+            ownerNetRevenue: ownerNetRevenue, // ✅ Utiliser la valeur stockée
             securityDeposit: booking.security_deposit || 0,
             pickupLocation: booking.pickup_location || '',
             isInstantBooking: false, // Confirmation manuelle = pas instantanée
-            withDriver: booking.with_driver === true, // Si le locataire a choisi le chauffeur
-            vehicleDriverFee: (booking.with_driver === true && vehicle?.with_driver && (vehicle as any).driver_fee) ? (vehicle as any).driver_fee : 0, // Surplus chauffeur
+            withDriver: booking.with_driver === true,
+            vehicleDriverFee: driverFee, // ✅ Utiliser la valeur stockée
+            driverFee: driverFee, // ✅ Ajouter aussi driverFee pour le PDF
           };
 
           // Email au locataire avec PDF

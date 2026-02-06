@@ -138,11 +138,13 @@ const ConversationList: React.FC<ConversationListProps> = ({
         </View>
         
         <Text style={styles.propertyTitle} numberOfLines={1}>
-          {item.property?.title 
-            ? item.property.title 
-            : item.vehicle 
-              ? `${item.vehicle.brand} ${item.vehicle.model}${item.vehicle.year ? ` (${item.vehicle.year})` : ''}`
-              : 'Propriété/Véhicule'}
+          {item.title 
+            ? item.title 
+            : item.property?.title 
+              ? `Résidence - ${item.property.title}`
+              : item.vehicle 
+                ? `Véhicule - ${item.vehicle.title || `${item.vehicle.brand} ${item.vehicle.model}${item.vehicle.year ? ` (${item.vehicle.year})` : ''}`}`
+                : 'Propriété/Véhicule'}
         </Text>
         
         <View style={styles.lastMessageContainer}>

@@ -110,12 +110,28 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
       if (existingConversation) {
         convId = existingConversation.id;
       } else {
+        // Récupérer le nom du véhicule pour le titre
+        let vehicleTitle = 'Véhicule';
+        if (vehId) {
+          const { data: vehicleData } = await supabase
+            .from('vehicles')
+            .select('title, brand, model')
+            .eq('id', vehId)
+            .single();
+          
+          if (vehicleData) {
+            vehicleTitle = vehicleData.title || `${vehicleData.brand || ''} ${vehicleData.model || ''}`.trim() || 'Véhicule';
+          }
+        }
+        const conversationTitle = `Véhicule - ${vehicleTitle}`;
+
         const { data: newConversation, error: createError } = await supabase
           .from('conversations')
           .insert({
             vehicle_id: vehId,
             guest_id: guestId,
             host_id: hostId,
+            title: conversationTitle,
           })
           .select('id')
           .single();

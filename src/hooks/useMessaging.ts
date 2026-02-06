@@ -383,7 +383,8 @@ export const useMessaging = () => {
     propertyId?: string,
     hostId?: string,
     guestId?: string,
-    vehicleId?: string
+    vehicleId?: string,
+    title?: string
   ) => {
     try {
       // Vérifier qu'on a au moins propertyId ou vehicleId
@@ -431,6 +432,11 @@ export const useMessaging = () => {
         insertData.vehicle_id = vehicleId;
       }
 
+      // Ajouter le titre si fourni
+      if (title) {
+        insertData.title = title;
+      }
+
       console.log('🟡 [useMessaging] Création nouvelle conversation avec:', insertData);
       
       const { data: newConversation, error: createError } = await supabase
@@ -442,6 +448,14 @@ export const useMessaging = () => {
       if (createError) {
         console.error('❌ [useMessaging] Erreur création conversation:', createError);
         throw createError;
+      }
+
+      // Si le titre n'était pas fourni lors de la création mais qu'une conversation existante existe, mettre à jour son titre
+      if (existing && title) {
+        await supabase
+          .from('conversations')
+          .update({ title })
+          .eq('id', existing.id);
       }
 
       console.log('✅ [useMessaging] Nouvelle conversation créée:', newConversation.id);
