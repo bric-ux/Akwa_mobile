@@ -20,6 +20,8 @@ interface AvailabilityCalendarProps {
   onClose: () => void;
   mode?: 'checkIn' | 'checkOut' | 'both'; // Mode de sélection : une seule date ou les deux
   showHeader?: boolean; // Afficher ou non le header du calendrier
+  excludeBookingId?: string; // ID de la réservation à exclure (pour modification)
+  excludeBookingDates?: { checkIn: string; checkOut: string }; // Dates de la réservation actuelle (pour permettre sélection)
 }
 
 const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
@@ -30,8 +32,10 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   onClose,
   mode = 'both',
   showHeader = true,
+  excludeBookingId,
+  excludeBookingDates,
 }) => {
-  const { isDateUnavailable, unavailableDates, loading, isDateRangeUnavailable } = useAvailabilityCalendar(propertyId);
+  const { isDateUnavailable, unavailableDates, loading, isDateRangeUnavailable } = useAvailabilityCalendar(propertyId, excludeBookingId, excludeBookingDates);
   // Initialiser le mois avec la date appropriée selon le mode
   const getInitialMonth = (): Date => {
     // Si on est en mode checkOut, utiliser selectedCheckOut

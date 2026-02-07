@@ -7,7 +7,11 @@ interface UnavailableDate {
   reason?: string;
 }
 
-export const useAvailabilityCalendar = (propertyId: string) => {
+export const useAvailabilityCalendar = (
+  propertyId: string, 
+  excludeBookingId?: string,
+  excludeBookingDates?: { checkIn: string; checkOut: string }
+) => {
   const [unavailableDates, setUnavailableDates] = useState<UnavailableDate[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -22,12 +26,20 @@ export const useAvailabilityCalendar = (propertyId: string) => {
       today.setHours(0, 0, 0, 0);
       const todayStr = today.toISOString().split('T')[0];
       
+      console.log('🔍 [useAvailabilityCalendar] Récupération dates indisponibles:', {
+        propertyId,
+        excludeBookingId,
+        excludeBookingDates,
+      });
+      
       // IMPORTANT: Récupérer TOUTES les réservations qui peuvent bloquer des dates
       // - confirmed: bloquent définitivement
       // - pending: bloquent temporairement (en attente de confirmation)
       // Note: Les réservations "en cours" ont le statut "confirmed" dans la base
       // mais sont calculées dynamiquement comme "in_progress" dans l'app
       // On ne récupère PAS les completed car elles ne bloquent plus les dates
+      // ✅ NE PAS EXCLURE la réservation actuelle de la requête (elle doit être marquée comme "Réservé")
+      // Mais on permettra la sélection de ses dates via excludeBookingDates
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select('id, check_in_date, check_out_date, status')
@@ -71,20 +83,22 @@ export const useAvailabilityCalendar = (propertyId: string) => {
       // Créer un Map pour éviter les doublons et donner priorité aux dates bloquées
       const unavailableMap = new Map();
       
+      // Normaliser les dates pour éviter les problèmes de format
+      const normalizeDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        // Si la date contient un timestamp, extraire seulement la partie date
+        if (dateStr.includes('T')) {
+          return dateStr.split('T')[0];
+        }
+        return dateStr;
+      };
+
       // D'abord ajouter les réservations
       // IMPORTANT : Pour les réservations avec une demande de modification en attente,
       // on bloque les dates ORIGINALES (pas les dates demandées) tant que la modification n'est pas acceptée
+      // ✅ TOUTES les réservations sont ajoutées (y compris celle de l'utilisateur actuel)
+      // pour qu'elles soient marquées comme "Réservé" dans le calendrier
       (bookings || []).forEach(booking => {
-        // Normaliser les dates pour éviter les problèmes de format
-        const normalizeDate = (dateStr: string) => {
-          if (!dateStr) return '';
-          // Si la date contient un timestamp, extraire seulement la partie date
-          if (dateStr.includes('T')) {
-            return dateStr.split('T')[0];
-          }
-          return dateStr;
-        };
-        
         // Vérifier si cette réservation a une demande de modification en attente
         const pendingMod = pendingModifications.find(m => m.booking_id === booking.id);
         
@@ -184,7 +198,7 @@ export const useAvailabilityCalendar = (propertyId: string) => {
 
   useEffect(() => {
     fetchUnavailableDates();
-  }, [propertyId]);
+  }, [propertyId, excludeBookingId]);
 
   const isDateUnavailable = (date: Date) => {
     // Utiliser une méthode locale pour éviter les décalages de fuseau horaire
@@ -202,6 +216,16 @@ export const useAvailabilityCalendar = (propertyId: string) => {
       }
       return dateStr;
     };
+    
+    // ✅ Si cette date fait partie de la réservation actuelle (en modification), elle est disponible
+    if (excludeBookingDates) {
+      const normalizedExcludeStart = normalizeDateStr(excludeBookingDates.checkIn);
+      const normalizedExcludeEnd = normalizeDateStr(excludeBookingDates.checkOut);
+      if (dateStr >= normalizedExcludeStart && dateStr <= normalizedExcludeEnd) {
+        console.log(`✅ [isDateUnavailable] Date ${dateStr} disponible (réservation actuelle): ${normalizedExcludeStart} - ${normalizedExcludeEnd}`);
+        return false; // La date est disponible car elle fait partie de la réservation actuelle
+      }
+    }
     
     const isUnavailable = unavailableDates.some(({ start_date, end_date }) => {
       // Normaliser les dates de début et fin
@@ -241,6 +265,17 @@ export const useAvailabilityCalendar = (propertyId: string) => {
     
     const startStr = normalizeDate(startDate);
     const endStr = normalizeDate(endDate);
+    
+    // ✅ Si cette plage fait partie de la réservation actuelle (en modification), elle est disponible
+    if (excludeBookingDates) {
+      const normalizedExcludeStart = normalizeDateStr(excludeBookingDates.checkIn);
+      const normalizedExcludeEnd = normalizeDateStr(excludeBookingDates.checkOut);
+      // Vérifier si la plage sélectionnée est entièrement contenue dans la réservation actuelle
+      if (startStr >= normalizedExcludeStart && endStr <= normalizedExcludeEnd) {
+        console.log(`✅ [isDateRangeUnavailable] Plage ${startStr} - ${endStr} disponible (réservation actuelle): ${normalizedExcludeStart} - ${normalizedExcludeEnd}`);
+        return false; // La plage est disponible car elle fait partie de la réservation actuelle
+      }
+    }
     
     // Vérifier si la plage chevauche une période indisponible
     // Deux plages se chevauchent si : start < existingEnd && end > existingStart

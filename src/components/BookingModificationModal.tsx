@@ -84,6 +84,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   const cleaningFee = property?.cleaning_fee || 0;
   const serviceFee = property?.service_fee || 0;
   const maxGuests = property?.max_guests || 10;
+  const minimumNights = property?.minimum_nights || 1;
 
   useEffect(() => {
     if (visible) {
@@ -251,6 +252,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
 
     // Vérifier que les dates sont valides
     if (finalCheckOut <= finalCheckIn) {
+      console.log('❌ [BookingModificationModal] Date de départ <= date d\'arrivée');
       Alert.alert('Erreur', 'La date de départ doit être après la date d\'arrivée');
       return;
     }
@@ -259,13 +261,154 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       (finalCheckOut.getTime() - finalCheckIn.getTime()) / (1000 * 60 * 60 * 24)
     );
 
+    console.log('📊 [BookingModificationModal] Calcul durée:', {
+      finalNights,
+      minimumNights,
+      originalNights: Math.ceil(
+        (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) 
+        / (1000 * 60 * 60 * 24)
+      ),
+    });
+
     if (finalNights < 1) {
+      console.log('❌ [BookingModificationModal] Durée < 1 nuit');
       Alert.alert('Erreur', 'La date de départ doit être après la date d\'arrivée');
       return;
     }
 
+    // ✅ Vérifier le minimum de nuits requis
+    if (finalNights < minimumNights) {
+      console.log('❌ [BookingModificationModal] Durée < minimum_nights:', {
+        finalNights,
+        minimumNights,
+      });
+      Alert.alert(
+        'Durée insuffisante',
+        `Cette propriété nécessite un minimum de ${minimumNights} nuit${minimumNights > 1 ? 's' : ''}`
+      );
+      return;
+    }
+
     if (guestsCount > maxGuests) {
+      console.log('❌ [BookingModificationModal] Nombre de voyageurs > max:', {
+        guestsCount,
+        maxGuests,
+      });
       Alert.alert('Erreur', `Le nombre maximum de voyageurs est ${maxGuests}`);
+      return;
+    }
+    
+    console.log('✅ [BookingModificationModal] Validations de base OK');
+
+    // ✅ Vérifier la disponibilité des nouvelles dates (en excluant la réservation actuelle)
+    // IMPORTANT: On exclut booking.id pour permettre de reporter la date d'arrivée ou raccourcir la date de départ
+    // sans que la réservation actuelle soit considérée comme un conflit
+    try {
+      const { supabase } = await import('../services/supabase');
+      const checkInDateStr = formatDateForAPI(finalCheckIn);
+      const checkOutDateStr = formatDateForAPI(finalCheckOut);
+      
+      console.log('🔍 [BookingModificationModal] Vérification disponibilité:', {
+        bookingId: booking.id,
+        propertyId: property.id,
+        originalCheckIn: booking.check_in_date,
+        originalCheckOut: booking.check_out_date,
+        newCheckIn: checkInDateStr,
+        newCheckOut: checkOutDateStr,
+        finalCheckIn: finalCheckIn.toISOString(),
+        finalCheckOut: finalCheckOut.toISOString(),
+      });
+      
+      // Vérifier les conflits avec d'autres réservations (pending ou confirmed)
+      // On exclut booking.id pour permettre la modification de sa propre réservation
+      const { data: conflictingBookings, error: conflictError } = await supabase
+        .from('bookings')
+        .select('id, check_in_date, check_out_date, status')
+        .eq('property_id', property.id)
+        .in('status', ['pending', 'confirmed'])
+        .neq('id', booking.id) // ✅ EXCLURE la réservation actuelle pour permettre reporter/raccourcir
+        .gte('check_out_date', new Date().toISOString().split('T')[0]) // Seulement les réservations futures
+        .or(`and(check_in_date.lt.${checkOutDateStr},check_out_date.gt.${checkInDateStr})`);
+
+      console.log('🔍 [BookingModificationModal] Résultat vérification disponibilité:', {
+        conflictError: conflictError ? {
+          message: conflictError.message,
+          code: conflictError.code,
+          details: conflictError.details,
+          hint: conflictError.hint,
+        } : null,
+        conflictingBookingsCount: conflictingBookings?.length || 0,
+        conflictingBookings: conflictingBookings?.map(b => ({
+          id: b.id,
+          check_in_date: b.check_in_date,
+          check_out_date: b.check_out_date,
+          status: b.status,
+        })) || [],
+      });
+
+      if (conflictError) {
+        console.error('❌ [BookingModificationModal] Erreur vérification disponibilité:', conflictError);
+        Alert.alert('Erreur', 'Impossible de vérifier la disponibilité. Veuillez réessayer.');
+        return;
+      }
+
+      if (conflictingBookings && conflictingBookings.length > 0) {
+        console.log('⚠️ [BookingModificationModal] Conflit détecté avec:', conflictingBookings);
+        Alert.alert('Dates non disponibles', 'Ces dates ne sont pas disponibles pour cette propriété.');
+        return;
+      }
+      
+      console.log('✅ [BookingModificationModal] Aucun conflit détecté, disponibilité OK');
+
+      // Vérifier aussi les dates bloquées manuellement
+      const { data: blockedDates, error: blockedError } = await supabase
+        .from('blocked_dates')
+        .select('start_date, end_date')
+        .eq('property_id', property.id);
+
+      console.log('🔍 [BookingModificationModal] Vérification dates bloquées:', {
+        blockedError: blockedError ? {
+          message: blockedError.message,
+          code: blockedError.code,
+        } : null,
+        blockedDatesCount: blockedDates?.length || 0,
+        blockedDates: blockedDates || [],
+      });
+
+      if (blockedError) {
+        console.error('❌ [BookingModificationModal] Erreur vérification dates bloquées:', blockedError);
+      } else if (blockedDates && blockedDates.length > 0) {
+        // Vérifier les conflits avec les dates bloquées
+        const hasConflict = blockedDates.some((blocked: any) => {
+          const blockedStart = new Date(blocked.start_date);
+          const blockedEnd = new Date(blocked.end_date);
+          const conflict = (
+            (finalCheckIn >= blockedStart && finalCheckIn < blockedEnd) ||
+            (finalCheckOut > blockedStart && finalCheckOut <= blockedEnd) ||
+            (finalCheckIn <= blockedStart && finalCheckOut >= blockedEnd)
+          );
+          if (conflict) {
+            console.log('⚠️ [BookingModificationModal] Conflit avec date bloquée:', {
+              blockedStart: blockedStart.toISOString(),
+              blockedEnd: blockedEnd.toISOString(),
+              finalCheckIn: finalCheckIn.toISOString(),
+              finalCheckOut: finalCheckOut.toISOString(),
+            });
+          }
+          return conflict;
+        });
+
+        if (hasConflict) {
+          console.log('❌ [BookingModificationModal] Dates bloquées détectées');
+          Alert.alert('Dates non disponibles', 'Ces dates sont bloquées pour cette propriété.');
+          return;
+        }
+      }
+      
+      console.log('✅ [BookingModificationModal] Vérification disponibilité terminée, aucune date bloquée');
+    } catch (error) {
+      console.error('❌ [BookingModificationModal] Erreur lors de la vérification de disponibilité:', error);
+      Alert.alert('Erreur', 'Impossible de vérifier la disponibilité. Veuillez réessayer.');
       return;
     }
 
@@ -369,16 +512,37 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       guestMessage: message.trim() || undefined,
     };
 
+    console.log('💰 [BookingModificationModal] Calcul prix terminé:', {
+      finalTotalPrice,
+      originalTotalPrice: booking.total_price,
+      finalPriceDifference,
+      modificationData: {
+        bookingId: modificationData.bookingId,
+        requestedCheckIn: modificationData.requestedCheckIn,
+        requestedCheckOut: modificationData.requestedCheckOut,
+        requestedTotalPrice: modificationData.requestedTotalPrice,
+      },
+    });
+
     // Si le surplus est positif, afficher le modal de paiement
     if (finalPriceDifference > 0) {
+      console.log('💳 [BookingModificationModal] Surplus positif, affichage modal paiement');
       setPendingModificationData(modificationData);
       setShowPaymentModal(true);
     } else {
+      console.log('📤 [BookingModificationModal] Pas de surplus, soumission directe');
       // Si pas de surplus, soumettre directement
       const result = await createModificationRequest(modificationData);
+      console.log('📥 [BookingModificationModal] Résultat création demande:', {
+        success: result.success,
+        error: result.error,
+      });
       if (result.success) {
+        console.log('✅ [BookingModificationModal] Demande créée avec succès');
         onClose();
         onModificationRequested?.();
+      } else {
+        console.error('❌ [BookingModificationModal] Erreur création demande:', result.error);
       }
     }
   };
@@ -770,6 +934,11 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
               <View style={{ flex: 1 }}>
                 <AvailabilityCalendar
                   propertyId={property.id}
+                  excludeBookingId={booking.id}
+                  excludeBookingDates={{
+                    checkIn: booking.check_in_date,
+                    checkOut: booking.check_out_date,
+                  }}
                   selectedCheckIn={calendarMode === 'checkIn' || calendarMode === 'both' ? checkIn : null}
                   selectedCheckOut={calendarMode === 'checkOut' || calendarMode === 'both' ? checkOut : null}
                   mode={calendarMode}
