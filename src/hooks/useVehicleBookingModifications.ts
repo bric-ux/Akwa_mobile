@@ -207,6 +207,17 @@ export const useVehicleBookingModifications = () => {
         return { success: true };
       }
 
+      // ✅ Calculer le surplus (différence entre nouveau et ancien total)
+      const originalTotalPrice = booking.total_price || 0;
+      const requestedTotalPrice = data.requestedTotalPrice || 0;
+      const surplusAmount = requestedTotalPrice - originalTotalPrice; // Surplus payé par le locataire
+      
+      // ✅ Calculer le surplus net propriétaire (surplus - commission)
+      // Le surplus net = (surplus / 1.12) - commission sur (surplus / 1.12)
+      const surplusBasePrice = surplusAmount > 0 ? Math.round(surplusAmount / 1.12) : 0;
+      const surplusHostCommissionData = surplusBasePrice > 0 ? calculateHostCommission(surplusBasePrice, 'vehicle') : { hostCommission: 0, hostCommissionHT: 0, hostCommissionVAT: 0 };
+      const surplusNetOwner = surplusBasePrice - surplusHostCommissionData.hostCommission;
+      
       // Pour les réservations confirmées, créer une demande de modification
       const requestData: any = {
         booking_id: data.bookingId,
@@ -220,6 +231,8 @@ export const useVehicleBookingModifications = () => {
         requested_end_date: data.requestedEndDate,
         requested_rental_days: data.requestedRentalDays,
         requested_total_price: data.requestedTotalPrice,
+        surplus_amount: surplusAmount, // ✅ Stocker le surplus locataire
+        surplus_net_owner: surplusNetOwner, // ✅ Stocker le surplus net propriétaire
         renter_message: data.message || null,
         status: 'pending'
       };
@@ -278,17 +291,8 @@ export const useVehicleBookingModifications = () => {
           ? `${renterProfile.first_name || ''} ${renterProfile.last_name || ''}`.trim() 
           : 'Un locataire';
 
-        // BUG FIX: Calculer correctement les revenus nets pour l'email
-        // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
-        // Pour l'original : basePrice = totalPrice / 1.12 (inclut chauffeur si applicable)
-        const originalBasePrice = Math.round((booking.total_price || 0) / 1.12);
-        const originalHostCommissionData = calculateHostCommission(originalBasePrice, 'vehicle');
-        const originalOwnerNetRevenue = originalBasePrice - originalHostCommissionData.hostCommission;
-        
-        // Pour le demandé : basePrice = totalPrice / 1.12 (inclut chauffeur si applicable)
-        const requestedBasePrice = Math.round((data.requestedTotalPrice || 0) / 1.12);
-        const requestedHostCommissionData = calculateHostCommission(requestedBasePrice, 'vehicle');
-        const requestedOwnerNetRevenue = requestedBasePrice - requestedHostCommissionData.hostCommission;
+        // ✅ Le surplus est déjà calculé plus haut (ligne ~210)
+        // Utiliser les valeurs calculées : surplusAmount et surplusNetOwner
 
         // Email au propriétaire
         if (ownerProfile?.email) {
@@ -305,15 +309,13 @@ export const useVehicleBookingModifications = () => {
                 originalDays: booking.rental_days,
                 originalHours: booking.rental_hours || 0,
                 originalPrice: booking.total_price,
-                originalBasePrice: originalBasePrice,
-                originalOwnerNetRevenue: originalOwnerNetRevenue,
                 requestedStartDate: data.requestedStartDate,
                 requestedEndDate: data.requestedEndDate,
                 requestedDays: data.requestedRentalDays,
                 requestedHours: data.requestedRentalHours || 0,
                 requestedPrice: data.requestedTotalPrice,
-                requestedBasePrice: requestedBasePrice,
-                requestedOwnerNetRevenue: requestedOwnerNetRevenue,
+                surplusAmount: surplusAmount, // ✅ Surplus payé par le locataire (seulement le surplus, pas le total)
+                surplusNetOwner: surplusNetOwner, // ✅ Surplus net reçu par le propriétaire (seulement le surplus net, pas le total)
                 renterMessage: data.message || null,
                 bookingId: booking.id,
               },
@@ -340,6 +342,7 @@ export const useVehicleBookingModifications = () => {
               requestedDays: data.requestedRentalDays,
               requestedHours: data.requestedRentalHours || 0,
               requestedPrice: data.requestedTotalPrice,
+              surplusAmount: surplusAmount, // ✅ Surplus payé par le locataire
               dailyRate: booking.vehicle.price_per_day || booking.daily_rate || 0,
               bookingId: booking.id,
             };
@@ -444,6 +447,8 @@ export const useVehicleBookingModifications = () => {
         .from('vehicle_booking_modification_requests')
         .select(`
           *,
+          surplus_amount,
+          surplus_net_owner,
           booking:vehicle_bookings(
             id,
             vehicle_id,
@@ -453,6 +458,7 @@ export const useVehicleBookingModifications = () => {
             rental_hours,
             pickup_location,
             security_deposit,
+            host_net_amount,
             vehicles(
               id,
               brand,
@@ -462,7 +468,16 @@ export const useVehicleBookingModifications = () => {
               owner_id,
               price_per_day,
               price_per_hour,
-              hourly_rental_enabled
+              hourly_rental_enabled,
+              driver_fee,
+              with_driver,
+              discount_enabled,
+              discount_min_days,
+              discount_percentage,
+              long_stay_discount_enabled,
+              long_stay_discount_min_days,
+              long_stay_discount_percentage,
+              security_deposit
             ),
             renter:profiles!vehicle_bookings_renter_id_fkey(
               first_name,
@@ -510,14 +525,41 @@ export const useVehicleBookingModifications = () => {
         }
       }
       
-      // Calculer host_net_amount pour la modification
+      // ✅ Récupérer le véhicule AVANT de l'utiliser
+      const bookingData = request.booking;
+      let vehicle = bookingData?.vehicles;
+      
+      if (!vehicle) {
+        // Récupérer le véhicule depuis la base si pas dans la requête
+        const { data: vehicleData } = await supabase
+          .from('vehicles')
+          .select('*')
+          .eq('id', bookingData.vehicle_id)
+          .single();
+        if (vehicleData) {
+          vehicle = vehicleData;
+        } else {
+          throw new Error('Véhicule introuvable');
+        }
+      }
+      
+      // ✅ Récupérer le surplus depuis la demande (déjà calculé lors de la création)
+      const surplusAmount = request.surplus_amount || 0; // Surplus payé par le locataire
+      const surplusNetOwner = request.surplus_net_owner || 0; // Surplus net reçu par le propriétaire
+      
+      // Calculer host_net_amount pour la modification (nouveau total)
       const totalWithServiceFee = request.requested_total_price;
       const priceAfterDiscountWithDriver = Math.round(totalWithServiceFee / 1.12);
       const hostCommissionData = calculateHostCommission(priceAfterDiscountWithDriver, 'vehicle');
-      const hostNetAmount = priceAfterDiscountWithDriver - hostCommissionData.hostCommission;
+      const newHostNetAmount = priceAfterDiscountWithDriver - hostCommissionData.hostCommission;
+      
+      // ✅ Le host_net_amount final = ancien host_net_amount + surplus net
+      // OU = nouveau host_net_amount calculé (les deux devraient être équivalents)
+      const originalHostNetAmount = request.booking.host_net_amount || 0;
+      const finalHostNetAmount = originalHostNetAmount + (surplusAmount > 0 ? surplusNetOwner : 0);
       
       // Ajouter host_net_amount à updateData
-      updateData.host_net_amount = hostNetAmount;
+      updateData.host_net_amount = finalHostNetAmount;
 
       const { error: updateBookingError } = await supabase
         .from('vehicle_bookings')
@@ -573,8 +615,6 @@ export const useVehicleBookingModifications = () => {
 
       // Envoyer les emails avec justificatifs
       try {
-        const bookingData = request.booking;
-        const vehicle = bookingData?.vehicles;
         const renter = bookingData?.renter;
         
         if (!vehicle || !renter) {

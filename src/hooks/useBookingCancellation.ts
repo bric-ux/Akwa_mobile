@@ -53,8 +53,8 @@ export const useBookingCancellation = () => {
         remainingNightsAmount = remainingNights * pricePerNight;
         
         canCancel = true;
-        // Pour les réservations en cours, on rembourse les nuitées restantes
-        refundPercentage = remainingNights > 0 ? 100 : 0;
+        // Pour les réservations en cours, on rembourse 50% des nuitées restantes
+        refundPercentage = remainingNights > 0 ? 50 : 0;
       } else if (isPending) {
         // Réservations pending : 100% remboursement
         canCancel = true;
@@ -93,8 +93,8 @@ export const useBookingCancellation = () => {
       let penaltyAmount = 0;
 
       if (isInProgress && remainingNightsAmount !== undefined) {
-        // Pour les réservations en cours, rembourser les nuitées restantes
-        refundAmount = remainingNightsAmount;
+        // Pour les réservations en cours, rembourser 50% des nuitées restantes
+        refundAmount = Math.round(remainingNightsAmount * 0.50);
         penaltyAmount = totalPrice - refundAmount;
       } else {
         // Pour les autres cas, calculer selon le pourcentage

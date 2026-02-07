@@ -16,7 +16,7 @@ import { VehicleBooking } from '../types';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import VehicleDateTimePickerModal from './VehicleDateTimePickerModal';
 import { formatPrice } from '../utils/priceCalculator';
-import { calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
+import { calculateVehiclePriceWithHours, calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
 import VehicleModificationSurplusPaymentModal from './VehicleModificationSurplusPaymentModal';
 
 interface VehicleModificationModalProps {
@@ -45,7 +45,9 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const [surplusBreakdown, setSurplusBreakdown] = useState<{
     daysPriceDiff?: number;
     hoursPriceDiff?: number;
+    basePriceBeforeDiscountDiff?: number;
     discountDiff?: number;
+    basePriceAfterDiscountDiff?: number;
     serviceFeeDiff?: number;
     serviceFeeHTDiff?: number;
     serviceFeeVATDiff?: number;
@@ -230,40 +232,40 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
     surplusBasePrice
   });
   
-  // Configuration des réductions
-  const discountConfig: DiscountConfig = {
-    enabled: vehicle?.discount_enabled || false,
-    minNights: vehicle?.discount_min_days || null,
-    percentage: vehicle?.discount_percentage || null
-  };
+  // ✅ CORRECTION CRITIQUE : Pour le calcul du surplus, on doit PRÉSERVER la réduction de l'ancienne réservation
+  // et simplement ajouter le prix des heures/jours supplémentaires SANS recalculer la réduction
   
-  const longStayDiscountConfig: DiscountConfig | undefined = vehicle?.long_stay_discount_enabled ? {
-    enabled: vehicle.long_stay_discount_enabled || false,
-    minNights: vehicle.long_stay_discount_min_days || null,
-    percentage: vehicle.long_stay_discount_percentage || null
-  } : undefined;
+  // Calculer la différence de jours et d'heures
+  const daysDiff = rentalDays - currentRentalDays;
+  const hoursDiff = remainingHours - currentRentalHours;
   
-  // Utiliser la fonction centralisée pour calculer le prix avec heures et réductions
-  const priceCalculation = calculateVehiclePriceWithHours(
-    dailyRate,
-    rentalDays,
-    remainingHours,
-    hourlyRate,
-    discountConfig,
-    longStayDiscountConfig
-  );
+  // Calculer le prix des jours/heures supplémentaires SANS réduction
+  const additionalDaysPrice = daysDiff > 0 ? daysDiff * dailyRate : 0;
+  const additionalHoursPrice = hoursDiff > 0 ? hoursDiff * hourlyRate : 0;
   
-  const daysPrice = priceCalculation.daysPrice;
-  const hoursPrice = priceCalculation.hoursPrice;
-  const basePrice = priceCalculation.basePrice; // Prix après réduction
-  const discountAmount = priceCalculation.discountAmount;
+  // Le nouveau prix après réduction = ancien prix après réduction + prix supplémentaires (sans réduction)
+  const additionalPrice = additionalDaysPrice + additionalHoursPrice;
+  const basePrice = currentPriceAfterDiscount + additionalPrice;
+  
+  // La réduction reste la même que l'ancienne réservation (on ne la recalcule PAS)
+  const discountAmount = currentDiscountAmount;
+  
+  // ✅ CORRECTION : Ajouter le driverFee si applicable (préservé de l'ancienne réservation)
+  const driverFee = (booking.with_driver && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
+  const basePriceWithDriver = basePrice + driverFee;
+  
+  // Pour l'affichage : prix totaux
+  const daysPrice = currentDaysPrice + additionalDaysPrice;
+  const hoursPrice = currentHoursPrice + additionalHoursPrice;
+  const totalBeforeDiscount = daysPrice + hoursPrice;
   
   // Calculer les frais de service avec TVA (10% + 20% TVA = 12% total)
+  // IMPORTANT : Les frais de service sont calculés sur basePriceWithDriver (inclut le chauffeur)
   const commissionRates = { travelerFeePercent: 10, hostFeePercent: 2 };
-  const serviceFeeHT = Math.round(basePrice * (commissionRates.travelerFeePercent / 100));
+  const serviceFeeHT = Math.round(basePriceWithDriver * (commissionRates.travelerFeePercent / 100));
   const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
   const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
-  const totalPrice = basePrice + effectiveServiceFee; // Total avec frais de service
+  const totalPrice = basePriceWithDriver + effectiveServiceFee; // Total avec frais de service
 
   const handleDateTimeChange = (start: string, end: string) => {
     const startDateObj = new Date(start);
@@ -314,21 +316,85 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
       return;
     }
 
-    // Calculer la différence de prix
+    // ✅ CALCUL SIMPLE ET COHÉRENT DU SURPLUS
+    // Le surplus = nouveau total - ancien total, point final
     const priceDifference = totalPrice - currentTotalPrice;
     
-    // Calculer le breakdown du surplus
     // Calculer les frais de service actuels pour la comparaison
     const currentServiceFeeHT = Math.round(currentPriceAfterDiscount * 0.10);
     const currentServiceFeeVAT = Math.round(currentServiceFeeHT * 0.20);
+    const currentServiceFee = currentServiceFeeHT + currentServiceFeeVAT;
+    
+    // ✅ CALCUL SIMPLIFIÉ : Le surplus = prix supplémentaires (sans réduction) + frais de service
+    // La réduction de l'ancienne réservation est PRÉSERVÉE, pas recalculée
+    
+    const daysPriceDiff = additionalDaysPrice;
+    const hoursPriceDiff = additionalHoursPrice;
+    const totalBeforeDiscountDiff = additionalPrice;
+    
+    // La réduction ne change PAS (on la préserve de l'ancienne réservation)
+    const discountDiff = 0; // Pas de changement de réduction
+    
+    // Prix après réduction = ancien prix après réduction + prix supplémentaires
+    const basePriceAfterDiscountDiff = additionalPrice; // Simple : juste le prix supplémentaire
+    
+    // Frais de service
+    const serviceFeeHTDiff = serviceFeeHT - currentServiceFeeHT;
+    const serviceFeeVATDiff = serviceFeeVAT - currentServiceFeeVAT;
+    const serviceFeeDiff = effectiveServiceFee - currentServiceFee;
+    
+    // Vérification de cohérence : le surplus doit être égal à la somme des différences
+    const calculatedSurplus = basePriceAfterDiscountDiff + serviceFeeDiff;
+    const surplusDifference = Math.abs(calculatedSurplus - priceDifference);
+    
+    console.log('🔍 [VehicleModificationModal] ===== CALCUL SURPLUS (RÉDUCTION PRÉSERVÉE) =====');
+    console.log('📊 Ancienne réservation:', {
+      jours: currentRentalDays,
+      heures: currentRentalHours,
+      'prix jours': currentDaysPrice,
+      'prix heures': currentHoursPrice,
+      'total avant réduction': currentDaysPrice + currentHoursPrice,
+      réduction: currentDiscountAmount,
+      'prix après réduction': currentPriceAfterDiscount,
+      'frais service': currentServiceFee,
+      'total': currentTotalPrice
+    });
+    console.log('📊 Modification:', {
+      'diff jours': daysDiff,
+      'diff heures': hoursDiff,
+      'prix jours supplémentaires': additionalDaysPrice,
+      'prix heures supplémentaires': additionalHoursPrice,
+      'prix supplémentaire total': additionalPrice
+    });
+    console.log('📊 Nouvelle réservation:', {
+      jours: rentalDays,
+      heures: remainingHours,
+      'prix jours': daysPrice,
+      'prix heures': hoursPrice,
+      'total avant réduction': totalBeforeDiscount,
+      réduction: discountAmount, // PRÉSERVÉE de l'ancienne réservation
+      'prix après réduction': basePrice,
+      'frais service': effectiveServiceFee,
+      'total': totalPrice
+    });
+    console.log('💰 Surplus:', {
+      'surplus total': priceDifference,
+      'prix supplémentaire': additionalPrice,
+      'différence frais service': serviceFeeDiff,
+      'surplus calculé': calculatedSurplus,
+      'écart': surplusDifference,
+      'est cohérent': surplusDifference < 1
+    });
     
     const calculatedSurplusBreakdown = {
-      daysPriceDiff: daysPrice - currentDaysPrice,
-      hoursPriceDiff: hoursPrice - currentHoursPrice,
-      discountDiff: currentDiscountAmount - discountAmount,
-      serviceFeeHTDiff: serviceFeeHT - currentServiceFeeHT,
-      serviceFeeVATDiff: serviceFeeVAT - currentServiceFeeVAT,
-      serviceFeeDiff: effectiveServiceFee - currentServiceFee,
+      daysPriceDiff,
+      hoursPriceDiff,
+      totalBeforeDiscountDiff,
+      discountDiff, // Positif = perte de réduction (on paie plus), Négatif = gain de réduction (on paie moins)
+      basePriceAfterDiscountDiff,
+      serviceFeeHTDiff,
+      serviceFeeVATDiff,
+      serviceFeeDiff,
     };
     setSurplusBreakdown(calculatedSurplusBreakdown);
 
@@ -543,17 +609,25 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                             )}
                           </>
                         )}
-                        {discountDiff !== 0 && (
+                        {(daysPriceDiff !== 0 || hoursPriceDiff !== 0) && (
                           <View style={styles.summaryRow}>
-                            <Text style={[styles.summaryLabel, discountDiff > 0 ? { color: '#059669' } : { color: '#e74c3c' }]}>
-                              {discountDiff > 0 ? 'Réduction supplémentaire:' : 'Réduction réduite:'}
-                            </Text>
-                            <Text style={[styles.summaryValue, discountDiff > 0 ? { color: '#059669' } : { color: '#e74c3c' }]}>
-                              {discountDiff > 0 ? '+' : ''}{formatPrice(discountDiff)}
+                            <Text style={styles.summaryLabel}>Prix de base (avant réduction):</Text>
+                            <Text style={styles.summaryValue}>
+                              {(daysPriceDiff + hoursPriceDiff) > 0 ? '+' : ''}{formatPrice(daysPriceDiff + hoursPriceDiff)}
                             </Text>
                           </View>
                         )}
-                        {basePriceDiff !== 0 && discountDiff !== 0 && (
+                        {discountDiff !== 0 && (
+                          <View style={styles.summaryRow}>
+                            <Text style={[styles.summaryLabel, discountDiff > 0 ? { color: '#e74c3c' } : { color: '#059669' }]}>
+                              {discountDiff > 0 ? 'Perte de réduction:' : 'Gain de réduction:'}
+                            </Text>
+                            <Text style={[styles.summaryValue, discountDiff > 0 ? { color: '#e74c3c' } : { color: '#059669' }]}>
+                              {formatPrice(discountDiff)}
+                            </Text>
+                          </View>
+                        )}
+                        {basePriceDiff !== 0 && (
                           <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Prix après réduction:</Text>
                             <Text style={styles.summaryValue}>

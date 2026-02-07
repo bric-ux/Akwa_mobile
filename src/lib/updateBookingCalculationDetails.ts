@@ -221,6 +221,46 @@ export async function updateVehicleBookingCalculationDetails(
     const hourlyRate = bookingData.hourly_rate || vehicleData.price_per_hour || 0;
     const rentalType = rentalDays > 0 ? 'daily' : 'hourly';
     
+    // ✅ CORRECTION CRITIQUE : Récupérer l'ancien price_after_discount depuis booking_calculation_details
+    // pour préserver la réduction lors d'une modification
+    let oldPriceAfterDiscount: number | null = null;
+    let oldDaysPrice = 0;
+    let oldHoursPrice = 0;
+    let oldRentalDays = 0;
+    let oldRentalHours = 0;
+    let oldDiscountAmount: number | null = null;
+    
+    try {
+      const { data: oldCalculationDetails } = await supabase
+        .from('booking_calculation_details')
+        .select('price_after_discount, days_price, hours_price, discount_amount')
+        .eq('booking_id', bookingId)
+        .eq('booking_type', 'vehicle')
+        .single();
+      
+      if (oldCalculationDetails) {
+        oldPriceAfterDiscount = oldCalculationDetails.price_after_discount;
+        oldDaysPrice = oldCalculationDetails.days_price || 0;
+        oldHoursPrice = oldCalculationDetails.hours_price || 0;
+        oldDiscountAmount = oldCalculationDetails.discount_amount || null;
+        console.log('✅ [updateVehicleBookingCalculationDetails] Ancien price_after_discount récupéré:', oldPriceAfterDiscount);
+      }
+    } catch (err) {
+      console.log('⚠️ [updateVehicleBookingCalculationDetails] Pas d\'ancien calcul trouvé, calcul normal');
+    }
+    
+    // Récupérer l'ancienne réservation pour comparer
+    const { data: oldBooking } = await supabase
+      .from('vehicle_bookings')
+      .select('rental_days, rental_hours')
+      .eq('id', bookingId)
+      .single();
+    
+    if (oldBooking) {
+      oldRentalDays = oldBooking.rental_days || 0;
+      oldRentalHours = oldBooking.rental_hours || 0;
+    }
+    
     // Calculer les prix
     let basePrice: number;
     let discountAmount = bookingData.discount_amount || 0;
@@ -239,8 +279,30 @@ export async function updateVehicleBookingCalculationDetails(
       hoursPrice = rentalHours > 0 && hourlyRate > 0 ? rentalHours * hourlyRate : 0;
       totalBeforeDiscount = daysPrice + hoursPrice;
       
-      // Recalculer la réduction si nécessaire
-      if (!discountAmount && vehicleData.discount_enabled) {
+      // ✅ CORRECTION : Si c'est une modification et qu'on a l'ancien price_after_discount,
+      // préserver la réduction en ajoutant seulement le prix supplémentaire
+      if (oldPriceAfterDiscount !== null && (rentalDays !== oldRentalDays || rentalHours !== oldRentalHours)) {
+        // C'est une modification : préserver la réduction
+        const additionalDaysPrice = (rentalDays - oldRentalDays) > 0 ? (rentalDays - oldRentalDays) * dailyRate : 0;
+        const additionalHoursPrice = (rentalHours - oldRentalHours) > 0 ? (rentalHours - oldRentalHours) * hourlyRate : 0;
+        const additionalPrice = additionalDaysPrice + additionalHoursPrice;
+        
+        // Le nouveau prix après réduction = ancien prix après réduction + prix supplémentaires (sans réduction)
+        basePrice = oldPriceAfterDiscount + additionalPrice;
+        
+        // La réduction reste la même
+        discountAmount = oldDiscountAmount !== null ? oldDiscountAmount : discountAmount;
+        discountApplied = bookingData.discount_applied || false;
+        originalTotal = bookingData.original_total || totalBeforeDiscount;
+        
+        console.log('✅ [updateVehicleBookingCalculationDetails] Modification détectée - préservation de la réduction:', {
+          oldPriceAfterDiscount,
+          additionalPrice,
+          basePrice,
+          discountAmount
+        });
+      } else if (!discountAmount && vehicleData.discount_enabled) {
+        // Nouvelle réservation ou pas de réduction précédente : recalculer
         const discountConfig: DiscountConfig = {
           enabled: vehicleData.discount_enabled || false,
           minNights: vehicleData.discount_min_days || null,
@@ -267,6 +329,7 @@ export async function updateVehicleBookingCalculationDetails(
         discountApplied = priceCalculation.discountApplied;
         originalTotal = priceCalculation.originalTotal;
       } else {
+        // Réduction fournie : utiliser directement
         basePrice = totalBeforeDiscount - discountAmount;
         originalTotal = bookingData.original_total || totalBeforeDiscount;
       }

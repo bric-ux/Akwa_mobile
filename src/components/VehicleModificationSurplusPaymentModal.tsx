@@ -26,7 +26,9 @@ interface VehicleModificationSurplusPaymentModalProps {
   priceBreakdown?: {
     daysPriceDiff?: number;
     hoursPriceDiff?: number;
+    totalBeforeDiscountDiff?: number;
     discountDiff?: number;
+    basePriceAfterDiscountDiff?: number;
     serviceFeeDiff?: number;
     serviceFeeHTDiff?: number;
     serviceFeeVATDiff?: number;
@@ -282,11 +284,31 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
                   </View>
                 )}
                 
+                {priceBreakdown.basePriceBeforeDiscountDiff !== undefined && priceBreakdown.basePriceBeforeDiscountDiff !== 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Prix de base (avant réduction):</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.basePriceBeforeDiscountDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
+                      {priceBreakdown.basePriceBeforeDiscountDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.basePriceBeforeDiscountDiff)}
+                    </Text>
+                  </View>
+                )}
+                
                 {priceBreakdown.discountDiff !== undefined && priceBreakdown.discountDiff !== 0 && (
                   <View style={styles.priceDetailRow}>
-                    <Text style={styles.priceDetailLabel}>Différence réduction:</Text>
+                    <Text style={styles.priceDetailLabel}>
+                      {priceBreakdown.discountDiff > 0 ? 'Réduction supplémentaire (gain):' : 'Réduction réduite (perte):'}
+                    </Text>
                     <Text style={[styles.priceDetailValue, priceBreakdown.discountDiff > 0 ? styles.decreaseValue : styles.increaseValue]}>
                       {priceBreakdown.discountDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.discountDiff)}
+                    </Text>
+                  </View>
+                )}
+                
+                {priceBreakdown.basePriceAfterDiscountDiff !== undefined && priceBreakdown.basePriceAfterDiscountDiff !== 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Prix après réduction:</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.basePriceAfterDiscountDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
+                      {priceBreakdown.basePriceAfterDiscountDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.basePriceAfterDiscountDiff)}
                     </Text>
                   </View>
                 )}

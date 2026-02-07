@@ -235,7 +235,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
   const { refundPercentage, isInProgress, remainingNights, remainingNightsAmount, penaltyAmount, refundAmount } = cancellationInfo;
   const isPending = booking.status === 'pending';
   const finalRefundAmount = refundAmount || (isInProgress && remainingNightsAmount !== undefined
-    ? remainingNightsAmount
+    ? Math.round(remainingNightsAmount * 0.50) // 50% des nuitées restantes
     : (booking.total_price * refundPercentage) / 100);
   const finalPenaltyAmount = penaltyAmount || (booking.total_price - finalRefundAmount);
 
@@ -290,7 +290,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                 <View style={styles.alertContent}>
                   <Text style={styles.alertTitle}>Réservation en cours</Text>
                   <Text style={styles.alertText}>
-                    {remainingNights} nuitée{remainingNights !== 1 ? 's' : ''} restante{remainingNights !== 1 ? 's' : ''} seront remboursées
+                    50% des {remainingNights} nuitée{remainingNights !== 1 ? 's' : ''} restante{remainingNights !== 1 ? 's' : ''} seront remboursées
                   </Text>
                 </View>
               </View>
