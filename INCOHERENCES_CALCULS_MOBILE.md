@@ -236,3 +236,5 @@ const ownerNetRevenue = calculatedBasePriceWithDriver - hostCommissionData.hostC
 - Mélanger `totalPrice` (avec service fee) et `basePrice` (sans service fee) dans les calculs
 
 
+
+

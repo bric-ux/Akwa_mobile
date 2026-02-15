@@ -88,3 +88,5 @@ if (calculationDetails) {
 
 **AUCUN recalcul n'est effectué** si les données stockées sont disponibles. Tous les montants utilisent directement les valeurs stockées dans `booking_calculation_details` ou dans les colonnes `total_price` et `host_net_amount`.
 
+
+

@@ -127,3 +127,5 @@ Après ces corrections :
 - Les nouvelles réservations et modifications utiliseront les données stockées
 - La cohérence est garantie car tous les calculs utilisent la même logique de préservation de la réduction
 
+
+

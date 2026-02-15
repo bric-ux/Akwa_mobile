@@ -19,6 +19,7 @@ import { useAuth } from '../services/AuthContext';
 import { VehicleBooking } from '../types';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { getCommissionRates } from '../lib/commissions';
+import { calculateHostNetAmount } from '../lib/hostNetAmount';
 
 interface DetailedStats {
   totalVehicles: number;
@@ -71,26 +72,34 @@ const VehicleOwnerStatsScreen: React.FC = () => {
         : allBookingsData.filter(b => b.vehicle_id === selectedVehicle);
 
       // Calculer les statistiques
+      // Filtrer uniquement les réservations terminées pour les revenus
       const completedBookings = filteredBookings.filter(b => 
-        b.status === 'completed' || b.status === 'confirmed'
+        b.status === 'completed'
       );
       const pending = filteredBookings.filter(b => b.status === 'pending');
       const confirmed = filteredBookings.filter(b => 
-        b.status === 'confirmed' || b.status === 'completed'
+        b.status === 'confirmed'
       );
 
-      // Calculer les revenus nets (après déduction des commissions)
-      const commissionRates = getCommissionRates('vehicle');
+      // Calculer les revenus nets - Utiliser host_net_amount si disponible
       const calculateNetEarnings = (booking: VehicleBooking) => {
         if (booking.status === 'cancelled') return 0;
         
-        // Prix de base = daily_rate × rental_days
-        const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
-        // Appliquer la réduction si elle existe
-        const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
-        // Commission de 2% sur le prix APRÈS réduction
-        const ownerCommission = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
-        return priceAfterDiscount - ownerCommission;
+        // Utiliser host_net_amount stocké si disponible
+        if ((booking as any).host_net_amount !== undefined && (booking as any).host_net_amount !== null) {
+          return (booking as any).host_net_amount;
+        }
+        
+        // Utiliser la fonction centralisée pour les anciennes réservations
+        return calculateHostNetAmount({
+          pricePerNight: booking.daily_rate || 0,
+          nights: booking.rental_days || 0,
+          discountAmount: booking.discount_amount || 0,
+          cleaningFee: 0, // Pas de frais de ménage pour les véhicules
+          taxesPerNight: 0, // Pas de taxe de séjour pour les véhicules
+          status: booking.status || 'confirmed',
+          serviceType: 'vehicle',
+        }).hostNetAmount;
       };
 
       const totalRevenue = completedBookings.reduce((sum, b) => sum + calculateNetEarnings(b), 0);
@@ -101,7 +110,8 @@ const VehicleOwnerStatsScreen: React.FC = () => {
 
       setStats({
         totalVehicles: userVehicles.length,
-        totalBookings: filteredBookings.length,
+        // Dans la vue d'ensemble, compter uniquement les réservations confirmées
+        totalBookings: confirmed.length,
         pendingBookings: pending.length,
         confirmedBookings: confirmed.length,
         totalRevenue,
@@ -160,29 +170,34 @@ const VehicleOwnerStatsScreen: React.FC = () => {
     );
   }
 
-  // Calculer les statistiques par véhicule
-  const calculateNetEarnings = (booking: VehicleBooking) => {
+  // Calculer les statistiques par véhicule - Utiliser host_net_amount si disponible
+  const calculateNetEarningsForVehicle = (booking: VehicleBooking) => {
     if (booking.status === 'cancelled') return 0;
     
+    // Utiliser host_net_amount stocké si disponible
+    if ((booking as any).host_net_amount !== undefined && (booking as any).host_net_amount !== null) {
+      return (booking as any).host_net_amount;
+    }
+    
     // Utiliser la fonction centralisée pour garantir la cohérence
-    const basePrice = (booking.daily_rate || 0) * (booking.rental_days || 0);
-    const priceAfterDiscount = basePrice - (booking.discount_amount || 0);
-    
-    // Commission avec TVA (2% + 20% TVA = 2.4% TTC)
-    const commissionRates = getCommissionRates('vehicle');
-    const ownerCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
-    const ownerCommissionVAT = Math.round(ownerCommissionHT * 0.20);
-    const ownerCommission = ownerCommissionHT + ownerCommissionVAT; // TTC
-    
-    return priceAfterDiscount - ownerCommission;
+    return calculateHostNetAmount({
+      pricePerNight: booking.daily_rate || 0,
+      nights: booking.rental_days || 0,
+      discountAmount: booking.discount_amount || 0,
+      cleaningFee: 0, // Pas de frais de ménage pour les véhicules
+      taxesPerNight: 0, // Pas de taxe de séjour pour les véhicules
+      status: booking.status || 'confirmed',
+      serviceType: 'vehicle',
+    }).hostNetAmount;
   };
 
   const vehicleStats = vehicles.map(vehicle => {
+    // Filtrer uniquement les réservations terminées pour les revenus
     const vehicleBookings = allBookings.filter(b => 
       b.vehicle_id === vehicle.id && 
-      (b.status === 'completed' || b.status === 'confirmed')
+      b.status === 'completed'
     );
-    const vehicleRevenue = vehicleBookings.reduce((sum, b) => sum + calculateNetEarnings(b), 0);
+    const vehicleRevenue = vehicleBookings.reduce((sum, b) => sum + calculateNetEarningsForVehicle(b), 0);
     const vehicleDays = vehicleBookings.reduce((sum, b) => sum + (b.rental_days || 0), 0);
 
     return {

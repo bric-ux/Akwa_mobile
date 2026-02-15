@@ -402,3 +402,5 @@ const bookingInsert = {
 - **Calendrier**: `src/hooks/useVehicleAvailabilityCalendar.ts`
 - **Calculs**: `src/lib/hostNetAmount.ts`, `src/hooks/usePricing.ts`
 
+
+

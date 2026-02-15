@@ -444,6 +444,14 @@ const AdminDashboardScreen: React.FC = () => {
           />
 
           <QuickAction
+            title="Paiements hôtes/propriétaires"
+            description="Gérer les paiements aux hôtes et propriétaires de véhicules"
+            icon="cash-outline"
+            onPress={() => navigation.navigate('AdminPayouts' as never)}
+            color="#2E7D32"
+          />
+
+          <QuickAction
             title="Remboursements"
             description="Suivre et gérer les remboursements"
             icon="refresh-outline"

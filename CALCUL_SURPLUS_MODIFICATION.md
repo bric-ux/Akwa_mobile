@@ -29,3 +29,5 @@ Le breakdown doit montrer :
 2. Corriger l'affichage du breakdown
 3. S'assurer que le surplus total = nouveau total - ancien total
 
+
+

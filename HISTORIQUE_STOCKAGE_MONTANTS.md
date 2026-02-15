@@ -163,3 +163,5 @@ Pour garantir la cohérence :
 2. **Modifier le code** pour utiliser directement `booking.host_net_amount` au lieu de recalculer
 3. **Vérifier** qu'il n'y a plus de réservations avec `host_net_amount = NULL`
 
+
+

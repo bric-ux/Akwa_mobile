@@ -265,3 +265,5 @@ const debouncedSearch = useMemo(
 - Commencer par optimiser les requêtes API avant d'optimiser le rendu
 - Tester les performances sur des appareils réels (pas seulement simulateur)
 
+
+

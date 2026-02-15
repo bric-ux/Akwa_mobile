@@ -145,3 +145,5 @@ if (conflictingBookings && conflictingBookings.length > 0) {
 
 Ces validations sont **essentielles** pour éviter des modifications incohérentes ou impossibles.
 
+
+

@@ -113,15 +113,20 @@ const HostStatsScreen: React.FC = () => {
         return propertyId && propertyIds.has(propertyId);
       });
 
-      totalBookingsCount = hostBookings.length;
-      
       const pending = hostBookings.filter(booking => booking.status === 'pending');
       pendingBookingsCount = pending.length;
       
+      // Filtrer uniquement les réservations terminées pour les statistiques de revenus
+      const completed = hostBookings.filter(booking => 
+        booking.status === 'completed'
+      );
       const confirmed = hostBookings.filter(booking => 
-        booking.status === 'confirmed' || booking.status === 'completed'
+        booking.status === 'confirmed'
       );
       confirmedBookingsCount = confirmed.length;
+      
+      // Dans la vue d'ensemble, compter uniquement les réservations confirmées
+      totalBookingsCount = confirmed.length;
       
       // Calculer les revenus nets - EXACTEMENT comme dans InvoiceDisplay.tsx (mobile)
       const commissionRates = getCommissionRates('property');
@@ -177,7 +182,8 @@ const HostStatsScreen: React.FC = () => {
         }).hostNetAmount;
       };
 
-      confirmed.forEach(booking => {
+      // Calculer les revenus uniquement pour les réservations terminées
+      completed.forEach(booking => {
         // Utiliser le calcul des revenus nets au lieu du total_price brut
         const netEarnings = calculateNetEarnings(booking);
         revenue += netEarnings;

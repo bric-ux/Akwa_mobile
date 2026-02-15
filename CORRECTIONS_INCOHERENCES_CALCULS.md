@@ -149,3 +149,5 @@ Après correction, l'overview devrait afficher **556 768 FCFA** (ou **581 168 FC
 - Il faudra tester avec une nouvelle réservation pour vérifier que les montants sont cohérents
 - Si le total locataire reste à 524 160 FCFA, il faudra vérifier le calcul dans `VehicleBookingScreen.tsx` lors de la création de la réservation
 
+
+

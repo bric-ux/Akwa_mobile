@@ -460,3 +460,5 @@ CREATE TABLE booking_calculation_details (
 
 **Prochaine étape** : Créer la migration et modifier `createBooking()` pour remplir cette table.
 
+
+

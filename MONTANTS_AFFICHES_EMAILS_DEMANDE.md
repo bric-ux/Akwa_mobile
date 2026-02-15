@@ -153,3 +153,5 @@ Si `booking_calculation_details` n'existe pas :
 3. **Cohérence** : Utiliser les données stockées, pas de recalcul
 4. **Caution** : Toujours affichée séparément (payée/reçue en espèces)
 
+
+

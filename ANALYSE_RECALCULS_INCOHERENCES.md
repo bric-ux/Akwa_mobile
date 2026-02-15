@@ -310,3 +310,5 @@ const hostNetAmount = (Math.abs(stored - calculated) <= 1) ? stored : calculated
 
 **Solution**: Modifier ces fichiers pour utiliser directement les valeurs stockées (`booking.host_net_amount` et `booking.total_price`) en priorité, avec fallback seulement pour les anciennes réservations sans valeur stockée.
 
+
+

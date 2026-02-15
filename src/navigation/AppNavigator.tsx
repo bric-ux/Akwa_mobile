@@ -74,6 +74,7 @@ import PenaltiesScreen from '../screens/PenaltiesScreen';
 import AdminPenaltiesScreen from '../screens/AdminPenaltiesScreen';
 import AdminRefundsScreen from '../screens/AdminRefundsScreen';
 import AdminRevenueScreen from '../screens/AdminRevenueScreen';
+import AdminPayoutsScreen from '../screens/AdminPayoutsScreen';
 import AdminBookingCalculationTestScreen from '../screens/AdminBookingCalculationTestScreen';
 import HostReviewsScreen from '../screens/HostReviewsScreen';
 import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
@@ -751,6 +752,14 @@ const AppNavigator = () => {
               component={AdminRevenueScreen}
               options={{
                 title: 'Revenus AkwaHome',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminPayouts"
+              component={AdminPayoutsScreen}
+              options={{
+                title: 'Paiements hôtes/propriétaires',
                 headerShown: false
               }}
             />

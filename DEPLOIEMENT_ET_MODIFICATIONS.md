@@ -115,3 +115,5 @@ ORDER BY updated_at DESC;
 3. ✅ Vérifier que `booking_calculation_details` est mis à jour
 4. ✅ Vérifier que les PDFs utilisent les bonnes données
 
+
+

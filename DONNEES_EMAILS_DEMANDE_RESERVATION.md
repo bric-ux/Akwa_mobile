@@ -288,3 +288,5 @@ Pour vérifier que tout est correct :
 4. ✅ Vérifier l'email au propriétaire : doit afficher `host_net_amount` depuis `booking_calculation_details`
 5. ✅ Vérifier que les montants correspondent aux données stockées
 
+
+

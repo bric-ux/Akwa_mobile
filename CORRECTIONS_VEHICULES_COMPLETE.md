@@ -329,3 +329,5 @@ if (canApplyLongStay && bookingData.vehicleLongStayDiscountPercentage) {
 
 
 
+
+

@@ -110,3 +110,5 @@
 - ✅ Le surplus total = somme des différences
 - ✅ Pas de recalculs complexes
 
+
+

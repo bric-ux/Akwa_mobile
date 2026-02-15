@@ -246,3 +246,5 @@ Pour vérifier que tout est correct :
 6. ✅ Confirmer la réservation
 7. ✅ Vérifier les PDFs générés : doivent utiliser les données stockées
 
+
+

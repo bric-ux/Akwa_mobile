@@ -401,3 +401,5 @@ async function getCalculationDetails(bookingId: string, bookingType: 'property' 
 
 **Prochaine étape** : Implémenter la table `booking_calculation_details` et modifier les fonctions de génération d'emails/PDFs pour utiliser les données stockées.
 
+
+

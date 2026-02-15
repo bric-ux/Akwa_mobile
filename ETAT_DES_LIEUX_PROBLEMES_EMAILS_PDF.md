@@ -264,3 +264,5 @@ Les calculs de fallback dans les templates d'email utilisent probablement :
 - Le problème vient donc des emails et PDFs qui utilisent des calculs différents ou des données incorrectes
 - Il faut s'assurer que les mêmes données sont utilisées partout
 
+
+

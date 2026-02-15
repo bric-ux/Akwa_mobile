@@ -213,3 +213,5 @@ Pour vérifier que l'affichage est correct :
 4. Vérifier l'overview propriétaire : doit afficher `host_net_amount`
 5. Vérifier que les montants correspondent aux données stockées
 
+
+
