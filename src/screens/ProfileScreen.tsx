@@ -22,7 +22,7 @@ import { useHostApplications } from '../hooks/useHostApplications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicles } from '../hooks/useVehicles';
-import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
+import { HOST_COLORS, VEHICLE_COLORS, MONTHLY_RENTAL_COLORS, TRAVELER_COLORS } from '../constants/colors';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 
 const ProfileScreen: React.FC = () => {
@@ -31,7 +31,7 @@ const ProfileScreen: React.FC = () => {
   const { user, signOut } = useAuth();
   
   // Détecter si on est dans le TabNavigator (ProfileTab) ou dans le Stack (Profile)
-  const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab';
+  const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab' || route.name === 'MonthlyRentalProfileTab';
   const { t } = useLanguage();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
@@ -41,6 +41,21 @@ const ProfileScreen: React.FC = () => {
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [hasPendingApplications, setHasPendingApplications] = useState(false);
   const [hasVehicles, setHasVehicles] = useState(false);
+  const [hasMonthlyListings, setHasMonthlyListings] = useState(false);
+
+  const checkMonthlyListings = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('monthly_rental_listings')
+        .select('id')
+        .eq('owner_id', user.id)
+        .limit(1);
+      setHasMonthlyListings(!error && data && data.length > 0);
+    } catch {
+      setHasMonthlyListings(false);
+    }
+  };
 
   // Rafraîchir le profil quand l'écran devient actif (seulement si connecté)
   useFocusEffect(
@@ -49,6 +64,7 @@ const ProfileScreen: React.FC = () => {
         refreshProfile();
         checkPendingApplications();
         checkVehicles();
+        checkMonthlyListings();
         // Rafraîchir aussi le statut de vérification de l'email immédiatement
         // Vérifier immédiatement pour éviter l'affichage de "non vérifié" puis "vérifié"
         checkEmailVerificationStatus(true);
@@ -323,6 +339,8 @@ const ProfileScreen: React.FC = () => {
   // Construire la liste des éléments de menu selon le profil
   let menuItems = [...baseMenuItems];
 
+  const isInMonthlyRentalMode = route.name === 'MonthlyRentalProfileTab';
+
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
   if (profile?.is_host || hasPendingApplications) {
     menuItems.push(hostSpaceItem);
@@ -338,6 +356,34 @@ const ProfileScreen: React.FC = () => {
   // Ajouter "Espace Véhicules" si l'utilisateur a des véhicules (navigation complète)
   if (hasVehicles) {
     menuItems.push(vehicleSpaceItem);
+  }
+
+  // Ajouter "Mode logement longue durée" si l'utilisateur a au moins un logement longue durée (et qu'on n'est pas déjà dans ce mode)
+  if (hasMonthlyListings && !isInMonthlyRentalMode) {
+    menuItems.push({
+      id: 'monthlyRentalSpace',
+      title: 'Mode logement longue durée',
+      icon: 'business-outline',
+      onPress: () => {
+        Alert.alert(
+          'Mode logement longue durée',
+          'Gérer vos annonces et candidatures pour la location mensuelle.',
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('common.continue'),
+              onPress: () => {
+                navigation.navigate('ModeTransition' as never, {
+                  targetMode: 'monthly_rental',
+                  targetPath: 'MonthlyRentalOwnerSpace',
+                  fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : 'traveler',
+                });
+              },
+            },
+          ]
+        );
+      },
+    });
   }
 
   // Ajouter les pénalités si l'utilisateur est hôte ou a des véhicules
@@ -531,10 +577,90 @@ const ProfileScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Bouton Mode logement longue durée (si applicable) */}
+        {hasMonthlyListings && !isInMonthlyRentalMode && (
+          <View style={styles.monthlyRentalSpaceContainer}>
+            <TouchableOpacity
+              style={styles.monthlyRentalSpaceButton}
+              onPress={() => {
+                Alert.alert(
+                  'Mode logement longue durée',
+                  'Gérer vos annonces et candidatures pour la location mensuelle.',
+                  [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    {
+                      text: t('common.continue'),
+                      onPress: () => {
+                        navigation.navigate('ModeTransition' as never, {
+                          targetMode: 'monthly_rental',
+                          targetPath: 'MonthlyRentalOwnerSpace',
+                          fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : 'traveler',
+                        });
+                      },
+                    },
+                  ]
+                );
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.monthlyRentalSpaceContent}>
+                <View style={styles.monthlyRentalSpaceIconContainer}>
+                  <Ionicons name="business" size={18} color="#fff" />
+                </View>
+                <View style={styles.monthlyRentalSpaceTextContainer}>
+                  <Text style={styles.monthlyRentalSpaceText}>Mode logement longue durée</Text>
+                  <Text style={styles.monthlyRentalSpaceSubtext}>Gérez vos logements et candidatures</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Bouton Espace voyageur (uniquement en mode logement longue durée) */}
+        {isInMonthlyRentalMode && (
+          <View style={styles.travelerSpaceContainer}>
+            <TouchableOpacity
+              style={styles.travelerSpaceButton}
+              onPress={() => {
+                Alert.alert(
+                  'Espace voyageur',
+                  'Accéder à l\'espace voyageur ?',
+                  [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    {
+                      text: t('common.continue'),
+                      onPress: () => {
+                        navigation.navigate('ModeTransition' as never, {
+                          targetMode: 'traveler',
+                          targetPath: 'Home',
+                          fromMode: 'monthly_rental',
+                        });
+                      },
+                    },
+                  ]
+                );
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.travelerSpaceContent}>
+                <View style={styles.travelerSpaceIconContainer}>
+                  <Ionicons name="airplane" size={18} color="#fff" />
+                </View>
+                <View style={styles.travelerSpaceTextContainer}>
+                  <Text style={styles.travelerSpaceText}>Espace voyageur</Text>
+                  <Text style={styles.travelerSpaceSubtext}>Recherche, réservations, favoris</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Menu Items */}
         <View style={styles.menuContainer}>
           {menuItems
-            .filter(item => item.id !== 'hostSpace' && item.id !== 'vehicleSpace') // Exclure hostSpaceItem et vehicleSpaceItem de la liste normale
+            .filter(item => item.id !== 'hostSpace' && item.id !== 'vehicleSpace' && item.id !== 'monthlyRentalSpace')
             .map((item) => (
               <TouchableOpacity
                 key={item.id}
@@ -778,6 +904,90 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   vehicleSpaceSubtext: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  monthlyRentalSpaceContainer: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  monthlyRentalSpaceButton: {
+    backgroundColor: MONTHLY_RENTAL_COLORS.primary,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: MONTHLY_RENTAL_COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  monthlyRentalSpaceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  monthlyRentalSpaceIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  monthlyRentalSpaceTextContainer: {
+    flex: 1,
+  },
+  monthlyRentalSpaceText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  monthlyRentalSpaceSubtext: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  travelerSpaceContainer: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  travelerSpaceButton: {
+    backgroundColor: TRAVELER_COLORS.primary,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: TRAVELER_COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  travelerSpaceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  travelerSpaceIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  travelerSpaceTextContainer: {
+    flex: 1,
+  },
+  travelerSpaceText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  travelerSpaceSubtext: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
   },

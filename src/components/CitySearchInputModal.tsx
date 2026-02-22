@@ -37,6 +37,13 @@ interface CitySearchInputProps {
   onSelect?: (result: SearchResult) => void;
 }
 
+function normalizeLocationValue(value: string | SearchResult | null | undefined): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value && 'name' in value) return String((value as SearchResult).name);
+  return '';
+}
+
 const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
   value = '',
   onChange,
@@ -46,7 +53,7 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
   onClose,
   onSelect
 }) => {
-  const [inputValue, setInputValue] = useState(value);
+  const [inputValue, setInputValue] = useState(() => normalizeLocationValue(value));
   const [showModal, setShowModal] = useState(externalVisible || false);
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -73,10 +80,11 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
     };
   }, []);
 
-  // Synchroniser avec la valeur externe
+  // Synchroniser avec la valeur externe (toujours en string pour éviter de rendre un objet)
   useEffect(() => {
-    if (value !== inputValue) {
-      setInputValue(value);
+    const next = normalizeLocationValue(value);
+    if (next !== inputValue) {
+      setInputValue(next);
     }
   }, [value]);
 

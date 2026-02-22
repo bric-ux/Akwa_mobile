@@ -47,24 +47,33 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
 
   if (!booking) return null;
 
-  // Calculer la pénalité selon les règles
+  // Calculer la pénalité selon les règles (avant début : 28j/48h ; séjour en cours : 40% sur nuitées non consommées)
   const calculateHostPenalty = () => {
     const checkInDate = new Date(booking.check_in_date);
+    checkInDate.setHours(0, 0, 0, 0);
     const checkOutDate = booking.check_out_date ? new Date(booking.check_out_date) : null;
+    if (checkOutDate) checkOutDate.setHours(0, 0, 0, 0);
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
     const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    
-    const totalNights = checkOutDate 
+
+    const totalNights = checkOutDate
       ? Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
       : 1;
-    
     const baseReservationAmount = (booking.properties?.price_per_night || 0) * totalNights;
-    
+    const isInProgress = checkOutDate && checkInDate <= now && now <= checkOutDate;
+
     let penalty = 0;
     let penaltyDescription = '';
-    
-    if (hoursUntilCheckIn <= 48) {
+
+    if (isInProgress) {
+      const nightsElapsed = Math.max(0, Math.ceil((now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const remainingNights = Math.max(0, totalNights - nightsElapsed);
+      const remainingBaseAmount = remainingNights * (booking.properties?.price_per_night || 0);
+      penalty = Math.round(remainingBaseAmount * 0.40);
+      penaltyDescription = 'Annulation en cours de séjour : 40% des nuitées non consommées (remboursement intégral au voyageur)';
+    } else if (hoursUntilCheckIn <= 48) {
       penalty = Math.round(baseReservationAmount * 0.40);
       penaltyDescription = 'Annulation 48h ou moins avant l\'arrivée (40% du montant)';
     } else if (daysUntilCheckIn > 2 && daysUntilCheckIn <= 28) {
@@ -80,7 +89,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
       penalty = 0;
       penaltyDescription = 'Annulation gratuite';
     }
-    
+
     return { penalty, penaltyDescription, isWithin48Hours: hoursUntilCheckIn <= 48 };
   };
 
@@ -573,6 +582,7 @@ const styles = StyleSheet.create({
 });
 
 export default HostCancellationDialog;
+
 
 
 

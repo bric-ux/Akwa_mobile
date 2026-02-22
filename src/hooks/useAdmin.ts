@@ -3,6 +3,12 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { HostApplication } from './useHostApplications';
 import { Property } from './useProperties';
+import type { MonthlyRentalListing, MonthlyRentalListingPayment } from '../types';
+
+export interface MonthlyRentalListingWithOwner extends MonthlyRentalListing {
+  owner_profile?: { first_name?: string; last_name?: string; email?: string } | null;
+  payment?: MonthlyRentalListingPayment | null;
+}
 
 export interface DashboardStats {
   totalUsers: number;
@@ -601,6 +607,105 @@ export const useAdmin = () => {
     }
   };
 
+  const getMonthlyRentalListings = async (): Promise<MonthlyRentalListingWithOwner[]> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: listings, error: err } = await supabase
+        .from('monthly_rental_listings')
+        .select('*')
+        .order('submitted_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
+
+      if (err) {
+        setError(err.message);
+        return [];
+      }
+      const list = (listings || []) as MonthlyRentalListing[];
+      if (list.length === 0) return [];
+
+      const ownerIds = [...new Set(list.map((l) => l.owner_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, email')
+        .in('user_id', ownerIds);
+
+      const profileByUserId = new Map((profiles || []).map((p) => [p.user_id, p]));
+
+      const { data: payments } = await supabase
+        .from('monthly_rental_listing_payments')
+        .select('*')
+        .in('listing_id', list.map((l) => l.id));
+
+      const paymentByListingId = new Map((payments || []).map((p) => [p.listing_id, p]));
+
+      return list.map((l) => ({
+        ...l,
+        owner_profile: profileByUserId.get(l.owner_id) ?? null,
+        payment: paymentByListingId.get(l.id) ?? null,
+      })) as MonthlyRentalListingWithOwner[];
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateMonthlyRentalListingStatus = async (
+    listingId: string,
+    status: 'approved' | 'rejected',
+    adminNotes?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Non connecté' };
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: err } = await supabase
+        .from('monthly_rental_listings')
+        .update({
+          status,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user.id,
+          admin_notes: adminNotes ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', listingId);
+
+      if (err) {
+        setError(err.message);
+        return { success: false, error: err.message };
+      }
+      return { success: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erreur';
+      setError(msg);
+      return { success: false, error: msg };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteMonthlyRentalListing = async (listingId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Non connecté' };
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: err } = await supabase.from('monthly_rental_listings').delete().eq('id', listingId);
+      if (err) {
+        setError(err.message);
+        return { success: false, error: err.message };
+      }
+      return { success: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erreur';
+      setError(msg);
+      return { success: false, error: msg };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     getAllHostApplications,
     updateApplicationStatus,
@@ -611,6 +716,9 @@ export const useAdmin = () => {
     updateUserRole,
     getIdentityDocument,
     getDashboardStats,
+    getMonthlyRentalListings,
+    updateMonthlyRentalListingStatus,
+    deleteMonthlyRentalListing,
     loading,
     error,
   };

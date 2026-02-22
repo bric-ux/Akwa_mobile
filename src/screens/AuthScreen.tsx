@@ -259,6 +259,24 @@ const AuthScreen: React.FC = () => {
                   routes: [{ name: 'Home' }],
                 });
               }
+            } else if (preferredMode === 'monthly_rental' && currentUser) {
+              const { data: listings } = await supabase
+                .from('monthly_rental_listings')
+                .select('id')
+                .eq('owner_id', currentUser.id)
+                .limit(1);
+              if (listings && listings.length > 0) {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'MonthlyRentalOwnerSpace' }],
+                });
+              } else {
+                await AsyncStorage.setItem('preferredMode', 'traveler');
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Home' }],
+                });
+              }
             } else {
               navigation.reset({
                 index: 0,

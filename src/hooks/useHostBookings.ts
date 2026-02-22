@@ -560,22 +560,31 @@ export const useHostBookings = () => {
         return { success: false };
       }
 
-      // Calculer la pénalité basée sur le délai d'annulation
+      // Calculer la pénalité basée sur le délai d'annulation (ou 40% sur nuitées non consommées si séjour en cours)
       const checkInDate = new Date(booking.check_in_date);
+      checkInDate.setHours(0, 0, 0, 0);
       const checkOutDate = booking.check_out_date ? new Date(booking.check_out_date) : null;
+      if (checkOutDate) checkOutDate.setHours(0, 0, 0, 0);
       const now = new Date();
+      now.setHours(0, 0, 0, 0);
       const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-      
-      const totalNights = checkOutDate 
+
+      const totalNights = checkOutDate
         ? Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
         : 1;
-      
       const baseReservationAmount = booking.properties.price_per_night * totalNights;
-      
+
+      const isInProgress = checkOutDate && checkInDate <= now && now <= checkOutDate;
       let penalty = 0;
-      
-      if (hoursUntilCheckIn <= 48) {
+
+      if (isInProgress) {
+        // Séjour en cours : Akwahome applique 40% sur les nuitées non consommées, remboursement intégral au voyageur
+        const nightsElapsed = Math.max(0, Math.ceil((now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+        const remainingNights = Math.max(0, totalNights - nightsElapsed);
+        const remainingBaseAmount = remainingNights * booking.properties.price_per_night;
+        penalty = Math.round(remainingBaseAmount * 0.40);
+      } else if (hoursUntilCheckIn <= 48) {
         penalty = Math.round(baseReservationAmount * 0.40);
       } else if (daysUntilCheckIn > 2 && daysUntilCheckIn <= 28) {
         penalty = Math.round(baseReservationAmount * 0.20);
@@ -647,7 +656,7 @@ export const useHostBookings = () => {
                 checkOut: booking.check_out_date,
                 guests: booking.guests_count,
                 totalPrice: booking.total_price,
-                refundAmount: booking.total_price - penalty,
+                refundAmount: booking.total_price,
                 penaltyAmount: penalty,
                 reason: cancellationReason || 'Annulation par l\'hôte',
                 siteUrl: 'https://akwahome.com'

@@ -100,6 +100,13 @@ export interface Property {
       first_name: string;
     };
   }[];
+  // Location mensuelle (optionnel, n'impacte pas le court séjour)
+  is_monthly_rental?: boolean;
+  monthly_rent_price?: number | null;
+  rental_type?: 'short_term' | 'monthly' | null;
+  security_deposit?: number | null;
+  minimum_duration_months?: number | null;
+  charges_included?: boolean | null;
 }
 
 export interface Amenity {
@@ -196,6 +203,8 @@ export interface SearchFilters {
   radiusKm?: number; // Rayon de recherche en kilomètres
   // Tri des résultats
   sortBy?: 'popular' | 'price_asc' | 'price_desc' | 'rating_desc' | 'recent' | '';
+  // Type de logement : résidence meublée (court séjour) ou location longue durée
+  rentalType?: 'short_term' | 'monthly' | 'all';
 }
 
 // Types de navigation
@@ -203,9 +212,10 @@ export type RootStackParamList = {
   Home: undefined;
   HostSpace: { screen?: keyof HostTabParamList } | undefined; // Navigation hôte avec onglets
   VehicleOwnerSpace: { screen?: keyof VehicleOwnerTabParamList } | undefined; // Navigation propriétaire de véhicule avec onglets
+  MonthlyRentalOwnerSpace: { screen?: keyof MonthlyRentalTabParamList } | undefined; // Mode logement longue durée (gérer annonces + candidatures)
   Auth: undefined;
   EmailVerification: { email: string; firstName: string };
-  Search: { destination?: string };
+  Search: { destination?: string; initialRentalType?: 'short_term' | 'monthly' | 'all' };
   PropertyDetails: { 
     propertyId: string;
     checkIn?: string;
@@ -215,6 +225,7 @@ export type RootStackParamList = {
     babies?: number;
   };
   Booking: { propertyId: string };
+  MonthlyRentalListingDetail: { listingId: string }; // Détail annonce longue durée (voyageur)
   HostProfile: { hostId: string };
   HostBookings: undefined;
   HostReviews: undefined;
@@ -226,6 +237,11 @@ export type RootStackParamList = {
   MyProperties: undefined;
   HostPaymentInfo: undefined;
   HostStats: undefined;
+  HostSubscription: undefined; // Abonnement pour poster des annonces location mensuelle
+  MyMonthlyRentalListings: undefined; // Mes logements longue durée (table séparée)
+  AddMonthlyRentalListing: undefined;
+  EditMonthlyRentalListing: { listingId: string };
+  MonthlyRentalCandidatures: { listingId: string }; // Candidatures sur un logement
   GuestReferral: undefined; // Système de parrainage pour les voyageurs
   Admin: undefined;
   AdminApplications: undefined;
@@ -241,13 +257,14 @@ export type RootStackParamList = {
   AdminRefunds: undefined;
   AdminRevenue: undefined;
   AdminBookingCalculationTest: undefined;
+  AdminMonthlyRental: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
   PropertyManagement: { propertyId: string }; // Gestion de propriété avec photos et options
   PropertyPricing: { propertyId: string }; // Tarification
   PropertyRules: { propertyId: string }; // Règlement intérieur
   PropertyReviews: { propertyId: string }; // Avis pour une propriété spécifique
-  ModeTransition: { targetMode?: 'host' | 'traveler' | 'vehicle'; targetPath?: string; fromMode?: 'host' | 'traveler' | 'vehicle' }; // Page de transition entre modes
+  ModeTransition: { targetMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental'; targetPath?: string; fromMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental' }; // Page de transition entre modes
   MyBookings: undefined;
   MyGuestReviews: undefined;
   PropertyBookingDetails: { bookingId: string };
@@ -302,6 +319,14 @@ export type VehicleOwnerTabParamList = {
   VehicleOwnerMessagingTab: { conversationId?: string };
   VehicleOwnerStatsTab: undefined;
   VehicleOwnerProfileTab: undefined;
+};
+
+export type MonthlyRentalTabParamList = {
+  MonthlyRentalListingsTab: undefined;   // Mes logements
+  MonthlyRentalCandidaturesTab: undefined; // Candidatures (toutes)
+  MonthlyRentalMessagesTab: undefined;   // Messages
+  MonthlyRentalStatsTab: undefined;     // Statistiques (vues, candidatures)
+  MonthlyRentalProfileTab: undefined;   // Mon compte
 };
 
 export interface AuthContextType {
@@ -386,6 +411,73 @@ export interface VehiclePhoto {
   is_main: boolean;
   display_order: number;
   created_at: string;
+}
+
+// Location mensuelle (longue durée) - tables séparées, pas mélangées avec properties
+export type MonthlyRentalListingStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'archived';
+export type MonthlyRentalCandidatureStatus = 'sent' | 'viewed' | 'accepted' | 'rejected';
+export type MonthlyRentalPaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+
+export interface MonthlyRentalListing {
+  id: string;
+  owner_id: string;
+  title: string;
+  description: string | null;
+  location: string;
+  location_id: string | null;
+  property_type: string | null;
+  surface_m2: number;
+  number_of_rooms: number;
+  bedrooms: number;
+  bathrooms: number;
+  is_furnished: boolean;
+  monthly_rent_price: number;
+  security_deposit: number | null;
+  minimum_duration_months: number | null;
+  charges_included: boolean;
+  address_details: string | null;
+  images: string[];
+  categorized_photos: unknown;
+  amenities: string[];
+  status: MonthlyRentalListingStatus;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  admin_notes: string | null;
+  view_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MonthlyRentalListingPayment {
+  id: string;
+  owner_id: string;
+  listing_id: string;
+  amount_fcfa: number;
+  status: MonthlyRentalPaymentStatus;
+  paid_at: string | null;
+  external_id: string | null;
+  created_at: string;
+}
+
+export interface MonthlyRentalCandidature {
+  id: string;
+  listing_id: string;
+  tenant_id: string;
+  conversation_id: string | null;
+  snapshot: Record<string, unknown>;
+  full_name: string;
+  email: string;
+  phone: string;
+  message: string | null;
+  desired_move_in_date: string | null;
+  duration_months: number | null;
+  status: MonthlyRentalCandidatureStatus;
+  viewed_at: string | null;
+  decided_at: string | null;
+  created_at: string;
+  updated_at: string;
+  listing?: MonthlyRentalListing;
 }
 
 export type RentalType = 'daily' | 'hourly';

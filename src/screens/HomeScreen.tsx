@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,103 +24,97 @@ import { PopularDestinations } from '../components/PopularDestinations';
 import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
 import { useLanguage } from '../contexts/LanguageContext';
+import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
+
+// Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
+const CAROUSEL_IMAGES = [
+  { id: '1', source: require('../../assets/images/pont.jpg'), title: 'Pont Ado', description: 'Pont emblématique d\'Abidjan, symbole de modernité' },
+  { id: '2', source: require('../../assets/images/basilique-yamoussoukro.jpg'), title: 'Basilique Notre-Dame de la Paix', description: 'Plus grande basilique au monde, chef-d\'œuvre de Yamoussoukro' },
+  { id: '3', source: require('../../assets/images/elephants.jpg'), title: 'Parc National de la Comoé', description: 'Réserve de biosphère UNESCO, sanctuaire de la faune africaine' },
+  { id: '4', source: require('../../assets/images/culture.jpg'), title: 'Masques Baoulé', description: 'Patrimoine culturel immatériel de l\'UNESCO' },
+  { id: '5', source: require('../../assets/images/abidjan.jpg'), title: 'Abidjan by Night', description: 'La perle des lagunes illuminée' },
+  { id: '6', source: require('../../assets/images/plages-assinie.jpg'), title: 'Côte d\'Assinie', description: 'Plages paradisiaques et villages de pêcheurs traditionnels' },
+];
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
+  const { properties, loading, error, fetchProperties } = useProperties();
   const { cities, loading: citiesLoading, error: citiesError, getPopularDestinations } = useCities();
-  
+
   const [popularDestinations, setPopularDestinations] = useState<any[]>([]);
   const [destinationsLoading, setDestinationsLoading] = useState(true);
-
-  // Affichage vertical uniquement
-
-
-  // Données pour le carrousel d'images - Monuments et singularités de la Côte d'Ivoire
-  const carouselImages = [
-    {
-      id: '1',
-      source: require('../../assets/images/pont.jpg'),
-      title: 'Pont Ado',
-      description: 'Pont emblématique d\'Abidjan, symbole de modernité',
-    },
-    {
-      id: '2',
-      source: require('../../assets/images/basilique-yamoussoukro.jpg'),
-      title: 'Basilique Notre-Dame de la Paix',
-      description: 'Plus grande basilique au monde, chef-d\'œuvre de Yamoussoukro',
-    },
-    {
-      id: '3',
-      source: require('../../assets/images/elephants.jpg'),
-      title: 'Parc National de la Comoé',
-      description: 'Réserve de biosphère UNESCO, sanctuaire de la faune africaine',
-    },
-    {
-      id: '4',
-      source: require('../../assets/images/culture.jpg'),
-      title: 'Masques Baoulé',
-      description: 'Patrimoine culturel immatériel de l\'UNESCO',
-    },
-    {
-      id: '5',
-      source: require('../../assets/images/abidjan.jpg'),
-      title: 'Abidjan by Night',
-      description: 'La perle des lagunes illuminée',
-    },
-    {
-      id: '6',
-      source: require('../../assets/images/plages-assinie.jpg'),
-      title: 'Côte d\'Assinie',
-      description: 'Plages paradisiaques et villages de pêcheurs traditionnels',
-    },
-  ];
+  const propertiesFetchedRef = useRef(false);
+  const destinationsFetchedRef = useRef(false);
 
   useEffect(() => {
-    // Charger les propriétés au montage du composant
+    if (propertiesFetchedRef.current) return;
+    propertiesFetchedRef.current = true;
     fetchProperties();
-    
-    // Charger les destinations populaires
+  }, [fetchProperties]);
+
+  useEffect(() => {
+    if (destinationsFetchedRef.current) return;
+    destinationsFetchedRef.current = true;
+
     const loadPopularDestinations = async () => {
       try {
         setDestinationsLoading(true);
         const destinations = await getPopularDestinations(8);
         setPopularDestinations(destinations);
-      } catch (error) {
-        // Erreur silencieuse en production
-        if (__DEV__) console.error('Erreur lors du chargement des destinations populaires:', error);
+      } catch (err) {
+        if (__DEV__) console.error('[HomeScreen] Erreur destinations:', err);
       } finally {
         setDestinationsLoading(false);
       }
     };
-    
     loadPopularDestinations();
-  }, []);
+  }, [getPopularDestinations]);
+
+  const handleLongTermPress = useCallback(() => {
+    (navigation as any).navigate('Search', { destination: '', initialRentalType: 'monthly' });
+  }, [navigation]);
 
 
-  const handlePropertyPress = (property: Property) => {
+  const handlePropertyPress = useCallback((property: Property) => {
     navigation.navigate('PropertyDetails', { propertyId: property.id });
-  };
+  }, [navigation]);
 
-  const handleSearchPress = () => {
+  const handleSearchPress = useCallback(() => {
     (navigation as any).navigate('Search');
-  };
+  }, [navigation]);
 
-  const handleDestinationPress = (destination: any) => {
+  const handleDestinationPress = useCallback((destination: any) => {
     (navigation as any).navigate('Search', { destination: destination.name });
-  };
+  }, [navigation]);
 
-  const renderPropertyCard = ({ item }: { item: Property }) => (
+  const renderPropertyCard = useCallback(({ item }: { item: Property }) => (
     <PropertyCard property={item} onPress={handlePropertyPress} variant="list" />
-  );
+  ), [handlePropertyPress]);
 
-  const renderListHeader = () => (
+  const listHeader = useMemo(() => (
     <>
       <HeroSection onSearchPress={handleSearchPress} />
 
       <WeatherDateTimeWidget />
+
+      {/* Section dédiée Location longue durée (séparée des résidences meublées) */}
+      <TouchableOpacity style={styles.longTermSection} onPress={handleLongTermPress} activeOpacity={0.9}>
+        <View style={styles.longTermGradient} />
+        <View style={styles.longTermContent}>
+          <View style={styles.longTermBadge}>
+            <Ionicons name="business" size={18} color="#fff" />
+            <Text style={styles.longTermBadgeText}>LONGUE DURÉE</Text>
+          </View>
+          <Text style={styles.longTermTitle}>Logements en location mensuelle</Text>
+          <Text style={styles.longTermSubtitle}>Louez pour des mois, pas des nuits. Appartements et maisons pour séjours longue durée.</Text>
+          <View style={styles.longTermRow}>
+            <Text style={styles.longTermCta}>Voir les logements</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </View>
+        </View>
+      </TouchableOpacity>
 
       {/* Section Promotionnelle Location de véhicules */}
       <View style={styles.vehiclesPromoSection}>
@@ -228,10 +222,8 @@ const HomeScreen: React.FC = () => {
       />
 
       <ImageCarousel
-        images={carouselImages}
-        onImagePress={(image) => {
-          // Optionnel : navigation vers une page de détails de l'image
-        }}
+        images={CAROUSEL_IMAGES}
+        onImagePress={() => {}}
       />
 
       <View style={styles.section}>
@@ -243,9 +235,23 @@ const HomeScreen: React.FC = () => {
         </View>
       </View>
     </>
-  );
+  ), [properties.length, popularDestinations, destinationsLoading, handleSearchPress, handleDestinationPress, handleLongTermPress]);
+  const scrollContentStyle = useMemo(() => styles.scrollContent, []);
 
-  if (loading) {
+  const keyExtractor = useCallback((item: Property) => item.id, []);
+  const emptyMessageShort = t('property.noProperties');
+  const listEmptyComponent = useMemo(() => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyTitle}>{emptyMessageShort}</Text>
+      <Text style={styles.emptySubtitle}>{t('property.noPropertiesDesc')}</Text>
+      <Text style={styles.emptySubtitle}>{t('property.noPropertiesSubtext')}</Text>
+    </View>
+  ), [emptyMessageShort, t]);
+
+  const showError = error;
+  const waitingForData = loading && properties.length === 0;
+
+  if (waitingForData) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.loadingText}>Chargement...</Text>
@@ -253,10 +259,10 @@ const HomeScreen: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (showError) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Erreur: {error}</Text>
+        <Text style={styles.errorText}>Erreur: {showError}</Text>
       </View>
     );
   }
@@ -271,21 +277,15 @@ const HomeScreen: React.FC = () => {
           style={styles.content}
           data={properties}
           renderItem={renderPropertyCard}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          ListHeaderComponent={renderListHeader}
-          ListEmptyComponent={() => (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTitle}>{t('property.noProperties')}</Text>
-              <Text style={styles.emptySubtitle}>
-                {t('property.noPropertiesDesc')}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {t('property.noPropertiesSubtext')}
-              </Text>
-            </View>
-          )}
+          contentContainerStyle={scrollContentStyle}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={listEmptyComponent}
+          removeClippedSubviews={false}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          initialNumToRender={4}
         />
       </View>
     </SafeAreaView>
@@ -331,6 +331,39 @@ const styles = StyleSheet.create({
     paddingRight: 0,
     marginLeft: 0,
     marginRight: 0,
+  },
+  rentalTypePills: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    gap: 10,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: '#f0f0f0',
+    gap: 6,
+  },
+  pillActive: {
+    backgroundColor: '#e67e22',
+  },
+  pillActiveMonthly: {
+    backgroundColor: '#0d9488',
+  },
+  pillText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  pillTextActive: {
+    color: '#fff',
+  },
+  pillTextActiveMonthly: {
+    color: '#fff',
   },
   section: {
     marginVertical: 20,
@@ -378,6 +411,65 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 18,
     color: '#dc3545',
+  },
+  longTermSection: {
+    marginHorizontal: 20,
+    marginVertical: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: MONTHLY_RENTAL_COLORS.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  longTermGradient: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: MONTHLY_RENTAL_COLORS.primary,
+    opacity: 0.95,
+  },
+  longTermContent: {
+    padding: 24,
+  },
+  longTermBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 12,
+    gap: 6,
+  },
+  longTermBadgeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  longTermTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  longTermSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  longTermRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  longTermCta: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   vehiclesPromoSection: {
     marginHorizontal: 20,

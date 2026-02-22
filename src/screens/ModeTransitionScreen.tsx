@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS } from '../constants/colors';
+import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
 
 type ModeTransitionRouteProp = RouteProp<RootStackParamList, 'ModeTransition'>;
 
@@ -45,7 +45,9 @@ const ModeTransitionScreen: React.FC = () => {
 
   const isToHost = targetMode === 'host';
   const isToVehicle = targetMode === 'vehicle';
+  const isToMonthlyRental = targetMode === 'monthly_rental';
   const isFromVehicle = fromMode === 'vehicle';
+  const isFromMonthlyRental = fromMode === 'monthly_rental';
   
   // Déterminer les couleurs et icônes selon les modes
   let currentColor = TRAVELER_COLORS.primary;
@@ -55,7 +57,14 @@ const ModeTransitionScreen: React.FC = () => {
   let currentText = 'Mode Voyageur';
   let nextText = 'Mode Hôte';
 
-  if (isToHost) {
+  if (isToMonthlyRental) {
+    currentColor = isFromMonthlyRental ? MONTHLY_RENTAL_COLORS.primary : (fromMode === 'host' ? HOST_COLORS.primary : fromMode === 'vehicle' ? VEHICLE_COLORS.primary : TRAVELER_COLORS.primary);
+    nextColor = MONTHLY_RENTAL_COLORS.primary;
+    currentIcon = isFromMonthlyRental ? 'home-outline' : (fromMode === 'host' ? 'home-outline' : fromMode === 'vehicle' ? 'car-outline' : 'airplane-outline');
+    nextIcon = 'home-outline';
+    currentText = isFromMonthlyRental ? 'Logement longue durée' : (fromMode === 'host' ? 'Mode Hôte' : fromMode === 'vehicle' ? 'Espace Véhicules' : 'Mode Voyageur');
+    nextText = 'Logement longue durée';
+  } else if (isToHost) {
     currentColor = TRAVELER_COLORS.primary;
     nextColor = HOST_COLORS.primary;
     currentIcon = 'airplane-outline';
@@ -76,6 +85,13 @@ const ModeTransitionScreen: React.FC = () => {
     nextIcon = targetMode === 'host' ? 'home-outline' : 'airplane-outline';
     currentText = 'Espace Véhicules';
     nextText = targetMode === 'host' ? 'Mode Hôte' : 'Mode Voyageur';
+  } else if (isFromMonthlyRental) {
+    currentColor = MONTHLY_RENTAL_COLORS.primary;
+    nextColor = TRAVELER_COLORS.primary;
+    currentIcon = 'home-outline';
+    nextIcon = 'airplane-outline';
+    currentText = 'Logement longue durée';
+    nextText = 'Mode Voyageur';
   } else {
     // Retour au mode voyageur depuis le mode hôte
     currentColor = HOST_COLORS.primary;
@@ -153,6 +169,8 @@ const ModeTransitionScreen: React.FC = () => {
             await AsyncStorage.setItem('preferredMode', 'host');
           } else if (targetMode === 'vehicle') {
             await AsyncStorage.setItem('preferredMode', 'vehicle');
+          } else if (targetMode === 'monthly_rental') {
+            await AsyncStorage.setItem('preferredMode', 'monthly_rental');
           } else {
             await AsyncStorage.setItem('preferredMode', 'traveler');
           }
@@ -167,6 +185,11 @@ const ModeTransitionScreen: React.FC = () => {
             navigation.reset({
               index: 0,
               routes: [{ name: 'VehicleOwnerSpace' }],
+            });
+          } else if (targetPath === 'MonthlyRentalOwnerSpace') {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'MonthlyRentalOwnerSpace' }],
             });
           } else if (targetPath === 'BecomeHost') {
             // Si la destination est BecomeHost, naviguer directement sans reset

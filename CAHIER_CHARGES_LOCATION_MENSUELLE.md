@@ -812,3 +812,4 @@ Ce cahier des charges définit un système complet de location mensuelle avec :
 **Version** : 1.0  
 **Auteur** : Équipe AkwaHome
 
+

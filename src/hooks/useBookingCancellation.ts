@@ -33,6 +33,7 @@ export const useBookingCancellation = () => {
       let isInProgress = false;
       let remainingNights = 0;
       let remainingNightsAmount = 0;
+      let totalNights = 0;
 
       const checkIn = new Date(checkInDate);
       const checkOut = checkOutDate ? new Date(checkOutDate) : null;
@@ -43,63 +44,129 @@ export const useBookingCancellation = () => {
         checkOut.setHours(0, 0, 0, 0);
       }
 
+      if (checkOut) {
+        totalNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+      }
+      const baseAmount = totalNights * pricePerNight;
+      const feesAndTaxes = Math.max(0, totalPrice - baseAmount);
+
       // Vérifier si la réservation est en cours
       if (checkOut && checkIn <= today && today <= checkOut) {
         isInProgress = true;
-        // Calculer les nuitées restantes
-        const totalNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
         const nightsElapsed = Math.max(0, Math.ceil((today.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
         remainingNights = Math.max(0, totalNights - nightsElapsed);
         remainingNightsAmount = remainingNights * pricePerNight;
-        
         canCancel = true;
-        // Pour les réservations en cours, on rembourse 50% des nuitées restantes
-        refundPercentage = remainingNights > 0 ? 50 : 0;
+        refundPercentage = remainingNights > 0 ? 50 : 0; // utilisé pour affichage uniquement si calcul manuel
       } else if (isPending) {
-        // Réservations pending : 100% remboursement
         canCancel = true;
         refundPercentage = 100;
       } else {
-        // Pour les réservations confirmées, appliquer la politique d'annulation
         const daysUntilCheckIn = Math.ceil((checkIn.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-        // Toutes les politiques permettent l'annulation, mais avec des remboursements différents
+        const hoursUntilCheckIn = (checkIn.getTime() - today.getTime()) / (1000 * 60 * 60);
         canCancel = true;
         switch (policy) {
           case 'flexible':
-            // 100% remboursés au moins 1 jour avant, 50% moins de 1 jour avant
-            refundPercentage = daysUntilCheckIn >= 1 ? 100 : 50;
+            refundPercentage = hoursUntilCheckIn >= 24 ? 100 : 50;
             break;
           case 'moderate':
-            // 100% remboursés au moins 5 jours avant, 50% moins de 5 jours avant
             refundPercentage = daysUntilCheckIn >= 5 ? 100 : 50;
             break;
           case 'strict':
-            // 100% remboursés au moins 7 jours avant, 50% moins de 7 jours avant
-            refundPercentage = daysUntilCheckIn >= 7 ? 100 : 50;
+            refundPercentage = daysUntilCheckIn >= 28 ? 100 : daysUntilCheckIn >= 7 ? 50 : 0;
             break;
           case 'non_refundable':
             canCancel = false;
             refundPercentage = 0;
             break;
           default:
-            // Par défaut, politique flexible
-            refundPercentage = daysUntilCheckIn >= 1 ? 100 : 50;
+            refundPercentage = hoursUntilCheckIn >= 24 ? 100 : 50;
         }
       }
 
-      // Calculer les montants
+      // Calcul des montants selon les nouvelles règles (8.1, 8.2, 8.3)
       let refundAmount = 0;
       let penaltyAmount = 0;
 
-      if (isInProgress && remainingNightsAmount !== undefined) {
-        // Pour les réservations en cours, rembourser 50% des nuitées restantes
-        refundAmount = Math.round(remainingNightsAmount * 0.50);
-        penaltyAmount = totalPrice - refundAmount;
+      if (isPending) {
+        refundAmount = totalPrice;
+        penaltyAmount = 0;
+      } else if (isInProgress) {
+        if (remainingNights <= 0) {
+          refundAmount = 0;
+          penaltyAmount = totalPrice;
+        } else {
+          const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+          switch (policy) {
+            case 'flexible':
+              refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+              break;
+            case 'moderate':
+              refundAmount = Math.round(0.5 * remainingNightsAmount + taxesProRata);
+              break;
+            case 'strict':
+              refundAmount = Math.round(taxesProRata);
+              break;
+            default:
+              refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+          }
+          penaltyAmount = Math.max(0, totalPrice - refundAmount);
+        }
       } else {
-        // Pour les autres cas, calculer selon le pourcentage
-        refundAmount = Math.round((totalPrice * refundPercentage) / 100);
-        penaltyAmount = totalPrice - refundAmount;
+        // Avant le début
+        const daysUntilCheckIn = Math.ceil((checkIn.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const hoursUntilCheckIn = (checkIn.getTime() - today.getTime()) / (1000 * 60 * 60);
+        remainingNights = totalNights;
+        remainingNightsAmount = baseAmount;
+
+        switch (policy) {
+          case 'flexible':
+            if (hoursUntilCheckIn >= 24) {
+              refundAmount = totalPrice;
+              penaltyAmount = 0;
+            } else {
+              const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+              refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+              penaltyAmount = Math.max(0, totalPrice - refundAmount);
+            }
+            break;
+          case 'moderate':
+            if (daysUntilCheckIn >= 5) {
+              refundAmount = totalPrice;
+              penaltyAmount = 0;
+            } else {
+              const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+              refundAmount = Math.round(0.5 * remainingNightsAmount + taxesProRata);
+              penaltyAmount = Math.max(0, totalPrice - refundAmount);
+            }
+            break;
+          case 'strict':
+            if (daysUntilCheckIn >= 28) {
+              refundAmount = totalPrice;
+              penaltyAmount = 0;
+            } else if (daysUntilCheckIn >= 7) {
+              refundAmount = Math.round(0.5 * totalPrice);
+              penaltyAmount = totalPrice - refundAmount;
+            } else {
+              const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+              refundAmount = Math.round(taxesProRata);
+              penaltyAmount = Math.max(0, totalPrice - refundAmount);
+            }
+            break;
+          case 'non_refundable':
+            refundAmount = 0;
+            penaltyAmount = totalPrice;
+            break;
+          default:
+            if (hoursUntilCheckIn >= 24) {
+              refundAmount = totalPrice;
+              penaltyAmount = 0;
+            } else {
+              const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+              refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+              penaltyAmount = Math.max(0, totalPrice - refundAmount);
+            }
+        }
       }
 
       return {

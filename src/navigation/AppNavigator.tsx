@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
-import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS } from '../constants/colors';
+import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -47,6 +47,14 @@ import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
 import AdminReviewsScreen from '../screens/AdminReviewsScreen';
 import AdminVehiclesScreen from '../screens/AdminVehiclesScreen';
 import HostStatsScreen from '../screens/HostStatsScreen';
+import HostSubscriptionScreen from '../screens/HostSubscriptionScreen';
+import MyMonthlyRentalListingsScreen from '../screens/MyMonthlyRentalListingsScreen';
+import AddMonthlyRentalListingScreen from '../screens/AddMonthlyRentalListingScreen';
+import EditMonthlyRentalListingScreen from '../screens/EditMonthlyRentalListingScreen';
+import MonthlyRentalCandidaturesScreen from '../screens/MonthlyRentalCandidaturesScreen';
+import MonthlyRentalOwnerCandidaturesScreen from '../screens/MonthlyRentalOwnerCandidaturesScreen';
+import MonthlyRentalStatsScreen from '../screens/MonthlyRentalStatsScreen';
+import MonthlyRentalListingDetailScreen from '../screens/MonthlyRentalListingDetailScreen';
 import HostReferralScreen from '../screens/HostReferralScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsScreen from '../screens/TermsScreen';
@@ -76,12 +84,13 @@ import AdminRefundsScreen from '../screens/AdminRefundsScreen';
 import AdminRevenueScreen from '../screens/AdminRevenueScreen';
 import AdminPayoutsScreen from '../screens/AdminPayoutsScreen';
 import AdminBookingCalculationTestScreen from '../screens/AdminBookingCalculationTestScreen';
+import AdminMonthlyRentalScreen from '../screens/AdminMonthlyRentalScreen';
 import HostReviewsScreen from '../screens/HostReviewsScreen';
 import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
 import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
 
 // Types
-import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList } from '../types';
+import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList } from '../types';
 import HostAccountScreen from '../screens/HostAccountScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -89,6 +98,7 @@ const Tab = createBottomTabNavigator<TabParamList>();
 const HostTab = createBottomTabNavigator<HostTabParamList>();
 const VehicleTab = createBottomTabNavigator<VehicleTabParamList>();
 const VehicleOwnerTab = createBottomTabNavigator<VehicleOwnerTabParamList>();
+const MonthlyRentalTab = createBottomTabNavigator<MonthlyRentalTabParamList>();
 
 // Tab Navigator
 const TabNavigator = () => {
@@ -325,6 +335,63 @@ const VehicleTabNavigator = () => {
   );
 };
 
+// Mode Logement longue durée (propriétaire : logements, candidatures, messages, stats, compte)
+const MonthlyRentalOwnerTabNavigator = () => {
+  return (
+    <MonthlyRentalTab.Navigator
+      initialRouteName="MonthlyRentalListingsTab"
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+          if (route.name === 'MonthlyRentalListingsTab') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'MonthlyRentalCandidaturesTab') {
+            iconName = focused ? 'people' : 'people-outline';
+          } else if (route.name === 'MonthlyRentalMessagesTab') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          } else if (route.name === 'MonthlyRentalStatsTab') {
+            iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+          } else if (route.name === 'MonthlyRentalProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else {
+            iconName = 'home-outline';
+          }
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: MONTHLY_RENTAL_COLORS.primary,
+        tabBarInactiveTintColor: 'gray',
+        headerShown: false,
+      })}
+    >
+      <MonthlyRentalTab.Screen
+        name="MonthlyRentalListingsTab"
+        component={MyMonthlyRentalListingsScreen}
+        options={{ tabBarLabel: 'Mes logements' }}
+      />
+      <MonthlyRentalTab.Screen
+        name="MonthlyRentalCandidaturesTab"
+        component={MonthlyRentalOwnerCandidaturesScreen}
+        options={{ tabBarLabel: 'Candidatures' }}
+      />
+      <MonthlyRentalTab.Screen
+        name="MonthlyRentalMessagesTab"
+        component={MessagingScreen}
+        options={{ tabBarLabel: 'Messages' }}
+      />
+      <MonthlyRentalTab.Screen
+        name="MonthlyRentalStatsTab"
+        component={MonthlyRentalStatsScreen}
+        options={{ tabBarLabel: 'Statistiques' }}
+      />
+      <MonthlyRentalTab.Screen
+        name="MonthlyRentalProfileTab"
+        component={ProfileScreen}
+        options={{ tabBarLabel: 'Mon compte' }}
+      />
+    </MonthlyRentalTab.Navigator>
+  );
+};
+
 // Main Stack Navigator
 const AppNavigator = () => {
   const navigationRef = useNavigationContainerRef();
@@ -398,6 +465,22 @@ const AppNavigator = () => {
                     // L'utilisateur n'a pas de véhicules, réinitialiser le mode préféré
                     await AsyncStorage.setItem('preferredMode', 'traveler');
                   }
+                } else if (preferredMode === 'monthly_rental') {
+                  const { data: listings } = await supabase
+                    .from('monthly_rental_listings')
+                    .select('id')
+                    .eq('owner_id', user.id)
+                    .limit(1);
+                  if (listings && listings.length > 0) {
+                    navigationRef.dispatch(
+                      CommonActions.reset({
+                        index: 0,
+                        routes: [{ name: 'MonthlyRentalOwnerSpace' }],
+                      })
+                    );
+                  } else {
+                    await AsyncStorage.setItem('preferredMode', 'traveler');
+                  }
                 }
               } catch (error) {
                 console.error('Error checking preferred mode:', error);
@@ -449,6 +532,11 @@ const AppNavigator = () => {
           options={{ headerShown: false }}
         />
         <Stack.Screen 
+          name="MonthlyRentalOwnerSpace" 
+          component={MonthlyRentalOwnerTabNavigator}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
           name="Auth" 
           component={AuthScreen}
           options={{ 
@@ -479,6 +567,11 @@ const AppNavigator = () => {
             title: 'Détails de la propriété',
             headerBackTitle: 'Retour'
           }}
+        />
+        <Stack.Screen
+          name="MonthlyRentalListingDetail"
+          component={MonthlyRentalListingDetailScreen}
+          options={{ title: 'Logement longue durée', headerShown: false }}
         />
         <Stack.Screen 
           name="Booking" 
@@ -583,6 +676,34 @@ const AppNavigator = () => {
                 title: 'Statistiques détaillées',
                 headerShown: false 
               }}
+            />
+            <Stack.Screen 
+              name="HostSubscription" 
+              component={HostSubscriptionScreen}
+              options={{ 
+                title: 'Abonnement location mensuelle',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="MyMonthlyRentalListings" 
+              component={MyMonthlyRentalListingsScreen}
+              options={{ title: 'Mes logements longue durée', headerShown: false }}
+            />
+            <Stack.Screen 
+              name="AddMonthlyRentalListing" 
+              component={AddMonthlyRentalListingScreen}
+              options={{ title: 'Ajouter un logement', headerShown: false }}
+            />
+            <Stack.Screen 
+              name="EditMonthlyRentalListing" 
+              component={EditMonthlyRentalListingScreen}
+              options={{ title: 'Modifier le logement', headerShown: false }}
+            />
+            <Stack.Screen 
+              name="MonthlyRentalCandidatures" 
+              component={MonthlyRentalCandidaturesScreen}
+              options={{ title: 'Candidatures', headerShown: false }}
             />
             <Stack.Screen 
               name="MyProperties" 
@@ -768,6 +889,14 @@ const AppNavigator = () => {
               component={AdminBookingCalculationTestScreen}
               options={{
                 title: 'Test des Calculs',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminMonthlyRental"
+              component={AdminMonthlyRentalScreen}
+              options={{
+                title: 'Locations mensuelles',
                 headerShown: false
               }}
             />

@@ -403,3 +403,4 @@ async function getCalculationDetails(bookingId: string, bookingType: 'property' 
 
 
 
+

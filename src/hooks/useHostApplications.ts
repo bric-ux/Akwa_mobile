@@ -12,6 +12,15 @@ export interface HostApplicationData {
   title: string;
   description: string;
   pricePerNight: number;
+  /** Location mensuelle (longue durée) : loyer au mois au lieu du prix à la nuitée */
+  isMonthlyRental?: boolean;
+  monthlyRentPrice?: number;
+  securityDeposit?: number;
+  minimumDurationMonths?: number;
+  chargesIncluded?: boolean;
+  surfaceM2?: number;
+  numberOfRooms?: number;
+  isFurnished?: boolean;
   fullName: string;
   email: string;
   phone: string;
@@ -73,6 +82,14 @@ export interface HostApplication {
   free_cleaning_min_days?: number;
   taxes?: number;
   fields_to_revise?: Record<string, boolean>;
+  is_monthly_rental?: boolean;
+  monthly_rent_price?: number | null;
+  security_deposit?: number | null;
+  minimum_duration_months?: number | null;
+  charges_included?: boolean;
+  surface_m2?: number | null;
+  number_of_rooms?: number | null;
+  is_furnished?: boolean;
 }
 
 export const useHostApplications = () => {
@@ -106,16 +123,19 @@ export const useHostApplications = () => {
         phone: applicationData.phone,
       });
 
-      // Vérifier que tous les champs requis sont présents
-      if (!applicationData.propertyType || !applicationData.location || !applicationData.title || 
-          !applicationData.description || !applicationData.pricePerNight || !applicationData.fullName ||
+      const isMonthly = !!applicationData.isMonthlyRental;
+      const hasPrice = isMonthly
+        ? (applicationData.monthlyRentPrice != null && applicationData.monthlyRentPrice >= 10000)
+        : (applicationData.pricePerNight != null && applicationData.pricePerNight >= 1000);
+      if (!applicationData.propertyType || !applicationData.location || !applicationData.title ||
+          !applicationData.description || !hasPrice || !applicationData.fullName ||
           !applicationData.email || !applicationData.phone) {
         const missingFields = [];
         if (!applicationData.propertyType) missingFields.push('Type de propriété');
         if (!applicationData.location) missingFields.push('Localisation');
         if (!applicationData.title) missingFields.push('Titre');
         if (!applicationData.description) missingFields.push('Description');
-        if (!applicationData.pricePerNight) missingFields.push('Prix par nuit');
+        if (!hasPrice) missingFields.push(isMonthly ? 'Loyer mensuel (min. 10 000 FCFA)' : 'Prix par nuit (min. 1 000 FCFA)');
         if (!applicationData.fullName) missingFields.push('Nom complet');
         if (!applicationData.email) missingFields.push('Email');
         if (!applicationData.phone) missingFields.push('Téléphone');
@@ -138,7 +158,15 @@ export const useHostApplications = () => {
           bathrooms: applicationData.bathrooms,
           title: applicationData.title.trim(),
           description: applicationData.description.trim(),
-          price_per_night: applicationData.pricePerNight,
+          price_per_night: applicationData.pricePerNight ?? 0,
+          is_monthly_rental: applicationData.isMonthlyRental ?? false,
+          monthly_rent_price: applicationData.monthlyRentPrice ?? null,
+          security_deposit: applicationData.securityDeposit ?? null,
+          minimum_duration_months: applicationData.minimumDurationMonths ?? null,
+          charges_included: applicationData.chargesIncluded ?? false,
+          surface_m2: applicationData.surfaceM2 ?? null,
+          number_of_rooms: applicationData.numberOfRooms ?? null,
+          is_furnished: applicationData.isFurnished ?? false,
           full_name: applicationData.fullName.trim(),
           email: applicationData.email.trim(),
           phone: applicationData.phone.trim(),
@@ -305,7 +333,9 @@ export const useHostApplications = () => {
         if (oldApplication.title !== applicationData.title) changes.push(`Titre: "${oldApplication.title}" → "${applicationData.title}"`);
         if (oldApplication.property_type !== applicationData.propertyType) changes.push(`Type: "${oldApplication.property_type}" → "${applicationData.propertyType}"`);
         if (oldApplication.location !== applicationData.location) changes.push(`Localisation: "${oldApplication.location}" → "${applicationData.location}"`);
-        if (oldApplication.price_per_night !== applicationData.pricePerNight) changes.push(`Prix: ${oldApplication.price_per_night} → ${applicationData.pricePerNight} FCFA`);
+        if (applicationData.pricePerNight != null && oldApplication.price_per_night !== applicationData.pricePerNight) changes.push(`Prix: ${oldApplication.price_per_night} → ${applicationData.pricePerNight} FCFA`);
+        if (applicationData.isMonthlyRental != null && oldApplication.is_monthly_rental !== applicationData.isMonthlyRental) changes.push(`Type: ${oldApplication.is_monthly_rental ? 'Mensuel' : 'Court séjour'} → ${applicationData.isMonthlyRental ? 'Mensuel' : 'Court séjour'}`);
+        if (applicationData.monthlyRentPrice != null && oldApplication.monthly_rent_price !== applicationData.monthlyRentPrice) changes.push(`Loyer mensuel: ${oldApplication.monthly_rent_price ?? '-'} → ${applicationData.monthlyRentPrice} FCFA`);
         if (oldApplication.max_guests !== applicationData.maxGuests) changes.push(`Capacité: ${oldApplication.max_guests} → ${applicationData.maxGuests}`);
         if (oldApplication.bedrooms !== applicationData.bedrooms) changes.push(`Chambres: ${oldApplication.bedrooms} → ${applicationData.bedrooms}`);
         if (oldApplication.bathrooms !== applicationData.bathrooms) changes.push(`Salles de bain: ${oldApplication.bathrooms} → ${applicationData.bathrooms}`);
@@ -325,7 +355,17 @@ export const useHostApplications = () => {
           bathrooms: applicationData.bathrooms,
           title: applicationData.title,
           description: applicationData.description,
-          price_per_night: applicationData.pricePerNight,
+          price_per_night: applicationData.pricePerNight ?? 0,
+          ...(applicationData.isMonthlyRental != null && {
+            is_monthly_rental: applicationData.isMonthlyRental,
+            monthly_rent_price: applicationData.monthlyRentPrice ?? null,
+            security_deposit: applicationData.securityDeposit ?? null,
+            minimum_duration_months: applicationData.minimumDurationMonths ?? null,
+            charges_included: applicationData.chargesIncluded ?? false,
+            surface_m2: applicationData.surfaceM2 ?? null,
+            number_of_rooms: applicationData.numberOfRooms ?? null,
+            is_furnished: applicationData.isFurnished ?? false,
+          }),
           full_name: applicationData.fullName,
           email: applicationData.email,
           phone: applicationData.phone,

@@ -549,3 +549,4 @@ Le filtrage avec `useMemo` évite de recalculer à chaque render. C'est importan
 **Document créé le** : 2025-02-08  
 **Version** : 1.0
 
+

@@ -168,6 +168,18 @@ const HostAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('BecomeHost' as never),
     },
     {
+      id: 'subscription',
+      title: 'Abonnement location mensuelle',
+      icon: 'calendar-outline',
+      onPress: () => navigation.navigate('HostSubscription' as never),
+    },
+    {
+      id: 'monthlyListings',
+      title: 'Mes logements longue durée',
+      icon: 'business-outline',
+      onPress: () => navigation.navigate('MyMonthlyRentalListings' as never),
+    },
+    {
       id: 'conciergerie',
       title: 'Conciergerie',
       icon: 'sparkles-outline',

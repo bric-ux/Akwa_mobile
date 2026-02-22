@@ -12,13 +12,30 @@ L'application AkwaHome applique des règles de pénalité et de remboursement di
 
 ## 🏠 RÉSERVATIONS DE PROPRIÉTÉS MEUBLÉES
 
-### 📌 **Politiques d'annulation disponibles**
+### 📌 **Politiques d'annulation disponibles (Conditions 8.1, 8.2, 8.3)**
 
 Les propriétés peuvent avoir différentes politiques d'annulation :
-- **`flexible`** : Annulation gratuite jusqu'à 24h avant l'arrivée. Remboursement intégral.
-- **`moderate`** : Annulation gratuite jusqu'à 5 jours avant l'arrivée. Après, 50% de pénalité.
-- **`strict`** : Annulation gratuite jusqu'à 7 jours avant l'arrivée. Après, 50% de pénalité.
-- **`non_refundable`** : Aucun remboursement en cas d'annulation.
+
+**8.1 Conditions flexibles (`flexible`)**  
+- Remboursement intégral au voyageur si annulation **≥ 24h** avant l'arrivée.  
+- Si annulation **< 24h** : remboursement partiel  
+  - Taxes au prorata au voyageur  
+  - Remboursement **80%** des nuitées non consommées  
+  - Hôte reçoit : total des nuits effectuées + **20%** des nuits restantes  
+
+**8.2 Conditions modérées (`moderate`)**  
+- Remboursement intégral si annulation **≥ 5 jours** avant l'arrivée.  
+- Si annulation **< 5 jours** : remboursement partiel  
+  - Taxes au prorata  
+  - Remboursement **50%** des nuitées non consommées  
+  - Hôte reçoit : total des nuits effectuées + **50%** des nuits restantes  
+
+**8.3 Conditions strictes (`strict`)**  
+- Remboursement intégral si annulation **≥ 28 jours** avant l'arrivée.  
+- **Entre 7 et 28 jours** : voyageur remboursé **50%** ; hôte reçoit 50% du total des nuits réservées.  
+- **< 7 jours** : hôte reçoit **100%** des nuits réservées ; taxes remboursées au prorata au voyageur.  
+
+**`non_refundable`** : Aucun remboursement en cas d'annulation.
 
 ### 👤 **ANNULATION PAR LE VOYAGEUR (Locataire)**
 
@@ -29,23 +46,25 @@ Les propriétés peuvent avoir différentes politiques d'annulation :
 #### **Réservation confirmée (avant le début)**
 
 **Politique `flexible`** :
-- **≥ 1 jour avant** : 100% remboursé (0% pénalité)
-- **< 1 jour avant** : 50% remboursé (50% pénalité)
+- **≥ 24h avant** : 100% remboursé (taxes incluses)
+- **< 24h avant** : taxes au prorata + 80% des nuitées non consommées
 
 **Politique `moderate`** :
-- **≥ 5 jours avant** : 100% remboursé (0% pénalité)
-- **< 5 jours avant** : 50% remboursé (50% pénalité)
+- **≥ 5 jours avant** : 100% remboursé
+- **< 5 jours avant** : taxes au prorata + 50% des nuitées non consommées
 
 **Politique `strict`** :
-- **≥ 7 jours avant** : 100% remboursé (0% pénalité)
-- **< 7 jours avant** : 50% remboursé (50% pénalité)
+- **≥ 28 jours avant** : 100% remboursé
+- **Entre 7 et 28 jours** : 50% du total remboursé
+- **< 7 jours** : uniquement taxes au prorata
 
 **Politique `non_refundable`** :
 - ❌ **Annulation impossible** : Aucun remboursement
 
 #### **Réservation en cours (`in_progress`)**
-- **Remboursement** : 50% des nuitées restantes
-- **Pénalité** : 50% des nuitées restantes
+- **Flexible** : taxes au prorata + 80% des nuitées restantes
+- **Moderate** : taxes au prorata + 50% des nuitées restantes
+- **Strict** : uniquement taxes au prorata
 
 ---
 
@@ -73,9 +92,9 @@ Les propriétés peuvent avoir différentes politiques d'annulation :
 
 **Important** : Quand l'hôte annule, le voyageur est **toujours remboursé à 100%**, mais l'hôte doit payer une pénalité selon le délai.
 
-#### **Réservation en cours (`in_progress`)**
-- ⚠️ **Pénalité hôte** : 50% sur les jours restants
-- ✅ **Remboursement voyageur** : 100% des nuitées restantes
+#### **Réservation en cours ou problème sérieux (`in_progress`)**
+- Akwahome applique une **pénalité de 40%** sur les nuitées non consommées (à verser à Akwahome).
+- ✅ **Remboursement voyageur** : 100% des nuitées non consommées (intégral).
 
 ---
 
@@ -156,13 +175,13 @@ Les propriétés peuvent avoir différentes politiques d'annulation :
 
 ### **Propriétés - Annulation par le voyageur**
 
-| Délai avant arrivée | Politique Flexible | Politique Moderate | Politique Strict | Non Refundable |
-|---------------------|-------------------|-------------------|------------------|----------------|
-| ≥ 7 jours | 100% remboursé | 100% remboursé | 100% remboursé | ❌ Impossible |
-| ≥ 5 jours | 100% remboursé | 100% remboursé | 100% remboursé | ❌ Impossible |
-| ≥ 1 jour | 100% remboursé | 50% remboursé | 50% remboursé | ❌ Impossible |
-| < 1 jour | 50% remboursé | 50% remboursé | 50% remboursé | ❌ Impossible |
-| En cours | 50% nuits restantes | 50% nuits restantes | 50% nuits restantes | ❌ Impossible |
+| Délai / situation | Flexible | Moderate | Strict | Non Refundable |
+|--------------------|----------|----------|--------|----------------|
+| ≥ 28 jours | 100% | 100% | 100% | ❌ |
+| ≥ 5 jours | 100% | 100% | 50% | ❌ |
+| ≥ 24h / 7-28j | 100% | — | 50% | ❌ |
+| < 24h / < 5j / < 7j | taxes prorata + 80% nuits rest. | taxes prorata + 50% nuits rest. | taxes prorata seules | ❌ |
+| En cours | taxes prorata + 80% nuits rest. | taxes prorata + 50% nuits rest. | taxes prorata seules | ❌ |
 
 ### **Propriétés - Annulation par l'hôte**
 
@@ -171,7 +190,7 @@ Les propriétés peuvent avoir différentes politiques d'annulation :
 | > 28 jours | 0% | 100% |
 | 28 jours - 48h | 20% | 100% |
 | ≤ 48h | 40% | 100% |
-| En cours | 50% jours restants | 100% jours restants |
+| En cours (séjour) | 40% sur nuits non consommées | 100% |
 
 ### **Véhicules - Annulation par le locataire**
 
@@ -199,11 +218,13 @@ Les propriétés peuvent avoir différentes politiques d'annulation :
 
 ### **Propriétés**
 
-**Montant de base** = `prix_par_nuit × nombre_de_nuits`
+**Montant de base** = `prix_par_nuit × nombre_de_nuits`  
+**Frais et taxes** = `montant_total_payé - montant_de_base` (utilisé pour le prorata)
 
-**Pénalité** = `montant_de_base × pourcentage_pénalité`
-
-**Remboursement** = `montant_total_payé - pénalité` (ou 100% si hôte annule)
+- **Flexible < 24h / Moderate < 5j** : Remboursement = `(80% ou 50%) × nuitées_restantes × prix_par_nuit` + taxes au prorata.
+- **Strict 7-28j** : Remboursement = 50% du montant total.
+- **Strict < 7j** : Remboursement = taxes au prorata uniquement.
+- **Hôte annule** : Remboursement voyageur = 100% ; pénalité hôte selon délai (0% / 20% / 40% ou 40% sur nuits restantes si en cours).
 
 ### **Véhicules**
 
@@ -227,9 +248,9 @@ Les propriétés peuvent avoir différentes politiques d'annulation :
 
 ## 🔍 FICHIERS DE RÉFÉRENCE
 
-- **Propriétés - Locataire** : `useBookingCancellation.ts` (ligne 19-119)
-- **Propriétés - Hôte** : `useHostBookings.ts` (ligne 528-586), `HostCancellationDialog.tsx` (ligne 60-85)
-- **Véhicules - Locataire** : `VehicleCancellationModal.tsx` (ligne 63-200)
-- **Véhicules - Propriétaire** : `VehicleCancellationModal.tsx` (ligne 139-168)
-- **Affichage politique** : `InvoiceDisplay.tsx` (ligne 149-168)
+- **Propriétés - Locataire** : `useBookingCancellation.ts`, `useBookings.ts` (cancelBooking), `CancellationDialog.tsx`
+- **Propriétés - Hôte** : `useHostBookings.ts` (cancelBooking), `HostCancellationDialog.tsx`
+- **Véhicules - Locataire** : `VehicleCancellationModal.tsx`
+- **Véhicules - Propriétaire** : `VehicleCancellationModal.tsx`
+- **Affichage politique** : `CancellationDialog.tsx` (getPolicyDescription), `InvoiceDisplay.tsx`
 

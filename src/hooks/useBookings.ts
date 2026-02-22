@@ -883,29 +883,76 @@ export const useBookings = () => {
         return { success: false, error: 'Impossible d\'annuler une réservation dont les dates sont passées' };
       }
 
-      // Calculer les informations d'annulation
+      // Calculer les informations d'annulation (mêmes règles que useBookingCancellation : 8.1, 8.2, 8.3)
       const checkInDate = new Date(fullBooking.check_in_date);
+      checkInDate.setHours(0, 0, 0, 0);
       const now = new Date();
-      const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      now.setHours(0, 0, 0, 0);
       const totalNights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
-      
+      const baseAmount = fullBooking.properties.price_per_night * totalNights;
+      const feesAndTaxes = Math.max(0, fullBooking.total_price - baseAmount);
+      const policy = fullBooking.properties.cancellation_policy || 'flexible';
+      const isPending = fullBooking.status === 'pending';
+      const isInProgress = checkInDate <= now && now <= checkOutDate;
+      const nightsElapsed = isInProgress ? Math.max(0, Math.ceil((now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+      const remainingNights = isInProgress ? Math.max(0, totalNights - nightsElapsed) : totalNights;
+      const remainingNightsAmount = remainingNights * fullBooking.properties.price_per_night;
+
+      let refundAmount = 0;
       let penaltyAmount = 0;
-      const cancellationPolicy = fullBooking.properties.cancellation_policy || 'flexible';
-      
-      if (cancellationPolicy === 'strict') {
-        if (daysUntilCheckIn < 7) {
-          penaltyAmount = Math.round(fullBooking.properties.price_per_night * totalNights * 0.5);
+
+      if (isPending) {
+        refundAmount = fullBooking.total_price;
+      } else if (isInProgress) {
+        if (remainingNights <= 0) {
+          refundAmount = 0;
+          penaltyAmount = fullBooking.total_price;
+        } else {
+          const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+          if (policy === 'flexible') refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+          else if (policy === 'moderate') refundAmount = Math.round(0.5 * remainingNightsAmount + taxesProRata);
+          else if (policy === 'strict') refundAmount = Math.round(taxesProRata);
+          else refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+          penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
         }
-      } else if (cancellationPolicy === 'moderate') {
-        if (daysUntilCheckIn < 5) {
-          penaltyAmount = Math.round(fullBooking.properties.price_per_night * totalNights * 0.5);
-        } else if (daysUntilCheckIn < 14) {
-          penaltyAmount = Math.round(fullBooking.properties.price_per_night * totalNights * 0.25);
+      } else {
+        const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const hoursUntilCheckIn = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+        if (policy === 'flexible') {
+          if (hoursUntilCheckIn >= 24) refundAmount = fullBooking.total_price;
+          else {
+            const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+            refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+            penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
+          }
+        } else if (policy === 'moderate') {
+          if (daysUntilCheckIn >= 5) refundAmount = fullBooking.total_price;
+          else {
+            const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+            refundAmount = Math.round(0.5 * remainingNightsAmount + taxesProRata);
+            penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
+          }
+        } else if (policy === 'strict') {
+          if (daysUntilCheckIn >= 28) refundAmount = fullBooking.total_price;
+          else if (daysUntilCheckIn >= 7) {
+            refundAmount = Math.round(0.5 * fullBooking.total_price);
+            penaltyAmount = fullBooking.total_price - refundAmount;
+          } else {
+            const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+            refundAmount = Math.round(taxesProRata);
+            penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
+          }
+        } else if (policy === 'non_refundable') {
+          penaltyAmount = fullBooking.total_price;
+        } else {
+          if (hoursUntilCheckIn >= 24) refundAmount = fullBooking.total_price;
+          else {
+            const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+            refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+            penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
+          }
         }
       }
-      // 'flexible' = pas de pénalité
-
-      const refundAmount = fullBooking.total_price - penaltyAmount;
 
       // Procéder à l'annulation
       const { error } = await supabase

@@ -31,6 +31,16 @@ export const VEHICLE_COLORS = {
   badgeText: '#2563eb',
 };
 
+// Mode Logement longue durée (propriétaire)
+export const MONTHLY_RENTAL_COLORS = {
+  primary: '#0d9488', // Teal-600
+  secondary: '#14b8a6', // Teal-500
+  light: '#ccfbf1',
+  dark: '#0f766e',
+  badge: '#ccfbf1',
+  badgeText: '#0d9488',
+};
+
 // Couleurs communes
 export const COMMON_COLORS = {
   white: '#ffffff',

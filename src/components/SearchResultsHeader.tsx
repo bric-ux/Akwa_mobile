@@ -22,6 +22,7 @@ interface SearchResultsHeaderProps {
   currentSort: string;
   onViewToggle: () => void;
   isGridView: boolean;
+  showViewToggle?: boolean;
 }
 
 export const SearchResultsHeader: React.FC<SearchResultsHeaderProps> = ({
@@ -30,6 +31,7 @@ export const SearchResultsHeader: React.FC<SearchResultsHeaderProps> = ({
   currentSort,
   onViewToggle,
   isGridView,
+  showViewToggle = true,
 }) => {
   const [showSortModal, setShowSortModal] = useState(false);
 
@@ -71,7 +73,22 @@ export const SearchResultsHeader: React.FC<SearchResultsHeaderProps> = ({
             <Text style={styles.sortText}>{getSortLabel(currentSort)}</Text>
             <Ionicons name="chevron-down" size={14} color="#666" />
           </TouchableOpacity>
-          
+
+          {showViewToggle && (
+            <TouchableOpacity
+              style={styles.viewToggleButton}
+              onPress={onViewToggle}
+            >
+              <Ionicons
+                name={isGridView ? 'list-outline' : 'map-outline'}
+                size={18}
+                color="#2E7D32"
+              />
+              <Text style={styles.viewToggleText}>
+                {isGridView ? 'Liste' : 'Carte'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -158,6 +175,22 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#e9ecef',
+  },
+  viewToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f0f8f0',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d8ecd8',
+  },
+  viewToggleText: {
+    fontSize: 14,
+    color: '#2E7D32',
+    marginLeft: 6,
+    fontWeight: '600',
   },
   sortText: {
     fontSize: 14,

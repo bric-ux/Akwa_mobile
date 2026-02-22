@@ -149,15 +149,15 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
   const getPolicyDescription = (policy: string | null) => {
     switch (policy) {
       case 'flexible':
-        return '100% remboursés au moins 1 jour avant l\'arrivée. Remboursement partiel (50%) moins de 1 jour avant.';
+        return 'Remboursement intégral si annulation ≥ 24h avant l\'arrivée. Si < 24h : taxes au prorata + 80% des nuitées non consommées.';
       case 'moderate':
-        return '100% remboursés au moins 5 jours avant l\'arrivée. Remboursement partiel (50%) moins de 5 jours avant.';
+        return 'Remboursement intégral si annulation ≥ 5 jours avant. Si < 5 jours : taxes au prorata + 50% des nuitées non consommées.';
       case 'strict':
-        return '100% remboursés au moins 7 jours avant l\'arrivée. Remboursement partiel (50%) moins de 7 jours avant.';
+        return 'Remboursement intégral si ≥ 28 jours avant. Entre 7 et 28 jours : 50% remboursé. < 7 jours : taxes au prorata uniquement.';
       case 'non_refundable':
         return 'Aucun remboursement en cas d\'annulation';
       default:
-        return '100% remboursés au moins 1 jour avant l\'arrivée. Remboursement partiel (50%) moins de 1 jour avant.';
+        return 'Remboursement intégral si annulation ≥ 24h avant l\'arrivée. Si < 24h : taxes au prorata + 80% des nuitées non consommées.';
     }
   };
 
@@ -232,12 +232,10 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
     );
   }
 
-  const { refundPercentage, isInProgress, remainingNights, remainingNightsAmount, penaltyAmount, refundAmount } = cancellationInfo;
+  const { refundPercentage, isInProgress, remainingNights, penaltyAmount, refundAmount } = cancellationInfo;
   const isPending = booking.status === 'pending';
-  const finalRefundAmount = refundAmount || (isInProgress && remainingNightsAmount !== undefined
-    ? Math.round(remainingNightsAmount * 0.50) // 50% des nuitées restantes
-    : (booking.total_price * refundPercentage) / 100);
-  const finalPenaltyAmount = penaltyAmount || (booking.total_price - finalRefundAmount);
+  const finalRefundAmount = refundAmount ?? 0;
+  const finalPenaltyAmount = penaltyAmount ?? Math.max(0, booking.total_price - finalRefundAmount);
 
   return (
     <Modal
@@ -290,7 +288,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                 <View style={styles.alertContent}>
                   <Text style={styles.alertTitle}>Réservation en cours</Text>
                   <Text style={styles.alertText}>
-                    50% des {remainingNights} nuitée{remainingNights !== 1 ? 's' : ''} restante{remainingNights !== 1 ? 's' : ''} seront remboursées
+                    Remboursement selon la politique "{getPolicyLabel(cancellationPolicy)}" : taxes au prorata + part des nuitées restantes (voir montant ci-dessous).
                   </Text>
                 </View>
               </View>
@@ -300,7 +298,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                 <View style={styles.alertContent}>
                   <Text style={styles.alertTitle}>Pénalité appliquée</Text>
                   <Text style={styles.alertText}>
-                    Remboursement de {refundPercentage}% selon la politique "{getPolicyLabel(cancellationPolicy)}"
+                    Remboursement partiel selon la politique "{getPolicyLabel(cancellationPolicy)}"
                   </Text>
                   <Text style={styles.alertAmount}>
                     Montant de la pénalité : {formatPrice(finalPenaltyAmount)}

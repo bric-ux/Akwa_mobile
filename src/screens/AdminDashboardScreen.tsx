@@ -458,6 +458,14 @@ const AdminDashboardScreen: React.FC = () => {
             onPress={() => navigation.navigate('AdminRefunds' as never)}
             color="#e67e22"
           />
+
+          <QuickAction
+            title="Locations mensuelles"
+            description="Approuver ou refuser les annonces longue durée"
+            icon="calendar-outline"
+            onPress={() => navigation.navigate('AdminMonthlyRental' as never)}
+            color="#3498db"
+          />
         </View>
 
         {/* Section Tests */}

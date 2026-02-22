@@ -18,6 +18,7 @@ interface FiltersModalProps {
   onClose: () => void;
   onApply: (filters: SearchFilters) => void;
   initialFilters?: SearchFilters;
+  lockedRentalType?: 'short_term' | 'monthly';
 }
 
 const FiltersModal: React.FC<FiltersModalProps> = ({
@@ -25,11 +26,15 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   onClose,
   onApply,
   initialFilters = {},
+  lockedRentalType,
 }) => {
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const { amenities, loading: amenitiesLoading } = useAmenities();
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>(initialFilters.sortBy || '');
+  const [rentalType, setRentalType] = useState<'short_term' | 'monthly'>(
+    lockedRentalType ?? (initialFilters.rentalType === 'monthly' ? 'monthly' : 'short_term')
+  );
   const [minPriceInput, setMinPriceInput] = useState<string>(initialFilters.priceMin?.toString() || '');
   const [maxPriceInput, setMaxPriceInput] = useState<string>(initialFilters.priceMax?.toString() || '');
 
@@ -67,13 +72,18 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     if (initialFilters.sortBy) {
       setSortBy(initialFilters.sortBy);
     }
+    if (lockedRentalType) {
+      setRentalType(lockedRentalType);
+    } else if (initialFilters.rentalType !== undefined) {
+      setRentalType(initialFilters.rentalType);
+    }
     if (initialFilters.priceMin !== undefined) {
       setMinPriceInput(initialFilters.priceMin.toString());
     }
     if (initialFilters.priceMax !== undefined) {
       setMaxPriceInput(initialFilters.priceMax.toString());
     }
-  }, [initialFilters]);
+  }, [initialFilters, lockedRentalType]);
 
   const handleApply = () => {
     const priceMin = minPriceInput ? parseInt(minPriceInput) : undefined;
@@ -85,6 +95,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
       priceMax,
       amenities: selectedAmenities.length > 0 ? selectedAmenities : undefined,
       sortBy: sortBy || undefined,
+      rentalType: lockedRentalType ?? rentalType,
     });
     onClose();
   };
@@ -103,6 +114,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     setFilters({});
     setSelectedAmenities([]);
     setSortBy('');
+    setRentalType(lockedRentalType ?? 'short_term');
     setMinPriceInput('');
     setMaxPriceInput('');
   };
@@ -150,6 +162,29 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
         </View>
 
         <ScrollView style={styles.modalContent}>
+          {!lockedRentalType && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="home" size={18} color="#2E7D32" />
+                <Text style={styles.sectionTitle}>Type de logement</Text>
+              </View>
+              <View style={styles.sortContainer}>
+                <TouchableOpacity
+                  style={[styles.sortOption, rentalType === 'short_term' && styles.sortOptionActive]}
+                  onPress={() => setRentalType('short_term')}
+                >
+                  <Text style={[styles.sortOptionText, rentalType === 'short_term' && styles.sortOptionTextActive]}>Résidence meublée</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortOption, rentalType === 'monthly' && styles.sortOptionActive]}
+                  onPress={() => setRentalType('monthly')}
+                >
+                  <Text style={[styles.sortOptionText, rentalType === 'monthly' && styles.sortOptionTextActive]}>Location longue durée</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {/* Tri */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -183,7 +218,9 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="cash" size={18} color="#2E7D32" />
-              <Text style={styles.sectionTitle}>Prix par nuit</Text>
+              <Text style={styles.sectionTitle}>
+                {rentalType === 'monthly' ? 'Loyer mensuel' : 'Prix par nuit'}
+              </Text>
             </View>
             <View style={styles.priceRange}>
               <View style={styles.priceInputContainer}>
@@ -300,32 +337,33 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
           </View>
 
 
-          {/* Recherche par rayon */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recherche par rayon</Text>
-            <Text style={styles.helpText}>
-              Rechercher les logements dans un rayon autour du lieu sélectionné
-            </Text>
-            <View style={styles.radiusInputContainer}>
-              <Text style={styles.radiusLabel}>Rayon (km)</Text>
-              <TextInput
-                style={styles.radiusInput}
-                placeholder="Ex: 5, 10, 20"
-                value={filters.radiusKm?.toString() || ''}
-                onChangeText={(text) => {
-                  const value = text ? parseFloat(text) : undefined;
-                  setFilters({ ...filters, radiusKm: value && value > 0 ? value : undefined });
-                }}
-                keyboardType="numeric"
-                placeholderTextColor="#999"
-              />
-            </View>
-            {filters.radiusKm && filters.radiusKm > 0 && (
-              <Text style={styles.radiusInfo}>
-                Afficher les logements dans un rayon de {filters.radiusKm} km
+          {rentalType !== 'monthly' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recherche par rayon</Text>
+              <Text style={styles.helpText}>
+                Rechercher les logements dans un rayon autour du lieu sélectionné
               </Text>
-            )}
-          </View>
+              <View style={styles.radiusInputContainer}>
+                <Text style={styles.radiusLabel}>Rayon (km)</Text>
+                <TextInput
+                  style={styles.radiusInput}
+                  placeholder="Ex: 5, 10, 20"
+                  value={filters.radiusKm?.toString() || ''}
+                  onChangeText={(text) => {
+                    const value = text ? parseFloat(text) : undefined;
+                    setFilters({ ...filters, radiusKm: value && value > 0 ? value : undefined });
+                  }}
+                  keyboardType="numeric"
+                  placeholderTextColor="#999"
+                />
+              </View>
+              {filters.radiusKm && filters.radiusKm > 0 && (
+                <Text style={styles.radiusInfo}>
+                  Afficher les logements dans un rayon de {filters.radiusKm} km
+                </Text>
+              )}
+            </View>
+          )}
 
           {/* Équipements */}
           <View style={styles.section}>

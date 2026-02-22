@@ -36,7 +36,7 @@ const MessagingScreen: React.FC = () => {
   // Détecter si on est dans le TabNavigator (MessagingTab) ou dans le Stack (Messaging)
   // Si route.name est 'MessagingTab', on est dans le TabNavigator et on ne doit pas afficher le BottomNavigationBar
   // Si route.name est 'Messaging', on est dans le Stack et on doit afficher le BottomNavigationBar
-  const isInTabNavigator = route.name === 'MessagingTab' || route.name === 'HostMessagingTab' || route.name === 'VehicleOwnerMessagingTab' || route.name === 'VehicleMessagingTab';
+  const isInTabNavigator = route.name === 'MessagingTab' || route.name === 'HostMessagingTab' || route.name === 'VehicleOwnerMessagingTab' || route.name === 'VehicleMessagingTab' || route.name === 'MonthlyRentalMessagesTab';
   
   // Récupérer l'ID de conversation et de propriété depuis les paramètres de navigation
   const conversationId = (route.params as any)?.conversationId;

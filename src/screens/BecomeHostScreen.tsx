@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -109,6 +110,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [referrerName, setReferrerName] = useState<string>('');
   const [isReferred, setIsReferred] = useState(false);
   const [isAlreadyHost, setIsAlreadyHost] = useState(false);
+  /** Type d'annonce : résidence meublée (court séjour) ou location mensuelle (longue durée) */
+  const [listingType, setListingType] = useState<'short_term' | 'monthly' | null>(null);
+  /** Après le choix du type, afficher le formulaire par étapes */
+  const [listingTypeConfirmed, setListingTypeConfirmed] = useState(false);
   
   const [formData, setFormData] = useState({
     // Informations sur le logement
@@ -154,7 +159,15 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     longStayDiscountPercentage: '',
     
     // Conditions
-    agreeTerms: false
+    agreeTerms: false,
+    // Location mensuelle (longue durée)
+    monthlyRentPrice: '',
+    securityDeposit: '',
+    minimumDurationMonths: '',
+    chargesIncluded: false,
+    surfaceM2: '',           // Surface habitable (m²)
+    numberOfRooms: '',       // Nombre de pièces (total)
+    isFurnished: false,      // Bien meublé ou non
   });
   
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
@@ -238,9 +251,14 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         line.trim() !== ''
       ).join('\n');
       
+      const locationStr = typeof application.location === 'string'
+        ? application.location
+        : (application.location && typeof application.location === 'object' && 'name' in application.location
+          ? String((application.location as { name?: string }).name ?? '')
+          : '');
       setFormData({
         propertyType: application.property_type || '',
-        location: application.location || '',
+        location: locationStr,
         guests: application.max_guests?.toString() || '',
         bedrooms: application.bedrooms?.toString() || '',
         bathrooms: application.bathrooms?.toString() || '',
@@ -271,8 +289,17 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         longStayDiscountEnabled: application.long_stay_discount_enabled || false,
         longStayDiscountMinNights: application.long_stay_discount_min_nights?.toString() || '',
         longStayDiscountPercentage: application.long_stay_discount_percentage?.toString() || '',
-        agreeTerms: false
+        agreeTerms: false,
+        monthlyRentPrice: (application as any).monthly_rent_price?.toString() || '',
+        securityDeposit: (application as any).security_deposit?.toString() || '',
+        minimumDurationMonths: (application as any).minimum_duration_months?.toString() || '',
+        chargesIncluded: (application as any).charges_included || false,
+        surfaceM2: (application as any).surface_m2?.toString() || '',
+        numberOfRooms: (application as any).number_of_rooms?.toString() || '',
+        isFurnished: (application as any).is_furnished || false,
       });
+      setListingType((application as any).is_monthly_rental ? 'monthly' : 'short_term');
+      setListingTypeConfirmed(true);
       
       // Charger les équipements
         setSelectedAmenities(application.amenities || []);
@@ -682,11 +709,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       console.log('📍 Nom de la localisation:', result.name);
       handleInputChange('location', result.name);
       
-      // Passer automatiquement au champ suivant (nombre d'invités)
+      // Passer au champ suivant (invités en court séjour, surface en location mensuelle)
       setTimeout(() => {
-        if (inputRefs.current['guests']) {
-          inputRefs.current['guests']?.focus();
-        }
+        const nextRef = listingType === 'monthly' ? inputRefs.current['surfaceM2'] : inputRefs.current['guests'];
+        nextRef?.focus();
       }, 300);
     } else {
       console.log('📍 Localisation effacée');
@@ -695,14 +721,21 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   };
 
   const getNextField = (currentField: string): string | undefined => {
-    const fieldOrder = [
+    const shortTermOrder = [
       'propertyType', 'location', 'guests', 'bedrooms', 'bathrooms',
       'title', 'description', 'price', 'addressDetails',
       'hostFullName', 'hostEmail', 'hostPhone', 'hostGuide',
       'cleaningFee', 'taxes', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage', 'longStayDiscountMinNights', 'longStayDiscountPercentage',
       'autoBooking', 'cancellationPolicy'
     ];
-    
+    const monthlyOrder = [
+      'propertyType', 'location', 'surfaceM2', 'numberOfRooms', 'bedrooms', 'bathrooms',
+      'title', 'description', 'monthlyRentPrice', 'securityDeposit', 'minimumDurationMonths', 'addressDetails',
+      'hostFullName', 'hostEmail', 'hostPhone', 'hostGuide',
+      'cleaningFee', 'taxes', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage', 'longStayDiscountMinNights', 'longStayDiscountPercentage',
+      'autoBooking', 'cancellationPolicy'
+    ];
+    const fieldOrder = listingType === 'monthly' ? monthlyOrder : shortTermOrder;
     const currentIndex = fieldOrder.indexOf(currentField);
     return currentIndex < fieldOrder.length - 1 ? fieldOrder[currentIndex + 1] : undefined;
   };
@@ -721,6 +754,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       title: 'Titre',
       description: 'Description',
       price: 'Prix par nuit',
+      monthlyRentPrice: 'Loyer mensuel',
+      surfaceM2: 'Surface habitable',
+      numberOfRooms: 'Nombre de pièces',
       hostFullName: 'Nom complet',
       hostEmail: 'Email',
       hostPhone: 'Téléphone',
@@ -730,11 +766,20 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
 
   const validateStep = (step: number): boolean => {
     switch (step) {
-      case 1:
+      case 1: {
         // Étape 1: Informations sur le logement
-        const step1Fields = ['propertyType', 'location', 'guests', 'bedrooms', 'bathrooms', 'title', 'description', 'price'];
-        const missingStep1 = step1Fields.filter(field => !formData[field as keyof typeof formData]);
-        
+        const isShortTerm = listingType === 'short_term';
+        const step1Base = isShortTerm
+          ? ['propertyType', 'location', 'guests', 'bedrooms', 'bathrooms', 'title', 'description']
+          : ['propertyType', 'location', 'surfaceM2', 'numberOfRooms', 'bedrooms', 'bathrooms', 'title', 'description'];
+        const step1Fields = isShortTerm
+          ? [...step1Base, 'price']
+          : [...step1Base, 'monthlyRentPrice'];
+        const missingStep1 = step1Fields.filter(field => {
+          const v = formData[field as keyof typeof formData];
+          return v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+        });
+
         if (missingStep1.length > 0) {
           const missingFieldsFrench = missingStep1.map(field => getFieldDisplayName(field)).join(', ');
           Alert.alert(
@@ -743,24 +788,65 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           );
           return false;
         }
-        
+
         // Validation spécifique pour les nombres
-        if (parseInt(formData.guests) < 1 || parseInt(formData.bedrooms) < 1 || parseInt(formData.bathrooms) < 1) {
-          Alert.alert(
-            'Valeurs invalides',
-            'Le nombre d\'invités, de chambres et de salles de bain doit être au moins 1.'
-          );
-          return false;
+        if (isShortTerm) {
+          if (parseInt(formData.guests) < 1 || parseInt(formData.bedrooms) < 1 || parseInt(formData.bathrooms) < 1) {
+            Alert.alert(
+              'Valeurs invalides',
+              'Le nombre d\'invités, de chambres et de salles de bain doit être au moins 1.'
+            );
+            return false;
+          }
+        } else {
+          const surface = parseInt(formData.surfaceM2, 10);
+          if (isNaN(surface) || surface < 1) {
+            Alert.alert('Surface invalide', 'La surface habitable doit être d\'au moins 1 m².');
+            return false;
+          }
+          const rooms = parseInt(formData.numberOfRooms, 10);
+          if (isNaN(rooms) || rooms < 1) {
+            Alert.alert('Nombre de pièces invalide', 'Le nombre de pièces doit être au moins 1.');
+            return false;
+          }
+          if (parseInt(formData.bedrooms) < 1 || parseInt(formData.bathrooms) < 1) {
+            Alert.alert(
+              'Valeurs invalides',
+              'Le nombre de chambres et de salles de bain doit être au moins 1.'
+            );
+            return false;
+          }
         }
-        
-        if (parseInt(formData.price) < 1000) {
-          Alert.alert(
-            'Prix trop bas',
-            'Le prix par nuit doit être d\'au moins 1000 FCFA.'
-          );
-          return false;
+
+        if (isShortTerm) {
+          if (parseInt(formData.price) < 1000) {
+            Alert.alert(
+              'Prix trop bas',
+              'Le prix par nuit doit être d\'au moins 1000 FCFA.'
+            );
+            return false;
+          }
+        } else {
+          const rent = parseInt(formData.monthlyRentPrice, 10);
+          if (isNaN(rent) || rent < 10000) {
+            Alert.alert(
+              'Loyer invalide',
+              'Le loyer mensuel doit être d\'au moins 10 000 FCFA.'
+            );
+            return false;
+          }
+          if (formData.minimumDurationMonths.trim() !== '') {
+            const minMonths = parseInt(formData.minimumDurationMonths, 10);
+            if (isNaN(minMonths) || minMonths < 1) {
+              Alert.alert(
+                'Durée minimale invalide',
+                'La durée minimale doit être au moins 1 mois si renseignée.'
+              );
+              return false;
+            }
+          }
         }
-        
+
         // Validation des photos
         if (selectedImages.length === 0) {
           Alert.alert(
@@ -769,8 +855,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           );
           return false;
         }
-        
+
         return true;
+      }
         
       case 2:
         // Étape 2: Informations hôte
@@ -1017,6 +1104,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       return;
     }
 
+    const isMonthly = listingType === 'monthly';
     const applicationPayload = {
       propertyType: formData.propertyType,
       location: formData.location?.trim() || '',
@@ -1025,7 +1113,17 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       bathrooms: parseInt(formData.bathrooms) || 1,
       title: formData.title,
       description: formData.description,
-      pricePerNight: parseInt(formData.price),
+      pricePerNight: isMonthly ? 0 : parseInt(formData.price),
+      isMonthlyRental: isMonthly,
+      ...(isMonthly && {
+        monthlyRentPrice: parseInt(formData.monthlyRentPrice, 10) || 0,
+        securityDeposit: formData.securityDeposit ? parseInt(formData.securityDeposit, 10) : undefined,
+        minimumDurationMonths: formData.minimumDurationMonths ? parseInt(formData.minimumDurationMonths, 10) : undefined,
+        chargesIncluded: formData.chargesIncluded,
+        surfaceM2: parseInt(formData.surfaceM2, 10) || undefined,
+        numberOfRooms: parseInt(formData.numberOfRooms, 10) || undefined,
+        isFurnished: formData.isFurnished,
+      }),
       fullName: formData.hostFullName,
       email: formData.hostEmail,
       phone: formData.hostPhone,
@@ -1313,6 +1411,59 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     }
   };
 
+  /** Écran de choix du type d'annonce : résidence meublée (court séjour) ou location mensuelle (longue durée) */
+  const renderListingTypeChoice = () => (
+    <View style={styles.listingTypeContainer}>
+      <Text style={styles.listingTypeTitle}>Quel type d'annonce souhaitez-vous créer ?</Text>
+      <Text style={styles.listingTypeSubtitle}>
+        Choisissez le type de location pour afficher le formulaire adapté.
+      </Text>
+      <TouchableOpacity
+        style={[styles.listingTypeCard, listingType === 'short_term' && styles.listingTypeCardSelected]}
+        onPress={() => setListingType('short_term')}
+        activeOpacity={0.8}
+      >
+        <View style={styles.listingTypeCardIcon}>
+          <Ionicons name="bed-outline" size={36} color={listingType === 'short_term' ? '#fff' : '#e67e22'} />
+        </View>
+        <Text style={styles.listingTypeCardTitle}>Résidence meublée</Text>
+        <Text style={styles.listingTypeCardLabel}>(court séjour)</Text>
+        <Text style={styles.listingTypeCardDesc}>
+          Pour les voyageurs : location à la nuitée, réservations courtes.
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.listingTypeCard, listingType === 'monthly' && styles.listingTypeCardSelected]}
+        onPress={() => setListingType('monthly')}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.listingTypeCardIcon, listingType === 'monthly' && styles.listingTypeCardIconSelected]}>
+          <Ionicons name="calendar-outline" size={36} color={listingType === 'monthly' ? '#fff' : '#2E7D32'} />
+        </View>
+        <Text style={styles.listingTypeCardTitle}>Location mensuelle</Text>
+        <Text style={styles.listingTypeCardLabel}>(longue durée)</Text>
+        <Text style={styles.listingTypeCardDesc}>
+          Pour les locataires : loyer au mois, bail, caution.
+        </Text>
+      </TouchableOpacity>
+      {listingType && (
+        <TouchableOpacity
+          style={styles.listingTypeContinueButton}
+          onPress={() => {
+            if (listingType === 'monthly') {
+              navigation.navigate('AddMonthlyRentalListing');
+              return;
+            }
+            setListingTypeConfirmed(true);
+          }}
+        >
+          <Text style={styles.listingTypeContinueButtonText}>Continuer</Text>
+          <Ionicons name="arrow-forward" size={20} color="#fff" />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
       {[1, 2, 3, 4, 5].map((step) => (
@@ -1362,7 +1513,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Localisation *</Text>
           <CitySearchInputModal
-            value={formData.location}
+            value={typeof formData.location === 'string' ? formData.location : (formData.location?.name ?? '')}
             onChange={handleLocationSelect}
             placeholder="Rechercher ville, commune ou quartier..."
           />
@@ -1372,23 +1523,23 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         </View>
       )}
 
-      {/* Capacité */}
-      {(!isEditMode || shouldShowField('max_guests') || shouldShowField('bedrooms') || shouldShowField('bathrooms')) && (
+      {/* Capacité : court séjour (invités, chambres, sdb) ou location mensuelle (surface, pièces, chambres, sdb, meublé) */}
+      {listingType === 'short_term' && (!isEditMode || shouldShowField('max_guests') || shouldShowField('bedrooms') || shouldShowField('bathrooms')) && (
         <View style={styles.row}>
           {(!isEditMode || shouldShowField('max_guests')) && (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Nombre d'invités *</Text>
-            <TextInput
-              ref={(ref) => { inputRefs.current['guests'] = ref; }}
-              style={getInputStyle('guests')}
-              value={formData.guests}
-              onChangeText={(value) => handleInputChange('guests', value)}
-              placeholder="2"
-              keyboardType="numeric"
-              placeholderTextColor="#999"
-              returnKeyType="next"
-              onSubmitEditing={() => handleInputSubmit('guests')}
-            />
+              <TextInput
+                ref={(ref) => { inputRefs.current['guests'] = ref; }}
+                style={getInputStyle('guests')}
+                value={formData.guests}
+                onChangeText={(value) => handleInputChange('guests', value)}
+                placeholder="2"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+                returnKeyType="next"
+                onSubmitEditing={() => handleInputSubmit('guests')}
+              />
             </View>
           )}
           {(!isEditMode || shouldShowField('bedrooms')) && (
@@ -1424,6 +1575,79 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             </View>
           )}
         </View>
+      )}
+      {listingType === 'monthly' && (
+        <>
+          <View style={styles.row}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Surface habitable (m²) *</Text>
+              <TextInput
+                ref={(ref) => { inputRefs.current['surfaceM2'] = ref; }}
+                style={getInputStyle('surfaceM2')}
+                value={formData.surfaceM2}
+                onChangeText={(value) => handleInputChange('surfaceM2', value)}
+                placeholder="45"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+                returnKeyType="next"
+                onSubmitEditing={() => handleInputSubmit('surfaceM2')}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Nombre de pièces *</Text>
+              <TextInput
+                ref={(ref) => { inputRefs.current['numberOfRooms'] = ref; }}
+                style={getInputStyle('numberOfRooms')}
+                value={formData.numberOfRooms}
+                onChangeText={(value) => handleInputChange('numberOfRooms', value)}
+                placeholder="3"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+                returnKeyType="next"
+                onSubmitEditing={() => handleInputSubmit('numberOfRooms')}
+              />
+            </View>
+          </View>
+          <View style={styles.row}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Nombre de chambres *</Text>
+              <TextInput
+                ref={(ref) => { inputRefs.current['bedrooms'] = ref; }}
+                style={getInputStyle('bedrooms')}
+                value={formData.bedrooms}
+                onChangeText={(value) => handleInputChange('bedrooms', value)}
+                placeholder="2"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+                returnKeyType="next"
+                onSubmitEditing={() => handleInputSubmit('bedrooms')}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Salles de bain *</Text>
+              <TextInput
+                ref={(ref) => { inputRefs.current['bathrooms'] = ref; }}
+                style={getInputStyle('bathrooms')}
+                value={formData.bathrooms}
+                onChangeText={(value) => handleInputChange('bathrooms', value)}
+                placeholder="1"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+                returnKeyType="next"
+                onSubmitEditing={() => handleInputSubmit('bathrooms')}
+              />
+            </View>
+          </View>
+          <View style={[styles.inputGroup, styles.switchRow]}>
+            <Text style={styles.label}>Le bien est-il meublé ?</Text>
+            <Switch
+              value={formData.isFurnished}
+              onValueChange={(value) => handleInputChange('isFurnished', value)}
+              trackColor={{ false: '#e5e7eb', true: '#007bff' }}
+              thumbColor="#fff"
+            />
+          </View>
+        </>
       )}
 
       {/* Titre */}
@@ -1462,8 +1686,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         </View>
       )}
 
-      {/* Prix */}
-      {(!isEditMode || shouldShowField('price_per_night')) && (
+      {/* Prix (court séjour) ou loyer mensuel (longue durée) */}
+      {listingType === 'short_term' && (!isEditMode || shouldShowField('price_per_night')) && (
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Prix par nuit (FCFA) *</Text>
           <TextInput
@@ -1478,6 +1702,61 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             onSubmitEditing={() => handleInputSubmit('price')}
           />
         </View>
+      )}
+      {listingType === 'monthly' && (
+        <>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Loyer mensuel (FCFA) *</Text>
+            <TextInput
+              ref={(ref) => { inputRefs.current['monthlyRentPrice'] = ref; }}
+              style={getInputStyle('monthlyRentPrice')}
+              value={formData.monthlyRentPrice}
+              onChangeText={(value) => handleInputChange('monthlyRentPrice', value)}
+              placeholder="150000"
+              keyboardType="numeric"
+              placeholderTextColor="#999"
+              returnKeyType="next"
+              onSubmitEditing={() => handleInputSubmit('monthlyRentPrice')}
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Caution (FCFA)</Text>
+            <TextInput
+              ref={(ref) => { inputRefs.current['securityDeposit'] = ref; }}
+              style={getInputStyle('securityDeposit')}
+              value={formData.securityDeposit}
+              onChangeText={(value) => handleInputChange('securityDeposit', value)}
+              placeholder="Optionnel"
+              keyboardType="numeric"
+              placeholderTextColor="#999"
+              returnKeyType="next"
+              onSubmitEditing={() => handleInputSubmit('securityDeposit')}
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Durée minimale (mois)</Text>
+            <TextInput
+              ref={(ref) => { inputRefs.current['minimumDurationMonths'] = ref; }}
+              style={getInputStyle('minimumDurationMonths')}
+              value={formData.minimumDurationMonths}
+              onChangeText={(value) => handleInputChange('minimumDurationMonths', value)}
+              placeholder="1"
+              keyboardType="numeric"
+              placeholderTextColor="#999"
+              returnKeyType="next"
+              onSubmitEditing={() => handleInputSubmit('minimumDurationMonths')}
+            />
+          </View>
+          <View style={[styles.inputGroup, styles.switchRow]}>
+            <Text style={styles.label}>Charges comprises dans le loyer</Text>
+            <Switch
+              value={formData.chargesIncluded}
+              onValueChange={(value) => handleInputChange('chargesIncluded', value)}
+              trackColor={{ false: '#e5e7eb', true: '#007bff' }}
+              thumbColor="#fff"
+            />
+          </View>
+        </>
       )}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Indications complémentaires sur l'adresse</Text>
@@ -2225,42 +2504,49 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           </View>
         ) : null}
 
-        {/* Indicateur d'étapes */}
-        {renderStepIndicator()}
+        {/* Choix du type d'annonce ou formulaire par étapes */}
+        {(!listingType || !listingTypeConfirmed) ? (
+          renderListingTypeChoice()
+        ) : (
+          <>
+            {/* Indicateur d'étapes */}
+            {renderStepIndicator()}
 
-        {/* Contenu des étapes */}
-        {currentStep === 1 && renderStep1()}
-        {currentStep === 2 && renderStep2()}
-        {currentStep === 3 && renderStep3()}
-        {currentStep === 4 && renderStep4()}
-        {currentStep === 5 && renderStep5()}
+            {/* Contenu des étapes */}
+            {currentStep === 1 && renderStep1()}
+            {currentStep === 2 && renderStep2()}
+            {currentStep === 3 && renderStep3()}
+            {currentStep === 4 && renderStep4()}
+            {currentStep === 5 && renderStep5()}
 
-        {/* Boutons de navigation */}
-        <View style={styles.navigationButtons}>
-          {currentStep > 1 && (
-            <TouchableOpacity style={styles.prevButton} onPress={prevStep}>
-              <Text style={styles.prevButtonText}>Précédent</Text>
-            </TouchableOpacity>
-          )}
-          
-          {currentStep < 4 ? (
-            <TouchableOpacity style={styles.nextButton} onPress={nextStep}>
-              <Text style={styles.nextButtonText}>Suivant</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity 
-              style={[styles.nextButton, loading && styles.nextButtonDisabled]} 
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.nextButtonText}>Soumettre</Text>
+            {/* Boutons de navigation */}
+            <View style={styles.navigationButtons}>
+              {currentStep > 1 && (
+                <TouchableOpacity style={styles.prevButton} onPress={prevStep}>
+                  <Text style={styles.prevButtonText}>Précédent</Text>
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
-          )}
-        </View>
+
+              {currentStep < 4 ? (
+                <TouchableOpacity style={styles.nextButton} onPress={nextStep}>
+                  <Text style={styles.nextButtonText}>Suivant</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.nextButton, loading && styles.nextButtonDisabled]}
+                  onPress={handleSubmit}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.nextButtonText}>Soumettre</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* Modal type de propriété */}
@@ -2441,6 +2727,76 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
   },
+  listingTypeContainer: {
+    padding: 20,
+    paddingBottom: 32,
+  },
+  listingTypeTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  listingTypeSubtitle: {
+    fontSize: 15,
+    color: '#6b7280',
+    marginBottom: 24,
+  },
+  listingTypeCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+  },
+  listingTypeCardSelected: {
+    borderColor: '#007bff',
+    backgroundColor: '#f0f9ff',
+  },
+  listingTypeCardIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#fff5eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  listingTypeCardIconSelected: {
+    backgroundColor: '#e3f2fd',
+  },
+  listingTypeCardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  listingTypeCardLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  listingTypeCardDesc: {
+    fontSize: 14,
+    color: '#6b7280',
+    lineHeight: 20,
+  },
+  listingTypeContinueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007bff',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 8,
+    gap: 8,
+  },
+  listingTypeContinueButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
   identityAlert: {
     flexDirection: 'row',
     backgroundColor: '#fef3c7',
@@ -2529,6 +2885,11 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 20,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   label: {
     fontSize: 16,
