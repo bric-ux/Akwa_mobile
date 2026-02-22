@@ -24,7 +24,6 @@ import { PopularDestinations } from '../components/PopularDestinations';
 import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
 import { useLanguage } from '../contexts/LanguageContext';
-import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 
 // Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
 const CAROUSEL_IMAGES = [
@@ -72,11 +71,6 @@ const HomeScreen: React.FC = () => {
     loadPopularDestinations();
   }, [getPopularDestinations]);
 
-  const handleLongTermPress = useCallback(() => {
-    (navigation as any).navigate('Search', { destination: '', initialRentalType: 'monthly' });
-  }, [navigation]);
-
-
   const handlePropertyPress = useCallback((property: Property) => {
     navigation.navigate('PropertyDetails', { propertyId: property.id });
   }, [navigation]);
@@ -98,23 +92,6 @@ const HomeScreen: React.FC = () => {
       <HeroSection onSearchPress={handleSearchPress} />
 
       <WeatherDateTimeWidget />
-
-      {/* Section dédiée Location longue durée (séparée des résidences meublées) */}
-      <TouchableOpacity style={styles.longTermSection} onPress={handleLongTermPress} activeOpacity={0.9}>
-        <View style={styles.longTermGradient} />
-        <View style={styles.longTermContent}>
-          <View style={styles.longTermBadge}>
-            <Ionicons name="business" size={18} color="#fff" />
-            <Text style={styles.longTermBadgeText}>LONGUE DURÉE</Text>
-          </View>
-          <Text style={styles.longTermTitle}>Logements en location mensuelle</Text>
-          <Text style={styles.longTermSubtitle}>Louez pour des mois, pas des nuits. Appartements et maisons pour séjours longue durée.</Text>
-          <View style={styles.longTermRow}>
-            <Text style={styles.longTermCta}>Voir les logements</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
-          </View>
-        </View>
-      </TouchableOpacity>
 
       {/* Section Promotionnelle Location de véhicules */}
       <View style={styles.vehiclesPromoSection}>
@@ -235,7 +212,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </View>
     </>
-  ), [properties.length, popularDestinations, destinationsLoading, handleSearchPress, handleDestinationPress, handleLongTermPress]);
+  ), [properties.length, popularDestinations, destinationsLoading, handleSearchPress, handleDestinationPress]);
   const scrollContentStyle = useMemo(() => styles.scrollContent, []);
 
   const keyExtractor = useCallback((item: Property) => item.id, []);
@@ -411,65 +388,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 18,
     color: '#dc3545',
-  },
-  longTermSection: {
-    marginHorizontal: 20,
-    marginVertical: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: MONTHLY_RENTAL_COLORS.primary,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  longTermGradient: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: MONTHLY_RENTAL_COLORS.primary,
-    opacity: 0.95,
-  },
-  longTermContent: {
-    padding: 24,
-  },
-  longTermBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 12,
-    gap: 6,
-  },
-  longTermBadgeText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-  longTermTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  longTermSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  longTermRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  longTermCta: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
   },
   vehiclesPromoSection: {
     marginHorizontal: 20,

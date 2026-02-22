@@ -473,6 +473,12 @@ const SearchScreen: React.FC = () => {
     setIsMapView((prev) => !prev);
   };
 
+  const handleRentalModeSwitch = (nextType: 'short_term' | 'monthly') => {
+    if (nextType === rentalType) return;
+    setIsMapView(false);
+    setFilters((prev) => ({ ...prev, rentalType: nextType }));
+  };
+
   const getActiveFiltersCount = (): number => {
     let count = 0;
     if (filters.rentalType && filters.rentalType !== 'short_term') count++;
@@ -544,11 +550,16 @@ const SearchScreen: React.FC = () => {
           {hasResults && (
             <View style={styles.headerCenter}>
               <Text style={styles.resultsHeaderTitle}>
-                {currentSearchQuery ? `${currentSearchQuery} · Logements` : 'Logements'}
+                {currentSearchQuery
+                  ? `${currentSearchQuery} · ${rentalType === 'monthly' ? 'Location mensuelle' : 'Résidence meublée'}`
+                  : rentalType === 'monthly'
+                    ? 'Location mensuelle'
+                    : 'Résidence meublée'}
               </Text>
               <Text style={styles.headerSubtitleText}>
-                {getDatesText() && `${getDatesText()} · `}
-                {getGuestsText()}
+                {rentalType === 'monthly'
+                  ? 'Recherche dédiée longue durée'
+                  : `${getDatesText() ? `${getDatesText()} · ` : ''}${getGuestsText()}`}
               </Text>
             </View>
           )}
@@ -565,6 +576,56 @@ const SearchScreen: React.FC = () => {
                 <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
               </View>
             )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Switch premium des univers (même écran, flux isolés) */}
+        <View style={styles.modeSwitchContainer}>
+          <TouchableOpacity
+            style={[
+              styles.modeChip,
+              rentalType === 'short_term' && styles.modeChipActive,
+            ]}
+            onPress={() => handleRentalModeSwitch('short_term')}
+            activeOpacity={0.9}
+          >
+            <Ionicons
+              name="home-outline"
+              size={16}
+              color={rentalType === 'short_term' ? '#fff' : '#2E7D32'}
+            />
+            <Text
+              style={[
+                styles.modeChipText,
+                rentalType === 'short_term' && styles.modeChipTextActive,
+              ]}
+            >
+              Résidence meublée
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.modeChip,
+              styles.modeChipMonthly,
+              rentalType === 'monthly' && styles.modeChipMonthlyActive,
+            ]}
+            onPress={() => handleRentalModeSwitch('monthly')}
+            activeOpacity={0.9}
+          >
+            <Ionicons
+              name="business-outline"
+              size={16}
+              color={rentalType === 'monthly' ? '#fff' : '#0d9488'}
+            />
+            <Text
+              style={[
+                styles.modeChipText,
+                styles.modeChipTextMonthly,
+                rentalType === 'monthly' && styles.modeChipTextActive,
+              ]}
+            >
+              Location mensuelle
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -916,6 +977,47 @@ const styles = StyleSheet.create({
   headerContent: {
     paddingHorizontal: 20,
     paddingBottom: 15,
+  },
+  modeSwitchContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  modeChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#d6ead7',
+    backgroundColor: '#f6fbf6',
+  },
+  modeChipActive: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  modeChipMonthly: {
+    borderColor: '#ccfbf1',
+    backgroundColor: '#f0fdfa',
+  },
+  modeChipMonthlyActive: {
+    backgroundColor: '#0d9488',
+    borderColor: '#0d9488',
+  },
+  modeChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  modeChipTextMonthly: {
+    color: '#0d9488',
+  },
+  modeChipTextActive: {
+    color: '#fff',
   },
   monthlySearchHint: {
     marginTop: 12,
