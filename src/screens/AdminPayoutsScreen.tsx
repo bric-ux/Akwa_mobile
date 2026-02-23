@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Alert,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -123,6 +124,16 @@ const AdminPayoutsScreen: React.FC = () => {
   const [selectedPayout, setSelectedPayout] = useState<PayoutItem | null>(null);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [showMarkAsPaidStep, setShowMarkAsPaidStep] = useState(false);
+  const [selectedAdminPaymentMethod, setSelectedAdminPaymentMethod] = useState<string>('bank_transfer');
+  const [adminPaymentInfo, setAdminPaymentInfo] = useState({
+    bankReference: '',
+    bankName: '',
+    phoneNumber: '',
+    transactionRef: '',
+    note: '',
+    otherDetails: '',
+  });
 
   useEffect(() => {
     loadPayouts();
@@ -390,47 +401,113 @@ const AdminPayoutsScreen: React.FC = () => {
     await loadPayouts();
   };
 
-  const handleMarkAsPaid = async (payout: PayoutItem) => {
+  const ADMIN_PAYMENT_METHODS = [
+    { value: 'bank_transfer', label: 'Virement bancaire', icon: 'business' },
+    { value: 'wave', label: 'Wave', icon: 'wallet' },
+    { value: 'orange_money', label: 'Orange Money', icon: 'phone-portrait' },
+    { value: 'mtn_money', label: 'MTN Money', icon: 'phone-portrait' },
+    { value: 'moov_money', label: 'Moov Money', icon: 'phone-portrait' },
+    { value: 'cash', label: 'Espèces', icon: 'cash' },
+    { value: 'other', label: 'Autre', icon: 'ellipsis-horizontal' },
+  ] as const;
+
+  const handleMarkAsPaid = (payout: PayoutItem) => {
     if (!user) return;
+    setSelectedAdminPaymentMethod('bank_transfer');
+    setAdminPaymentInfo({ bankReference: '', bankName: '', phoneNumber: '', transactionRef: '', note: '', otherDetails: '' });
+    setShowMarkAsPaidStep(true);
+  };
 
-    Alert.alert(
-      'Confirmer le paiement',
-      `Voulez-vous marquer ce paiement de ${formatPrice(payout.type === 'property' ? payout.host_amount : payout.owner_amount)} comme effectué ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer',
-          style: 'default',
-          onPress: async () => {
-            setProcessingPayment(true);
-            try {
-              const tableName = payout.type === 'property' ? 'host_payouts' : 'vehicle_payouts';
-              const { error } = await supabase
-                .from(tableName)
-                .update({
-                  admin_payment_status: 'paid',
-                  admin_paid_at: new Date().toISOString(),
-                  admin_paid_by: user.id,
-                })
-                .eq('id', payout.id);
+  const buildAdminPaymentReference = (): string => {
+    const info = adminPaymentInfo;
+    switch (selectedAdminPaymentMethod) {
+      case 'bank_transfer':
+        return [info.bankReference, info.bankName].filter(Boolean).join(' | ');
+      case 'wave':
+      case 'orange_money':
+      case 'mtn_money':
+      case 'moov_money':
+        return [info.phoneNumber, info.transactionRef].filter(Boolean).join(' | ');
+      case 'cash':
+        return info.note || 'Paiement espèces';
+      case 'other':
+        return info.otherDetails || 'Non spécifié';
+      default:
+        return '';
+    }
+  };
 
-              if (error) {
-                throw error;
-              }
+  const validateAdminPaymentInfo = (): boolean => {
+    switch (selectedAdminPaymentMethod) {
+      case 'bank_transfer':
+        if (!adminPaymentInfo.bankReference.trim()) {
+          Alert.alert('Erreur', 'Veuillez renseigner la référence du virement');
+          return false;
+        }
+        break;
+      case 'wave':
+      case 'orange_money':
+      case 'mtn_money':
+      case 'moov_money':
+        if (!adminPaymentInfo.phoneNumber.trim()) {
+          Alert.alert('Erreur', 'Veuillez renseigner le numéro auquel le paiement a été envoyé');
+          return false;
+        }
+        if (adminPaymentInfo.phoneNumber.replace(/\D/g, '').length < 8) {
+          Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide');
+          return false;
+        }
+        break;
+      case 'cash':
+        if (!adminPaymentInfo.note.trim()) {
+          Alert.alert('Erreur', 'Veuillez ajouter une note (ex: reçu, date, lieu)');
+          return false;
+        }
+        break;
+      case 'other':
+        if (!adminPaymentInfo.otherDetails.trim()) {
+          Alert.alert('Erreur', 'Veuillez préciser les détails du paiement');
+          return false;
+        }
+        break;
+    }
+    return true;
+  };
 
-              Alert.alert('Succès', 'Paiement marqué comme effectué');
-              await loadPayouts();
-              setDetailsModalVisible(false);
-            } catch (error: any) {
-              console.error('Erreur marquage paiement:', error);
-              Alert.alert('Erreur', error.message || 'Impossible de marquer le paiement');
-            } finally {
-              setProcessingPayment(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleConfirmMarkAsPaid = async () => {
+    if (!user || !selectedPayout) return;
+    if (!validateAdminPaymentInfo()) return;
+
+    setProcessingPayment(true);
+    try {
+      const paymentReference = buildAdminPaymentReference();
+      const tableName = selectedPayout.type === 'property' ? 'host_payouts' : 'vehicle_payouts';
+      const { error } = await supabase
+        .from(tableName)
+        .update({
+          admin_payment_status: 'paid',
+          admin_paid_at: new Date().toISOString(),
+          admin_paid_by: user.id,
+          admin_payment_method: selectedAdminPaymentMethod,
+          admin_payment_reference: paymentReference || null,
+        })
+        .eq('id', selectedPayout.id);
+
+      if (error) {
+        throw error;
+      }
+
+      Alert.alert('Succès', 'Paiement marqué comme effectué');
+      await loadPayouts();
+      setDetailsModalVisible(false);
+      setShowMarkAsPaidStep(false);
+      setAdminPaymentInfo({ bankReference: '', bankName: '', phoneNumber: '', transactionRef: '', note: '', otherDetails: '' });
+    } catch (error: any) {
+      console.error('Erreur marquage paiement:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de marquer le paiement');
+    } finally {
+      setProcessingPayment(false);
+    }
   };
 
   const handleSendAkwaHomeInvoice = async (payout: PayoutItem) => {
@@ -788,13 +865,21 @@ const AdminPayoutsScreen: React.FC = () => {
         visible={detailsModalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setDetailsModalVisible(false)}
+        onRequestClose={() => {
+          setDetailsModalVisible(false);
+          setShowMarkAsPaidStep(false);
+          setAdminPaymentInfo({ bankReference: '', bankName: '', phoneNumber: '', transactionRef: '', note: '', otherDetails: '' });
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Détails du paiement</Text>
-              <TouchableOpacity onPress={() => setDetailsModalVisible(false)}>
+              <TouchableOpacity onPress={() => {
+                setDetailsModalVisible(false);
+                setShowMarkAsPaidStep(false);
+                setAdminPaymentInfo({ bankReference: '', bankName: '', phoneNumber: '', transactionRef: '', note: '', otherDetails: '' });
+              }}>
                 <Ionicons name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
@@ -1175,30 +1260,168 @@ const AdminPayoutsScreen: React.FC = () => {
 
                 {/* Actions */}
                 <View style={styles.actionsContainer}>
-                  <TouchableOpacity
-                    style={styles.sendInvoiceButton}
-                    onPress={() => handleSendAkwaHomeInvoice(selectedPayout)}
-                    disabled={processingPayment}
-                  >
-                    <Ionicons name="mail-outline" size={20} color="#fff" />
-                    <Text style={styles.sendInvoiceText}>Envoyer facture gain AkwaHome</Text>
-                  </TouchableOpacity>
-                  
-                  {selectedPayout.admin_payment_status === 'pending' && isEligibleForPayment(selectedPayout) && (
-                    <TouchableOpacity
-                      style={styles.markAsPaidButton}
-                      onPress={() => handleMarkAsPaid(selectedPayout)}
-                      disabled={processingPayment}
-                    >
-                      {processingPayment ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <>
-                          <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                          <Text style={styles.markAsPaidText}>Marquer comme payé</Text>
-                        </>
+                  {showMarkAsPaidStep ? (
+                    <>
+                      <Text style={styles.paymentMethodStepTitle}>Moyen de paiement utilisé pour le virement</Text>
+                      <ScrollView style={styles.paymentMethodInlineList} horizontal showsHorizontalScrollIndicator={false}>
+                        {ADMIN_PAYMENT_METHODS.map((method) => (
+                          <TouchableOpacity
+                            key={method.value}
+                            style={[
+                              styles.paymentMethodInlineOption,
+                              selectedAdminPaymentMethod === method.value && styles.paymentMethodInlineOptionSelected,
+                            ]}
+                            onPress={() => setSelectedAdminPaymentMethod(method.value)}
+                          >
+                            <Ionicons
+                              name={method.icon as any}
+                              size={20}
+                              color={selectedAdminPaymentMethod === method.value ? '#fff' : '#666'}
+                            />
+                            <Text
+                              style={[
+                                styles.paymentMethodInlineText,
+                                selectedAdminPaymentMethod === method.value && styles.paymentMethodInlineTextSelected,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {method.label}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+
+                      {/* Formulaires de détails selon la méthode - comme résidence meublée */}
+                      {selectedAdminPaymentMethod === 'bank_transfer' && (
+                        <View style={styles.adminPaymentFormSection}>
+                          <Text style={styles.adminPaymentFormLabel}>Référence du virement *</Text>
+                          <TextInput
+                            style={styles.adminPaymentInput}
+                            placeholder="Ex: VIR20250222-001"
+                            value={adminPaymentInfo.bankReference}
+                            onChangeText={(v) => setAdminPaymentInfo(prev => ({ ...prev, bankReference: v }))}
+                            placeholderTextColor="#9ca3af"
+                          />
+                          <Text style={[styles.adminPaymentFormLabel, { marginTop: 12 }]}>Nom de la banque (optionnel)</Text>
+                          <TextInput
+                            style={styles.adminPaymentInput}
+                            placeholder="Ex: BICICI, SGBCI..."
+                            value={adminPaymentInfo.bankName}
+                            onChangeText={(v) => setAdminPaymentInfo(prev => ({ ...prev, bankName: v }))}
+                            placeholderTextColor="#9ca3af"
+                          />
+                        </View>
                       )}
-                    </TouchableOpacity>
+                      {['wave', 'orange_money', 'mtn_money', 'moov_money'].includes(selectedAdminPaymentMethod) && (
+                        <View style={styles.adminPaymentFormSection}>
+                          <Text style={styles.adminPaymentFormLabel}>Numéro auquel le paiement a été envoyé *</Text>
+                          <TextInput
+                            style={styles.adminPaymentInput}
+                            placeholder="+225 07 12 34 56 78"
+                            value={adminPaymentInfo.phoneNumber}
+                            onChangeText={(v) => {
+                              let formatted = v.replace(/\D/g, '');
+                              if (formatted.startsWith('225')) formatted = '+' + formatted;
+                              else if (formatted.startsWith('07') || formatted.startsWith('05')) formatted = '+225 ' + formatted;
+                              setAdminPaymentInfo(prev => ({ ...prev, phoneNumber: formatted }));
+                            }}
+                            keyboardType="phone-pad"
+                            placeholderTextColor="#9ca3af"
+                          />
+                          <Text style={[styles.adminPaymentFormLabel, { marginTop: 12 }]}>Référence transaction (optionnel)</Text>
+                          <TextInput
+                            style={styles.adminPaymentInput}
+                            placeholder="Ex: TXN123456789"
+                            value={adminPaymentInfo.transactionRef}
+                            onChangeText={(v) => setAdminPaymentInfo(prev => ({ ...prev, transactionRef: v }))}
+                            placeholderTextColor="#9ca3af"
+                          />
+                        </View>
+                      )}
+                      {selectedAdminPaymentMethod === 'cash' && (
+                        <View style={styles.adminPaymentFormSection}>
+                          <Text style={styles.adminPaymentFormLabel}>Note (reçu, date, lieu...) *</Text>
+                          <TextInput
+                            style={[styles.adminPaymentInput, styles.adminPaymentTextArea]}
+                            placeholder="Ex: Reçu le 22/02/2025, remis en main propre"
+                            value={adminPaymentInfo.note}
+                            onChangeText={(v) => setAdminPaymentInfo(prev => ({ ...prev, note: v }))}
+                            multiline
+                            numberOfLines={3}
+                            textAlignVertical="top"
+                            placeholderTextColor="#9ca3af"
+                          />
+                        </View>
+                      )}
+                      {selectedAdminPaymentMethod === 'other' && (
+                        <View style={styles.adminPaymentFormSection}>
+                          <Text style={styles.adminPaymentFormLabel}>Détails du paiement *</Text>
+                          <TextInput
+                            style={[styles.adminPaymentInput, styles.adminPaymentTextArea]}
+                            placeholder="Précisez le moyen et les détails..."
+                            value={adminPaymentInfo.otherDetails}
+                            onChangeText={(v) => setAdminPaymentInfo(prev => ({ ...prev, otherDetails: v }))}
+                            multiline
+                            numberOfLines={3}
+                            textAlignVertical="top"
+                            placeholderTextColor="#9ca3af"
+                          />
+                        </View>
+                      )}
+
+                      <View style={styles.paymentMethodInlineActions}>
+                        <TouchableOpacity
+                          style={styles.paymentMethodCancelButton}
+                          onPress={() => {
+                            setShowMarkAsPaidStep(false);
+                            setAdminPaymentInfo({ bankReference: '', bankName: '', phoneNumber: '', transactionRef: '', note: '', otherDetails: '' });
+                          }}
+                        >
+                          <Text style={styles.paymentMethodCancelText}>Annuler</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.paymentMethodConfirmButton, processingPayment && styles.submitButtonDisabled]}
+                          onPress={handleConfirmMarkAsPaid}
+                          disabled={processingPayment}
+                        >
+                          {processingPayment ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                          ) : (
+                            <>
+                              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                              <Text style={styles.paymentMethodConfirmText}>Confirmer</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        style={styles.sendInvoiceButton}
+                        onPress={() => handleSendAkwaHomeInvoice(selectedPayout)}
+                        disabled={processingPayment}
+                      >
+                        <Ionicons name="mail-outline" size={20} color="#fff" />
+                        <Text style={styles.sendInvoiceText}>Envoyer facture gain AkwaHome</Text>
+                      </TouchableOpacity>
+                      {selectedPayout.admin_payment_status === 'pending' && isEligibleForPayment(selectedPayout) && (
+                        <TouchableOpacity
+                          style={styles.markAsPaidButton}
+                          onPress={() => handleMarkAsPaid(selectedPayout)}
+                          disabled={processingPayment}
+                        >
+                          {processingPayment ? (
+                            <ActivityIndicator color="#fff" />
+                          ) : (
+                            <>
+                              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                              <Text style={styles.markAsPaidText}>Marquer comme payé</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+                    </>
                   )}
                 </View>
               </ScrollView>
@@ -1590,6 +1813,101 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   markAsPaidText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  paymentMethodStepTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  paymentMethodInlineList: {
+    marginBottom: 16,
+  },
+  paymentMethodInlineOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    marginRight: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    gap: 6,
+  },
+  paymentMethodInlineOptionSelected: {
+    backgroundColor: '#2E7D32',
+    borderColor: '#2E7D32',
+  },
+  paymentMethodInlineText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  paymentMethodInlineTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  adminPaymentFormSection: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  adminPaymentFormLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  adminPaymentInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#333',
+  },
+  adminPaymentTextArea: {
+    minHeight: 80,
+  },
+  paymentMethodInlineActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  paymentMethodCancelButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  paymentMethodCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  paymentMethodConfirmButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#2E7D32',
+    gap: 8,
+  },
+  paymentMethodConfirmText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',

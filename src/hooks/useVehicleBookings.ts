@@ -4,6 +4,8 @@ import { VehicleBooking, VehicleBookingStatus } from '../types';
 import { useIdentityVerification } from './useIdentityVerification';
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
 
+export type VehiclePaymentMethod = 'card' | 'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'paypal' | 'cash';
+
 export interface VehicleBookingData {
   vehicleId: string;
   rentalType?: 'daily' | 'hourly'; // Type de location: 'daily' par défaut pour rétrocompatibilité
@@ -20,6 +22,7 @@ export interface VehicleBookingData {
   licenseYears?: string;
   licenseNumber?: string;
   useDriver?: boolean; // Si le locataire choisit d'utiliser le chauffeur (quand with_driver est true)
+  paymentMethod?: VehiclePaymentMethod; // Moyen de paiement choisi par le voyageur
 }
 
 export const useVehicleBookings = () => {
@@ -326,6 +329,7 @@ export const useVehicleBookings = () => {
         license_number: bookingData.licenseNumber || null,
         with_driver: bookingData.useDriver === true, // Stocker si le locataire a choisi le chauffeur
         status: initialStatus,
+        payment_method: bookingData.paymentMethod || null, // Moyen de paiement choisi
       };
 
       if (rentalType === 'hourly') {

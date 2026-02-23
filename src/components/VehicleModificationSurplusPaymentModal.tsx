@@ -46,8 +46,17 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
   newTotalPrice,
   priceBreakdown,
 }) => {
-  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'card' | 'mobile_money' | 'cash'>('wave');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('wave');
+  const [paymentInfo, setPaymentInfo] = useState({
+    cardNumber: '',
+    cardHolder: '',
+    expiryMonth: '',
+    expiryYear: '',
+    cvv: '',
+    phoneNumber: '',
+    pin: '',
+    paypalEmail: '',
+  });
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
@@ -59,52 +68,76 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
     }).format(price);
   };
 
-  const handlePayment = async () => {
-    if (paymentMethod === 'wave' && !phoneNumber.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer votre numéro Wave');
-      return;
+  const validatePaymentInfo = (): boolean => {
+    if (paymentMethod === 'card') {
+      if (!paymentInfo.cardNumber || !paymentInfo.cardHolder || !paymentInfo.expiryMonth || !paymentInfo.expiryYear || !paymentInfo.cvv) {
+        Alert.alert('Erreur', 'Veuillez remplir tous les champs de la carte bancaire');
+        return false;
+      }
+      if (paymentInfo.cardNumber.replace(/\s/g, '').length < 16) {
+        Alert.alert('Erreur', 'Le numéro de carte doit contenir au moins 16 chiffres');
+        return false;
+      }
+      if (paymentInfo.cvv.length < 3) {
+        Alert.alert('Erreur', 'Le code CVV doit contenir au moins 3 chiffres');
+        return false;
+      }
+    } else if (paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) {
+      if (!paymentInfo.phoneNumber || !paymentInfo.pin) {
+        Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone et le code PIN');
+        return false;
+      }
+      if (paymentInfo.phoneNumber.replace(/\D/g, '').length < 10) {
+        Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide');
+        return false;
+      }
+    } else if (paymentMethod === 'paypal') {
+      if (!paymentInfo.paypalEmail) {
+        Alert.alert('Erreur', 'Veuillez entrer votre email PayPal');
+        return false;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(paymentInfo.paypalEmail)) {
+        Alert.alert('Erreur', 'Veuillez entrer une adresse email PayPal valide');
+        return false;
+      }
     }
+    return true;
+  };
 
-    if (paymentMethod === 'mobile_money' && !phoneNumber.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer votre numéro de téléphone');
-      return;
-    }
+  const handlePayment = async () => {
+    if (!validatePaymentInfo()) return;
 
     setLoading(true);
     try {
-      // Mapper payment_method à payment_provider
       const getPaymentProvider = (method: string): string => {
         switch (method) {
-          case 'wave':
-            return 'wave';
-          case 'mobile_money':
-            return 'orange_money';
-          case 'card':
-            return 'stripe';
-          case 'cash':
-            return 'manual';
-          default:
-            return 'manual';
+          case 'wave': return 'wave';
+          case 'orange_money': return 'orange_money';
+          case 'mtn_money': return 'mtn_money';
+          case 'moov_money': return 'moov_money';
+          case 'card': return 'stripe';
+          case 'paypal': return 'paypal';
+          case 'cash': return 'manual';
+          default: return 'manual';
         }
       };
 
-      // Créer un enregistrement de paiement pour le surplus de modification via Edge Function
       const paymentProvider = getPaymentProvider(paymentMethod);
       const paymentData: any = {
         booking_id: bookingId,
-        booking_type: 'vehicle', // Indiquer que c'est une réservation véhicule
+        booking_type: 'vehicle',
         amount: surplusAmount,
         payment_method: paymentMethod,
         payment_provider: paymentProvider,
       };
 
-      if (paymentMethod === 'wave' || paymentMethod === 'mobile_money') {
-        paymentData.mobile_money_phone = phoneNumber;
-        if (paymentMethod === 'wave') {
-          paymentData.mobile_money_operator = 'wave';
-        } else {
-          paymentData.mobile_money_operator = 'orange_money';
-        }
+      if (paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) {
+        paymentData.mobile_money_phone = paymentInfo.phoneNumber;
+        paymentData.mobile_money_operator = paymentMethod === 'wave' ? 'wave' : paymentMethod;
+      }
+      if (paymentMethod === 'paypal') {
+        paymentData.paypal_email = paymentInfo.paypalEmail;
       }
 
       const { data: paymentResult, error: paymentError } = await supabase.functions.invoke(
@@ -261,6 +294,190 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
               </Text>
             </View>
 
+            {/* Méthode de paiement - Placé en priorité pour une meilleure visibilité */}
+            <View style={styles.paymentMethodsSection}>
+              <Text style={styles.sectionTitle}>Méthode de paiement</Text>
+
+              {/* Wave */}
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethod,
+                  paymentMethod === 'wave' && styles.paymentMethodSelected,
+                ]}
+                onPress={() => setPaymentMethod('wave')}
+              >
+                <Ionicons name="wallet" size={24} color={paymentMethod === 'wave' ? '#e67e22' : '#6b7280'} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'wave' && styles.paymentMethodTextSelected]}>
+                  Wave
+                </Text>
+                {paymentMethod === 'wave' && (
+                  <Ionicons name="checkmark-circle" size={20} color="#e67e22" />
+                )}
+              </TouchableOpacity>
+
+              {/* Orange Money */}
+              <TouchableOpacity
+                style={[styles.paymentMethod, paymentMethod === 'orange_money' && styles.paymentMethodSelected]}
+                onPress={() => setPaymentMethod('orange_money')}
+              >
+                <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'orange_money' ? '#e67e22' : '#6b7280'} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'orange_money' && styles.paymentMethodTextSelected]}>Orange Money</Text>
+                {paymentMethod === 'orange_money' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
+              </TouchableOpacity>
+
+              {/* MTN Money */}
+              <TouchableOpacity
+                style={[styles.paymentMethod, paymentMethod === 'mtn_money' && styles.paymentMethodSelected]}
+                onPress={() => setPaymentMethod('mtn_money')}
+              >
+                <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'mtn_money' ? '#e67e22' : '#6b7280'} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'mtn_money' && styles.paymentMethodTextSelected]}>MTN Money</Text>
+                {paymentMethod === 'mtn_money' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
+              </TouchableOpacity>
+
+              {/* Moov Money */}
+              <TouchableOpacity
+                style={[styles.paymentMethod, paymentMethod === 'moov_money' && styles.paymentMethodSelected]}
+                onPress={() => setPaymentMethod('moov_money')}
+              >
+                <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'moov_money' ? '#e67e22' : '#6b7280'} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'moov_money' && styles.paymentMethodTextSelected]}>Moov Money</Text>
+                {paymentMethod === 'moov_money' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
+              </TouchableOpacity>
+
+              {/* PayPal */}
+              <TouchableOpacity
+                style={[styles.paymentMethod, paymentMethod === 'paypal' && styles.paymentMethodSelected]}
+                onPress={() => setPaymentMethod('paypal')}
+              >
+                <Ionicons name="logo-paypal" size={24} color={paymentMethod === 'paypal' ? '#e67e22' : '#6b7280'} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'paypal' && styles.paymentMethodTextSelected]}>PayPal</Text>
+                {paymentMethod === 'paypal' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
+              </TouchableOpacity>
+
+              {/* Carte bancaire */}
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethod,
+                  paymentMethod === 'card' && styles.paymentMethodSelected,
+                ]}
+                onPress={() => setPaymentMethod('card')}
+              >
+                <Ionicons name="card" size={24} color={paymentMethod === 'card' ? '#e67e22' : '#6b7280'} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'card' && styles.paymentMethodTextSelected]}>
+                  Carte bancaire
+                </Text>
+                {paymentMethod === 'card' && (
+                  <Ionicons name="checkmark-circle" size={20} color="#e67e22" />
+                )}
+              </TouchableOpacity>
+
+              {/* Espèces */}
+              <TouchableOpacity
+                style={[
+                  styles.paymentMethod,
+                  paymentMethod === 'cash' && styles.paymentMethodSelected,
+                ]}
+                onPress={() => setPaymentMethod('cash')}
+              >
+                <Ionicons name="cash" size={24} color={paymentMethod === 'cash' ? '#e67e22' : '#6b7280'} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'cash' && styles.paymentMethodTextSelected]}>
+                  Espèces (à l'arrivée)
+                </Text>
+                {paymentMethod === 'cash' && (
+                  <Ionicons name="checkmark-circle" size={20} color="#e67e22" />
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Formulaires paiement - comme résidence meublée */}
+            {(paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) && (
+              <View style={styles.paymentFormSection}>
+                <Text style={styles.inputLabel}>{paymentMethod === 'wave' ? 'Numéro Wave *' : `Numéro ${paymentMethod === 'orange_money' ? 'Orange' : paymentMethod === 'mtn_money' ? 'MTN' : 'Moov'} *`}</Text>
+                <TextInput style={styles.phoneInput} value={paymentInfo.phoneNumber} placeholder="+225 07 12 34 56 78"
+                  onChangeText={(value) => {
+                    let formatted = value.replace(/\D/g, '');
+                    if (formatted.startsWith('225')) formatted = '+' + formatted;
+                    else if (formatted.startsWith('07') || formatted.startsWith('05')) formatted = '+225 ' + formatted;
+                    setPaymentInfo(prev => ({ ...prev, phoneNumber: formatted }));
+                  }}
+                  keyboardType="phone-pad" placeholderTextColor="#9ca3af"
+                />
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Code PIN *</Text>
+                <TextInput style={styles.phoneInput} value={paymentInfo.pin} placeholder="Votre code PIN" maxLength={6} keyboardType="numeric" secureTextEntry
+                  onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, pin: value.replace(/[^0-9]/g, '').slice(0, 6) }))}
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
+            )}
+
+            {paymentMethod === 'card' && (
+              <View style={styles.paymentFormSection}>
+                <Text style={styles.inputLabel}>Numéro de carte *</Text>
+                <TextInput style={styles.phoneInput} placeholder="1234 5678 9012 3456" value={paymentInfo.cardNumber} maxLength={19} keyboardType="numeric"
+                  onChangeText={(value) => {
+                    let formatted = value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
+                    formatted = formatted.match(/.{1,4}/g)?.join(' ') || formatted;
+                    setPaymentInfo(prev => ({ ...prev, cardNumber: formatted }));
+                  }}
+                  placeholderTextColor="#9ca3af"
+                />
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Nom du titulaire *</Text>
+                <TextInput style={styles.phoneInput} placeholder="Jean Dupont" value={paymentInfo.cardHolder}
+                  onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, cardHolder: value.toUpperCase() }))} autoCapitalize="characters" placeholderTextColor="#9ca3af"
+                />
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>Mois *</Text>
+                    <TextInput style={styles.phoneInput} placeholder="MM" value={paymentInfo.expiryMonth} maxLength={2} keyboardType="numeric"
+                      onChangeText={(value) => {
+                        const month = value.replace(/[^0-9]/g, '').slice(0, 2);
+                        if (month && parseInt(month) > 12) return;
+                        setPaymentInfo(prev => ({ ...prev, expiryMonth: month }));
+                      }}
+                      placeholderTextColor="#9ca3af"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>Année *</Text>
+                    <TextInput style={styles.phoneInput} placeholder="YYYY" value={paymentInfo.expiryYear} maxLength={4} keyboardType="numeric"
+                      onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, expiryYear: value.replace(/[^0-9]/g, '').slice(0, 4) }))}
+                      placeholderTextColor="#9ca3af"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>CVV *</Text>
+                    <TextInput style={styles.phoneInput} placeholder="123" value={paymentInfo.cvv} maxLength={4} keyboardType="numeric" secureTextEntry
+                      onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, cvv: value.replace(/[^0-9]/g, '').slice(0, 4) }))}
+                      placeholderTextColor="#9ca3af"
+                    />
+                  </View>
+                </View>
+                <View style={styles.securityInfo}>
+                  <Ionicons name="shield-checkmark" size={16} color="#10b981" />
+                  <Text style={styles.securityText}>🔒 Vos informations sont sécurisées</Text>
+                </View>
+              </View>
+            )}
+
+            {paymentMethod === 'paypal' && (
+              <View style={styles.paymentFormSection}>
+                <Text style={styles.inputLabel}>Email PayPal *</Text>
+                <TextInput style={styles.phoneInput} placeholder="votre.email@example.com" value={paymentInfo.paypalEmail}
+                  onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, paypalEmail: value }))} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#9ca3af"
+                />
+              </View>
+            )}
+
+            {paymentMethod === 'cash' && (
+              <View style={styles.paymentFormSection}>
+                <View style={styles.cashInfo}>
+                  <Ionicons name="cash" size={32} color="#6b7280" />
+                  <Text style={styles.cashText}>Vous paierez le surplus en espèces lors de la prise en charge du véhicule.</Text>
+                </View>
+              </View>
+            )}
+
             {/* Détails du surplus */}
             {priceBreakdown && (
               <View style={styles.priceDetailsSection}>
@@ -334,97 +551,6 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
                 <View style={[styles.priceDetailRow, styles.surplusRow]}>
                   <Text style={styles.surplusLabel}>Surplus total à payer:</Text>
                   <Text style={styles.surplusValue}>{formatPrice(surplusAmount)}</Text>
-                </View>
-              </View>
-            )}
-
-            <View style={styles.paymentMethodsSection}>
-              <Text style={styles.sectionTitle}>Méthode de paiement</Text>
-
-              {/* Wave */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethod,
-                  paymentMethod === 'wave' && styles.paymentMethodSelected,
-                ]}
-                onPress={() => setPaymentMethod('wave')}
-              >
-                <Ionicons name="wallet" size={24} color={paymentMethod === 'wave' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'wave' && styles.paymentMethodTextSelected]}>
-                  Wave
-                </Text>
-                {paymentMethod === 'wave' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#e67e22" />
-                )}
-              </TouchableOpacity>
-
-              {/* Mobile Money */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethod,
-                  paymentMethod === 'mobile_money' && styles.paymentMethodSelected,
-                ]}
-                onPress={() => setPaymentMethod('mobile_money')}
-              >
-                <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'mobile_money' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'mobile_money' && styles.paymentMethodTextSelected]}>
-                  Mobile Money
-                </Text>
-                {paymentMethod === 'mobile_money' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#e67e22" />
-                )}
-              </TouchableOpacity>
-
-              {/* Carte bancaire */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethod,
-                  paymentMethod === 'card' && styles.paymentMethodSelected,
-                ]}
-                onPress={() => setPaymentMethod('card')}
-              >
-                <Ionicons name="card" size={24} color={paymentMethod === 'card' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'card' && styles.paymentMethodTextSelected]}>
-                  Carte bancaire
-                </Text>
-                {paymentMethod === 'card' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#e67e22" />
-                )}
-              </TouchableOpacity>
-
-              {/* Espèces */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethod,
-                  paymentMethod === 'cash' && styles.paymentMethodSelected,
-                ]}
-                onPress={() => setPaymentMethod('cash')}
-              >
-                <Ionicons name="cash" size={24} color={paymentMethod === 'cash' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'cash' && styles.paymentMethodTextSelected]}>
-                  Espèces (à l'arrivée)
-                </Text>
-                {paymentMethod === 'cash' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#e67e22" />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {(paymentMethod === 'wave' || paymentMethod === 'mobile_money') && (
-              <View style={styles.phoneInputSection}>
-                <Text style={styles.inputLabel}>
-                  {paymentMethod === 'wave' ? 'Numéro Wave' : 'Numéro de téléphone'}
-                </Text>
-                <View style={styles.phoneInputContainer}>
-                  <Ionicons name="call" size={20} color="#6b7280" style={styles.phoneIcon} />
-                  <TextInput
-                    style={styles.phoneInput}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    placeholder={paymentMethod === 'wave' ? 'Ex: +225 07 12 34 56 78' : 'Ex: +225 07 12 34 56 78'}
-                    placeholderTextColor="#9ca3af"
-                    keyboardType="phone-pad"
-                  />
                 </View>
               </View>
             )}
@@ -546,6 +672,42 @@ const styles = StyleSheet.create({
   paymentMethodTextSelected: {
     color: '#e67e22',
     fontWeight: '600',
+  },
+  paymentFormSection: {
+    marginTop: 12,
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  securityInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#10b981',
+    gap: 8,
+  },
+  securityText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#166534',
+  },
+  cashInfo: {
+    alignItems: 'center',
+    padding: 12,
+    gap: 8,
+  },
+  cashText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   phoneInputSection: {
     marginBottom: 24,
