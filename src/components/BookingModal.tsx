@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -578,24 +579,101 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
 
     if (result.success) {
+      // Paiement par carte : redirection vers Stripe Checkout (comme sur le site web)
+      if (selectedPaymentMethod === 'card' && result.booking?.id) {
+        try {
+          const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', {
+            body: {
+              booking_id: result.booking.id,
+              amount: pricing.finalTotal,
+              property_title: property.title,
+              check_in: formatDateForAPI(checkIn!),
+              check_out: formatDateForAPI(checkOut!),
+            },
+          });
+
+          if (checkoutError || !checkoutData?.url) {
+            console.error('Stripe checkout error:', checkoutError, checkoutData);
+            Alert.alert(
+              'Paiement',
+              'Votre réservation a été créée mais la page de paiement n\'a pas pu s\'ouvrir. Vous pourrez régler plus tard depuis "Mes réservations".',
+              [{
+                text: 'OK',
+                onPress: () => {
+                  setCheckIn(null);
+                  setCheckOut(null);
+                  setAdults(1);
+                  setChildren(0);
+                  setInfants(0);
+                  setMessage('');
+                  setVoucherCode('');
+                  setVoucherDiscount(null);
+                  onClose();
+                },
+              }]
+            );
+            return;
+          }
+
+          Alert.alert(
+            'Paiement sécurisé',
+            'Vous allez être redirigé vers la page de paiement Stripe. Une fois le paiement terminé, revenez à l\'application.',
+            [
+              { text: 'Annuler', style: 'cancel', onPress: () => {} },
+              {
+                text: 'Ouvrir',
+                onPress: () => {
+                  Linking.openURL(checkoutData.url);
+                  setCheckIn(null);
+                  setCheckOut(null);
+                  setAdults(1);
+                  setChildren(0);
+                  setInfants(0);
+                  setMessage('');
+                  setVoucherCode('');
+                  setVoucherDiscount(null);
+                  onClose();
+                },
+              },
+            ]
+          );
+          return;
+        } catch (stripeErr) {
+          console.error('Stripe checkout error:', stripeErr);
+          Alert.alert(
+            'Paiement',
+            'Votre réservation a été créée mais le paiement n\'a pas pu être initié. Vous pourrez régler depuis "Mes réservations".',
+            [{
+              text: 'OK',
+              onPress: () => {
+                setCheckIn(null);
+                setCheckOut(null);
+                setAdults(1);
+                setChildren(0);
+                setInfants(0);
+                setMessage('');
+                setVoucherCode('');
+                setVoucherDiscount(null);
+                onClose();
+              },
+            }]
+          );
+          return;
+        }
+      }
+
       // IMPORTANT: Les emails sont maintenant gérés dans useBookings.ts
       // Ne plus envoyer d'emails depuis BookingModal pour éviter les doublons
-      // Les emails sont envoyés automatiquement selon le statut de la réservation :
-      // - Si auto_booking = true : booking_confirmed au voyageur et booking_confirmed_host à l'hôte
-      // - Si auto_booking = false : booking_request_sent au voyageur et booking_request à l'hôte
-      
       const isAutoBooking = property.auto_booking === true;
-      
-      // Afficher l'alerte de confirmation
+
       Alert.alert(
         isAutoBooking ? 'Réservation confirmée !' : 'Demande envoyée !',
-        isAutoBooking 
+        isAutoBooking
           ? 'Votre réservation a été confirmée automatiquement. Vous recevrez une confirmation par email.'
           : 'Votre demande de réservation a été envoyée au propriétaire. Vous recevrez une notification lorsqu\'il répondra.',
-        [{ 
-          text: 'OK', 
+        [{
+          text: 'OK',
           onPress: () => {
-            // Réinitialiser le formulaire
             setCheckIn(null);
             setCheckOut(null);
             setAdults(1);
@@ -604,9 +682,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
             setMessage('');
             setVoucherCode('');
             setVoucherDiscount(null);
-            // Fermer le modal
             onClose();
-          }
+          },
         }]
       );
     } else {
@@ -627,20 +704,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const validatePaymentInfo = () => {
+    // Carte : pas de saisie dans l'app, redirection vers Stripe Checkout
     if (selectedPaymentMethod === 'card') {
-      if (!paymentInfo.cardNumber || !paymentInfo.cardHolder || !paymentInfo.expiryMonth || !paymentInfo.expiryYear || !paymentInfo.cvv) {
-        Alert.alert('Erreur', 'Veuillez remplir tous les champs de la carte bancaire');
-        return false;
-      }
-      if (paymentInfo.cardNumber.replace(/\s/g, '').length < 16) {
-        Alert.alert('Erreur', 'Le numéro de carte doit contenir au moins 16 chiffres');
-        return false;
-      }
-      if (paymentInfo.cvv.length < 3) {
-        Alert.alert('Erreur', 'Le code CVV doit contenir au moins 3 chiffres');
-        return false;
-      }
-    } else if (selectedPaymentMethod === 'wave') {
+      return true;
+    }
+    if (selectedPaymentMethod === 'wave') {
       if (!paymentInfo.phoneNumber || !paymentInfo.pin) {
         Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone et le code PIN Wave');
         return false;
@@ -1005,89 +1073,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
               {/* Informations de paiement - Affiché juste en dessous de la méthode sélectionnée */}
               {selectedPaymentMethod === 'card' && (
                 <View style={styles.paymentInfoContainer}>
-                  <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
-                  <View style={styles.paymentForm}>
-                      <View style={styles.inputRow}>
-                        <View style={styles.inputGroup}>
-                          <Text style={styles.label}>Numéro de carte *</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="1234 5678 9012 3456"
-                          value={paymentInfo.cardNumber}
-                          onChangeText={(value) => {
-                            // Formatage automatique avec espaces
-                            let formattedValue = value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
-                            formattedValue = formattedValue.match(/.{1,4}/g)?.join(' ') || formattedValue;
-                            setPaymentInfo(prev => ({ ...prev, cardNumber: formattedValue }));
-                          }}
-                          maxLength={19}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Nom du titulaire *</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="Jean Dupont"
-                          value={paymentInfo.cardHolder}
-                          onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, cardHolder: value.toUpperCase() }))}
-                          autoCapitalize="characters"
-                        />
-                      </View>
-                    </View>
-                    
-                    <View style={styles.inputRow}>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Mois *</Text>
-                        <View style={styles.selectContainer}>
-                          <TextInput
-                            style={styles.input}
-                            placeholder="MM"
-                            value={paymentInfo.expiryMonth}
-                            onChangeText={(value) => {
-                              const month = value.replace(/[^0-9]/g, '').slice(0, 2);
-                              if (month && parseInt(month) > 12) return;
-                              setPaymentInfo(prev => ({ ...prev, expiryMonth: month }));
-                            }}
-                            maxLength={2}
-                            keyboardType="numeric"
-                          />
-                        </View>
-                      </View>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Année *</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="YYYY"
-                          value={paymentInfo.expiryYear}
-                          onChangeText={(value) => {
-                            const year = value.replace(/[^0-9]/g, '').slice(0, 4);
-                            setPaymentInfo(prev => ({ ...prev, expiryYear: year }));
-                          }}
-                          maxLength={4}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>CVV *</Text>
-                        <TextInput
-                          style={styles.input}
-                          placeholder="123"
-                          value={paymentInfo.cvv}
-                          onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, cvv: value.replace(/[^0-9]/g, '').slice(0, 4) }))}
-                          maxLength={4}
-                          keyboardType="numeric"
-                          secureTextEntry
-                        />
-                      </View>
-                    </View>
-                    
-                    <View style={styles.securityInfo}>
-                      <Ionicons name="shield-checkmark" size={16} color="#10b981" />
-                      <Text style={styles.securityText}>
-                        🔒 Vos informations de carte sont sécurisées et chiffrées
-                      </Text>
-                    </View>
+                  <View style={styles.securityInfo}>
+                    <Ionicons name="card" size={20} color="#2563eb" />
+                    <Text style={styles.securityText}>
+                      Paiement sécurisé par Stripe. Après confirmation de la réservation, vous serez redirigé vers la page Stripe pour saisir votre carte (Visa, Mastercard).
+                    </Text>
                   </View>
                 </View>
               )}

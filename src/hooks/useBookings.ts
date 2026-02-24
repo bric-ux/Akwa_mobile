@@ -230,9 +230,10 @@ export const useBookings = () => {
         return { success: false, error: `Le nombre maximum de voyageurs est ${propertyData.max_guests || 10}` };
       }
 
-      // Déterminer le statut initial en fonction de auto_booking (comme sur le site web)
-      // IMPORTANT: Déterminer AVANT la création pour éviter les problèmes de timing
-      const initialStatus = propertyData.auto_booking ? 'confirmed' : 'pending';
+      // Paiement par carte : la réservation n'est effective qu'après paiement Stripe (toujours pending)
+      // Les autres méthodes : confirmed si auto_booking, sinon pending
+      const isCardPayment = bookingData.paymentMethod === 'card';
+      const initialStatus = isCardPayment ? 'pending' : (propertyData.auto_booking ? 'confirmed' : 'pending');
 
       // Calculer host_net_amount en utilisant la fonction centralisée
       // (nights est déjà calculé plus haut pour la vérification du minimum)
@@ -481,9 +482,10 @@ export const useBookings = () => {
           const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
           const hostName = `${hostProfile.first_name} ${hostProfile.last_name}`;
           
-          // Utiliser initialStatus (déterminé AVANT la création) pour décider quels emails envoyer
-          // C'est la même logique que sur le site web pour éviter les problèmes de timing
-          if (initialStatus === 'confirmed') {
+          // Paiement carte : aucun email ici, les emails seront envoyés par le webhook Stripe après paiement
+          if (isCardPayment) {
+            if (__DEV__) console.log('✅ [useBookings] Paiement carte - emails envoyés après paiement Stripe (webhook)');
+          } else if (initialStatus === 'confirmed') {
             if (__DEV__) console.log('✅ [useBookings] Réservation automatique détectée - envoi email de confirmation uniquement');
             // IMPORTANT: Vérifier si un email a déjà été envoyé pour éviter les doublons
             // On envoie l'email UNIQUEMENT depuis le mobile, pas depuis un trigger en base
