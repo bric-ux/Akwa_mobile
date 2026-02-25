@@ -709,14 +709,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       return true;
     }
     if (selectedPaymentMethod === 'wave') {
-      if (!paymentInfo.phoneNumber || !paymentInfo.pin) {
-        Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone et le code PIN Wave');
-        return false;
-      }
-      if (paymentInfo.phoneNumber.length < 10) {
-        Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide');
-        return false;
-      }
+      return true;
     } else if (selectedPaymentMethod === 'paypal') {
       if (!paymentInfo.paypalEmail) {
         Alert.alert('Erreur', 'Veuillez entrer votre email PayPal');
@@ -729,14 +722,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
         return false;
       }
     } else if (['orange_money', 'mtn_money', 'moov_money'].includes(selectedPaymentMethod)) {
-      if (!paymentInfo.phoneNumber || !paymentInfo.pin) {
-        Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone et le code PIN Mobile Money');
-        return false;
-      }
-      if (paymentInfo.phoneNumber.length < 10) {
-        Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide');
-        return false;
-      }
+      return true;
     }
     return true;
   };
@@ -1082,48 +1068,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 </View>
               )}
 
-              {/* Informations de paiement pour Wave - Affiché juste en dessous */}
               {selectedPaymentMethod === 'wave' && (
                 <View style={styles.paymentInfoContainer}>
-                  <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
-                  <View style={styles.paymentForm}>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Numéro de téléphone Wave *</Text>
-                        <TextInput
-                        style={styles.input}
-                        placeholder="+225 07 12 34 56 78"
-                        value={paymentInfo.phoneNumber}
-                        onChangeText={(value) => {
-                          // Formatage automatique du numéro
-                          let formattedValue = value.replace(/\D/g, '');
-                          if (formattedValue.startsWith('225')) {
-                            formattedValue = '+' + formattedValue;
-                          } else if (formattedValue.startsWith('07') || formattedValue.startsWith('05')) {
-                            formattedValue = '+225 ' + formattedValue;
-                          }
-                          setPaymentInfo(prev => ({ ...prev, phoneNumber: formattedValue }));
-                        }}
-                        keyboardType="phone-pad"
-                      />
-                    </View>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Code PIN Wave *</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Votre code PIN Wave"
-                        value={paymentInfo.pin}
-                        onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, pin: value.replace(/[^0-9]/g, '').slice(0, 6) }))}
-                        maxLength={6}
-                        keyboardType="numeric"
-                        secureTextEntry
-                      />
-                    </View>
-                    <View style={styles.securityInfo}>
-                      <Ionicons name="phone-portrait" size={16} color="#8b5cf6" />
-                      <Text style={styles.securityText}>
-                        📱 Vous recevrez une notification Wave pour confirmer le paiement
-                      </Text>
-                    </View>
+                  <View style={styles.securityInfo}>
+                    <Ionicons name="shield-checkmark" size={20} color="#8b5cf6" />
+                    <Text style={styles.securityText}>
+                      Vous serez redirigé vers un paiement sécurisé via Wave pour finaliser votre réservation.
+                    </Text>
                   </View>
                 </View>
               )}
@@ -1155,50 +1106,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 </View>
               )}
 
-              {/* Informations de paiement pour Orange Money, MTN Money, Moov Money - Affiché juste en dessous */}
               {(selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
                 <View style={styles.paymentInfoContainer}>
-                  <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
-                  <View style={styles.paymentForm}>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>
-                          Numéro de téléphone {selectedPaymentMethod === 'orange_money' ? 'Orange' : selectedPaymentMethod === 'mtn_money' ? 'MTN' : 'Moov'} *
-                        </Text>
-                        <TextInput
-                        style={styles.input}
-                        placeholder="+225 07 12 34 56 78"
-                        value={paymentInfo.phoneNumber}
-                        onChangeText={(value) => {
-                          // Formatage automatique du numéro
-                          let formattedValue = value.replace(/\D/g, '');
-                          if (formattedValue.startsWith('225')) {
-                            formattedValue = '+' + formattedValue;
-                          } else if (formattedValue.startsWith('07') || formattedValue.startsWith('05')) {
-                            formattedValue = '+225 ' + formattedValue;
-                          }
-                          setPaymentInfo(prev => ({ ...prev, phoneNumber: formattedValue }));
-                        }}
-                        keyboardType="phone-pad"
-                      />
-                    </View>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Code PIN Mobile Money *</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Votre code PIN"
-                        value={paymentInfo.pin}
-                        onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, pin: value.replace(/[^0-9]/g, '').slice(0, 6) }))}
-                        maxLength={6}
-                        keyboardType="numeric"
-                        secureTextEntry
-                      />
-                    </View>
-                    <View style={styles.securityInfo}>
-                      <Ionicons name="phone-portrait" size={16} color={selectedPaymentMethod === 'orange_money' ? '#f97316' : selectedPaymentMethod === 'mtn_money' ? '#eab308' : '#3b82f6'} />
-                      <Text style={styles.securityText}>
-                        📱 Vous recevrez une notification {selectedPaymentMethod === 'orange_money' ? 'Orange Money' : selectedPaymentMethod === 'mtn_money' ? 'MTN Money' : 'Moov Money'} pour confirmer le paiement
-                      </Text>
-                    </View>
+                  <View style={styles.securityInfo}>
+                    <Ionicons name="shield-checkmark" size={20} color={selectedPaymentMethod === 'orange_money' ? '#f97316' : selectedPaymentMethod === 'mtn_money' ? '#eab308' : '#3b82f6'} />
+                    <Text style={styles.securityText}>
+                      Vous serez redirigé vers un paiement sécurisé via {selectedPaymentMethod === 'orange_money' ? 'Orange Money' : selectedPaymentMethod === 'mtn_money' ? 'MTN Money' : 'Moov Money'} pour finaliser votre réservation.
+                    </Text>
                   </View>
                 </View>
               )}

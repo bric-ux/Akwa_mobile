@@ -630,14 +630,7 @@ const VehicleBookingScreen: React.FC = () => {
           return false;
         }
       } else if (selectedPaymentMethod === 'wave') {
-        if (!paymentInfo.phoneNumber || !paymentInfo.pin) {
-          Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone et le code PIN Wave');
-          return false;
-        }
-        if (paymentInfo.phoneNumber.replace(/\D/g, '').length < 10) {
-          Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide');
-          return false;
-        }
+        return true;
       } else if (selectedPaymentMethod === 'paypal') {
         if (!paymentInfo.paypalEmail) {
           Alert.alert('Erreur', 'Veuillez entrer votre email PayPal');
@@ -649,14 +642,7 @@ const VehicleBookingScreen: React.FC = () => {
           return false;
         }
       } else if (['orange_money', 'mtn_money', 'moov_money'].includes(selectedPaymentMethod)) {
-        if (!paymentInfo.phoneNumber || !paymentInfo.pin) {
-          Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone et le code PIN Mobile Money');
-          return false;
-        }
-        if (paymentInfo.phoneNumber.replace(/\D/g, '').length < 10) {
-          Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide');
-          return false;
-        }
+        return true;
       }
       return true;
     };
@@ -1217,62 +1203,20 @@ const VehicleBookingScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Formulaire Wave */}
           {selectedPaymentMethod === 'wave' && (
             <View style={styles.paymentInfoContainer}>
-              <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
-              <View style={styles.paymentForm}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Numéro de téléphone Wave *</Text>
-                  <TextInput style={styles.input} placeholder="+225 07 12 34 56 78" value={paymentInfo.phoneNumber} keyboardType="phone-pad"
-                    onChangeText={(value) => {
-                      let formatted = value.replace(/\D/g, '');
-                      if (formatted.startsWith('225')) formatted = '+' + formatted;
-                      else if (formatted.startsWith('07') || formatted.startsWith('05')) formatted = '+225 ' + formatted;
-                      setPaymentInfo(prev => ({ ...prev, phoneNumber: formatted }));
-                    }}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Code PIN Wave *</Text>
-                  <TextInput style={styles.input} placeholder="Votre code PIN Wave" value={paymentInfo.pin} maxLength={6} keyboardType="numeric" secureTextEntry
-                    onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, pin: value.replace(/[^0-9]/g, '').slice(0, 6) }))}
-                  />
-                </View>
-                <View style={styles.securityInfo}>
-                  <Ionicons name="phone-portrait" size={16} color="#8b5cf6" />
-                  <Text style={styles.securityText}>📱 Vous recevrez une notification Wave pour confirmer le paiement</Text>
-                </View>
+              <View style={styles.securityInfo}>
+                <Ionicons name="shield-checkmark" size={20} color="#8b5cf6" />
+                <Text style={styles.securityText}>Vous serez redirigé vers un paiement sécurisé via Wave pour finaliser votre réservation.</Text>
               </View>
             </View>
           )}
 
-          {/* Formulaire Orange / MTN / Moov Money */}
           {(selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
             <View style={styles.paymentInfoContainer}>
-              <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
-              <View style={styles.paymentForm}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Numéro {selectedPaymentMethod === 'orange_money' ? 'Orange' : selectedPaymentMethod === 'mtn_money' ? 'MTN' : 'Moov'} *</Text>
-                  <TextInput style={styles.input} placeholder="+225 07 12 34 56 78" value={paymentInfo.phoneNumber} keyboardType="phone-pad"
-                    onChangeText={(value) => {
-                      let formatted = value.replace(/\D/g, '');
-                      if (formatted.startsWith('225')) formatted = '+' + formatted;
-                      else if (formatted.startsWith('07') || formatted.startsWith('05')) formatted = '+225 ' + formatted;
-                      setPaymentInfo(prev => ({ ...prev, phoneNumber: formatted }));
-                    }}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Code PIN Mobile Money *</Text>
-                  <TextInput style={styles.input} placeholder="Votre code PIN" value={paymentInfo.pin} maxLength={6} keyboardType="numeric" secureTextEntry
-                    onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, pin: value.replace(/[^0-9]/g, '').slice(0, 6) }))}
-                  />
-                </View>
-                <View style={styles.securityInfo}>
-                  <Ionicons name="phone-portrait" size={16} color={selectedPaymentMethod === 'orange_money' ? '#f97316' : selectedPaymentMethod === 'mtn_money' ? '#eab308' : '#3b82f6'} />
-                  <Text style={styles.securityText}>📱 Vous recevrez une notification pour confirmer le paiement</Text>
-                </View>
+              <View style={styles.securityInfo}>
+                <Ionicons name="shield-checkmark" size={20} color={selectedPaymentMethod === 'orange_money' ? '#f97316' : selectedPaymentMethod === 'mtn_money' ? '#eab308' : '#3b82f6'} />
+                <Text style={styles.securityText}>Vous serez redirigé vers un paiement sécurisé via {selectedPaymentMethod === 'orange_money' ? 'Orange Money' : selectedPaymentMethod === 'mtn_money' ? 'MTN Money' : 'Moov Money'} pour finaliser votre réservation.</Text>
               </View>
             </View>
           )}

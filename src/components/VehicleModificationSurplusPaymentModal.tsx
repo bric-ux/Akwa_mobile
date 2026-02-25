@@ -83,8 +83,8 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
         return false;
       }
     } else if (paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) {
-      if (!paymentInfo.phoneNumber || !paymentInfo.pin) {
-        Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone et le code PIN');
+      if (!paymentInfo.phoneNumber) {
+        Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone');
         return false;
       }
       if (paymentInfo.phoneNumber.replace(/\D/g, '').length < 10) {
@@ -390,24 +390,12 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
               </TouchableOpacity>
             </View>
 
-            {/* Formulaires paiement - comme résidence meublée */}
             {(paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) && (
-              <View style={styles.paymentFormSection}>
-                <Text style={styles.inputLabel}>{paymentMethod === 'wave' ? 'Numéro Wave *' : `Numéro ${paymentMethod === 'orange_money' ? 'Orange' : paymentMethod === 'mtn_money' ? 'MTN' : 'Moov'} *`}</Text>
-                <TextInput style={styles.phoneInput} value={paymentInfo.phoneNumber} placeholder="+225 07 12 34 56 78"
-                  onChangeText={(value) => {
-                    let formatted = value.replace(/\D/g, '');
-                    if (formatted.startsWith('225')) formatted = '+' + formatted;
-                    else if (formatted.startsWith('07') || formatted.startsWith('05')) formatted = '+225 ' + formatted;
-                    setPaymentInfo(prev => ({ ...prev, phoneNumber: formatted }));
-                  }}
-                  keyboardType="phone-pad" placeholderTextColor="#9ca3af"
-                />
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Code PIN *</Text>
-                <TextInput style={styles.phoneInput} value={paymentInfo.pin} placeholder="Votre code PIN" maxLength={6} keyboardType="numeric" secureTextEntry
-                  onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, pin: value.replace(/[^0-9]/g, '').slice(0, 6) }))}
-                  placeholderTextColor="#9ca3af"
-                />
+              <View style={[styles.paymentFormSection, { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#f8f9fa', padding: 16, borderRadius: 8 }]}>
+                <Ionicons name="shield-checkmark" size={24} color={paymentMethod === 'wave' ? '#8b5cf6' : paymentMethod === 'orange_money' ? '#f97316' : paymentMethod === 'mtn_money' ? '#eab308' : '#3b82f6'} />
+                <Text style={[styles.inputLabel, { flex: 1, marginBottom: 0 }]}>
+                  Vous serez redirigé vers un paiement sécurisé via {paymentMethod === 'wave' ? 'Wave' : paymentMethod === 'orange_money' ? 'Orange Money' : paymentMethod === 'mtn_money' ? 'MTN Money' : 'Moov Money'} pour régler le surplus.
+                </Text>
               </View>
             )}
 
