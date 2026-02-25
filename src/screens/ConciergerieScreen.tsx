@@ -58,7 +58,6 @@ const ConciergerieScreen: React.FC = () => {
   const plans = [
     {
       name: 'Basique',
-      price: '8%',
       description: 'Pour commencer simplement',
       features: [
         'Gestion des entrées et sorties',
@@ -70,7 +69,6 @@ const ConciergerieScreen: React.FC = () => {
     },
     {
       name: 'Premium',
-      price: '18%',
       description: 'Le plus populaire',
       features: [
         'Gestion de Ménage en cours de séjour / après séjour',
@@ -82,7 +80,6 @@ const ConciergerieScreen: React.FC = () => {
     },
     {
       name: 'Luxe',
-      price: '25%',
       description: 'Service haut de gamme',
       features: [
         'Tout l\'offre Premium',
@@ -276,7 +273,6 @@ const ConciergerieScreen: React.FC = () => {
                     </View>
                   )}
                   <Text style={styles.planName}>{plan.name}</Text>
-                  <Text style={styles.planPrice}>{plan.price} des revenus</Text>
                   <Text style={styles.planDescription}>{plan.description}</Text>
                   <View style={styles.planFeatures}>
                     {plan.features.map((feature, idx) => (
@@ -371,7 +367,7 @@ const ConciergerieScreen: React.FC = () => {
                 >
                   <Text style={formData.selectedPlan ? styles.planSelectorText : styles.planSelectorPlaceholder}>
                     {formData.selectedPlan 
-                      ? `${formData.selectedPlan} - ${plans.find(p => p.name === formData.selectedPlan)?.price} des revenus`
+                      ? formData.selectedPlan
                       : 'Sélectionner une formule'
                     }
                   </Text>
@@ -468,7 +464,6 @@ const ConciergerieScreen: React.FC = () => {
                     <View style={styles.modalPlanHeader}>
                       <View style={styles.modalPlanTitleContainer}>
                         <Text style={styles.modalPlanName}>{plan.name}</Text>
-                        <Text style={styles.modalPlanPrice}>{plan.price} des revenus</Text>
                       </View>
                       {isSelected && (
                         <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
@@ -702,12 +697,6 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 4,
   },
-  planPrice: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#e67e22',
-    marginBottom: 4,
-  },
   planDescription: {
     fontSize: 14,
     color: '#666',
@@ -854,12 +843,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
-  },
-  modalPlanPrice: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#e67e22',
   },
   modalPlanDescription: {
     fontSize: 14,
