@@ -25,6 +25,7 @@ import AvailabilityCalendar from './AvailabilityCalendar';
 import { getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface BookingModalProps {
   visible: boolean;
@@ -51,6 +52,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 }) => {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { currency, rates, formatPrice: formatPriceCurrency, formatPriceForPayment } = useCurrency();
   const { createBooking, loading } = useBookings();
   const { sendBookingRequestSent, sendBookingRequest } = useEmailService();
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
@@ -582,14 +584,19 @@ const BookingModal: React.FC<BookingModalProps> = ({
       // Paiement par carte : redirection vers Stripe Checkout (comme sur le site web)
       if (selectedPaymentMethod === 'card' && result.booking?.id) {
         try {
+          const body: Record<string, unknown> = {
+            booking_id: result.booking.id,
+            amount: pricing.finalTotal,
+            property_title: property.title,
+            check_in: formatDateForAPI(checkIn!),
+            check_out: formatDateForAPI(checkOut!),
+          };
+          if (currency === 'EUR' && rates.EUR) {
+            body.currency = 'eur';
+            body.rate = rates.EUR;
+          }
           const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', {
-            body: {
-              booking_id: result.booking.id,
-              amount: pricing.finalTotal,
-              property_title: property.title,
-              check_in: formatDateForAPI(checkIn!),
-              check_out: formatDateForAPI(checkOut!),
-            },
+            body,
           });
 
           if (checkoutError || !checkoutData?.url) {
@@ -695,13 +702,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
+  const formatPrice = (price: number, showOriginal?: boolean) =>
+    formatPriceCurrency(price, showOriginal ?? false);
+  const formatPayment = (price: number) => formatPriceForPayment(price);
 
   const validatePaymentInfo = () => {
     // Carte : pas de saisie dans l'app, redirection vers Stripe Checkout
@@ -939,7 +942,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         {t('booking.payFullDesc')}
                       </Text>
                       <Text style={styles.paymentPlanAmount}>
-                        {formatPrice(finalTotal)} {t('common.now')}
+                        {formatPayment(finalTotal)} {t('common.now')}
                       </Text>
                     </View>
                     {paymentPlan === 'full' && (
@@ -987,7 +990,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         {t('booking.paySplitDesc')}
                       </Text>
                       <Text style={styles.paymentPlanAmount}>
-                        50% {t('common.now')} ({formatPrice(finalTotal * 0.5)}), 50% {t('booking.onArrival')}
+                        50% {t('common.now')} ({formatPayment(finalTotal * 0.5)}), 50% {t('booking.onArrival')}
                       </Text>
                     </View>
                     {paymentPlan === 'split' && selectedPaymentMethod !== 'cash' && (
@@ -1131,7 +1134,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                       </Text>
                       <View style={styles.cashAmount}>
                         <Text style={styles.cashAmountLabel}>Montant à payer :</Text>
-                        <Text style={styles.cashAmountValue}>{formatPrice(finalTotal)}</Text>
+                        <Text style={styles.cashAmountValue}>{formatPayment(finalTotal)}</Text>
                       </View>
                     </View>
                   </View>
@@ -1148,10 +1151,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={styles.priceRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.priceLabel}>
-                      {formatPrice(effectivePrice !== null ? effectivePrice : (property.price_per_night || 0))} × {nights} nuit{nights > 1 ? 's' : ''}
+                      {formatPayment(effectivePrice !== null ? effectivePrice : (property.price_per_night || 0))} × {nights} nuit{nights > 1 ? 's' : ''}
                     </Text>
                   </View>
-                  <Text style={styles.priceValue}>{formatPrice(pricing.originalTotal)}</Text>
+                  <Text style={styles.priceValue}>{formatPayment(pricing.originalTotal)}</Text>
                 </View>
                 
                 {pricing.discountApplied && (
@@ -1162,28 +1165,28 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         : `Réduction (${property.discount_percentage}% pour ${property.discount_min_nights}+ nuits)`
                       }
                     </Text>
-                    <Text style={styles.discountValue}>-{formatPrice(pricing.discountAmount)}</Text>
+                    <Text style={styles.discountValue}>-{formatPayment(pricing.discountAmount)}</Text>
                   </View>
                 )}
                 
                 {fees.cleaningFee > 0 && (
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>{t('booking.cleaningFee')}</Text>
-                    <Text style={styles.priceValue}>{formatPrice(fees.cleaningFee)}</Text>
+                    <Text style={styles.priceValue}>{formatPayment(fees.cleaningFee)}</Text>
                   </View>
                 )}
                 
                 {fees.serviceFee > 0 && (
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>{t('booking.serviceFee')}</Text>
-                    <Text style={styles.priceValue}>{formatPrice(fees.serviceFee)}</Text>
+                    <Text style={styles.priceValue}>{formatPayment(fees.serviceFee)}</Text>
                   </View>
                 )}
                 
                 {fees.taxes > 0 && (
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>{t('booking.taxes')}</Text>
-                    <Text style={styles.priceValue}>{formatPrice(fees.taxes)}</Text>
+                    <Text style={styles.priceValue}>{formatPayment(fees.taxes)}</Text>
                   </View>
                 )}
                 
@@ -1192,7 +1195,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     <Text style={styles.discountLabel}>
                       Réduction code promo
                     </Text>
-                    <Text style={styles.discountValue}>-{formatPrice(
+                    <Text style={styles.discountValue}>-{formatPayment(
                       voucherDiscount.discountPercentage 
                         ? Math.round((pricing.totalPrice + fees.totalFees) * (voucherDiscount.discountPercentage / 100))
                         : (voucherDiscount.discountAmount || 0)
@@ -1202,7 +1205,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 
                 <View style={[styles.priceRow, styles.totalRow]}>
                   <Text style={styles.totalLabel}>{t('booking.total')}</Text>
-                  <Text style={styles.totalValue}>{formatPrice(finalTotal)}</Text>
+                  <Text style={styles.totalValue}>{formatPayment(finalTotal)}</Text>
                 </View>
               </View>
             </View>
@@ -1235,7 +1238,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                           ? t('booking.payWithPaypalAndBook')
                           : t('booking.payWithPaypal')
                         : paymentPlan === 'split'
-                          ? `${t('booking.pay')} ${formatPrice(finalTotal * 0.5)} ${t('common.now')}`
+                          ? `${t('booking.pay')} ${formatPayment(finalTotal * 0.5)} ${t('common.now')}`
                           : property.auto_booking 
                             ? t('booking.payAndBook')
                             : t('booking.sendRequest')
@@ -1542,7 +1545,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   <View style={styles.paymentMethodInfo}>
                     <Text style={styles.paymentMethodTitle}>Espèces</Text>
                     <Text style={styles.paymentMethodDescription}>
-                      {t('booking.payFullOnArrival')} ({formatPrice(finalTotal)})
+                      {t('booking.payFullOnArrival')} ({formatPayment(finalTotal)})
                     </Text>
                   </View>
                 </View>

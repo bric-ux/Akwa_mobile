@@ -10,9 +10,11 @@ import {
   ActivityIndicator,
   ScrollView,
   SafeAreaView,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface ModificationSurplusPaymentModalProps {
   visible: boolean;
@@ -45,6 +47,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   newTotalPrice,
   priceBreakdown,
 }) => {
+  const { currency, rates, formatPriceForPayment } = useCurrency();
   const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('wave');
   const [paymentInfo, setPaymentInfo] = useState({
     cardNumber: '',
@@ -59,29 +62,11 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
+  const formatPrice = (price: number) => formatPriceForPayment(price);
 
   const validatePaymentInfo = (): boolean => {
-    if (paymentMethod === 'card') {
-      if (!paymentInfo.cardNumber || !paymentInfo.cardHolder || !paymentInfo.expiryMonth || !paymentInfo.expiryYear || !paymentInfo.cvv) {
-        Alert.alert('Erreur', 'Veuillez remplir tous les champs de la carte bancaire');
-        return false;
-      }
-      if (paymentInfo.cardNumber.replace(/\s/g, '').length < 16) {
-        Alert.alert('Erreur', 'Le numéro de carte doit contenir au moins 16 chiffres');
-        return false;
-      }
-      if (paymentInfo.cvv.length < 3) {
-        Alert.alert('Erreur', 'Le code CVV doit contenir au moins 3 chiffres');
-        return false;
-      }
-    } else if (paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) {
+    if (paymentMethod === 'card') return true; // Redirection Stripe, pas de saisie carte
+    if (paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) {
       if (!paymentInfo.phoneNumber) {
         Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone');
         return false;
@@ -106,6 +91,35 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
 
   const handlePayment = async () => {
     if (!validatePaymentInfo()) return;
+
+    if (paymentMethod === 'card') {
+      setLoading(true);
+      try {
+        const body: Record<string, unknown> = {
+          booking_id: bookingId,
+          amount: surplusAmount,
+          property_title: propertyTitle || 'Surplus modification',
+          payment_type: 'modification_surplus',
+        };
+        if (currency === 'EUR' && rates.EUR) {
+          body.currency = 'eur';
+          body.rate = rates.EUR;
+        }
+        const { data, error } = await supabase.functions.invoke('create-checkout-session', { body });
+        if (error) throw error;
+        if (data?.url) {
+          Linking.openURL(data.url);
+          onClose();
+          return;
+        }
+        throw new Error(data?.error || 'Impossible d\'ouvrir la page de paiement');
+      } catch (e: any) {
+        Alert.alert('Erreur', e?.message || 'Impossible d\'ouvrir le paiement Stripe');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     setLoading(true);
     try {

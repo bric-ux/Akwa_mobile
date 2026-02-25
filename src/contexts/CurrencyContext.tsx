@@ -38,6 +38,8 @@ interface CurrencyContextType {
   changeCurrency: (newCurrency: Currency) => Promise<void>;
   convert: (amountXOF: number) => { converted: number; formatted: string };
   formatPrice: (amountXOF: number, showOriginal?: boolean) => string;
+  /** Pour le paiement : conversion uniquement pour l'EUR. Autres devises → affichage FCFA (ce que Stripe prélève). */
+  formatPriceForPayment: (amountXOF: number) => string;
   rates: ExchangeRates;
   loading: boolean;
   CURRENCY_NAMES: Record<Currency, string>;
@@ -118,6 +120,16 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     return `${formatted} (${originalPrice})`;
   };
 
+  /** Conversion uniquement pour EUR (résumé paiement, Stripe). USD/RUB/JPY → FCFA. */
+  const formatPriceForPayment = (amountXOF: number): string => {
+    if (!amountXOF || amountXOF === 0) return '0 FCFA';
+    if (currency !== 'EUR' || !rates.EUR) {
+      return `${Math.round(amountXOF).toLocaleString('fr-FR')} FCFA`;
+    }
+    const eur = amountXOF / rates.EUR;
+    return `${Number(eur).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  };
+
   return (
     <CurrencyContext.Provider
       value={{
@@ -127,6 +139,7 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
         changeCurrency,
         convert,
         formatPrice,
+        formatPriceForPayment,
         rates,
         loading,
         CURRENCY_NAMES,
