@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Property } from '../types';
 import { useBookings } from '../hooks/useBookings';
 import { useAuth } from '../services/AuthContext';
-import { usePricing, calculateFinalPrice } from '../hooks/usePricing';
+import { calculateFinalPrice } from '../hooks/usePricing';
 import { useEmailService } from '../hooks/useEmailService';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import BookingIdentityAlert from './BookingIdentityAlert';
@@ -70,16 +70,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'orange_money' | 'mtn_money' | 'moov_money' | 'wave' | 'paypal' | 'cash'>('card');
   const [paymentPlan, setPaymentPlan] = useState<'full' | 'split'>('full');
-  const [paymentInfo, setPaymentInfo] = useState({
-    cardNumber: '',
-    cardHolder: '',
-    expiryMonth: '',
-    expiryYear: '',
-    cvv: '',
-    phoneNumber: '',
-    pin: '',
-    paypalEmail: ''
-  });
   const [effectivePrice, setEffectivePrice] = useState<number | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [voucherCode, setVoucherCode] = useState('');
@@ -881,27 +871,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
   }, [visible, resetStripePendingState]);
 
   const validatePaymentInfo = () => {
-    // Carte : pas de saisie dans l'app, redirection vers Stripe Checkout
-    if (selectedPaymentMethod === 'card') {
+    // Carte : pas de saisie dans l'app, redirection vers Stripe Checkout.
+    if (selectedPaymentMethod === 'card' || selectedPaymentMethod === 'cash') {
       return true;
     }
-    if (selectedPaymentMethod === 'wave') {
-      return true;
-    } else if (selectedPaymentMethod === 'paypal') {
-      if (!paymentInfo.paypalEmail) {
-        Alert.alert('Erreur', 'Veuillez entrer votre email PayPal');
-        return false;
-      }
-      // Validation basique de l'email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(paymentInfo.paypalEmail)) {
-        Alert.alert('Erreur', 'Veuillez entrer une adresse email PayPal valide');
-        return false;
-      }
-    } else if (['orange_money', 'mtn_money', 'moov_money'].includes(selectedPaymentMethod)) {
-      return true;
-    }
-    return true;
+    Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible.');
+    return false;
   };
 
   const { nights, pricing, fees, finalTotal } = calculateTotal();
@@ -1146,10 +1121,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                       return;
                     }
                     setPaymentPlan('split');
-                    // Si espèces était sélectionné, changer pour carte
-                    if (selectedPaymentMethod === 'cash') {
-                      setSelectedPaymentMethod('card');
-                    }
                   }}
                   disabled={selectedPaymentMethod === 'cash'}
                 >
@@ -1287,50 +1258,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 </View>
               )}
 
-              {selectedPaymentMethod === 'wave' && (
+              {(selectedPaymentMethod === 'wave' || selectedPaymentMethod === 'paypal' || selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
                 <View style={styles.paymentInfoContainer}>
                   <View style={styles.securityInfo}>
-                    <Ionicons name="shield-checkmark" size={20} color="#8b5cf6" />
+                    <Ionicons name="time-outline" size={20} color="#f59e0b" />
                     <Text style={styles.securityText}>
-                      Vous serez redirigé vers un paiement sécurisé via Wave pour finaliser votre réservation.
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Informations de paiement pour PayPal - Affiché juste en dessous */}
-              {selectedPaymentMethod === 'paypal' && (
-                <View style={styles.paymentInfoContainer}>
-                  <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
-                  <View style={styles.paymentForm}>
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Email PayPal *</Text>
-                        <TextInput
-                        style={styles.input}
-                        placeholder="votre.email@example.com"
-                        value={paymentInfo.paypalEmail}
-                        onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, paypalEmail: value }))}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                    </View>
-                    <View style={styles.paypalInfoBox}>
-                      <Ionicons name="information-circle-outline" size={16} color="#0070ba" />
-                      <Text style={styles.paypalInfoText}>
-                        Vous serez redirigé vers PayPal pour finaliser le paiement de manière sécurisée. Sans frais d'envoi.
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              )}
-
-              {(selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
-                <View style={styles.paymentInfoContainer}>
-                  <View style={styles.securityInfo}>
-                    <Ionicons name="shield-checkmark" size={20} color={selectedPaymentMethod === 'orange_money' ? '#f97316' : selectedPaymentMethod === 'mtn_money' ? '#eab308' : '#3b82f6'} />
-                    <Text style={styles.securityText}>
-                      Vous serez redirigé vers un paiement sécurisé via {selectedPaymentMethod === 'orange_money' ? 'Orange Money' : selectedPaymentMethod === 'mtn_money' ? 'MTN Money' : 'Moov Money'} pour finaliser votre réservation.
+                      Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces pour continuer.
                     </Text>
                   </View>
                 </View>
@@ -1469,11 +1402,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         : 'Payer et envoyer la demande'
                     : selectedPaymentMethod === 'cash'
                       ? t('booking.confirmBooking')
-                      : selectedPaymentMethod === 'paypal'
-                        ? property.auto_booking 
-                          ? t('booking.payWithPaypalAndBook')
-                          : t('booking.payWithPaypal')
-                        : paymentPlan === 'split'
+                    : paymentPlan === 'split'
                           ? `${t('booking.pay')} ${formatPayment(finalTotal * 0.5)} ${t('common.now')}`
                           : property.auto_booking 
                             ? t('booking.payAndBook')
@@ -1536,15 +1465,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 ]}
                 onPress={() => {
                   setSelectedPaymentMethod('card');
-                  setPaymentInfo({
-                    cardNumber: '',
-                    cardHolder: '',
-                    expiryMonth: '',
-                    expiryYear: '',
-                    cvv: '',
-                    phoneNumber: '',
-                    pin: ''
-                  });
                   setShowPaymentMethodModal(false);
                 }}
               >
@@ -1571,17 +1491,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   selectedPaymentMethod === 'orange_money' && styles.paymentMethodSelected
                 ]}
                 onPress={() => {
-                  setSelectedPaymentMethod('orange_money');
-                  setPaymentInfo({
-                    cardNumber: '',
-                    cardHolder: '',
-                    expiryMonth: '',
-                    expiryYear: '',
-                    cvv: '',
-                    phoneNumber: '',
-                    pin: ''
-                  });
-                  setShowPaymentMethodModal(false);
+                  Alert.alert('Bientot disponible', 'Orange Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
                 }}
               >
                 <View style={styles.paymentMethodContent}>
@@ -1607,17 +1517,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   selectedPaymentMethod === 'mtn_money' && styles.paymentMethodSelected
                 ]}
                 onPress={() => {
-                  setSelectedPaymentMethod('mtn_money');
-                  setPaymentInfo({
-                    cardNumber: '',
-                    cardHolder: '',
-                    expiryMonth: '',
-                    expiryYear: '',
-                    cvv: '',
-                    phoneNumber: '',
-                    pin: ''
-                  });
-                  setShowPaymentMethodModal(false);
+                  Alert.alert('Bientot disponible', 'MTN Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
                 }}
               >
                 <View style={styles.paymentMethodContent}>
@@ -1643,17 +1543,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   selectedPaymentMethod === 'moov_money' && styles.paymentMethodSelected
                 ]}
                 onPress={() => {
-                  setSelectedPaymentMethod('moov_money');
-                  setPaymentInfo({
-                    cardNumber: '',
-                    cardHolder: '',
-                    expiryMonth: '',
-                    expiryYear: '',
-                    cvv: '',
-                    phoneNumber: '',
-                    pin: ''
-                  });
-                  setShowPaymentMethodModal(false);
+                  Alert.alert('Bientot disponible', 'Moov Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
                 }}
               >
                 <View style={styles.paymentMethodContent}>
@@ -1679,17 +1569,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   selectedPaymentMethod === 'wave' && styles.paymentMethodSelected
                 ]}
                 onPress={() => {
-                  setSelectedPaymentMethod('wave');
-                  setPaymentInfo({
-                    cardNumber: '',
-                    cardHolder: '',
-                    expiryMonth: '',
-                    expiryYear: '',
-                    cvv: '',
-                    phoneNumber: '',
-                    pin: ''
-                  });
-                  setShowPaymentMethodModal(false);
+                  Alert.alert('Bientot disponible', 'Wave sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
                 }}
               >
                 <View style={styles.paymentMethodContent}>
@@ -1715,18 +1595,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   selectedPaymentMethod === 'paypal' && styles.paymentMethodSelected
                 ]}
                 onPress={() => {
-                  setSelectedPaymentMethod('paypal');
-                  setPaymentInfo({
-                    cardNumber: '',
-                    cardHolder: '',
-                    expiryMonth: '',
-                    expiryYear: '',
-                    cvv: '',
-                    phoneNumber: '',
-                    pin: '',
-                    paypalEmail: ''
-                  });
-                  setShowPaymentMethodModal(false);
+                  Alert.alert('Bientot disponible', 'PayPal sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
                 }}
               >
                 <View style={styles.paymentMethodContent}>
@@ -1763,16 +1632,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 onPress={() => {
                   setSelectedPaymentMethod('cash');
                   setPaymentPlan('full'); // Espèces = paiement complet à l'arrivée
-                  setPaymentInfo({
-                    cardNumber: '',
-                    cardHolder: '',
-                    expiryMonth: '',
-                    expiryYear: '',
-                    cvv: '',
-                    phoneNumber: '',
-                    pin: '',
-                    paypalEmail: ''
-                  });
                   setShowPaymentMethodModal(false);
                 }}
               >

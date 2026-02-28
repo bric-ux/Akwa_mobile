@@ -67,16 +67,6 @@ const VehicleBookingScreen: React.FC = () => {
   const [showLicenseYearsPicker, setShowLicenseYearsPicker] = useState(false);
   const [useDriver, setUseDriver] = useState<boolean | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'paypal' | 'cash'>('card');
-  const [paymentInfo, setPaymentInfo] = useState({
-    cardNumber: '',
-    cardHolder: '',
-    expiryMonth: '',
-    expiryYear: '',
-    cvv: '',
-    phoneNumber: '',
-    pin: '',
-    paypalEmail: '',
-  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const imageScrollViewRef = useRef<ScrollView>(null);
@@ -626,25 +616,11 @@ const VehicleBookingScreen: React.FC = () => {
 
     // Valider les informations de paiement (comme résidence meublée)
     const validatePaymentInfo = () => {
-      if (selectedPaymentMethod === 'card') {
-        // Paiement carte: saisie réelle effectuée sur Stripe Checkout.
-        return true;
-      } else if (selectedPaymentMethod === 'wave') {
-        return true;
-      } else if (selectedPaymentMethod === 'paypal') {
-        if (!paymentInfo.paypalEmail) {
-          Alert.alert('Erreur', 'Veuillez entrer votre email PayPal');
-          return false;
-        }
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(paymentInfo.paypalEmail)) {
-          Alert.alert('Erreur', 'Veuillez entrer une adresse email PayPal valide');
-          return false;
-        }
-      } else if (['orange_money', 'mtn_money', 'moov_money'].includes(selectedPaymentMethod)) {
+      if (selectedPaymentMethod === 'card' || selectedPaymentMethod === 'cash') {
         return true;
       }
-      return true;
+      Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
+      return false;
     };
     if (!validatePaymentInfo()) return;
 
@@ -1149,7 +1125,13 @@ const VehicleBookingScreen: React.FC = () => {
                   styles.paymentMethodOption,
                   selectedPaymentMethod === method.value && styles.paymentMethodOptionSelected,
                 ]}
-                onPress={() => setSelectedPaymentMethod(method.value)}
+                onPress={() => {
+                  if (method.value === 'card' || method.value === 'cash') {
+                    setSelectedPaymentMethod(method.value);
+                    return;
+                  }
+                  Alert.alert('Bientot disponible', `${method.label} sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.`);
+                }}
               >
                 <Ionicons name={method.icon as any} size={24} color={selectedPaymentMethod === method.value ? '#2E7D32' : '#666'} />
                 <Text style={[styles.paymentMethodOptionText, selectedPaymentMethod === method.value && styles.paymentMethodOptionTextSelected]}>
@@ -1160,62 +1142,9 @@ const VehicleBookingScreen: React.FC = () => {
             ))}
           </View>
 
-          {/* Formulaire Carte bancaire */}
+          {/* Carte bancaire: paiement uniquement via Stripe Checkout */}
           {selectedPaymentMethod === 'card' && (
             <View style={styles.paymentInfoContainer}>
-              <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
-              <View style={styles.paymentForm}>
-                <View style={styles.inputRow}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Numéro de carte *</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="1234 5678 9012 3456"
-                      value={paymentInfo.cardNumber}
-                      onChangeText={(value) => {
-                        let formatted = value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
-                        formatted = formatted.match(/.{1,4}/g)?.join(' ') || formatted;
-                        setPaymentInfo(prev => ({ ...prev, cardNumber: formatted }));
-                      }}
-                      maxLength={19}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Nom du titulaire *</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Jean Dupont"
-                      value={paymentInfo.cardHolder}
-                      onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, cardHolder: value.toUpperCase() }))}
-                      autoCapitalize="characters"
-                    />
-                  </View>
-                </View>
-                <View style={styles.inputRow}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Mois *</Text>
-                    <TextInput style={styles.input} placeholder="MM" value={paymentInfo.expiryMonth} maxLength={2} keyboardType="numeric"
-                      onChangeText={(value) => {
-                        const month = value.replace(/[^0-9]/g, '').slice(0, 2);
-                        if (month && parseInt(month) > 12) return;
-                        setPaymentInfo(prev => ({ ...prev, expiryMonth: month }));
-                      }}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Année *</Text>
-                    <TextInput style={styles.input} placeholder="YYYY" value={paymentInfo.expiryYear} maxLength={4} keyboardType="numeric"
-                      onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, expiryYear: value.replace(/[^0-9]/g, '').slice(0, 4) }))}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>CVV *</Text>
-                    <TextInput style={styles.input} placeholder="123" value={paymentInfo.cvv} maxLength={4} keyboardType="numeric" secureTextEntry
-                      onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, cvv: value.replace(/[^0-9]/g, '').slice(0, 4) }))}
-                    />
-                  </View>
-                </View>
                 <View style={styles.securityInfo}>
                   <Ionicons name="shield-checkmark" size={16} color="#10b981" />
                   <Text style={styles.securityText}>
@@ -1224,43 +1153,14 @@ const VehicleBookingScreen: React.FC = () => {
                       : 'Paiement sécurisé via Stripe. Après paiement validé, votre demande sera transmise au propriétaire.'}
                   </Text>
                 </View>
-              </View>
             </View>
           )}
 
-          {selectedPaymentMethod === 'wave' && (
+          {(selectedPaymentMethod === 'wave' || selectedPaymentMethod === 'paypal' || selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
             <View style={styles.paymentInfoContainer}>
               <View style={styles.securityInfo}>
-                <Ionicons name="shield-checkmark" size={20} color="#8b5cf6" />
-                <Text style={styles.securityText}>Vous serez redirigé vers un paiement sécurisé via Wave pour finaliser votre réservation.</Text>
-              </View>
-            </View>
-          )}
-
-          {(selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
-            <View style={styles.paymentInfoContainer}>
-              <View style={styles.securityInfo}>
-                <Ionicons name="shield-checkmark" size={20} color={selectedPaymentMethod === 'orange_money' ? '#f97316' : selectedPaymentMethod === 'mtn_money' ? '#eab308' : '#3b82f6'} />
-                <Text style={styles.securityText}>Vous serez redirigé vers un paiement sécurisé via {selectedPaymentMethod === 'orange_money' ? 'Orange Money' : selectedPaymentMethod === 'mtn_money' ? 'MTN Money' : 'Moov Money'} pour finaliser votre réservation.</Text>
-              </View>
-            </View>
-          )}
-
-          {/* Formulaire PayPal */}
-          {selectedPaymentMethod === 'paypal' && (
-            <View style={styles.paymentInfoContainer}>
-              <Text style={styles.paymentInfoTitle}>Informations de paiement</Text>
-              <View style={styles.paymentForm}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Email PayPal *</Text>
-                  <TextInput style={styles.input} placeholder="votre.email@example.com" value={paymentInfo.paypalEmail}
-                    onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, paypalEmail: value }))} keyboardType="email-address" autoCapitalize="none"
-                  />
-                </View>
-                <View style={styles.securityInfo}>
-                  <Ionicons name="information-circle-outline" size={16} color="#0070ba" />
-                  <Text style={styles.securityText}>Vous serez redirigé vers PayPal pour finaliser le paiement de manière sécurisée.</Text>
-                </View>
+                <Ionicons name="time-outline" size={20} color="#f59e0b" />
+                <Text style={styles.securityText}>Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.</Text>
               </View>
             </View>
           )}

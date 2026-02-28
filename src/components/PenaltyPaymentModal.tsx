@@ -5,10 +5,10 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   Alert,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
@@ -39,16 +39,42 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
   penalty,
   onPaymentComplete,
 }) => {
-  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'card'>('wave');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'card' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   const handlePayment = async () => {
     if (!penalty) return;
 
-    if (paymentMethod === 'wave' && !phoneNumber.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer votre numéro Wave');
+    if (paymentMethod === 'wave') {
+      Alert.alert('Bientot disponible', 'Wave sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
+      return;
+    }
+
+    if (paymentMethod === 'card') {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+          body: {
+            booking_id: penalty.booking_id,
+            amount: penalty.penalty_amount,
+            property_title: penalty.booking?.property?.title || 'Paiement de penalite',
+            payment_type: 'penalty',
+            penalty_id: penalty.id,
+          },
+        });
+        if (error) throw error;
+        if (data?.url) {
+          Linking.openURL(data.url);
+          onClose();
+          return;
+        }
+        throw new Error(data?.error || 'Impossible d\'ouvrir la page de paiement');
+      } catch (e: any) {
+        Alert.alert('Erreur', e?.message || 'Impossible d\'ouvrir le paiement Stripe');
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -60,9 +86,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
         .update({
           status: 'paid_directly',
           deducted_at: new Date().toISOString(),
-          admin_notes: paymentMethod === 'wave'
-            ? `Paiement Wave initié - Numéro: ${phoneNumber}`
-            : 'Paiement par carte bancaire initié',
+          admin_notes: 'Paiement en espèces déclaré par le voyageur',
         })
         .eq('id', penalty.id);
 
@@ -76,8 +100,8 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
           data: {
             penaltyId: penalty.id,
             amount: penalty.penalty_amount,
-            paymentMethod: paymentMethod === 'wave' ? 'Wave' : 'Carte bancaire',
-            phoneNumber: paymentMethod === 'wave' ? phoneNumber : null,
+            paymentMethod: paymentMethod === 'cash' ? 'Especes' : 'Carte bancaire',
+            phoneNumber: null,
             propertyTitle: penalty.booking?.property?.title || 'N/A',
             checkInDate: penalty.booking?.check_in_date,
             penaltyType: penalty.penalty_type,
@@ -90,9 +114,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
       setTimeout(() => {
         Alert.alert(
           'Paiement initié',
-          paymentMethod === 'wave'
-            ? 'Vous allez recevoir une demande de paiement Wave'
-            : 'Notre équipe vous contactera pour finaliser le paiement par carte',
+          'Votre declaration de paiement en especes a ete enregistree.',
           [
             {
               text: 'OK',
@@ -100,8 +122,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                 onPaymentComplete();
                 onClose();
                 setPaymentSuccess(false);
-                setPhoneNumber('');
-                setPaymentMethod('wave');
+                setPaymentMethod('card');
               },
             },
           ]
@@ -125,9 +146,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
             <Ionicons name="checkmark-circle" size={64} color="#10b981" />
             <Text style={styles.successTitle}>Paiement initié !</Text>
             <Text style={styles.successText}>
-              {paymentMethod === 'wave'
-                ? 'Vous allez recevoir une demande de paiement sur votre numéro Wave.'
-                : 'Notre équipe vous contactera pour finaliser le paiement.'}
+              Votre déclaration de paiement en espèces a été enregistrée.
             </Text>
           </View>
         </View>
@@ -179,7 +198,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                 styles.paymentMethodCard,
                 paymentMethod === 'wave' && styles.paymentMethodCardActive,
               ]}
-              onPress={() => setPaymentMethod('wave')}
+              onPress={() => Alert.alert('Bientot disponible', 'Wave sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
             >
               <View style={styles.paymentMethodContent}>
                 <View style={[styles.paymentIcon, { backgroundColor: '#1DA1F2' }]}>
@@ -220,31 +239,35 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
               </View>
             </TouchableOpacity>
 
-            {/* Formulaire Wave */}
-            {paymentMethod === 'wave' && (
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Numéro Wave</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: +225 07 XX XX XX XX"
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  keyboardType="phone-pad"
-                  editable={!loading}
+            <TouchableOpacity
+              style={[
+                styles.paymentMethodCard,
+                paymentMethod === 'cash' && styles.paymentMethodCardActive,
+              ]}
+              onPress={() => setPaymentMethod('cash')}
+            >
+              <View style={styles.paymentMethodContent}>
+                <View style={[styles.paymentIcon, { backgroundColor: '#6b7280' }]}>
+                  <Ionicons name="cash" size={24} color="#fff" />
+                </View>
+                <View style={styles.paymentMethodInfo}>
+                  <Text style={styles.paymentMethodTitle}>Espèces</Text>
+                  <Text style={styles.paymentMethodSubtitle}>Paiement hors application</Text>
+                </View>
+                <Ionicons
+                  name={paymentMethod === 'cash' ? 'radio-button-on' : 'radio-button-off'}
+                  size={24}
+                  color={paymentMethod === 'cash' ? '#e67e22' : '#ccc'}
                 />
-                <Text style={styles.inputHint}>
-                  Vous recevrez une demande de paiement sur ce numéro
-                </Text>
               </View>
-            )}
+            </TouchableOpacity>
 
             {/* Info carte bancaire */}
             {paymentMethod === 'card' && (
               <View style={styles.infoCard}>
                 <Ionicons name="information-circle" size={20} color="#f59e0b" />
                 <Text style={styles.infoText}>
-                  Pour le paiement par carte bancaire, notre équipe vous contactera avec un lien de
-                  paiement sécurisé.
+                  Vous serez redirigé vers Stripe pour effectuer le paiement de la pénalité en toute sécurité.
                 </Text>
               </View>
             )}

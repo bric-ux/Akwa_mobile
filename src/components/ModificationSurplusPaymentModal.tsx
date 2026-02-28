@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   Modal,
   TouchableOpacity,
@@ -48,43 +47,17 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   priceBreakdown,
 }) => {
   const { currency, rates, formatPriceForPayment } = useCurrency();
-  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('wave');
-  const [paymentInfo, setPaymentInfo] = useState({
-    cardNumber: '',
-    cardHolder: '',
-    expiryMonth: '',
-    expiryYear: '',
-    cvv: '',
-    phoneNumber: '',
-    pin: '',
-    paypalEmail: '',
-  });
+  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   const formatPrice = (price: number) => formatPriceForPayment(price);
 
   const validatePaymentInfo = (): boolean => {
-    if (paymentMethod === 'card') return true; // Redirection Stripe, pas de saisie carte
-    if (paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) {
-      if (!paymentInfo.phoneNumber) {
-        Alert.alert('Erreur', 'Veuillez remplir le numéro de téléphone');
-        return false;
-      }
-      if (paymentInfo.phoneNumber.replace(/\D/g, '').length < 10) {
-        Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide');
-        return false;
-      }
-    } else if (paymentMethod === 'paypal') {
-      if (!paymentInfo.paypalEmail) {
-        Alert.alert('Erreur', 'Veuillez entrer votre email PayPal');
-        return false;
-      }
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(paymentInfo.paypalEmail)) {
-        Alert.alert('Erreur', 'Veuillez entrer une adresse email PayPal valide');
-        return false;
-      }
+    if (paymentMethod === 'card' || paymentMethod === 'cash') return true;
+    if (['wave', 'orange_money', 'mtn_money', 'moov_money', 'paypal'].includes(paymentMethod)) {
+      Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
+      return false;
     }
     return true;
   };
@@ -147,14 +120,6 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
         payment_provider: paymentProvider,
       };
 
-      if (paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) {
-        paymentData.mobile_money_phone = paymentInfo.phoneNumber;
-        paymentData.mobile_money_operator = paymentMethod === 'wave' ? 'wave' : paymentMethod;
-      }
-      if (paymentMethod === 'paypal') {
-        paymentData.paypal_email = paymentInfo.paypalEmail;
-      }
-
       const { data: paymentResult, error: paymentError } = await supabase.functions.invoke(
         'create-modification-payment',
         {
@@ -177,7 +142,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               bookingId,
               surplusAmount,
               paymentMethod,
-              phoneNumber: ['wave', 'orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod) ? paymentInfo.phoneNumber : null,
+              phoneNumber: null,
               propertyTitle: propertyTitle || 'N/A',
             },
           },
@@ -251,7 +216,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                   styles.paymentMethod,
                   paymentMethod === 'wave' && styles.paymentMethodSelected,
                 ]}
-                onPress={() => setPaymentMethod('wave')}
+                onPress={() => Alert.alert('Bientot disponible', 'Wave sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
               >
                 <Ionicons name="wallet" size={24} color={paymentMethod === 'wave' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'wave' && styles.paymentMethodTextSelected]}>
@@ -265,7 +230,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               {/* Orange Money */}
               <TouchableOpacity
                 style={[styles.paymentMethod, paymentMethod === 'orange_money' && styles.paymentMethodSelected]}
-                onPress={() => setPaymentMethod('orange_money')}
+                onPress={() => Alert.alert('Bientot disponible', 'Orange Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
               >
                 <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'orange_money' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'orange_money' && styles.paymentMethodTextSelected]}>Orange Money</Text>
@@ -275,7 +240,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               {/* MTN Money */}
               <TouchableOpacity
                 style={[styles.paymentMethod, paymentMethod === 'mtn_money' && styles.paymentMethodSelected]}
-                onPress={() => setPaymentMethod('mtn_money')}
+                onPress={() => Alert.alert('Bientot disponible', 'MTN Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
               >
                 <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'mtn_money' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'mtn_money' && styles.paymentMethodTextSelected]}>MTN Money</Text>
@@ -285,7 +250,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               {/* Moov Money */}
               <TouchableOpacity
                 style={[styles.paymentMethod, paymentMethod === 'moov_money' && styles.paymentMethodSelected]}
-                onPress={() => setPaymentMethod('moov_money')}
+                onPress={() => Alert.alert('Bientot disponible', 'Moov Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
               >
                 <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'moov_money' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'moov_money' && styles.paymentMethodTextSelected]}>Moov Money</Text>
@@ -295,7 +260,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               {/* PayPal */}
               <TouchableOpacity
                 style={[styles.paymentMethod, paymentMethod === 'paypal' && styles.paymentMethodSelected]}
-                onPress={() => setPaymentMethod('paypal')}
+                onPress={() => Alert.alert('Bientot disponible', 'PayPal sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
               >
                 <Ionicons name="logo-paypal" size={24} color={paymentMethod === 'paypal' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'paypal' && styles.paymentMethodTextSelected]}>PayPal</Text>
@@ -337,70 +302,12 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               </TouchableOpacity>
             </View>
 
-            {(paymentMethod === 'wave' || ['orange_money', 'mtn_money', 'moov_money'].includes(paymentMethod)) && (
+            {(paymentMethod === 'wave' || paymentMethod === 'orange_money' || paymentMethod === 'mtn_money' || paymentMethod === 'moov_money' || paymentMethod === 'paypal') && (
               <View style={[styles.paymentFormSection, { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#f8f9fa', padding: 16, borderRadius: 8 }]}>
-                <Ionicons name="shield-checkmark" size={24} color={paymentMethod === 'wave' ? '#8b5cf6' : paymentMethod === 'orange_money' ? '#f97316' : paymentMethod === 'mtn_money' ? '#eab308' : '#3b82f6'} />
+                <Ionicons name="time-outline" size={24} color="#f59e0b" />
                 <Text style={[styles.inputLabel, { flex: 1, marginBottom: 0 }]}>
-                  Vous serez redirigé vers un paiement sécurisé via {paymentMethod === 'wave' ? 'Wave' : paymentMethod === 'orange_money' ? 'Orange Money' : paymentMethod === 'mtn_money' ? 'MTN Money' : 'Moov Money'} pour régler le surplus.
+                  Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.
                 </Text>
-              </View>
-            )}
-
-            {paymentMethod === 'card' && (
-              <View style={styles.paymentFormSection}>
-                <Text style={styles.inputLabel}>Numéro de carte *</Text>
-                <TextInput style={styles.phoneInput} placeholder="1234 5678 9012 3456" value={paymentInfo.cardNumber} maxLength={19} keyboardType="numeric"
-                  onChangeText={(value) => {
-                    let formatted = value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
-                    formatted = formatted.match(/.{1,4}/g)?.join(' ') || formatted;
-                    setPaymentInfo(prev => ({ ...prev, cardNumber: formatted }));
-                  }}
-                  placeholderTextColor="#9ca3af"
-                />
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>Nom du titulaire *</Text>
-                <TextInput style={styles.phoneInput} placeholder="Jean Dupont" value={paymentInfo.cardHolder}
-                  onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, cardHolder: value.toUpperCase() }))} autoCapitalize="characters" placeholderTextColor="#9ca3af"
-                />
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>Mois *</Text>
-                    <TextInput style={styles.phoneInput} placeholder="MM" value={paymentInfo.expiryMonth} maxLength={2} keyboardType="numeric"
-                      onChangeText={(value) => {
-                        const month = value.replace(/[^0-9]/g, '').slice(0, 2);
-                        if (month && parseInt(month) > 12) return;
-                        setPaymentInfo(prev => ({ ...prev, expiryMonth: month }));
-                      }}
-                      placeholderTextColor="#9ca3af"
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>Année *</Text>
-                    <TextInput style={styles.phoneInput} placeholder="YYYY" value={paymentInfo.expiryYear} maxLength={4} keyboardType="numeric"
-                      onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, expiryYear: value.replace(/[^0-9]/g, '').slice(0, 4) }))}
-                      placeholderTextColor="#9ca3af"
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputLabel}>CVV *</Text>
-                    <TextInput style={styles.phoneInput} placeholder="123" value={paymentInfo.cvv} maxLength={4} keyboardType="numeric" secureTextEntry
-                      onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, cvv: value.replace(/[^0-9]/g, '').slice(0, 4) }))}
-                      placeholderTextColor="#9ca3af"
-                    />
-                  </View>
-                </View>
-                <View style={styles.securityInfo}>
-                  <Ionicons name="shield-checkmark" size={16} color="#10b981" />
-                  <Text style={styles.securityText}>🔒 Vos informations sont sécurisées</Text>
-                </View>
-              </View>
-            )}
-
-            {paymentMethod === 'paypal' && (
-              <View style={styles.paymentFormSection}>
-                <Text style={styles.inputLabel}>Email PayPal *</Text>
-                <TextInput style={styles.phoneInput} placeholder="votre.email@example.com" value={paymentInfo.paypalEmail}
-                  onChangeText={(value) => setPaymentInfo(prev => ({ ...prev, paypalEmail: value }))} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#9ca3af"
-                />
               </View>
             )}
 
