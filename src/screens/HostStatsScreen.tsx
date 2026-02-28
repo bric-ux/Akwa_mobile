@@ -19,6 +19,7 @@ import { supabase } from '../services/supabase';
 import { getCommissionRates } from '../lib/commissions';
 import { calculateHostCommission } from '../hooks/usePricing';
 import { calculateHostNetAmount } from '../lib/hostNetAmount';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface DetailedStats {
   totalProperties: number;
@@ -37,6 +38,7 @@ interface DetailedStats {
 const HostStatsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { formatPrice } = useCurrency();
   const { getMyProperties } = useMyProperties();
   const { getHostBookings } = useHostBookings();
   
@@ -292,14 +294,6 @@ const HostStatsScreen: React.FC = () => {
       }
     }
   }, [viewMode, selectedMonth, user, selectedPropertyId]);
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
 
   const StatCard = ({ title, value, icon, color, subtitle }: {
     title: string;

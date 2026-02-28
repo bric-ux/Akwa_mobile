@@ -20,6 +20,7 @@ import { VehicleBooking } from '../types';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { getCommissionRates } from '../lib/commissions';
 import { calculateHostNetAmount } from '../lib/hostNetAmount';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface DetailedStats {
   totalVehicles: number;
@@ -34,6 +35,7 @@ interface DetailedStats {
 const VehicleOwnerStatsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { formatPrice } = useCurrency();
   const { getMyVehicles } = useVehicles();
   const { getAllOwnerBookings } = useVehicleBookings();
   
@@ -131,14 +133,6 @@ const VehicleOwnerStatsScreen: React.FC = () => {
       loadStats();
     }
   }, [user, selectedVehicle]);
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
 
   const StatCard = ({ title, value, icon, color }: {
     title: string;

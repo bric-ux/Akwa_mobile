@@ -32,6 +32,7 @@ import { useVehicleRenterReviews } from '../hooks/useVehicleRenterReviews';
 import HostVehicleModificationRequestCard from '../components/HostVehicleModificationRequestCard';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import { useAuth } from '../services/AuthContext';
+import { useCurrency } from '../hooks/useCurrency';
 
 type HostVehicleBookingsRouteParams = {
   vehicleId?: string;
@@ -42,6 +43,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const route = useRoute<RouteProp<{ HostVehicleBookings: HostVehicleBookingsRouteParams }, 'HostVehicleBookings'>>();
   const { vehicleId } = route.params || {};
   const { t } = useLanguage();
+  const { currency, rates } = useCurrency();
   const { getVehicleBookings, getAllOwnerBookings, updateBookingStatus, loading } = useVehicleBookings();
   const { getMyVehicles } = useVehicles();
   const { canReviewBooking } = useVehicleRenterReviews();
@@ -231,6 +233,23 @@ const HostVehicleBookingsScreen: React.FC = () => {
     if (booking.status === 'cancelled') return 0;
     // Utiliser host_net_amount stocké si disponible, sinon 0
     return (booking as any).host_net_amount || 0;
+  };
+
+  const formatAmountForBooking = (amountXof: number, booking: VehicleBooking): string => {
+    const bookingCurrency = ((booking as any).payment_currency || currency) as 'XOF' | 'EUR' | 'USD';
+    const bookingRate =
+      Number((booking as any).exchange_rate) ||
+      (bookingCurrency === 'EUR' ? Number(rates.EUR) : bookingCurrency === 'USD' ? Number(rates.USD) : 0);
+
+    if (bookingCurrency === 'EUR' && bookingRate > 0) {
+      const eur = amountXof / bookingRate;
+      return `${eur.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    }
+    if (bookingCurrency === 'USD' && bookingRate > 0) {
+      const usd = amountXof / bookingRate;
+      return `${usd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+    }
+    return `${Math.round(amountXof).toLocaleString('fr-FR')} FCFA`;
   };
 
   const filteredBookings = bookings.filter(booking => {
@@ -432,7 +451,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
           <View style={styles.detailRow}>
             <Ionicons name="cash-outline" size={16} color="#10b981" />
             <Text style={[styles.detailText, styles.netEarnings]}>
-              Gain net : {netEarnings.toLocaleString()} FCFA
+              Gain net : {formatAmountForBooking(netEarnings, item)}
             </Text>
           </View>
         </View>
