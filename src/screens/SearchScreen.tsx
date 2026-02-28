@@ -29,6 +29,7 @@ import SearchButton from '../components/SearchButton';
 import SearchResultsView from '../components/SearchResultsView';
 import { supabase } from '../services/supabase';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 
@@ -39,6 +40,7 @@ const SearchScreen: React.FC = () => {
   const [shortTermSearchQuery, setShortTermSearchQuery] = useState(route.params?.destination || '');
   const [monthlySearchQuery, setMonthlySearchQuery] = useState(route.params?.destination || '');
   const [filters, setFilters] = useState<SearchFilters>(() => {
+    if (!FEATURE_MONTHLY_RENTAL) return { rentalType: 'short_term' };
     const initial = (route.params as any)?.initialRentalType;
     return { rentalType: initial === 'monthly' ? 'monthly' : 'short_term' };
   });
@@ -66,6 +68,7 @@ const SearchScreen: React.FC = () => {
 
   // Appliquer initialRentalType au premier montage (ex: depuis la section longue durée de l'accueil)
   useEffect(() => {
+    if (!FEATURE_MONTHLY_RENTAL) return;
     const initial = (route.params as any)?.initialRentalType;
     if (initial && !initialRentalTypeApplied.current) {
       initialRentalTypeApplied.current = true;
@@ -579,7 +582,8 @@ const SearchScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Switch premium des univers (même écran, flux isolés) */}
+        {/* Switch premium des univers (même écran, flux isolés) - masqué si location mensuelle désactivée */}
+        {FEATURE_MONTHLY_RENTAL && (
         <View style={styles.modeSwitchContainer}>
           <TouchableOpacity
             style={[
@@ -628,6 +632,7 @@ const SearchScreen: React.FC = () => {
             </Text>
           </TouchableOpacity>
         </View>
+        )}
 
         {/* Contrôles de recherche - toujours visibles */}
         {(!hasResults || !isHeaderCollapsed) && (
@@ -855,7 +860,7 @@ const SearchScreen: React.FC = () => {
         onClose={() => setShowFilters(false)}
         onApply={handleFilterChange}
         initialFilters={filters}
-        lockedRentalType={rentalType === 'monthly' ? 'monthly' : undefined}
+        lockedRentalType={FEATURE_MONTHLY_RENTAL ? (rentalType === 'monthly' ? 'monthly' : undefined) : 'short_term'}
       />
 
     </SafeAreaView>

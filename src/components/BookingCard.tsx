@@ -16,6 +16,7 @@ import { Alert } from 'react-native';
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import { getCommissionRates } from '../lib/commissions';
 import { calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface BookingCardProps {
   booking: Booking;
@@ -36,6 +37,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
 }) => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { currency, rates } = useCurrency();
   const { createOrGetConversation } = useMessaging();
   const { getBookingPendingRequest, cancelModificationRequest } = useBookingModifications();
   const [pendingRequest, setPendingRequest] = useState<any>(null);
@@ -132,12 +134,25 @@ const BookingCard: React.FC<BookingCardProps> = ({
     return false;
   };
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (amountXof: number) => {
+    const bookingCurrency = ((booking as any).payment_currency || currency) as 'XOF' | 'EUR' | 'USD';
+    const bookingRate =
+      Number((booking as any).exchange_rate) ||
+      (bookingCurrency === 'EUR' ? Number(rates.EUR) : bookingCurrency === 'USD' ? Number(rates.USD) : 0);
+
+    if (bookingCurrency === 'EUR' && bookingRate > 0) {
+      const eur = amountXof / bookingRate;
+      return `${eur.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    }
+    if (bookingCurrency === 'USD' && bookingRate > 0) {
+      const usd = amountXof / bookingRate;
+      return `${usd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+    }
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'XOF',
       minimumFractionDigits: 0,
-    }).format(price);
+    }).format(amountXof);
   };
 
   // Fonction pour déterminer le statut réel à afficher en fonction des dates
@@ -189,7 +204,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'En attente';
+        return (booking as any).payment_method === 'card' ? 'Paiement en attente' : 'En attente';
       case 'confirmed':
         return 'Confirmée';
       case 'in_progress':

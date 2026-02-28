@@ -1,8 +1,13 @@
 import React from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { WebView } from 'react-native-webview';
+
+// Politique de confidentialité (requise par le Play Store - distincte des CGU)
+const LEGAL_PAGE_URL = 'https://akwahome.com/privacy';
+const LEGAL_PDF_URL = 'https://akwahome.com/documents/privacy-policy.pdf';
 
 const PrivacyPolicyScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -14,90 +19,37 @@ const PrivacyPolicyScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Politique de confidentialité</Text>
-        <View style={styles.placeholder} />
+        <TouchableOpacity onPress={() => Linking.openURL(LEGAL_PAGE_URL)} style={styles.externalButton}>
+          <Ionicons name="open-outline" size={22} color="#2E7D32" />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.paragraph}>
-          Nous accordons une grande importance à la protection de vos données personnelles. Cette
-          politique explique quelles informations nous collectons, comment nous les utilisons et vos droits.
-        </Text>
-
-        <Text style={styles.sectionTitle}>1. Données collectées</Text>
-        <Text style={styles.paragraph}>
-          Nous collectons les informations que vous nous fournissez (nom, email, téléphone, informations de
-          paiement des hôtes, préférences), ainsi que des données techniques (adresse IP, identifiants d'appareil,
-          logs d'utilisation) pour assurer le bon fonctionnement du service.
-        </Text>
-
-        <Text style={styles.sectionTitle}>2. Finalités</Text>
-        <Text style={styles.paragraph}>
-          Vos données sont utilisées pour: (i) créer et gérer votre compte; (ii) traiter les réservations; (iii)
-          communiquer avec vous; (iv) prévenir la fraude et assurer la sécurité; (v) respecter nos obligations
-          légales; (vi) améliorer nos services et l'expérience utilisateur.
-        </Text>
-
-        <Text style={styles.sectionTitle}>3. Partage des données</Text>
-        <Text style={styles.paragraph}>
-          Nous ne vendons pas vos données. Nous pouvons partager des informations avec des prestataires de services
-          (paiement, emailing, hébergement, analytique) strictement nécessaires à l'exécution du service et soumis
-          à des obligations de confidentialité. Certaines données peuvent être partagées avec les hôtes/voyageurs
-          dans le cadre des réservations.
-        </Text>
-
-        <Text style={styles.sectionTitle}>4. Conservation</Text>
-        <Text style={styles.paragraph}>
-          Les données sont conservées pendant la durée nécessaire aux finalités décrites et pour répondre aux
-          exigences légales (facturation, comptabilité, litiges), puis supprimées ou anonymisées.
-        </Text>
-
-        <Text style={styles.sectionTitle}>5. Sécurité</Text>
-        <Text style={styles.paragraph}>
-          Nous mettons en place des mesures techniques et organisationnelles appropriées pour protéger vos données
-          (chiffrement en transit, contrôle d'accès, journalisation). Aucune mesure n'étant infaillible, nous vous
-          recommandons de conserver des mots de passe forts et uniques.
-        </Text>
-
-        <Text style={styles.sectionTitle}>6. Vos droits</Text>
-        <Text style={styles.paragraph}>
-          Vous pouvez demander l'accès, la rectification, la suppression, la limitation ou l'opposition au
-          traitement de vos données, ainsi que la portabilité, dans les limites prévues par la loi. Contact:
-          privacy@akwahome.com.
-        </Text>
-
-        <Text style={styles.sectionTitle}>7. Cookies et traceurs</Text>
-        <Text style={styles.paragraph}>
-          Nous utilisons des traceurs pour des fins techniques, analytiques et d'amélioration du service. Vous pouvez
-          configurer votre appareil pour limiter certains traceurs.
-        </Text>
-
-        <Text style={styles.sectionTitle}>8. Transferts</Text>
-        <Text style={styles.paragraph}>
-          Si des données sont transférées hors de votre pays, nous veillons à ce que des garanties appropriées
-          soient en place conformément à la réglementation applicable.
-        </Text>
-
-        <Text style={styles.sectionTitle}>9. Contact</Text>
-        <Text style={styles.paragraph}>
-          Pour toute question ou demande concernant cette politique, contactez-nous à privacy@akwahome.com.
-        </Text>
-      </ScrollView>
+      <WebView
+        source={{ uri: LEGAL_PDF_URL }}
+        style={styles.webview}
+        startInLoadingState
+        renderLoading={() => (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2E7D32" />
+          </View>
+        )}
+        onError={() => Linking.openURL(LEGAL_PDF_URL)}
+      />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
+  container: { flex: 1, backgroundColor: '#fff' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e9ecef'
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e9ecef'
   },
   backButton: { padding: 8 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  placeholder: { width: 40 },
-  content: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1f2937', marginTop: 16, marginBottom: 8 },
-  paragraph: { fontSize: 14, color: '#374151', lineHeight: 20 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', flex: 1 },
+  externalButton: { padding: 8 },
+  webview: { flex: 1 },
+  loadingContainer: { position: 'absolute', top: '50%', left: '50%', marginLeft: -25, marginTop: -25 },
 });
 
 export default PrivacyPolicyScreen;

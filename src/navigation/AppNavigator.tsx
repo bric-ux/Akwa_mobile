@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -465,7 +466,7 @@ const AppNavigator = () => {
                     // L'utilisateur n'a pas de véhicules, réinitialiser le mode préféré
                     await AsyncStorage.setItem('preferredMode', 'traveler');
                   }
-                } else if (preferredMode === 'monthly_rental') {
+                } else if (FEATURE_MONTHLY_RENTAL && preferredMode === 'monthly_rental') {
                   const { data: listings } = await supabase
                     .from('monthly_rental_listings')
                     .select('id')
@@ -956,14 +957,17 @@ const AppNavigator = () => {
                 gestureEnabled: false,
               }}
             />
-        <Stack.Screen 
-          name="SupabaseTest" 
-          component={SupabaseTestScreen}
-          options={{ 
-            title: 'Test Supabase',
-            headerBackTitle: 'Retour'
-          }}
-        />
+        {/* Écran de test Supabase - visible uniquement en dev */}
+        {__DEV__ && (
+          <Stack.Screen 
+            name="SupabaseTest" 
+            component={SupabaseTestScreen}
+            options={{ 
+              title: 'Test Supabase',
+              headerBackTitle: 'Retour'
+            }}
+          />
+        )}
         <Stack.Screen 
           name="PdfViewer" 
           component={PdfViewerScreen}

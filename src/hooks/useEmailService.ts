@@ -45,7 +45,7 @@ export const useEmailService = () => {
     });
   };
 
-  const sendBookingRequest = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number, message?: string, discountAmount?: number, property?: any, hostNetAmount?: number) => {
+  const sendBookingRequest = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number, message?: string, discountAmount?: number, property?: any, hostNetAmount?: number, paymentCurrency?: string, exchangeRate?: number) => {
     return sendEmail({
       type: 'booking_request',
       to: hostEmail,
@@ -62,6 +62,8 @@ export const useEmailService = () => {
         message,
         discountAmount: discountAmount || 0,
         host_net_amount: hostNetAmount, // Inclure host_net_amount pour l'affichage dans l'email
+        payment_currency: paymentCurrency,
+        exchange_rate: exchangeRate,
         nights: property ? Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)) : undefined,
         pricePerNight: property?.price_per_night || 0,
         property: property ? {
@@ -72,7 +74,7 @@ export const useEmailService = () => {
     });
   };
 
-  const sendBookingRequestSent = async (guestEmail: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number) => {
+  const sendBookingRequestSent = async (guestEmail: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number, paymentCurrency?: string, exchangeRate?: number) => {
     return sendEmail({
       type: 'booking_request_sent',
       to: guestEmail,
@@ -82,7 +84,9 @@ export const useEmailService = () => {
         checkIn,
         checkOut,
         guests,
-        totalPrice
+        totalPrice,
+        payment_currency: paymentCurrency,
+        exchange_rate: exchangeRate
       }
     });
   };

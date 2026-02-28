@@ -40,15 +40,46 @@ export const useAvailabilityCalendar = (
       // On ne récupère PAS les completed car elles ne bloquent plus les dates
       // ✅ NE PAS EXCLURE la réservation actuelle de la requête (elle doit être marquée comme "Réservé")
       // Mais on permettra la sélection de ses dates via excludeBookingDates
-      const { data: bookings, error: bookingsError } = await supabase
+      const { data: bookingsRaw, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, check_in_date, check_out_date, status')
+        .select('id, check_in_date, check_out_date, status, payment_method')
         .eq('property_id', propertyId)
         .in('status', ['confirmed', 'pending']) // in_progress n'existe pas dans l'enum, c'est calculé dynamiquement
         .gte('check_out_date', todayStr); // Seulement les réservations qui ne sont pas terminées
 
       if (bookingsError) {
         console.error('Error fetching bookings:', bookingsError);
+      }
+
+      // Les réservations carte en pending ne doivent bloquer les dates que si le paiement est confirmé.
+      let bookings = (bookingsRaw || []) as any[];
+      const pendingCardBookings = bookings.filter(
+        (booking) => booking.status === 'pending' && booking.payment_method === 'card'
+      );
+
+      if (pendingCardBookings.length > 0) {
+        const pendingCardIds = pendingCardBookings.map((booking) => booking.id);
+        const { data: payments, error: paymentsError } = await supabase
+          .from('payments')
+          .select('booking_id, status')
+          .in('booking_id', pendingCardIds);
+
+        if (paymentsError) {
+          console.error('Error fetching card payments for availability:', paymentsError);
+        } else {
+          const paidBookingIds = new Set(
+            (payments || [])
+              .filter((payment: any) => ['completed', 'succeeded', 'paid'].includes(String(payment.status || '').toLowerCase()))
+              .map((payment: any) => payment.booking_id)
+          );
+
+          bookings = bookings.filter((booking) => {
+            if (booking.status === 'pending' && booking.payment_method === 'card') {
+              return paidBookingIds.has(booking.id);
+            }
+            return true;
+          });
+        }
       }
 
       // Récupérer les demandes de modification en attente pour cette propriété

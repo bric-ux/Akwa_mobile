@@ -137,7 +137,7 @@ const HostBookingsScreen: React.FC = () => {
           style: 'cancel',
         },
         {
-          text: status === 'confirmed' ? t('hostBookings.confirm') : t('hostBookings.cancel'),
+          text: status === 'confirmed' ? t('hostBookings.confirm') : t('hostBookings.reject'),
           style: status === 'cancelled' ? 'destructive' : 'default',
           onPress: async () => {
             try {

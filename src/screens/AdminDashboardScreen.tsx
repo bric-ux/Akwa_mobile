@@ -19,6 +19,7 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { useBookingPDF } from '../hooks/useBookingPDF';
 import AdminNotificationBell from '../components/AdminNotificationBell';
 import { supabase } from '../services/supabase';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
 const AdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -459,6 +460,7 @@ const AdminDashboardScreen: React.FC = () => {
             color="#e67e22"
           />
 
+          {FEATURE_MONTHLY_RENTAL && (
           <QuickAction
             title="Locations mensuelles"
             description="Approuver ou refuser les annonces longue durée"
@@ -466,6 +468,7 @@ const AdminDashboardScreen: React.FC = () => {
             onPress={() => navigation.navigate('AdminMonthlyRental' as never)}
             color="#3498db"
           />
+          )}
         </View>
 
         {/* Section Tests */}

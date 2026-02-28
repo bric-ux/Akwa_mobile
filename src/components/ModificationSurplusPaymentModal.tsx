@@ -104,6 +104,9 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
         if (currency === 'EUR' && rates.EUR) {
           body.currency = 'eur';
           body.rate = rates.EUR;
+        } else if (currency === 'USD' && rates.USD) {
+          body.currency = 'usd';
+          body.rate = rates.USD;
         }
         const { data, error } = await supabase.functions.invoke('create-checkout-session', { body });
         if (error) throw error;

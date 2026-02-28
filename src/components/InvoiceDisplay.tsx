@@ -6,6 +6,7 @@ import { calculateTotalPrice, calculateHostCommission, calculateVehiclePriceWith
 import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../lib/hostNetAmount';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { useCurrency } from '../hooks/useCurrency';
 import akwaHomeLogo from '../../assets/images/akwahome_logo.png';
 
 interface InvoiceDisplayProps {
@@ -186,6 +187,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   propertyOrVehicleTitle,
 }) => {
   const { user } = useAuth();
+  const { currency, rates } = useCurrency();
   const [showVATInvoice, setShowVATInvoice] = useState(false);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [travelerEmail, setTravelerEmail] = useState<string | undefined>(providedTravelerEmail);
@@ -355,6 +357,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
     fetchApprovedModification();
   }, [booking?.id, serviceType]);
+
   const effectivePaymentMethod = paymentMethod || booking.payment_method || 'Non spécifié';
   const checkIn = booking.check_in_date || booking.start_date || '';
   const checkOut = booking.check_out_date || booking.end_date || '';
@@ -596,6 +599,26 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     fetchCalculationDetails();
   }, [booking?.id, serviceType]);
 
+  const snapshotCurrency = calculationDetails?.calculation_snapshot?.paymentCurrency;
+  const snapshotRate = calculationDetails?.calculation_snapshot?.paymentRate;
+  const displayCurrency = snapshotCurrency || (booking as any)?.payment_currency || currency;
+  const displayRate =
+    Number(snapshotRate) ||
+    Number((booking as any)?.exchange_rate) ||
+    (displayCurrency === 'EUR' ? Number(rates.EUR) : displayCurrency === 'USD' ? Number(rates.USD) : 0);
+
+  const formatPriceFCFA = (amount: number): string => {
+    if (displayCurrency === 'EUR' && displayRate > 0) {
+      const eur = amount / displayRate;
+      return `${eur.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    }
+    if (displayCurrency === 'USD' && displayRate > 0) {
+      const usd = amount / displayRate;
+      return `${usd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+    }
+    return `${amount.toLocaleString('fr-FR')} FCFA`;
+  };
+
   // ✅ Utiliser DIRECTEMENT les données stockées si disponibles, sinon recalculer (fallback uniquement)
   let effectiveServiceFee: number;
   let serviceFeeHT: number;
@@ -833,6 +856,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           },
           payment_method: effectivePaymentMethod,
           payment_plan: booking.payment_plan || '',
+          payment_currency: displayCurrency,
+          exchange_rate: displayRate > 0 ? displayRate : undefined,
         };
       } else {
         // Pour les véhicules - format attendu par l'Edge Function
@@ -873,6 +898,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           paymentMethod: effectivePaymentMethod,
           withDriver: (booking as any).with_driver || booking.vehicle?.with_driver || false, // Vérifier booking.with_driver en priorité
           vehicleDriverFee: booking.vehicle?.driver_fee || 0, // BUG FIX: Ajouter vehicleDriverFee pour le calcul PDF
+          payment_currency: displayCurrency,
+          exchange_rate: displayRate > 0 ? displayRate : undefined,
         };
       }
 

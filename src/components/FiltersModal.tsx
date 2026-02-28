@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SearchFilters } from '../types';
 import { useAmenities } from '../hooks/useAmenities';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { getAmenityIonicIcon } from '../utils/amenityIcons';
 
 interface FiltersModalProps {
@@ -162,7 +163,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
         </View>
 
         <ScrollView style={styles.modalContent}>
-          {!lockedRentalType && (
+          {FEATURE_MONTHLY_RENTAL && !lockedRentalType && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="home" size={18} color="#2E7D32" />

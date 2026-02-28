@@ -24,6 +24,7 @@ import EmailVerificationModal from '../components/EmailVerificationModal';
 import PasswordResetModal from '../components/PasswordResetModal';
 import { useEmailVerification } from '../hooks/useEmailVerification';
 import { useLanguage } from '../contexts/LanguageContext';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
@@ -259,7 +260,7 @@ const AuthScreen: React.FC = () => {
                   routes: [{ name: 'Home' }],
                 });
               }
-            } else if (preferredMode === 'monthly_rental' && currentUser) {
+            } else if (FEATURE_MONTHLY_RENTAL && preferredMode === 'monthly_rental' && currentUser) {
               const { data: listings } = await supabase
                 .from('monthly_rental_listings')
                 .select('id')

@@ -17,11 +17,11 @@ import { useBookings, Booking } from '../hooks/useBookings';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import InvoiceDisplay from '../components/InvoiceDisplay';
-import { formatPrice } from '../utils/priceCalculator';
 import BookingModificationModal from '../components/BookingModificationModal';
 import { getCommissionRates } from '../lib/commissions';
 import { calculateTotalPrice, calculateFees, calculateFinalPrice, type DiscountConfig } from '../hooks/usePricing';
 import { useBookingModifications } from '../hooks/useBookingModifications';
+import { useCurrency } from '../hooks/useCurrency';
 
 type PropertyBookingDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyBookingDetails'>;
 
@@ -30,6 +30,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
   const route = useRoute<PropertyBookingDetailsRouteProp>();
   const { bookingId } = route.params;
   const { user } = useAuth();
+  const { currency, rates } = useCurrency();
   const { getUserBookings } = useBookings();
   const { getBookingPendingRequest } = useBookingModifications();
   
@@ -116,6 +117,23 @@ const PropertyBookingDetailsScreen: React.FC = () => {
       month: 'long',
       year: 'numeric',
     });
+  };
+
+  const formatBookingAmount = (amountXof: number) => {
+    const bookingCurrency = (((booking as any)?.payment_currency) || currency) as 'XOF' | 'EUR' | 'USD';
+    const bookingRate =
+      Number((booking as any)?.exchange_rate) ||
+      (bookingCurrency === 'EUR' ? Number(rates.EUR) : bookingCurrency === 'USD' ? Number(rates.USD) : 0);
+
+    if (bookingCurrency === 'EUR' && bookingRate > 0) {
+      const eur = amountXof / bookingRate;
+      return `${eur.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    }
+    if (bookingCurrency === 'USD' && bookingRate > 0) {
+      const usd = amountXof / bookingRate;
+      return `${usd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+    }
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(amountXof);
   };
 
   // Fonction pour déterminer le statut réel à afficher en fonction des dates
@@ -388,7 +406,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
               <View style={styles.cancellationInfo}>
                 <Text style={styles.cancellationLabel}>Pénalité d'annulation :</Text>
                 <Text style={styles.cancellationPenalty}>
-                  {formatPrice(booking.cancellation_penalty)}
+                  {formatBookingAmount(booking.cancellation_penalty)}
                 </Text>
               </View>
             )}
@@ -397,7 +415,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
               <View style={styles.cancellationInfo}>
                 <Text style={styles.cancellationLabel}>Remboursement :</Text>
                 <Text style={styles.cancellationRefund}>
-                  {formatPrice(booking.total_price - (booking.cancellation_penalty || 0))}
+                  {formatBookingAmount(booking.total_price - (booking.cancellation_penalty || 0))}
                 </Text>
               </View>
             )}

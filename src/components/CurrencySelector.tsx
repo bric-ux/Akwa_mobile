@@ -6,7 +6,7 @@ import { useCurrency, Currency } from '../hooks/useCurrency';
 const CurrencySelector: React.FC = () => {
   const { currency, changeCurrency, CURRENCY_NAMES, CURRENCY_SYMBOLS } = useCurrency();
 
-  const currencies: Currency[] = ['XOF', 'EUR', 'USD', 'RUB', 'JPY'];
+  const currencies: Currency[] = ['XOF', 'EUR', 'USD'];
 
   const handleSelect = (newCurrency: Currency) => {
     changeCurrency(newCurrency);

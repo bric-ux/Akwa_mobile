@@ -10,6 +10,8 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +28,7 @@ import { getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { useCurrency } from '../hooks/useCurrency';
+import { estimateCardProcessingFeeXOF } from '../utils/cardFeeEstimate';
 
 interface BookingModalProps {
   visible: boolean;
@@ -88,7 +91,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
   } | null>(null);
   const [validatingVoucher, setValidatingVoucher] = useState(false);
   const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
+  const [openingStripe, setOpeningStripe] = useState(false);
+  const [pendingStripeBookingId, setPendingStripeBookingId] = useState<string | null>(null);
+  const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
+  const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
+  const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const lastInitialGuestsRef = useRef<{ adults?: number; children?: number; babies?: number } | null>(null);
+  const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
   const totalGuests = adults + children + infants;
 
@@ -557,6 +567,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
       voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
       paymentMethod: selectedPaymentMethod,
       paymentPlan: paymentPlan,
+      paymentCurrency: currency,
+      paymentRate: currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : undefined,
     });
 
     // Vérifier les erreurs d'identité (même logique que le site web)
@@ -584,16 +596,21 @@ const BookingModal: React.FC<BookingModalProps> = ({
       // Paiement par carte : redirection vers Stripe Checkout (comme sur le site web)
       if (selectedPaymentMethod === 'card' && result.booking?.id) {
         try {
+          setOpeningStripe(true);
           const body: Record<string, unknown> = {
             booking_id: result.booking.id,
             amount: pricing.finalTotal,
             property_title: property.title,
             check_in: formatDateForAPI(checkIn!),
             check_out: formatDateForAPI(checkOut!),
+            customer_country: ((user?.user_metadata as any)?.country_code || (user?.user_metadata as any)?.country || ''),
           };
           if (currency === 'EUR' && rates.EUR) {
             body.currency = 'eur';
             body.rate = rates.EUR;
+          } else if (currency === 'USD' && rates.USD) {
+            body.currency = 'usd';
+            body.rate = rates.USD;
           }
           const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', {
             body,
@@ -601,6 +618,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
           if (checkoutError || !checkoutData?.url) {
             console.error('Stripe checkout error:', checkoutError, checkoutData);
+            setOpeningStripe(false);
             Alert.alert(
               'Paiement',
               'Votre réservation a été créée mais la page de paiement n\'a pas pu s\'ouvrir. Vous pourrez régler plus tard depuis "Mes réservations".',
@@ -622,31 +640,15 @@ const BookingModal: React.FC<BookingModalProps> = ({
             return;
           }
 
-          Alert.alert(
-            'Paiement sécurisé',
-            'Vous allez être redirigé vers la page de paiement Stripe. Une fois le paiement terminé, revenez à l\'application.',
-            [
-              { text: 'Annuler', style: 'cancel', onPress: () => {} },
-              {
-                text: 'Ouvrir',
-                onPress: () => {
-                  Linking.openURL(checkoutData.url);
-                  setCheckIn(null);
-                  setCheckOut(null);
-                  setAdults(1);
-                  setChildren(0);
-                  setInfants(0);
-                  setMessage('');
-                  setVoucherCode('');
-                  setVoucherDiscount(null);
-                  onClose();
-                },
-              },
-            ]
-          );
+          setPendingStripeBookingId(result.booking.id);
+          setPendingStripeStartedAt(Date.now());
+          setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
+          await Linking.openURL(checkoutData.url);
+          setOpeningStripe(false);
           return;
         } catch (stripeErr) {
           console.error('Stripe checkout error:', stripeErr);
+          setOpeningStripe(false);
           Alert.alert(
             'Paiement',
             'Votre réservation a été créée mais le paiement n\'a pas pu être initié. Vous pourrez régler depuis "Mes réservations".',
@@ -706,6 +708,178 @@ const BookingModal: React.FC<BookingModalProps> = ({
     formatPriceCurrency(price, showOriginal ?? false);
   const formatPayment = (price: number) => formatPriceForPayment(price);
 
+  const checkStripePaymentCompleted = useCallback(async (bookingId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('status')
+        .eq('booking_id', bookingId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Erreur vérification paiement Stripe:', error);
+        return false;
+      }
+
+      const paymentStatus = String(data?.[0]?.status || '').toLowerCase();
+      return ['completed', 'succeeded', 'paid'].includes(paymentStatus);
+    } catch (err) {
+      console.error('Erreur inattendue vérification Stripe:', err);
+      return false;
+    }
+  }, []);
+
+  const cancelPendingCardBooking = useCallback(async (bookingId: string, reason: string) => {
+    try {
+      const { data: paymentData } = await supabase
+        .from('payments')
+        .select('status')
+        .eq('booking_id', bookingId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const paymentStatus = String(paymentData?.[0]?.status || '').toLowerCase();
+      const isPaid = ['completed', 'succeeded', 'paid'].includes(paymentStatus);
+      if (isPaid) return false;
+
+      const { error } = await supabase
+        .from('bookings')
+        .update({
+          status: 'cancelled',
+          cancellation_reason: reason,
+          cancelled_by: user?.id || null,
+          cancelled_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId)
+        .eq('guest_id', user?.id || '');
+
+      if (error) {
+        console.error('Erreur annulation réservation carte pending:', error);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Erreur inattendue annulation pending card:', err);
+      return false;
+    }
+  }, [user?.id]);
+
+  const resetStripePendingState = useCallback(() => {
+    setPendingStripeBookingId(null);
+    setPendingStripeStartedAt(null);
+    setStripeTimeLeftSec(0);
+    setCheckingStripeStatus(false);
+    setOpeningStripe(false);
+  }, []);
+
+  const handleAbandonStripeOperation = useCallback(async () => {
+    if (!pendingStripeBookingId) {
+      onClose();
+      return;
+    }
+    Alert.alert(
+      'Abandonner le paiement ?',
+      'Cette opération annulera la demande en attente et libérera les dates.',
+      [
+        { text: 'Continuer le paiement', style: 'cancel' },
+        {
+          text: 'J’abandonne',
+          style: 'destructive',
+          onPress: async () => {
+            await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte abandonné');
+            resetStripePendingState();
+            onClose();
+          },
+        },
+      ]
+    );
+  }, [pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState, onClose]);
+
+  const verifyStripePaymentNow = useCallback(async () => {
+    if (!pendingStripeBookingId || checkingStripeStatus) return;
+    setCheckingStripeStatus(true);
+    const paid = await checkStripePaymentCompleted(pendingStripeBookingId);
+    setCheckingStripeStatus(false);
+
+    if (paid) {
+      Alert.alert(
+        'Paiement confirmé',
+        property.auto_booking
+          ? 'Votre paiement est confirmé. La réservation est confirmée.'
+          : 'Votre paiement est confirmé. La demande a été envoyée au propriétaire.'
+      );
+      resetStripePendingState();
+      setCheckIn(null);
+      setCheckOut(null);
+      setAdults(1);
+      setChildren(0);
+      setInfants(0);
+      setMessage('');
+      setVoucherCode('');
+      setVoucherDiscount(null);
+      onClose();
+    }
+  }, [
+    pendingStripeBookingId,
+    checkingStripeStatus,
+    checkStripePaymentCompleted,
+    property.auto_booking,
+    resetStripePendingState,
+    onClose,
+  ]);
+
+  useEffect(() => {
+    if (!pendingStripeBookingId || !pendingStripeStartedAt) return;
+
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - pendingStripeStartedAt;
+      const remainingMs = Math.max(0, STRIPE_PENDING_TIMEOUT_MS - elapsed);
+      setStripeTimeLeftSec(Math.floor(remainingMs / 1000));
+
+      if (remainingMs <= 0) {
+        clearInterval(timer);
+        (async () => {
+          await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte expiré (timeout)');
+          resetStripePendingState();
+          Alert.alert(
+            'Paiement expiré',
+            'Le délai de paiement est dépassé. La demande en attente a été annulée.'
+          );
+        })();
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [pendingStripeBookingId, pendingStripeStartedAt, cancelPendingCardBooking, resetStripePendingState]);
+
+  useEffect(() => {
+    if (!pendingStripeBookingId) return;
+    const poller = setInterval(() => {
+      verifyStripePaymentNow();
+    }, 5000);
+    return () => clearInterval(poller);
+  }, [pendingStripeBookingId, verifyStripePaymentNow]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
+      if (wasBackground && nextState === 'active' && pendingStripeBookingId) {
+        verifyStripePaymentNow();
+      }
+      appStateRef.current = nextState;
+    });
+    return () => subscription.remove();
+  }, [pendingStripeBookingId, verifyStripePaymentNow]);
+
+  useEffect(() => {
+    if (!visible) {
+      resetStripePendingState();
+    }
+  }, [visible, resetStripePendingState]);
+
   const validatePaymentInfo = () => {
     // Carte : pas de saisie dans l'app, redirection vers Stripe Checkout
     if (selectedPaymentMethod === 'card') {
@@ -731,17 +905,23 @@ const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const { nights, pricing, fees, finalTotal } = calculateTotal();
+  const cardFeeEstimate = estimateCardProcessingFeeXOF({
+    baseAmountXof: finalTotal,
+    paymentCurrency: currency,
+    customerCountryCode: ((user?.user_metadata as any)?.country_code || (user?.user_metadata as any)?.country || '') as string,
+  });
+  const totalCardPaymentEstimate = finalTotal + cardFeeEstimate.feeAmountXof;
 
   return (
     <Modal
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={onClose}
+      onRequestClose={pendingStripeBookingId ? handleAbandonStripeOperation : onClose}
     >
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity onPress={pendingStripeBookingId ? handleAbandonStripeOperation : onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.title}>{t('booking.title')}</Text>
@@ -1002,6 +1182,40 @@ const BookingModal: React.FC<BookingModalProps> = ({
             </View>
           )}
 
+          {pendingStripeBookingId && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Paiement en attente</Text>
+              <View style={styles.stripePendingBox}>
+                <ActivityIndicator size="small" color="#2563eb" />
+                <Text style={styles.stripePendingText}>
+                  Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.
+                </Text>
+                <Text style={styles.stripePendingCountdown}>
+                  Expiration dans {Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:{String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}
+                </Text>
+                <View style={styles.stripePendingActions}>
+                  <TouchableOpacity
+                    style={[styles.stripeActionButton, styles.stripeActionPrimary]}
+                    onPress={verifyStripePaymentNow}
+                    disabled={checkingStripeStatus}
+                  >
+                    {checkingStripeStatus ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.stripeActionPrimaryText}>Verifier le paiement</Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.stripeActionButton, styles.stripeActionDanger]}
+                    onPress={handleAbandonStripeOperation}
+                  >
+                    <Text style={styles.stripeActionDangerText}>J’abandonne l’operation</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Méthode de paiement - Affiché avant le résumé */}
           {checkIn && checkOut && nights > 0 && (
             <View style={styles.section}>
@@ -1065,7 +1279,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   <View style={styles.securityInfo}>
                     <Ionicons name="card" size={20} color="#2563eb" />
                     <Text style={styles.securityText}>
-                      Paiement sécurisé par Stripe. Après confirmation de la réservation, vous serez redirigé vers la page Stripe pour saisir votre carte (Visa, Mastercard).
+                      {property.auto_booking
+                        ? 'Vous serez redirigé vers Stripe pour un paiement sécurisé. Après paiement validé, votre réservation sera confirmée automatiquement.'
+                        : 'Vous serez redirigé vers Stripe pour un paiement sécurisé. Après paiement validé, votre demande de réservation sera envoyée au propriétaire.'}
                     </Text>
                   </View>
                 </View>
@@ -1207,6 +1423,18 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   <Text style={styles.totalLabel}>{t('booking.total')}</Text>
                   <Text style={styles.totalValue}>{formatPayment(finalTotal)}</Text>
                 </View>
+                {selectedPaymentMethod === 'card' && (
+                  <>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceLabel}>Frais de traitement carte (estimés)</Text>
+                      <Text style={styles.priceValue}>{formatPayment(cardFeeEstimate.feeAmountXof)}</Text>
+                    </View>
+                    <View style={[styles.priceRow, styles.totalRow]}>
+                      <Text style={styles.totalLabel}>Total à payer par carte</Text>
+                      <Text style={styles.totalValue}>{formatPayment(totalCardPaymentEstimate)}</Text>
+                    </View>
+                  </>
+                )}
               </View>
             </View>
           )}
@@ -1218,12 +1446,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
           <TouchableOpacity
             style={[
               styles.bookButton, 
-              (loading || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')) && styles.bookButtonDisabled
+              (loading || openingStripe || !!pendingStripeBookingId || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')) && styles.bookButtonDisabled
             ]}
             onPress={handleSubmit}
-            disabled={loading || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')}
+            disabled={loading || openingStripe || !!pendingStripeBookingId || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')}
           >
-            {loading || identityLoading ? (
+            {loading || openingStripe || checkingStripeStatus || identityLoading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={styles.bookButtonText}>
@@ -1231,6 +1459,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   ? t('booking.identityRequired')
                   : hasUploadedIdentity && !isVerified && verificationStatus === 'rejected'
                     ? 'Identité rejetée'
+                    : openingStripe
+                      ? 'Ouverture de Stripe...'
+                    : pendingStripeBookingId
+                      ? 'Paiement en attente...'
+                    : selectedPaymentMethod === 'card'
+                      ? property.auto_booking
+                        ? 'Payer et confirmer'
+                        : 'Payer et envoyer la demande'
                     : selectedPaymentMethod === 'cash'
                       ? t('booking.confirmBooking')
                       : selectedPaymentMethod === 'paypal'
@@ -2078,6 +2314,53 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: 20,
+  },
+  stripePendingBox: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+  },
+  stripePendingText: {
+    color: '#1e3a8a',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  stripePendingCountdown: {
+    color: '#1e40af',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  stripePendingActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  stripeActionButton: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stripeActionPrimary: {
+    backgroundColor: '#2563eb',
+  },
+  stripeActionPrimaryText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  stripeActionDanger: {
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+  },
+  stripeActionDangerText: {
+    color: '#b91c1c',
+    fontWeight: '600',
+    fontSize: 13,
   },
 });
 

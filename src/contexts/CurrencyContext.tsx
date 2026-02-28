@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type Currency = 'XOF' | 'EUR' | 'USD' | 'RUB' | 'JPY';
+export type Currency = 'XOF' | 'EUR' | 'USD';
 
 interface ExchangeRates {
   [key: string]: number;
@@ -11,23 +11,17 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
   XOF: 'CFA',
   EUR: '€',
   USD: '$',
-  RUB: '₽',
-  JPY: '¥',
 };
 
 const CURRENCY_NAMES: Record<Currency, string> = {
   XOF: 'Franc CFA',
   EUR: 'Euro',
   USD: 'Dollar US',
-  RUB: 'Rouble',
-  JPY: 'Yen',
 };
 
 const DEFAULT_RATES: ExchangeRates = {
   EUR: 655.957,
   USD: 600.000,
-  RUB: 6.500,
-  JPY: 4.000,
   XOF: 1,
 };
 
@@ -38,7 +32,7 @@ interface CurrencyContextType {
   changeCurrency: (newCurrency: Currency) => Promise<void>;
   convert: (amountXOF: number) => { converted: number; formatted: string };
   formatPrice: (amountXOF: number, showOriginal?: boolean) => string;
-  /** Pour le paiement : conversion uniquement pour l'EUR. Autres devises → affichage FCFA (ce que Stripe prélève). */
+  /** Pour le paiement : conversion en EUR/USD selon devise choisie, sinon FCFA. */
   formatPriceForPayment: (amountXOF: number) => string;
   rates: ExchangeRates;
   loading: boolean;
@@ -95,10 +89,8 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     
     if (currency === 'XOF') {
       formatted = `${Math.round(converted).toLocaleString('fr-FR')} FCFA`;
-    } else if (currency === 'JPY') {
-      formatted = `¥${Math.round(converted).toLocaleString('fr-FR')}`;
     } else {
-      // EUR, USD, RUB: 2 décimales, format fr-FR
+      // EUR, USD: 2 décimales, format fr-FR
       const withTwoDecimals = Number(converted).toLocaleString('fr-FR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
@@ -120,14 +112,21 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     return `${formatted} (${originalPrice})`;
   };
 
-  /** Conversion uniquement pour EUR (résumé paiement, Stripe). USD/RUB/JPY → FCFA. */
+  /** Conversion paiement selon la devise choisie (EUR/USD), sinon FCFA. */
   const formatPriceForPayment = (amountXOF: number): string => {
     if (!amountXOF || amountXOF === 0) return '0 FCFA';
-    if (currency !== 'EUR' || !rates.EUR) {
+    if (currency === 'EUR' && rates.EUR) {
+      const eur = amountXOF / rates.EUR;
+      return `${Number(eur).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    }
+    if (currency === 'USD' && rates.USD) {
+      const usd = amountXOF / rates.USD;
+      return `${Number(usd).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+    }
+    if (currency !== 'EUR' && currency !== 'USD') {
       return `${Math.round(amountXOF).toLocaleString('fr-FR')} FCFA`;
     }
-    const eur = amountXOF / rates.EUR;
-    return `${Number(eur).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    return `${Math.round(amountXOF).toLocaleString('fr-FR')} FCFA`;
   };
 
   return (

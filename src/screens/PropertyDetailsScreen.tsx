@@ -28,6 +28,7 @@ import PropertyMap from '../components/PropertyMap';
 import { supabase } from '../services/supabase';
 import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useCurrency } from '../hooks/useCurrency';
 import PropertyReviews from '../components/PropertyReviews';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { log, logError } from '../utils/logger';
@@ -38,6 +39,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const route = useRoute<PropertyDetailsRouteProp>();
   const navigation = useNavigation();
   const { t } = useLanguage();
+  const { formatPrice: formatCurrencyPrice } = useCurrency();
   const { propertyId, checkIn: routeCheckIn, checkOut: routeCheckOut, adults: routeAdults, children: routeChildren, babies: routeBabies } = route.params;
   const { getPropertyById } = useProperties();
   const { user } = useAuth();
@@ -193,14 +195,6 @@ const PropertyDetailsScreen: React.FC = () => {
     }
   }, [property, isFavoriteSync]);
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
-
   const handleFavoritePress = async () => {
     if (!property) return;
 
@@ -310,7 +304,7 @@ const PropertyDetailsScreen: React.FC = () => {
             ) : (
               <>
                 <Text style={styles.price}>
-                  {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}
+                  {formatCurrencyPrice(displayPrice !== null ? displayPrice : property.price_per_night, false)}
                 </Text>
                 <Text style={styles.priceUnit}>/{t('common.perNight')}</Text>
               </>

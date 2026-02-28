@@ -7,7 +7,7 @@ const CurrencyBadge: React.FC = () => {
   const { currency, changeCurrency, currencySymbol } = useCurrency();
   const [showModal, setShowModal] = useState(false);
 
-  const currencies: Currency[] = ['XOF', 'EUR', 'USD', 'RUB', 'JPY'];
+  const currencies: Currency[] = ['XOF', 'EUR', 'USD'];
 
   const handleSelect = (newCurrency: Currency) => {
     changeCurrency(newCurrency);

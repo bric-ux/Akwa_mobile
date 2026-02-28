@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { VehicleBooking, VehicleBookingStatus } from '../types';
 import { useIdentityVerification } from './useIdentityVerification';
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
+import { useCurrency } from './useCurrency';
 
 export type VehiclePaymentMethod = 'card' | 'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'paypal' | 'cash';
 
@@ -23,12 +24,15 @@ export interface VehicleBookingData {
   licenseNumber?: string;
   useDriver?: boolean; // Si le locataire choisit d'utiliser le chauffeur (quand with_driver est true)
   paymentMethod?: VehiclePaymentMethod; // Moyen de paiement choisi par le voyageur
+  paymentCurrency?: 'XOF' | 'EUR' | 'USD';
+  paymentRate?: number;
 }
 
 export const useVehicleBookings = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
+  const { currency, rates } = useCurrency();
 
   const createBooking = useCallback(async (bookingData: VehicleBookingData) => {
     try {
@@ -304,8 +308,11 @@ export const useVehicleBookings = () => {
       // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
       const hostNetAmount = basePriceWithDriver - hostCommissionData.hostCommission;
       
-      // Déterminer le statut initial en fonction de auto_booking
-      const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
+      // Pour la carte, la réservation reste pending jusqu'à confirmation du paiement (webhook Stripe).
+      const isCardPayment = bookingData.paymentMethod === 'card';
+      const initialStatus = isCardPayment
+        ? 'pending'
+        : ((vehicle as any).auto_booking === true ? 'confirmed' : 'pending');
 
       // Créer la réservation avec les données selon le type
       // Les datetime sont maintenant toujours présents
@@ -367,6 +374,46 @@ export const useVehicleBookings = () => {
 
       if (bookingError) {
         throw bookingError;
+      }
+
+      let checkoutUrl: string | null = null;
+      let paymentInitError: string | null = null;
+
+      // Paiement carte: initier Stripe Checkout immédiatement après création de la réservation pending.
+      if (isCardPayment && booking?.id) {
+        try {
+          const vehicleTitle = (vehicle as any).title || `${(vehicle as any).brand || ''} ${(vehicle as any).model || ''}`.trim() || 'Réservation véhicule';
+          const checkoutBody: Record<string, unknown> = {
+            booking_id: booking.id,
+            amount: totalPrice,
+            property_title: vehicleTitle,
+            check_in: startDate,
+            check_out: endDate,
+            booking_type: 'vehicle',
+            customer_country: user?.user_metadata?.country_code || user?.user_metadata?.country || '',
+          };
+          if ((bookingData.paymentCurrency || currency) === 'EUR' && (bookingData.paymentRate || rates.EUR)) {
+            checkoutBody.currency = 'eur';
+            checkoutBody.rate = bookingData.paymentRate || rates.EUR;
+          } else if ((bookingData.paymentCurrency || currency) === 'USD' && (bookingData.paymentRate || rates.USD)) {
+            checkoutBody.currency = 'usd';
+            checkoutBody.rate = bookingData.paymentRate || rates.USD;
+          }
+
+          const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', {
+            body: checkoutBody,
+          });
+
+          if (checkoutError || !checkoutData?.url) {
+            console.error('❌ [useVehicleBookings] Erreur init Stripe checkout:', checkoutError, checkoutData);
+            paymentInitError = 'Impossible d\'ouvrir la page de paiement sécurisée.';
+          } else {
+            checkoutUrl = checkoutData.url;
+          }
+        } catch (checkoutErr: any) {
+          console.error('❌ [useVehicleBookings] Exception init Stripe checkout:', checkoutErr);
+          paymentInitError = checkoutErr?.message || 'Impossible d\'ouvrir la page de paiement sécurisée.';
+        }
       }
 
       // Stocker tous les détails de calcul dans booking_calculation_details
@@ -441,6 +488,8 @@ export const useVehicleBookings = () => {
               travelerFeePercent: 10, // 10% HT pour véhicules
               hostFeePercent: 2 // 2% HT pour véhicules
             },
+            paymentCurrency: bookingData.paymentCurrency || currency || 'XOF',
+            paymentRate: bookingData.paymentRate || (bookingData.paymentCurrency === 'EUR' ? rates.EUR : bookingData.paymentCurrency === 'USD' ? rates.USD : null),
             calculatedAt: new Date().toISOString()
           }
         };
@@ -556,6 +605,8 @@ export const useVehicleBookings = () => {
               pickupLocation: bookingData.pickupLocation || '',
               isInstantBooking: true,
               paymentMethod: (bookingData as any).paymentMethod || booking.payment_method || '',
+              payment_currency: bookingData.paymentCurrency || currency || 'XOF',
+              exchange_rate: bookingData.paymentRate || (bookingData.paymentCurrency === 'EUR' ? rates.EUR : bookingData.paymentCurrency === 'USD' ? rates.USD : null),
               discountAmount: discountAmount || 0, // Montant de la réduction
               vehicleDiscountEnabled: vehicle.discount_enabled || false,
               vehicleDiscountMinDays: vehicle.discount_min_days || null,
@@ -595,6 +646,8 @@ export const useVehicleBookings = () => {
                 data: emailData
               }
             });
+          } else if (isCardPayment) {
+            if (__DEV__) console.log('✅ [useVehicleBookings] Paiement carte - emails envoyés après confirmation Stripe');
           } else {
             // Réservation sur demande - Envoyer les emails de demande
             // Calculer le revenu net du propriétaire (prix après réduction + chauffeur - commission avec TVA + caution)
@@ -642,6 +695,8 @@ export const useVehicleBookings = () => {
               message: bookingData.messageToOwner || '',
               isInstantBooking: false,
               paymentMethod: (bookingData as any).paymentMethod || booking.payment_method || '',
+              payment_currency: bookingData.paymentCurrency || currency || 'XOF',
+              exchange_rate: bookingData.paymentRate || (bookingData.paymentCurrency === 'EUR' ? rates.EUR : bookingData.paymentCurrency === 'USD' ? rates.USD : null),
               discountAmount: discountAmount || 0, // Montant de la réduction
               vehicleDiscountEnabled: vehicle.discount_enabled || false,
               vehicleDiscountMinDays: vehicle.discount_min_days || null,
@@ -687,7 +742,7 @@ export const useVehicleBookings = () => {
         // Ne pas faire échouer la réservation si l'email échoue
       }
 
-      return { success: true, booking, status: booking.status };
+      return { success: true, booking, status: booking.status, checkoutUrl, paymentInitError };
     } catch (err: any) {
       console.error('Erreur lors de la création de la réservation:', err);
       setError(err.message || 'Erreur lors de la création de la réservation');
@@ -695,7 +750,7 @@ export const useVehicleBookings = () => {
     } finally {
       setLoading(false);
     }
-  }, [hasUploadedIdentity, isVerified, identityLoading]);
+  }, [hasUploadedIdentity, isVerified, identityLoading, currency, rates.EUR, rates.USD]);
 
   const getMyBookings = useCallback(async (): Promise<VehicleBooking[]> => {
     try {

@@ -23,6 +23,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicles } from '../hooks/useVehicles';
 import { HOST_COLORS, VEHICLE_COLORS, MONTHLY_RENTAL_COLORS, TRAVELER_COLORS } from '../constants/colors';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 
 const ProfileScreen: React.FC = () => {
@@ -64,7 +65,7 @@ const ProfileScreen: React.FC = () => {
         refreshProfile();
         checkPendingApplications();
         checkVehicles();
-        checkMonthlyListings();
+        if (FEATURE_MONTHLY_RENTAL) checkMonthlyListings();
         // Rafraîchir aussi le statut de vérification de l'email immédiatement
         // Vérifier immédiatement pour éviter l'affichage de "non vérifié" puis "vérifié"
         checkEmailVerificationStatus(true);
@@ -359,7 +360,7 @@ const ProfileScreen: React.FC = () => {
   }
 
   // Ajouter "Mode logement longue durée" si l'utilisateur a au moins un logement longue durée (et qu'on n'est pas déjà dans ce mode)
-  if (hasMonthlyListings && !isInMonthlyRentalMode) {
+  if (FEATURE_MONTHLY_RENTAL && hasMonthlyListings && !isInMonthlyRentalMode) {
     menuItems.push({
       id: 'monthlyRentalSpace',
       title: 'Mode logement longue durée',
@@ -578,7 +579,7 @@ const ProfileScreen: React.FC = () => {
         )}
 
         {/* Bouton Mode logement longue durée (si applicable) */}
-        {hasMonthlyListings && !isInMonthlyRentalMode && (
+        {FEATURE_MONTHLY_RENTAL && hasMonthlyListings && !isInMonthlyRentalMode && (
           <View style={styles.monthlyRentalSpaceContainer}>
             <TouchableOpacity
               style={styles.monthlyRentalSpaceButton}
@@ -618,7 +619,7 @@ const ProfileScreen: React.FC = () => {
         )}
 
         {/* Bouton Espace voyageur (uniquement en mode logement longue durée) */}
-        {isInMonthlyRentalMode && (
+        {FEATURE_MONTHLY_RENTAL && isInMonthlyRentalMode && (
           <View style={styles.travelerSpaceContainer}>
             <TouchableOpacity
               style={styles.travelerSpaceButton}

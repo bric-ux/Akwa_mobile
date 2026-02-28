@@ -20,6 +20,8 @@ export interface BookingData {
   voucherCode?: string;
   paymentMethod?: string;
   paymentPlan?: string;
+  paymentCurrency?: 'XOF' | 'EUR' | 'USD';
+  paymentRate?: number;
 }
 
 export interface Booking {
@@ -33,6 +35,9 @@ export interface Booking {
   children_count: number;
   infants_count: number;
   total_price: number;
+  payment_method?: string;
+  payment_currency?: 'XOF' | 'EUR' | 'USD';
+  exchange_rate?: number | null;
   host_net_amount?: number | null;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   message_to_host?: string;
@@ -134,9 +139,9 @@ export const useBookings = () => {
       // Le calendrier affiche les dates comme indisponibles si elles ont des réservations pending ou confirmed
       // Note: in_progress n'existe pas dans l'enum, c'est calculé dynamiquement à partir de confirmed
       // Donc la vérification doit prendre en compte pending et confirmed pour éviter les incohérences
-      const { data: existingBookings, error: checkError } = await supabase
+      const { data: existingBookingsRaw, error: checkError } = await supabase
         .from('bookings')
-        .select('id, check_in_date, check_out_date, status')
+        .select('id, check_in_date, check_out_date, status, payment_method')
         .eq('property_id', bookingData.propertyId)
         .in('status', ['confirmed', 'pending']) // in_progress n'existe pas dans l'enum, c'est calculé dynamiquement
         .gte('check_out_date', new Date().toISOString().split('T')[0]); // Seulement les réservations qui ne sont pas terminées
@@ -145,6 +150,40 @@ export const useBookings = () => {
         console.error('Availability check error:', checkError);
         setError('Erreur lors de la vérification de disponibilité');
         return { success: false, error: 'Erreur lors de la vérification de disponibilité' };
+      }
+
+      // Les réservations carte "pending" ne bloquent les dates que si un paiement est confirmé.
+      // Si l'utilisateur ferme Stripe sans payer, ces réservations ne doivent pas rendre les dates indisponibles.
+      let existingBookings = (existingBookingsRaw || []) as any[];
+      const pendingCardBookings = existingBookings.filter(
+        (booking) => booking.status === 'pending' && booking.payment_method === 'card'
+      );
+
+      if (pendingCardBookings.length > 0) {
+        const pendingCardIds = pendingCardBookings.map((booking) => booking.id);
+        const { data: payments, error: paymentsError } = await supabase
+          .from('payments')
+          .select('booking_id, status')
+          .in('booking_id', pendingCardIds);
+
+        if (paymentsError) {
+          console.error('Availability card payment check error:', paymentsError);
+          setError('Erreur lors de la vérification des paiements carte');
+          return { success: false, error: 'Erreur lors de la vérification des paiements carte' };
+        }
+
+        const paidBookingIds = new Set(
+          (payments || [])
+            .filter((payment: any) => ['completed', 'succeeded', 'paid'].includes(String(payment.status || '').toLowerCase()))
+            .map((payment: any) => payment.booking_id)
+        );
+
+        existingBookings = existingBookings.filter((booking) => {
+          if (booking.status === 'pending' && booking.payment_method === 'card') {
+            return paidBookingIds.has(booking.id);
+          }
+          return true;
+        });
       }
 
       // Vérifier aussi les dates bloquées manuellement
@@ -395,6 +434,8 @@ export const useBookings = () => {
               travelerFeePercent: 12, // 12% pour propriétés
               hostFeePercent: 2 // 2% pour propriétés
             },
+            paymentCurrency: bookingData.paymentCurrency || 'XOF',
+            paymentRate: bookingData.paymentRate || null,
             calculatedAt: new Date().toISOString()
           }
         };
@@ -576,7 +617,9 @@ export const useBookings = () => {
                   status: 'confirmed',
                   message: bookingData.messageToHost || '',
                   payment_method: bookingData.paymentMethod || '',
-                  payment_plan: bookingData.paymentPlan || ''
+                  payment_plan: bookingData.paymentPlan || '',
+                  payment_currency: bookingData.paymentCurrency || 'XOF',
+                  exchange_rate: bookingData.paymentRate || null
                 }
               };
 
@@ -637,7 +680,9 @@ export const useBookings = () => {
                   status: 'confirmed',
                   message: bookingData.messageToHost || '',
                   payment_method: bookingData.paymentMethod || '',
-                  payment_plan: bookingData.paymentPlan || ''
+                  payment_plan: bookingData.paymentPlan || '',
+                  payment_currency: bookingData.paymentCurrency || 'XOF',
+                  exchange_rate: bookingData.paymentRate || null
                 }
               };
 
@@ -682,7 +727,9 @@ export const useBookings = () => {
                 check_out_time: propertyInfo.check_out_time,
                 house_rules: propertyInfo.house_rules
               },
-              booking?.host_net_amount || hostNetAmountResult.hostNetAmount // Inclure host_net_amount
+              booking?.host_net_amount || hostNetAmountResult.hostNetAmount, // Inclure host_net_amount
+              bookingData.paymentCurrency || 'XOF',
+              bookingData.paymentRate || undefined
             );
 
             // Délai pour éviter le rate limit
@@ -696,7 +743,9 @@ export const useBookings = () => {
               bookingData.checkInDate,
               bookingData.checkOutDate,
               bookingData.guestsCount,
-              bookingData.totalPrice
+              bookingData.totalPrice,
+              bookingData.paymentCurrency || 'XOF',
+              bookingData.paymentRate || undefined
             );
           }
 
@@ -780,7 +829,40 @@ export const useBookings = () => {
       // Mettre à jour automatiquement le statut des réservations passées
       const updatedBookings = await updateBookingStatuses(bookings as Booking[]);
 
-      return updatedBookings;
+      // Ne pas afficher les réservations carte "pending" tant que Stripe n'a pas confirmé le paiement.
+      // Cela évite qu'une demande apparaisse dans "Mes réservations" après fermeture Stripe sans paiement.
+      const cardPendingBookings = updatedBookings.filter(
+        (booking) => booking.payment_method === 'card' && booking.status === 'pending'
+      );
+
+      if (cardPendingBookings.length === 0) {
+        return updatedBookings;
+      }
+
+      const cardPendingIds = cardPendingBookings.map((booking) => booking.id);
+      const { data: cardPayments, error: paymentError } = await supabase
+        .from('payments')
+        .select('booking_id, status')
+        .in('booking_id', cardPendingIds);
+
+      if (paymentError) {
+        console.error('Error fetching card payments:', paymentError);
+        // En cas d'erreur, on renvoie la liste complète plutôt que de cacher des données potentiellement valides.
+        return updatedBookings;
+      }
+
+      const paidBookingIds = new Set(
+        (cardPayments || [])
+          .filter((payment: any) => ['completed', 'succeeded', 'paid'].includes(String(payment.status || '').toLowerCase()))
+          .map((payment: any) => payment.booking_id)
+      );
+
+      return updatedBookings.filter((booking) => {
+        if (booking.payment_method === 'card' && booking.status === 'pending') {
+          return paidBookingIds.has(booking.id);
+        }
+        return true;
+      });
     } catch (err) {
       console.error('Unexpected error:', err);
       setError('Une erreur inattendue est survenue');

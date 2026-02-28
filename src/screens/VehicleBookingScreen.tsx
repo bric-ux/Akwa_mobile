@@ -14,6 +14,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +26,7 @@ import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import { useVehicleAvailabilityCalendar } from '../hooks/useVehicleAvailabilityCalendar';
 import { formatPrice } from '../utils/priceCalculator';
+import { useCurrency } from '../hooks/useCurrency';
 import VehicleDateTimePickerModal from '../components/VehicleDateTimePickerModal';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, DiscountConfig } from '../hooks/usePricing';
@@ -33,6 +35,7 @@ import { getCommissionRates } from '../lib/commissions';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '../services/supabase';
+import { estimateCardProcessingFeeXOF } from '../utils/cardFeeEstimate';
 
 type VehicleBookingRouteProp = RouteProp<RootStackParamList, 'VehicleBooking'>;
 
@@ -41,6 +44,7 @@ const VehicleBookingScreen: React.FC = () => {
   const route = useRoute<VehicleBookingRouteProp>();
   const { vehicleId } = route.params;
   const { user } = useAuth();
+  const { currency, rates } = useCurrency();
   const { getVehicleById } = useVehicles();
   const { createBooking, loading } = useVehicleBookings();
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
@@ -555,6 +559,12 @@ const VehicleBookingScreen: React.FC = () => {
   const totalPrice = basePriceWithDriver + fees.serviceFee;
   
   const securityDeposit = vehicle?.security_deposit || 0;
+  const cardFeeEstimate = estimateCardProcessingFeeXOF({
+    baseAmountXof: totalPrice,
+    paymentCurrency: currency,
+    customerCountryCode: ((user?.user_metadata as any)?.country_code || (user?.user_metadata as any)?.country || '') as string,
+  });
+  const totalCardPaymentEstimate = totalPrice + cardFeeEstimate.feeAmountXof;
 
   const handleSubmit = async () => {
     if (!user) {
@@ -617,18 +627,8 @@ const VehicleBookingScreen: React.FC = () => {
     // Valider les informations de paiement (comme résidence meublée)
     const validatePaymentInfo = () => {
       if (selectedPaymentMethod === 'card') {
-        if (!paymentInfo.cardNumber || !paymentInfo.cardHolder || !paymentInfo.expiryMonth || !paymentInfo.expiryYear || !paymentInfo.cvv) {
-          Alert.alert('Erreur', 'Veuillez remplir tous les champs de la carte bancaire');
-          return false;
-        }
-        if (paymentInfo.cardNumber.replace(/\s/g, '').length < 16) {
-          Alert.alert('Erreur', 'Le numéro de carte doit contenir au moins 16 chiffres');
-          return false;
-        }
-        if (paymentInfo.cvv.length < 3) {
-          Alert.alert('Erreur', 'Le code CVV doit contenir au moins 3 chiffres');
-          return false;
-        }
+        // Paiement carte: saisie réelle effectuée sur Stripe Checkout.
+        return true;
       } else if (selectedPaymentMethod === 'wave') {
         return true;
       } else if (selectedPaymentMethod === 'paypal') {
@@ -701,8 +701,8 @@ const VehicleBookingScreen: React.FC = () => {
         vehicleId: vehicle.id,
         startDate: startDateStr,
         endDate: endDateStr,
-        startDateTime: startDateTime,
-        endDateTime: endDateTime,
+        startDateTime: startDateTime!,
+        endDateTime: endDateTime!,
         messageToOwner: message.trim() || undefined,
         licenseDocumentUrl: licenseDocumentUrl || undefined,
         hasLicense: isLicenseRequired ? hasLicense : undefined,
@@ -710,6 +710,8 @@ const VehicleBookingScreen: React.FC = () => {
         licenseNumber: isLicenseRequired && hasLicense ? licenseNumber : undefined,
         useDriver: useDriverToPass,
         paymentMethod: selectedPaymentMethod,
+        paymentCurrency: currency,
+        paymentRate: currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : undefined,
       });
       
       // Logs APRÈS l'appel pour confirmation
@@ -719,12 +721,13 @@ const VehicleBookingScreen: React.FC = () => {
       });
 
       if (result.success) {
+        const isCardPayment = selectedPaymentMethod === 'card';
         const isConfirmed = result.status === 'confirmed';
         // Réinitialiser le formulaire
         setStartDate('');
         setEndDate('');
-        setStartDateTime(undefined);
-        setEndDateTime(undefined);
+        setStartDateTime(null);
+        setEndDateTime(null);
         setMessage('');
         setHasLicense(false);
         setLicenseYears('');
@@ -734,7 +737,25 @@ const VehicleBookingScreen: React.FC = () => {
         // Fermer automatiquement l'écran et naviguer vers la page du véhicule
         navigation.goBack(); // Retour à la page précédente (page du véhicule)
         
-        // Afficher l'alerte de confirmation (non bloquante)
+        // Paiement carte: lancer Stripe Checkout après création de la réservation pending.
+        if (isCardPayment) {
+          setTimeout(() => {
+            if (result.checkoutUrl) {
+              const checkoutUrl = result.checkoutUrl || '';
+              Linking.openURL(checkoutUrl);
+            } else {
+              Alert.alert(
+                'Paiement en attente',
+                result.paymentInitError
+                  ? `${result.paymentInitError} Vous pouvez réessayer depuis vos réservations.`
+                  : 'Votre réservation est créée en attente de paiement. Réessayez le paiement depuis vos réservations.'
+              );
+            }
+          }, 300);
+          return;
+        }
+
+        // Afficher l'alerte de confirmation (non bloquante) pour les autres moyens de paiement
         setTimeout(() => {
           Alert.alert(
             isConfirmed ? 'Réservation confirmée !' : 'Demande envoyée !',
@@ -1197,7 +1218,11 @@ const VehicleBookingScreen: React.FC = () => {
                 </View>
                 <View style={styles.securityInfo}>
                   <Ionicons name="shield-checkmark" size={16} color="#10b981" />
-                  <Text style={styles.securityText}>🔒 Vos informations de carte sont sécurisées et chiffrées</Text>
+                  <Text style={styles.securityText}>
+                    {vehicle?.auto_booking
+                      ? 'Paiement sécurisé via Stripe. Après paiement validé, votre réservation sera confirmée automatiquement.'
+                      : 'Paiement sécurisé via Stripe. Après paiement validé, votre demande sera transmise au propriétaire.'}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -1343,9 +1368,19 @@ const VehicleBookingScreen: React.FC = () => {
               <Text style={styles.summaryValue}>{formatPrice(fees.serviceFee)}</Text>
             </View>
           ) : null}
+          {selectedPaymentMethod === 'card' && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Frais de traitement carte (estimés)</Text>
+              <Text style={styles.summaryValue}>{formatPrice(cardFeeEstimate.feeAmountXof)}</Text>
+            </View>
+          )}
           <View style={[styles.summaryRow, styles.summaryTotal]}>
-            <Text style={styles.summaryTotalLabel}>Total</Text>
-            <Text style={styles.summaryTotalValue}>{formatPrice(totalPrice)}</Text>
+            <Text style={styles.summaryTotalLabel}>
+              {selectedPaymentMethod === 'card' ? 'Total à payer par carte' : 'Total'}
+            </Text>
+            <Text style={styles.summaryTotalValue}>
+              {formatPrice(selectedPaymentMethod === 'card' ? totalCardPaymentEstimate : totalPrice)}
+            </Text>
           </View>
           {securityDeposit > 0 ? (
             <View style={styles.summaryRow}>
@@ -1368,7 +1403,11 @@ const VehicleBookingScreen: React.FC = () => {
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
-              <Text style={styles.submitButtonText}>Envoyer la demande</Text>
+              <Text style={styles.submitButtonText}>
+                {selectedPaymentMethod === 'card'
+                  ? (vehicle?.auto_booking ? 'Payer et réserver' : 'Payer et envoyer la demande')
+                  : (vehicle?.auto_booking ? 'Réserver maintenant' : 'Envoyer la demande')}
+              </Text>
               <Ionicons name="arrow-forward" size={20} color="#fff" />
             </>
           )}
@@ -1482,6 +1521,11 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+  },
+  backButtonText: {
+    color: '#2563eb',
+    fontSize: 16,
+    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,

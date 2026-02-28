@@ -19,6 +19,7 @@ import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicles } from '../hooks/useVehicles';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
 const HostAccountScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -167,6 +168,7 @@ const HostAccountScreen: React.FC = () => {
       icon: 'add-circle-outline',
       onPress: () => navigation.navigate('BecomeHost' as never),
     },
+    ...(FEATURE_MONTHLY_RENTAL ? [
     {
       id: 'subscription',
       title: 'Abonnement location mensuelle',
@@ -179,6 +181,7 @@ const HostAccountScreen: React.FC = () => {
       icon: 'business-outline',
       onPress: () => navigation.navigate('MyMonthlyRentalListings' as never),
     },
+    ] : []),
     {
       id: 'conciergerie',
       title: 'Conciergerie',

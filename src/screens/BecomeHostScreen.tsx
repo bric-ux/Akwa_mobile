@@ -30,6 +30,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import CitySearchInputModal from '../components/CitySearchInputModal';
 import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
 const PROPERTY_TYPES = [
   { value: 'apartment', label: 'Appartement' },
@@ -1432,6 +1433,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           Pour les voyageurs : location à la nuitée, réservations courtes.
         </Text>
       </TouchableOpacity>
+      {FEATURE_MONTHLY_RENTAL && (
       <TouchableOpacity
         style={[styles.listingTypeCard, listingType === 'monthly' && styles.listingTypeCardSelected]}
         onPress={() => setListingType('monthly')}
@@ -1446,11 +1448,12 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           Pour les locataires : loyer au mois, bail, caution.
         </Text>
       </TouchableOpacity>
+      )}
       {listingType && (
         <TouchableOpacity
           style={styles.listingTypeContinueButton}
           onPress={() => {
-            if (listingType === 'monthly') {
+            if (FEATURE_MONTHLY_RENTAL && listingType === 'monthly') {
               navigation.navigate('AddMonthlyRentalListing');
               return;
             }

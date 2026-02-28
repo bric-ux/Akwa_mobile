@@ -30,10 +30,12 @@ import VehicleModificationModal from '../components/VehicleModificationModal';
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import ContactOwnerButton from '../components/ContactOwnerButton';
+import { useCurrency } from '../hooks/useCurrency';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { currency, rates } = useCurrency();
   const { getUserBookings, cancelBooking, loading: propertiesLoading, error } = useBookings();
   const { getMyBookings: getVehicleBookings, loading: vehiclesLoading } = useVehicleBookings();
   const { canUserReviewProperty } = useReviews();
@@ -370,6 +372,9 @@ const MyBookingsScreen: React.FC = () => {
     const vehicleImages = vehicle?.images || vehicle?.vehicle_photos?.map((p: any) => p.url) || [];
     const vehicleImage = vehicleImages[0];
     const status = getVehicleBookingStatus(booking);
+    const statusLabel = status === 'pending' && (booking as any).payment_method === 'card'
+      ? 'Paiement en attente'
+      : getStatusText(status);
     const statusColor = status === 'pending' ? '#f59e0b' : status === 'confirmed' ? '#10b981' : status === 'in_progress' ? '#3b82f6' : status === 'completed' ? '#6366f1' : '#ef4444';
     
     const rentalDays = booking.rental_days || 0;
@@ -388,8 +393,21 @@ const MyBookingsScreen: React.FC = () => {
       return formatDate(dateStr);
     };
 
-    const formatPrice = (amount: number) => {
-      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(amount);
+    const formatPrice = (amountXof: number) => {
+      const bookingCurrency = ((booking as any).payment_currency || currency) as 'XOF' | 'EUR' | 'USD';
+      const bookingRate =
+        Number((booking as any).exchange_rate) ||
+        (bookingCurrency === 'EUR' ? Number(rates.EUR) : bookingCurrency === 'USD' ? Number(rates.USD) : 0);
+
+      if (bookingCurrency === 'EUR' && bookingRate > 0) {
+        const eur = amountXof / bookingRate;
+        return `${eur.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+      }
+      if (bookingCurrency === 'USD' && bookingRate > 0) {
+        const usd = amountXof / bookingRate;
+        return `${usd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+      }
+      return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(amountXof);
     };
 
     const handleViewDetails = () => {
@@ -427,7 +445,7 @@ const MyBookingsScreen: React.FC = () => {
           </View>
           <View style={styles.statusContainer}>
             <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-              <Text style={styles.statusText}>{getStatusText(status)}</Text>
+              <Text style={styles.statusText}>{statusLabel}</Text>
             </View>
           </View>
         </View>

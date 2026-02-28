@@ -424,9 +424,7 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
         const popupDisplayPrice = (
           prop.convertedPrice !== undefined && currentCurrency !== 'XOF'
             ? (
-              currentCurrency !== 'JPY'
-                ? prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                : Math.round(prop.convertedPrice).toLocaleString('fr-FR')
+              prop.convertedPrice.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
             )
             : prop.price.toLocaleString('fr-FR')
         );

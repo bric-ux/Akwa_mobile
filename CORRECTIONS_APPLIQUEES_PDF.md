@@ -153,7 +153,7 @@ Après correction, pour une réservation avec :
 **Commande exécutée** :
 ```bash
 cd /home/dev_doctoome/dev_pers/cote-d-ivoire-stays && \
-SUPABASE_ACCESS_TOKEN=sbp_bc690be817b9f424f370091b7abbe928879801c7 \
+SUPABASE_ACCESS_TOKEN=<votre_token_supabase> \
 npx supabase functions deploy send-email
 ```
 

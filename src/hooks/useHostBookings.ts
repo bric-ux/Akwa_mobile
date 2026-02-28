@@ -14,6 +14,7 @@ export interface HostBooking {
   children_count: number;
   infants_count: number;
   total_price: number;
+  payment_method?: string;
   host_net_amount?: number | null;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   message_to_host?: string;
@@ -159,10 +160,39 @@ export const useHostBookings = () => {
         (guestProfiles || []).map(p => [p.user_id, p])
       );
 
-      const data = bookingsData.map(booking => ({
+      let data = bookingsData.map(booking => ({
         ...booking,
         guest_profile: profilesMap.get(booking.guest_id) || null
       }));
+
+      // Ne pas montrer côté hôte les réservations carte "pending" non payées.
+      const pendingCardBookingIds = data
+        .filter((booking: any) => booking.status === 'pending' && booking.payment_method === 'card')
+        .map((booking: any) => booking.id);
+
+      if (pendingCardBookingIds.length > 0) {
+        const { data: payments, error: paymentsError } = await supabase
+          .from('payments')
+          .select('booking_id, status')
+          .in('booking_id', pendingCardBookingIds);
+
+        if (!paymentsError) {
+          const paidBookingIds = new Set(
+            (payments || [])
+              .filter((payment: any) => ['completed', 'succeeded', 'paid'].includes(String(payment.status || '').toLowerCase()))
+              .map((payment: any) => payment.booking_id)
+          );
+
+          data = data.filter((booking: any) => {
+            if (booking.status === 'pending' && booking.payment_method === 'card') {
+              return paidBookingIds.has(booking.id);
+            }
+            return true;
+          });
+        } else {
+          console.error('❌ [useHostBookings] Erreur vérification paiements pending card:', paymentsError);
+        }
+      }
 
       // Log pour vérifier que discount_amount est bien récupéré
       if (data && data.length > 0) {
