@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Image, StyleSheet } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/services/AuthContext';
@@ -34,10 +34,32 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { loading } = useAuth();
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color="#e67e22" />
+      <View style={styles.splashContainer}>
+        <Image
+          source={require('./assets/images/akwahome_logo.png')}
+          style={styles.splashLogo}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color="#e67e22" style={styles.splashSpinner} />
       </View>
     );
   }
   return <>{children}</>;
 };
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  splashLogo: {
+    width: 220,
+    height: 120,
+    marginBottom: 24,
+  },
+  splashSpinner: {
+    marginTop: 8,
+  },
+});

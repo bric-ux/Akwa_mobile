@@ -29,24 +29,38 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   onClose,
   onConfirm,
 }) => {
+  const normalizeToMinuteSlot = (date: Date): Date => {
+    const normalized = new Date(date);
+    const minute = normalized.getMinutes();
+    normalized.setMinutes(minute >= 30 ? 30 : 0, 0, 0);
+    return normalized;
+  };
+
+  const roundUpToNextMinuteSlot = (date: Date): Date => {
+    const rounded = new Date(date);
+    rounded.setSeconds(0, 0);
+    const minute = rounded.getMinutes();
+    if (minute === 0 || minute === 30) return rounded;
+    if (minute < 30) {
+      rounded.setMinutes(30, 0, 0);
+    } else {
+      rounded.setHours(rounded.getHours() + 1, 0, 0, 0);
+    }
+    return rounded;
+  };
+
   const [activeTab, setActiveTab] = useState<'start' | 'end'>('start');
   const [mode, setMode] = useState<'manual' | 'days'>('manual'); // 'manual' = sélection manuelle, 'days' = nombre de jours
   const [rentalDays, setRentalDays] = useState<string>('1');
   const [tempStartDate, setTempStartDate] = useState<Date>(() => {
-    if (startDateTime) return new Date(startDateTime);
-    const now = new Date();
-    // Arrondir à l'heure supérieure (ex: 8h59 -> 9h, 10h30 -> 11h)
-    const roundedHour = now.getHours() + 1;
-    now.setHours(roundedHour, 0, 0, 0);
-    return now;
+    if (startDateTime) return normalizeToMinuteSlot(new Date(startDateTime));
+    return roundUpToNextMinuteSlot(new Date());
   });
   const [tempEndDate, setTempEndDate] = useState<Date>(() => {
-    if (endDateTime) return new Date(endDateTime);
-    const now = new Date();
-    // Arrondir à l'heure supérieure + 1 heure pour la date de fin
-    const roundedHour = now.getHours() + 2;
-    now.setHours(roundedHour, 0, 0, 0);
-    return now;
+    if (endDateTime) return normalizeToMinuteSlot(new Date(endDateTime));
+    const base = roundUpToNextMinuteSlot(new Date());
+    base.setHours(base.getHours() + 1);
+    return base;
   });
 
   const hoursScrollRef = useRef<ScrollView>(null);
@@ -74,7 +88,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
 
   const dates = generateDates();
   const hours = Array.from({ length: 24 }, (_, i) => i);
-  const minutes = [0]; // Seulement 00 (pas de sélection de minutes autres que 00)
+  const minutes = [0, 30];
 
   const currentDate = activeTab === 'start' ? tempStartDate : tempEndDate;
   const setCurrentDate = activeTab === 'start' ? setTempStartDate : setTempEndDate;
@@ -82,10 +96,10 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   const handleDateSelect = (date: Date) => {
     console.log(`📅 [VehicleDateTimePickerModal] handleDateSelect - activeTab: ${activeTab}, date sélectionnée:`, date.toISOString());
     const newDate = new Date(date);
-    // Toujours mettre les minutes à 00
-    // Préserver l'heure de la date actuelle (tempStartDate ou tempEndDate selon l'onglet)
+    // Préserver l'heure et la minute du sélecteur courant.
     const currentHour = activeTab === 'start' ? tempStartDate.getHours() : tempEndDate.getHours();
-    newDate.setHours(currentHour, 0, 0, 0);
+    const currentMinute = activeTab === 'start' ? tempStartDate.getMinutes() : tempEndDate.getMinutes();
+    newDate.setHours(currentHour, currentMinute, 0, 0);
     
     console.log(`📅 [VehicleDateTimePickerModal] handleDateSelect - Heure préservée: ${currentHour}, nouvelle date:`, newDate.toISOString());
     
@@ -97,11 +111,12 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       selectedDateOnly.setHours(0, 0, 0, 0);
       
       if (selectedDateOnly.getTime() === today.getTime()) {
-        // Si c'est aujourd'hui, arrondir à l'heure supérieure
-        const now = new Date();
-        const roundedHour = now.getHours() + 1;
-        newDate.setHours(roundedHour, 0, 0, 0);
-        console.log(`📅 [VehicleDateTimePickerModal] Date de début = aujourd'hui, heure ajustée à: ${roundedHour}`);
+        // Si c'est aujourd'hui, forcer le prochain créneau valide (00 ou 30).
+        const nextSlot = roundUpToNextMinuteSlot(new Date());
+        if (newDate.getTime() < nextSlot.getTime()) {
+          newDate.setTime(nextSlot.getTime());
+        }
+        console.log(`📅 [VehicleDateTimePickerModal] Date de début = aujourd'hui, heure/min ajustées`);
       }
       
       console.log(`📅 [VehicleDateTimePickerModal] Mise à jour tempStartDate:`, {
@@ -121,7 +136,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
         // Ajuster la date de fin au lendemain de la date de début
         const adjustedEndDate = new Date(newDate);
         adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
-        adjustedEndDate.setHours(tempEndDate.getHours(), 0, 0, 0);
+        adjustedEndDate.setHours(tempEndDate.getHours(), tempEndDate.getMinutes(), 0, 0);
         console.log(`⚠️ [VehicleDateTimePickerModal] Date de fin ajustée car <= date de début:`, {
           avant: tempEndDate.toISOString(),
           après: adjustedEndDate.toISOString(),
@@ -148,8 +163,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     // Utiliser la date actuelle selon l'onglet (tempStartDate ou tempEndDate)
     const currentDateToUse = activeTab === 'start' ? tempStartDate : tempEndDate;
     const newDate = new Date(currentDateToUse);
-    // Toujours mettre les minutes à 00
-    newDate.setHours(hour, 0, 0, 0);
+    newDate.setHours(hour, currentDateToUse.getMinutes(), 0, 0);
     
     console.log(`🕐 [VehicleDateTimePickerModal] handleHourSelect - Date actuelle:`, currentDateToUse.toISOString(), `Nouvelle date:`, newDate.toISOString());
     
@@ -161,12 +175,9 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     todayOnly.setHours(0, 0, 0, 0);
     
     if (dateOnly.getTime() === todayOnly.getTime() && newDate.getTime() <= now.getTime()) {
-      // Si c'est aujourd'hui et l'heure est passée, utiliser l'heure actuelle arrondie à l'heure supérieure
-      const minTime = new Date(now);
-      const roundedHour = minTime.getHours() + 1;
-      minTime.setHours(roundedHour, 0, 0, 0);
+      const minTime = roundUpToNextMinuteSlot(now);
       newDate.setTime(minTime.getTime());
-      console.log(`⚠️ [VehicleDateTimePickerModal] Heure ajustée car dans le passé: ${roundedHour}`);
+      console.log(`⚠️ [VehicleDateTimePickerModal] Heure ajustée car dans le passé`);
     }
     
     if (activeTab === 'start') {
@@ -178,7 +189,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       // Si la date/heure de début est après la date de fin, ajuster la date de fin
       if (newDate.getTime() >= tempEndDate.getTime()) {
         const adjustedEndDate = new Date(newDate);
-        adjustedEndDate.setHours(adjustedEndDate.getHours() + 1, 0, 0, 0);
+        adjustedEndDate.setHours(adjustedEndDate.getHours() + 1, adjustedEndDate.getMinutes(), 0, 0);
         console.log(`⚠️ [VehicleDateTimePickerModal] Date de fin ajustée car <= date de début:`, {
           avant: tempEndDate.toISOString(),
           après: adjustedEndDate.toISOString(),
@@ -198,9 +209,30 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   };
 
   const handleMinuteSelect = (minute: number) => {
-    // Les minutes sont toujours à 00, donc on ne fait rien ici
-    // Cette fonction est gardée pour la compatibilité mais ne devrait pas être appelée
-    // car il n'y a qu'une seule option (00)
+    const currentDateToUse = activeTab === 'start' ? tempStartDate : tempEndDate;
+    const newDate = new Date(currentDateToUse);
+    newDate.setMinutes(minute, 0, 0);
+
+    if (activeTab === 'start') {
+      const now = new Date();
+      const dateOnly = new Date(newDate);
+      dateOnly.setHours(0, 0, 0, 0);
+      const todayOnly = new Date(now);
+      todayOnly.setHours(0, 0, 0, 0);
+      if (dateOnly.getTime() === todayOnly.getTime() && newDate.getTime() <= now.getTime()) {
+        const minTime = roundUpToNextMinuteSlot(now);
+        newDate.setTime(minTime.getTime());
+      }
+      setTempStartDate(newDate);
+      if (newDate.getTime() >= tempEndDate.getTime()) {
+        const adjustedEndDate = new Date(newDate);
+        adjustedEndDate.setHours(adjustedEndDate.getHours() + 1, adjustedEndDate.getMinutes(), 0, 0);
+        setTempEndDate(adjustedEndDate);
+      }
+      return;
+    }
+
+    setTempEndDate(newDate);
   };
 
   const formatDate = (date: Date): string => {
@@ -238,12 +270,9 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   };
 
   const handleConfirm = () => {
-    // S'assurer que les minutes sont toujours à 00
-    const finalStartDate = new Date(tempStartDate);
-    finalStartDate.setMinutes(0, 0, 0);
-    
-    const finalEndDate = new Date(tempEndDate);
-    finalEndDate.setMinutes(0, 0, 0);
+    // S'assurer que les minutes sont alignées sur des créneaux 00/30.
+    const finalStartDate = normalizeToMinuteSlot(new Date(tempStartDate));
+    const finalEndDate = normalizeToMinuteSlot(new Date(tempEndDate));
     
     console.log(`🕐 [VehicleDateTimePickerModal] handleConfirm - AVANT ajustements:`, {
       tempStartDate: tempStartDate.toISOString(),
@@ -263,17 +292,14 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     if (endDateOnly.getTime() <= startDateOnly.getTime()) {
       // Si la date de fin est avant ou égale à la date de début, ajuster
       finalEndDate.setTime(finalStartDate.getTime());
-      finalEndDate.setHours(finalEndDate.getHours() + 1, 0, 0, 0);
+      finalEndDate.setHours(finalEndDate.getHours() + 1, finalEndDate.getMinutes(), 0, 0);
       console.log(`⚠️ [VehicleDateTimePickerModal] Date de fin ajustée car <= date de début`);
     }
     
     // Vérifier que la date de début n'est pas dans le passé
     const now = new Date();
     if (finalStartDate.getTime() < now.getTime()) {
-      // Arrondir à l'heure supérieure
-      const roundedHour = now.getHours() + 1;
-      finalStartDate.setTime(now.getTime());
-      finalStartDate.setHours(roundedHour, 0, 0, 0);
+      finalStartDate.setTime(roundUpToNextMinuteSlot(now).getTime());
       console.log(`⚠️ [VehicleDateTimePickerModal] Date de début ajustée car dans le passé`);
     }
     
@@ -301,7 +327,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       const days = parseInt(rentalDays) || 1;
       const calculatedEndDate = new Date(tempStartDate);
       calculatedEndDate.setDate(calculatedEndDate.getDate() + days);
-      calculatedEndDate.setHours(tempStartDate.getHours(), 0, 0, 0);
+      calculatedEndDate.setHours(tempStartDate.getHours(), tempStartDate.getMinutes(), 0, 0);
       setTempEndDate(calculatedEndDate);
     }
   }, [mode, rentalDays, tempStartDate]);
@@ -317,6 +343,8 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       });
       
       const hourIndex = targetDate.getHours();
+      const minuteSlot = targetDate.getMinutes() >= 30 ? 30 : 0;
+      const minuteIndex = minutes.findIndex((minute) => minute === minuteSlot);
       
       // Centrer l'élément sélectionné dans le ScrollView
       // Le contentContainerStyle a un paddingVertical de 60px
@@ -338,6 +366,11 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
         const itemPosition = paddingTop + (hourIndex * itemHeight);
         const scrollPosition = itemPosition - (scrollViewHeight / 2) + (itemHeight / 2);
         hoursScrollRef.current.scrollTo({ y: Math.max(0, scrollPosition), animated: true });
+      }
+      if (minutesScrollRef.current && minuteIndex >= 0) {
+        const itemPosition = paddingTop + (minuteIndex * itemHeight);
+        const scrollPosition = itemPosition - (scrollViewHeight / 2) + (itemHeight / 2);
+        minutesScrollRef.current.scrollTo({ y: Math.max(0, scrollPosition), animated: true });
       }
     }, delay);
   };
@@ -364,8 +397,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     if (visible && !hasInitializedRef.current) {
       // Première ouverture du modal : initialiser depuis les props
       if (startDateTime) {
-        const newStartDate = new Date(startDateTime);
-        newStartDate.setMinutes(0, 0, 0);
+        const newStartDate = normalizeToMinuteSlot(new Date(startDateTime));
         setTempStartDate(newStartDate);
         console.log(`🔄 [VehicleDateTimePickerModal] Initialisation tempStartDate depuis props:`, {
           startDateTime,
@@ -374,8 +406,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
         });
       }
       if (endDateTime) {
-        const newEndDate = new Date(endDateTime);
-        newEndDate.setMinutes(0, 0, 0);
+        const newEndDate = normalizeToMinuteSlot(new Date(endDateTime));
         setTempEndDate(newEndDate);
         console.log(`🔄 [VehicleDateTimePickerModal] Initialisation tempEndDate depuis props:`, {
           endDateTime,
@@ -554,7 +585,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                           onPress={() => {
                             if (!isPast) {
                               const newDate = new Date(date);
-                              newDate.setHours(tempStartDate.getHours(), 0, 0, 0);
+                              newDate.setHours(tempStartDate.getHours(), tempStartDate.getMinutes(), 0, 0);
                               setTempStartDate(newDate);
                             }
                           }}
@@ -594,7 +625,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                           ]}
                           onPress={() => {
                             const newDate = new Date(tempStartDate);
-                            newDate.setHours(hour, 0, 0, 0);
+                            newDate.setHours(hour, tempStartDate.getMinutes(), 0, 0);
                             setTempStartDate(newDate);
                           }}
                         >
@@ -610,13 +641,41 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                   </ScrollView>
                 </View>
                 
-                {/* Colonne Minutes - seulement 00 */}
+                {/* Colonne Minutes - 00 / 30 */}
                 <View style={styles.pickerColumn}>
-                  <View style={[styles.pickerItem, styles.minutesDisplay]}>
-                    <Text style={styles.pickerText}>
-                      00
-                    </Text>
-                  </View>
+                  <ScrollView
+                    ref={minutesScrollRef}
+                    style={styles.pickerScroll}
+                    contentContainerStyle={styles.pickerScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    snapToInterval={46}
+                    decelerationRate="fast"
+                  >
+                    {minutes.map((minute) => {
+                      const isMinuteSelected = tempStartDate.getMinutes() === minute;
+                      return (
+                        <TouchableOpacity
+                          key={`days-minute-${minute}`}
+                          style={[
+                            styles.pickerItem,
+                            isMinuteSelected && styles.pickerItemSelected
+                          ]}
+                          onPress={() => {
+                            const newDate = new Date(tempStartDate);
+                            newDate.setMinutes(minute, 0, 0);
+                            setTempStartDate(newDate);
+                          }}
+                        >
+                          <Text style={[
+                            styles.pickerText,
+                            isMinuteSelected && styles.pickerTextSelected
+                          ]}>
+                            {minute.toString().padStart(2, '0')}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
               </View>
 
@@ -758,13 +817,37 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                   </ScrollView>
                 </View>
                 
-                {/* Colonne Minutes - seulement 00 */}
+                {/* Colonne Minutes - 00 / 30 */}
                 <View style={styles.pickerColumn}>
-                  <View style={[styles.pickerItem, styles.minutesDisplay]}>
-                    <Text style={styles.pickerText}>
-                      00
-                    </Text>
-                  </View>
+                  <ScrollView
+                    ref={minutesScrollRef}
+                    style={styles.pickerScroll}
+                    contentContainerStyle={styles.pickerScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    snapToInterval={46}
+                    decelerationRate="fast"
+                  >
+                    {minutes.map((minute) => {
+                      const isMinuteSelected = currentDate.getMinutes() === minute;
+                      return (
+                        <TouchableOpacity
+                          key={`manual-minute-${minute}`}
+                          style={[
+                            styles.pickerItem,
+                            isMinuteSelected && styles.pickerItemSelected
+                          ]}
+                          onPress={() => handleMinuteSelect(minute)}
+                        >
+                          <Text style={[
+                            styles.pickerText,
+                            isMinuteSelected && styles.pickerTextSelected
+                          ]}>
+                            {minute.toString().padStart(2, '0')}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
               </View>
             </>
@@ -870,119 +953,6 @@ const styles = StyleSheet.create({
   tabButtonSubtextActive: {
     color: '#333',
     fontWeight: '500',
-  },
-  tabButtonFull: {
-    width: '100%',
-  },
-  modeSelector: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    gap: 8,
-  },
-  modeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    gap: 6,
-  },
-  modeButtonActive: {
-    backgroundColor: '#fff3e0',
-    borderColor: TRAVELER_COLORS.primary,
-    borderWidth: 1.5,
-  },
-  modeButtonText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#666',
-  },
-  modeButtonTextActive: {
-    color: TRAVELER_COLORS.primary,
-    fontWeight: '600',
-  },
-  daysInputContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#f9fafb',
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  daysInputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  daysInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  daysButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: TRAVELER_COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  daysInput: {
-    width: 80,
-    height: 50,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: TRAVELER_COLORS.primary,
-    fontSize: 24,
-    fontWeight: '700',
-    color: TRAVELER_COLORS.primary,
-  },
-  daysInputHint: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  calculatedEndContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#e0f2fe',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#bae6fd',
-  },
-  calculatedEndContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  calculatedEndLabel: {
-    fontSize: 12,
-    color: '#0369a1',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  calculatedEndValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0369a1',
   },
   tabButtonFull: {
     width: '100%',

@@ -576,11 +576,28 @@ const VehicleBookingScreen: React.FC = () => {
 
       if (error) {
         console.error('Erreur vérification paiement Stripe véhicule:', error);
+      } else {
+        const paymentStatus = String(data?.[0]?.status || '').toLowerCase();
+        if (['completed', 'succeeded', 'paid'].includes(paymentStatus)) {
+          return true;
+        }
+      }
+
+      // Fallback important pour mobile: si la ligne payments n'est pas lisible côté RLS,
+      // on vérifie l'état réel de la réservation véhicule.
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('vehicle_bookings')
+        .select('status')
+        .eq('id', bookingId)
+        .maybeSingle();
+
+      if (bookingError) {
+        console.error('Erreur fallback statut réservation véhicule:', bookingError);
         return false;
       }
 
-      const paymentStatus = String(data?.[0]?.status || '').toLowerCase();
-      return ['completed', 'succeeded', 'paid'].includes(paymentStatus);
+      const bookingStatus = String(bookingData?.status || '').toLowerCase();
+      return ['confirmed', 'completed'].includes(bookingStatus);
     } catch (err) {
       console.error('Erreur inattendue vérification Stripe véhicule:', err);
       return false;

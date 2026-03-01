@@ -709,11 +709,28 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
       if (error) {
         console.error('Erreur vérification paiement Stripe:', error);
+      } else {
+        const paymentStatus = String(data?.[0]?.status || '').toLowerCase();
+        if (['completed', 'succeeded', 'paid'].includes(paymentStatus)) {
+          return true;
+        }
+      }
+
+      // Fallback mobile: si payments n'est pas lisible côté client (RLS/cache),
+      // vérifier directement le statut réel de la réservation.
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .select('status')
+        .eq('id', bookingId)
+        .maybeSingle();
+
+      if (bookingError) {
+        console.error('Erreur fallback statut réservation:', bookingError);
         return false;
       }
 
-      const paymentStatus = String(data?.[0]?.status || '').toLowerCase();
-      return ['completed', 'succeeded', 'paid'].includes(paymentStatus);
+      const bookingStatus = String(bookingData?.status || '').toLowerCase();
+      return ['confirmed', 'completed'].includes(bookingStatus);
     } catch (err) {
       console.error('Erreur inattendue vérification Stripe:', err);
       return false;
