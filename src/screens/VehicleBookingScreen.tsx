@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -72,6 +74,13 @@ const VehicleBookingScreen: React.FC = () => {
   const imageScrollViewRef = useRef<ScrollView>(null);
   const mainScrollViewRef = useRef<ScrollView>(null);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [openingStripe, setOpeningStripe] = useState(false);
+  const [pendingStripeBookingId, setPendingStripeBookingId] = useState<string | null>(null);
+  const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
+  const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
+  const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
   useEffect(() => {
     const loadVehicle = async () => {
@@ -556,6 +565,162 @@ const VehicleBookingScreen: React.FC = () => {
   });
   const totalCardPaymentEstimate = totalPrice + cardFeeEstimate.feeAmountXof;
 
+  const checkStripePaymentCompleted = useCallback(async (bookingId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('status')
+        .eq('booking_id', bookingId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Erreur vérification paiement Stripe véhicule:', error);
+        return false;
+      }
+
+      const paymentStatus = String(data?.[0]?.status || '').toLowerCase();
+      return ['completed', 'succeeded', 'paid'].includes(paymentStatus);
+    } catch (err) {
+      console.error('Erreur inattendue vérification Stripe véhicule:', err);
+      return false;
+    }
+  }, []);
+
+  const cancelPendingCardBooking = useCallback(async (bookingId: string, reason: string) => {
+    try {
+      const paid = await checkStripePaymentCompleted(bookingId);
+      if (paid) return false;
+
+      const { error } = await supabase
+        .from('vehicle_bookings')
+        .update({
+          status: 'cancelled',
+          cancellation_reason: reason,
+          cancelled_by: user?.id || null,
+          cancelled_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId)
+        .eq('renter_id', user?.id || '');
+
+      if (error) {
+        console.error('Erreur annulation réservation véhicule pending card:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Erreur inattendue annulation pending card véhicule:', err);
+      return false;
+    }
+  }, [checkStripePaymentCompleted, user?.id]);
+
+  const resetStripePendingState = useCallback(() => {
+    setPendingStripeBookingId(null);
+    setPendingStripeStartedAt(null);
+    setStripeTimeLeftSec(0);
+    setCheckingStripeStatus(false);
+    setOpeningStripe(false);
+  }, []);
+
+  const verifyStripePaymentNow = useCallback(async () => {
+    if (!pendingStripeBookingId || checkingStripeStatus) return;
+    setCheckingStripeStatus(true);
+    const paid = await checkStripePaymentCompleted(pendingStripeBookingId);
+    setCheckingStripeStatus(false);
+
+    if (paid) {
+      Alert.alert(
+        'Paiement confirmé',
+        vehicle?.auto_booking
+          ? 'Votre paiement est confirmé. La réservation est maintenant confirmée.'
+          : 'Votre paiement est confirmé. La demande a été envoyée au propriétaire.'
+      );
+
+      resetStripePendingState();
+      setStartDate('');
+      setEndDate('');
+      setStartDateTime(null);
+      setEndDateTime(null);
+      setMessage('');
+      setHasLicense(false);
+      setLicenseYears('');
+      setLicenseNumber('');
+      setLicenseDocumentUrl(null);
+      navigation.goBack();
+    }
+  }, [pendingStripeBookingId, checkingStripeStatus, checkStripePaymentCompleted, vehicle?.auto_booking, resetStripePendingState, navigation]);
+
+  const handleAbandonStripeOperation = useCallback(() => {
+    if (!pendingStripeBookingId) return;
+    Alert.alert(
+      'Abandonner le paiement ?',
+      'Cette action annulera la demande en attente et libérera immédiatement les dates.',
+      [
+        { text: 'Continuer le paiement', style: 'cancel' },
+        {
+          text: 'J’abandonne',
+          style: 'destructive',
+          onPress: async () => {
+            await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte abandonné');
+            resetStripePendingState();
+            navigation.goBack();
+          },
+        },
+      ]
+    );
+  }, [pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState, navigation]);
+
+  useEffect(() => {
+    if (!pendingStripeBookingId || !pendingStripeStartedAt) return;
+
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - pendingStripeStartedAt;
+      const remainingMs = Math.max(0, STRIPE_PENDING_TIMEOUT_MS - elapsed);
+      setStripeTimeLeftSec(Math.floor(remainingMs / 1000));
+
+      if (remainingMs <= 0) {
+        clearInterval(timer);
+        (async () => {
+          await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte expiré (timeout)');
+          resetStripePendingState();
+          Alert.alert('Paiement expiré', 'Le délai de paiement est dépassé. La demande a été annulée.');
+          navigation.goBack();
+        })();
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [pendingStripeBookingId, pendingStripeStartedAt, cancelPendingCardBooking, resetStripePendingState, navigation]);
+
+  useEffect(() => {
+    if (!pendingStripeBookingId) return;
+    const poller = setInterval(() => {
+      verifyStripePaymentNow();
+    }, 5000);
+    return () => clearInterval(poller);
+  }, [pendingStripeBookingId, verifyStripePaymentNow]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
+      if (wasBackground && nextState === 'active' && pendingStripeBookingId) {
+        verifyStripePaymentNow();
+      }
+      appStateRef.current = nextState;
+    });
+    return () => subscription.remove();
+  }, [pendingStripeBookingId, verifyStripePaymentNow]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+      if (!pendingStripeBookingId) return;
+      e.preventDefault();
+      handleAbandonStripeOperation();
+    });
+    return unsubscribe;
+  }, [navigation, pendingStripeBookingId, handleAbandonStripeOperation]);
+
   const handleSubmit = async () => {
     if (!user) {
       Alert.alert('Connexion requise', 'Vous devez être connecté pour effectuer une réservation');
@@ -699,7 +864,41 @@ const VehicleBookingScreen: React.FC = () => {
       if (result.success) {
         const isCardPayment = selectedPaymentMethod === 'card';
         const isConfirmed = result.status === 'confirmed';
-        // Réinitialiser le formulaire
+
+        // Paiement carte: garder l'écran ouvert en attente de confirmation Stripe.
+        if (isCardPayment) {
+          if (!result.booking?.id || !result.checkoutUrl) {
+            if (result.booking?.id) {
+              await cancelPendingCardBooking(
+                result.booking.id,
+                result.paymentInitError || 'Initialisation Stripe impossible'
+              );
+            }
+            Alert.alert(
+              'Paiement indisponible',
+              result.paymentInitError || 'Impossible d’ouvrir Stripe. Aucune réservation en attente n’a été conservée.'
+            );
+            return;
+          }
+
+          setOpeningStripe(true);
+          setPendingStripeBookingId(result.booking.id);
+          setPendingStripeStartedAt(Date.now());
+          setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
+          try {
+            await Linking.openURL(result.checkoutUrl);
+          } catch (openErr: any) {
+            await cancelPendingCardBooking(result.booking.id, 'Impossible d’ouvrir Stripe Checkout');
+            resetStripePendingState();
+            Alert.alert('Erreur', openErr?.message || 'Impossible d’ouvrir Stripe.');
+            return;
+          } finally {
+            setOpeningStripe(false);
+          }
+          return;
+        }
+
+        // Réinitialiser le formulaire pour les modes hors carte
         setStartDate('');
         setEndDate('');
         setStartDateTime(null);
@@ -709,27 +908,9 @@ const VehicleBookingScreen: React.FC = () => {
         setLicenseYears('');
         setLicenseNumber('');
         setLicenseDocumentUrl(null);
-        
+
         // Fermer automatiquement l'écran et naviguer vers la page du véhicule
         navigation.goBack(); // Retour à la page précédente (page du véhicule)
-        
-        // Paiement carte: lancer Stripe Checkout après création de la réservation pending.
-        if (isCardPayment) {
-          setTimeout(() => {
-            if (result.checkoutUrl) {
-              const checkoutUrl = result.checkoutUrl || '';
-              Linking.openURL(checkoutUrl);
-            } else {
-              Alert.alert(
-                'Paiement en attente',
-                result.paymentInitError
-                  ? `${result.paymentInitError} Vous pouvez réessayer depuis vos réservations.`
-                  : 'Votre réservation est créée en attente de paiement. Réessayez le paiement depuis vos réservations.'
-              );
-            }
-          }, 300);
-          return;
-        }
 
         // Afficher l'alerte de confirmation (non bloquante) pour les autres moyens de paiement
         setTimeout(() => {
@@ -804,7 +985,13 @@ const VehicleBookingScreen: React.FC = () => {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (pendingStripeBookingId) {
+              handleAbandonStripeOperation();
+              return;
+            }
+            navigation.goBack();
+          }}
         >
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
@@ -1177,6 +1364,40 @@ const VehicleBookingScreen: React.FC = () => {
           )}
         </View>
 
+        {pendingStripeBookingId && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Paiement en attente</Text>
+            <View style={styles.stripePendingBox}>
+              <ActivityIndicator size="small" color="#2563eb" />
+              <Text style={styles.stripePendingText}>
+                Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.
+              </Text>
+              <Text style={styles.stripePendingCountdown}>
+                Expiration dans {Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:{String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}
+              </Text>
+              <View style={styles.stripePendingActions}>
+                <TouchableOpacity
+                  style={[styles.stripeActionButton, styles.stripeActionPrimary]}
+                  onPress={verifyStripePaymentNow}
+                  disabled={checkingStripeStatus}
+                >
+                  {checkingStripeStatus ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.stripeActionPrimaryText}>Verifier le paiement</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.stripeActionButton, styles.stripeActionDanger]}
+                  onPress={handleAbandonStripeOperation}
+                >
+                  <Text style={styles.stripeActionDangerText}>J’abandonne l’operation</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Résumé */}
         <View style={styles.summarySection}>
           <Text style={styles.sectionTitle}>Résumé</Text>
@@ -1295,16 +1516,20 @@ const VehicleBookingScreen: React.FC = () => {
       {/* Bouton de réservation */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.submitButton, (isSubmitting || loading) && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (isSubmitting || loading || openingStripe || !!pendingStripeBookingId || checkingStripeStatus) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={isSubmitting || loading || !!availabilityError}
+          disabled={isSubmitting || loading || openingStripe || !!pendingStripeBookingId || checkingStripeStatus || !!availabilityError}
         >
-          {isSubmitting || loading ? (
+          {isSubmitting || loading || openingStripe || checkingStripeStatus ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
               <Text style={styles.submitButtonText}>
-                {selectedPaymentMethod === 'card'
+                {openingStripe
+                  ? 'Ouverture de Stripe...'
+                  : pendingStripeBookingId
+                    ? 'Paiement en attente...'
+                  : selectedPaymentMethod === 'card'
                   ? (vehicle?.auto_booking ? 'Payer et réserver' : 'Payer et envoyer la demande')
                   : (vehicle?.auto_booking ? 'Réserver maintenant' : 'Envoyer la demande')}
               </Text>
@@ -1936,6 +2161,53 @@ const styles = StyleSheet.create({
   dateTimeButtonPlaceholder: {
     fontSize: 15,
     color: '#999',
+  },
+  stripePendingBox: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+  },
+  stripePendingText: {
+    color: '#1e3a8a',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  stripePendingCountdown: {
+    color: '#1e40af',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  stripePendingActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  stripeActionButton: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stripeActionPrimary: {
+    backgroundColor: '#2563eb',
+  },
+  stripeActionPrimaryText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  stripeActionDanger: {
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+  },
+  stripeActionDangerText: {
+    color: '#b91c1c',
+    fontWeight: '600',
+    fontSize: 13,
   },
 });
 

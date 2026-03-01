@@ -19,8 +19,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { useProperties } from '../hooks/useProperties';
-import { useAuth } from '../services/AuthContext';
-import { useMonthlyRentalSubscription } from '../hooks/useMonthlyRentalSubscription';
 import { Property, CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
 import { useAmenities } from '../hooks/useAmenities';
@@ -37,12 +35,9 @@ const EditPropertyScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<{ EditProperty: EditPropertyRouteParams }, 'EditProperty'>>();
   const { propertyId } = route.params;
-  const { user } = useAuth();
   const { getPropertyById } = useProperties();
   const { getAmenities } = useHostApplications();
-  const { hasActiveSubscriptionForProperty } = useMonthlyRentalSubscription(user?.id);
   const insets = useSafeAreaInsets();
-  const canEnableMonthlyRental = hasActiveSubscriptionForProperty(propertyId);
   
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
@@ -227,11 +222,6 @@ const EditPropertyScreen: React.FC = () => {
         Alert.alert('Erreur', 'Le prix par nuit doit être un nombre valide');
         return;
       }
-      if (formData.is_monthly_rental && (!formData.monthly_rent_price || isNaN(Number(formData.monthly_rent_price)) || Number(formData.monthly_rent_price) <= 0)) {
-        Alert.alert('Erreur', 'Le loyer mensuel doit être un montant valide (FCFA)');
-        return;
-      }
-
       // Préparer les données pour la mise à jour
       const updateData: any = {
         title: formData.title.trim(),
@@ -255,19 +245,6 @@ const EditPropertyScreen: React.FC = () => {
         discount_percentage: formData.discount_percentage ? Number(formData.discount_percentage) : null,
         updated_at: new Date().toISOString(),
       };
-      if (formData.is_monthly_rental !== undefined) {
-        updateData.is_monthly_rental = formData.is_monthly_rental;
-        updateData.monthly_rent_price = formData.is_monthly_rental && formData.monthly_rent_price
-          ? Number(formData.monthly_rent_price)
-          : null;
-        updateData.security_deposit = formData.is_monthly_rental && formData.security_deposit
-          ? Number(formData.security_deposit)
-          : null;
-        updateData.minimum_duration_months = formData.is_monthly_rental && formData.minimum_duration_months
-          ? Number(formData.minimum_duration_months)
-          : null;
-        updateData.charges_included = formData.is_monthly_rental ? formData.charges_included : null;
-      }
       
       // Mettre à jour la localisation si elle a été modifiée
       if (selectedLocation) {
@@ -1001,65 +978,6 @@ const EditPropertyScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Location mensuelle (nécessite un abonnement actif) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Location mensuelle (longue durée)</Text>
-          {canEnableMonthlyRental ? (
-            <>
-              {renderSwitchField(
-                'Proposer ce bien en location mensuelle',
-                'is_monthly_rental',
-                formData.is_monthly_rental,
-                'Votre annonce sera visible dans la section "Location mensuelle" pour les locataires longue durée'
-              )}
-              {formData.is_monthly_rental && (
-                <>
-                  {renderInputField(
-                    'Loyer mensuel (FCFA) *',
-                    'monthly_rent_price',
-                    formData.monthly_rent_price,
-                    'Prix du loyer par mois demandé au locataire',
-                    'numeric'
-                  )}
-                  {renderInputField(
-                    'Caution (FCFA)',
-                    'security_deposit',
-                    formData.security_deposit,
-                    'Montant de la caution à verser à l\'entrée (ex. 1 ou 2 mois de loyer)',
-                    'numeric'
-                  )}
-                  {renderInputField(
-                    'Durée minimale (mois)',
-                    'minimum_duration_months',
-                    formData.minimum_duration_months,
-                    'Ex. 3 = engagement minimum 3 mois, 12 = 1 an',
-                    'numeric'
-                  )}
-                  {renderSwitchField(
-                    'Charges incluses',
-                    'charges_included',
-                    formData.charges_included,
-                    'Eau, électricité, etc. inclus dans le loyer'
-                  )}
-                </>
-              )}
-            </>
-          ) : (
-            <View style={styles.monthlyRentalLocked}>
-              <Text style={styles.monthlyRentalLockedText}>
-                Un abonnement est requis pour proposer ce bien en location mensuelle.
-              </Text>
-              <TouchableOpacity
-                style={styles.monthlyRentalCtaButton}
-                onPress={() => navigation.navigate('HostSubscription' as never)}
-              >
-                <Text style={styles.monthlyRentalCtaButtonText}>Voir l'abonnement</Text>
-                <Ionicons name="arrow-forward" size={18} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
         {/* Bouton de sauvegarde */}
         <View style={styles.saveSection}>
           <TouchableOpacity
@@ -1146,34 +1064,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  monthlyRentalLocked: {
-    backgroundColor: '#f0fdf4',
-    padding: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-  },
-  monthlyRentalLockedText: {
-    fontSize: 14,
-    color: '#166534',
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  monthlyRentalCtaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2E7D32',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    gap: 8,
-  },
-  monthlyRentalCtaButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#fff',
   },
   sectionTitle: {
     fontSize: 18,

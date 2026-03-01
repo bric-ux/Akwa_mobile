@@ -34,6 +34,38 @@ export const useVehicleBookings = () => {
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
   const { currency, rates } = useCurrency();
 
+  const filterUnpaidPendingCardBookings = useCallback(async (bookings: any[]): Promise<any[]> => {
+    const pendingCardBookings = bookings.filter(
+      (booking) => booking.status === 'pending' && booking.payment_method === 'card'
+    );
+
+    if (pendingCardBookings.length === 0) return bookings;
+
+    const pendingCardIds = pendingCardBookings.map((booking) => booking.id);
+    const { data: payments, error: paymentsError } = await supabase
+      .from('payments')
+      .select('booking_id, status')
+      .in('booking_id', pendingCardIds);
+
+    if (paymentsError) {
+      console.error('❌ [useVehicleBookings] Error fetching payments:', paymentsError);
+      return bookings.filter((booking) => !(booking.status === 'pending' && booking.payment_method === 'card'));
+    }
+
+    const paidBookingIds = new Set(
+      (payments || [])
+        .filter((payment: any) => ['completed', 'succeeded', 'paid'].includes(String(payment.status || '').toLowerCase()))
+        .map((payment: any) => payment.booking_id)
+    );
+
+    return bookings.filter((booking) => {
+      if (booking.status === 'pending' && booking.payment_method === 'card') {
+        return paidBookingIds.has(booking.id);
+      }
+      return true;
+    });
+  }, []);
+
   const createBooking = useCallback(async (bookingData: VehicleBookingData) => {
     try {
       setLoading(true);
@@ -818,7 +850,8 @@ export const useVehicleBookings = () => {
         throw queryError;
       }
 
-      return (data || []) as VehicleBooking[];
+      const filtered = await filterUnpaidPendingCardBookings((data || []) as any[]);
+      return filtered as VehicleBooking[];
     } catch (err: any) {
       console.error('Erreur lors du chargement des réservations:', err);
       setError(err.message || 'Erreur lors du chargement des réservations');
@@ -826,7 +859,7 @@ export const useVehicleBookings = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterUnpaidPendingCardBookings]);
 
   const getVehicleBookings = useCallback(async (vehicleId: string): Promise<VehicleBooking[]> => {
     try {
@@ -920,11 +953,13 @@ export const useVehicleBookings = () => {
             } : undefined
           }));
 
-          return enrichedData as VehicleBooking[];
+          const filtered = await filterUnpaidPendingCardBookings(enrichedData as any[]);
+          return filtered as VehicleBooking[];
         }
       }
 
-      return (data || []) as VehicleBooking[];
+      const filtered = await filterUnpaidPendingCardBookings((data || []) as any[]);
+      return filtered as VehicleBooking[];
     } catch (err: any) {
       console.error('Erreur lors du chargement des réservations:', err);
       setError(err.message || 'Erreur lors du chargement des réservations');
@@ -932,7 +967,7 @@ export const useVehicleBookings = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterUnpaidPendingCardBookings]);
 
   const updateBookingStatus = useCallback(async (
     bookingId: string,
@@ -1254,7 +1289,8 @@ export const useVehicleBookings = () => {
             } : undefined
           }));
 
-          return enrichedData as VehicleBooking[];
+          const filtered = await filterUnpaidPendingCardBookings(enrichedData as any[]);
+          return filtered as VehicleBooking[];
         }
       }
 
@@ -1262,7 +1298,8 @@ export const useVehicleBookings = () => {
         throw queryError;
       }
 
-      return (data || []) as VehicleBooking[];
+      const filtered = await filterUnpaidPendingCardBookings((data || []) as any[]);
+      return filtered as VehicleBooking[];
     } catch (err: any) {
       console.error('Erreur lors du chargement des réservations:', err);
       setError(err.message || 'Erreur lors du chargement des réservations');
@@ -1270,7 +1307,7 @@ export const useVehicleBookings = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterUnpaidPendingCardBookings]);
 
   return {
     loading,
