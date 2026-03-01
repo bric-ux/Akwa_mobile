@@ -607,11 +607,20 @@ const BookingModal: React.FC<BookingModalProps> = ({
           });
 
           if (checkoutError || !checkoutData?.url) {
-            console.error('Stripe checkout error:', checkoutError, checkoutData);
+            let serverMessage: string | null = null;
+            try {
+              const err = checkoutError as any;
+              if (err?.context && typeof err.context?.json === 'function') {
+                const body = await err.context.json();
+                serverMessage = body?.error ? String(body.error) : null;
+              }
+            } catch (_) {}
+            console.error('Stripe checkout error:', checkoutError, checkoutData, serverMessage || '');
             setOpeningStripe(false);
+            const detail = serverMessage && serverMessage.length < 120 ? ` (${serverMessage})` : '';
             Alert.alert(
               'Paiement',
-              'Votre réservation a été créée mais la page de paiement n\'a pas pu s\'ouvrir. Vous pourrez régler plus tard depuis "Mes réservations".',
+              `Votre réservation a été créée mais la page de paiement n'a pas pu s'ouvrir${detail}. Vous pourrez régler plus tard depuis "Mes réservations".`,
               [{
                 text: 'OK',
                 onPress: () => {
@@ -633,8 +642,16 @@ const BookingModal: React.FC<BookingModalProps> = ({
           setPendingStripeBookingId(result.booking.id);
           setPendingStripeStartedAt(Date.now());
           setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
-          await Linking.openURL(checkoutData.url);
           setOpeningStripe(false);
+          // Ouvrir tout de suite sans attendre (évite tout délai supplémentaire)
+          Linking.openURL(checkoutData.url).catch((openErr) => {
+            console.error('Linking.openURL failed:', openErr);
+            Alert.alert(
+              'Paiement',
+              'La page de paiement n\'a pas pu s\'ouvrir. Allez dans "Mes réservations" et réessayez le paiement.',
+              [{ text: 'OK' }]
+            );
+          });
           return;
         } catch (stripeErr) {
           console.error('Stripe checkout error:', stripeErr);
@@ -700,39 +717,43 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const checkStripePaymentCompleted = useCallback(async (bookingId: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabase.functions.invoke('check-payment-status', {
+        body: { booking_id: bookingId, booking_type: 'property' },
+      });
+      if (__DEV__ && (data || error)) {
+        console.log('[Stripe] check-payment-status:', { data, error: error?.message });
+      }
+      // Réponse edge : is_confirmed OU booking_status / payment_status confirmés
+      if (!error && data) {
+        if (data.is_confirmed === true) return true;
+        const ps = String(data.payment_status || '').toLowerCase();
+        const bs = String(data.booking_status || '').toLowerCase();
+        if (['completed', 'succeeded', 'paid'].includes(ps) || ['confirmed', 'completed'].includes(bs)) return true;
+      }
+      if (error) console.error('Erreur check-payment-status:', error);
+
+      // Fallback : lecture directe (RLS permet au guest de voir son paiement / réservation)
+      const { data: paymentData } = await supabase
         .from('payments')
         .select('status')
         .eq('booking_id', bookingId)
         .order('created_at', { ascending: false })
         .limit(1);
+      const paymentStatus = String(paymentData?.[0]?.status || '').toLowerCase();
+      if (['completed', 'succeeded', 'paid'].includes(paymentStatus)) return true;
 
-      if (error) {
-        console.error('Erreur vérification paiement Stripe:', error);
-      } else {
-        const paymentStatus = String(data?.[0]?.status || '').toLowerCase();
-        if (['completed', 'succeeded', 'paid'].includes(paymentStatus)) {
-          return true;
-        }
-      }
-
-      // Fallback mobile: si payments n'est pas lisible côté client (RLS/cache),
-      // vérifier directement le statut réel de la réservation.
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .select('status')
         .eq('id', bookingId)
         .maybeSingle();
-
-      if (bookingError) {
-        console.error('Erreur fallback statut réservation:', bookingError);
-        return false;
+      if (!bookingError && bookingData) {
+        const bookingStatus = String(bookingData.status || '').toLowerCase();
+        if (['confirmed', 'completed'].includes(bookingStatus)) return true;
       }
-
-      const bookingStatus = String(bookingData?.status || '').toLowerCase();
-      return ['confirmed', 'completed'].includes(bookingStatus);
+      return false;
     } catch (err) {
-      console.error('Erreur inattendue vérification Stripe:', err);
+      console.error('Erreur vérification Stripe:', err);
       return false;
     }
   }, []);
@@ -864,21 +885,26 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   useEffect(() => {
     if (!pendingStripeBookingId) return;
-    const poller = setInterval(() => {
-      verifyStripePaymentNow();
-    }, 5000);
+    // Vérifier toutes les 2 s pour détecter rapidement le webhook Stripe (1–3 s)
+    const poller = setInterval(() => verifyStripePaymentNow(), 2000);
     return () => clearInterval(poller);
   }, [pendingStripeBookingId, verifyStripePaymentNow]);
 
   useEffect(() => {
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     const subscription = AppState.addEventListener('change', (nextState) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
       if (wasBackground && nextState === 'active' && pendingStripeBookingId) {
         verifyStripePaymentNow();
+        // Le webhook Stripe peut prendre 1–3 s : revérifier après 2 s (retour du navigateur)
+        retryTimeout = setTimeout(() => verifyStripePaymentNow(), 2000);
       }
       appStateRef.current = nextState;
     });
-    return () => subscription.remove();
+    return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+      subscription.remove();
+    };
   }, [pendingStripeBookingId, verifyStripePaymentNow]);
 
   useEffect(() => {

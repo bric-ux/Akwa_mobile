@@ -38,7 +38,7 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
       if (pendingCardBookings.length > 0) {
         const pendingCardIds = pendingCardBookings.map((booking) => booking.id);
         const { data: payments, error: paymentsError } = await supabase
-          .from('payments')
+          .from('vehicle_payments')
           .select('booking_id, status')
           .in('booking_id', pendingCardIds);
 
@@ -56,7 +56,7 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
             return true;
           });
         } else {
-          console.error('❌ [useVehicleAvailabilityCalendar] Error fetching payments:', paymentsError);
+          console.error('❌ [useVehicleAvailabilityCalendar] Error fetching vehicle_payments:', paymentsError);
           bookings = bookings.filter((booking) => !(booking.status === 'pending' && booking.payment_method === 'card'));
         }
       }

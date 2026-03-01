@@ -567,39 +567,42 @@ const VehicleBookingScreen: React.FC = () => {
 
   const checkStripePaymentCompleted = useCallback(async (bookingId: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase
-        .from('payments')
+      const { data, error } = await supabase.functions.invoke('check-payment-status', {
+        body: { booking_id: bookingId, booking_type: 'vehicle' },
+      });
+      if (__DEV__ && (data || error)) {
+        console.log('[Stripe] check-payment-status (vehicle):', { data, error: error?.message });
+      }
+      if (!error && data) {
+        if (data.is_confirmed === true) return true;
+        const ps = String(data.payment_status || '').toLowerCase();
+        const bs = String(data.booking_status || '').toLowerCase();
+        if (['completed', 'succeeded', 'paid'].includes(ps) || ['confirmed', 'completed'].includes(bs)) return true;
+      }
+      if (error) console.error('Erreur check-payment-status véhicule:', error);
+
+      // Fallback : véhicule_payments (RLS) + statut réservation
+      const { data: paymentData } = await supabase
+        .from('vehicle_payments')
         .select('status')
         .eq('booking_id', bookingId)
         .order('created_at', { ascending: false })
         .limit(1);
+      const paymentStatus = String(paymentData?.[0]?.status || '').toLowerCase();
+      if (['completed', 'succeeded', 'paid'].includes(paymentStatus)) return true;
 
-      if (error) {
-        console.error('Erreur vérification paiement Stripe véhicule:', error);
-      } else {
-        const paymentStatus = String(data?.[0]?.status || '').toLowerCase();
-        if (['completed', 'succeeded', 'paid'].includes(paymentStatus)) {
-          return true;
-        }
-      }
-
-      // Fallback important pour mobile: si la ligne payments n'est pas lisible côté RLS,
-      // on vérifie l'état réel de la réservation véhicule.
       const { data: bookingData, error: bookingError } = await supabase
         .from('vehicle_bookings')
         .select('status')
         .eq('id', bookingId)
         .maybeSingle();
-
-      if (bookingError) {
-        console.error('Erreur fallback statut réservation véhicule:', bookingError);
-        return false;
+      if (!bookingError && bookingData) {
+        const bookingStatus = String(bookingData.status || '').toLowerCase();
+        if (['confirmed', 'completed'].includes(bookingStatus)) return true;
       }
-
-      const bookingStatus = String(bookingData?.status || '').toLowerCase();
-      return ['confirmed', 'completed'].includes(bookingStatus);
+      return false;
     } catch (err) {
-      console.error('Erreur inattendue vérification Stripe véhicule:', err);
+      console.error('Erreur vérification Stripe véhicule:', err);
       return false;
     }
   }, []);
@@ -712,21 +715,24 @@ const VehicleBookingScreen: React.FC = () => {
 
   useEffect(() => {
     if (!pendingStripeBookingId) return;
-    const poller = setInterval(() => {
-      verifyStripePaymentNow();
-    }, 5000);
+    const poller = setInterval(() => verifyStripePaymentNow(), 2000);
     return () => clearInterval(poller);
   }, [pendingStripeBookingId, verifyStripePaymentNow]);
 
   useEffect(() => {
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     const subscription = AppState.addEventListener('change', (nextState) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
       if (wasBackground && nextState === 'active' && pendingStripeBookingId) {
         verifyStripePaymentNow();
+        retryTimeout = setTimeout(() => verifyStripePaymentNow(), 2000);
       }
       appStateRef.current = nextState;
     });
-    return () => subscription.remove();
+    return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+      subscription.remove();
+    };
   }, [pendingStripeBookingId, verifyStripePaymentNow]);
 
   useEffect(() => {
@@ -898,20 +904,15 @@ const VehicleBookingScreen: React.FC = () => {
             return;
           }
 
-          setOpeningStripe(true);
           setPendingStripeBookingId(result.booking.id);
           setPendingStripeStartedAt(Date.now());
           setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
-          try {
-            await Linking.openURL(result.checkoutUrl);
-          } catch (openErr: any) {
-            await cancelPendingCardBooking(result.booking.id, 'Impossible d’ouvrir Stripe Checkout');
+          setOpeningStripe(false);
+          Linking.openURL(result.checkoutUrl).catch(async (openErr: any) => {
+            await cancelPendingCardBooking(result.booking!.id, 'Impossible d’ouvrir Stripe Checkout');
             resetStripePendingState();
             Alert.alert('Erreur', openErr?.message || 'Impossible d’ouvrir Stripe.');
-            return;
-          } finally {
-            setOpeningStripe(false);
-          }
+          });
           return;
         }
 

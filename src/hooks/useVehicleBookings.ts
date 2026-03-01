@@ -43,12 +43,12 @@ export const useVehicleBookings = () => {
 
     const pendingCardIds = pendingCardBookings.map((booking) => booking.id);
     const { data: payments, error: paymentsError } = await supabase
-      .from('payments')
+      .from('vehicle_payments')
       .select('booking_id, status')
       .in('booking_id', pendingCardIds);
 
     if (paymentsError) {
-      console.error('❌ [useVehicleBookings] Error fetching payments:', paymentsError);
+      console.error('❌ [useVehicleBookings] Error fetching vehicle_payments:', paymentsError);
       return bookings.filter((booking) => !(booking.status === 'pending' && booking.payment_method === 'card'));
     }
 
