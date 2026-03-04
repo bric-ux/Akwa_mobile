@@ -131,7 +131,6 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
             vehicle_id: vehId,
             guest_id: guestId,
             host_id: hostId,
-            title: conversationTitle,
           })
           .select('id')
           .single();

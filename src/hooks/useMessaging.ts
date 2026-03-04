@@ -432,10 +432,8 @@ export const useMessaging = () => {
         insertData.vehicle_id = vehicleId;
       }
 
-      // Ajouter le titre si fourni
-      if (title) {
-        insertData.title = title;
-      }
+      // Ne pas insérer title : la colonne peut être absente (migration non appliquée).
+      // L’affichage utilise property.title / vehicle en fallback dans ConversationList.
 
       console.log('🟡 [useMessaging] Création nouvelle conversation avec:', insertData);
       
@@ -450,8 +448,8 @@ export const useMessaging = () => {
         throw createError;
       }
 
-      // Si le titre n'était pas fourni lors de la création mais qu'une conversation existante existe, mettre à jour son titre
-      if (existing && title) {
+      // Mise à jour du titre désactivée (colonne title optionnelle)
+      if (false && existing && title) {
         await supabase
           .from('conversations')
           .update({ title })
