@@ -37,7 +37,6 @@ import { getCommissionRates } from '../lib/commissions';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '../services/supabase';
-import { estimateCardProcessingFeeXOF } from '../utils/cardFeeEstimate';
 
 type VehicleBookingRouteProp = RouteProp<RootStackParamList, 'VehicleBooking'>;
 
@@ -81,6 +80,13 @@ const VehicleBookingScreen: React.FC = () => {
   const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+  // Carte uniquement en EUR : repasser en espèces si la devise n'est pas l'euro
+  useEffect(() => {
+    if (currency !== 'EUR' && selectedPaymentMethod === 'card') {
+      setSelectedPaymentMethod('cash');
+    }
+  }, [currency]);
 
   useEffect(() => {
     const loadVehicle = async () => {
@@ -553,17 +559,13 @@ const VehicleBookingScreen: React.FC = () => {
   const driverFee = (withDriver && useDriver === true && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
   const basePriceWithDriver = basePrice + driverFee;
   
-  // Calculer les frais de service (10% ou 12% si EUR pour les véhicules)
-  const fees = calculateFees(basePriceWithDriver, rentalDays, 'vehicle', undefined, currency);
+  // Frais de service : 10% ou 12% si EUR ; +2% si paiement par carte (EUR uniquement)
+  const isCardPayment = currency === 'EUR' && selectedPaymentMethod === 'card';
+  const fees = calculateFees(basePriceWithDriver, rentalDays, 'vehicle', undefined, currency, isCardPayment);
   const totalPrice = basePriceWithDriver + fees.serviceFee;
   
   const securityDeposit = vehicle?.security_deposit || 0;
-  const cardFeeEstimate = estimateCardProcessingFeeXOF({
-    baseAmountXof: totalPrice,
-    paymentCurrency: currency,
-    customerCountryCode: ((user?.user_metadata as any)?.country_code || (user?.user_metadata as any)?.country || '') as string,
-  });
-  const totalCardPaymentEstimate = totalPrice + cardFeeEstimate.feeAmountXof;
+  const canPayByCard = currency === 'EUR';
 
   const checkStripePaymentCompleted = useCallback(async (bookingId: string): Promise<boolean> => {
     try {
@@ -1316,13 +1318,13 @@ const VehicleBookingScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Moyen de paiement</Text>
           <View style={styles.paymentMethodsContainer}>
             {[
-              { value: 'card' as const, label: 'Carte bancaire', icon: 'card' },
-              { value: 'wave' as const, label: 'Wave', icon: 'wallet' },
-              { value: 'orange_money' as const, label: 'Orange Money', icon: 'phone-portrait' },
-              { value: 'mtn_money' as const, label: 'MTN Money', icon: 'phone-portrait' },
-              { value: 'moov_money' as const, label: 'Moov Money', icon: 'phone-portrait' },
-              { value: 'paypal' as const, label: 'PayPal', icon: 'logo-paypal' },
-              { value: 'cash' as const, label: 'Espèces', icon: 'cash' },
+              ...(canPayByCard ? [{ value: 'card' as const, label: 'Carte bancaire (euros)', icon: 'card' as const }] : []),
+              { value: 'wave' as const, label: 'Wave', icon: 'wallet' as const },
+              { value: 'orange_money' as const, label: 'Orange Money', icon: 'phone-portrait' as const },
+              { value: 'mtn_money' as const, label: 'MTN Money', icon: 'phone-portrait' as const },
+              { value: 'moov_money' as const, label: 'Moov Money', icon: 'phone-portrait' as const },
+              { value: 'paypal' as const, label: 'PayPal', icon: 'logo-paypal' as const },
+              { value: 'cash' as const, label: 'Espèces', icon: 'cash' as const },
             ].map((method) => (
               <TouchableOpacity
                 key={method.value}
@@ -1335,7 +1337,7 @@ const VehicleBookingScreen: React.FC = () => {
                     setSelectedPaymentMethod(method.value);
                     return;
                   }
-                  Alert.alert('Bientot disponible', `${method.label} sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.`);
+                  Alert.alert('Bientot disponible', `${method.label} sera bientot disponible. ${canPayByCard ? 'Utilisez Carte bancaire (Stripe) ou Espèces.' : 'Utilisez Espèces.'}`);
                 }}
               >
                 <Ionicons name={method.icon as any} size={24} color={selectedPaymentMethod === method.value ? '#2E7D32' : '#666'} />
@@ -1365,7 +1367,7 @@ const VehicleBookingScreen: React.FC = () => {
             <View style={styles.paymentInfoContainer}>
               <View style={styles.securityInfo}>
                 <Ionicons name="time-outline" size={20} color="#f59e0b" />
-                <Text style={styles.securityText}>Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.</Text>
+                <Text style={styles.securityText}>Ce moyen de paiement sera bientot disponible. {canPayByCard ? 'Utilisez Carte bancaire (Stripe) ou Espèces.' : 'Utilisez Espèces.'}</Text>
               </View>
             </View>
           )}
@@ -1507,18 +1509,12 @@ const VehicleBookingScreen: React.FC = () => {
               <Text style={styles.summaryValue}>{formatPrice(fees.serviceFee)}</Text>
             </View>
           ) : null}
-          {selectedPaymentMethod === 'card' && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Frais de traitement carte (estimés)</Text>
-              <Text style={styles.summaryValue}>{formatPrice(cardFeeEstimate.feeAmountXof)}</Text>
-            </View>
-          )}
           <View style={[styles.summaryRow, styles.summaryTotal]}>
             <Text style={styles.summaryTotalLabel}>
               {selectedPaymentMethod === 'card' ? 'Total à payer par carte' : 'Total'}
             </Text>
             <Text style={styles.summaryTotalValue}>
-              {formatPrice(selectedPaymentMethod === 'card' ? totalCardPaymentEstimate : totalPrice)}
+              {formatPrice(totalPrice)}
             </Text>
           </View>
           {securityDeposit > 0 ? (

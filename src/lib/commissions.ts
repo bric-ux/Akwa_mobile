@@ -36,19 +36,26 @@ export type CurrencyCode = 'XOF' | 'EUR' | 'USD';
  * - Résidence meublée : 14% frais de service pour le voyageur (au lieu de 12%)
  * - Location de véhicule : 12% frais de service pour le locataire (au lieu de 10%)
  */
-export function getCommissionRates(serviceType: ServiceType, currency?: CurrencyCode): CommissionRates {
+export function getCommissionRates(
+  serviceType: ServiceType,
+  currency?: CurrencyCode,
+  isCardPayment?: boolean
+): CommissionRates {
   const isEur = currency === 'EUR';
+  const cardSurcharge = isCardPayment && isEur ? 2 : 0;
   if (serviceType === 'property') {
+    const base = isEur ? 14 : 12;
     return {
-      travelerFeePercent: isEur ? 14 : 12,
+      travelerFeePercent: base + cardSurcharge,
       hostFeePercent: 2,
-      totalAkwahomePercent: isEur ? 16 : 14
+      totalAkwahomePercent: (isEur ? 16 : 14) + cardSurcharge
     };
   } else {
+    const base = isEur ? 12 : 10;
     return {
-      travelerFeePercent: isEur ? 12 : 10,
+      travelerFeePercent: base + cardSurcharge,
       hostFeePercent: 2,
-      totalAkwahomePercent: isEur ? 14 : 12
+      totalAkwahomePercent: (isEur ? 14 : 12) + cardSurcharge
     };
   }
 }

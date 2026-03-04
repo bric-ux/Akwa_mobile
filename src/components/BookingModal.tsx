@@ -28,7 +28,6 @@ import { getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { useCurrency } from '../hooks/useCurrency';
-import { estimateCardProcessingFeeXOF } from '../utils/cardFeeEstimate';
 
 interface BookingModalProps {
   visible: boolean;
@@ -91,6 +90,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
   const totalGuests = adults + children + infants;
+
+  // Carte uniquement en EUR : repasser en espèces si la devise n'est pas l'euro
+  useEffect(() => {
+    if (currency !== 'EUR' && selectedPaymentMethod === 'card') {
+      setSelectedPaymentMethod('cash');
+    }
+  }, [currency]);
 
   // Fonction pour normaliser une date à minuit (évite les problèmes de fuseau horaire)
   const normalizeDate = (date: Date): Date => {
@@ -443,12 +449,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
       }
     });
     
+    const isCardPayment = currency === 'EUR' && selectedPaymentMethod === 'card';
     const pricing = calculateFinalPrice(basePrice, nights, discountConfig, {
       cleaning_fee: property.cleaning_fee,
       service_fee: property.service_fee,
       taxes: property.taxes,
       free_cleaning_min_days: property.free_cleaning_min_days
-    }, longStayDiscountConfig, 'property', currency);
+    }, longStayDiscountConfig, 'property', currency, isCardPayment);
     
     // Appliquer la réduction du code promotionnel si valide
     let finalTotal = pricing.finalTotal;
@@ -923,12 +930,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const { nights, pricing, fees, finalTotal } = calculateTotal();
-  const cardFeeEstimate = estimateCardProcessingFeeXOF({
-    baseAmountXof: finalTotal,
-    paymentCurrency: currency,
-    customerCountryCode: ((user?.user_metadata as any)?.country_code || (user?.user_metadata as any)?.country || '') as string,
-  });
-  const totalCardPaymentEstimate = finalTotal + cardFeeEstimate.feeAmountXof;
+  const canPayByCard = currency === 'EUR';
 
   return (
     <Modal
@@ -1306,7 +1308,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   <View style={styles.securityInfo}>
                     <Ionicons name="time-outline" size={20} color="#f59e0b" />
                     <Text style={styles.securityText}>
-                      Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces pour continuer.
+                      Ce moyen de paiement sera bientot disponible. {canPayByCard ? 'Utilisez Carte bancaire (Stripe) ou Espèces pour continuer.' : 'Utilisez Espèces pour continuer.'}
                     </Text>
                   </View>
                 </View>
@@ -1396,21 +1398,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 )}
                 
                 <View style={[styles.priceRow, styles.totalRow]}>
-                  <Text style={styles.totalLabel}>{t('booking.total')}</Text>
+                  <Text style={styles.totalLabel}>
+                    {selectedPaymentMethod === 'card' ? 'Total à payer par carte' : t('booking.total')}
+                  </Text>
                   <Text style={styles.totalValue}>{formatPayment(finalTotal)}</Text>
                 </View>
-                {selectedPaymentMethod === 'card' && (
-                  <>
-                    <View style={styles.priceRow}>
-                      <Text style={styles.priceLabel}>Frais de traitement carte (estimés)</Text>
-                      <Text style={styles.priceValue}>{formatPayment(cardFeeEstimate.feeAmountXof)}</Text>
-                    </View>
-                    <View style={[styles.priceRow, styles.totalRow]}>
-                      <Text style={styles.totalLabel}>Total à payer par carte</Text>
-                      <Text style={styles.totalValue}>{formatPayment(totalCardPaymentEstimate)}</Text>
-                    </View>
-                  </>
-                )}
               </View>
             </View>
           )}
@@ -1500,32 +1492,34 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.paymentMethods}>
-              {/* Carte bancaire */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethod,
-                  selectedPaymentMethod === 'card' && styles.paymentMethodSelected
-                ]}
-                onPress={() => {
-                  setSelectedPaymentMethod('card');
-                  setShowPaymentMethodModal(false);
-                }}
-              >
-                <View style={styles.paymentMethodContent}>
-                  <Ionicons name="card" size={24} color="#2563eb" />
-                  <View style={styles.paymentMethodInfo}>
-                    <Text style={styles.paymentMethodTitle}>Carte bancaire</Text>
-                    <Text style={styles.paymentMethodDescription}>
-                      Visa, Mastercard, American Express
-                    </Text>
+              {/* Carte bancaire - uniquement en euros */}
+              {canPayByCard && (
+                <TouchableOpacity
+                  style={[
+                    styles.paymentMethod,
+                    selectedPaymentMethod === 'card' && styles.paymentMethodSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedPaymentMethod('card');
+                    setShowPaymentMethodModal(false);
+                  }}
+                >
+                  <View style={styles.paymentMethodContent}>
+                    <Ionicons name="card" size={24} color="#2563eb" />
+                    <View style={styles.paymentMethodInfo}>
+                      <Text style={styles.paymentMethodTitle}>Carte bancaire</Text>
+                      <Text style={styles.paymentMethodDescription}>
+                        Visa, Mastercard, American Express (paiement en euros)
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                <Ionicons 
-                  name={selectedPaymentMethod === 'card' ? 'checkmark-circle' : 'ellipse-outline'} 
-                  size={20} 
-                  color={selectedPaymentMethod === 'card' ? '#e67e22' : '#ccc'} 
-                />
-              </TouchableOpacity>
+                  <Ionicons 
+                    name={selectedPaymentMethod === 'card' ? 'checkmark-circle' : 'ellipse-outline'} 
+                    size={20} 
+                    color={selectedPaymentMethod === 'card' ? '#e67e22' : '#ccc'} 
+                  />
+                </TouchableOpacity>
+              )}
 
               {/* Orange Money */}
               <TouchableOpacity
