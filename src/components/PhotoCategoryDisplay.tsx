@@ -147,17 +147,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
 
   return (
     <View style={styles.container}>
-      {/* En-tête avec titre et toggle de vue */}
+      {/* Toggle vue grille / catégorie */}
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.titleContainer}>
-            <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-              Photos de {propertyTitle}
-            </Text>
-            <Text style={styles.subtitle}>{photos.length} photo{photos.length > 1 ? 's' : ''}</Text>
-          </View>
-        </View>
-        {/* Toggle vue grille / catégorie - en dessous du titre */}
         <View style={styles.viewModeToggleContainer}>
           <TouchableOpacity
             style={[styles.viewModeButton, viewMode === 'grid' && styles.viewModeButtonActive]}
@@ -636,6 +627,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
@@ -665,7 +658,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 2,
     gap: 4,
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
     marginTop: 8,
   },
   viewModeToggle: {

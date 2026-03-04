@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { VehicleBooking } from '../types';
 import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
+import { useBookingCancellation, CancellationInfo } from '../hooks/useBookingCancellation';
 
 interface VehicleCancellationModalProps {
   visible: boolean;
@@ -44,9 +45,12 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
 }) => {
   const { user } = useAuth();
   const { updateBookingStatus } = useVehicleBookings();
+  const { calculateCancellationInfoForVehicle, calculateVehicleOwnerCancellationPenalty } = useBookingCancellation();
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [reason, setReason] = useState('');
   const [isConfirming, setIsConfirming] = useState(false);
+  const [guestCancellationInfo, setGuestCancellationInfo] = useState<CancellationInfo | null>(null);
+  const [loadingGuestCancellation, setLoadingGuestCancellation] = useState(false);
 
   if (!booking) return null;
 
@@ -60,146 +64,79 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
 
   const bookingIsCompleted = isBookingCompleted();
 
-  const calculatePenalty = () => {
-    // Pour les demandes en attente (pending), pas de pénalité car le paiement n'a pas encore été effectué
-    if (booking.status === 'pending') {
-      return { 
-        penalty: 0, 
-        penaltyDescription: 'Aucune pénalité (demande en attente)', 
-        refundAmount: 0 
-      };
-    }
+  // Prix de base et total (pour les deux chemins)
+  const rentalDays = booking.rental_days || 0;
+  const rentalHours = booking.rental_hours || 0;
+  const daysPrice = (booking.daily_rate || 0) * rentalDays;
+  let hoursPrice = 0;
+  if (rentalHours > 0 && booking.vehicle?.hourly_rental_enabled && booking.vehicle?.price_per_hour) {
+    hoursPrice = rentalHours * booking.vehicle.price_per_hour;
+  }
+  const basePrice = daysPrice + hoursPrice;
+  const totalPrice = booking.total_price ?? basePrice;
 
-    const now = new Date();
-    const startDate = new Date(booking.start_date);
-    const endDate = new Date(booking.end_date);
-    
-    // Normaliser les dates pour les comparaisons
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startDateNormalized = new Date(startDate);
-    startDateNormalized.setHours(0, 0, 0, 0);
-    const endDateNormalized = new Date(endDate);
-    endDateNormalized.setHours(0, 0, 0, 0);
-    
-    // Calculer les heures et jours jusqu'au début
-    const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    const daysUntilStart = Math.ceil(hoursUntilStart / 24);
-    
-    // Vérifier si la réservation est en cours
-    const isInProgress = startDateNormalized <= today && today <= endDateNormalized;
-    
-    // Calculer le prix des jours
-    const rentalDays = booking.rental_days || 0;
-    const rentalHours = booking.rental_hours || 0;
-    const daysPrice = (booking.daily_rate || 0) * rentalDays;
-    
-    // Calculer le prix des heures supplémentaires si applicable
-    let hoursPrice = 0;
-    if (rentalHours > 0 && booking.vehicle?.hourly_rental_enabled && booking.vehicle?.price_per_hour) {
-      hoursPrice = rentalHours * booking.vehicle.price_per_hour;
+  // Charger les infos d'annulation pour le locataire (mêmes règles que résidence meublée)
+  useEffect(() => {
+    if (!visible || !booking || isOwner) {
+      setGuestCancellationInfo(null);
+      return;
     }
-    
-    // Prix de base = prix des jours + prix des heures
-    const basePrice = daysPrice + hoursPrice;
-    const dailyRate = booking.daily_rate || (daysPrice / (rentalDays || 1));
+    let cancelled = false;
+    setLoadingGuestCancellation(true);
+    setGuestCancellationInfo(null);
+    const policy = (booking as any).cancellation_policy ?? 'flexible';
+    calculateCancellationInfoForVehicle(
+      booking.start_date,
+      booking.end_date,
+      totalPrice,
+      basePrice,
+      Math.max(1, rentalDays),
+      policy,
+      booking.status
+    ).then((info) => {
+      if (!cancelled) {
+        setGuestCancellationInfo(info ?? null);
+      }
+    }).finally(() => {
+      if (!cancelled) setLoadingGuestCancellation(false);
+    });
+    return () => { cancelled = true; };
+  }, [visible, booking?.id, isOwner, totalPrice, basePrice, rentalDays, booking?.status, booking?.start_date, booking?.end_date]);
 
-    if (isInProgress) {
-      // Annulation EN COURS de location
-      const totalDays = booking.rental_days || 0;
-      const daysElapsed = Math.max(0, Math.floor((today.getTime() - startDateNormalized.getTime()) / (1000 * 60 * 60 * 24)));
-      const remainingDays = Math.max(0, totalDays - daysElapsed - 1); // -1 car aujourd'hui est déjà entamé
-      const remainingDaysAmount = remainingDays * dailyRate;
-      
-      if (isOwner) {
-        // Propriétaire annule en cours : 50% de pénalité sur les jours restants, locataire remboursé 100%
-        const penalty = Math.round(remainingDaysAmount * 0.50);
-        return { 
-          penalty, 
-          penaltyDescription: `Annulation en cours de location (50% de pénalité sur ${remainingDays} jour(s) restant(s))`, 
-          refundAmount: remainingDaysAmount // Locataire remboursé 100% des jours restants
-        };
-      } else {
-        // Locataire annule en cours : 50% de pénalité sur les jours restants
-        const penalty = Math.round(remainingDaysAmount * 0.50);
-        return { 
-          penalty, 
-          penaltyDescription: `Annulation en cours de location (50% de pénalité sur ${remainingDays} jour(s) restant(s))`, 
-          refundAmount: Math.round(remainingDaysAmount * 0.50) // Remboursement de 50% des jours restants
-        };
-      }
-    } else if (hoursUntilStart <= 0) {
-      // La date de début est passée mais ce n'est pas en cours (cas edge)
-      const penalty = Math.round(basePrice * 0.50);
-      return { 
-        penalty, 
-        penaltyDescription: 'La location a déjà commencé', 
-        refundAmount: Math.round(basePrice * 0.50) 
-      };
-    } else if (isOwner) {
-      // PROPRIÉTAIRE annule (avant le début)
-      if (daysUntilStart > 28) {
-        return { 
-          penalty: 0, 
-          penaltyDescription: 'Annulation gratuite (plus de 28 jours avant)', 
-          refundAmount: basePrice // Locataire toujours remboursé 100%
-        };
-      } else if (daysUntilStart > 7) {
-        const penalty = Math.round(basePrice * 0.20);
-        return { 
-          penalty, 
-          penaltyDescription: 'Annulation entre 7 et 28 jours avant (20% de pénalité)', 
-          refundAmount: basePrice // Locataire toujours remboursé 100%
-        };
-      } else if (hoursUntilStart > 48) {
-        const penalty = Math.round(basePrice * 0.40);
-        return { 
-          penalty, 
-          penaltyDescription: 'Annulation entre 48h et 7 jours avant (40% de pénalité)', 
-          refundAmount: basePrice // Locataire toujours remboursé 100%
-        };
-      } else {
-        const penalty = Math.round(basePrice * 0.50);
-        return { 
-          penalty, 
-          penaltyDescription: 'Annulation 48h ou moins avant le départ (50% de pénalité)', 
-          refundAmount: basePrice // Locataire toujours remboursé 100%
-        };
-      }
-    } else {
-      // LOCATAIRE annule (avant le début)
-      if (daysUntilStart > 7) {
-        return { 
-          penalty: 0, 
-          penaltyDescription: 'Annulation gratuite (plus de 7 jours avant)', 
-          refundAmount: basePrice 
-        };
-      } else if (daysUntilStart > 3) {
-        const penalty = Math.round(basePrice * 0.15);
-        return { 
-          penalty, 
-          penaltyDescription: 'Annulation entre 3 et 7 jours avant (15% de pénalité)', 
-          refundAmount: basePrice - penalty 
-        };
-      } else if (hoursUntilStart > 24) {
-        const penalty = Math.round(basePrice * 0.30);
-        return { 
-          penalty, 
-          penaltyDescription: 'Annulation entre 24h et 3 jours avant (30% de pénalité)', 
-          refundAmount: basePrice - penalty 
-        };
-      } else {
-        const penalty = Math.round(basePrice * 0.50);
-        return { 
-          penalty, 
-          penaltyDescription: 'Annulation 24h ou moins avant le départ (50% de pénalité)', 
-          refundAmount: basePrice - penalty 
-        };
-      }
-    }
-  };
+  // Résultat affiché : propriétaire = même règles que résidence (0% / 20% / 40% / 40% en cours), locataire = politique flexible/moderate/strict/non_refundable
+  const ownerResult = isOwner
+    ? calculateVehicleOwnerCancellationPenalty(
+        booking.start_date,
+        booking.end_date,
+        totalPrice,
+        basePrice,
+        Math.max(1, rentalDays),
+        booking.status
+      )
+    : null;
 
-  const { penalty, penaltyDescription, refundAmount } = calculatePenalty();
+  const penalty = isOwner
+    ? (ownerResult?.penalty ?? 0)
+    : (guestCancellationInfo?.penaltyAmount ?? 0);
+  const refundAmount = isOwner
+    ? (ownerResult?.refundAmount ?? 0)
+    : (guestCancellationInfo?.refundAmount ?? 0);
+  const penaltyDescription = isOwner
+    ? (ownerResult?.description ?? '')
+    : loadingGuestCancellation
+      ? 'Chargement des conditions d\'annulation...'
+      : guestCancellationInfo && !guestCancellationInfo.canCancel
+        ? 'Cette réservation est non remboursable. Aucun remboursement ne sera effectué.'
+        : guestCancellationInfo
+          ? (guestCancellationInfo.penaltyAmount && guestCancellationInfo.penaltyAmount > 0
+              ? `Pénalité de ${(guestCancellationInfo.penaltyAmount ?? 0).toLocaleString()} XOF. `
+              : '') +
+            (booking.status === 'pending'
+              ? 'Aucune pénalité (demande en attente).'
+              : `Remboursement : ${(guestCancellationInfo.refundAmount ?? 0).toLocaleString()} XOF.`)
+          : '';
+
+  const canConfirmCancellation = isOwner || !guestCancellationInfo || guestCancellationInfo.canCancel;
 
   const handleCancel = async () => {
     if (bookingIsCompleted) {
@@ -419,6 +356,12 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                     <Text style={styles.infoText}>
                       Cette demande est en attente de confirmation. L'annulation est gratuite car aucun paiement n'a encore été effectué.
                     </Text>
+                  ) : !canConfirmCancellation ? (
+                    <Text style={styles.infoText}>
+                      {penaltyDescription}
+                      {'\n\n'}
+                      L'annulation de cette réservation n'est pas possible (politique non remboursable).
+                    </Text>
                   ) : (
                     <Text style={styles.infoText}>
                       {penaltyDescription}
@@ -508,9 +451,9 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmButton, !selectedReason && styles.confirmButtonDisabled]}
+                style={[styles.confirmButton, (!selectedReason || !canConfirmCancellation) && styles.confirmButtonDisabled]}
                 onPress={handleCancel}
-                disabled={!selectedReason || isConfirming}
+                disabled={!selectedReason || isConfirming || !canConfirmCancellation}
               >
                 {isConfirming ? (
                   <ActivityIndicator size="small" color="#fff" />

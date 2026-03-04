@@ -23,7 +23,9 @@ export const useBookingCancellation = () => {
     totalPrice: number,
     pricePerNight: number,
     cancellationPolicy: string | null,
-    status: string
+    status: string,
+    /** Pour véhicule : forcer le nombre de "nuits" (jours de location) au lieu de le déduire des dates */
+    optionalTotalNights?: number
   ): Promise<CancellationInfo | null> => {
     try {
       const policy = cancellationPolicy || 'flexible';
@@ -44,7 +46,9 @@ export const useBookingCancellation = () => {
         checkOut.setHours(0, 0, 0, 0);
       }
 
-      if (checkOut) {
+      if (optionalTotalNights !== undefined && optionalTotalNights !== null) {
+        totalNights = Math.max(1, optionalTotalNights);
+      } else if (checkOut) {
         totalNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
       }
       const baseAmount = totalNights * pricePerNight;
@@ -335,9 +339,117 @@ export const useBookingCancellation = () => {
     }
   };
 
+  /**
+   * Calcule les infos d'annulation pour une location véhicule (locataire qui annule).
+   * Mêmes règles que résidence meublée : politiques flexible, moderate, strict, non_refundable.
+   * @param startDate date/heure de début de location
+   * @param endDate date/heure de fin
+   * @param totalPrice montant total payé (inclut frais de service)
+   * @param basePrice montant de base (jours + heures, sans frais de service)
+   * @param rentalDays nombre de jours de location
+   * @param cancellationPolicy politique (défaut 'flexible')
+   * @param status statut de la réservation
+   */
+  const calculateCancellationInfoForVehicle = async (
+    startDate: string,
+    endDate: string,
+    totalPrice: number,
+    basePrice: number,
+    rentalDays: number,
+    cancellationPolicy: string | null,
+    status: string
+  ): Promise<CancellationInfo | null> => {
+    const totalNights = Math.max(1, rentalDays);
+    const pricePerNight = totalNights > 0 ? basePrice / totalNights : basePrice;
+    return calculateCancellationInfo(
+      '',
+      startDate,
+      endDate,
+      totalPrice,
+      pricePerNight,
+      cancellationPolicy || 'flexible',
+      status,
+      totalNights
+    );
+  };
+
+  /**
+   * Pénalité quand le propriétaire du véhicule annule (mêmes règles que l'hôte résidence meublée).
+   * - > 28 jours avant : 0%
+   * - entre 48h et 28 jours : 20% du montant de base
+   * - ≤ 48h avant : 40% du montant de base
+   * - en cours de location : 40% sur les jours restants (locataire remboursé 100% des jours restants)
+   */
+  const calculateVehicleOwnerCancellationPenalty = (
+    startDate: string,
+    endDate: string,
+    totalPrice: number,
+    basePrice: number,
+    rentalDays: number,
+    status: string
+  ): { penalty: number; refundAmount: number; description: string } => {
+    if (status === 'pending') {
+      return { penalty: 0, refundAmount: totalPrice, description: 'Aucune pénalité (demande en attente)' };
+    }
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(0, 0, 0, 0);
+    const daysUntilStart = Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const hoursUntilStart = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
+    const totalNights = Math.max(1, rentalDays);
+    const pricePerNight = basePrice / totalNights;
+    const isInProgress = start <= now && now <= end;
+
+    if (isInProgress) {
+      const nightsElapsed = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+      const remainingNights = Math.max(0, totalNights - nightsElapsed);
+      const remainingBaseAmount = remainingNights * pricePerNight;
+      const penalty = Math.round(remainingBaseAmount * 0.40);
+      return {
+        penalty,
+        refundAmount: totalPrice,
+        description: `Annulation en cours de location (40% de pénalité sur ${remainingNights} jour(s) restant(s)). Le locataire sera remboursé intégralement.`,
+      };
+    }
+    if (hoursUntilStart <= 48) {
+      const penalty = Math.round(basePrice * 0.40);
+      return {
+        penalty,
+        refundAmount: totalPrice,
+        description: 'Annulation 48h ou moins avant le départ (40% de pénalité). Le locataire sera remboursé intégralement.',
+      };
+    }
+    if (daysUntilStart > 2 && daysUntilStart <= 28) {
+      const penalty = Math.round(basePrice * 0.20);
+      return {
+        penalty,
+        refundAmount: totalPrice,
+        description: 'Annulation entre 48h et 28 jours avant (20% de pénalité). Le locataire sera remboursé intégralement.',
+      };
+    }
+    if (daysUntilStart > 28) {
+      return {
+        penalty: 0,
+        refundAmount: totalPrice,
+        description: 'Annulation gratuite (plus de 28 jours avant). Le locataire sera remboursé intégralement.',
+      };
+    }
+    const penalty = Math.round(basePrice * 0.40);
+    return {
+      penalty,
+      refundAmount: totalPrice,
+      description: 'Annulation 48h ou moins avant le départ (40% de pénalité). Le locataire sera remboursé intégralement.',
+    };
+  };
+
   return {
     cancelBooking,
     calculateCancellationInfo,
+    calculateCancellationInfoForVehicle,
+    calculateVehicleOwnerCancellationPenalty,
     loading
   };
 };

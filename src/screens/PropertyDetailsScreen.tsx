@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import { useProperties } from '../hooks/useProperties';
@@ -38,6 +38,7 @@ type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>
 const PropertyDetailsScreen: React.FC = () => {
   const route = useRoute<PropertyDetailsRouteProp>();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { t } = useLanguage();
   const { formatPrice: formatCurrencyPrice } = useCurrency();
   const { propertyId, checkIn: routeCheckIn, checkOut: routeCheckOut, adults: routeAdults, children: routeChildren, babies: routeBabies } = route.params;
@@ -244,6 +245,13 @@ const PropertyDetailsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <TouchableOpacity
+        style={[styles.backButton, { top: insets.top + 4 }]}
+        onPress={() => navigation.goBack()}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="arrow-back" size={24} color="#1e293b" />
+      </TouchableOpacity>
       <ScrollView style={styles.scrollView}>
       {/* Galerie d'images par catégories */}
       <View style={styles.imageContainer}>
@@ -613,6 +621,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   scrollView: {
     flex: 1,
