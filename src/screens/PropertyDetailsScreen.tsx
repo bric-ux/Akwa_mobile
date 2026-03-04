@@ -33,6 +33,21 @@ import PropertyReviews from '../components/PropertyReviews';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { log, logError } from '../utils/logger';
 
+const PROPERTY_TYPE_LABELS: Record<string, string> = {
+  apartment: 'Appartement',
+  house: 'Maison',
+  villa: 'Villa',
+  studio: 'Studio',
+  guesthouse: 'Maison d\'hôtes',
+  eco_lodge: 'Éco-lodge',
+  other: 'Autre',
+};
+
+const getPropertyTypeLabel = (type?: string | null): string => {
+  if (!type) return 'Non spécifié';
+  return PROPERTY_TYPE_LABELS[type] ?? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
 type PropertyDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyDetails'>;
 
 const PropertyDetailsScreen: React.FC = () => {
@@ -429,7 +444,7 @@ const PropertyDetailsScreen: React.FC = () => {
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>{t('property.type')}</Text>
               <Text style={styles.infoValue}>
-                {property.property_type?.replace('_', ' ').toUpperCase() || 'Non spécifié'}
+                {getPropertyTypeLabel(property.property_type)}
               </Text>
             </View>
             <View style={styles.infoItem}>

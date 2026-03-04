@@ -27,7 +27,6 @@ import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { useAuth } from '../services/AuthContext';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import { useVehicleAvailabilityCalendar } from '../hooks/useVehicleAvailabilityCalendar';
-import { formatPrice } from '../utils/priceCalculator';
 import { useCurrency } from '../hooks/useCurrency';
 import VehicleDateTimePickerModal from '../components/VehicleDateTimePickerModal';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
@@ -45,7 +44,7 @@ const VehicleBookingScreen: React.FC = () => {
   const route = useRoute<VehicleBookingRouteProp>();
   const { vehicleId } = route.params;
   const { user } = useAuth();
-  const { currency, rates } = useCurrency();
+  const { currency, rates, formatPrice } = useCurrency();
   const { getVehicleById } = useVehicles();
   const { createBooking, loading } = useVehicleBookings();
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
@@ -566,53 +565,71 @@ const VehicleBookingScreen: React.FC = () => {
   
   const securityDeposit = vehicle?.security_deposit || 0;
   const canPayByCard = currency === 'EUR';
+  const [lastPaymentStatus, setLastPaymentStatus] = useState<{ payment_status: string; booking_status: string } | null>(null);
 
-  const checkStripePaymentCompleted = useCallback(async (bookingId: string): Promise<boolean> => {
+  const checkStripePaymentCompleted = useCallback(async (bookingId: string): Promise<{ paid: boolean; payment_status?: string; booking_status?: string; error?: string }> => {
+    const fallback = { paid: false, payment_status: 'pending', booking_status: 'pending' };
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
       const { data, error } = await supabase.functions.invoke('check-payment-status', {
         body: { booking_id: bookingId, booking_type: 'vehicle' },
+        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
       });
       if (__DEV__ && (data || error)) {
         console.log('[Stripe] check-payment-status (vehicle):', { data, error: error?.message });
       }
-      if (!error && data) {
-        if (data.is_confirmed === true) return true;
-        const ps = String(data.payment_status || '').toLowerCase();
-        const bs = String(data.booking_status || '').toLowerCase();
-        if (['completed', 'succeeded', 'paid'].includes(ps) || ['confirmed', 'completed'].includes(bs)) return true;
-      }
-      if (error) console.error('Erreur check-payment-status véhicule:', error);
+      const ps = data?.payment_status != null ? String(data.payment_status) : 'pending';
+      const bs = data?.booking_status != null ? String(data.booking_status) : 'pending';
+      setLastPaymentStatus({ payment_status: ps, booking_status: bs });
 
-      // Fallback : véhicule_payments (RLS) + statut réservation
+      if (error) {
+        const errMsg = data?.error || error?.message || 'Erreur de vérification';
+        return { paid: false, payment_status: ps, booking_status: bs, error: errMsg };
+      }
+      if (data) {
+        if (data.is_confirmed === true) return { paid: true, payment_status: ps, booking_status: bs };
+        const psLower = ps.toLowerCase();
+        const bsLower = bs.toLowerCase();
+        if (['completed', 'succeeded', 'paid'].includes(psLower) || ['confirmed', 'completed'].includes(bsLower)) {
+          return { paid: true, payment_status: ps, booking_status: bs };
+        }
+      }
+
       const { data: paymentData } = await supabase
         .from('vehicle_payments')
         .select('status')
         .eq('booking_id', bookingId)
         .order('created_at', { ascending: false })
         .limit(1);
-      const paymentStatus = String(paymentData?.[0]?.status || '').toLowerCase();
-      if (['completed', 'succeeded', 'paid'].includes(paymentStatus)) return true;
+      const directPaymentStatus = String(paymentData?.[0]?.status || '').toLowerCase();
+      if (['completed', 'succeeded', 'paid'].includes(directPaymentStatus)) {
+        setLastPaymentStatus({ payment_status: directPaymentStatus, booking_status: bs });
+        return { paid: true, payment_status: directPaymentStatus, booking_status: bs };
+      }
 
-      const { data: bookingData, error: bookingError } = await supabase
+      const { data: bookingData } = await supabase
         .from('vehicle_bookings')
         .select('status')
         .eq('id', bookingId)
         .maybeSingle();
-      if (!bookingError && bookingData) {
-        const bookingStatus = String(bookingData.status || '').toLowerCase();
-        if (['confirmed', 'completed'].includes(bookingStatus)) return true;
+      const directBookingStatus = String(bookingData?.status || '').toLowerCase();
+      if (['confirmed', 'completed'].includes(directBookingStatus)) {
+        setLastPaymentStatus({ payment_status: ps, booking_status: directBookingStatus });
+        return { paid: true, payment_status: ps, booking_status: directBookingStatus };
       }
-      return false;
+      return { paid: false, payment_status: ps, booking_status: bs };
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('Erreur vérification Stripe véhicule:', err);
-      return false;
+      return { paid: false, error: msg, ...fallback };
     }
   }, []);
 
   const cancelPendingCardBooking = useCallback(async (bookingId: string, reason: string) => {
     try {
-      const paid = await checkStripePaymentCompleted(bookingId);
-      if (paid) return false;
+      const result = await checkStripePaymentCompleted(bookingId);
+      if (result.paid) return false;
 
       const { error } = await supabase
         .from('vehicle_bookings')
@@ -643,15 +660,16 @@ const VehicleBookingScreen: React.FC = () => {
     setStripeTimeLeftSec(0);
     setCheckingStripeStatus(false);
     setOpeningStripe(false);
+    setLastPaymentStatus(null);
   }, []);
 
   const verifyStripePaymentNow = useCallback(async () => {
     if (!pendingStripeBookingId || checkingStripeStatus) return;
     setCheckingStripeStatus(true);
-    const paid = await checkStripePaymentCompleted(pendingStripeBookingId);
+    const result = await checkStripePaymentCompleted(pendingStripeBookingId);
     setCheckingStripeStatus(false);
 
-    if (paid) {
+    if (result.paid) {
       Alert.alert(
         'Paiement confirmé',
         vehicle?.auto_booking
@@ -660,6 +678,7 @@ const VehicleBookingScreen: React.FC = () => {
       );
 
       resetStripePendingState();
+      setLastPaymentStatus(null);
       setStartDate('');
       setEndDate('');
       setStartDateTime(null);
@@ -670,6 +689,8 @@ const VehicleBookingScreen: React.FC = () => {
       setLicenseNumber('');
       setLicenseDocumentUrl(null);
       navigation.goBack();
+    } else if (result.error) {
+      Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
     }
   }, [pendingStripeBookingId, checkingStripeStatus, checkStripePaymentCompleted, vehicle?.auto_booking, resetStripePendingState, navigation]);
 
@@ -1392,6 +1413,11 @@ const VehicleBookingScreen: React.FC = () => {
               <Text style={styles.stripePendingText}>
                 Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.
               </Text>
+              {lastPaymentStatus && (
+                <Text style={styles.stripeStatusText}>
+                  Statut : paiement {lastPaymentStatus.payment_status} · réservation {lastPaymentStatus.booking_status}
+                </Text>
+              )}
               <Text style={styles.stripePendingCountdown}>
                 Expiration dans {Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:{String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}
               </Text>
@@ -2188,6 +2214,11 @@ const styles = StyleSheet.create({
     color: '#1e3a8a',
     fontSize: 14,
     lineHeight: 20,
+  },
+  stripeStatusText: {
+    color: '#1e40af',
+    fontSize: 13,
+    marginTop: 4,
   },
   stripePendingCountdown: {
     color: '#1e40af',

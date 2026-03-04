@@ -89,6 +89,7 @@ import AdminMonthlyRentalScreen from '../screens/AdminMonthlyRentalScreen';
 import HostReviewsScreen from '../screens/HostReviewsScreen';
 import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
 import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
+import StripeReturnHandler from '../components/StripeReturnHandler';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList } from '../types';
@@ -502,6 +503,7 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer ref={navigationRef}>
+      <>
       <Stack.Navigator
         initialRouteName="Home"
         screenOptions={{
@@ -1113,6 +1115,8 @@ const AppNavigator = () => {
               }}
             />
       </Stack.Navigator>
+      <StripeReturnHandler navigationRef={navigationRef} />
+      </>
     </NavigationContainer>
   );
 };

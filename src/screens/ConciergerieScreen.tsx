@@ -32,6 +32,10 @@ const ConciergerieScreen: React.FC = () => {
     email: '',
     phone: '',
     propertyType: '',
+    numberOfRooms: '',
+    surface: '',
+    propertyLocation: '',
+    characteristics: '',
     needs: '',
     message: '',
     selectedPlan: '',
@@ -159,6 +163,10 @@ const ConciergerieScreen: React.FC = () => {
         email: '',
         phone: '',
         propertyType: '',
+        numberOfRooms: '',
+        surface: '',
+        propertyLocation: '',
+        characteristics: '',
         needs: '',
         message: '',
         selectedPlan: '',
@@ -355,6 +363,50 @@ const ConciergerieScreen: React.FC = () => {
                   value={formData.propertyType}
                   onChangeText={(text) => setFormData({ ...formData, propertyType: text })}
                   placeholder="Appartement, Villa, etc."
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Nombre de pièces</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.numberOfRooms}
+                  onChangeText={(text) => setFormData({ ...formData, numberOfRooms: text })}
+                  placeholder="Ex: 4"
+                  keyboardType="number-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Superficie (m²)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.surface}
+                  onChangeText={(text) => setFormData({ ...formData, surface: text })}
+                  placeholder="Ex: 120"
+                  keyboardType="decimal-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Lieu du bien</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.propertyLocation}
+                  onChangeText={(text) => setFormData({ ...formData, propertyLocation: text })}
+                  placeholder="Ville, quartier ou adresse"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Caractéristiques</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={formData.characteristics}
+                  onChangeText={(text) => setFormData({ ...formData, characteristics: text })}
+                  placeholder="Piscine, jardin, parking, climatisation, etc."
+                  multiline
+                  numberOfLines={2}
                 />
               </View>
 

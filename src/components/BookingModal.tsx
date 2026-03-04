@@ -82,6 +82,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
   const [openingStripe, setOpeningStripe] = useState(false);
   const [pendingStripeBookingId, setPendingStripeBookingId] = useState<string | null>(null);
+  const [pendingStripeCheckoutToken, setPendingStripeCheckoutToken] = useState<string | null>(null);
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
   const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
   const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
@@ -532,7 +533,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
     const pricing = calculateTotal();
     
     // Extraire discountAmount et discountApplied depuis pricing.pricing
-    // Le discountAmount doit inclure la réduction de la propriété + la réduction du voucher
     const propertyDiscountAmount = pricing.pricing.discountAmount || 0;
     const voucherDiscountAmount = pricing.voucherDiscountAmount || 0;
     const totalDiscountAmount = propertyDiscountAmount + voucherDiscountAmount;
@@ -547,7 +547,112 @@ const BookingModal: React.FC<BookingModalProps> = ({
       originalTotal,
       finalTotal: pricing.finalTotal
     });
-    
+
+    // Paiement par carte (résidence) : pas de résa en base avant paiement → create-checkout-session avec checkout_token + payload
+    if (selectedPaymentMethod === 'card') {
+      if (identityLoading) {
+        Alert.alert('Vérification', 'Vérification de l\'identité en cours...');
+        return;
+      }
+      if (!hasUploadedIdentity) {
+        Alert.alert(
+          'Vérification d\'identité requise',
+          'Vous devez envoyer une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      if (!isVerified && verificationStatus !== 'pending') {
+        Alert.alert(
+          'Identité en cours de vérification',
+          'Votre pièce d\'identité est en cours de vérification. Vous pourrez réserver une fois qu\'elle sera validée par notre équipe.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      try {
+        setOpeningStripe(true);
+        const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
+        const body: Record<string, unknown> = {
+          checkout_token: checkoutToken,
+          booking_type: 'property',
+          payment_type: 'booking',
+          client: 'mobile',
+          return_to_app: true,
+          app_scheme: 'akwahomemobile',
+          amount: pricing.finalTotal,
+          property_title: property.title,
+          check_in: formatDateForAPI(checkIn!),
+          check_out: formatDateForAPI(checkOut!),
+          customer_country: ((user?.user_metadata as any)?.country_code || (user?.user_metadata as any)?.country || ''),
+          propertyId: property.id,
+          checkInDate: formatDateForAPI(checkIn!),
+          checkOutDate: formatDateForAPI(checkOut!),
+          guestsCount: totalGuests,
+          adultsCount: adults,
+          childrenCount: children,
+          infantsCount: infants,
+          totalPrice: pricing.finalTotal,
+          discountAmount: totalDiscountAmount,
+          discountApplied,
+          originalTotal,
+          messageToHost: message.trim() || undefined,
+          voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
+          paymentMethod: 'card',
+          paymentPlan: paymentPlan,
+          paymentCurrency: currency,
+          paymentRate: currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : undefined,
+        };
+        if (currency === 'EUR' && rates.EUR) {
+          body.currency = 'eur';
+          body.rate = rates.EUR;
+        } else if (currency === 'USD' && rates.USD) {
+          body.currency = 'usd';
+          body.rate = rates.USD;
+        }
+        const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', {
+          body,
+        });
+
+        if (checkoutError || !checkoutData?.url) {
+          let serverMessage: string | null = null;
+          try {
+            const err = checkoutError as any;
+            if (err?.context && typeof err.context?.json === 'function') {
+              const parsed = await err.context.json();
+              serverMessage = parsed?.error ? String(parsed.error) : null;
+            }
+          } catch (_) {}
+          console.error('Stripe checkout error:', checkoutError, checkoutData, serverMessage || '');
+          setOpeningStripe(false);
+          const detail = serverMessage && serverMessage.length < 120 ? ` (${serverMessage})` : '';
+          Alert.alert('Paiement', `La page de paiement n'a pas pu s'ouvrir${detail}. Veuillez réessayer.`, [{ text: 'OK' }]);
+          return;
+        }
+
+        setPendingStripeCheckoutToken(checkoutData.checkout_token ?? checkoutToken);
+        setPendingStripeStartedAt(Date.now());
+        setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
+        setOpeningStripe(false);
+        Linking.openURL(checkoutData.url).catch((openErr) => {
+          console.error('Linking.openURL failed:', openErr);
+          Alert.alert(
+            'Paiement',
+            'La page de paiement n\'a pas pu s\'ouvrir. Veuillez réessayer.',
+            [{ text: 'OK' }]
+          );
+        });
+        return;
+      } catch (stripeErr) {
+        console.error('Stripe checkout error:', stripeErr);
+        setOpeningStripe(false);
+        Alert.alert('Paiement', 'Le paiement n\'a pas pu être initié. Veuillez réessayer.', [{ text: 'OK' }]);
+        return;
+      }
+    }
+
+    // Autres moyens de paiement : créer la réservation puis emails (useBookings)
     const result = await createBooking({
       propertyId: property.id,
       checkInDate: formatDateForAPI(checkIn),
@@ -557,9 +662,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
       childrenCount: children,
       infantsCount: infants,
       totalPrice: pricing.finalTotal,
-      discountAmount: totalDiscountAmount, // Inclure la réduction totale (propriété + voucher)
-      discountApplied: discountApplied,
-      originalTotal: originalTotal,
+      discountAmount: totalDiscountAmount,
+      discountApplied,
+      originalTotal,
       messageToHost: message.trim() || undefined,
       voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
       paymentMethod: selectedPaymentMethod,
@@ -568,7 +673,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
       paymentRate: currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : undefined,
     });
 
-    // Vérifier les erreurs d'identité (même logique que le site web)
     if (!result.success && 'error' in result) {
       if (result.error === 'IDENTITY_REQUIRED') {
         Alert.alert(
@@ -578,7 +682,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
         );
         return;
       }
-      
       if (result.error === 'IDENTITY_NOT_VERIFIED') {
         Alert.alert(
           'Identité en cours de vérification',
@@ -590,105 +693,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
 
     if (result.success) {
-      // Paiement par carte : redirection vers Stripe Checkout (comme sur le site web)
-      if (selectedPaymentMethod === 'card' && result.booking?.id) {
-        try {
-          setOpeningStripe(true);
-          const body: Record<string, unknown> = {
-            booking_id: result.booking.id,
-            amount: pricing.finalTotal,
-            property_title: property.title,
-            check_in: formatDateForAPI(checkIn!),
-            check_out: formatDateForAPI(checkOut!),
-            customer_country: ((user?.user_metadata as any)?.country_code || (user?.user_metadata as any)?.country || ''),
-          };
-          if (currency === 'EUR' && rates.EUR) {
-            body.currency = 'eur';
-            body.rate = rates.EUR;
-          } else if (currency === 'USD' && rates.USD) {
-            body.currency = 'usd';
-            body.rate = rates.USD;
-          }
-          const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', {
-            body,
-          });
-
-          if (checkoutError || !checkoutData?.url) {
-            let serverMessage: string | null = null;
-            try {
-              const err = checkoutError as any;
-              if (err?.context && typeof err.context?.json === 'function') {
-                const body = await err.context.json();
-                serverMessage = body?.error ? String(body.error) : null;
-              }
-            } catch (_) {}
-            console.error('Stripe checkout error:', checkoutError, checkoutData, serverMessage || '');
-            setOpeningStripe(false);
-            const detail = serverMessage && serverMessage.length < 120 ? ` (${serverMessage})` : '';
-            Alert.alert(
-              'Paiement',
-              `Votre réservation a été créée mais la page de paiement n'a pas pu s'ouvrir${detail}. Vous pourrez régler plus tard depuis "Mes réservations".`,
-              [{
-                text: 'OK',
-                onPress: () => {
-                  setCheckIn(null);
-                  setCheckOut(null);
-                  setAdults(1);
-                  setChildren(0);
-                  setInfants(0);
-                  setMessage('');
-                  setVoucherCode('');
-                  setVoucherDiscount(null);
-                  onClose();
-                },
-              }]
-            );
-            return;
-          }
-
-          setPendingStripeBookingId(result.booking.id);
-          setPendingStripeStartedAt(Date.now());
-          setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
-          setOpeningStripe(false);
-          // Ouvrir tout de suite sans attendre (évite tout délai supplémentaire)
-          Linking.openURL(checkoutData.url).catch((openErr) => {
-            console.error('Linking.openURL failed:', openErr);
-            Alert.alert(
-              'Paiement',
-              'La page de paiement n\'a pas pu s\'ouvrir. Allez dans "Mes réservations" et réessayez le paiement.',
-              [{ text: 'OK' }]
-            );
-          });
-          return;
-        } catch (stripeErr) {
-          console.error('Stripe checkout error:', stripeErr);
-          setOpeningStripe(false);
-          Alert.alert(
-            'Paiement',
-            'Votre réservation a été créée mais le paiement n\'a pas pu être initié. Vous pourrez régler depuis "Mes réservations".',
-            [{
-              text: 'OK',
-              onPress: () => {
-                setCheckIn(null);
-                setCheckOut(null);
-                setAdults(1);
-                setChildren(0);
-                setInfants(0);
-                setMessage('');
-                setVoucherCode('');
-                setVoucherDiscount(null);
-                onClose();
-              },
-            }]
-          );
-          return;
-        }
-      }
-
-      // IMPORTANT: Les emails sont maintenant gérés dans useBookings.ts
-      // Ne plus envoyer d'emails depuis BookingModal pour éviter les doublons
       const isAutoBooking = property.auto_booking === true;
-
       Alert.alert(
         isAutoBooking ? 'Réservation confirmée !' : 'Demande envoyée !',
         isAutoBooking
@@ -722,46 +727,70 @@ const BookingModal: React.FC<BookingModalProps> = ({
     formatPriceCurrency(price, showOriginal ?? false);
   const formatPayment = (price: number) => formatPriceForPayment(price);
 
-  const checkStripePaymentCompleted = useCallback(async (bookingId: string): Promise<boolean> => {
+  const [lastPaymentStatus, setLastPaymentStatus] = useState<{ payment_status: string; booking_status: string } | null>(null);
+
+  const checkStripePaymentCompleted = useCallback(async (opts: { bookingId?: string; checkoutToken?: string }): Promise<{ paid: boolean; payment_status?: string; booking_status?: string; error?: string }> => {
+    const { bookingId, checkoutToken } = opts;
+    const fallback = { paid: false, payment_status: 'pending', booking_status: 'pending' };
+    if (!bookingId && !checkoutToken) return fallback;
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const body: Record<string, unknown> = { booking_type: 'property' };
+      if (checkoutToken) body.checkout_token = checkoutToken;
+      else if (bookingId) body.booking_id = bookingId;
       const { data, error } = await supabase.functions.invoke('check-payment-status', {
-        body: { booking_id: bookingId, booking_type: 'property' },
+        body,
+        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
       });
       if (__DEV__ && (data || error)) {
         console.log('[Stripe] check-payment-status:', { data, error: error?.message });
       }
-      // Réponse edge : is_confirmed OU booking_status / payment_status confirmés
-      if (!error && data) {
-        if (data.is_confirmed === true) return true;
-        const ps = String(data.payment_status || '').toLowerCase();
-        const bs = String(data.booking_status || '').toLowerCase();
-        if (['completed', 'succeeded', 'paid'].includes(ps) || ['confirmed', 'completed'].includes(bs)) return true;
-      }
-      if (error) console.error('Erreur check-payment-status:', error);
+      const ps = data?.payment_status != null ? String(data.payment_status) : 'pending';
+      const bs = data?.booking_status != null ? String(data.booking_status) : 'pending';
+      setLastPaymentStatus({ payment_status: ps, booking_status: bs });
 
-      // Fallback : lecture directe (RLS permet au guest de voir son paiement / réservation)
-      const { data: paymentData } = await supabase
-        .from('payments')
-        .select('status')
-        .eq('booking_id', bookingId)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      const paymentStatus = String(paymentData?.[0]?.status || '').toLowerCase();
-      if (['completed', 'succeeded', 'paid'].includes(paymentStatus)) return true;
-
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .select('status')
-        .eq('id', bookingId)
-        .maybeSingle();
-      if (!bookingError && bookingData) {
-        const bookingStatus = String(bookingData.status || '').toLowerCase();
-        if (['confirmed', 'completed'].includes(bookingStatus)) return true;
+      if (error) {
+        const errMsg = data?.error || error?.message || 'Erreur de vérification';
+        return { paid: false, payment_status: ps, booking_status: bs, error: errMsg };
       }
-      return false;
+      if (data) {
+        if (data.is_confirmed === true) return { paid: true, payment_status: ps, booking_status: bs };
+        const psLower = ps.toLowerCase();
+        const bsLower = bs.toLowerCase();
+        if (['completed', 'succeeded', 'paid'].includes(psLower) || ['confirmed', 'completed'].includes(bsLower)) {
+          return { paid: true, payment_status: ps, booking_status: bs };
+        }
+      }
+
+      if (bookingId) {
+        const { data: paymentData } = await supabase
+          .from('payments')
+          .select('status')
+          .eq('booking_id', bookingId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        const directPaymentStatus = String(paymentData?.[0]?.status || '').toLowerCase();
+        if (['completed', 'succeeded', 'paid'].includes(directPaymentStatus)) {
+          setLastPaymentStatus({ payment_status: directPaymentStatus, booking_status: bs });
+          return { paid: true, payment_status: directPaymentStatus, booking_status: bs };
+        }
+        const { data: bookingData } = await supabase
+          .from('bookings')
+          .select('status')
+          .eq('id', bookingId)
+          .maybeSingle();
+        const directBookingStatus = String(bookingData?.status || '').toLowerCase();
+        if (['confirmed', 'completed'].includes(directBookingStatus)) {
+          setLastPaymentStatus({ payment_status: ps, booking_status: directBookingStatus });
+          return { paid: true, payment_status: ps, booking_status: directBookingStatus };
+        }
+      }
+      return { paid: false, payment_status: ps, booking_status: bs };
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('Erreur vérification Stripe:', err);
-      return false;
+      return { paid: false, error: msg, ...fallback };
     }
   }, []);
 
@@ -804,15 +833,30 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const resetStripePendingState = useCallback(() => {
     setPendingStripeBookingId(null);
+    setPendingStripeCheckoutToken(null);
     setPendingStripeStartedAt(null);
     setStripeTimeLeftSec(0);
     setCheckingStripeStatus(false);
     setOpeningStripe(false);
+    setLastPaymentStatus(null);
   }, []);
 
+  const isPendingStripe = !!pendingStripeCheckoutToken || !!pendingStripeBookingId;
+
   const handleAbandonStripeOperation = useCallback(async () => {
-    if (!pendingStripeBookingId) {
+    if (!isPendingStripe) {
       onClose();
+      return;
+    }
+    if (pendingStripeCheckoutToken) {
+      Alert.alert(
+        'Abandonner le paiement ?',
+        "Vous pourrez réserver à nouveau plus tard. Aucune réservation n'a été créée.",
+        [
+          { text: 'Continuer le paiement', style: 'cancel' },
+          { text: "J'abandonne", style: 'destructive', onPress: () => { resetStripePendingState(); onClose(); } },
+        ]
+      );
       return;
     }
     Alert.alert(
@@ -831,15 +875,17 @@ const BookingModal: React.FC<BookingModalProps> = ({
         },
       ]
     );
-  }, [pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState, onClose]);
+  }, [isPendingStripe, pendingStripeCheckoutToken, pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState, onClose]);
 
   const verifyStripePaymentNow = useCallback(async () => {
-    if (!pendingStripeBookingId || checkingStripeStatus) return;
+    if ((!pendingStripeCheckoutToken && !pendingStripeBookingId) || checkingStripeStatus) return;
     setCheckingStripeStatus(true);
-    const paid = await checkStripePaymentCompleted(pendingStripeBookingId);
+    const result = await checkStripePaymentCompleted(
+      pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken } : { bookingId: pendingStripeBookingId! }
+    );
     setCheckingStripeStatus(false);
 
-    if (paid) {
+    if (result.paid) {
       Alert.alert(
         'Paiement confirmé',
         property.auto_booking
@@ -847,6 +893,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           : 'Votre paiement est confirmé. La demande a été envoyée au propriétaire.'
       );
       resetStripePendingState();
+      setLastPaymentStatus(null);
       setCheckIn(null);
       setCheckOut(null);
       setAdults(1);
@@ -856,8 +903,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
       setVoucherCode('');
       setVoucherDiscount(null);
       onClose();
+    } else if (result.error) {
+      Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
     }
   }, [
+    pendingStripeCheckoutToken,
     pendingStripeBookingId,
     checkingStripeStatus,
     checkStripePaymentCompleted,
@@ -867,7 +917,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   ]);
 
   useEffect(() => {
-    if (!pendingStripeBookingId || !pendingStripeStartedAt) return;
+    if ((!pendingStripeCheckoutToken && !pendingStripeBookingId) || !pendingStripeStartedAt) return;
 
     const timer = setInterval(() => {
       const elapsed = Date.now() - pendingStripeStartedAt;
@@ -877,33 +927,35 @@ const BookingModal: React.FC<BookingModalProps> = ({
       if (remainingMs <= 0) {
         clearInterval(timer);
         (async () => {
-          await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte expiré (timeout)');
+          if (pendingStripeBookingId) {
+            await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte expiré (timeout)');
+          }
           resetStripePendingState();
           Alert.alert(
             'Paiement expiré',
-            'Le délai de paiement est dépassé. La demande en attente a été annulée.'
+            pendingStripeCheckoutToken
+              ? 'Le délai de paiement est dépassé. Aucune réservation n\'a été créée.'
+              : 'Le délai de paiement est dépassé. La demande en attente a été annulée.'
           );
         })();
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [pendingStripeBookingId, pendingStripeStartedAt, cancelPendingCardBooking, resetStripePendingState]);
+  }, [pendingStripeCheckoutToken, pendingStripeBookingId, pendingStripeStartedAt, cancelPendingCardBooking, resetStripePendingState]);
 
   useEffect(() => {
-    if (!pendingStripeBookingId) return;
-    // Vérifier toutes les 2 s pour détecter rapidement le webhook Stripe (1–3 s)
+    if (!pendingStripeCheckoutToken && !pendingStripeBookingId) return;
     const poller = setInterval(() => verifyStripePaymentNow(), 2000);
     return () => clearInterval(poller);
-  }, [pendingStripeBookingId, verifyStripePaymentNow]);
+  }, [pendingStripeCheckoutToken, pendingStripeBookingId, verifyStripePaymentNow]);
 
   useEffect(() => {
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     const subscription = AppState.addEventListener('change', (nextState) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
-      if (wasBackground && nextState === 'active' && pendingStripeBookingId) {
+      if (wasBackground && nextState === 'active' && (pendingStripeCheckoutToken || pendingStripeBookingId)) {
         verifyStripePaymentNow();
-        // Le webhook Stripe peut prendre 1–3 s : revérifier après 2 s (retour du navigateur)
         retryTimeout = setTimeout(() => verifyStripePaymentNow(), 2000);
       }
       appStateRef.current = nextState;
@@ -912,13 +964,16 @@ const BookingModal: React.FC<BookingModalProps> = ({
       if (retryTimeout) clearTimeout(retryTimeout);
       subscription.remove();
     };
-  }, [pendingStripeBookingId, verifyStripePaymentNow]);
+  }, [pendingStripeCheckoutToken, pendingStripeBookingId, verifyStripePaymentNow]);
 
   useEffect(() => {
     if (!visible) {
+      if (pendingStripeBookingId) {
+        cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte abandonné (modal fermé)');
+      }
       resetStripePendingState();
     }
-  }, [visible, resetStripePendingState]);
+  }, [visible, pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState]);
 
   const validatePaymentInfo = () => {
     // Carte : pas de saisie dans l'app, redirection vers Stripe Checkout.
@@ -937,11 +992,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={pendingStripeBookingId ? handleAbandonStripeOperation : onClose}
+      onRequestClose={isPendingStripe ? handleAbandonStripeOperation : onClose}
     >
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={pendingStripeBookingId ? handleAbandonStripeOperation : onClose} style={styles.closeButton}>
+          <TouchableOpacity onPress={isPendingStripe ? handleAbandonStripeOperation : onClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.title}>{t('booking.title')}</Text>
@@ -1198,7 +1253,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
             </View>
           )}
 
-          {pendingStripeBookingId && (
+          {(pendingStripeBookingId || pendingStripeCheckoutToken) && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Paiement en attente</Text>
               <View style={styles.stripePendingBox}>
@@ -1206,6 +1261,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <Text style={styles.stripePendingText}>
                   Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.
                 </Text>
+                {lastPaymentStatus && (
+                  <Text style={styles.stripeStatusText}>
+                    Statut : paiement {lastPaymentStatus.payment_status} · réservation {lastPaymentStatus.booking_status}
+                  </Text>
+                )}
                 <Text style={styles.stripePendingCountdown}>
                   Expiration dans {Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:{String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}
                 </Text>
@@ -1414,10 +1474,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
           <TouchableOpacity
             style={[
               styles.bookButton, 
-              (loading || openingStripe || !!pendingStripeBookingId || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')) && styles.bookButtonDisabled
+              (loading || openingStripe || isPendingStripe || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')) && styles.bookButtonDisabled
             ]}
             onPress={handleSubmit}
-            disabled={loading || openingStripe || !!pendingStripeBookingId || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')}
+            disabled={loading || openingStripe || isPendingStripe || identityLoading || !hasUploadedIdentity || (!isVerified && verificationStatus !== 'pending')}
           >
             {loading || openingStripe || checkingStripeStatus || identityLoading ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -1429,7 +1489,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     ? 'Identité rejetée'
                     : openingStripe
                       ? 'Ouverture de Stripe...'
-                    : pendingStripeBookingId
+                    : isPendingStripe
                       ? 'Paiement en attente...'
                     : selectedPaymentMethod === 'card'
                       ? property.auto_booking
@@ -2223,6 +2283,11 @@ const styles = StyleSheet.create({
     color: '#1e3a8a',
     fontSize: 14,
     lineHeight: 20,
+  },
+  stripeStatusText: {
+    color: '#1e40af',
+    fontSize: 13,
+    marginTop: 4,
   },
   stripePendingCountdown: {
     color: '#1e40af',

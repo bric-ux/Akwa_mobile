@@ -9,7 +9,7 @@ import { SearchDatesProvider } from './src/contexts/SearchDatesContext';
 import AppNavigator from './src/navigation/AppNavigator';
 
 const queryClient = new QueryClient();
-const SPLASH_MIN_DURATION_MS = 2500;
+const SPLASH_MIN_DURATION_MS = 1700;
 
 export default function App() {
   return (
