@@ -389,9 +389,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       nights = calculatedNights > 0 ? calculatedNights : 1; // Minimum 1 nuit
     }
   }
-  
-  const commissionRates = getCommissionRates(serviceType);
-  
+
   // Pour les véhicules, calculer le prix des heures supplémentaires si applicable
   let hoursPrice = 0;
   const rentalHours = serviceType === 'vehicle' ? ((booking as any).rental_hours || 0) : 0;
@@ -602,6 +600,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const snapshotCurrency = calculationDetails?.calculation_snapshot?.paymentCurrency;
   const snapshotRate = calculationDetails?.calculation_snapshot?.paymentRate;
   const displayCurrency = snapshotCurrency || (booking as any)?.payment_currency || currency;
+  const commissionRates = getCommissionRates(serviceType, displayCurrency as import('../lib/commissions').CurrencyCode);
   const displayRate =
     Number(snapshotRate) ||
     Number((booking as any)?.exchange_rate) ||
@@ -693,7 +692,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     // Calculer la commission hôte avec TVA
     // BUG FIX: Pour les véhicules, la commission est calculée sur priceAfterDiscountWithDriver (avec chauffeur)
     const priceForCommission = serviceType === 'vehicle' ? priceAfterDiscountWithDriver : priceAfterDiscount;
-    const hostCommissionData = calculateHostCommission(priceForCommission, serviceType);
+    const hostCommissionData = calculateHostCommission(priceForCommission, serviceType, displayCurrency as import('../lib/commissions').CurrencyCode);
     hostCommission = hostCommissionData.hostCommission;
     hostCommissionHT = hostCommissionData.hostCommissionHT;
     hostCommissionVAT = hostCommissionData.hostCommissionVAT;
@@ -736,6 +735,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         freeCleaningMinDays: booking.properties?.free_cleaning_min_days || null,
         status: booking.status || 'confirmed',
         serviceType: serviceType,
+        currency: displayCurrency as import('../lib/commissions').CurrencyCode,
       });
       hostNetAmount = result.hostNetAmount;
     }
@@ -806,6 +806,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       if (serviceType === 'property') {
         emailData = {
           bookingId: booking.id,
+          created_at: (booking as any).created_at,
+          bookingDate: (booking as any).created_at,
           recipientName: type === 'traveler' ? (travelerName || 'Voyageur') : (hostName || 'Hôte'),
           invoiceType: type === 'traveler' ? 'traveler' : 'host',
           propertyTitle: propertyOrVehicleTitle || '',
@@ -863,6 +865,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         // Pour les véhicules - format attendu par l'Edge Function
         emailData = {
           bookingId: booking.id,
+          created_at: (booking as any).created_at,
+          bookingDate: (booking as any).created_at,
           recipientName: type === 'traveler' ? (travelerName || 'Locataire') : (hostName || 'Propriétaire'),
           invoiceType: type === 'traveler' ? 'renter' : 'owner',
           vehicleTitle: propertyOrVehicleTitle || '',
@@ -1032,12 +1036,12 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         </View>
       )}
 
-      {/* Section Prolongement de séjour */}
+      {/* Section Modification de séjour */}
       {approvedModification && (
         <View style={styles.extensionSection}>
           <View style={styles.extensionHeader}>
             <Ionicons name="calendar-outline" size={20} color="#2563eb" />
-            <Text style={styles.extensionTitle}>Prolongement de séjour</Text>
+            <Text style={styles.extensionTitle}>Modification de séjour</Text>
           </View>
           
           <View style={styles.extensionContent}>

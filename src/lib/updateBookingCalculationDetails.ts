@@ -20,6 +20,7 @@ export async function updatePropertyBookingCalculationDetails(
     discount_amount?: number | null;
     discount_applied?: boolean;
     original_total?: number | null;
+    payment_currency?: 'XOF' | 'EUR' | 'USD';
   },
   propertyData: {
     price_per_night: number;
@@ -73,7 +74,8 @@ export async function updatePropertyBookingCalculationDetails(
     
     const priceAfterDiscount = basePrice - discountAmount;
     
-    // Calculer les frais de service
+    const currency = bookingData.payment_currency;
+    // Calculer les frais de service (14% si EUR pour propriété)
     const fees = calculateFees(
       priceAfterDiscount,
       nights,
@@ -82,11 +84,12 @@ export async function updatePropertyBookingCalculationDetails(
         cleaning_fee: propertyData.cleaning_fee || 0,
         taxes: propertyData.taxes || 0,
         free_cleaning_min_days: propertyData.free_cleaning_min_days || null
-      }
+      },
+      currency
     );
     
     // Calculer la commission hôte
-    const hostCommissionData = calculateHostCommission(priceAfterDiscount, 'property');
+    const hostCommissionData = calculateHostCommission(priceAfterDiscount, 'property', currency);
     
     // Calculer host_net_amount
     const hostNetAmountResult = calculateHostNetAmount({
@@ -98,6 +101,7 @@ export async function updatePropertyBookingCalculationDetails(
       freeCleaningMinDays: propertyData.free_cleaning_min_days || null,
       status: status,
       serviceType: 'property',
+      currency,
     });
     
     // Mettre à jour ou créer booking_calculation_details
@@ -198,6 +202,7 @@ export async function updateVehicleBookingCalculationDetails(
     discount_applied?: boolean;
     original_total?: number | null;
     with_driver?: boolean;
+    payment_currency?: 'XOF' | 'EUR' | 'USD';
   },
   vehicleData: {
     price_per_day: number;
@@ -340,12 +345,13 @@ export async function updateVehicleBookingCalculationDetails(
       ? vehicleData.driver_fee 
       : 0;
     const basePriceWithDriver = basePrice + driverFee;
+    const currency = bookingData.payment_currency;
     
-    // Calculer les frais de service
-    const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours : rentalDays, 'vehicle');
+    // Calculer les frais de service (12% si EUR pour véhicule)
+    const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours : rentalDays, 'vehicle', undefined, currency);
     
     // Calculer la commission propriétaire
-    const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
+    const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle', currency);
     
     // Calculer host_net_amount
     const hostNetAmount = basePriceWithDriver - hostCommissionData.hostCommission;

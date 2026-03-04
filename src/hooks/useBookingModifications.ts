@@ -374,6 +374,7 @@ export const useBookingModifications = () => {
           discount_amount: request.booking.discount_amount,
           discount_applied: request.booking.discount_applied,
           original_total: request.booking.original_total,
+          payment_currency: (request.booking as any).payment_currency,
         },
         {
           price_per_night: request.booking.properties.price_per_night || 0,

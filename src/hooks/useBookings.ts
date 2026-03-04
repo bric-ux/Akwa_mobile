@@ -277,6 +277,7 @@ export const useBookings = () => {
       // Calculer host_net_amount en utilisant la fonction centralisée
       // (nights est déjà calculé plus haut pour la vérification du minimum)
       const { calculateHostNetAmount } = await import('../lib/hostNetAmount');
+      const bookingCurrency = (bookingData.paymentCurrency || 'XOF') as 'XOF' | 'EUR' | 'USD';
       const hostNetAmountParams = {
         pricePerNight: propertyData.price_per_night || 0,
         nights: nights,
@@ -286,6 +287,7 @@ export const useBookings = () => {
         freeCleaningMinDays: propertyData.free_cleaning_min_days || null,
         status: initialStatus,
         serviceType: 'property' as const,
+        currency: bookingCurrency,
       };
       
       // Log pour debug
@@ -368,7 +370,7 @@ export const useBookings = () => {
       // Stocker tous les détails de calcul dans booking_calculation_details
       // Cela évite tous les recalculs dans les emails, PDFs et affichages
       try {
-        // Calculer les frais de service (12% pour propriétés)
+        // Calculer les frais de service (12% ou 14% si EUR pour propriétés)
         const { calculateFees } = await import('./usePricing');
         const fees = calculateFees(
           hostNetAmountResult.priceAfterDiscount,
@@ -378,7 +380,8 @@ export const useBookings = () => {
             cleaning_fee: propertyData.cleaning_fee || 0,
             taxes: propertyData.taxes || 0,
             free_cleaning_min_days: propertyData.free_cleaning_min_days || null
-          }
+          },
+          bookingCurrency
         );
 
         const calculationDetails = {
@@ -431,8 +434,8 @@ export const useBookings = () => {
             freeCleaningMinDays: propertyData.free_cleaning_min_days || null,
             status: initialStatus,
             commissionRates: {
-              travelerFeePercent: 12, // 12% pour propriétés
-              hostFeePercent: 2 // 2% pour propriétés
+              travelerFeePercent: bookingCurrency === 'EUR' ? 14 : 12,
+              hostFeePercent: 2
             },
             paymentCurrency: bookingData.paymentCurrency || 'XOF',
             paymentRate: bookingData.paymentRate || null,

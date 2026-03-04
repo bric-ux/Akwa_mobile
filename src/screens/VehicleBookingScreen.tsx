@@ -553,8 +553,8 @@ const VehicleBookingScreen: React.FC = () => {
   const driverFee = (withDriver && useDriver === true && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
   const basePriceWithDriver = basePrice + driverFee;
   
-  // Calculer les frais de service (10% du prix après réduction pour les véhicules)
-  const fees = calculateFees(basePriceWithDriver, rentalDays, 'vehicle');
+  // Calculer les frais de service (10% ou 12% si EUR pour les véhicules)
+  const fees = calculateFees(basePriceWithDriver, rentalDays, 'vehicle', undefined, currency);
   const totalPrice = basePriceWithDriver + fees.serviceFee;
   
   const securityDeposit = vehicle?.security_deposit || 0;

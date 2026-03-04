@@ -16,7 +16,7 @@
  *   - hostCommissionVAT = hostCommissionHT * 0.20
  */
 
-import { getCommissionRates } from './commissions';
+import { getCommissionRates, type CurrencyCode } from './commissions';
 
 export interface HostNetAmountParams {
   // Données de base
@@ -36,6 +36,9 @@ export interface HostNetAmountParams {
   
   // Type de service
   serviceType?: 'property' | 'vehicle';
+  
+  // Devise (si EUR : commissions spécifiques)
+  currency?: CurrencyCode;
 }
 
 export interface HostNetAmountResult {
@@ -72,6 +75,7 @@ export function calculateHostNetAmount(params: HostNetAmountParams): HostNetAmou
     freeCleaningMinDays = null,
     status = 'confirmed',
     serviceType = 'property',
+    currency,
   } = params;
 
   // Si la réservation est annulée, le gain net est à zéro
@@ -103,8 +107,8 @@ export function calculateHostNetAmount(params: HostNetAmountParams): HostNetAmou
   // 4. Calculer la taxe de séjour (uniquement pour les propriétés)
   const effectiveTaxes = serviceType === 'property' ? taxesPerNight * nights : 0;
 
-  // 5. Calculer la commission hôte AVEC TVA
-  const commissionRates = getCommissionRates(serviceType);
+  // 5. Calculer la commission hôte AVEC TVA (taux selon devise si EUR)
+  const commissionRates = getCommissionRates(serviceType, currency);
   const hostCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
   const hostCommissionVAT = Math.round(hostCommissionHT * 0.20);
   const hostCommission = hostCommissionHT + hostCommissionVAT; // TTC

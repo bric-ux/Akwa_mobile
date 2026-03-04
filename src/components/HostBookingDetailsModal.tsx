@@ -149,6 +149,21 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
                 <Text style={styles.infoLabel}>Statut</Text>
                 <Text style={styles.infoValue}>{booking.status}</Text>
               </View>
+
+              {(booking as any).created_at && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Date de réservation</Text>
+                  <Text style={styles.infoValue}>
+                    {new Date((booking as any).created_at).toLocaleDateString('fr-FR', {
+                      day: '2-digit',
+                      month: 'long',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Détails du paiement - afficher pour toutes les réservations sauf annulées */}

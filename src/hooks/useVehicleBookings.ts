@@ -331,12 +331,13 @@ export const useVehicleBookings = () => {
       const basePriceWithDriver = basePrice + driverFee;
       
       // Calculer les frais de service (10% + TVA du prix après réduction pour les véhicules)
-      const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours! : rentalDays, 'vehicle');
+      const vehicleCurrency = (bookingData.paymentCurrency || currency) as 'XOF' | 'EUR' | 'USD';
+      const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours! : rentalDays, 'vehicle', undefined, vehicleCurrency);
       const totalPrice = basePriceWithDriver + fees.serviceFee; // Total avec frais de service
       
       // Calculer le revenu net du propriétaire (prix avec chauffeur - commission)
-      // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur)
-      const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
+      // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur) ; 12% si EUR pour véhicule
+      const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle', vehicleCurrency);
       // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
       const hostNetAmount = basePriceWithDriver - hostCommissionData.hostCommission;
       

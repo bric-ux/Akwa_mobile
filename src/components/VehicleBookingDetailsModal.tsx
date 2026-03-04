@@ -394,6 +394,20 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                   {rentalHours > 0 && ` et ${rentalHours} heure${rentalHours > 1 ? 's' : ''}`}
                 </Text>
               </View>
+              {booking.created_at && (
+                <View style={[styles.durationRow, { marginTop: 8 }]}>
+                  <Text style={styles.durationLabel}>Date de réservation</Text>
+                  <Text style={styles.durationValue}>
+                    {new Date(booking.created_at).toLocaleDateString('fr-FR', {
+                      day: '2-digit',
+                      month: 'long',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Client/Locataire ou Propriétaire */}

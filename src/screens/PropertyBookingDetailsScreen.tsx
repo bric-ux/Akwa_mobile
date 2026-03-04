@@ -253,8 +253,9 @@ const PropertyBookingDetailsScreen: React.FC = () => {
     const basePrice = pricePerNight * nights;
     const priceAfterDiscount = basePrice - discountAmount;
     
-    // Calculer les frais de service avec TVA (12% du prix APRÈS réduction + 20% TVA)
-    const commissionRates = getCommissionRates('property');
+    // Calculer les frais de service avec TVA (12% ou 14% si EUR)
+    const bookingCurrency = (((booking as any)?.payment_currency) || currency) as 'XOF' | 'EUR' | 'USD';
+    const commissionRates = getCommissionRates('property', bookingCurrency);
     const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
     const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
     const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
@@ -360,6 +361,21 @@ const PropertyBookingDetailsScreen: React.FC = () => {
           {getStatusBadge(getEffectiveStatus())}
         </View>
 
+        {/* Date de réservation */}
+        {(booking as any).created_at && (
+          <View style={[styles.section, { marginBottom: 0 }]}>
+            <Text style={styles.sectionTitle}>Date de réservation</Text>
+            <Text style={styles.infoValue}>
+              {new Date((booking as any).created_at).toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+          </View>
+        )}
 
         {/* Contact de l'hôte */}
         {isConfirmed && hostInfo && (

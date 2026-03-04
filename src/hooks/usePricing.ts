@@ -1,4 +1,4 @@
-import { getCommissionRates } from '../lib/commissions';
+import { getCommissionRates, type CurrencyCode } from '../lib/commissions';
 
 export interface DiscountConfig {
   enabled: boolean;
@@ -125,7 +125,8 @@ export function calculateFees(
     service_fee?: number | null;
     taxes?: number | null;
     free_cleaning_min_days?: number | null;
-  }
+  },
+  currency?: CurrencyCode
 ): {
   cleaningFee: number;
   serviceFee: number;
@@ -141,8 +142,8 @@ export function calculateFees(
   const cleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
   
   // Calculer les frais de service comme un pourcentage du prix APRÈS réduction
-  // Pour les propriétés: 12%, pour les véhicules: 10%
-  const commissionRates = getCommissionRates(serviceType);
+  // Pour les propriétés: 12% (14% si EUR), pour les véhicules: 10% (12% si EUR)
+  const commissionRates = getCommissionRates(serviceType, currency);
   const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
   // TVA de 20% sur les frais de service
   const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
@@ -169,13 +170,14 @@ export function calculateFees(
  */
 export function calculateHostCommission(
   priceAfterDiscount: number,
-  serviceType: 'property' | 'vehicle' = 'property'
+  serviceType: 'property' | 'vehicle' = 'property',
+  currency?: CurrencyCode
 ): {
   hostCommission: number;
   hostCommissionHT: number;
   hostCommissionVAT: number;
 } {
-  const commissionRates = getCommissionRates(serviceType);
+  const commissionRates = getCommissionRates(serviceType, currency);
   const hostCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
   // TVA de 20% sur la commission hôte
   const hostCommissionVAT = Math.round(hostCommissionHT * 0.20);
@@ -270,15 +272,16 @@ export function calculateFinalPrice(
     free_cleaning_min_days?: number | null;
   },
   longStayDiscountConfig?: DiscountConfig,
-  serviceType: 'property' | 'vehicle' = 'property'
+  serviceType: 'property' | 'vehicle' = 'property',
+  currency?: CurrencyCode
 ): {
   pricing: ReturnType<typeof calculateTotalPrice>;
   fees: ReturnType<typeof calculateFees>;
   finalTotal: number;
 } {
   const pricing = calculateTotalPrice(basePrice, nights, discountConfig, longStayDiscountConfig);
-  // Passer le prix APRÈS réduction (pricing.totalPrice) au lieu de basePrice
-  const fees = calculateFees(pricing.totalPrice, nights, serviceType, propertyFees);
+  // Passer le prix APRÈS réduction (pricing.totalPrice) et la devise pour commissions EUR
+  const fees = calculateFees(pricing.totalPrice, nights, serviceType, propertyFees, currency);
   const finalTotal = pricing.totalPrice + fees.totalFees;
   
   return {

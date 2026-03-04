@@ -27,21 +27,28 @@ export interface CommissionRates {
   totalAkwahomePercent: number; // Total commission Akwahome
 }
 
+/** Devise optionnelle : quand EUR, commissions spécifiques (14% voyageur résidence, 12% locataire véhicule) */
+export type CurrencyCode = 'XOF' | 'EUR' | 'USD';
+
 /**
- * Retourne les taux de commission selon le type de service
+ * Retourne les taux de commission selon le type de service et la devise (si EUR).
+ * Quand la devise euro est sélectionnée :
+ * - Résidence meublée : 14% frais de service pour le voyageur (au lieu de 12%)
+ * - Location de véhicule : 12% frais de service pour le locataire (au lieu de 10%)
  */
-export function getCommissionRates(serviceType: ServiceType): CommissionRates {
+export function getCommissionRates(serviceType: ServiceType, currency?: CurrencyCode): CommissionRates {
+  const isEur = currency === 'EUR';
   if (serviceType === 'property') {
     return {
-      travelerFeePercent: 12,
+      travelerFeePercent: isEur ? 14 : 12,
       hostFeePercent: 2,
-      totalAkwahomePercent: 14
+      totalAkwahomePercent: isEur ? 16 : 14
     };
   } else {
     return {
-      travelerFeePercent: 10,
+      travelerFeePercent: isEur ? 12 : 10,
       hostFeePercent: 2,
-      totalAkwahomePercent: 12
+      totalAkwahomePercent: isEur ? 14 : 12
     };
   }
 }
