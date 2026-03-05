@@ -16,11 +16,20 @@ import { supabase } from '../services/supabase';
 const POLL_INTERVAL_MS = 2500;
 const PAYMENT_SUCCESS_PATH = 'payment-success';
 
-function parseCheckoutTokenFromUrl(url: string): string | null {
+type PendingPayment = { type: 'checkout_token'; value: string } | { type: 'booking_id'; value: string; bookingType: string };
+
+function parsePaymentSuccessFromUrl(url: string): PendingPayment | null {
   try {
     if (!url || !url.includes(PAYMENT_SUCCESS_PATH)) return null;
-    const match = url.match(/checkout_token=([^&]+)/);
-    return match ? decodeURIComponent(match[1]) : null;
+    const tokenMatch = url.match(/checkout_token=([^&]+)/);
+    if (tokenMatch) return { type: 'checkout_token', value: decodeURIComponent(tokenMatch[1]) };
+    const bookingMatch = url.match(/booking_id=([^&]+)/);
+    if (bookingMatch) {
+      const bookingTypeMatch = url.match(/booking_type=([^&]+)/);
+      const bookingType = bookingTypeMatch ? decodeURIComponent(bookingTypeMatch[1]) : 'property';
+      return { type: 'booking_id', value: decodeURIComponent(bookingMatch[1]), bookingType };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -29,16 +38,21 @@ function parseCheckoutTokenFromUrl(url: string): string | null {
 type Props = { navigationRef?: React.RefObject<NavigationContainerRef<unknown> | null> };
 
 export default function StripeReturnHandler({ navigationRef }: Props) {
-  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null);
   const [status, setStatus] = useState<'checking' | 'success' | 'error'>('checking');
   const [message, setMessage] = useState<string>('Vérification du paiement en cours...');
 
-  const checkPayment = useCallback(async (checkoutToken: string): Promise<boolean> => {
+  const checkPayment = useCallback(async (payload: PendingPayment): Promise<boolean> => {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
+      const body: Record<string, unknown> = {
+        booking_type: payload.type === 'checkout_token' ? 'property' : payload.bookingType,
+      };
+      if (payload.type === 'checkout_token') body.checkout_token = payload.value;
+      else body.booking_id = payload.value;
       const { data, error } = await supabase.functions.invoke('check-payment-status', {
-        body: { checkout_token: checkoutToken, booking_type: 'property' },
+        body,
         ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
       });
       if (error) return false;
@@ -53,14 +67,18 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!pendingToken) return;
+    if (!pendingPayment) return;
     let cancelled = false;
     const poll = async () => {
-      const paid = await checkPayment(pendingToken);
+      const paid = await checkPayment(pendingPayment);
       if (cancelled) return;
       if (paid) {
         setStatus('success');
-        setMessage('Paiement confirmé ! Vous recevrez un email de confirmation.');
+        setMessage(pendingPayment.type === 'booking_id'
+          ? (pendingPayment.bookingType === 'vehicle'
+            ? 'Paiement confirmé ! Votre modification de réservation véhicule a bien été enregistrée.'
+            : 'Paiement confirmé ! Votre modification a bien été enregistrée.')
+          : 'Paiement confirmé ! Vous recevrez un email de confirmation.');
         return;
       }
     };
@@ -70,12 +88,12 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [pendingToken, checkPayment]);
+  }, [pendingPayment, checkPayment]);
 
   const handleOpenUrl = useCallback((url: string | null) => {
     if (!url) return;
-    const token = parseCheckoutTokenFromUrl(url);
-    if (token) setPendingToken(token);
+    const parsed = parsePaymentSuccessFromUrl(url);
+    if (parsed) setPendingPayment(parsed);
   }, []);
 
   useEffect(() => {
@@ -94,7 +112,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   }, [handleOpenUrl]);
 
   const closeModal = useCallback(() => {
-    setPendingToken(null);
+    setPendingPayment(null);
     setStatus('checking');
     setMessage('Vérification du paiement en cours...');
     if (navigationRef?.current) {
@@ -102,7 +120,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     }
   }, [navigationRef]);
 
-  if (!pendingToken) return null;
+  if (!pendingPayment) return null;
 
   return (
     <Modal visible transparent animationType="fade">

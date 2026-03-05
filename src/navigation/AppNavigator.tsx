@@ -48,6 +48,7 @@ import AdminHostPaymentInfoScreen from '../screens/AdminHostPaymentInfoScreen';
 import AdminReviewsScreen from '../screens/AdminReviewsScreen';
 import AdminVehiclesScreen from '../screens/AdminVehiclesScreen';
 import HostStatsScreen from '../screens/HostStatsScreen';
+import HostPayoutsScreen from '../screens/HostPayoutsScreen';
 import HostSubscriptionScreen from '../screens/HostSubscriptionScreen';
 import MyMonthlyRentalListingsScreen from '../screens/MyMonthlyRentalListingsScreen';
 import AddMonthlyRentalListingScreen from '../screens/AddMonthlyRentalListingScreen';
@@ -79,6 +80,7 @@ import VehiclePricingScreen from '../screens/VehiclePricingScreen';
 import VehicleReviewsScreen from '../screens/VehicleReviewsScreen';
 import VehicleOwnerAccountScreen from '../screens/VehicleOwnerAccountScreen';
 import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
+import VehicleOwnerPayoutsScreen from '../screens/VehicleOwnerPayoutsScreen';
 import PenaltiesScreen from '../screens/PenaltiesScreen';
 import AdminPenaltiesScreen from '../screens/AdminPenaltiesScreen';
 import AdminRefundsScreen from '../screens/AdminRefundsScreen';
@@ -177,6 +179,8 @@ const HostTabNavigator = () => {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           } else if (route.name === 'HostStatsTab') {
             iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+          } else if (route.name === 'HostPayoutsTab') {
+            iconName = focused ? 'wallet' : 'wallet-outline';
           } else if (route.name === 'HostProfileTab') {
             iconName = focused ? 'person' : 'person-outline';
           } else {
@@ -211,6 +215,11 @@ const HostTabNavigator = () => {
         options={{ tabBarLabel: 'Statistiques' }}
       />
       <HostTab.Screen 
+        name="HostPayoutsTab" 
+        component={HostPayoutsScreen}
+        options={{ tabBarLabel: 'Paiements' }}
+      />
+      <HostTab.Screen 
         name="HostProfileTab" 
         component={HostAccountScreen}
         options={{ tabBarLabel: 'Mon compte' }}
@@ -236,6 +245,8 @@ const VehicleOwnerTabNavigator = () => {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           } else if (route.name === 'VehicleOwnerStatsTab') {
             iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+          } else if (route.name === 'VehicleOwnerPayoutsTab') {
+            iconName = focused ? 'wallet' : 'wallet-outline';
           } else if (route.name === 'VehicleOwnerProfileTab') {
             iconName = focused ? 'person' : 'person-outline';
           } else {
@@ -268,6 +279,11 @@ const VehicleOwnerTabNavigator = () => {
         name="VehicleOwnerStatsTab" 
         component={VehicleOwnerStatsScreen}
         options={{ tabBarLabel: 'Statistiques' }}
+      />
+      <VehicleOwnerTab.Screen 
+        name="VehicleOwnerPayoutsTab" 
+        component={VehicleOwnerPayoutsScreen}
+        options={{ tabBarLabel: 'Paiements' }}
       />
       <VehicleOwnerTab.Screen 
         name="VehicleOwnerProfileTab" 

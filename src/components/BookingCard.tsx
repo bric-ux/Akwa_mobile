@@ -377,7 +377,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
         </View>
         <View style={styles.statusContainer}>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(effectiveStatus) }]}>
-            <Text style={styles.statusText}>
+            <Text style={styles.statusText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
               {getStatusText(effectiveStatus)}
             </Text>
           </View>
@@ -499,14 +499,14 @@ const BookingCard: React.FC<BookingCardProps> = ({
           onPress={handleViewDetails}
         >
           <Ionicons name="receipt-outline" size={16} color="#2E7D32" />
-          <Text style={styles.actionButtonText}>Voir détails</Text>
+          <Text style={styles.actionButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Voir détails</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => onViewProperty(booking.property_id)}
         >
           <Ionicons name="eye-outline" size={16} color="#2E7D32" />
-          <Text style={styles.actionButtonText}>Voir propriété</Text>
+          <Text style={styles.actionButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Voir propriété</Text>
         </TouchableOpacity>
 
         {/* Bouton Contacter l'hôte - disponible pour toutes les réservations sauf annulées */}
@@ -516,7 +516,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
             onPress={handleContactHost}
           >
             <Ionicons name="chatbubble-outline" size={16} color="#e67e22" />
-            <Text style={[styles.actionButtonText, styles.contactButtonText]}>
+            <Text style={[styles.actionButtonText, styles.contactButtonText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
               Contacter
             </Text>
           </TouchableOpacity>
@@ -528,7 +528,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
             onPress={() => onLeaveReview(booking)}
           >
             <Ionicons name="star-outline" size={16} color="#FFD700" />
-            <Text style={[styles.actionButtonText, styles.reviewButtonText]}>
+            <Text style={[styles.actionButtonText, styles.reviewButtonText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
               Avis
             </Text>
           </TouchableOpacity>
@@ -542,7 +542,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
                 onPress={() => onModifyBooking(booking)}
               >
                 <Ionicons name="create-outline" size={16} color="#3498db" />
-                <Text style={[styles.actionButtonText, styles.modifyButtonText]}>
+                <Text style={[styles.actionButtonText, styles.modifyButtonText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                   Modifier
                 </Text>
               </TouchableOpacity>
@@ -552,7 +552,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
               onPress={() => onCancelBooking(booking)}
             >
               <Ionicons name="close-outline" size={16} color="#e74c3c" />
-              <Text style={[styles.actionButtonText, styles.cancelButtonText]}>
+              <Text style={[styles.actionButtonText, styles.cancelButtonText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                 Annuler
               </Text>
             </TouchableOpacity>
@@ -624,11 +624,15 @@ const styles = StyleSheet.create({
   },
   statusContainer: {
     alignItems: 'flex-end',
+    flexShrink: 1,
+    maxWidth: '48%',
   },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    overflow: 'hidden',
+    maxWidth: '100%',
   },
   statusText: {
     fontSize: 12,

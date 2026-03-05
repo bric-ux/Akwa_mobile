@@ -266,7 +266,7 @@ const VehicleManagementScreen: React.FC = () => {
             <View style={styles.actionIconContainer}>
               <Ionicons name="calendar-outline" size={24} color="#475569" />
             </View>
-            <Text style={styles.actionText}>Calendrier</Text>
+            <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Calendrier</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -276,7 +276,7 @@ const VehicleManagementScreen: React.FC = () => {
             <View style={[styles.actionIconContainer, { backgroundColor: '#fef3c7' }]}>
               <Ionicons name="create-outline" size={24} color="#d97706" />
             </View>
-            <Text style={styles.actionText}>Modifier</Text>
+            <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Modifier</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -290,7 +290,7 @@ const VehicleManagementScreen: React.FC = () => {
                 color="#475569"
               />
             </View>
-            <Text style={styles.actionText}>
+            <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
               {vehicle.is_active ? 'Masquer' : 'Afficher'}
             </Text>
           </TouchableOpacity>
@@ -305,7 +305,7 @@ const VehicleManagementScreen: React.FC = () => {
             <View style={styles.actionIconContainer}>
               <Ionicons name="pricetag-outline" size={24} color="#475569" />
             </View>
-            <Text style={styles.actionText}>Tarification</Text>
+            <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Tarification</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -315,7 +315,7 @@ const VehicleManagementScreen: React.FC = () => {
             <View style={styles.actionIconContainer}>
               <Ionicons name="star-outline" size={24} color="#475569" />
             </View>
-            <Text style={styles.actionText}>Avis</Text>
+            <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Avis</Text>
           </TouchableOpacity>
         </View>
 

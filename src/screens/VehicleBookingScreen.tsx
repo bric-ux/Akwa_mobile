@@ -1769,18 +1769,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   vehicleTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   vehiclePrice: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#2E7D32',
     fontWeight: '600',
   },
   vehiclePriceAlt: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
     marginTop: 4,
   },
@@ -1796,10 +1796,10 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   paymentMethodsContainer: {
     gap: 12,
@@ -2129,14 +2129,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   summaryLabel: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
   },
   summaryValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333',
   },
@@ -2147,12 +2147,12 @@ const styles = StyleSheet.create({
     borderTopColor: '#e9ecef',
   },
   summaryTotalLabel: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#333',
   },
   summaryTotalValue: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 'bold',
     color: '#2E7D32',
   },

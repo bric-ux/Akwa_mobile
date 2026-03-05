@@ -433,6 +433,9 @@ const HostBookingsScreen: React.FC = () => {
   };
 
   const formatAmountForBooking = (amountXof: number, booking: HostBooking): string => {
+    if (amountXof === 0) {
+      return '0 FCFA';
+    }
     const bookingCurrency = ((booking as any).payment_currency || currency) as 'XOF' | 'EUR' | 'USD';
     const bookingRate =
       Number((booking as any).exchange_rate) ||
@@ -440,10 +443,16 @@ const HostBookingsScreen: React.FC = () => {
 
     if (bookingCurrency === 'EUR' && bookingRate > 0) {
       const eur = amountXof / bookingRate;
+      if (eur < 0.02) {
+        return `${Math.round(amountXof).toLocaleString('fr-FR')} FCFA`;
+      }
       return `${eur.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
     }
     if (bookingCurrency === 'USD' && bookingRate > 0) {
       const usd = amountXof / bookingRate;
+      if (usd < 0.02) {
+        return `${Math.round(amountXof).toLocaleString('fr-FR')} FCFA`;
+      }
       return `${usd.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
     }
     return `${Math.round(amountXof).toLocaleString('fr-FR')} FCFA`;

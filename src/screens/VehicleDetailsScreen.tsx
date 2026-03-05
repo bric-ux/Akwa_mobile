@@ -673,19 +673,19 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   price: {
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '700',
     color: VEHICLE_COLORS.primary,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   },
   priceUnit: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#64748b',
     marginLeft: 6,
     fontWeight: '500',
   },
   priceHourly: {
-    fontSize: 20,
+    fontSize: 16,
     color: '#e67e22',
     marginTop: 4,
   },
@@ -699,12 +699,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   ratingText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#92400e',
   },
   reviewCountText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#92400e',
     marginLeft: 2,
   },
@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   altPriceValue: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
     color: '#334155',
     marginBottom: 2,
@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   depositValue: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#334155',
     fontWeight: '700',
     marginLeft: 'auto',

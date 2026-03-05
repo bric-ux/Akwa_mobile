@@ -302,6 +302,7 @@ export type HostTabParamList = {
   HostBookingsTab: undefined;
   HostMessagingTab: { conversationId?: string };
   HostStatsTab: undefined;
+  HostPayoutsTab: undefined;
   HostProfileTab: undefined;
 };
 
@@ -318,6 +319,7 @@ export type VehicleOwnerTabParamList = {
   VehicleOwnerBookingsTab: undefined;
   VehicleOwnerMessagingTab: { conversationId?: string };
   VehicleOwnerStatsTab: undefined;
+  VehicleOwnerPayoutsTab: undefined;
   VehicleOwnerProfileTab: undefined;
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   ScrollView,
   SafeAreaView,
   Linking,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
@@ -52,6 +54,74 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
   const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [pendingStripeReturn, setPendingStripeReturn] = useState(false);
+
+  const checkPaymentStatus = useCallback(async (): Promise<boolean> => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const { data, error } = await supabase.functions.invoke('check-payment-status', {
+        body: { booking_id: bookingId, booking_type: 'vehicle' },
+        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      });
+      if (error) return false;
+      const ps = data?.payment_status != null ? String(data.payment_status).toLowerCase() : '';
+      const bs = data?.booking_status != null ? String(data.booking_status).toLowerCase() : '';
+      if (data?.is_confirmed === true) return true;
+      if (['completed', 'succeeded', 'paid'].includes(ps) || ['confirmed', 'completed'].includes(bs)) return true;
+      return false;
+    } catch {
+      return false;
+    }
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (!visible || !pendingStripeReturn) return;
+    let cancelled = false;
+    const poll = async () => {
+      const paid = await checkPaymentStatus();
+      if (cancelled) return;
+      if (paid) {
+        setPendingStripeReturn(false);
+        setPaymentSuccess(true);
+        setTimeout(() => {
+          onPaymentComplete();
+          onClose();
+        }, 1500);
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [visible, pendingStripeReturn, checkPaymentStatus, onPaymentComplete, onClose]);
+
+  const handlePaymentSuccessUrl = useCallback((url: string | null) => {
+    if (!url || !url.includes('payment-success') || !bookingId) return;
+    const match = url.match(/booking_id=([^&]+)/);
+    if (match && decodeURIComponent(match[1]) === bookingId) setPendingStripeReturn(true);
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (!visible) return;
+    Linking.getInitialURL().then(handlePaymentSuccessUrl);
+    const sub = Linking.addEventListener('url', ({ url }) => handlePaymentSuccessUrl(url));
+    return () => sub.remove();
+  }, [visible, handlePaymentSuccessUrl]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') Linking.getInitialURL().then(handlePaymentSuccessUrl);
+    });
+    return () => sub.remove();
+  }, [visible, handlePaymentSuccessUrl]);
+
+  useEffect(() => {
+    if (!visible) setPendingStripeReturn(false);
+  }, [visible]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -83,6 +153,10 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
           amount: surplusAmount,
           property_title: vehicleTitle || 'Surplus modification véhicule',
           payment_type: 'vehicle_modification_surplus',
+          booking_type: 'vehicle',
+          client: 'mobile',
+          return_to_app: true,
+          app_scheme: 'akwahomemobile',
         };
         if (currency === 'EUR' && rates.EUR) {
           body.currency = 'eur';
@@ -94,8 +168,8 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
         const { data, error } = await supabase.functions.invoke('create-checkout-session', { body });
         if (error) throw error;
         if (data?.url) {
+          setPendingStripeReturn(true);
           Linking.openURL(data.url);
-          onClose();
           return;
         }
         throw new Error(data?.error || 'Impossible d\'ouvrir la page de paiement');
@@ -258,6 +332,22 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
             <Text style={styles.successTitle}>Paiement effectué</Text>
             <Text style={styles.successText}>
               Le surplus de {formatPrice(surplusAmount)} a été enregistré.
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (pendingStripeReturn) {
+    return (
+      <Modal visible={visible} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.pendingContainer}>
+            <ActivityIndicator size="large" color="#e67e22" />
+            <Text style={styles.pendingTitle}>Vérification du paiement</Text>
+            <Text style={styles.pendingText}>
+              Revenez sur l’app après avoir payé. Le statut sera mis à jour automatiquement.
             </Text>
           </View>
         </View>
@@ -710,6 +800,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
+  },
+  pendingContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 40,
+    alignItems: 'center',
+    margin: 20,
+  },
+  pendingTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  pendingText: {
+    fontSize: 15,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 22,
   },
   priceDetailsSection: {
     backgroundColor: '#f9fafb',
