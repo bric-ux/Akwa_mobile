@@ -373,7 +373,7 @@ const MyBookingsScreen: React.FC = () => {
     const vehicleImage = vehicleImages[0];
     const status = getVehicleBookingStatus(booking);
     const statusLabel = status === 'pending' && (booking as any).payment_method === 'card'
-      ? 'Paiement en attente'
+      ? 'En attente d\'acceptation'
       : getStatusText(status);
     const statusColor = status === 'pending' ? '#f59e0b' : status === 'confirmed' ? '#10b981' : status === 'in_progress' ? '#3b82f6' : status === 'completed' ? '#6366f1' : '#ef4444';
     

@@ -277,9 +277,9 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
         <View style={styles.overlay}>
           <View style={styles.pendingContainer}>
             <ActivityIndicator size="large" color="#e67e22" />
-            <Text style={styles.pendingTitle}>Vérification du paiement</Text>
+            <Text style={styles.pendingTitle}>En attente d'acceptation</Text>
             <Text style={styles.pendingText}>
-              Revenez sur l’app après avoir payé. Le statut sera mis à jour automatiquement.
+              Revenez sur l’app après avoir payé. La modification sera prise en compte et vous serez en attente d'acceptation par l'hôte.
             </Text>
           </View>
         </View>

@@ -681,13 +681,6 @@ const VehicleBookingScreen: React.FC = () => {
     setCheckingStripeStatus(false);
 
     if (result.paid) {
-      Alert.alert(
-        'Paiement confirmé',
-        vehicle?.auto_booking
-          ? 'Votre paiement est confirmé. La réservation est maintenant confirmée.'
-          : 'Votre paiement est confirmé. La demande a été envoyée au propriétaire.'
-      );
-
       resetStripePendingState();
       setLastPaymentStatus(null);
       setStartDate('');
@@ -700,6 +693,14 @@ const VehicleBookingScreen: React.FC = () => {
       setLicenseNumber('');
       setLicenseDocumentUrl(null);
       navigation.goBack();
+      setTimeout(() => {
+        Alert.alert(
+          'Paiement confirmé',
+          vehicle?.auto_booking
+            ? 'Votre paiement est confirmé. La réservation est maintenant confirmée. Vous recevrez une confirmation par email.'
+            : 'Votre paiement est confirmé. La demande a été envoyée au propriétaire. Vous recevrez une réponse par email.'
+        );
+      }, 400);
     } else if (result.error) {
       Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
     }
@@ -1466,11 +1467,15 @@ const VehicleBookingScreen: React.FC = () => {
 
         {(pendingStripeBookingId || pendingStripeCheckoutToken) && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Paiement en attente</Text>
+            <Text style={styles.sectionTitle}>
+              {vehicle?.auto_booking ? 'Paiement en attente' : 'En attente d\'acceptation'}
+            </Text>
             <View style={styles.stripePendingBox}>
               <ActivityIndicator size="small" color="#2563eb" />
               <Text style={styles.stripePendingText}>
-                Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.
+                {vehicle?.auto_booking
+                  ? 'Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.'
+                  : 'Finalisez le paiement sur Stripe. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par le propriétaire.'}
               </Text>
               {lastPaymentStatus && (
                 <Text style={styles.stripeStatusText}>
@@ -1629,7 +1634,7 @@ const VehicleBookingScreen: React.FC = () => {
                 {openingStripe
                   ? 'Ouverture de Stripe...'
                   : (pendingStripeBookingId || pendingStripeCheckoutToken)
-                    ? 'Paiement en attente...'
+                    ? (vehicle?.auto_booking ? 'Paiement en attente...' : 'En attente d\'acceptation...')
                   : selectedPaymentMethod === 'card'
                   ? (vehicle?.auto_booking ? 'Payer et réserver' : 'Payer et envoyer la demande')
                   : (vehicle?.auto_booking ? 'Réserver maintenant' : 'Envoyer la demande')}

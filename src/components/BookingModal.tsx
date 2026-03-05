@@ -1268,11 +1268,15 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
           {(pendingStripeBookingId || pendingStripeCheckoutToken) && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Paiement en attente</Text>
+              <Text style={styles.sectionTitle}>
+                {property.auto_booking ? 'Paiement en attente' : 'En attente d\'acceptation'}
+              </Text>
               <View style={styles.stripePendingBox}>
                 <ActivityIndicator size="small" color="#2563eb" />
                 <Text style={styles.stripePendingText}>
-                  Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.
+                  {property.auto_booking
+                    ? 'Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.'
+                    : 'Finalisez le paiement sur Stripe. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par l\'hôte.'}
                 </Text>
                 {lastPaymentStatus && (
                   <Text style={styles.stripeStatusText}>
@@ -1501,7 +1505,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     : openingStripe
                       ? 'Ouverture de Stripe...'
                     : isPendingStripe
-                      ? 'Paiement en attente...'
+                      ? (property.auto_booking ? 'Paiement en attente...' : 'En attente d\'acceptation...')
                     : selectedPaymentMethod === 'card'
                       ? property.auto_booking
                         ? 'Payer et confirmer'

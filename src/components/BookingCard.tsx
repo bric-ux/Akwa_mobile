@@ -204,7 +204,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending':
-        return (booking as any).payment_method === 'card' ? 'Paiement en attente' : 'En attente';
+        return (booking as any).payment_method === 'card' ? 'En attente d\'acceptation' : 'En attente';
       case 'confirmed':
         return 'Confirmée';
       case 'in_progress':
