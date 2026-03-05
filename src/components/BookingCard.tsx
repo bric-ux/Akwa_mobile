@@ -596,6 +596,7 @@ const styles = StyleSheet.create({
   },
   propertyDetails: {
     flex: 1,
+    minWidth: 0,
   },
   propertyTitle: {
     fontSize: 16,
@@ -624,18 +625,18 @@ const styles = StyleSheet.create({
   },
   statusContainer: {
     alignItems: 'flex-end',
-    flexShrink: 1,
-    maxWidth: '48%',
+    flexShrink: 0,
+    maxWidth: 110,
   },
   statusBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 12,
     overflow: 'hidden',
     maxWidth: '100%',
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#fff',
     fontWeight: '500',
   },

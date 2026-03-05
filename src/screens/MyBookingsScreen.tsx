@@ -445,7 +445,7 @@ const MyBookingsScreen: React.FC = () => {
           </View>
           <View style={styles.statusContainer}>
             <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-              <Text style={styles.statusText}>{statusLabel}</Text>
+              <Text style={styles.statusText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{statusLabel}</Text>
             </View>
           </View>
         </View>
@@ -988,6 +988,7 @@ const styles = StyleSheet.create({
   },
   vehicleDetails: {
     flex: 1,
+    minWidth: 0,
   },
   vehicleTitle: {
     fontSize: 16,
@@ -1016,14 +1017,18 @@ const styles = StyleSheet.create({
   },
   statusContainer: {
     alignItems: 'flex-end',
+    flexShrink: 0,
+    maxWidth: 110,
   },
   statusBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 12,
+    overflow: 'hidden',
+    maxWidth: '100%',
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#fff',
     fontWeight: '500',
   },
