@@ -24,6 +24,7 @@ import { getAveragePriceForPeriod } from '../utils/priceCalculator';
 import ModificationSurplusPaymentModal from './ModificationSurplusPaymentModal';
 import { calculateTotalPrice, calculateFees } from '../hooks/usePricing';
 import { getCommissionRates } from '../lib/commissions';
+import { supabase } from '../services/supabase';
 
 interface BookingModificationModalProps {
   visible: boolean;
@@ -549,12 +550,34 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
 
   const handlePaymentComplete = async () => {
     if (!pendingModificationData) return;
-    
-    // Réinitialiser les valeurs
+
+    // Vérifier que le paiement surplus est bien confirmé (webhook) avant de créer la demande
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const { data: checkData, error: checkError } = await supabase.functions.invoke('check-payment-status', {
+        body: {
+          booking_id: pendingModificationData.bookingId,
+          booking_type: 'property',
+          payment_type: 'modification_surplus',
+        },
+        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      });
+      if (checkError || !checkData?.is_confirmed) {
+        Alert.alert(
+          'Paiement non confirmé',
+          'Le paiement du surplus n\'a pas encore été enregistré. Revenez après avoir terminé le paiement ou réessayez.'
+        );
+        return;
+      }
+    } catch (e) {
+      Alert.alert('Erreur', 'Impossible de vérifier le paiement. Réessayez.');
+      return;
+    }
+
     setFinalTotalPrice(null);
     setSurplusBreakdown(null);
-    
-    // Soumettre la demande après le paiement
+
     const result = await createModificationRequest(pendingModificationData);
     if (result.success) {
       setPendingModificationData(null);

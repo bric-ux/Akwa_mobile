@@ -455,7 +455,7 @@ const MyBookingsScreen: React.FC = () => {
           <View style={styles.modificationRequestBanner}>
             <Ionicons name="time-outline" size={18} color="#f39c12" />
             <View style={styles.modificationRequestContent}>
-              <Text style={styles.modificationRequestTitle}>Demande de modification en cours</Text>
+              <Text style={styles.modificationRequestTitle}>Demande en attente</Text>
               <Text style={styles.modificationRequestDates}>
                 En attente de réponse du propriétaire
               </Text>

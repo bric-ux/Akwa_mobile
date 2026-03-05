@@ -336,7 +336,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
           <View style={styles.modificationRequestBanner}>
             <Ionicons name="time-outline" size={18} color="#f39c12" />
             <View style={styles.modificationRequestContent}>
-              <Text style={styles.modificationRequestTitle}>Demande de modification en cours</Text>
+              <Text style={styles.modificationRequestTitle}>Demande en attente</Text>
               <Text style={styles.modificationRequestDates}>
                 Nouvelles dates proposées: {formatDate(pendingRequest.requested_start_date)} - {formatDate(pendingRequest.requested_end_date)}
               </Text>

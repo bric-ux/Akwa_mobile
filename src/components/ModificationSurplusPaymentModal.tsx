@@ -53,39 +53,82 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
 }) => {
   const navigation = useNavigation();
   const { currency, rates, formatPriceForPayment } = useCurrency();
+  const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
   const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [pendingStripeReturn, setPendingStripeReturn] = useState(false);
+  const [lastPaymentStatus, setLastPaymentStatus] = useState<string | null>(null);
+  const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
+  const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
+  const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
 
   const formatPrice = (price: number) => formatPriceForPayment(price);
 
-  const checkPaymentStatus = useCallback(async (): Promise<boolean> => {
+  const checkPaymentStatusFull = useCallback(async (): Promise<{ is_confirmed: boolean; payment_status?: string; error?: string }> => {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
       const { data, error } = await supabase.functions.invoke('check-payment-status', {
-        body: { booking_id: bookingId, booking_type: 'property' },
+        body: {
+          booking_id: bookingId,
+          booking_type: 'property',
+          payment_type: 'modification_surplus',
+        },
         ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
       });
-      if (error) return false;
-      const ps = data?.payment_status != null ? String(data.payment_status).toLowerCase() : '';
-      const bs = data?.booking_status != null ? String(data.booking_status).toLowerCase() : '';
-      if (data?.is_confirmed === true) return true;
-      if (['completed', 'succeeded', 'paid'].includes(ps) || ['confirmed', 'completed'].includes(bs)) return true;
-      return false;
-    } catch {
-      return false;
+      const ps = data?.payment_status != null ? String(data.payment_status) : 'pending';
+      setLastPaymentStatus(ps);
+      if (error) return { is_confirmed: false, payment_status: ps, error: error?.message };
+      return { is_confirmed: data?.is_confirmed === true, payment_status: ps };
+    } catch (e) {
+      return { is_confirmed: false, error: e instanceof Error ? e.message : 'Erreur de vérification' };
     }
   }, [bookingId]);
+
+  const resetPendingStripeState = useCallback(() => {
+    setPendingStripeReturn(false);
+    setPendingStripeStartedAt(null);
+    setStripeTimeLeftSec(0);
+    setLastPaymentStatus(null);
+    setCheckingStripeStatus(false);
+  }, []);
+
+  const verifyStripePaymentNow = useCallback(async () => {
+    if (!pendingStripeReturn || checkingStripeStatus) return;
+    setCheckingStripeStatus(true);
+    const result = await checkPaymentStatusFull();
+    setCheckingStripeStatus(false);
+    if (result.is_confirmed) {
+      resetPendingStripeState();
+      setPaymentSuccess(true);
+      setTimeout(() => {
+        onPaymentComplete();
+        onClose();
+      }, 1500);
+    } else if (result.error) {
+      Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
+    }
+  }, [pendingStripeReturn, checkingStripeStatus, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
+
+  const handleAbandonStripeOperation = useCallback(() => {
+    Alert.alert(
+      'Abandonner le paiement ?',
+      'La demande de modification ne sera envoyée à l\'hôte qu\'après paiement confirmé. Vous pourrez réessayer plus tard.',
+      [
+        { text: 'Continuer le paiement', style: 'cancel' },
+        { text: "J'abandonne", style: 'destructive', onPress: () => { resetPendingStripeState(); onClose(); } },
+      ]
+    );
+  }, [resetPendingStripeState, onClose]);
 
   useEffect(() => {
     if (!visible || !pendingStripeReturn) return;
     let cancelled = false;
     const poll = async () => {
-      const paid = await checkPaymentStatus();
+      const result = await checkPaymentStatusFull();
       if (cancelled) return;
-      if (paid) {
+      if (result.is_confirmed) {
         setPendingStripeReturn(false);
         setPaymentSuccess(true);
         setTimeout(() => {
@@ -100,7 +143,37 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
       cancelled = true;
       clearInterval(interval);
     };
-  }, [visible, pendingStripeReturn, checkPaymentStatus, onPaymentComplete, onClose]);
+  }, [visible, pendingStripeReturn, checkPaymentStatusFull, onPaymentComplete, onClose]);
+
+  useEffect(() => {
+    if (!pendingStripeReturn || !pendingStripeStartedAt) return;
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - pendingStripeStartedAt;
+      const remainingMs = Math.max(0, STRIPE_PENDING_TIMEOUT_MS - elapsed);
+      setStripeTimeLeftSec(Math.floor(remainingMs / 1000));
+      if (remainingMs <= 0) {
+        clearInterval(timer);
+        resetPendingStripeState();
+        Alert.alert('Paiement expiré', 'Le délai de paiement est dépassé. Vous pourrez relancer une modification plus tard.');
+        onClose();
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [pendingStripeReturn, pendingStripeStartedAt, STRIPE_PENDING_TIMEOUT_MS, resetPendingStripeState, onClose]);
+
+  useEffect(() => {
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active' && pendingStripeReturn) {
+        verifyStripePaymentNow();
+        retryTimeout = setTimeout(verifyStripePaymentNow, 2000);
+      }
+    });
+    return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+      sub.remove();
+    };
+  }, [pendingStripeReturn, verifyStripePaymentNow]);
 
   const handlePaymentSuccessUrl = useCallback((url: string | null) => {
     if (!url || !url.includes('payment-success') || !bookingId) return;
@@ -124,7 +197,11 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   }, [visible, handlePaymentSuccessUrl]);
 
   useEffect(() => {
-    if (!visible) setPendingStripeReturn(false);
+    if (!visible) {
+      setPendingStripeReturn(false);
+      setPendingStripeStartedAt(null);
+      setLastPaymentStatus(null);
+    }
   }, [visible]);
 
   const validatePaymentInfo = (): boolean => {
@@ -144,6 +221,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
         amount: surplusAmount,
         property_title: propertyTitle || 'Surplus modification',
         payment_type: 'modification_surplus',
+        booking_type: 'property',
         client: 'mobile',
         return_to_app: true,
         app_scheme: 'akwahomemobile',
@@ -158,6 +236,8 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
       const { data, error } = await supabase.functions.invoke('create-checkout-session', { body });
       if (error) throw error;
       if (data?.url) {
+        setPendingStripeStartedAt(Date.now());
+        setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
         setPendingStripeReturn(true);
         Linking.openURL(data.url);
         return;
@@ -275,13 +355,43 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     return (
       <Modal visible={visible} transparent animationType="fade">
         <View style={styles.overlay}>
-          <View style={styles.pendingContainer}>
-            <ActivityIndicator size="large" color="#e67e22" />
-            <Text style={styles.pendingTitle}>En attente d'acceptation</Text>
-            <Text style={styles.pendingText}>
-              Revenez sur l’app après avoir payé. La modification sera prise en compte et vous serez en attente d'acceptation par l'hôte.
-            </Text>
-          </View>
+          <SafeAreaView style={styles.pendingContainer}>
+            <Text style={styles.pendingTitle}>Paiement en attente</Text>
+            <View style={styles.stripePendingBox}>
+              <ActivityIndicator size="small" color="#2563eb" />
+              <Text style={styles.stripePendingText}>
+                Finalisez le paiement sur Stripe. Revenez ici après avoir payé ; la demande de modification ne sera envoyée à l'hôte qu'une fois le paiement confirmé.
+                {currency !== 'EUR' && currency !== 'USD' ? ' Le montant a été converti pour le paiement par carte.' : ''}
+              </Text>
+              {lastPaymentStatus != null && (
+                <Text style={styles.stripeStatusText}>
+                  Statut : paiement {lastPaymentStatus}
+                </Text>
+              )}
+              <Text style={styles.stripePendingCountdown}>
+                Expiration dans {Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:{String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}
+              </Text>
+              <View style={styles.stripePendingActions}>
+                <TouchableOpacity
+                  style={[styles.stripeActionButton, styles.stripeActionPrimary]}
+                  onPress={verifyStripePaymentNow}
+                  disabled={checkingStripeStatus}
+                >
+                  {checkingStripeStatus ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.stripeActionPrimaryText}>Vérifier le paiement</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.stripeActionButton, styles.stripeActionDanger]}
+                  onPress={handleAbandonStripeOperation}
+                >
+                  <Text style={styles.stripeActionDangerText}>J'abandonne l'opération</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </SafeAreaView>
         </View>
       </Modal>
     );
@@ -803,6 +913,58 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  stripePendingBox: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+  },
+  stripePendingText: {
+    color: '#1e3a8a',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  stripeStatusText: {
+    color: '#1e40af',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  stripePendingCountdown: {
+    color: '#1e40af',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  stripePendingActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  stripeActionButton: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stripeActionPrimary: {
+    backgroundColor: '#2563eb',
+  },
+  stripeActionPrimaryText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  stripeActionDanger: {
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+  },
+  stripeActionDangerText: {
+    color: '#b91c1c',
+    fontWeight: '600',
+    fontSize: 13,
   },
   priceDetailsSection: {
     backgroundColor: '#f9fafb',

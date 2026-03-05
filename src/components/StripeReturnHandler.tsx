@@ -16,19 +16,17 @@ import { supabase } from '../services/supabase';
 const POLL_INTERVAL_MS = 2500;
 const PAYMENT_SUCCESS_PATH = 'payment-success';
 
-type PendingPayment = { type: 'checkout_token'; value: string } | { type: 'booking_id'; value: string; bookingType: string };
+type PendingPayment = { type: 'checkout_token'; value: string; bookingType: string } | { type: 'booking_id'; value: string; bookingType: string };
 
 function parsePaymentSuccessFromUrl(url: string): PendingPayment | null {
   try {
     if (!url || !url.includes(PAYMENT_SUCCESS_PATH)) return null;
+    const bookingTypeMatch = url.match(/booking_type=([^&]+)/);
+    const bookingType = bookingTypeMatch ? decodeURIComponent(bookingTypeMatch[1]) : 'property';
     const tokenMatch = url.match(/checkout_token=([^&]+)/);
-    if (tokenMatch) return { type: 'checkout_token', value: decodeURIComponent(tokenMatch[1]) };
+    if (tokenMatch) return { type: 'checkout_token', value: decodeURIComponent(tokenMatch[1]), bookingType };
     const bookingMatch = url.match(/booking_id=([^&]+)/);
-    if (bookingMatch) {
-      const bookingTypeMatch = url.match(/booking_type=([^&]+)/);
-      const bookingType = bookingTypeMatch ? decodeURIComponent(bookingTypeMatch[1]) : 'property';
-      return { type: 'booking_id', value: decodeURIComponent(bookingMatch[1]), bookingType };
-    }
+    if (bookingMatch) return { type: 'booking_id', value: decodeURIComponent(bookingMatch[1]), bookingType };
     return null;
   } catch {
     return null;
@@ -47,7 +45,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
       const body: Record<string, unknown> = {
-        booking_type: payload.type === 'checkout_token' ? 'property' : payload.bookingType,
+        booking_type: payload.bookingType || 'property',
       };
       if (payload.type === 'checkout_token') body.checkout_token = payload.value;
       else body.booking_id = payload.value;
@@ -74,11 +72,13 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
       if (cancelled) return;
       if (paid) {
         setStatus('success');
-        setMessage(pendingPayment.type === 'booking_id'
-          ? (pendingPayment.bookingType === 'vehicle'
+        setMessage(pendingPayment.bookingType === 'vehicle'
+          ? (pendingPayment.type === 'booking_id'
             ? 'Paiement confirmé ! Votre modification de réservation véhicule a bien été enregistrée.'
-            : 'Paiement confirmé ! Votre modification a bien été enregistrée.')
-          : 'Paiement confirmé ! Vous recevrez un email de confirmation.');
+            : 'Paiement confirmé ! Votre réservation véhicule a bien été enregistrée. Vous recevrez une confirmation par email.')
+          : pendingPayment.type === 'booking_id'
+            ? 'Paiement confirmé ! Votre modification a bien été enregistrée.'
+            : 'Paiement confirmé ! Vous recevrez un email de confirmation.');
         return;
       }
     };
@@ -112,13 +112,14 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   }, [handleOpenUrl]);
 
   const closeModal = useCallback(() => {
+    const wasVehicleInitial = pendingPayment?.bookingType === 'vehicle' && pendingPayment?.type === 'checkout_token';
     setPendingPayment(null);
     setStatus('checking');
     setMessage('Vérification du paiement en cours...');
-    if (navigationRef?.current) {
+    if (!wasVehicleInitial && navigationRef?.current) {
       navigationRef.current.navigate('Home' as never, { screen: 'BookingsTab' } as never);
     }
-  }, [navigationRef]);
+  }, [navigationRef, pendingPayment]);
 
   if (!pendingPayment) return null;
 

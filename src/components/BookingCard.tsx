@@ -389,7 +389,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
         <View style={styles.modificationRequestBanner}>
           <Ionicons name="time-outline" size={18} color="#f39c12" />
           <View style={styles.modificationRequestContent}>
-            <Text style={styles.modificationRequestTitle}>Demande de modification en cours</Text>
+            <Text style={styles.modificationRequestTitle}>Demande en attente</Text>
             <Text style={styles.modificationRequestDates}>
               Nouvelles dates proposées: {formatDate(pendingRequest.requested_check_in)} - {formatDate(pendingRequest.requested_check_out)}
             </Text>

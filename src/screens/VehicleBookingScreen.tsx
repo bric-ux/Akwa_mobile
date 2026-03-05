@@ -783,10 +783,38 @@ const VehicleBookingScreen: React.FC = () => {
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
       if (!pendingStripeBookingId && !pendingStripeCheckoutToken) return;
       e.preventDefault();
-      handleAbandonStripeOperation();
+      (async () => {
+        const idOrToken = pendingStripeBookingId ? { bookingId: pendingStripeBookingId } : pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken } : null;
+        if (!idOrToken) return;
+        const result = await checkStripePaymentCompleted(idOrToken);
+        if (result.paid) {
+          resetStripePendingState();
+          setLastPaymentStatus(null);
+          setStartDate('');
+          setEndDate('');
+          setStartDateTime(null);
+          setEndDateTime(null);
+          setMessage('');
+          setHasLicense(false);
+          setLicenseYears('');
+          setLicenseNumber('');
+          setLicenseDocumentUrl(null);
+          navigation.goBack();
+          setTimeout(() => {
+            Alert.alert(
+              'Paiement confirmé',
+              vehicle?.auto_booking
+                ? 'Votre paiement est confirmé. La réservation est maintenant confirmée. Vous recevrez une confirmation par email.'
+                : 'Votre paiement est confirmé. La demande a été envoyée au propriétaire. Vous recevrez une réponse par email.'
+            );
+          }, 400);
+        } else {
+          handleAbandonStripeOperation();
+        }
+      })();
     });
     return unsubscribe;
-  }, [navigation, pendingStripeBookingId, pendingStripeCheckoutToken, handleAbandonStripeOperation]);
+  }, [navigation, pendingStripeBookingId, pendingStripeCheckoutToken, handleAbandonStripeOperation, checkStripePaymentCompleted, resetStripePendingState, vehicle?.auto_booking]);
 
   const handleSubmit = async () => {
     if (!user) {

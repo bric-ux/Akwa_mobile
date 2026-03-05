@@ -18,6 +18,7 @@ import VehicleDateTimePickerModal from './VehicleDateTimePickerModal';
 import { formatPrice } from '../utils/priceCalculator';
 import { calculateVehiclePriceWithHours, calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
 import VehicleModificationSurplusPaymentModal from './VehicleModificationSurplusPaymentModal';
+import { supabase } from '../services/supabase';
 
 interface VehicleModificationModalProps {
   visible: boolean;
@@ -438,15 +439,37 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 
   const handlePaymentComplete = async () => {
     if (!pendingModificationData) return;
-    
-    // Réinitialiser les valeurs
+
+    // Vérifier que le paiement surplus est bien confirmé (webhook) avant de créer la demande
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const { data: checkData, error: checkError } = await supabase.functions.invoke('check-payment-status', {
+        body: {
+          booking_id: pendingModificationData.bookingId,
+          booking_type: 'vehicle',
+          payment_type: 'vehicle_modification_surplus',
+        },
+        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      });
+      if (checkError || !checkData?.is_confirmed) {
+        Alert.alert(
+          'Paiement non confirmé',
+          'Le paiement du surplus n\'a pas encore été enregistré. Revenez après avoir terminé le paiement ou réessayez.'
+        );
+        return;
+      }
+    } catch (e) {
+      Alert.alert('Erreur', 'Impossible de vérifier le paiement. Réessayez.');
+      return;
+    }
+
     setSurplusBreakdown(null);
-    
-    // Soumettre la demande après le paiement
+
     setIsSubmitting(true);
     try {
       const result = await modifyBooking(pendingModificationData);
-      
+
       if (result.success) {
         setPendingModificationData(null);
         Alert.alert('Succès', 'La demande de modification a été soumise avec succès');
