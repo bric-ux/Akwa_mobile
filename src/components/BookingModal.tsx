@@ -92,7 +92,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const totalGuests = adults + children + infants;
 
-  // Carte uniquement en EUR : repasser en espèces si la devise n'est pas l'euro
+  // En FCFA (ou autre devise non-EUR), présélectionner « Espèces » ; la carte reste proposée (alerte au clic)
   useEffect(() => {
     if (currency !== 'EUR' && selectedPaymentMethod === 'card') {
       setSelectedPaymentMethod('cash');
@@ -571,6 +571,17 @@ const BookingModal: React.FC<BookingModalProps> = ({
         return;
       }
 
+      // Carte + FCFA : conversion déjà acceptée à la sélection, on lance directement en euros
+      if (currency === 'XOF' && rates.EUR) {
+        await runStripeCheckout(true);
+        return;
+      }
+
+      await runStripeCheckout(false);
+      return;
+    }
+
+    async function runStripeCheckout(convertFcfaToEur: boolean) {
       try {
         setOpeningStripe(true);
         const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
@@ -602,9 +613,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
           paymentMethod: 'card',
           paymentPlan: paymentPlan,
           paymentCurrency: currency,
-          paymentRate: currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : undefined,
+          paymentRate: currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : (convertFcfaToEur ? rates.EUR : undefined),
         };
-        if (currency === 'EUR' && rates.EUR) {
+        if ((currency === 'EUR' && rates.EUR) || (convertFcfaToEur && rates.EUR)) {
           body.currency = 'eur';
           body.rate = rates.EUR;
         } else if (currency === 'USD' && rates.USD) {
@@ -985,7 +996,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const { nights, pricing, fees, finalTotal } = calculateTotal();
-  const canPayByCard = currency === 'EUR';
+  const canPayByCard = currency === 'EUR' || currency === 'XOF';
 
   return (
     <Modal
@@ -1006,7 +1017,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Informations de la propriété */}
           <View style={styles.propertyInfo}>
-            <Text style={styles.propertyTitle}>{property.title}</Text>
+            <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
+              <Text style={[styles.propertyTitle, styles.propertyTitleLink]}>{property.title}</Text>
+            </TouchableOpacity>
             <Text style={styles.propertyLocation}>
               📍 {typeof property.location === 'object' && property.location !== null && 'name' in property.location
                 ? (property.location as any).name 
@@ -1423,26 +1436,20 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   </View>
                 )}
                 
-                {fees.cleaningFee > 0 && (
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>{t('booking.cleaningFee')}</Text>
-                    <Text style={styles.priceValue}>{formatPayment(fees.cleaningFee)}</Text>
-                  </View>
-                )}
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>{t('booking.cleaningFee')}</Text>
+                  <Text style={styles.priceValue}>{formatPayment(fees.cleaningFee ?? 0)}</Text>
+                </View>
                 
-                {fees.serviceFee > 0 && (
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>{t('booking.serviceFee')}</Text>
-                    <Text style={styles.priceValue}>{formatPayment(fees.serviceFee)}</Text>
-                  </View>
-                )}
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>{t('booking.serviceFee')}</Text>
+                  <Text style={styles.priceValue}>{formatPayment(fees.serviceFee ?? 0)}</Text>
+                </View>
                 
-                {fees.taxes > 0 && (
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>{t('booking.taxes')}</Text>
-                    <Text style={styles.priceValue}>{formatPayment(fees.taxes)}</Text>
-                  </View>
-                )}
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>{t('booking.taxes')}</Text>
+                  <Text style={styles.priceValue}>{formatPayment(fees.taxes ?? 0)}</Text>
+                </View>
                 
                 {voucherDiscount?.valid && (voucherDiscount.discountPercentage || voucherDiscount.discountAmount) && (
                   <View style={styles.priceRow}>
@@ -1461,7 +1468,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   <Text style={styles.totalLabel}>
                     {selectedPaymentMethod === 'card' ? 'Total à payer par carte' : t('booking.total')}
                   </Text>
-                  <Text style={styles.totalValue}>{formatPayment(finalTotal)}</Text>
+                  <Text style={styles.totalValue}>
+                    {selectedPaymentMethod === 'card' && currency === 'XOF' && rates.EUR
+                      ? `~${(finalTotal / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${finalTotal.toLocaleString('fr-FR')} FCFA)`
+                      : formatPayment(finalTotal)}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -1560,6 +1571,23 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     selectedPaymentMethod === 'card' && styles.paymentMethodSelected
                   ]}
                   onPress={() => {
+                    if (currency === 'XOF' && rates.EUR) {
+                      const { finalTotal } = calculateTotal();
+                      const eurAmount = finalTotal / rates.EUR;
+                      const eurText = eurAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      Alert.alert(
+                        'Carte bancaire - Paiement en euros',
+                        `La carte bancaire est disponible uniquement pour le paiement en euros.\n\nSouhaitez-vous effectuer le paiement en euros ? Si oui, le montant sera converti et débité en euros : ~${eurText} € (équivalent de ${finalTotal.toLocaleString('fr-FR')} FCFA).`,
+                        [
+                          { text: 'Non', style: 'cancel' },
+                          { text: 'Oui, payer en euros', onPress: () => {
+                            setSelectedPaymentMethod('card');
+                            setShowPaymentMethodModal(false);
+                          } },
+                        ]
+                      );
+                      return;
+                    }
                     setSelectedPaymentMethod('card');
                     setShowPaymentMethodModal(false);
                   }}
@@ -1796,6 +1824,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 5,
+  },
+  propertyTitleLink: {
+    textDecorationLine: 'underline',
+    color: '#2E7D32',
   },
   propertyLocation: {
     fontSize: 14,

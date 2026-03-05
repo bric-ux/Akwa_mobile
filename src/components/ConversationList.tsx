@@ -15,6 +15,8 @@ import { Conversation } from '../types';
 interface ConversationListProps {
   conversations: Conversation[];
   onSelectConversation: (conversation: Conversation) => void;
+  /** Callback pour ouvrir l'annonce (résidence ou véhicule) au clic sur le titre. */
+  onOpenOffer?: (conversation: Conversation) => void;
   loading?: boolean;
   currentUserId?: string;
   onRefresh?: () => void;
@@ -24,6 +26,7 @@ interface ConversationListProps {
 const ConversationList: React.FC<ConversationListProps> = ({
   conversations,
   onSelectConversation,
+  onOpenOffer,
   loading = false,
   currentUserId,
   onRefresh,
@@ -137,15 +140,34 @@ const ConversationList: React.FC<ConversationListProps> = ({
           </Text>
         </View>
         
-        <Text style={styles.propertyTitle} numberOfLines={1}>
-          {item.title 
-            ? item.title 
-            : item.property?.title 
-              ? `Résidence - ${item.property.title}`
-              : item.vehicle 
-                ? `Véhicule - ${item.vehicle.title || `${item.vehicle.brand} ${item.vehicle.model}${item.vehicle.year ? ` (${item.vehicle.year})` : ''}`}`
-                : 'Propriété/Véhicule'}
-        </Text>
+        {(onOpenOffer && (item.property?.id || item.vehicle?.id)) ? (
+          <TouchableOpacity
+            onPress={() => onOpenOffer(item)}
+            activeOpacity={0.7}
+            style={styles.propertyTitleTouchable}
+          >
+            <Text style={styles.propertyTitleLink} numberOfLines={1}>
+              {item.title
+                ? item.title
+                : item.property?.title
+                  ? `Résidence - ${item.property.title}`
+                  : item.vehicle
+                    ? `Véhicule - ${(item.vehicle as any).title || `${item.vehicle.brand} ${item.vehicle.model}${item.vehicle.year ? ` (${item.vehicle.year})` : ''}`}`
+                    : 'Propriété/Véhicule'}
+            </Text>
+            <Ionicons name="open-outline" size={14} color="#007AFF" style={styles.propertyTitleIcon} />
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.propertyTitle} numberOfLines={1}>
+            {item.title
+              ? item.title
+              : item.property?.title
+                ? `Résidence - ${item.property.title}`
+                : item.vehicle
+                  ? `Véhicule - ${(item.vehicle as any).title || `${item.vehicle.brand} ${item.vehicle.model}${item.vehicle.year ? ` (${item.vehicle.year})` : ''}`}`
+                  : 'Propriété/Véhicule'}
+          </Text>
+        )}
         
         <View style={styles.lastMessageContainer}>
           {isLastMessageFromCurrentUser(item) && (
@@ -276,6 +298,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 4,
+  },
+  propertyTitleTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  propertyTitleLink: {
+    fontSize: 14,
+    color: '#007AFF',
+    textDecorationLine: 'underline',
+  },
+  propertyTitleIcon: {
+    marginLeft: 4,
   },
   lastMessageContainer: {
     flexDirection: 'row',

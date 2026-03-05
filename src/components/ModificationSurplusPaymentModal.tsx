@@ -14,6 +14,7 @@ import {
   AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useCurrency } from '../hooks/useCurrency';
 
@@ -24,6 +25,7 @@ interface ModificationSurplusPaymentModalProps {
   bookingId: string;
   onPaymentComplete: () => void;
   propertyTitle?: string;
+  propertyId?: string;
   originalTotalPrice?: number;
   newTotalPrice?: number;
   priceBreakdown?: {
@@ -44,10 +46,12 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   bookingId,
   onPaymentComplete,
   propertyTitle,
+  propertyId,
   originalTotalPrice,
   newTotalPrice,
   priceBreakdown,
 }) => {
+  const navigation = useNavigation();
   const { currency, rates, formatPriceForPayment } = useCurrency();
   const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
@@ -132,40 +136,48 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     return true;
   };
 
+  const runStripeCheckoutSurplus = useCallback(async (convertFcfaToEur: boolean) => {
+    setLoading(true);
+    try {
+      const body: Record<string, unknown> = {
+        booking_id: bookingId,
+        amount: surplusAmount,
+        property_title: propertyTitle || 'Surplus modification',
+        payment_type: 'modification_surplus',
+        client: 'mobile',
+        return_to_app: true,
+        app_scheme: 'akwahomemobile',
+      };
+      if ((currency === 'EUR' && rates.EUR) || (convertFcfaToEur && rates.EUR)) {
+        body.currency = 'eur';
+        body.rate = rates.EUR;
+      } else if (currency === 'USD' && rates.USD) {
+        body.currency = 'usd';
+        body.rate = rates.USD;
+      }
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', { body });
+      if (error) throw error;
+      if (data?.url) {
+        setPendingStripeReturn(true);
+        Linking.openURL(data.url);
+        return;
+      }
+      throw new Error(data?.error || 'Impossible d\'ouvrir la page de paiement');
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Impossible d\'ouvrir le paiement Stripe');
+    } finally {
+      setLoading(false);
+    }
+  }, [bookingId, surplusAmount, propertyTitle, currency, rates.EUR, rates.USD]);
+
   const handlePayment = async () => {
     if (!validatePaymentInfo()) return;
 
     if (paymentMethod === 'card') {
-      setLoading(true);
-      try {
-        const body: Record<string, unknown> = {
-          booking_id: bookingId,
-          amount: surplusAmount,
-          property_title: propertyTitle || 'Surplus modification',
-          payment_type: 'modification_surplus',
-          client: 'mobile',
-          return_to_app: true,
-          app_scheme: 'akwahomemobile',
-        };
-        if (currency === 'EUR' && rates.EUR) {
-          body.currency = 'eur';
-          body.rate = rates.EUR;
-        } else if (currency === 'USD' && rates.USD) {
-          body.currency = 'usd';
-          body.rate = rates.USD;
-        }
-        const { data, error } = await supabase.functions.invoke('create-checkout-session', { body });
-        if (error) throw error;
-        if (data?.url) {
-          setPendingStripeReturn(true);
-          Linking.openURL(data.url);
-          return;
-        }
-        throw new Error(data?.error || 'Impossible d\'ouvrir la page de paiement');
-      } catch (e: any) {
-        Alert.alert('Erreur', e?.message || 'Impossible d\'ouvrir le paiement Stripe');
-      } finally {
-        setLoading(false);
+      if (currency === 'XOF' && rates.EUR) {
+        await runStripeCheckoutSurplus(true);
+      } else {
+        await runStripeCheckoutSurplus(false);
       }
       return;
     }
@@ -288,8 +300,26 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.amountSection}>
+              {propertyTitle && propertyId ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    onClose();
+                    (navigation as any).navigate('PropertyDetails', { propertyId });
+                  }}
+                  style={styles.offerTitleRow}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.offerTitleLabel}>Résidence : </Text>
+                  <Text style={styles.offerTitleLink} numberOfLines={1}>{propertyTitle}</Text>
+                  <Ionicons name="open-outline" size={16} color="#2E7D32" />
+                </TouchableOpacity>
+              ) : null}
               <Text style={styles.amountLabel}>Montant à payer</Text>
-              <Text style={styles.amountValue}>{formatPrice(surplusAmount)}</Text>
+              <Text style={styles.amountValue}>
+                {paymentMethod === 'card' && currency === 'XOF' && rates.EUR
+                  ? `~${(surplusAmount / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${surplusAmount.toLocaleString('fr-FR')} FCFA)`
+                  : formatPrice(surplusAmount)}
+              </Text>
               <Text style={styles.amountNote}>
                 Ce montant correspond au surplus de votre modification de réservation.
               </Text>
@@ -362,7 +392,22 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                   styles.paymentMethod,
                   paymentMethod === 'card' && styles.paymentMethodSelected,
                 ]}
-                onPress={() => setPaymentMethod('card')}
+                onPress={() => {
+                  if (currency === 'XOF' && rates.EUR) {
+                    const eurAmount = surplusAmount / rates.EUR;
+                    const eurText = eurAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    Alert.alert(
+                      'Carte bancaire - Paiement en euros',
+                      `La carte bancaire est disponible uniquement pour le paiement en euros.\n\nSouhaitez-vous effectuer le paiement en euros ? Si oui, le montant sera converti et débité en euros : ~${eurText} € (équivalent de ${surplusAmount.toLocaleString('fr-FR')} FCFA).`,
+                      [
+                        { text: 'Non', style: 'cancel' },
+                        { text: 'Oui, payer en euros', onPress: () => setPaymentMethod('card') },
+                      ]
+                    );
+                    return;
+                  }
+                  setPaymentMethod('card');
+                }}
               >
                 <Ionicons name="card" size={24} color={paymentMethod === 'card' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'card' && styles.paymentMethodTextSelected]}>
@@ -470,7 +515,11 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                 
                 <View style={[styles.priceDetailRow, styles.surplusRow]}>
                   <Text style={styles.surplusLabel}>Surplus total à payer:</Text>
-                  <Text style={styles.surplusValue}>{formatPrice(surplusAmount)}</Text>
+                  <Text style={styles.surplusValue}>
+                    {paymentMethod === 'card' && currency === 'XOF' && rates.EUR
+                      ? `~${(surplusAmount / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${surplusAmount.toLocaleString('fr-FR')} FCFA)`
+                      : formatPrice(surplusAmount)}
+                  </Text>
                 </View>
               </View>
             )}
@@ -493,7 +542,11 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                 <ActivityIndicator color="#fff" />
               ) : (
                 <>
-                  <Text style={styles.payButtonText}>Payer {formatPrice(surplusAmount)}</Text>
+                  <Text style={styles.payButtonText}>
+                    Payer {paymentMethod === 'card' && currency === 'XOF' && rates.EUR
+                      ? `~${(surplusAmount / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                      : formatPrice(surplusAmount)}
+                  </Text>
                   <Ionicons name="arrow-forward" size={20} color="#fff" />
                 </>
               )}
@@ -544,6 +597,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 24,
     alignItems: 'center',
+  },
+  offerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  offerTitleLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  offerTitleLink: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2E7D32',
+    textDecorationLine: 'underline',
+    marginLeft: 4,
   },
   amountLabel: {
     fontSize: 14,

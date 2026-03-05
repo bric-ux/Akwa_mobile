@@ -712,6 +712,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
         bookingId={booking.id}
         onPaymentComplete={handlePaymentComplete}
         vehicleTitle={vehicle?.title || `${vehicle?.brand} ${vehicle?.model}`}
+        vehicleId={vehicle?.id}
         originalTotalPrice={currentTotalPrice}
         newTotalPrice={totalPrice}
         priceBreakdown={surplusBreakdown || undefined}

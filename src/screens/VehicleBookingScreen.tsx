@@ -74,13 +74,14 @@ const VehicleBookingScreen: React.FC = () => {
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [openingStripe, setOpeningStripe] = useState(false);
   const [pendingStripeBookingId, setPendingStripeBookingId] = useState<string | null>(null);
+  const [pendingStripeCheckoutToken, setPendingStripeCheckoutToken] = useState<string | null>(null);
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
   const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
   const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
-  // Carte uniquement en EUR : repasser en espèces si la devise n'est pas l'euro
+  // En FCFA (ou autre devise non-EUR), présélectionner « Espèces » ; la carte reste proposée (alerte au clic)
   useEffect(() => {
     if (currency !== 'EUR' && selectedPaymentMethod === 'card') {
       setSelectedPaymentMethod('cash');
@@ -558,22 +559,27 @@ const VehicleBookingScreen: React.FC = () => {
   const driverFee = (withDriver && useDriver === true && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
   const basePriceWithDriver = basePrice + driverFee;
   
-  // Frais de service : 10% ou 12% si EUR ; +2% si paiement par carte (EUR uniquement)
-  const isCardPayment = currency === 'EUR' && selectedPaymentMethod === 'card';
+  // Frais de service : 10% ou 12% si EUR ; +2% si paiement par carte (EUR ou FCFA converti en EUR)
+  const isCardPayment = (currency === 'EUR' || currency === 'XOF') && selectedPaymentMethod === 'card';
   const fees = calculateFees(basePriceWithDriver, rentalDays, 'vehicle', undefined, currency, isCardPayment);
   const totalPrice = basePriceWithDriver + fees.serviceFee;
   
   const securityDeposit = vehicle?.security_deposit || 0;
-  const canPayByCard = currency === 'EUR';
+  const canPayByCard = currency === 'EUR' || currency === 'XOF';
   const [lastPaymentStatus, setLastPaymentStatus] = useState<{ payment_status: string; booking_status: string } | null>(null);
 
-  const checkStripePaymentCompleted = useCallback(async (bookingId: string): Promise<{ paid: boolean; payment_status?: string; booking_status?: string; error?: string }> => {
+  const checkStripePaymentCompleted = useCallback(async (opts: { bookingId?: string; checkoutToken?: string }): Promise<{ paid: boolean; payment_status?: string; booking_status?: string; booking_id?: string; error?: string }> => {
+    const { bookingId, checkoutToken } = opts;
     const fallback = { paid: false, payment_status: 'pending', booking_status: 'pending' };
+    if (!bookingId && !checkoutToken) return fallback;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
+      const body: Record<string, unknown> = { booking_type: 'vehicle' };
+      if (checkoutToken) body.checkout_token = checkoutToken;
+      else if (bookingId) body.booking_id = bookingId;
       const { data, error } = await supabase.functions.invoke('check-payment-status', {
-        body: { booking_id: bookingId, booking_type: 'vehicle' },
+        body,
         ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
       });
       if (__DEV__ && (data || error)) {
@@ -587,19 +593,22 @@ const VehicleBookingScreen: React.FC = () => {
         const errMsg = data?.error || error?.message || 'Erreur de vérification';
         return { paid: false, payment_status: ps, booking_status: bs, error: errMsg };
       }
+      const resolvedBookingId = data?.booking_id ?? bookingId;
       if (data) {
-        if (data.is_confirmed === true) return { paid: true, payment_status: ps, booking_status: bs };
+        if (data.is_confirmed === true) return { paid: true, payment_status: ps, booking_status: bs, booking_id: resolvedBookingId };
         const psLower = ps.toLowerCase();
         const bsLower = bs.toLowerCase();
         if (['completed', 'succeeded', 'paid'].includes(psLower) || ['confirmed', 'completed'].includes(bsLower)) {
-          return { paid: true, payment_status: ps, booking_status: bs };
+          return { paid: true, payment_status: ps, booking_status: bs, booking_id: resolvedBookingId };
         }
       }
+
+      if (!resolvedBookingId) return { paid: false, payment_status: ps, booking_status: bs };
 
       const { data: paymentData } = await supabase
         .from('vehicle_payments')
         .select('status')
-        .eq('booking_id', bookingId)
+        .eq('booking_id', resolvedBookingId)
         .order('created_at', { ascending: false })
         .limit(1);
       const directPaymentStatus = String(paymentData?.[0]?.status || '').toLowerCase();
@@ -611,7 +620,7 @@ const VehicleBookingScreen: React.FC = () => {
       const { data: bookingData } = await supabase
         .from('vehicle_bookings')
         .select('status')
-        .eq('id', bookingId)
+        .eq('id', resolvedBookingId)
         .maybeSingle();
       const directBookingStatus = String(bookingData?.status || '').toLowerCase();
       if (['confirmed', 'completed'].includes(directBookingStatus)) {
@@ -628,7 +637,7 @@ const VehicleBookingScreen: React.FC = () => {
 
   const cancelPendingCardBooking = useCallback(async (bookingId: string, reason: string) => {
     try {
-      const result = await checkStripePaymentCompleted(bookingId);
+      const result = await checkStripePaymentCompleted({ bookingId });
       if (result.paid) return false;
 
       const { error } = await supabase
@@ -656,6 +665,7 @@ const VehicleBookingScreen: React.FC = () => {
 
   const resetStripePendingState = useCallback(() => {
     setPendingStripeBookingId(null);
+    setPendingStripeCheckoutToken(null);
     setPendingStripeStartedAt(null);
     setStripeTimeLeftSec(0);
     setCheckingStripeStatus(false);
@@ -664,9 +674,10 @@ const VehicleBookingScreen: React.FC = () => {
   }, []);
 
   const verifyStripePaymentNow = useCallback(async () => {
-    if (!pendingStripeBookingId || checkingStripeStatus) return;
+    const idOrToken = pendingStripeBookingId ? { bookingId: pendingStripeBookingId } : pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken } : null;
+    if (!idOrToken || checkingStripeStatus) return;
     setCheckingStripeStatus(true);
-    const result = await checkStripePaymentCompleted(pendingStripeBookingId);
+    const result = await checkStripePaymentCompleted(idOrToken);
     setCheckingStripeStatus(false);
 
     if (result.paid) {
@@ -692,30 +703,35 @@ const VehicleBookingScreen: React.FC = () => {
     } else if (result.error) {
       Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
     }
-  }, [pendingStripeBookingId, checkingStripeStatus, checkStripePaymentCompleted, vehicle?.auto_booking, resetStripePendingState, navigation]);
+  }, [pendingStripeBookingId, pendingStripeCheckoutToken, checkingStripeStatus, checkStripePaymentCompleted, vehicle?.auto_booking, resetStripePendingState, navigation]);
 
   const handleAbandonStripeOperation = useCallback(() => {
-    if (!pendingStripeBookingId) return;
+    const hasPending = pendingStripeBookingId || pendingStripeCheckoutToken;
+    if (!hasPending) return;
     Alert.alert(
       'Abandonner le paiement ?',
-      'Cette action annulera la demande en attente et libérera immédiatement les dates.',
+      pendingStripeBookingId
+        ? 'Cette action annulera la demande en attente et libérera immédiatement les dates.'
+        : "Voulez-vous abandonner ? Aucune réservation n'a été créée tant que le paiement n'est pas effectué.",
       [
         { text: 'Continuer le paiement', style: 'cancel' },
         {
           text: 'J’abandonne',
           style: 'destructive',
           onPress: async () => {
-            await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte abandonné');
+            if (pendingStripeBookingId) {
+              await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte abandonné');
+            }
             resetStripePendingState();
             navigation.goBack();
           },
         },
       ]
     );
-  }, [pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState, navigation]);
+  }, [pendingStripeBookingId, pendingStripeCheckoutToken, cancelPendingCardBooking, resetStripePendingState, navigation]);
 
   useEffect(() => {
-    if (!pendingStripeBookingId || !pendingStripeStartedAt) return;
+    if (!pendingStripeStartedAt || (!pendingStripeBookingId && !pendingStripeCheckoutToken)) return;
 
     const timer = setInterval(() => {
       const elapsed = Date.now() - pendingStripeStartedAt;
@@ -725,28 +741,32 @@ const VehicleBookingScreen: React.FC = () => {
       if (remainingMs <= 0) {
         clearInterval(timer);
         (async () => {
-          await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte expiré (timeout)');
+          if (pendingStripeBookingId) {
+            await cancelPendingCardBooking(pendingStripeBookingId, 'Paiement carte expiré (timeout)');
+          }
           resetStripePendingState();
-          Alert.alert('Paiement expiré', 'Le délai de paiement est dépassé. La demande a été annulée.');
+          Alert.alert('Paiement expiré', 'Le délai de paiement est dépassé.');
           navigation.goBack();
         })();
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [pendingStripeBookingId, pendingStripeStartedAt, cancelPendingCardBooking, resetStripePendingState, navigation]);
+  }, [pendingStripeBookingId, pendingStripeCheckoutToken, pendingStripeStartedAt, cancelPendingCardBooking, resetStripePendingState, navigation]);
 
   useEffect(() => {
-    if (!pendingStripeBookingId) return;
+    const hasPending = pendingStripeBookingId || pendingStripeCheckoutToken;
+    if (!hasPending) return;
     const poller = setInterval(() => verifyStripePaymentNow(), 2000);
     return () => clearInterval(poller);
-  }, [pendingStripeBookingId, verifyStripePaymentNow]);
+  }, [pendingStripeBookingId, pendingStripeCheckoutToken, verifyStripePaymentNow]);
 
   useEffect(() => {
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    const hasPending = pendingStripeBookingId || pendingStripeCheckoutToken;
     const subscription = AppState.addEventListener('change', (nextState) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
-      if (wasBackground && nextState === 'active' && pendingStripeBookingId) {
+      if (wasBackground && nextState === 'active' && hasPending) {
         verifyStripePaymentNow();
         retryTimeout = setTimeout(() => verifyStripePaymentNow(), 2000);
       }
@@ -756,16 +776,16 @@ const VehicleBookingScreen: React.FC = () => {
       if (retryTimeout) clearTimeout(retryTimeout);
       subscription.remove();
     };
-  }, [pendingStripeBookingId, verifyStripePaymentNow]);
+  }, [pendingStripeBookingId, pendingStripeCheckoutToken, verifyStripePaymentNow]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
-      if (!pendingStripeBookingId) return;
+      if (!pendingStripeBookingId && !pendingStripeCheckoutToken) return;
       e.preventDefault();
       handleAbandonStripeOperation();
     });
     return unsubscribe;
-  }, [navigation, pendingStripeBookingId, handleAbandonStripeOperation]);
+  }, [navigation, pendingStripeBookingId, pendingStripeCheckoutToken, handleAbandonStripeOperation]);
 
   const handleSubmit = async () => {
     if (!user) {
@@ -862,6 +882,16 @@ const VehicleBookingScreen: React.FC = () => {
       }
     }
 
+    // Carte + FCFA : conversion déjà acceptée à la sélection, on lance directement en euros
+    if (selectedPaymentMethod === 'card' && currency === 'XOF' && rates.EUR) {
+      await runVehicleBookingSubmit('EUR', rates.EUR);
+      return;
+    }
+
+    await runVehicleBookingSubmit(currency, currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : undefined);
+  }
+
+  const runVehicleBookingSubmit = async (payCurrency: 'XOF' | 'EUR' | 'USD', payRate?: number) => {
     setIsSubmitting(true);
     try {
       const startDateStr = startDate;
@@ -896,9 +926,10 @@ const VehicleBookingScreen: React.FC = () => {
         licenseYears: isLicenseRequired && hasLicense ? licenseYears : undefined,
         licenseNumber: isLicenseRequired && hasLicense ? licenseNumber : undefined,
         useDriver: useDriverToPass,
+        driverFee: useDriverToPass === true && vehicle?.driver_fee != null ? Number(vehicle.driver_fee) : undefined,
         paymentMethod: selectedPaymentMethod,
-        paymentCurrency: currency,
-        paymentRate: currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : undefined,
+        paymentCurrency: payCurrency,
+        paymentRate: payRate,
       });
       
       // Logs APRÈS l'appel pour confirmation
@@ -913,12 +944,12 @@ const VehicleBookingScreen: React.FC = () => {
 
         // Paiement carte: garder l'écran ouvert en attente de confirmation Stripe.
         if (isCardPayment) {
-          if (!result.booking?.id || !result.checkoutUrl) {
-            if (result.booking?.id) {
-              await cancelPendingCardBooking(
-                result.booking.id,
-                result.paymentInitError || 'Initialisation Stripe impossible'
-              );
+          const checkoutUrl = result.checkoutUrl ?? null;
+          const checkoutToken = (result as any).checkoutToken ?? null;
+          const bookingId = result.booking?.id ?? null;
+          if (!checkoutUrl) {
+            if (bookingId) {
+              await cancelPendingCardBooking(bookingId, result.paymentInitError || 'Initialisation Stripe impossible');
             }
             Alert.alert(
               'Paiement indisponible',
@@ -927,12 +958,18 @@ const VehicleBookingScreen: React.FC = () => {
             return;
           }
 
-          setPendingStripeBookingId(result.booking.id);
+          if (checkoutToken) {
+            setPendingStripeCheckoutToken(checkoutToken);
+            setPendingStripeBookingId(null);
+          } else {
+            setPendingStripeBookingId(bookingId!);
+            setPendingStripeCheckoutToken(null);
+          }
           setPendingStripeStartedAt(Date.now());
           setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
           setOpeningStripe(false);
-          Linking.openURL(result.checkoutUrl).catch(async (openErr: any) => {
-            await cancelPendingCardBooking(result.booking!.id, 'Impossible d’ouvrir Stripe Checkout');
+          Linking.openURL(checkoutUrl).catch(async (openErr: any) => {
+            if (bookingId) await cancelPendingCardBooking(bookingId, 'Impossible d’ouvrir Stripe Checkout');
             resetStripePendingState();
             Alert.alert('Erreur', openErr?.message || 'Impossible d’ouvrir Stripe.');
           });
@@ -1027,7 +1064,7 @@ const VehicleBookingScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
-            if (pendingStripeBookingId) {
+            if (pendingStripeBookingId || pendingStripeCheckoutToken) {
               handleAbandonStripeOperation();
               return;
             }
@@ -1095,9 +1132,14 @@ const VehicleBookingScreen: React.FC = () => {
             </View>
           )}
           <View style={styles.vehicleInfo}>
-            <Text style={styles.vehicleTitle}>
-              {vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`.trim()}
-            </Text>
+            <TouchableOpacity
+              onPress={() => vehicle?.id && navigation.navigate('VehicleDetails', { vehicleId: vehicle.id })}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.vehicleTitle, styles.vehicleTitleLink]}>
+                {vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`.trim()}
+              </Text>
+            </TouchableOpacity>
             <Text style={styles.vehiclePrice}>
               {rentalDays > 0 && basePricePerDay !== vehicle.price_per_day 
                 ? formatPrice(basePricePerDay) + ' / jour (tarif préférentiel)'
@@ -1354,8 +1396,25 @@ const VehicleBookingScreen: React.FC = () => {
                   selectedPaymentMethod === method.value && styles.paymentMethodOptionSelected,
                 ]}
                 onPress={() => {
-                  if (method.value === 'card' || method.value === 'cash') {
-                    setSelectedPaymentMethod(method.value);
+                  if (method.value === 'cash') {
+                    setSelectedPaymentMethod('cash');
+                    return;
+                  }
+                  if (method.value === 'card') {
+                    if (currency === 'XOF' && rates.EUR) {
+                      const eurAmount = totalPrice / rates.EUR;
+                      const eurText = eurAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      Alert.alert(
+                        'Carte bancaire - Paiement en euros',
+                        `La carte bancaire est disponible uniquement pour le paiement en euros.\n\nSouhaitez-vous effectuer le paiement en euros ? Si oui, le montant sera converti et débité en euros : ~${eurText} € (équivalent de ${totalPrice.toLocaleString('fr-FR')} FCFA).`,
+                        [
+                          { text: 'Non', style: 'cancel' },
+                          { text: 'Oui, payer en euros', onPress: () => setSelectedPaymentMethod('card') },
+                        ]
+                      );
+                      return;
+                    }
+                    setSelectedPaymentMethod('card');
                     return;
                   }
                   Alert.alert('Bientot disponible', `${method.label} sera bientot disponible. ${canPayByCard ? 'Utilisez Carte bancaire (Stripe) ou Espèces.' : 'Utilisez Espèces.'}`);
@@ -1405,7 +1464,7 @@ const VehicleBookingScreen: React.FC = () => {
           )}
         </View>
 
-        {pendingStripeBookingId && (
+        {(pendingStripeBookingId || pendingStripeCheckoutToken) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Paiement en attente</Text>
             <View style={styles.stripePendingBox}>
@@ -1540,7 +1599,9 @@ const VehicleBookingScreen: React.FC = () => {
               {selectedPaymentMethod === 'card' ? 'Total à payer par carte' : 'Total'}
             </Text>
             <Text style={styles.summaryTotalValue}>
-              {formatPrice(totalPrice)}
+              {selectedPaymentMethod === 'card' && currency === 'XOF' && rates.EUR
+                ? `~${(totalPrice / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${totalPrice.toLocaleString('fr-FR')} FCFA)`
+                : formatPrice(totalPrice)}
             </Text>
           </View>
           {securityDeposit > 0 ? (
@@ -1556,9 +1617,9 @@ const VehicleBookingScreen: React.FC = () => {
       {/* Bouton de réservation */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.submitButton, (isSubmitting || loading || openingStripe || !!pendingStripeBookingId || checkingStripeStatus) && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (isSubmitting || loading || openingStripe || !!pendingStripeBookingId || !!pendingStripeCheckoutToken || checkingStripeStatus) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={isSubmitting || loading || openingStripe || !!pendingStripeBookingId || checkingStripeStatus || !!availabilityError}
+          disabled={isSubmitting || loading || openingStripe || !!pendingStripeBookingId || !!pendingStripeCheckoutToken || checkingStripeStatus || !!availabilityError}
         >
           {isSubmitting || loading || openingStripe || checkingStripeStatus ? (
             <ActivityIndicator size="small" color="#fff" />
@@ -1567,7 +1628,7 @@ const VehicleBookingScreen: React.FC = () => {
               <Text style={styles.submitButtonText}>
                 {openingStripe
                   ? 'Ouverture de Stripe...'
-                  : pendingStripeBookingId
+                  : (pendingStripeBookingId || pendingStripeCheckoutToken)
                     ? 'Paiement en attente...'
                   : selectedPaymentMethod === 'card'
                   ? (vehicle?.auto_booking ? 'Payer et réserver' : 'Payer et envoyer la demande')
@@ -1773,6 +1834,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 6,
+  },
+  vehicleTitleLink: {
+    textDecorationLine: 'underline',
+    color: TRAVELER_COLORS.primary,
   },
   vehiclePrice: {
     fontSize: 14,

@@ -986,6 +986,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
         bookingId={booking.id}
         onPaymentComplete={handlePaymentComplete}
         propertyTitle={property?.title}
+        propertyId={property?.id}
         originalTotalPrice={booking.total_price}
         newTotalPrice={finalTotalPrice || newTotalPrice}
         priceBreakdown={surplusBreakdown || undefined}

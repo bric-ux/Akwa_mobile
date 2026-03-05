@@ -371,6 +371,13 @@ const MessagingScreen: React.FC = () => {
       <ConversationList
         conversations={conversations}
         onSelectConversation={handleSelectConversation}
+        onOpenOffer={(conv) => {
+          if (conv.property?.id) {
+            (navigation as any).navigate('PropertyDetails', { propertyId: conv.property.id });
+          } else if (conv.vehicle?.id) {
+            (navigation as any).navigate('VehicleDetails', { vehicleId: conv.vehicle.id });
+          }
+        }}
         loading={loading}
         currentUserId={user?.id}
         onRefresh={handleRefresh}
@@ -401,13 +408,36 @@ const MessagingScreen: React.FC = () => {
             <Text style={styles.chatTitle} numberOfLines={1}>
               {getOtherUserName(selectedConversation)}
             </Text>
-            <Text style={styles.chatSubtitle} numberOfLines={1}>
-              {selectedConversation.property?.title 
-                ? selectedConversation.property.title
-                : selectedConversation.vehicle
-                  ? `${selectedConversation.vehicle.brand} ${selectedConversation.vehicle.model}${selectedConversation.vehicle.year ? ` (${selectedConversation.vehicle.year})` : ''}`
-                  : t('messages.property')}
-            </Text>
+            {(selectedConversation.property?.id || selectedConversation.vehicle?.id) ? (
+              <TouchableOpacity
+                onPress={() => {
+                  if (selectedConversation.property?.id) {
+                    (navigation as any).navigate('PropertyDetails', { propertyId: selectedConversation.property.id });
+                  } else if (selectedConversation.vehicle?.id) {
+                    (navigation as any).navigate('VehicleDetails', { vehicleId: selectedConversation.vehicle.id });
+                  }
+                }}
+                activeOpacity={0.7}
+                style={styles.chatSubtitleTouchable}
+              >
+                <Text style={styles.chatSubtitleLink} numberOfLines={1}>
+                  {selectedConversation.property?.title
+                    ? selectedConversation.property.title
+                    : selectedConversation.vehicle
+                      ? `${selectedConversation.vehicle.brand} ${selectedConversation.vehicle.model}${selectedConversation.vehicle.year ? ` (${selectedConversation.vehicle.year})` : ''}`.trim() || (selectedConversation.vehicle as any)?.title || t('messages.property')
+                      : t('messages.property')}
+                </Text>
+                <Ionicons name="open-outline" size={14} color="#007AFF" style={styles.chatSubtitleIcon} />
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.chatSubtitle} numberOfLines={1}>
+                {selectedConversation.property?.title
+                  ? selectedConversation.property.title
+                  : selectedConversation.vehicle
+                    ? `${selectedConversation.vehicle.brand} ${selectedConversation.vehicle.model}${selectedConversation.vehicle.year ? ` (${selectedConversation.vehicle.year})` : ''}`
+                    : t('messages.property')}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -553,6 +583,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 2,
+  },
+  chatSubtitleTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  chatSubtitleLink: {
+    fontSize: 14,
+    color: '#007AFF',
+    textDecorationLine: 'underline',
+  },
+  chatSubtitleIcon: {
+    marginLeft: 4,
   },
   messagesList: {
     flex: 1,

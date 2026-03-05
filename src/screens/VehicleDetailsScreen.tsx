@@ -1020,6 +1020,7 @@ const styles = StyleSheet.create({
   },
   contactButtonWrapper: {
     flex: 1,
+    minWidth: 110,
     minHeight: 60,
     justifyContent: 'center',
   },

@@ -23,6 +23,8 @@ export interface VehicleBookingData {
   licenseYears?: string;
   licenseNumber?: string;
   useDriver?: boolean; // Si le locataire choisit d'utiliser le chauffeur (quand with_driver est true)
+  /** Montant du surplus chauffeur (optionnel, pour éviter les écarts avec l'affichage écran). */
+  driverFee?: number;
   paymentMethod?: VehiclePaymentMethod; // Moyen de paiement choisi par le voyageur
   paymentCurrency?: 'XOF' | 'EUR' | 'USD';
   paymentRate?: number;
@@ -295,7 +297,11 @@ export const useVehicleBookings = () => {
       // IMPORTANT: Vérifier que useDriver est explicitement true (pas juste truthy)
       const vehicleWithDriver = (vehicle as any).with_driver === true;
       const userWantsDriver = bookingData.useDriver === true; // Doit être explicitement true
-      const driverFeeAmount = (vehicle as any).driver_fee || 0;
+      // Valeur depuis la DB (Number pour gérer string) ou override passé par l'écran (déjà calculé)
+      const driverFeeFromVehicle = Number((vehicle as any).driver_fee) || 0;
+      const driverFeeAmount = (bookingData.driverFee != null && bookingData.driverFee >= 0)
+        ? bookingData.driverFee
+        : driverFeeFromVehicle;
       
       // Logs TOUJOURS affichés pour débogage
       console.log('🔍 [useVehicleBookings] Vérification chauffeur:', {
@@ -341,24 +347,19 @@ export const useVehicleBookings = () => {
       // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
       const hostNetAmount = basePriceWithDriver - hostCommissionData.hostCommission;
       
-      // Pour la carte, la réservation reste pending jusqu'à confirmation du paiement (webhook Stripe).
+      // Paiement carte : ne rien créer en base avant paiement (flux draft comme résidence).
       const isCardPayment = bookingData.paymentMethod === 'card';
-      const initialStatus = isCardPayment
-        ? 'pending'
-        : ((vehicle as any).auto_booking === true ? 'confirmed' : 'pending');
 
-      // Créer la réservation avec les données selon le type
-      // Les datetime sont maintenant toujours présents
       const bookingInsert: any = {
         vehicle_id: bookingData.vehicleId,
         renter_id: user.id,
         rental_type: rentalType,
         start_date: startDate,
         end_date: endDate,
-        start_datetime: startDateTime, // Toujours présent maintenant
-        end_datetime: endDateTime, // Toujours présent maintenant
-        total_price: totalPrice, // Total avec frais de service
-        host_net_amount: hostNetAmount, // Revenu net du propriétaire (stocké pour éviter les recalculs)
+        start_datetime: startDateTime,
+        end_datetime: endDateTime,
+        total_price: totalPrice,
+        host_net_amount: hostNetAmount,
         security_deposit: vehicle.security_deposit ?? 0,
         pickup_location: bookingData.pickupLocation || null,
         dropoff_location: bookingData.dropoffLocation || null,
@@ -367,20 +368,18 @@ export const useVehicleBookings = () => {
         has_license: bookingData.hasLicense || false,
         license_years: bookingData.licenseYears ? parseInt(bookingData.licenseYears) : null,
         license_number: bookingData.licenseNumber || null,
-        with_driver: bookingData.useDriver === true, // Stocker si le locataire a choisi le chauffeur
-        status: initialStatus,
-        payment_method: bookingData.paymentMethod || null, // Moyen de paiement choisi
+        with_driver: bookingData.useDriver === true,
+        payment_method: bookingData.paymentMethod || null,
       };
 
       if (rentalType === 'hourly') {
         bookingInsert.rental_hours = rentalHours;
         bookingInsert.hourly_rate = hourlyRate;
-        bookingInsert.rental_days = 0; // Pas de jours pour location par heure
-        bookingInsert.daily_rate = 0; // Pas de tarif journalier
+        bookingInsert.rental_days = 0;
+        bookingInsert.daily_rate = 0;
       } else {
         bookingInsert.rental_days = rentalDays;
         bookingInsert.daily_rate = dailyRate;
-        // Ajouter rental_hours si il y a des heures restantes
         if (rentalHours && rentalHours > 0) {
           bookingInsert.rental_hours = rentalHours;
           bookingInsert.hourly_rate = hourlyRate || vehicle.price_per_hour || 0;
@@ -389,6 +388,88 @@ export const useVehicleBookings = () => {
         bookingInsert.discount_amount = discountAmount;
         bookingInsert.original_total = originalTotal;
       }
+
+      // Carte : créer uniquement la session Stripe (résa créée par le webhook après paiement).
+      if (isCardPayment) {
+        const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
+        const vehicleTitle = (vehicle as any).title || `${(vehicle as any).brand || ''} ${(vehicle as any).model || ''}`.trim() || 'Réservation véhicule';
+        const daysPrice = rentalType === 'hourly' ? 0 : (priceCalculation ? priceCalculation.daysPrice : (dailyRate! * rentalDays));
+        const hoursPrice = rentalType === 'hourly' ? (rentalHours! * hourlyRate!) : (priceCalculation ? priceCalculation.hoursPrice : (rentalHours && hourlyRate ? rentalHours * hourlyRate : 0));
+        const totalBeforeDiscount = rentalType === 'hourly' ? basePrice : (priceCalculation ? priceCalculation.totalBeforeDiscount : (daysPrice + hoursPrice));
+        const calculationDetailsPayload = {
+          booking_type: 'vehicle',
+          base_price: basePrice,
+          price_after_discount: basePrice,
+          base_price_with_driver: basePriceWithDriver,
+          discount_amount: discountAmount,
+          discount_applied: discountApplied,
+          original_total: originalTotal,
+          discount_type: discountType,
+          service_fee: fees.serviceFee,
+          service_fee_ht: fees.serviceFeeHT,
+          service_fee_vat: fees.serviceFeeVAT,
+          host_commission: hostCommissionData.hostCommission,
+          host_commission_ht: hostCommissionData.hostCommissionHT,
+          host_commission_vat: hostCommissionData.hostCommissionVAT,
+          effective_cleaning_fee: 0,
+          effective_taxes: 0,
+          days_price: daysPrice,
+          hours_price: hoursPrice,
+          driver_fee: driverFee,
+          total_before_discount: totalBeforeDiscount,
+          total_price: totalPrice,
+          host_net_amount: hostNetAmount,
+          calculation_snapshot: {
+            serviceType: 'vehicle',
+            rentalType: rentalType,
+            dailyRate: dailyRate,
+            hourlyRate: hourlyRate || null,
+            rentalDays: rentalDays,
+            rentalHours: rentalHours || null,
+            discountConfig: { enabled: vehicle.discount_enabled || false, minDays: vehicle.discount_min_days || null, percentage: vehicle.discount_percentage || null },
+            longStayDiscountConfig: vehicle.long_stay_discount_enabled ? { enabled: true, minDays: vehicle.long_stay_discount_min_days || null, percentage: vehicle.long_stay_discount_percentage || null } : null,
+            withDriver: bookingData.useDriver === true,
+            driverFee,
+            securityDeposit: vehicle.security_deposit ?? 0,
+            commissionRates: { travelerFeePercent: 10, hostFeePercent: 2 },
+            paymentCurrency: bookingData.paymentCurrency || currency || 'XOF',
+            paymentRate: bookingData.paymentRate ?? null,
+            calculatedAt: new Date().toISOString(),
+          },
+        };
+        const checkoutBody: Record<string, unknown> = {
+          checkout_token: checkoutToken,
+          booking_type: 'vehicle',
+          payment_type: 'booking',
+          client: 'mobile',
+          return_to_app: true,
+          app_scheme: 'akwahomemobile',
+          amount: totalPrice,
+          property_title: vehicleTitle,
+          check_in: startDate,
+          check_out: endDate,
+          customer_country: user?.user_metadata?.country_code || user?.user_metadata?.country || '',
+          ...bookingInsert,
+          calculation_details: calculationDetailsPayload,
+        };
+        if ((bookingData.paymentCurrency || currency) === 'EUR' && (bookingData.paymentRate || rates.EUR)) {
+          checkoutBody.currency = 'eur';
+          checkoutBody.rate = bookingData.paymentRate || rates.EUR;
+        } else if ((bookingData.paymentCurrency || currency) === 'USD' && (bookingData.paymentRate || rates.USD)) {
+          checkoutBody.currency = 'usd';
+          checkoutBody.rate = bookingData.paymentRate || rates.USD;
+        }
+        const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', { body: checkoutBody });
+        if (checkoutError || !checkoutData?.url) {
+          const errMsg = checkoutError?.message || (checkoutData as any)?.error || 'Impossible d\'ouvrir la page de paiement.';
+          console.error('❌ [useVehicleBookings] Erreur init Stripe checkout (draft):', checkoutError, checkoutData);
+          return { success: false, booking: null, status: undefined, checkoutUrl: null, paymentInitError: errMsg, checkoutToken: null, error: errMsg };
+        }
+        return { success: true, booking: null, status: undefined, checkoutUrl: checkoutData.url, paymentInitError: null, checkoutToken: checkoutData.checkout_token ?? checkoutToken };
+      }
+
+      const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';
+      bookingInsert.status = initialStatus;
 
       const { data: booking, error: bookingError } = await supabase
         .from('vehicle_bookings')
@@ -411,43 +492,6 @@ export const useVehicleBookings = () => {
 
       let checkoutUrl: string | null = null;
       let paymentInitError: string | null = null;
-
-      // Paiement carte: initier Stripe Checkout immédiatement après création de la réservation pending.
-      if (isCardPayment && booking?.id) {
-        try {
-          const vehicleTitle = (vehicle as any).title || `${(vehicle as any).brand || ''} ${(vehicle as any).model || ''}`.trim() || 'Réservation véhicule';
-          const checkoutBody: Record<string, unknown> = {
-            booking_id: booking.id,
-            amount: totalPrice,
-            property_title: vehicleTitle,
-            check_in: startDate,
-            check_out: endDate,
-            booking_type: 'vehicle',
-            customer_country: user?.user_metadata?.country_code || user?.user_metadata?.country || '',
-          };
-          if ((bookingData.paymentCurrency || currency) === 'EUR' && (bookingData.paymentRate || rates.EUR)) {
-            checkoutBody.currency = 'eur';
-            checkoutBody.rate = bookingData.paymentRate || rates.EUR;
-          } else if ((bookingData.paymentCurrency || currency) === 'USD' && (bookingData.paymentRate || rates.USD)) {
-            checkoutBody.currency = 'usd';
-            checkoutBody.rate = bookingData.paymentRate || rates.USD;
-          }
-
-          const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', {
-            body: checkoutBody,
-          });
-
-          if (checkoutError || !checkoutData?.url) {
-            console.error('❌ [useVehicleBookings] Erreur init Stripe checkout:', checkoutError, checkoutData);
-            paymentInitError = 'Impossible d\'ouvrir la page de paiement sécurisée.';
-          } else {
-            checkoutUrl = checkoutData.url;
-          }
-        } catch (checkoutErr: any) {
-          console.error('❌ [useVehicleBookings] Exception init Stripe checkout:', checkoutErr);
-          paymentInitError = checkoutErr?.message || 'Impossible d\'ouvrir la page de paiement sécurisée.';
-        }
-      }
 
       // Stocker tous les détails de calcul dans booking_calculation_details
       // Cela évite tous les recalculs dans les emails, PDFs et affichages

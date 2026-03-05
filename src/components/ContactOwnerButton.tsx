@@ -215,7 +215,7 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
               color={variant === 'outline' ? '#2563eb' : '#fff'}
             />
           )}
-          <Text style={getTextStyle()}>
+          <Text style={getTextStyle()} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
             Contacter
           </Text>
         </>

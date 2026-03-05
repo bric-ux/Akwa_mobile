@@ -1016,6 +1016,16 @@ const VehiclesScreen: React.FC = () => {
                     <Text style={styles.resetAllBtnText}>Tout réinitialiser</Text>
                   </TouchableOpacity>
                 )}
+                {user && (
+                  <TouchableOpacity
+                    style={styles.addVehicleBtn}
+                    onPress={() => (navigation as any).navigate('AddVehicle')}
+                    activeOpacity={0.9}
+                  >
+                    <Ionicons name="car-sport" size={18} color="#fff" />
+                    <Text style={styles.addVehicleBtnText}>Ajouter un véhicule</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* Filtres actifs */}
