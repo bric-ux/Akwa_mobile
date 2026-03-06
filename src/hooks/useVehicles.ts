@@ -646,6 +646,7 @@ export const useVehicles = () => {
           long_stay_discount_enabled: (vehicleData as any).long_stay_discount_enabled || false,
           long_stay_discount_min_days: (vehicleData as any).long_stay_discount_min_days || 30,
           long_stay_discount_percentage: (vehicleData as any).long_stay_discount_percentage || 20,
+          cancellation_policy: (vehicleData as any).cancellation_policy || 'flexible',
           // Statut d'approbation (comme sur le site web)
           is_approved: false,
           approval_status: 'pending',
@@ -858,6 +859,7 @@ export const useVehicles = () => {
       // Champs chauffeur
       if ((vehicleData as any).with_driver !== undefined) updateData.with_driver = (vehicleData as any).with_driver;
       if ((vehicleData as any).driver_fee !== undefined) updateData.driver_fee = (vehicleData as any).driver_fee || 0;
+      if (vehicleData.cancellation_policy !== undefined) updateData.cancellation_policy = vehicleData.cancellation_policy;
 
       const { data, error: updateError } = await supabase
         .from('vehicles')

@@ -481,7 +481,8 @@ export const useVehicleBookings = () => {
             title,
             brand,
             model,
-            images
+            images,
+            cancellation_policy
           )
         `)
         .single();
@@ -850,6 +851,7 @@ export const useVehicleBookings = () => {
             brand,
             model,
             images,
+            cancellation_policy,
             owner_id,
             driver_fee,
             with_driver,
@@ -942,6 +944,7 @@ export const useVehicleBookings = () => {
             brand,
             model,
             images,
+            cancellation_policy,
             owner_id,
             driver_fee,
             with_driver,
@@ -1034,6 +1037,7 @@ export const useVehicleBookings = () => {
             model,
             year,
             fuel_type,
+            cancellation_policy,
             owner_id
           ),
           renter:profiles!renter_id (
@@ -1277,6 +1281,7 @@ export const useVehicleBookings = () => {
             brand,
             model,
             images,
+            cancellation_policy,
             owner_id,
             driver_fee,
             with_driver,

@@ -934,6 +934,23 @@ const VehiclesScreen: React.FC = () => {
             </TouchableOpacity>
           </ScrollView>
         </View>
+        {/* Bouton Ajouter un véhicule visible aussi en mode carte (toujours accessible connecté ou non) */}
+        {isMapView && (
+          <TouchableOpacity
+            style={styles.addVehicleBtnMap}
+            onPress={() => {
+              if (user) {
+                (navigation as any).navigate('AddVehicle');
+              } else {
+                (navigation as any).navigate('Auth');
+              }
+            }}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="car-sport" size={18} color="#fff" />
+            <Text style={styles.addVehicleBtnText}>Ajouter un véhicule</Text>
+          </TouchableOpacity>
+        )}
       </SafeAreaView>
       
       {/* Bouton Liste en bas à gauche (si vue carte) */}
@@ -1016,16 +1033,20 @@ const VehiclesScreen: React.FC = () => {
                     <Text style={styles.resetAllBtnText}>Tout réinitialiser</Text>
                   </TouchableOpacity>
                 )}
-                {user && (
-                  <TouchableOpacity
-                    style={styles.addVehicleBtn}
-                    onPress={() => (navigation as any).navigate('AddVehicle')}
-                    activeOpacity={0.9}
-                  >
-                    <Ionicons name="car-sport" size={18} color="#fff" />
-                    <Text style={styles.addVehicleBtnText}>Ajouter un véhicule</Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={styles.addVehicleBtn}
+                  onPress={() => {
+                    if (user) {
+                      (navigation as any).navigate('AddVehicle');
+                    } else {
+                      (navigation as any).navigate('Auth');
+                    }
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <Ionicons name="car-sport" size={18} color="#fff" />
+                  <Text style={styles.addVehicleBtnText}>Ajouter un véhicule</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Filtres actifs */}
@@ -1821,6 +1842,18 @@ const styles = StyleSheet.create({
   contentSubtitle: {
     fontSize: 14,
     color: '#64748b',
+  },
+  addVehicleBtnMap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+    marginTop: 8,
+    marginHorizontal: 16,
   },
   addVehicleBtn: {
     flexDirection: 'row',

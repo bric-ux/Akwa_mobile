@@ -87,6 +87,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
             brand,
             model,
             images,
+            cancellation_policy,
             owner_id,
             hourly_rental_enabled,
             price_per_hour,

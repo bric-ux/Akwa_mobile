@@ -51,6 +51,13 @@ const FUEL_TYPES: { value: FuelType; label: string }[] = [
   { value: 'hybrid', label: 'Hybride' },
 ];
 
+const CANCELLATION_POLICIES = [
+  { value: 'flexible' as const, label: 'Flexible', description: 'Remboursement intégral jusqu\'à 24h avant' },
+  { value: 'moderate' as const, label: 'Modérée', description: 'Remboursement intégral jusqu\'à 5 jours avant' },
+  { value: 'strict' as const, label: 'Stricte', description: 'Remboursement 50% jusqu\'à 7 jours avant' },
+  { value: 'non_refundable' as const, label: 'Non remboursable', description: 'Aucun remboursement en cas d\'annulation' },
+];
+
 const COMMON_FEATURES = [
   'Climatisation',
   'GPS',
@@ -151,6 +158,7 @@ const AddVehicleScreen: React.FC = () => {
     hourly_rental_enabled: false,
     price_per_hour: '',
     minimum_rental_hours: '1',
+    cancellation_policy: 'flexible' as 'flexible' | 'moderate' | 'strict' | 'non_refundable',
   });
 
   const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
@@ -559,6 +567,7 @@ const AddVehicleScreen: React.FC = () => {
       long_stay_discount_enabled: formData.long_stay_discount_enabled,
       long_stay_discount_min_days: formData.long_stay_discount_enabled ? parseInt(formData.long_stay_discount_min_days) || 30 : undefined,
       long_stay_discount_percentage: formData.long_stay_discount_enabled ? parseInt(formData.long_stay_discount_percentage) || 20 : undefined,
+      cancellation_policy: formData.cancellation_policy || 'flexible',
     };
 
     setIsSubmitting(true);
@@ -1387,6 +1396,36 @@ const AddVehicleScreen: React.FC = () => {
             </View>
           </View>
 
+          {/* Politique d'annulation */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+            <Text style={styles.sectionSubtitle}>Conditions appliquées en cas d'annulation par le locataire</Text>
+            {CANCELLATION_POLICIES.map((policy) => (
+              <TouchableOpacity
+                key={policy.value}
+                style={[
+                  styles.cancellationOption,
+                  formData.cancellation_policy === policy.value && styles.cancellationOptionSelected,
+                ]}
+                onPress={() => handleInputChange('cancellation_policy', policy.value)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.cancellationOptionHeader}>
+                  <Text style={[
+                    styles.cancellationOptionLabel,
+                    formData.cancellation_policy === policy.value && styles.cancellationOptionLabelSelected,
+                  ]}>
+                    {policy.label}
+                  </Text>
+                  {formData.cancellation_policy === policy.value && (
+                    <Ionicons name="checkmark-circle" size={22} color="#2563eb" />
+                  )}
+                </View>
+                <Text style={styles.cancellationOptionDescription}>{policy.description}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <TouchableOpacity
             style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
             onPress={handleSubmit}
@@ -1540,6 +1579,40 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 16,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 12,
+  },
+  cancellationOption: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    marginBottom: 10,
+  },
+  cancellationOptionSelected: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  cancellationOptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cancellationOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  cancellationOptionLabelSelected: {
+    color: '#2563eb',
+  },
+  cancellationOptionDescription: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 4,
   },
   label: {
     fontSize: 14,

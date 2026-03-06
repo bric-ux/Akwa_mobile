@@ -64,6 +64,10 @@ buck-out/
 # CocoaPods
 /ios/Pods/
 
+# Native folders (EAS runs prebuild on server; do not upload local copies)
+/android
+/ios
+
 # Expo
 .expo/
 dist/

@@ -47,6 +47,13 @@ const FUEL_TYPES: { value: FuelType; label: string }[] = [
   { value: 'hybrid', label: 'Hybride' },
 ];
 
+const CANCELLATION_POLICIES = [
+  { value: 'flexible' as const, label: 'Flexible', description: 'Remboursement intégral jusqu\'à 24h avant' },
+  { value: 'moderate' as const, label: 'Modérée', description: 'Remboursement intégral jusqu\'à 5 jours avant' },
+  { value: 'strict' as const, label: 'Stricte', description: 'Remboursement 50% jusqu\'à 7 jours avant' },
+  { value: 'non_refundable' as const, label: 'Non remboursable', description: 'Aucun remboursement en cas d\'annulation' },
+];
+
 const COMMON_FEATURES = [
   'Climatisation',
   'GPS',
@@ -103,6 +110,7 @@ const EditVehicleScreen: React.FC = () => {
     // Chauffeur
     with_driver: false,
     driver_fee: '',
+    cancellation_policy: 'flexible' as 'flexible' | 'moderate' | 'strict' | 'non_refundable',
   });
 
   const [images, setImages] = useState<string[]>([]);
@@ -179,6 +187,7 @@ const EditVehicleScreen: React.FC = () => {
           minimum_rental_hours: vehicleData.minimum_rental_hours?.toString() || '1',
           with_driver: (vehicleData as any).with_driver || false,
           driver_fee: (vehicleData as any).driver_fee?.toString() || '0',
+          cancellation_policy: (vehicleData as any).cancellation_policy || 'flexible',
         });
         
       }
@@ -345,6 +354,7 @@ const EditVehicleScreen: React.FC = () => {
       minimum_rental_hours: formData.hourly_rental_enabled ? parseInt(formData.minimum_rental_hours) || 1 : null,
       with_driver: formData.with_driver,
       driver_fee: formData.with_driver && formData.driver_fee ? parseInt(formData.driver_fee) : 0,
+      cancellation_policy: formData.cancellation_policy || 'flexible',
       images: images,
       // Passer les informations sur les photos (isMain, category, displayOrder)
       photos: selectedImages.map((img) => ({
@@ -757,6 +767,39 @@ const EditVehicleScreen: React.FC = () => {
                 thumbColor={formData.auto_booking ? '#fff' : '#f4f3f4'}
               />
             </View>
+          </View>
+
+          {/* Politique d'annulation */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+            <Text style={[styles.switchDescription, { marginBottom: 12 }]}>
+              Conditions appliquées en cas d'annulation par le locataire
+            </Text>
+            {CANCELLATION_POLICIES.map((policy) => (
+              <TouchableOpacity
+                key={policy.value}
+                style={[
+                  styles.cancellationOption,
+                  formData.cancellation_policy === policy.value && styles.cancellationOptionSelected,
+                ]}
+                onPress={() => handleInputChange('cancellation_policy', policy.value)}
+              >
+                <View style={styles.cancellationOptionHeader}>
+                  <Text
+                    style={[
+                      styles.cancellationOptionLabel,
+                      formData.cancellation_policy === policy.value && styles.cancellationOptionLabelSelected,
+                    ]}
+                  >
+                    {policy.label}
+                  </Text>
+                  {formData.cancellation_policy === policy.value && (
+                    <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                  )}
+                </View>
+                <Text style={styles.cancellationOptionDescription}>{policy.description}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Photos */}
@@ -1207,6 +1250,36 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#bae6fd',
+  },
+  cancellationOption: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    marginBottom: 10,
+  },
+  cancellationOptionSelected: {
+    borderColor: '#2E7D32',
+    backgroundColor: '#f0fdf4',
+  },
+  cancellationOptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  cancellationOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  cancellationOptionLabelSelected: {
+    color: '#2E7D32',
+  },
+  cancellationOptionDescription: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
   },
 });
 

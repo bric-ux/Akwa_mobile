@@ -384,6 +384,7 @@ export interface Vehicle {
   review_count: number;
   features: string[];
   rules: string[];
+  cancellation_policy?: string | null;
   auto_booking?: boolean;
   created_at: string;
   updated_at: string;

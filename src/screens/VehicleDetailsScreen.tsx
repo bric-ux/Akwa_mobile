@@ -457,6 +457,29 @@ const VehicleDetailsScreen: React.FC = () => {
             </View>
           ) : null}
 
+          {/* Politique d'annulation */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+            <View style={styles.featureItem}>
+              <Ionicons name="document-text-outline" size={20} color={VEHICLE_COLORS.primary} />
+              <View style={styles.featureTextContainer}>
+                <Text style={styles.featureLabel}>Conditions en cas d'annulation</Text>
+                <Text style={styles.featureValue}>
+                  {(() => {
+                    const p = String((vehicle as any).cancellation_policy || 'flexible');
+                    const labels: Record<string, string> = {
+                      flexible: 'Flexible – Remboursement intégral jusqu\'à 24h avant',
+                      moderate: 'Modérée – Remboursement intégral jusqu\'à 5 jours avant',
+                      strict: 'Stricte – Remboursement 50% jusqu\'à 7 jours avant',
+                      non_refundable: 'Non remboursable',
+                    };
+                    return labels[p] || p;
+                  })()}
+                </Text>
+              </View>
+            </View>
+          </View>
+
         </View>
       </ScrollView>
 

@@ -84,7 +84,8 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
     let cancelled = false;
     setLoadingGuestCancellation(true);
     setGuestCancellationInfo(null);
-    const policy = (booking as any).cancellation_policy ?? 'flexible';
+    // Politique du véhicule (priorité) ou fallback sur la réservation
+    const policy = (booking.vehicle as any)?.cancellation_policy ?? (booking as any).cancellation_policy ?? 'flexible';
     calculateCancellationInfoForVehicle(
       booking.start_date,
       booking.end_date,
@@ -163,6 +164,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
           vehicle:vehicles(
             brand,
             model,
+            cancellation_policy,
             owner_id
           ),
           renter:profiles!vehicle_bookings_renter_id_fkey(
