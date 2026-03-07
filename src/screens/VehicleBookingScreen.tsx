@@ -81,13 +81,6 @@ const VehicleBookingScreen: React.FC = () => {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
-  // En FCFA (ou autre devise non-EUR), présélectionner « Espèces » ; la carte reste proposée (alerte au clic)
-  useEffect(() => {
-    if (currency !== 'EUR' && selectedPaymentMethod === 'card') {
-      setSelectedPaymentMethod('cash');
-    }
-  }, [currency]);
-
   useEffect(() => {
     const loadVehicle = async () => {
       try {
@@ -911,16 +904,10 @@ const VehicleBookingScreen: React.FC = () => {
       }
     }
 
-    // Carte + FCFA : conversion déjà acceptée à la sélection, on lance directement en euros
-    if (selectedPaymentMethod === 'card' && currency === 'XOF' && rates.EUR) {
-      await runVehicleBookingSubmit('EUR', rates.EUR);
-      return;
-    }
-
-    await runVehicleBookingSubmit(currency, currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : undefined);
+    await runVehicleBookingSubmit(currency, currency === 'EUR' ? rates.EUR : undefined);
   }
 
-  const runVehicleBookingSubmit = async (payCurrency: 'XOF' | 'EUR' | 'USD', payRate?: number) => {
+  const runVehicleBookingSubmit = async (payCurrency: 'XOF' | 'EUR', payRate?: number) => {
     setIsSubmitting(true);
     try {
       const startDateStr = startDate;
@@ -1632,7 +1619,7 @@ const VehicleBookingScreen: React.FC = () => {
               {selectedPaymentMethod === 'card' ? 'Total à payer par carte' : 'Total'}
             </Text>
             <Text style={styles.summaryTotalValue}>
-              {selectedPaymentMethod === 'card' && currency === 'XOF' && rates.EUR
+              {selectedPaymentMethod === 'card' && currency === 'EUR' && rates.EUR
                 ? `~${(totalPrice / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${totalPrice.toLocaleString('fr-FR')} FCFA)`
                 : formatPrice(totalPrice)}
             </Text>

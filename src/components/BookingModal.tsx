@@ -92,13 +92,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const totalGuests = adults + children + infants;
 
-  // En FCFA (ou autre devise non-EUR), présélectionner « Espèces » ; la carte reste proposée (alerte au clic)
-  useEffect(() => {
-    if (currency !== 'EUR' && selectedPaymentMethod === 'card') {
-      setSelectedPaymentMethod('cash');
-    }
-  }, [currency]);
-
   // Fonction pour normaliser une date à minuit (évite les problèmes de fuseau horaire)
   const normalizeDate = (date: Date): Date => {
     const normalized = new Date(date);
@@ -571,13 +564,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
         return;
       }
 
-      // Carte + FCFA : conversion déjà acceptée à la sélection, on lance directement en euros
-      if (currency === 'XOF' && rates.EUR) {
-        await runStripeCheckout(true);
-        return;
-      }
-
-      await runStripeCheckout(false);
+      // Paiement carte : en CFA (XOF) ou en EUR selon la devise choisie
+      await runStripeCheckout(currency === 'EUR');
       return;
     }
 
@@ -613,15 +601,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
           paymentMethod: 'card',
           paymentPlan: paymentPlan,
           paymentCurrency: currency,
-          paymentRate: currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : (convertFcfaToEur ? rates.EUR : undefined),
+          paymentRate: currency === 'EUR' ? rates.EUR : undefined,
         };
-        if ((currency === 'EUR' && rates.EUR) || (convertFcfaToEur && rates.EUR)) {
+        if (currency === 'EUR' && rates.EUR) {
           body.currency = 'eur';
           body.rate = rates.EUR;
-        } else if (currency === 'USD' && rates.USD) {
-          body.currency = 'usd';
-          body.rate = rates.USD;
         }
+        // Sinon paiement en XOF (CFA) : pas de currency/rate, le backend charge en XOF
         const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', {
           body,
         });
@@ -681,7 +667,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       paymentMethod: selectedPaymentMethod,
       paymentPlan: paymentPlan,
       paymentCurrency: currency,
-      paymentRate: currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : undefined,
+      paymentRate: currency === 'EUR' ? rates.EUR : undefined,
     });
 
     if (!result.success && 'error' in result) {
@@ -915,7 +901,28 @@ const BookingModal: React.FC<BookingModalProps> = ({
       setVoucherDiscount(null);
       onClose();
     } else if (result.error) {
-      Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
+      Alert.alert(
+        'Vérification',
+        result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».',
+        [
+          { text: 'OK' },
+          {
+            text: 'Fermer quand même',
+            onPress: () => {
+              resetStripePendingState();
+              setCheckIn(null);
+              setCheckOut(null);
+              setAdults(1);
+              setChildren(0);
+              setInfants(0);
+              setMessage('');
+              setVoucherCode('');
+              setVoucherDiscount(null);
+              onClose();
+            },
+          },
+        ]
+      );
     }
   }, [
     pendingStripeCheckoutToken,
@@ -996,7 +1003,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const { nights, pricing, fees, finalTotal } = calculateTotal();
-  const canPayByCard = currency === 'EUR' || currency === 'XOF';
+  const canPayByCard = true; // Carte acceptée en CFA (XOF) et en EUR
 
   return (
     <Modal
@@ -1440,10 +1447,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   </View>
                 )}
                 
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>{t('booking.cleaningFee')}</Text>
-                  <Text style={styles.priceValue}>{formatPayment(fees.cleaningFee ?? 0)}</Text>
-                </View>
+                {(fees.cleaningFee ?? 0) > 0 && (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>{t('booking.cleaningFee')}</Text>
+                    <Text style={styles.priceValue}>{formatPayment(fees.cleaningFee ?? 0)}</Text>
+                  </View>
+                )}
                 
                 <View style={styles.priceRow}>
                   <Text style={styles.priceLabel}>{t('booking.serviceFee')}</Text>
@@ -1473,7 +1482,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     {selectedPaymentMethod === 'card' ? 'Total à payer par carte' : t('booking.total')}
                   </Text>
                   <Text style={styles.totalValue}>
-                    {selectedPaymentMethod === 'card' && currency === 'XOF' && rates.EUR
+                    {selectedPaymentMethod === 'card' && currency === 'EUR' && rates.EUR
                       ? `~${(finalTotal / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${finalTotal.toLocaleString('fr-FR')} FCFA)`
                       : formatPayment(finalTotal)}
                   </Text>
@@ -1567,7 +1576,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.paymentMethods}>
-              {/* Carte bancaire - uniquement en euros */}
+              {/* Carte bancaire - paiement en CFA ou EUR */}
               {canPayByCard && (
                 <TouchableOpacity
                   style={[
@@ -1575,23 +1584,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     selectedPaymentMethod === 'card' && styles.paymentMethodSelected
                   ]}
                   onPress={() => {
-                    if (currency === 'XOF' && rates.EUR) {
-                      const { finalTotal } = calculateTotal();
-                      const eurAmount = finalTotal / rates.EUR;
-                      const eurText = eurAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                      Alert.alert(
-                        'Carte bancaire - Paiement en euros',
-                        `La carte bancaire est disponible uniquement pour le paiement en euros.\n\nSouhaitez-vous effectuer le paiement en euros ? Si oui, le montant sera converti et débité en euros : ~${eurText} € (équivalent de ${finalTotal.toLocaleString('fr-FR')} FCFA).`,
-                        [
-                          { text: 'Non', style: 'cancel' },
-                          { text: 'Oui, payer en euros', onPress: () => {
-                            setSelectedPaymentMethod('card');
-                            setShowPaymentMethodModal(false);
-                          } },
-                        ]
-                      );
-                      return;
-                    }
                     setSelectedPaymentMethod('card');
                     setShowPaymentMethodModal(false);
                   }}
@@ -1601,7 +1593,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     <View style={styles.paymentMethodInfo}>
                       <Text style={styles.paymentMethodTitle}>Carte bancaire</Text>
                       <Text style={styles.paymentMethodDescription}>
-                        Visa, Mastercard, American Express (paiement en euros)
+                        Visa, Mastercard (paiement en CFA ou euros)
                       </Text>
                     </View>
                   </View>
@@ -1626,7 +1618,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={styles.paymentMethodContent}>
                   <Ionicons name="phone-portrait" size={24} color="#f97316" />
                   <View style={styles.paymentMethodInfo}>
-                    <Text style={styles.paymentMethodTitle}>Orange Money</Text>
+                    <View style={styles.paypalHeader}>
+                      <Text style={styles.paymentMethodTitle}>Orange Money</Text>
+                      <View style={styles.recommendedBadge}>
+                        <Ionicons name="star" size={10} color="#FFD700" />
+                        <Text style={styles.recommendedText}>Recommandé</Text>
+                      </View>
+                    </View>
                     <Text style={styles.paymentMethodDescription}>
                       Paiement mobile Orange
                     </Text>
@@ -1652,7 +1650,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={styles.paymentMethodContent}>
                   <Ionicons name="phone-portrait" size={24} color="#eab308" />
                   <View style={styles.paymentMethodInfo}>
-                    <Text style={styles.paymentMethodTitle}>MTN Money</Text>
+                    <View style={styles.paypalHeader}>
+                      <Text style={styles.paymentMethodTitle}>MTN Money</Text>
+                      <View style={styles.recommendedBadge}>
+                        <Ionicons name="star" size={10} color="#FFD700" />
+                        <Text style={styles.recommendedText}>Recommandé</Text>
+                      </View>
+                    </View>
                     <Text style={styles.paymentMethodDescription}>
                       Paiement mobile MTN
                     </Text>
@@ -1678,7 +1682,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={styles.paymentMethodContent}>
                   <Ionicons name="phone-portrait" size={24} color="#3b82f6" />
                   <View style={styles.paymentMethodInfo}>
-                    <Text style={styles.paymentMethodTitle}>Moov Money</Text>
+                    <View style={styles.paypalHeader}>
+                      <Text style={styles.paymentMethodTitle}>Moov Money</Text>
+                      <View style={styles.recommendedBadge}>
+                        <Ionicons name="star" size={10} color="#FFD700" />
+                        <Text style={styles.recommendedText}>Recommandé</Text>
+                      </View>
+                    </View>
                     <Text style={styles.paymentMethodDescription}>
                       Paiement mobile Moov
                     </Text>
@@ -1704,7 +1714,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={styles.paymentMethodContent}>
                   <Ionicons name="phone-portrait" size={24} color="#8b5cf6" />
                   <View style={styles.paymentMethodInfo}>
-                    <Text style={styles.paymentMethodTitle}>Wave</Text>
+                    <View style={styles.paypalHeader}>
+                      <Text style={styles.paymentMethodTitle}>Wave</Text>
+                      <View style={styles.recommendedBadge}>
+                        <Ionicons name="star" size={10} color="#FFD700" />
+                        <Text style={styles.recommendedText}>Recommandé</Text>
+                      </View>
+                    </View>
                     <Text style={styles.paymentMethodDescription}>
                       Paiement mobile Wave
                     </Text>
@@ -1730,13 +1746,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={styles.paymentMethodContent}>
                   <Ionicons name="globe" size={24} color="#0070ba" />
                   <View style={styles.paymentMethodInfo}>
-                    <View style={styles.paypalHeader}>
-                      <Text style={styles.paymentMethodTitle}>PayPal</Text>
-                      <View style={styles.recommendedBadge}>
-                        <Ionicons name="star" size={10} color="#FFD700" />
-                        <Text style={styles.recommendedText}>Recommandé</Text>
-                      </View>
-                    </View>
+                    <Text style={styles.paymentMethodTitle}>PayPal</Text>
                     <Text style={styles.paymentMethodDescription}>
                       Paiement sécurisé via PayPal
                     </Text>

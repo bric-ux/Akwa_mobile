@@ -28,6 +28,7 @@ const resolveCardRegion = (countryCode?: string): CardRegion => {
   const normalized = normalizeCountryCode(countryCode);
   if (normalized === 'GB') return 'uk';
   if (EEA_COUNTRY_CODES.has(normalized)) return 'eea';
+  // Pays non renseigné ou hors EEA/UK → international (taux le plus élevé)
   return 'international';
 };
 

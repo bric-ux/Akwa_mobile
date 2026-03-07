@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type Currency = 'XOF' | 'EUR' | 'USD';
+export type Currency = 'XOF' | 'EUR';
 
 interface ExchangeRates {
   [key: string]: number;
@@ -10,19 +10,17 @@ interface ExchangeRates {
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
   XOF: 'CFA',
   EUR: '€',
-  USD: '$',
 };
 
 const CURRENCY_NAMES: Record<Currency, string> = {
   XOF: 'Franc CFA',
   EUR: 'Euro',
-  USD: 'Dollar US',
 };
 
 const DEFAULT_RATES: ExchangeRates = {
   EUR: 655.957,
-  USD: 600.000,
   XOF: 1,
+  USD: 600, // Pour affichage d'anciennes réservations uniquement (devise retirée du choix)
 };
 
 interface CurrencyContextType {
@@ -90,7 +88,6 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (currency === 'XOF') {
       formatted = `${Math.round(converted).toLocaleString('fr-FR')} FCFA`;
     } else {
-      // EUR, USD: 2 décimales, format fr-FR
       const withTwoDecimals = Number(converted).toLocaleString('fr-FR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
@@ -112,19 +109,12 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     return `${formatted} (${originalPrice})`;
   };
 
-  /** Conversion paiement selon la devise choisie (EUR/USD), sinon FCFA. */
+  /** Conversion paiement selon la devise choisie (EUR), sinon FCFA. */
   const formatPriceForPayment = (amountXOF: number): string => {
     if (!amountXOF || amountXOF === 0) return '0 FCFA';
     if (currency === 'EUR' && rates.EUR) {
       const eur = amountXOF / rates.EUR;
       return `${Number(eur).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-    }
-    if (currency === 'USD' && rates.USD) {
-      const usd = amountXOF / rates.USD;
-      return `${Number(usd).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
-    }
-    if (currency !== 'EUR' && currency !== 'USD') {
-      return `${Math.round(amountXOF).toLocaleString('fr-FR')} FCFA`;
     }
     return `${Math.round(amountXOF).toLocaleString('fr-FR')} FCFA`;
   };

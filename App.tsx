@@ -7,6 +7,7 @@ import { CurrencyProvider } from './src/contexts/CurrencyContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { SearchDatesProvider } from './src/contexts/SearchDatesContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import CurrencyDefaultFromCountry from './src/components/CurrencyDefaultFromCountry';
 
 const queryClient = new QueryClient();
 const SPLASH_MIN_DURATION_MS = 1700;
@@ -53,7 +54,12 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </View>
     );
   }
-  return <>{children}</>;
+  return (
+    <>
+      <CurrencyDefaultFromCountry />
+      {children}
+    </>
+  );
 };
 
 const styles = StyleSheet.create({

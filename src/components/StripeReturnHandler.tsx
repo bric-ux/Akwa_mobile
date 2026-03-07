@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { supabase } from '../services/supabase';
 
 const POLL_INTERVAL_MS = 2500;
 const PAYMENT_SUCCESS_PATH = 'payment-success';
+const MAX_POLL_ATTEMPTS = 6;
+const SHOW_CLOSE_AFTER_MS = 15000;
 
 type PendingPayment = { type: 'checkout_token'; value: string; bookingType: string } | { type: 'booking_id'; value: string; bookingType: string };
 
@@ -40,7 +42,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   const [status, setStatus] = useState<'checking' | 'success' | 'error'>('checking');
   const [message, setMessage] = useState<string>('Vérification du paiement en cours...');
 
-  const checkPayment = useCallback(async (payload: PendingPayment): Promise<boolean> => {
+  const checkPayment = useCallback(async (payload: PendingPayment): Promise<{ paid: boolean; error?: string }> => {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
@@ -53,24 +55,38 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
         body,
         ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
       });
-      if (error) return false;
+      if (error) {
+        const errMsg = (data as any)?.error || error?.message || 'Impossible de joindre le serveur. Réessayez dans quelques secondes.';
+        return { paid: false, error: errMsg };
+      }
       const ps = data?.payment_status != null ? String(data.payment_status).toLowerCase() : '';
       const bs = data?.booking_status != null ? String(data.booking_status).toLowerCase() : '';
-      if (data?.is_confirmed === true) return true;
-      if (['completed', 'succeeded', 'paid'].includes(ps) || ['confirmed', 'completed'].includes(bs)) return true;
-      return false;
-    } catch {
-      return false;
+      if (data?.is_confirmed === true) return { paid: true };
+      if (['completed', 'succeeded', 'paid'].includes(ps) || ['confirmed', 'completed'].includes(bs)) return { paid: true };
+      return { paid: false };
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : 'Erreur de connexion. Réessayez.';
+      return { paid: false, error: errMsg };
     }
   }, []);
+
+  const [showCloseAnyway, setShowCloseAnyway] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const pollDoneRef = useRef(false);
 
   useEffect(() => {
     if (!pendingPayment) return;
     let cancelled = false;
+    pollDoneRef.current = false;
+    let attempts = 0;
+    let lastErrorMsg = '';
+    let intervalId: ReturnType<typeof setInterval> | null = null;
     const poll = async () => {
-      const paid = await checkPayment(pendingPayment);
+      if (pollDoneRef.current || cancelled) return;
+      const result = await checkPayment(pendingPayment);
       if (cancelled) return;
-      if (paid) {
+      if (result.paid) {
+        pollDoneRef.current = true;
         setStatus('success');
         setMessage(pendingPayment.bookingType === 'vehicle'
           ? (pendingPayment.type === 'booking_id'
@@ -81,14 +97,28 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
             : 'Paiement confirmé ! Vous recevrez un email de confirmation.');
         return;
       }
+      if (result.error) lastErrorMsg = result.error;
+      attempts += 1;
+      if (attempts >= MAX_POLL_ATTEMPTS) {
+        pollDoneRef.current = true;
+        setStatus('error');
+        setMessage(lastErrorMsg || 'La vérification a échoué. Consultez « Mes réservations » pour confirmer votre paiement.');
+      }
     };
     poll();
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    intervalId = setInterval(() => {
+      if (cancelled || pollDoneRef.current) return;
+      poll();
+    }, POLL_INTERVAL_MS);
+    const closeTimer = setTimeout(() => {
+      if (!cancelled) setShowCloseAnyway(true);
+    }, SHOW_CLOSE_AFTER_MS);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (intervalId) clearInterval(intervalId);
+      clearTimeout(closeTimer);
     };
-  }, [pendingPayment, checkPayment]);
+  }, [pendingPayment, checkPayment, retryKey]);
 
   const handleOpenUrl = useCallback((url: string | null) => {
     if (!url) return;
@@ -116,10 +146,18 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     setPendingPayment(null);
     setStatus('checking');
     setMessage('Vérification du paiement en cours...');
+    setShowCloseAnyway(false);
     if (!wasVehicleInitial && navigationRef?.current) {
       navigationRef.current.navigate('Home' as never, { screen: 'BookingsTab' } as never);
     }
   }, [navigationRef, pendingPayment]);
+
+  const retryVerification = useCallback(() => {
+    setStatus('checking');
+    setMessage('Vérification du paiement en cours...');
+    setShowCloseAnyway(false);
+    setRetryKey((k) => k + 1);
+  }, []);
 
   if (!pendingPayment) return null;
 
@@ -132,6 +170,11 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
               <ActivityIndicator size="large" color="#e67e22" />
               <Text style={styles.title}>Vérification du paiement</Text>
               <Text style={styles.message}>{message}</Text>
+              {showCloseAnyway && (
+                <TouchableOpacity style={[styles.button, styles.buttonSecondary]} onPress={closeModal}>
+                  <Text style={styles.buttonSecondaryText}>Fermer et vérifier plus tard dans Mes réservations</Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
           {status === 'success' && (
@@ -140,6 +183,18 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
               <Text style={styles.message}>{message}</Text>
               <TouchableOpacity style={styles.button} onPress={closeModal}>
                 <Text style={styles.buttonText}>Voir mes réservations</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          {status === 'error' && (
+            <>
+              <Text style={styles.errorTitle}>Vérification impossible</Text>
+              <Text style={styles.message}>{message}</Text>
+              <TouchableOpacity style={styles.button} onPress={retryVerification}>
+                <Text style={styles.buttonText}>Réessayer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.button, styles.buttonSecondary]} onPress={closeModal}>
+                <Text style={styles.buttonSecondaryText}>Fermer et vérifier dans Mes réservations</Text>
               </TouchableOpacity>
             </>
           )}
@@ -176,6 +231,12 @@ const styles = StyleSheet.create({
     color: '#27ae60',
     marginBottom: 8,
   },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#c0392b',
+    marginBottom: 8,
+  },
   message: {
     fontSize: 15,
     color: '#666',
@@ -189,8 +250,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
   },
+  buttonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#e67e22',
+    marginTop: 12,
+  },
   buttonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonSecondaryText: {
+    color: '#e67e22',
     fontSize: 16,
     fontWeight: '600',
   },
