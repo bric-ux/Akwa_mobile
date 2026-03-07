@@ -25,6 +25,8 @@ import ModificationSurplusPaymentModal from './ModificationSurplusPaymentModal';
 import { calculateTotalPrice, calculateFees } from '../hooks/usePricing';
 import { getCommissionRates } from '../lib/commissions';
 import { supabase } from '../services/supabase';
+import { checkPaymentStatus } from '../services/cardPaymentService';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface BookingModificationModalProps {
   visible: boolean;
@@ -40,6 +42,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   onModificationRequested,
 }) => {
   const { user } = useAuth();
+  const { formatPrice } = useCurrency();
   const { createModificationRequest, getBookingPendingRequest, cancelModificationRequest, loading } = useBookingModifications();
   
   // Initialiser les dates directement depuis booking
@@ -68,6 +71,9 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pendingModificationData, setPendingModificationData] = useState<any>(null);
+  /** Surplus affiché quand on ajoute des nuits (calculé sur les nuits ajoutées uniquement) */
+  const [extensionSurplus, setExtensionSurplus] = useState<number | null>(null);
+  const [extensionSurplusLoading, setExtensionSurplusLoading] = useState(false);
   const [finalTotalPrice, setFinalTotalPrice] = useState<number | null>(null);
   const [surplusBreakdown, setSurplusBreakdown] = useState<{
     basePriceDiff?: number;
@@ -79,6 +85,20 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     taxesDiff?: number;
   } | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  /** Déduit le sous-total (après réduction) du total payé, pour garder le même prix/nuit sur les nuits existantes */
+  const inferOriginalSubtotal = (
+    totalPrice: number,
+    nights: number,
+    prop: { cleaning_fee?: number; taxes?: number; free_cleaning_min_days?: number | null }
+  ): number => {
+    const total = Number(totalPrice);
+    const isFreeCleaning = prop.free_cleaning_min_days != null && nights >= prop.free_cleaning_min_days;
+    const cleaning = isFreeCleaning ? 0 : (prop.cleaning_fee || 0);
+    const taxes = (prop.taxes || 0) * nights;
+    const serviceFeeRate = 0.12 * 1.2; // 12% HT + 20% TVA
+    return Math.round((total - cleaning - taxes) / (1 + serviceFeeRate));
+  };
 
   const property = booking.properties;
   const pricePerNight = property?.price_per_night || 0;
@@ -183,7 +203,63 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   };
   
   const nights = calculateNights();
-  
+  const originalNights = Math.ceil(
+    (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) 
+    / (1000 * 60 * 60 * 24)
+  );
+  const isExtension = nights > originalNights && checkOut != null && formatDateForAPI(checkOut) > booking.check_out_date;
+
+  // Calcul du surplus quand on ajoute des nuits uniquement (pas de re-tarification des nuits déjà payées)
+  useEffect(() => {
+    if (!property?.id || !isExtension || nights <= originalNights) {
+      setExtensionSurplus(null);
+      return;
+    }
+    let cancelled = false;
+    setExtensionSurplusLoading(true);
+    setExtensionSurplus(null);
+    (async () => {
+      try {
+        const addedNights = nights - originalNights;
+        const originalSubtotal = inferOriginalSubtotal(Number(booking.total_price), originalNights, property);
+        const addedEnd = new Date(booking.check_out_date);
+        addedEnd.setDate(addedEnd.getDate() + addedNights - 1);
+        const addedAvg = await getAveragePriceForPeriod(
+          property.id,
+          new Date(booking.check_out_date),
+          addedEnd,
+          pricePerNight
+        );
+        const discountConfig = {
+          enabled: property.discount_enabled || false,
+          minNights: property.discount_min_nights || null,
+          percentage: property.discount_percentage || null
+        };
+        const longStayConfig = property.long_stay_discount_enabled ? {
+          enabled: property.long_stay_discount_enabled || false,
+          minNights: property.long_stay_discount_min_nights || null,
+          percentage: property.long_stay_discount_percentage || null
+        } : undefined;
+        const addedPricing = calculateTotalPrice(addedAvg, addedNights, discountConfig, longStayConfig);
+        const addedSubtotalAfterDiscount = addedPricing.totalPrice;
+        const newSubtotal = originalSubtotal + addedSubtotalAfterDiscount;
+        const newFees = calculateFees(newSubtotal, nights, 'property', {
+          cleaning_fee: cleaningFee,
+          service_fee: serviceFee,
+          taxes: property.taxes || 0,
+          free_cleaning_min_days: property.free_cleaning_min_days || null
+        });
+        const surplus = newSubtotal + newFees.totalFees - Number(booking.total_price);
+        if (!cancelled && surplus >= 0) setExtensionSurplus(Math.round(surplus));
+      } catch (e) {
+        if (!cancelled) setExtensionSurplus(null);
+      } finally {
+        if (!cancelled) setExtensionSurplusLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isExtension, nights, originalNights, booking.check_out_date, booking.total_price, property, pricePerNight, cleaningFee, serviceFee]);
+
   // Calculer le prix correctement avec réductions et TVA
   const basePricePerNight = effectivePrice || pricePerNight;
   const discountConfig = property ? {
@@ -218,7 +294,10 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   
   const hasChanges = checkInChanged || checkOutChanged || guestsChanged;
 
-  const priceDifference = newTotalPrice - booking.total_price;
+  const originalTotal = Number(booking.total_price);
+  const priceDifference = (isExtension && extensionSurplus !== null)
+    ? extensionSurplus
+    : (newTotalPrice - originalTotal);
 
   const handleDateSelect = (selectedCheckIn: Date | null, selectedCheckOut: Date | null) => {
     if (selectedCheckIn) {
@@ -413,55 +492,96 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       return;
     }
 
-    // Recalculer le prix avec les dates finales
-    // Si effectivePrice n'est pas encore chargé, le recalculer maintenant
-    let finalEffectivePrice = effectivePrice;
-    if (!finalEffectivePrice || loadingPrice) {
-      try {
-        finalEffectivePrice = await getAveragePriceForPeriod(
-          property.id,
-          finalCheckIn,
-          finalCheckOut,
-          pricePerNight
-        );
-      } catch (error) {
-        console.error('Error calculating final price:', error);
-        finalEffectivePrice = pricePerNight;
-      }
-    }
-    
-    // Calculer le prix final correctement avec réductions et TVA
-    const finalDiscountConfig = {
-      enabled: property.discount_enabled || false,
-      minNights: property.discount_min_nights || null,
-      percentage: property.discount_percentage || null
-    };
-    
-    const finalLongStayDiscountConfig = property.long_stay_discount_enabled ? {
-      enabled: property.long_stay_discount_enabled || false,
-      minNights: property.long_stay_discount_min_nights || null,
-      percentage: property.long_stay_discount_percentage || null
-    } : undefined;
-    
-    const finalPricing = calculateTotalPrice(finalEffectivePrice, finalNights, finalDiscountConfig, finalLongStayDiscountConfig);
-    const finalPriceAfterDiscount = finalPricing.totalPrice;
-    
-    // Calculer les frais avec TVA
-    const finalFees = calculateFees(finalPriceAfterDiscount, finalNights, 'property', {
-      cleaning_fee: cleaningFee,
-      service_fee: serviceFee,
-      taxes: property.taxes || 0,
-      free_cleaning_min_days: property.free_cleaning_min_days || null
-    });
-    
-    const finalTotalPrice = finalPriceAfterDiscount + finalFees.totalFees;
-    const finalPriceDifference = finalTotalPrice - booking.total_price;
-
-    // Calculer le breakdown de l'ancien prix pour comparer
-    const originalNights = Math.ceil(
+    const originalNightsSubmit = Math.ceil(
       (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) 
       / (1000 * 60 * 60 * 24)
     );
+    const originalTotalPrice = Math.max(0, Number(booking.total_price) || 0);
+    if (originalTotalPrice <= 0) {
+      console.error('❌ [BookingModificationModal] total_price réservation invalide:', booking.total_price);
+      Alert.alert('Erreur', 'Impossible de calculer le surplus : le montant de la réservation actuelle est invalide.');
+      return;
+    }
+    const isExtensionSubmit = finalNights > originalNightsSubmit;
+
+    let finalTotalPrice: number;
+    let finalPriceDifference: number;
+    let finalPriceAfterDiscount: number;
+    let finalFees: { cleaningFee: number; serviceFee: number; totalFees: number; serviceFeeHT: number; serviceFeeVAT: number; taxes: number };
+    let finalEffectivePrice: number;
+    let finalPricing: { discountAmount?: number };
+
+    if (isExtensionSubmit) {
+      // Surplus = uniquement les nuits ajoutées + delta des frais (pas de re-tarification des nuits déjà payées)
+      const originalSubtotal = inferOriginalSubtotal(originalTotalPrice, originalNightsSubmit, property);
+      const addedNights = finalNights - originalNightsSubmit;
+      const addedEnd = new Date(booking.check_out_date);
+      addedEnd.setDate(addedEnd.getDate() + addedNights - 1);
+      const addedAvg = await getAveragePriceForPeriod(
+        property.id,
+        new Date(booking.check_out_date),
+        addedEnd,
+        pricePerNight
+      );
+      const finalDiscountConfig = {
+        enabled: property.discount_enabled || false,
+        minNights: property.discount_min_nights || null,
+        percentage: property.discount_percentage || null
+      };
+      const finalLongStayDiscountConfig = property.long_stay_discount_enabled ? {
+        enabled: property.long_stay_discount_enabled || false,
+        minNights: property.long_stay_discount_min_nights || null,
+        percentage: property.long_stay_discount_percentage || null
+      } : undefined;
+      const addedPricing = calculateTotalPrice(addedAvg, addedNights, finalDiscountConfig, finalLongStayDiscountConfig);
+      const addedSubtotalAfterDiscount = addedPricing.totalPrice;
+      const newSubtotal = originalSubtotal + addedSubtotalAfterDiscount;
+      finalFees = calculateFees(newSubtotal, finalNights, 'property', {
+        cleaning_fee: cleaningFee,
+        service_fee: serviceFee,
+        taxes: property.taxes || 0,
+        free_cleaning_min_days: property.free_cleaning_min_days || null
+      });
+      finalTotalPrice = newSubtotal + finalFees.totalFees;
+      finalPriceDifference = Math.round(finalTotalPrice - originalTotalPrice);
+      finalPriceAfterDiscount = newSubtotal;
+      finalEffectivePrice = addedAvg;
+      finalPricing = addedPricing;
+    } else {
+      // Recalcul complet (réduction de nuits ou autres changements)
+      let effPrice = effectivePrice;
+      if (!effPrice || loadingPrice) {
+        try {
+          effPrice = await getAveragePriceForPeriod(property.id, finalCheckIn, finalCheckOut, pricePerNight);
+        } catch (error) {
+          console.error('Error calculating final price:', error);
+          effPrice = pricePerNight;
+        }
+      }
+      finalEffectivePrice = effPrice;
+      const finalDiscountConfig = {
+        enabled: property.discount_enabled || false,
+        minNights: property.discount_min_nights || null,
+        percentage: property.discount_percentage || null
+      };
+      const finalLongStayDiscountConfig = property.long_stay_discount_enabled ? {
+        enabled: property.long_stay_discount_enabled || false,
+        minNights: property.long_stay_discount_min_nights || null,
+        percentage: property.long_stay_discount_percentage || null
+      } : undefined;
+      finalPricing = calculateTotalPrice(finalEffectivePrice, finalNights, finalDiscountConfig, finalLongStayDiscountConfig);
+      finalPriceAfterDiscount = finalPricing.totalPrice;
+      finalFees = calculateFees(finalPriceAfterDiscount, finalNights, 'property', {
+        cleaning_fee: cleaningFee,
+        service_fee: serviceFee,
+        taxes: property.taxes || 0,
+        free_cleaning_min_days: property.free_cleaning_min_days || null
+      });
+      finalTotalPrice = finalPriceAfterDiscount + finalFees.totalFees;
+      finalPriceDifference = finalTotalPrice - originalTotalPrice;
+    }
+
+    const originalNights = originalNightsSubmit;
     const originalBasePrice = pricePerNight * originalNights;
     const originalDiscountConfig = {
       enabled: property.discount_enabled || false,
@@ -482,8 +602,8 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       free_cleaning_min_days: property.free_cleaning_min_days || null
     });
 
-    // Calculer les différences pour le surplus
-    const calculatedSurplusBreakdown = finalPriceDifference > 0 ? {
+    // Calculer les différences pour le surplus (breakdown non utilisé en mode extension)
+    const calculatedSurplusBreakdown = finalPriceDifference > 0 && !isExtensionSubmit ? {
       basePriceDiff: (finalEffectivePrice * finalNights) - originalBasePrice,
       discountDiff: (finalPricing.discountAmount || 0) - (originalPricing.discountAmount || 0),
       cleaningFeeDiff: finalFees.cleaningFee - originalFees.cleaningFee,
@@ -497,7 +617,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     setFinalTotalPrice(finalTotalPrice);
     setSurplusBreakdown(calculatedSurplusBreakdown);
 
-    // Préparer les données de modification
+    // Préparer les données de modification (surplusAmount = montant à prélever pour le modal de paiement)
     const modificationData = {
       bookingId: booking.id,
       guestId: user.id,
@@ -505,18 +625,20 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       originalCheckIn: booking.check_in_date,
       originalCheckOut: booking.check_out_date,
       originalGuestsCount: booking.guests_count,
-      originalTotalPrice: booking.total_price,
+      originalTotalPrice: originalTotalPrice,
       requestedCheckIn: formatDateForAPI(finalCheckIn),
       requestedCheckOut: formatDateForAPI(finalCheckOut),
       requestedGuestsCount: guestsCount,
       requestedTotalPrice: finalTotalPrice,
+      surplusAmount: finalPriceDifference > 0 ? finalPriceDifference : 0,
       guestMessage: message.trim() || undefined,
     };
 
     console.log('💰 [BookingModificationModal] Calcul prix terminé:', {
       finalTotalPrice,
-      originalTotalPrice: booking.total_price,
+      originalTotalPrice,
       finalPriceDifference,
+      isExtension: isExtensionSubmit,
       modificationData: {
         bookingId: modificationData.bookingId,
         requestedCheckIn: modificationData.requestedCheckIn,
@@ -553,17 +675,12 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
 
     // Vérifier que le paiement surplus est bien confirmé (webhook) avant de créer la demande
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      const { data: checkData, error: checkError } = await supabase.functions.invoke('check-payment-status', {
-        body: {
-          booking_id: pendingModificationData.bookingId,
-          booking_type: 'property',
-          payment_type: 'modification_surplus',
-        },
-        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      const checkResult = await checkPaymentStatus({
+        booking_id: pendingModificationData.bookingId,
+        booking_type: 'property',
+        payment_type: 'modification_surplus',
       });
-      if (checkError || !checkData?.is_confirmed) {
+      if (!checkResult.is_confirmed) {
         Alert.alert(
           'Paiement non confirmé',
           'Le paiement du surplus n\'a pas encore été enregistré. Revenez après avoir terminé le paiement ou réessayez.'
@@ -585,19 +702,6 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       onModificationRequested?.();
     }
   };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
-
-  const originalNights = Math.ceil(
-    (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) 
-    / (1000 * 60 * 60 * 24)
-  );
 
   return (
     <Modal
@@ -1005,7 +1109,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
           setFinalTotalPrice(null);
           setSurplusBreakdown(null);
         }}
-        surplusAmount={priceDifference > 0 ? priceDifference : 0}
+        surplusAmount={pendingModificationData?.surplusAmount ?? (priceDifference > 0 ? priceDifference : 0)}
         bookingId={booking.id}
         onPaymentComplete={handlePaymentComplete}
         propertyTitle={property?.title}

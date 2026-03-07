@@ -23,6 +23,8 @@ import { useEmailService } from '../hooks/useEmailService';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import BookingIdentityAlert from './BookingIdentityAlert';
 import { supabase } from '../services/supabase';
+import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
+import CardPaymentSuccessView from './CardPaymentSuccessView';
 import AvailabilityCalendar from './AvailabilityCalendar';
 import { getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -86,6 +88,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
   const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
   const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
+  const [showCardPaymentSuccess, setShowCardPaymentSuccess] = useState(false);
+  const [cardPaymentSuccessSubtitle, setCardPaymentSuccessSubtitle] = useState<string>('');
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const lastInitialGuestsRef = useRef<{ adults?: number; children?: number; babies?: number } | null>(null);
   const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -608,31 +612,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
           body.rate = rates.EUR;
         }
         // Sinon paiement en XOF (CFA) : pas de currency/rate, le backend charge en XOF
-        const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', {
-          body,
-        });
+        const checkoutResult = await createCheckoutSession(body);
 
-        if (checkoutError || !checkoutData?.url) {
-          let serverMessage: string | null = null;
-          try {
-            const err = checkoutError as any;
-            if (err?.context && typeof err.context?.json === 'function') {
-              const parsed = await err.context.json();
-              serverMessage = parsed?.error ? String(parsed.error) : null;
-            }
-          } catch (_) {}
-          console.error('Stripe checkout error:', checkoutError, checkoutData, serverMessage || '');
-          setOpeningStripe(false);
-          const detail = serverMessage && serverMessage.length < 120 ? ` (${serverMessage})` : '';
-          Alert.alert('Paiement', `La page de paiement n'a pas pu s'ouvrir${detail}. Veuillez réessayer.`, [{ text: 'OK' }]);
-          return;
-        }
-
-        setPendingStripeCheckoutToken(checkoutData.checkout_token ?? checkoutToken);
+        setPendingStripeCheckoutToken(checkoutResult.checkout_token ?? checkoutToken);
         setPendingStripeStartedAt(Date.now());
         setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
         setOpeningStripe(false);
-        Linking.openURL(checkoutData.url).catch((openErr) => {
+        Linking.openURL(checkoutResult.url).catch((openErr) => {
           console.error('Linking.openURL failed:', openErr);
           Alert.alert(
             'Paiement',
@@ -644,7 +630,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
       } catch (stripeErr) {
         console.error('Stripe checkout error:', stripeErr);
         setOpeningStripe(false);
-        Alert.alert('Paiement', 'Le paiement n\'a pas pu être initié. Veuillez réessayer.', [{ text: 'OK' }]);
+        const msg = stripeErr instanceof Error ? stripeErr.message : 'Le paiement n\'a pas pu être initié. Veuillez réessayer.';
+        Alert.alert('Paiement', msg, [{ text: 'OK' }]);
         return;
       }
     }
@@ -731,34 +718,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
     const fallback = { paid: false, payment_status: 'pending', booking_status: 'pending' };
     if (!bookingId && !checkoutToken) return fallback;
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      const body: Record<string, unknown> = { booking_type: 'property' };
-      if (checkoutToken) body.checkout_token = checkoutToken;
-      else if (bookingId) body.booking_id = bookingId;
-      const { data, error } = await supabase.functions.invoke('check-payment-status', {
-        body,
-        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      const result = await checkPaymentStatus({
+        booking_type: 'property',
+        ...(checkoutToken ? { checkout_token: checkoutToken } : {}),
+        ...(bookingId ? { booking_id: bookingId } : {}),
       });
-      if (__DEV__ && (data || error)) {
-        console.log('[Stripe] check-payment-status:', { data, error: error?.message });
-      }
-      const ps = data?.payment_status != null ? String(data.payment_status) : 'pending';
-      const bs = data?.booking_status != null ? String(data.booking_status) : 'pending';
-      setLastPaymentStatus({ payment_status: ps, booking_status: bs });
-
-      if (error) {
-        const errMsg = data?.error || error?.message || 'Erreur de vérification';
-        return { paid: false, payment_status: ps, booking_status: bs, error: errMsg };
-      }
-      if (data) {
-        if (data.is_confirmed === true) return { paid: true, payment_status: ps, booking_status: bs };
-        const psLower = ps.toLowerCase();
-        const bsLower = bs.toLowerCase();
-        if (['completed', 'succeeded', 'paid'].includes(psLower) || ['confirmed', 'completed'].includes(bsLower)) {
-          return { paid: true, payment_status: ps, booking_status: bs };
-        }
-      }
+      setLastPaymentStatus({ payment_status: result.payment_status ?? 'pending', booking_status: result.booking_status ?? 'pending' });
+      if (result.error) return { paid: false, payment_status: result.payment_status, booking_status: result.booking_status, error: result.error };
+      if (result.is_confirmed) return { paid: true, payment_status: result.payment_status, booking_status: result.booking_status };
 
       if (bookingId) {
         const { data: paymentData } = await supabase
@@ -769,8 +736,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
           .limit(1);
         const directPaymentStatus = String(paymentData?.[0]?.status || '').toLowerCase();
         if (['completed', 'succeeded', 'paid'].includes(directPaymentStatus)) {
-          setLastPaymentStatus({ payment_status: directPaymentStatus, booking_status: bs });
-          return { paid: true, payment_status: directPaymentStatus, booking_status: bs };
+          setLastPaymentStatus({ payment_status: directPaymentStatus, booking_status: result.booking_status ?? 'pending' });
+          return { paid: true, payment_status: directPaymentStatus, booking_status: result.booking_status };
         }
         const { data: bookingData } = await supabase
           .from('bookings')
@@ -779,11 +746,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
           .maybeSingle();
         const directBookingStatus = String(bookingData?.status || '').toLowerCase();
         if (['confirmed', 'completed'].includes(directBookingStatus)) {
-          setLastPaymentStatus({ payment_status: ps, booking_status: directBookingStatus });
-          return { paid: true, payment_status: ps, booking_status: directBookingStatus };
+          setLastPaymentStatus({ payment_status: result.payment_status ?? 'pending', booking_status: directBookingStatus });
+          return { paid: true, payment_status: result.payment_status, booking_status: directBookingStatus };
         }
       }
-      return { paid: false, payment_status: ps, booking_status: bs };
+      return { paid: false, payment_status: result.payment_status, booking_status: result.booking_status };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('Erreur vérification Stripe:', err);
@@ -883,12 +850,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
     setCheckingStripeStatus(false);
 
     if (result.paid) {
-      Alert.alert(
-        'Paiement confirmé',
+      setCardPaymentSuccessSubtitle(
         property.auto_booking
-          ? 'Votre paiement est confirmé. La réservation est confirmée.'
-          : 'Votre paiement est confirmé. La demande a été envoyée au propriétaire.'
+          ? 'Votre réservation est confirmée. Vous recevrez une confirmation par email.'
+          : 'Votre demande a été envoyée au propriétaire. Vous serez notifié de sa réponse.'
       );
+      setShowCardPaymentSuccess(true);
       resetStripePendingState();
       setLastPaymentStatus(null);
       setCheckIn(null);
@@ -899,7 +866,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
       setMessage('');
       setVoucherCode('');
       setVoucherDiscount(null);
-      onClose();
     } else if (result.error) {
       Alert.alert(
         'Vérification',
@@ -1004,6 +970,26 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const { nights, pricing, fees, finalTotal } = calculateTotal();
   const canPayByCard = true; // Carte acceptée en CFA (XOF) et en EUR
+
+  if (showCardPaymentSuccess) {
+    return (
+      <Modal visible={visible} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <CardPaymentSuccessView subtitle={cardPaymentSuccessSubtitle} />
+          <TouchableOpacity
+            style={styles.cardSuccessOkButton}
+            onPress={() => {
+              setShowCardPaymentSuccess(false);
+              setCardPaymentSuccessSubtitle('');
+              onClose();
+            }}
+          >
+            <Text style={styles.cardSuccessOkButtonText}>OK</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -2384,6 +2370,25 @@ const styles = StyleSheet.create({
     color: '#b91c1c',
     fontWeight: '600',
     fontSize: 13,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  cardSuccessOkButton: {
+    marginTop: 16,
+    backgroundColor: '#e67e22',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+  },
+  cardSuccessOkButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

@@ -11,7 +11,8 @@ import {
   AppStateStatus,
 } from 'react-native';
 import type { NavigationContainerRef } from '@react-navigation/native';
-import { supabase } from '../services/supabase';
+import { checkPaymentStatus } from '../services/cardPaymentService';
+import CardPaymentSuccessView from './CardPaymentSuccessView';
 
 const POLL_INTERVAL_MS = 2500;
 const PAYMENT_SUCCESS_PATH = 'payment-success';
@@ -44,26 +45,12 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
 
   const checkPayment = useCallback(async (payload: PendingPayment): Promise<{ paid: boolean; error?: string }> => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      const body: Record<string, unknown> = {
-        booking_type: payload.bookingType || 'property',
-      };
-      if (payload.type === 'checkout_token') body.checkout_token = payload.value;
-      else body.booking_id = payload.value;
-      const { data, error } = await supabase.functions.invoke('check-payment-status', {
-        body,
-        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      const result = await checkPaymentStatus({
+        booking_type: (payload.bookingType as 'property' | 'vehicle') || 'property',
+        ...(payload.type === 'checkout_token' ? { checkout_token: payload.value } : { booking_id: payload.value }),
       });
-      if (error) {
-        const errMsg = (data as any)?.error || error?.message || 'Impossible de joindre le serveur. Réessayez dans quelques secondes.';
-        return { paid: false, error: errMsg };
-      }
-      const ps = data?.payment_status != null ? String(data.payment_status).toLowerCase() : '';
-      const bs = data?.booking_status != null ? String(data.booking_status).toLowerCase() : '';
-      if (data?.is_confirmed === true) return { paid: true };
-      if (['completed', 'succeeded', 'paid'].includes(ps) || ['confirmed', 'completed'].includes(bs)) return { paid: true };
-      return { paid: false };
+      if (result.error) return { paid: false, error: result.error };
+      return { paid: result.is_confirmed };
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'Erreur de connexion. Réessayez.';
       return { paid: false, error: errMsg };
@@ -179,8 +166,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
           )}
           {status === 'success' && (
             <>
-              <Text style={styles.successTitle}>Paiement confirmé</Text>
-              <Text style={styles.message}>{message}</Text>
+              <CardPaymentSuccessView subtitle={message} style={styles.successViewBox} />
               <TouchableOpacity style={styles.button} onPress={closeModal}>
                 <Text style={styles.buttonText}>Voir mes réservations</Text>
               </TouchableOpacity>
@@ -219,17 +205,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: 280,
   },
+  successViewBox: {
+    margin: 0,
+  },
   title: {
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
     marginTop: 16,
-  },
-  successTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#27ae60',
-    marginBottom: 8,
   },
   errorTitle: {
     fontSize: 20,

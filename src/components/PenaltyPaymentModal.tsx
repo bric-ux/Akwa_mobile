@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
+import { createCheckoutSession } from '../services/cardPaymentService';
+import CardPaymentSuccessView from './CardPaymentSuccessView';
 import { formatAmount } from '../utils/priceCalculator';
 
 interface PenaltyPaymentModalProps {
@@ -54,24 +56,17 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
     if (paymentMethod === 'card') {
       setLoading(true);
       try {
-        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-          body: {
-            booking_id: penalty.booking_id,
-            amount: penalty.penalty_amount,
-            property_title: penalty.booking?.property?.title || 'Paiement de penalite',
-            payment_type: 'penalty',
-            penalty_id: penalty.id,
-          },
+        const result = await createCheckoutSession({
+          booking_id: penalty.booking_id,
+          amount: penalty.penalty_amount,
+          property_title: penalty.booking?.property?.title || 'Paiement de penalite',
+          payment_type: 'penalty',
+          penalty_id: penalty.id,
         });
-        if (error) throw error;
-        if (data?.url) {
-          Linking.openURL(data.url);
-          onClose();
-          return;
-        }
-        throw new Error(data?.error || 'Impossible d\'ouvrir la page de paiement');
-      } catch (e: any) {
-        Alert.alert('Erreur', e?.message || 'Impossible d\'ouvrir le paiement Stripe');
+        Linking.openURL(result.url);
+        onClose();
+      } catch (e: unknown) {
+        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement Stripe');
       } finally {
         setLoading(false);
       }
@@ -142,13 +137,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
     return (
       <Modal visible={visible} transparent animationType="fade">
         <View style={styles.overlay}>
-          <View style={styles.successContainer}>
-            <Ionicons name="checkmark-circle" size={64} color="#10b981" />
-            <Text style={styles.successTitle}>Paiement initié !</Text>
-            <Text style={styles.successText}>
-              Votre déclaration de paiement en espèces a été enregistrée.
-            </Text>
-          </View>
+          <CardPaymentSuccessView subtitle="Votre déclaration de paiement en espèces a été enregistrée." />
         </View>
       </Modal>
     );
@@ -476,26 +465,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
-  },
-  successContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 40,
-    alignItems: 'center',
-    margin: 20,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#10b981',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  successText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
   },
 });
 

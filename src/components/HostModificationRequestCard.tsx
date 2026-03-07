@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BookingModificationRequest } from '../hooks/useBookingModifications';
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import { calculateHostCommission } from '../hooks/usePricing';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface HostModificationRequestCardProps {
   request: BookingModificationRequest;
@@ -29,6 +30,7 @@ const HostModificationRequestCard: React.FC<HostModificationRequestCardProps> = 
   propertyTitle,
   onUpdated,
 }) => {
+  const { formatPrice } = useCurrency();
   const { approveModificationRequest, rejectModificationRequest, loading } = useBookingModifications();
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -41,14 +43,6 @@ const HostModificationRequestCard: React.FC<HostModificationRequestCardProps> = 
       month: '2-digit',
       year: 'numeric',
     });
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
   };
 
   const priceDifference = request.requested_total_price - request.original_total_price;

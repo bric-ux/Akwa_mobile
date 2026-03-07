@@ -100,11 +100,9 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const formatPrice = (amountXOF: number, showOriginal: boolean = true): string => {
     const { formatted } = convert(amountXOF);
-    
-    if (currency === 'XOF' || !showOriginal) {
-      return formatted;
-    }
-
+    // En EUR : afficher uniquement le montant en euros (rien en CFA)
+    if (currency === 'EUR') return formatted;
+    if (currency === 'XOF' || !showOriginal) return formatted;
     const originalPrice = `${Math.round(amountXOF).toLocaleString('fr-FR')} FCFA`;
     return `${formatted} (${originalPrice})`;
   };

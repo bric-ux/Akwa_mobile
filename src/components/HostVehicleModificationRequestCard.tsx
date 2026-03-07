@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import { calculateHostCommission } from '../hooks/usePricing';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface VehicleModificationRequest {
   id: string;
@@ -50,6 +51,7 @@ const HostVehicleModificationRequestCard: React.FC<HostVehicleModificationReques
   vehicleTitle,
   onUpdated,
 }) => {
+  const { formatPrice } = useCurrency();
   const { approveModificationRequest, rejectModificationRequest, loading } = useVehicleBookingModifications();
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -62,14 +64,6 @@ const HostVehicleModificationRequestCard: React.FC<HostVehicleModificationReques
       month: '2-digit',
       year: 'numeric',
     });
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
   };
 
   const priceDifference = request.requested_total_price - request.original_total_price;

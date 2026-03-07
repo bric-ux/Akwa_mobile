@@ -15,11 +15,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { VehicleBooking } from '../types';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import VehicleDateTimePickerModal from './VehicleDateTimePickerModal';
-import { formatPrice } from '../utils/priceCalculator';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { getCommissionRates } from '../lib/commissions';
 import { calculateVehiclePriceWithHours, calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
 import VehicleModificationSurplusPaymentModal from './VehicleModificationSurplusPaymentModal';
 import { supabase } from '../services/supabase';
+import { checkPaymentStatus } from '../services/cardPaymentService';
 
 interface VehicleModificationModalProps {
   visible: boolean;
@@ -34,6 +35,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   booking,
   onModified,
 }) => {
+  const { formatPrice } = useCurrency();
   const { modifyBooking, loading, getBookingPendingRequest } = useVehicleBookingModifications();
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -442,17 +444,12 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 
     // Vérifier que le paiement surplus est bien confirmé (webhook) avant de créer la demande
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      const { data: checkData, error: checkError } = await supabase.functions.invoke('check-payment-status', {
-        body: {
-          booking_id: pendingModificationData.bookingId,
-          booking_type: 'vehicle',
-          payment_type: 'vehicle_modification_surplus',
-        },
-        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      const checkResult = await checkPaymentStatus({
+        booking_id: pendingModificationData.bookingId,
+        booking_type: 'vehicle',
+        payment_type: 'vehicle_modification_surplus',
       });
-      if (checkError || !checkData?.is_confirmed) {
+      if (!checkResult.is_confirmed) {
         Alert.alert(
           'Paiement non confirmé',
           'Le paiement du surplus n\'a pas encore été enregistré. Revenez après avoir terminé le paiement ou réessayez.'

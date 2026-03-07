@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
+import { createCheckoutSession } from '../services/cardPaymentService';
 import { VehicleBooking, VehicleBookingStatus } from '../types';
 import { useIdentityVerification } from './useIdentityVerification';
 import { getCommissionRates } from '../lib/commissions';
@@ -460,13 +461,14 @@ export const useVehicleBookings = () => {
           checkoutBody.currency = 'usd';
           checkoutBody.rate = bookingData.paymentRate || rates.USD;
         }
-        const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-checkout-session', { body: checkoutBody });
-        if (checkoutError || !checkoutData?.url) {
-          const errMsg = checkoutError?.message || (checkoutData as any)?.error || 'Impossible d\'ouvrir la page de paiement.';
-          console.error('❌ [useVehicleBookings] Erreur init Stripe checkout (draft):', checkoutError, checkoutData);
+        try {
+          const checkoutResult = await createCheckoutSession(checkoutBody);
+          return { success: true, booking: null, status: undefined, checkoutUrl: checkoutResult.url, paymentInitError: null, checkoutToken: checkoutResult.checkout_token ?? checkoutToken };
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : 'Impossible d\'ouvrir la page de paiement.';
+          console.error('❌ [useVehicleBookings] Erreur init Stripe checkout (draft):', err);
           return { success: false, booking: null, status: undefined, checkoutUrl: null, paymentInitError: errMsg, checkoutToken: null, error: errMsg };
         }
-        return { success: true, booking: null, status: undefined, checkoutUrl: checkoutData.url, paymentInitError: null, checkoutToken: checkoutData.checkout_token ?? checkoutToken };
       }
 
       const initialStatus = (vehicle as any).auto_booking === true ? 'confirmed' : 'pending';

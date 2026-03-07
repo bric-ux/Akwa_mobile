@@ -16,6 +16,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
+import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
+import CardPaymentSuccessView from './CardPaymentSuccessView';
 import { useCurrency } from '../hooks/useCurrency';
 
 interface ModificationSurplusPaymentModalProps {
@@ -53,53 +55,61 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
 }) => {
   const navigation = useNavigation();
   const { currency, rates, formatPriceForPayment } = useCurrency();
+
+  // Ne jamais facturer plus que le surplus réel (nouveau total - ancien total)
+  const originalTotal = Number(originalTotalPrice) || 0;
+  const newTotal = Number(newTotalPrice) || 0;
+  const maxSurplus = Math.max(0, newTotal - originalTotal);
+  const amountToCharge = maxSurplus > 0 ? Math.min(Number(surplusAmount) || 0, maxSurplus) : (Number(surplusAmount) || 0);
   const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
   const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [pendingStripeReturn, setPendingStripeReturn] = useState(false);
+  /** True dès qu'on ouvre le navigateur Stripe → affiche "Paiement en attente". Le polling ne démarre qu'après retour (pendingStripeReturn). */
+  const [stripeCheckoutOpened, setStripeCheckoutOpened] = useState(false);
   const [lastPaymentStatus, setLastPaymentStatus] = useState<string | null>(null);
   const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
   const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
+  /** Session Stripe de cette tentative — permet de ne confirmer que le paiement de CETTE session (pas un ancien surplus) */
+  const [pendingStripeSessionId, setPendingStripeSessionId] = useState<string | null>(null);
 
   const formatPrice = (price: number) => formatPriceForPayment(price);
 
   const checkPaymentStatusFull = useCallback(async (): Promise<{ is_confirmed: boolean; payment_status?: string; error?: string }> => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      const { data, error } = await supabase.functions.invoke('check-payment-status', {
-        body: {
-          booking_id: bookingId,
-          booking_type: 'property',
-          payment_type: 'modification_surplus',
-        },
-        ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+      const result = await checkPaymentStatus({
+        booking_id: bookingId,
+        booking_type: 'property',
+        payment_type: 'modification_surplus',
+        stripe_session_id: pendingStripeSessionId ?? undefined,
       });
-      const ps = data?.payment_status != null ? String(data.payment_status) : 'pending';
-      setLastPaymentStatus(ps);
-      if (error) return { is_confirmed: false, payment_status: ps, error: error?.message };
-      return { is_confirmed: data?.is_confirmed === true, payment_status: ps };
+      setLastPaymentStatus(result.payment_status ?? 'pending');
+      if (result.error) return { is_confirmed: false, payment_status: result.payment_status, error: result.error };
+      return { is_confirmed: result.is_confirmed, payment_status: result.payment_status };
     } catch (e) {
       return { is_confirmed: false, error: e instanceof Error ? e.message : 'Erreur de vérification' };
     }
-  }, [bookingId]);
+  }, [bookingId, pendingStripeSessionId]);
 
   const resetPendingStripeState = useCallback(() => {
     setPendingStripeReturn(false);
+    setStripeCheckoutOpened(false);
     setPendingStripeStartedAt(null);
     setStripeTimeLeftSec(0);
     setLastPaymentStatus(null);
     setCheckingStripeStatus(false);
+    setPendingStripeSessionId(null);
   }, []);
 
   const verifyStripePaymentNow = useCallback(async () => {
-    if (!pendingStripeReturn || checkingStripeStatus) return;
+    if ((!pendingStripeReturn && !stripeCheckoutOpened) || checkingStripeStatus) return;
+    if (!pendingStripeSessionId) return;
     setCheckingStripeStatus(true);
     const result = await checkPaymentStatusFull();
     setCheckingStripeStatus(false);
-    if (result.is_confirmed) {
+    if (result.is_confirmed && pendingStripeSessionId) {
       resetPendingStripeState();
       setPaymentSuccess(true);
       setTimeout(() => {
@@ -109,7 +119,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     } else if (result.error) {
       Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
     }
-  }, [pendingStripeReturn, checkingStripeStatus, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
+  }, [pendingStripeReturn, stripeCheckoutOpened, pendingStripeSessionId, checkingStripeStatus, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
 
   const handleAbandonStripeOperation = useCallback(() => {
     Alert.alert(
@@ -122,14 +132,15 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     );
   }, [resetPendingStripeState, onClose]);
 
+  // Polling uniquement quand on a bien la session Stripe (pendingStripeSessionId) pour ne pas valider un ancien paiement
   useEffect(() => {
-    if (!visible || !pendingStripeReturn) return;
+    if (!visible || !stripeCheckoutOpened || !pendingStripeSessionId) return;
     let cancelled = false;
     const poll = async () => {
       const result = await checkPaymentStatusFull();
       if (cancelled) return;
-      if (result.is_confirmed) {
-        setPendingStripeReturn(false);
+      if (result.is_confirmed && pendingStripeSessionId) {
+        resetPendingStripeState();
         setPaymentSuccess(true);
         setTimeout(() => {
           onPaymentComplete();
@@ -143,10 +154,10 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
       cancelled = true;
       clearInterval(interval);
     };
-  }, [visible, pendingStripeReturn, checkPaymentStatusFull, onPaymentComplete, onClose]);
+  }, [visible, stripeCheckoutOpened, pendingStripeSessionId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
 
   useEffect(() => {
-    if (!pendingStripeReturn || !pendingStripeStartedAt) return;
+    if (!stripeCheckoutOpened || !pendingStripeStartedAt) return;
     const timer = setInterval(() => {
       const elapsed = Date.now() - pendingStripeStartedAt;
       const remainingMs = Math.max(0, STRIPE_PENDING_TIMEOUT_MS - elapsed);
@@ -159,12 +170,14 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [pendingStripeReturn, pendingStripeStartedAt, STRIPE_PENDING_TIMEOUT_MS, resetPendingStripeState, onClose]);
+  }, [stripeCheckoutOpened, pendingStripeStartedAt, STRIPE_PENDING_TIMEOUT_MS, resetPendingStripeState, onClose]);
 
+  // Au retour dans l'app, vérifier tout de suite (comme BookingModal)
   useEffect(() => {
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state === 'active' && pendingStripeReturn) {
+      if (state === 'active' && stripeCheckoutOpened) {
+        setPendingStripeReturn(true); // pour l'UI "Retour détecté"
         verifyStripePaymentNow();
         retryTimeout = setTimeout(verifyStripePaymentNow, 2000);
       }
@@ -173,12 +186,18 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
       if (retryTimeout) clearTimeout(retryTimeout);
       sub.remove();
     };
-  }, [pendingStripeReturn, verifyStripePaymentNow]);
+  }, [stripeCheckoutOpened, verifyStripePaymentNow]);
 
   const handlePaymentSuccessUrl = useCallback((url: string | null) => {
     if (!url || !url.includes('payment-success') || !bookingId) return;
-    const match = url.match(/booking_id=([^&]+)/);
-    if (match && decodeURIComponent(match[1]) === bookingId) setPendingStripeReturn(true);
+    const bookingMatch = url.match(/booking_id=([^&]+)/);
+    if (bookingMatch && decodeURIComponent(bookingMatch[1]) === bookingId) {
+      setPendingStripeReturn(true);
+      const sessionMatch = url.match(/session_id=([^&]+)/);
+      if (sessionMatch && sessionMatch[1] && !sessionMatch[1].startsWith('{')) {
+        setPendingStripeSessionId(decodeURIComponent(sessionMatch[1]));
+      }
+    }
   }, [bookingId]);
 
   useEffect(() => {
@@ -199,8 +218,10 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   useEffect(() => {
     if (!visible) {
       setPendingStripeReturn(false);
+      setStripeCheckoutOpened(false);
       setPendingStripeStartedAt(null);
       setLastPaymentStatus(null);
+      setPendingStripeSessionId(null);
     }
   }, [visible]);
 
@@ -218,7 +239,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     try {
       const body: Record<string, unknown> = {
         booking_id: bookingId,
-        amount: surplusAmount,
+        amount: amountToCharge,
         property_title: propertyTitle || 'Surplus modification',
         payment_type: 'modification_surplus',
         booking_type: 'property',
@@ -233,32 +254,25 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
         body.currency = 'usd';
         body.rate = rates.USD;
       }
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', { body });
-      if (error) throw error;
-      if (data?.url) {
-        setPendingStripeStartedAt(Date.now());
-        setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
-        setPendingStripeReturn(true);
-        Linking.openURL(data.url);
-        return;
-      }
-      throw new Error(data?.error || 'Impossible d\'ouvrir la page de paiement');
-    } catch (e: any) {
-      Alert.alert('Erreur', e?.message || 'Impossible d\'ouvrir le paiement Stripe');
+      const result = await createCheckoutSession(body);
+      setPendingStripeSessionId(result.session_id ?? null);
+      setPendingStripeStartedAt(Date.now());
+      setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
+      setStripeCheckoutOpened(true);
+      Linking.openURL(result.url);
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement Stripe');
     } finally {
       setLoading(false);
     }
-  }, [bookingId, surplusAmount, propertyTitle, currency, rates.EUR, rates.USD]);
+  }, [bookingId, amountToCharge, propertyTitle, currency, rates.EUR, rates.USD]);
 
   const handlePayment = async () => {
     if (!validatePaymentInfo()) return;
 
     if (paymentMethod === 'card') {
-      if (currency === 'XOF' && rates.EUR) {
-        await runStripeCheckoutSurplus(true);
-      } else {
-        await runStripeCheckoutSurplus(false);
-      }
+      // En CFA (XOF) : on envoie pas currency/rate → Stripe débite en FCFA. En EUR : on envoie eur + rate.
+      await runStripeCheckoutSurplus(currency === 'EUR');
       return;
     }
 
@@ -280,7 +294,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
       const paymentProvider = getPaymentProvider(paymentMethod);
       const paymentData: any = {
         booking_id: bookingId,
-        amount: surplusAmount,
+        amount: amountToCharge,
         payment_method: paymentMethod,
         payment_provider: paymentProvider,
       };
@@ -305,7 +319,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
             to: 'contact@akwahome.com', // Email admin pour suivi
             data: {
               bookingId,
-              surplusAmount,
+              surplusAmount: amountToCharge,
               paymentMethod,
               phoneNumber: null,
               propertyTitle: propertyTitle || 'N/A',
@@ -339,19 +353,14 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     return (
       <Modal visible={visible} transparent animationType="fade">
         <View style={styles.overlay}>
-          <View style={styles.successContainer}>
-            <Ionicons name="checkmark-circle" size={64} color="#10b981" />
-            <Text style={styles.successTitle}>Paiement effectué</Text>
-            <Text style={styles.successText}>
-              Le surplus de {formatPrice(surplusAmount)} a été enregistré.
-            </Text>
-          </View>
+          <CardPaymentSuccessView subtitle={`Le surplus de ${formatPrice(amountToCharge)} a été enregistré.`} />
         </View>
       </Modal>
     );
   }
 
-  if (pendingStripeReturn) {
+  const showPendingStripeUI = stripeCheckoutOpened || pendingStripeReturn;
+  if (showPendingStripeUI) {
     return (
       <Modal visible={visible} transparent animationType="fade">
         <View style={styles.overlay}>
@@ -360,29 +369,22 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
             <View style={styles.stripePendingBox}>
               <ActivityIndicator size="small" color="#2563eb" />
               <Text style={styles.stripePendingText}>
-                Finalisez le paiement sur Stripe. Revenez ici après avoir payé ; la demande de modification ne sera envoyée à l'hôte qu'une fois le paiement confirmé.
-                {currency !== 'EUR' && currency !== 'USD' ? ' Le montant a été converti pour le paiement par carte.' : ''}
+                {pendingStripeReturn
+                  ? 'Retour détecté. Vérification du paiement en cours…'
+                  : 'Finalisez le paiement dans le navigateur, puis revenez ici. La demande de modification ne sera envoyée qu\'après confirmation du paiement.'}
+                {!pendingStripeReturn && currency !== 'EUR' && currency !== 'USD' ? ' Le montant a été converti pour le paiement par carte.' : ''}
               </Text>
               {lastPaymentStatus != null && (
                 <Text style={styles.stripeStatusText}>
                   Statut : paiement {lastPaymentStatus}
                 </Text>
               )}
-              <Text style={styles.stripePendingCountdown}>
-                Expiration dans {Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:{String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}
-              </Text>
+              {(stripeCheckoutOpened || pendingStripeReturn) && pendingStripeStartedAt != null && (
+                <Text style={styles.stripePendingCountdown}>
+                  Expiration dans {Math.max(0, Math.floor(stripeTimeLeftSec / 60))}:{String(Math.max(0, stripeTimeLeftSec % 60)).padStart(2, '0')}
+                </Text>
+              )}
               <View style={styles.stripePendingActions}>
-                <TouchableOpacity
-                  style={[styles.stripeActionButton, styles.stripeActionPrimary]}
-                  onPress={verifyStripePaymentNow}
-                  disabled={checkingStripeStatus}
-                >
-                  {checkingStripeStatus ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.stripeActionPrimaryText}>Vérifier le paiement</Text>
-                  )}
-                </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.stripeActionButton, styles.stripeActionDanger]}
                   onPress={handleAbandonStripeOperation}
@@ -426,12 +428,10 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               ) : null}
               <Text style={styles.amountLabel}>Montant à payer</Text>
               <Text style={styles.amountValue}>
-                {paymentMethod === 'card' && currency === 'XOF' && rates.EUR
-                  ? `~${(surplusAmount / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${surplusAmount.toLocaleString('fr-FR')} FCFA)`
-                  : formatPrice(surplusAmount)}
+                {formatPrice(amountToCharge)}
               </Text>
               <Text style={styles.amountNote}>
-                Ce montant correspond au surplus de votre modification de réservation.
+                Ce montant correspond au surplus de votre modification (différence entre nouveau et ancien total).
               </Text>
             </View>
 
@@ -502,22 +502,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                   styles.paymentMethod,
                   paymentMethod === 'card' && styles.paymentMethodSelected,
                 ]}
-                onPress={() => {
-                  if (currency === 'XOF' && rates.EUR) {
-                    const eurAmount = surplusAmount / rates.EUR;
-                    const eurText = eurAmount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    Alert.alert(
-                      'Carte bancaire - Paiement en euros',
-                      `La carte bancaire est disponible uniquement pour le paiement en euros.\n\nSouhaitez-vous effectuer le paiement en euros ? Si oui, le montant sera converti et débité en euros : ~${eurText} € (équivalent de ${surplusAmount.toLocaleString('fr-FR')} FCFA).`,
-                      [
-                        { text: 'Non', style: 'cancel' },
-                        { text: 'Oui, payer en euros', onPress: () => setPaymentMethod('card') },
-                      ]
-                    );
-                    return;
-                  }
-                  setPaymentMethod('card');
-                }}
+                onPress={() => setPaymentMethod('card')}
               >
                 <Ionicons name="card" size={24} color={paymentMethod === 'card' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'card' && styles.paymentMethodTextSelected]}>
@@ -626,9 +611,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                 <View style={[styles.priceDetailRow, styles.surplusRow]}>
                   <Text style={styles.surplusLabel}>Surplus total à payer:</Text>
                   <Text style={styles.surplusValue}>
-                    {paymentMethod === 'card' && currency === 'XOF' && rates.EUR
-                      ? `~${(surplusAmount / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${surplusAmount.toLocaleString('fr-FR')} FCFA)`
-                      : formatPrice(surplusAmount)}
+                    {formatPrice(amountToCharge)}
                   </Text>
                 </View>
               </View>
@@ -653,9 +636,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               ) : (
                 <>
                   <Text style={styles.payButtonText}>
-                    Payer {paymentMethod === 'card' && currency === 'XOF' && rates.EUR
-                      ? `~${(surplusAmount / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-                      : formatPrice(surplusAmount)}
+                    Payer {formatPrice(amountToCharge)}
                   </Text>
                   <Ionicons name="arrow-forward" size={20} color="#fff" />
                 </>
@@ -875,25 +856,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  successContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 40,
-    alignItems: 'center',
-    margin: 20,
-  },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  successText: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
   pendingContainer: {
     backgroundColor: '#fff',
     borderRadius: 20,
@@ -950,6 +912,9 @@ const styles = StyleSheet.create({
   },
   stripeActionPrimary: {
     backgroundColor: '#2563eb',
+  },
+  stripeActionDisabled: {
+    opacity: 0.6,
   },
   stripeActionPrimaryText: {
     color: '#fff',
