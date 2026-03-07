@@ -585,6 +585,7 @@ export const useVehicleBookingModifications = () => {
           original_total: request.booking.original_total,
           with_driver: request.booking.with_driver,
           payment_currency: (request.booking as any).payment_currency,
+          payment_method: (request.booking as any).payment_method,
         },
         {
           price_per_day: vehicle?.price_per_day || 0,

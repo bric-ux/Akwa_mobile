@@ -370,8 +370,9 @@ export const useBookings = () => {
       // Stocker tous les détails de calcul dans booking_calculation_details
       // Cela évite tous les recalculs dans les emails, PDFs et affichages
       try {
-        // Calculer les frais de service (12% ou 14% si EUR pour propriétés)
+        const { getCommissionRates } = await import('../lib/commissions');
         const { calculateFees } = await import('./usePricing');
+        const commissionRates = getCommissionRates('property', bookingCurrency, isCardPayment);
         const fees = calculateFees(
           hostNetAmountResult.priceAfterDiscount,
           nights,
@@ -381,7 +382,8 @@ export const useBookings = () => {
             taxes: propertyData.taxes || 0,
             free_cleaning_min_days: propertyData.free_cleaning_min_days || null
           },
-          bookingCurrency
+          bookingCurrency,
+          isCardPayment
         );
 
         const calculationDetails = {
@@ -434,8 +436,8 @@ export const useBookings = () => {
             freeCleaningMinDays: propertyData.free_cleaning_min_days || null,
             status: initialStatus,
             commissionRates: {
-              travelerFeePercent: bookingCurrency === 'EUR' ? 14 : 12,
-              hostFeePercent: 2
+              travelerFeePercent: commissionRates.travelerFeePercent,
+              hostFeePercent: commissionRates.hostFeePercent
             },
             paymentCurrency: bookingData.paymentCurrency || 'XOF',
             paymentRate: bookingData.paymentRate || null,

@@ -4,14 +4,12 @@
  * Règles de tarification:
  * 
  * Résidences meublées (Properties):
- * - Commission totale Akwahome: 14%
- *   - 12% frais de service facturés au voyageur
- *   - 2% prélevés sur le gain de l'hôte
- * 
+ * - 13% frais de service voyageur quand paiement par carte (CB), 12% sinon
+ * - 2% prélevés sur le gain de l'hôte
+ *
  * Location de véhicules:
- * - Commission totale Akwahome: 12%
- *   - 10% frais de service facturés au locataire
- *   - 2% prélevés sur le gain du propriétaire
+ * - 11% frais de service quand paiement par carte (CB), 10% pour les autres
+ * - 2% prélevés sur le gain du propriétaire
  * 
  * ORDRE DE CALCUL:
  * 1. Prix de base × nombre de nuits/jours
@@ -27,37 +25,34 @@ export interface CommissionRates {
   totalAkwahomePercent: number; // Total commission Akwahome
 }
 
-/** Devise optionnelle : quand EUR, commissions spécifiques (14% voyageur résidence, 12% locataire véhicule) */
+/** Devise optionnelle (XOF | EUR) */
 export type CurrencyCode = 'XOF' | 'EUR' | 'USD';
 
 /**
- * Retourne les taux de commission selon le type de service et la devise (si EUR).
- * Quand la devise euro est sélectionnée :
- * - Résidence meublée : 14% frais de service pour le voyageur (au lieu de 12%)
- * - Location de véhicule : 12% frais de service pour le locataire (au lieu de 10%)
+ * Retourne les taux de commission selon le type de service et le moyen de paiement.
+ * - Résidence meublée : 13% quand CB sélectionnée, 12% sinon
+ * - Location de véhicule : 11% quand CB, 10% pour les autres
  */
 export function getCommissionRates(
   serviceType: ServiceType,
   currency?: CurrencyCode,
   isCardPayment?: boolean
 ): CommissionRates {
-  const isEur = currency === 'EUR';
-  const cardSurcharge = isCardPayment && isEur ? 2 : 0;
   if (serviceType === 'property') {
-    const base = isEur ? 14 : 12;
+    const travelerPercent = isCardPayment ? 13 : 12;
     return {
-      travelerFeePercent: base + cardSurcharge,
+      travelerFeePercent: travelerPercent,
       hostFeePercent: 2,
-      totalAkwahomePercent: (isEur ? 16 : 14) + cardSurcharge
-    };
-  } else {
-    const base = isEur ? 12 : 10;
-    return {
-      travelerFeePercent: base + cardSurcharge,
-      hostFeePercent: 2,
-      totalAkwahomePercent: (isEur ? 14 : 12) + cardSurcharge
+      totalAkwahomePercent: travelerPercent + 2
     };
   }
+  // Véhicule : 11% si CB, 10% sinon
+  const travelerPercent = isCardPayment ? 11 : 10;
+  return {
+    travelerFeePercent: travelerPercent,
+    hostFeePercent: 2,
+    totalAkwahomePercent: travelerPercent + 2
+  };
 }
 
 

@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../services/supabase';
+import { getCommissionRates } from './commissions';
 import { calculateFees, calculateHostCommission } from '../hooks/usePricing';
 import { calculateHostNetAmount } from './hostNetAmount';
 import { calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
@@ -139,7 +140,7 @@ export async function updatePropertyBookingCalculationDetails(
         freeCleaningMinDays: propertyData.free_cleaning_min_days || null,
         status: status,
         commissionRates: {
-          travelerFeePercent: 12,
+          travelerFeePercent: 12, // 13 si CB (contexte mise à jour : défaut 12)
           hostFeePercent: 2
         },
         calculatedAt: new Date().toISOString()
@@ -203,6 +204,7 @@ export async function updateVehicleBookingCalculationDetails(
     original_total?: number | null;
     with_driver?: boolean;
     payment_currency?: 'XOF' | 'EUR' | 'USD';
+    payment_method?: string;
   },
   vehicleData: {
     price_per_day: number;
@@ -346,9 +348,9 @@ export async function updateVehicleBookingCalculationDetails(
       : 0;
     const basePriceWithDriver = basePrice + driverFee;
     const currency = bookingData.payment_currency;
-    
-    // Calculer les frais de service (12% si EUR pour véhicule)
-    const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours : rentalDays, 'vehicle', undefined, currency);
+    const isCardPayment = bookingData.payment_method === 'card';
+    const vehicleRates = getCommissionRates('vehicle', currency, isCardPayment);
+    const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours : rentalDays, 'vehicle', undefined, currency, isCardPayment);
     
     // Calculer la commission propriétaire
     const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle', currency);
@@ -402,14 +404,14 @@ export async function updateVehicleBookingCalculationDetails(
         driverFee: driverFee,
         securityDeposit: vehicleData.security_deposit ?? 0,
         commissionRates: {
-          travelerFeePercent: 10,
+          travelerFeePercent: vehicleRates.travelerFeePercent,
           hostFeePercent: 2
         },
         calculatedAt: new Date().toISOString()
       },
       updated_at: new Date().toISOString()
     };
-    
+
     // Vérifier si un enregistrement existe déjà
     const { data: existing } = await supabase
       .from('booking_calculation_details')

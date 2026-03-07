@@ -449,7 +449,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               >
                 <Ionicons name="wallet" size={24} color={paymentMethod === 'wave' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'wave' && styles.paymentMethodTextSelected]}>
-                  Wave
+                  Wave • Recommandé
                 </Text>
                 {paymentMethod === 'wave' && (
                   <Ionicons name="checkmark-circle" size={20} color="#e67e22" />
@@ -462,7 +462,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                 onPress={() => Alert.alert('Bientot disponible', 'Orange Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
               >
                 <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'orange_money' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'orange_money' && styles.paymentMethodTextSelected]}>Orange Money</Text>
+                <Text style={[styles.paymentMethodText, paymentMethod === 'orange_money' && styles.paymentMethodTextSelected]}>Orange Money • Recommandé</Text>
                 {paymentMethod === 'orange_money' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
               </TouchableOpacity>
 
@@ -482,7 +482,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                 onPress={() => Alert.alert('Bientot disponible', 'Moov Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
               >
                 <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'moov_money' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'moov_money' && styles.paymentMethodTextSelected]}>Moov Money</Text>
+                <Text style={[styles.paymentMethodText, paymentMethod === 'moov_money' && styles.paymentMethodTextSelected]}>Moov Money • Recommandé</Text>
                 {paymentMethod === 'moov_money' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
               </TouchableOpacity>
 
@@ -492,7 +492,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                 onPress={() => Alert.alert('Bientot disponible', 'PayPal sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
               >
                 <Ionicons name="logo-paypal" size={24} color={paymentMethod === 'paypal' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'paypal' && styles.paymentMethodTextSelected]}>PayPal</Text>
+                <Text style={[styles.paymentMethodText, paymentMethod === 'paypal' && styles.paymentMethodTextSelected]}>PayPal • Recommandé</Text>
                 {paymentMethod === 'paypal' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
               </TouchableOpacity>
 
@@ -538,7 +538,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
               >
                 <Ionicons name="cash" size={24} color={paymentMethod === 'cash' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'cash' && styles.paymentMethodTextSelected]}>
-                  Espèces (à l'arrivée)
+                  Espèces (à l'arrivée) • Recommandé
                 </Text>
                 {paymentMethod === 'cash' && (
                   <Ionicons name="checkmark-circle" size={20} color="#e67e22" />

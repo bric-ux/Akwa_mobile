@@ -443,7 +443,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       }
     });
     
-    const isCardPayment = currency === 'EUR' && selectedPaymentMethod === 'card';
+    const isCardPayment = selectedPaymentMethod === 'card';
     const pricing = calculateFinalPrice(basePrice, nights, discountConfig, {
       cleaning_fee: property.cleaning_fee,
       service_fee: property.service_fee,
@@ -1336,37 +1336,37 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   {selectedPaymentMethod === 'orange_money' && (
                     <>
                       <Ionicons name="phone-portrait" size={24} color="#f97316" />
-                      <Text style={styles.paymentMethodSelectorText}>Orange Money</Text>
+                      <Text style={styles.paymentMethodSelectorText}>Orange Money • Recommandé</Text>
                     </>
                   )}
                   {selectedPaymentMethod === 'mtn_money' && (
                     <>
                       <Ionicons name="phone-portrait" size={24} color="#eab308" />
-                      <Text style={styles.paymentMethodSelectorText}>MTN Money</Text>
+                      <Text style={styles.paymentMethodSelectorText}>MTN Money • Recommandé</Text>
                     </>
                   )}
                   {selectedPaymentMethod === 'moov_money' && (
                     <>
                       <Ionicons name="phone-portrait" size={24} color="#3b82f6" />
-                      <Text style={styles.paymentMethodSelectorText}>Moov Money</Text>
+                      <Text style={styles.paymentMethodSelectorText}>Moov Money • Recommandé</Text>
                     </>
                   )}
                   {selectedPaymentMethod === 'wave' && (
                     <>
                       <Ionicons name="phone-portrait" size={24} color="#8b5cf6" />
-                      <Text style={styles.paymentMethodSelectorText}>Wave</Text>
+                      <Text style={styles.paymentMethodSelectorText}>Wave • Recommandé</Text>
                     </>
                   )}
                   {selectedPaymentMethod === 'paypal' && (
                     <>
                       <Ionicons name="globe" size={24} color="#0070ba" />
-                      <Text style={styles.paymentMethodSelectorText}>PayPal</Text>
+                      <Text style={styles.paymentMethodSelectorText}>PayPal • Recommandé</Text>
                     </>
                   )}
                   {selectedPaymentMethod === 'cash' && (
                     <>
                       <Ionicons name="cash" size={24} color="#6b7280" />
-                      <Text style={styles.paymentMethodSelectorText}>Espèces</Text>
+                      <Text style={styles.paymentMethodSelectorText}>Espèces • Recommandé</Text>
                     </>
                   )}
                 </View>
@@ -1454,15 +1454,19 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   </View>
                 )}
                 
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>{t('booking.serviceFee')}</Text>
-                  <Text style={styles.priceValue}>{formatPayment(fees.serviceFee ?? 0)}</Text>
-                </View>
+                {(fees.serviceFee ?? 0) > 0 && (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>{t('booking.serviceFee')}</Text>
+                    <Text style={styles.priceValue}>{formatPayment(fees.serviceFee ?? 0)}</Text>
+                  </View>
+                )}
                 
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>{t('booking.taxes')}</Text>
-                  <Text style={styles.priceValue}>{formatPayment(fees.taxes ?? 0)}</Text>
-                </View>
+                {(fees.taxes ?? 0) > 0 && (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>{t('booking.taxes')}</Text>
+                    <Text style={styles.priceValue}>{formatPayment(fees.taxes ?? 0)}</Text>
+                  </View>
+                )}
                 
                 {voucherDiscount?.valid && (voucherDiscount.discountPercentage || voucherDiscount.discountAmount) && (
                   <View style={styles.priceRow}>
@@ -1746,7 +1750,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={styles.paymentMethodContent}>
                   <Ionicons name="globe" size={24} color="#0070ba" />
                   <View style={styles.paymentMethodInfo}>
-                    <Text style={styles.paymentMethodTitle}>PayPal</Text>
+                    <View style={styles.paypalHeader}>
+                      <Text style={styles.paymentMethodTitle}>PayPal</Text>
+                      <View style={styles.recommendedBadge}>
+                        <Ionicons name="star" size={10} color="#FFD700" />
+                        <Text style={styles.recommendedText}>Recommandé</Text>
+                      </View>
+                    </View>
                     <Text style={styles.paymentMethodDescription}>
                       Paiement sécurisé via PayPal
                     </Text>
@@ -1777,7 +1787,13 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 <View style={styles.paymentMethodContent}>
                   <Ionicons name="cash" size={24} color="#6b7280" />
                   <View style={styles.paymentMethodInfo}>
-                    <Text style={styles.paymentMethodTitle}>Espèces</Text>
+                    <View style={styles.paypalHeader}>
+                      <Text style={styles.paymentMethodTitle}>Espèces</Text>
+                      <View style={styles.recommendedBadge}>
+                        <Ionicons name="star" size={10} color="#FFD700" />
+                        <Text style={styles.recommendedText}>Recommandé</Text>
+                      </View>
+                    </View>
                     <Text style={styles.paymentMethodDescription}>
                       {t('booking.payFullOnArrival')} ({formatPayment(finalTotal)})
                     </Text>

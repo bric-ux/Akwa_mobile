@@ -301,7 +301,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
   }
 
   const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed';
-  const commissionRates = getCommissionRates('vehicle');
+  const commissionRates = getCommissionRates('vehicle', undefined, booking.payment_method === 'card');
   
   // Calculer le prix en tenant compte des heures
   const rentalDays = booking.rental_days || 0;

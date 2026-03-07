@@ -552,7 +552,7 @@ const VehicleBookingScreen: React.FC = () => {
   const driverFee = (withDriver && useDriver === true && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
   const basePriceWithDriver = basePrice + driverFee;
   
-  // Frais de service : 10% ou 12% si EUR ; +2% si paiement par carte (EUR ou FCFA converti en EUR)
+  // Frais de service véhicule : 11% si CB, 10% pour les autres (CB proposée seulement en XOF/EUR)
   const isCardPayment = (currency === 'EUR' || currency === 'XOF') && selectedPaymentMethod === 'card';
   const fees = calculateFees(basePriceWithDriver, rentalDays, 'vehicle', undefined, currency, isCardPayment);
   const totalPrice = basePriceWithDriver + fees.serviceFee;
@@ -1438,7 +1438,7 @@ const VehicleBookingScreen: React.FC = () => {
               >
                 <Ionicons name={method.icon as any} size={24} color={selectedPaymentMethod === method.value ? '#2E7D32' : '#666'} />
                 <Text style={[styles.paymentMethodOptionText, selectedPaymentMethod === method.value && styles.paymentMethodOptionTextSelected]}>
-                  {method.label}
+                  {method.label}{method.value !== 'card' ? ' • Recommandé' : ''}
                 </Text>
                 {selectedPaymentMethod === method.value && <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />}
               </TouchableOpacity>

@@ -142,7 +142,7 @@ export function calculateFees(
   const isFreeCleaningApplicable = propertyFees?.free_cleaning_min_days && nights >= propertyFees.free_cleaning_min_days;
   const cleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
   
-  // Frais de service : 12% (14% si EUR) ; +2% si paiement par carte (EUR uniquement)
+  // Frais de service : résidence 13% si CB / 12% sinon ; véhicule 11%
   const commissionRates = getCommissionRates(serviceType, currency, isCardPayment);
   const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
   // TVA de 20% sur les frais de service

@@ -16,6 +16,7 @@ import { VehicleBooking } from '../types';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import VehicleDateTimePickerModal from './VehicleDateTimePickerModal';
 import { formatPrice } from '../utils/priceCalculator';
+import { getCommissionRates } from '../lib/commissions';
 import { calculateVehiclePriceWithHours, calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
 import VehicleModificationSurplusPaymentModal from './VehicleModificationSurplusPaymentModal';
 import { supabase } from '../services/supabase';
@@ -260,9 +261,8 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const hoursPrice = currentHoursPrice + additionalHoursPrice;
   const totalBeforeDiscount = daysPrice + hoursPrice;
   
-  // Calculer les frais de service avec TVA (10% + 20% TVA = 12% total)
-  // IMPORTANT : Les frais de service sont calculés sur basePriceWithDriver (inclut le chauffeur)
-  const commissionRates = { travelerFeePercent: 10, hostFeePercent: 2 };
+  // Frais de service : 11% si CB, 10% sinon (sur basePriceWithDriver, inclut chauffeur)
+  const commissionRates = getCommissionRates('vehicle', undefined, booking.payment_method === 'card');
   const serviceFeeHT = Math.round(basePriceWithDriver * (commissionRates.travelerFeePercent / 100));
   const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
   const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;

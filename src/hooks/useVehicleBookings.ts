@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { VehicleBooking, VehicleBookingStatus } from '../types';
 import { useIdentityVerification } from './useIdentityVerification';
+import { getCommissionRates } from '../lib/commissions';
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
 import { useCurrency } from './useCurrency';
 
@@ -336,19 +337,19 @@ export const useVehicleBookings = () => {
       
       const basePriceWithDriver = basePrice + driverFee;
       
-      // Calculer les frais de service (10% + TVA du prix après réduction pour les véhicules)
+      // Calculer les frais de service (11% + TVA pour les véhicules)
       const vehicleCurrency = (bookingData.paymentCurrency || currency) as 'XOF' | 'EUR' | 'USD';
-      const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours! : rentalDays, 'vehicle', undefined, vehicleCurrency);
+      const isCardPayment = bookingData.paymentMethod === 'card';
+      const commissionRates = getCommissionRates('vehicle', vehicleCurrency, isCardPayment);
+      const fees = calculateFees(basePriceWithDriver, rentalType === 'hourly' ? rentalHours! : rentalDays, 'vehicle', undefined, vehicleCurrency, isCardPayment);
       const totalPrice = basePriceWithDriver + fees.serviceFee; // Total avec frais de service
       
       // Calculer le revenu net du propriétaire (prix avec chauffeur - commission)
-      // IMPORTANT: La commission est calculée sur basePriceWithDriver (inclut le chauffeur) ; 12% si EUR pour véhicule
       const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle', vehicleCurrency);
       // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
       const hostNetAmount = basePriceWithDriver - hostCommissionData.hostCommission;
       
       // Paiement carte : ne rien créer en base avant paiement (flux draft comme résidence).
-      const isCardPayment = bookingData.paymentMethod === 'card';
 
       const bookingInsert: any = {
         vehicle_id: bookingData.vehicleId,
@@ -431,7 +432,7 @@ export const useVehicleBookings = () => {
             withDriver: bookingData.useDriver === true,
             driverFee,
             securityDeposit: vehicle.security_deposit ?? 0,
-            commissionRates: { travelerFeePercent: 10, hostFeePercent: 2 },
+            commissionRates: { travelerFeePercent: commissionRates.travelerFeePercent, hostFeePercent: 2 },
             paymentCurrency: bookingData.paymentCurrency || currency || 'XOF',
             paymentRate: bookingData.paymentRate ?? null,
             calculatedAt: new Date().toISOString(),
@@ -563,8 +564,8 @@ export const useVehicleBookings = () => {
             driverFee: driverFee,
             securityDeposit: vehicle.security_deposit ?? 0,
             commissionRates: {
-              travelerFeePercent: 10, // 10% HT pour véhicules
-              hostFeePercent: 2 // 2% HT pour véhicules
+              travelerFeePercent: commissionRates.travelerFeePercent,
+              hostFeePercent: 2
             },
             paymentCurrency: bookingData.paymentCurrency || currency || 'XOF',
             paymentRate: bookingData.paymentRate || (bookingData.paymentCurrency === 'EUR' ? rates.EUR : bookingData.paymentCurrency === 'USD' ? rates.USD : null),
