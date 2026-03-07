@@ -17,10 +17,9 @@ import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifi
 import VehicleDateTimePickerModal from './VehicleDateTimePickerModal';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { getCommissionRates } from '../lib/commissions';
-import { calculateVehiclePriceWithHours, calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
+import { calculateVehiclePriceWithHours, calculateTotalPrice, calculateHostCommission, type DiscountConfig } from '../hooks/usePricing';
 import VehicleModificationSurplusPaymentModal from './VehicleModificationSurplusPaymentModal';
 import { supabase } from '../services/supabase';
-import { checkPaymentStatus } from '../services/cardPaymentService';
 
 interface VehicleModificationModalProps {
   visible: boolean;
@@ -45,6 +44,8 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pendingModificationData, setPendingModificationData] = useState<any>(null);
+  /** Payload snake_case pour le draft surplus (création demande par le webhook après paiement carte). */
+  const [pendingRequestPayload, setPendingRequestPayload] = useState<Record<string, unknown> | null>(null);
   const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [surplusBreakdown, setSurplusBreakdown] = useState<{
     daysPriceDiff?: number;
@@ -416,6 +417,32 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 
     // Si le surplus est positif, afficher le modal de paiement
     if (priceDifference > 0) {
+      const surplusBasePrice = Math.round(priceDifference / 1.12);
+      const surplusHostCommissionData = surplusBasePrice > 0 ? calculateHostCommission(surplusBasePrice, 'vehicle') : { hostCommission: 0 };
+      const surplusNetOwner = surplusBasePrice - surplusHostCommissionData.hostCommission;
+      const requestPayload: Record<string, unknown> = {
+        booking_id: booking.id,
+        renter_id: booking.renter_id,
+        owner_id: booking.vehicle?.owner_id ?? '',
+        original_start_date: booking.start_date,
+        original_end_date: booking.end_date,
+        original_rental_days: booking.rental_days ?? 0,
+        original_total_price: booking.total_price ?? 0,
+        requested_start_date: startDate,
+        requested_end_date: endDate,
+        requested_rental_days: rentalDays,
+        requested_total_price: totalPrice,
+        surplus_amount: priceDifference,
+        surplus_net_owner: surplusNetOwner,
+        renter_message: message.trim() || null,
+      };
+      if (booking.start_datetime) requestPayload.original_start_datetime = booking.start_datetime;
+      if (booking.end_datetime) requestPayload.original_end_datetime = booking.end_datetime;
+      if ((booking.rental_hours ?? 0) > 0) requestPayload.original_rental_hours = booking.rental_hours;
+      if (startDateTime) requestPayload.requested_start_datetime = startDateTime;
+      if (endDateTime) requestPayload.requested_end_datetime = endDateTime;
+      if ((remainingHours ?? 0) > 0) requestPayload.requested_rental_hours = remainingHours;
+      setPendingRequestPayload(requestPayload);
       setPendingModificationData(modificationData);
       setShowPaymentModal(true);
     } else {
@@ -439,36 +466,31 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
     }
   };
 
-  const handlePaymentComplete = async () => {
+  const handlePaymentComplete = async (stripeSessionId?: string) => {
+    console.log('[DEBUG][VehicleModificationModal] handlePaymentComplete appelé. stripeSessionId:', stripeSessionId ? `${stripeSessionId.substring(0, 24)}...` : 'undefined', 'pendingModificationData:', !!pendingModificationData);
     if (!pendingModificationData) return;
 
-    // Vérifier que le paiement surplus est bien confirmé (webhook) avant de créer la demande
-    try {
-      const checkResult = await checkPaymentStatus({
-        booking_id: pendingModificationData.bookingId,
-        booking_type: 'vehicle',
-        payment_type: 'vehicle_modification_surplus',
-      });
-      if (!checkResult.is_confirmed) {
-        Alert.alert(
-          'Paiement non confirmé',
-          'Le paiement du surplus n\'a pas encore été enregistré. Revenez après avoir terminé le paiement ou réessayez.'
-        );
-        return;
-      }
-    } catch (e) {
-      Alert.alert('Erreur', 'Impossible de vérifier le paiement. Réessayez.');
+    if (stripeSessionId) {
+      console.log('[DEBUG][VehicleModificationModal] → Carte: succès + onModified + onClose');
+      // Carte : la demande a été créée par le webhook après paiement
+      setSurplusBreakdown(null);
+      setPendingModificationData(null);
+      setPendingRequestPayload(null);
+      Alert.alert('Succès', 'La demande de modification a été soumise avec succès');
+      onModified();
+      onClose();
       return;
     }
 
+    console.log('[DEBUG][VehicleModificationModal] → Cash: modifyBooking');
+    // Cash : créer la demande après confirmation du paiement cash
     setSurplusBreakdown(null);
-
     setIsSubmitting(true);
     try {
       const result = await modifyBooking(pendingModificationData);
-
       if (result.success) {
         setPendingModificationData(null);
+        setPendingRequestPayload(null);
         Alert.alert('Succès', 'La demande de modification a été soumise avec succès');
         onModified();
         onClose();
@@ -726,11 +748,13 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
         onClose={() => {
           setShowPaymentModal(false);
           setPendingModificationData(null);
+          setPendingRequestPayload(null);
           setSurplusBreakdown(null);
         }}
         surplusAmount={totalPrice > currentTotalPrice ? totalPrice - currentTotalPrice : 0}
         bookingId={booking.id}
         onPaymentComplete={handlePaymentComplete}
+        modificationRequestPayload={pendingRequestPayload ?? undefined}
         vehicleTitle={vehicle?.title || `${vehicle?.brand} ${vehicle?.model}`}
         vehicleId={vehicle?.id}
         originalTotalPrice={currentTotalPrice}

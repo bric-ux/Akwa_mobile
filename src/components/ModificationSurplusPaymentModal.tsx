@@ -1,4 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+/**
+ * Paiement du surplus de modification de réservation (logement).
+ * Flux carte 100 % autonome : create-checkout-session → Stripe → retour app → vérif par session_id.
+ * Aucun partage avec StripeReturnHandler (qui ne gère que la réservation initiale avec checkout_token).
+ */
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,7 +30,10 @@ interface ModificationSurplusPaymentModalProps {
   onClose: () => void;
   surplusAmount: number;
   bookingId: string;
-  onPaymentComplete: () => void;
+  /** Appelé après confirmation du paiement. Pour carte : passer le stripe_session_id (demande déjà créée par le webhook). Pour cash : pas d'argument (le parent crée la demande). */
+  onPaymentComplete: (stripeSessionId?: string) => void;
+  /** Payload complet pour créer la demande côté backend (draft). Envoyé à create-checkout-session pour que le webhook crée la demande après paiement. */
+  modificationRequestPayload?: Record<string, unknown>;
   propertyTitle?: string;
   propertyId?: string;
   originalTotalPrice?: number;
@@ -47,6 +55,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   surplusAmount,
   bookingId,
   onPaymentComplete,
+  modificationRequestPayload,
   propertyTitle,
   propertyId,
   originalTotalPrice,
@@ -75,20 +84,35 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   /** Session Stripe de cette tentative — permet de ne confirmer que le paiement de CETTE session (pas un ancien surplus) */
   const [pendingStripeSessionId, setPendingStripeSessionId] = useState<string | null>(null);
 
+  /** Refs pour que le retour à l'app (sans clic sur "Ouvrir") déclenche quand même la vérification avec les bons ids */
+  const sessionIdRef = useRef<string | null>(null);
+  const bookingIdRef = useRef<string | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const checkingRef = useRef(false);
+
   const formatPrice = (price: number) => formatPriceForPayment(price);
 
-  const checkPaymentStatusFull = useCallback(async (): Promise<{ is_confirmed: boolean; payment_status?: string; error?: string }> => {
+  const checkPaymentStatusFull = useCallback(async (sid?: string | null, bid?: string | null): Promise<{ is_confirmed: boolean; payment_status?: string; error?: string }> => {
+    const sessionId = sid ?? pendingStripeSessionId ?? sessionIdRef.current;
+    const bookId = bid ?? bookingId;
+    if (!sessionId || !bookId) {
+      console.log('[DEBUG][ModificationSurplusModal] checkPaymentStatusFull: skip, sessionId ou bookId manquant. sid:', !!sid, 'bid:', !!bid);
+      return { is_confirmed: false, error: 'Session ou réservation manquante' };
+    }
+    console.log('[DEBUG][ModificationSurplusModal] checkPaymentStatusFull: appel API booking_id=', bookId, 'stripe_session_id=', sessionId.substring(0, 24) + '...');
     try {
       const result = await checkPaymentStatus({
-        booking_id: bookingId,
+        booking_id: bookId,
         booking_type: 'property',
         payment_type: 'modification_surplus',
-        stripe_session_id: pendingStripeSessionId ?? undefined,
+        stripe_session_id: sessionId,
       });
+      console.log('[DEBUG][ModificationSurplusModal] checkPaymentStatusFull: résultat', { is_confirmed: result.is_confirmed, payment_status: result.payment_status, error: result.error });
       setLastPaymentStatus(result.payment_status ?? 'pending');
       if (result.error) return { is_confirmed: false, payment_status: result.payment_status, error: result.error };
       return { is_confirmed: result.is_confirmed, payment_status: result.payment_status };
     } catch (e) {
+      console.log('[DEBUG][ModificationSurplusModal] checkPaymentStatusFull: throw', e);
       return { is_confirmed: false, error: e instanceof Error ? e.message : 'Erreur de vérification' };
     }
   }, [bookingId, pendingStripeSessionId]);
@@ -101,25 +125,52 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     setLastPaymentStatus(null);
     setCheckingStripeStatus(false);
     setPendingStripeSessionId(null);
+    sessionIdRef.current = null;
+    bookingIdRef.current = null;
   }, []);
 
+  /** À l'ouverture du modal : repartir de zéro (pas de "paiement confirmé" ni session d'une fois précédente). Flux 100 % autonome (pas de partage avec StripeReturnHandler). */
+  useEffect(() => {
+    if (visible) {
+      console.log('[DEBUG][ModificationSurplusModal] Modal ouvert, reset state. bookingId:', bookingId);
+      setPaymentSuccess(false);
+      setPendingStripeReturn(false);
+      setStripeCheckoutOpened(false);
+      setPendingStripeStartedAt(null);
+      setStripeTimeLeftSec(0);
+      setLastPaymentStatus(null);
+      setPendingStripeSessionId(null);
+      sessionIdRef.current = null;
+      bookingIdRef.current = null;
+    }
+  }, [visible, bookingId]);
+
+  /** Vérification en lisant les refs (pour retour à l'app sans clic sur "Ouvrir") */
   const verifyStripePaymentNow = useCallback(async () => {
-    if ((!pendingStripeReturn && !stripeCheckoutOpened) || checkingStripeStatus) return;
-    if (!pendingStripeSessionId) return;
+    const sid = sessionIdRef.current ?? pendingStripeSessionId;
+    const bid = bookingIdRef.current ?? bookingId;
+    console.log('[DEBUG][ModificationSurplusModal] verifyStripePaymentNow: sid=', !!sid, 'bid=', bid);
+    if (!sid || !bid) return;
+    if (checkingRef.current) return;
+    checkingRef.current = true;
     setCheckingStripeStatus(true);
-    const result = await checkPaymentStatusFull();
+    setPendingStripeReturn(true);
+    const result = await checkPaymentStatusFull(sid, bid);
+    checkingRef.current = false;
     setCheckingStripeStatus(false);
-    if (result.is_confirmed && pendingStripeSessionId) {
+    if (result.is_confirmed) {
+      const confirmedSessionId = sessionIdRef.current ?? sid ?? pendingStripeSessionId ?? undefined;
+      console.log('[DEBUG][ModificationSurplusModal] verifyStripePaymentNow: CONFIRMÉ → onPaymentComplete(sessionId), puis onClose');
       resetPendingStripeState();
       setPaymentSuccess(true);
       setTimeout(() => {
-        onPaymentComplete();
+        onPaymentComplete(confirmedSessionId ?? undefined);
         onClose();
       }, 1500);
     } else if (result.error) {
       Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
     }
-  }, [pendingStripeReturn, stripeCheckoutOpened, pendingStripeSessionId, checkingStripeStatus, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
+  }, [pendingStripeSessionId, bookingId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
 
   const handleAbandonStripeOperation = useCallback(() => {
     Alert.alert(
@@ -132,18 +183,25 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     );
   }, [resetPendingStripeState, onClose]);
 
-  // Polling uniquement quand on a bien la session Stripe (pendingStripeSessionId) pour ne pas valider un ancien paiement
+  // Polling : vérifier le statut même si l'utilisateur revient sans appuyer sur "Ouvrir" (refs gardent session_id / booking_id)
   useEffect(() => {
-    if (!visible || !stripeCheckoutOpened || !pendingStripeSessionId) return;
+    if (!visible || !stripeCheckoutOpened) return;
+    if (!pendingStripeSessionId && !sessionIdRef.current) return;
     let cancelled = false;
     const poll = async () => {
-      const result = await checkPaymentStatusFull();
       if (cancelled) return;
-      if (result.is_confirmed && pendingStripeSessionId) {
+      const sid = sessionIdRef.current ?? pendingStripeSessionId;
+      const bid = bookingIdRef.current ?? bookingId;
+      if (!sid || !bid) return;
+      const result = await checkPaymentStatusFull(sid, bid);
+      if (cancelled) return;
+      if (result.is_confirmed) {
+        console.log('[DEBUG][ModificationSurplusModal] Poll: CONFIRMÉ → onPaymentComplete(sessionId), puis onClose');
+        const confirmedSessionId = sessionIdRef.current ?? pendingStripeSessionId ?? undefined;
         resetPendingStripeState();
         setPaymentSuccess(true);
         setTimeout(() => {
-          onPaymentComplete();
+          onPaymentComplete(confirmedSessionId ?? undefined);
           onClose();
         }, 1500);
       }
@@ -154,7 +212,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
       cancelled = true;
       clearInterval(interval);
     };
-  }, [visible, stripeCheckoutOpened, pendingStripeSessionId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
+  }, [visible, stripeCheckoutOpened, pendingStripeSessionId, bookingId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
 
   useEffect(() => {
     if (!stripeCheckoutOpened || !pendingStripeStartedAt) return;
@@ -172,32 +230,44 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     return () => clearInterval(timer);
   }, [stripeCheckoutOpened, pendingStripeStartedAt, STRIPE_PENDING_TIMEOUT_MS, resetPendingStripeState, onClose]);
 
-  // Au retour dans l'app, vérifier tout de suite (comme BookingModal)
+  // Au retour dans l'app (avec ou sans clic sur "Ouvrir"), vérifier le paiement via les refs (évite closure périmée)
   useEffect(() => {
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state === 'active' && stripeCheckoutOpened) {
-        setPendingStripeReturn(true); // pour l'UI "Retour détecté"
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
+      if (wasBackground && nextState === 'active' && (sessionIdRef.current || pendingStripeSessionId)) {
         verifyStripePaymentNow();
         retryTimeout = setTimeout(verifyStripePaymentNow, 2000);
       }
+      appStateRef.current = nextState;
     });
     return () => {
       if (retryTimeout) clearTimeout(retryTimeout);
       sub.remove();
     };
-  }, [stripeCheckoutOpened, verifyStripePaymentNow]);
+  }, [pendingStripeSessionId, verifyStripePaymentNow]);
 
   const handlePaymentSuccessUrl = useCallback((url: string | null) => {
-    if (!url || !url.includes('payment-success') || !bookingId) return;
-    const bookingMatch = url.match(/booking_id=([^&]+)/);
-    if (bookingMatch && decodeURIComponent(bookingMatch[1]) === bookingId) {
-      setPendingStripeReturn(true);
-      const sessionMatch = url.match(/session_id=([^&]+)/);
-      if (sessionMatch && sessionMatch[1] && !sessionMatch[1].startsWith('{')) {
-        setPendingStripeSessionId(decodeURIComponent(sessionMatch[1]));
-      }
+    if (!url) {
+      console.log('[DEBUG][ModificationSurplusModal] handlePaymentSuccessUrl: url vide');
+      return;
     }
+    if (!url.includes('payment-success')) return;
+    if (!bookingId) {
+      console.log('[DEBUG][ModificationSurplusModal] handlePaymentSuccessUrl: pas de bookingId');
+      return;
+    }
+    const bookingMatch = url.match(/booking_id=([^&]+)/);
+    const urlBookingId = bookingMatch ? decodeURIComponent(bookingMatch[1]) : null;
+    if (urlBookingId !== bookingId) {
+      console.log('[DEBUG][ModificationSurplusModal] handlePaymentSuccessUrl: booking_id URL !== modal. urlBookingId:', urlBookingId, 'modal bookingId:', bookingId);
+      return;
+    }
+    const sessionMatch = url.match(/session_id=([^&]+)/);
+    const sessionId = sessionMatch?.[1] && !sessionMatch[1].startsWith('{') ? decodeURIComponent(sessionMatch[1]) : null;
+    console.log('[DEBUG][ModificationSurplusModal] handlePaymentSuccessUrl: retour Stripe, booking_id OK, session_id:', sessionId ? `${sessionId.substring(0, 20)}...` : 'absent');
+    setPendingStripeReturn(true);
+    if (sessionId) setPendingStripeSessionId(sessionId);
   }, [bookingId]);
 
   useEffect(() => {
@@ -215,6 +285,8 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     return () => sub.remove();
   }, [visible, handlePaymentSuccessUrl]);
 
+  // À la fermeture du modal : tout réinitialiser (y compris refs) pour ne jamais afficher un faux "paiement réussi"
+  // au prochain ouvert (ancienne session déjà payée = refs encore remplies = restore appelait verify → succès affiché).
   useEffect(() => {
     if (!visible) {
       setPendingStripeReturn(false);
@@ -222,6 +294,8 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
       setPendingStripeStartedAt(null);
       setLastPaymentStatus(null);
       setPendingStripeSessionId(null);
+      sessionIdRef.current = null;
+      bookingIdRef.current = null;
     }
   }, [visible]);
 
@@ -235,8 +309,20 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   };
 
   const runStripeCheckoutSurplus = useCallback(async (convertFcfaToEur: boolean) => {
+    console.log('[DEBUG][ModificationSurplusModal] runStripeCheckoutSurplus: début. bookingId:', bookingId, 'amount:', amountToCharge);
     setLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.log('[DEBUG][ModificationSurplusModal] runStripeCheckoutSurplus: session expirée');
+        Alert.alert('Session expirée', 'Veuillez vous reconnecter pour payer le surplus.');
+        return;
+      }
+      if (!modificationRequestPayload || Object.keys(modificationRequestPayload).length === 0) {
+        console.log('[DEBUG][ModificationSurplusModal] runStripeCheckoutSurplus: modificationRequestPayload manquant');
+        Alert.alert('Erreur', 'Données de modification manquantes. Fermez et rouvrez le modal.');
+        return;
+      }
       const body: Record<string, unknown> = {
         booking_id: bookingId,
         amount: amountToCharge,
@@ -246,6 +332,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
         client: 'mobile',
         return_to_app: true,
         app_scheme: 'akwahomemobile',
+        modification_request: modificationRequestPayload,
       };
       if ((currency === 'EUR' && rates.EUR) || (convertFcfaToEur && rates.EUR)) {
         body.currency = 'eur';
@@ -254,18 +341,25 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
         body.currency = 'usd';
         body.rate = rates.USD;
       }
+      console.log('[DEBUG][ModificationSurplusModal] runStripeCheckoutSurplus: appel createCheckoutSession...');
       const result = await createCheckoutSession(body);
-      setPendingStripeSessionId(result.session_id ?? null);
+      const sid = result.session_id ?? null;
+      console.log('[DEBUG][ModificationSurplusModal] runStripeCheckoutSurplus: createCheckoutSession OK. session_id:', sid ? `${String(sid).substring(0, 24)}...` : 'null', 'url:', result.url ? 'présente' : 'absente');
+      setPendingStripeSessionId(sid);
+      sessionIdRef.current = sid;
+      bookingIdRef.current = bookingId;
       setPendingStripeStartedAt(Date.now());
       setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
       setStripeCheckoutOpened(true);
       Linking.openURL(result.url);
+      console.log('[DEBUG][ModificationSurplusModal] runStripeCheckoutSurplus: Linking.openURL appelé');
     } catch (e: unknown) {
+      console.log('[DEBUG][ModificationSurplusModal] runStripeCheckoutSurplus: ERREUR', e);
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement Stripe');
     } finally {
       setLoading(false);
     }
-  }, [bookingId, amountToCharge, propertyTitle, currency, rates.EUR, rates.USD]);
+  }, [bookingId, amountToCharge, propertyTitle, currency, rates.EUR, rates.USD, modificationRequestPayload]);
 
   const handlePayment = async () => {
     if (!validatePaymentInfo()) return;
@@ -335,7 +429,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
 
       setTimeout(() => {
         setPaymentSuccess(false);
-        onPaymentComplete();
+        onPaymentComplete(undefined); // cash / autre : pas de session Stripe
         onClose();
       }, 2000);
     } catch (error: any) {

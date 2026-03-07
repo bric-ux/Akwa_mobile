@@ -1,4 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+/**
+ * Paiement du surplus de modification de réservation (véhicule).
+ * Flux carte 100 % autonome : create-checkout-session → Stripe → retour app → vérif par session_id.
+ * Aucun partage avec StripeReturnHandler (qui ne gère que la réservation initiale avec checkout_token).
+ */
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,7 +30,10 @@ interface VehicleModificationSurplusPaymentModalProps {
   onClose: () => void;
   surplusAmount: number;
   bookingId: string;
-  onPaymentComplete: () => void;
+  /** Appelé après confirmation. Carte : stripeSessionId (demande créée par le webhook). Cash : pas d'argument. */
+  onPaymentComplete: (stripeSessionId?: string) => void;
+  /** Payload pour le draft surplus (création demande par le webhook après paiement). */
+  modificationRequestPayload?: Record<string, unknown>;
   vehicleTitle?: string;
   vehicleId?: string;
   originalTotalPrice?: number;
@@ -49,6 +57,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
   surplusAmount,
   bookingId,
   onPaymentComplete,
+  modificationRequestPayload,
   vehicleTitle,
   vehicleId,
   originalTotalPrice,
@@ -69,14 +78,27 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
   const [pendingStripeSessionId, setPendingStripeSessionId] = useState<string | null>(null);
 
-  const checkPaymentStatusFull = useCallback(async (): Promise<{ is_confirmed: boolean; payment_status?: string; error?: string }> => {
+  const sessionIdRef = useRef<string | null>(null);
+  const bookingIdRef = useRef<string | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const checkingRef = useRef(false);
+
+  const checkPaymentStatusFull = useCallback(async (sid?: string | null, bid?: string | null): Promise<{ is_confirmed: boolean; payment_status?: string; error?: string }> => {
+    const sessionId = sid ?? pendingStripeSessionId ?? sessionIdRef.current;
+    const bookId = bid ?? bookingId;
+    if (!sessionId || !bookId) {
+      console.log('[DEBUG][VehicleModificationSurplusModal] checkPaymentStatusFull: skip, sessionId ou bookId manquant');
+      return { is_confirmed: false, error: 'Session ou réservation manquante' };
+    }
+    console.log('[DEBUG][VehicleModificationSurplusModal] checkPaymentStatusFull: appel API booking_id=', bookId, 'stripe_session_id=', sessionId.substring(0, 24) + '...');
     try {
       const result = await checkPaymentStatus({
-        booking_id: bookingId,
+        booking_id: bookId,
         booking_type: 'vehicle',
         payment_type: 'vehicle_modification_surplus',
-        stripe_session_id: pendingStripeSessionId ?? undefined,
+        stripe_session_id: sessionId,
       });
+      console.log('[DEBUG][VehicleModificationSurplusModal] checkPaymentStatusFull: résultat', { is_confirmed: result.is_confirmed, payment_status: result.payment_status, error: result.error });
       setLastPaymentStatus(result.payment_status ?? 'pending');
       if (result.error) return { is_confirmed: false, payment_status: result.payment_status, error: result.error };
       return { is_confirmed: result.is_confirmed, payment_status: result.payment_status };
@@ -93,25 +115,50 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
     setLastPaymentStatus(null);
     setCheckingStripeStatus(false);
     setPendingStripeSessionId(null);
+    sessionIdRef.current = null;
+    bookingIdRef.current = null;
   }, []);
 
+  /** À l'ouverture du modal : repartir de zéro. Flux 100 % autonome (pas de partage avec StripeReturnHandler). */
+  useEffect(() => {
+    if (visible) {
+      console.log('[DEBUG][VehicleModificationSurplusModal] Modal ouvert, reset state. bookingId:', bookingId);
+      setPaymentSuccess(false);
+      setPendingStripeReturn(false);
+      setStripeCheckoutOpened(false);
+      setPendingStripeStartedAt(null);
+      setStripeTimeLeftSec(0);
+      setLastPaymentStatus(null);
+      setPendingStripeSessionId(null);
+      sessionIdRef.current = null;
+      bookingIdRef.current = null;
+    }
+  }, [visible, bookingId]);
+
   const verifyStripePaymentNow = useCallback(async () => {
-    if ((!pendingStripeReturn && !stripeCheckoutOpened) || checkingStripeStatus) return;
-    if (!pendingStripeSessionId) return;
+    const sid = sessionIdRef.current ?? pendingStripeSessionId;
+    const bid = bookingIdRef.current ?? bookingId;
+    console.log('[DEBUG][VehicleModificationSurplusModal] verifyStripePaymentNow: sid=', !!sid, 'bid=', bid);
+    if (!sid || !bid) return;
+    if (checkingRef.current) return;
+    checkingRef.current = true;
     setCheckingStripeStatus(true);
-    const result = await checkPaymentStatusFull();
+    setPendingStripeReturn(true);
+    const result = await checkPaymentStatusFull(sid, bid);
+    checkingRef.current = false;
     setCheckingStripeStatus(false);
-    if (result.is_confirmed && pendingStripeSessionId) {
+    if (result.is_confirmed) {
+      console.log('[DEBUG][VehicleModificationSurplusModal] verifyStripePaymentNow: CONFIRMÉ → onPaymentComplete(sessionId), puis onClose');
       resetPendingStripeState();
       setPaymentSuccess(true);
       setTimeout(() => {
-        onPaymentComplete();
+        onPaymentComplete(sid ?? undefined);
         onClose();
       }, 1500);
     } else if (result.error) {
       Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
     }
-  }, [pendingStripeReturn, stripeCheckoutOpened, pendingStripeSessionId, checkingStripeStatus, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
+  }, [pendingStripeSessionId, bookingId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
 
   const handleAbandonStripeOperation = useCallback(() => {
     Alert.alert(
@@ -125,16 +172,22 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
   }, [resetPendingStripeState, onClose]);
 
   useEffect(() => {
-    if (!visible || !stripeCheckoutOpened || !pendingStripeSessionId) return;
+    if (!visible || !stripeCheckoutOpened) return;
+    if (!pendingStripeSessionId && !sessionIdRef.current) return;
     let cancelled = false;
     const poll = async () => {
-      const result = await checkPaymentStatusFull();
       if (cancelled) return;
-      if (result.is_confirmed && pendingStripeSessionId) {
+      const sid = sessionIdRef.current ?? pendingStripeSessionId;
+      const bid = bookingIdRef.current ?? bookingId;
+      if (!sid || !bid) return;
+      const result = await checkPaymentStatusFull(sid, bid);
+      if (cancelled) return;
+      if (result.is_confirmed) {
+        console.log('[DEBUG][VehicleModificationSurplusModal] Poll: CONFIRMÉ → onPaymentComplete(sessionId), puis onClose');
         resetPendingStripeState();
         setPaymentSuccess(true);
         setTimeout(() => {
-          onPaymentComplete();
+          onPaymentComplete(sid ?? undefined);
           onClose();
         }, 1500);
       }
@@ -145,7 +198,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
       cancelled = true;
       clearInterval(interval);
     };
-  }, [visible, stripeCheckoutOpened, pendingStripeSessionId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
+  }, [visible, stripeCheckoutOpened, pendingStripeSessionId, bookingId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
 
   useEffect(() => {
     if (!stripeCheckoutOpened || !pendingStripeStartedAt) return;
@@ -165,29 +218,35 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
 
   useEffect(() => {
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state === 'active' && stripeCheckoutOpened) {
-        setPendingStripeReturn(true);
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
+      if (wasBackground && nextState === 'active' && (sessionIdRef.current || pendingStripeSessionId)) {
         verifyStripePaymentNow();
         retryTimeout = setTimeout(verifyStripePaymentNow, 2000);
       }
+      appStateRef.current = nextState;
     });
     return () => {
       if (retryTimeout) clearTimeout(retryTimeout);
       sub.remove();
     };
-  }, [stripeCheckoutOpened, verifyStripePaymentNow]);
+  }, [pendingStripeSessionId, verifyStripePaymentNow]);
 
   const handlePaymentSuccessUrl = useCallback((url: string | null) => {
-    if (!url || !url.includes('payment-success') || !bookingId) return;
+    if (!url) return;
+    if (!url.includes('payment-success')) return;
+    if (!bookingId) return;
     const bookingMatch = url.match(/booking_id=([^&]+)/);
-    if (bookingMatch && decodeURIComponent(bookingMatch[1]) === bookingId) {
-      setPendingStripeReturn(true);
-      const sessionMatch = url.match(/session_id=([^&]+)/);
-      if (sessionMatch && sessionMatch[1] && !sessionMatch[1].startsWith('{')) {
-        setPendingStripeSessionId(decodeURIComponent(sessionMatch[1]));
-      }
+    const urlBookingId = bookingMatch ? decodeURIComponent(bookingMatch[1]) : null;
+    if (urlBookingId !== bookingId) {
+      console.log('[DEBUG][VehicleModificationSurplusModal] handlePaymentSuccessUrl: booking_id URL !== modal. urlBookingId:', urlBookingId, 'modal bookingId:', bookingId);
+      return;
     }
+    const sessionMatch = url.match(/session_id=([^&]+)/);
+    const sessionId = sessionMatch?.[1] && !sessionMatch[1].startsWith('{') ? decodeURIComponent(sessionMatch[1]) : null;
+    console.log('[DEBUG][VehicleModificationSurplusModal] handlePaymentSuccessUrl: retour Stripe, booking_id OK, session_id:', sessionId ? `${sessionId.substring(0, 20)}...` : 'absent');
+    setPendingStripeReturn(true);
+    if (sessionId) setPendingStripeSessionId(sessionId);
   }, [bookingId]);
 
   useEffect(() => {
@@ -212,6 +271,8 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
       setPendingStripeStartedAt(null);
       setLastPaymentStatus(null);
       setPendingStripeSessionId(null);
+      sessionIdRef.current = null;
+      bookingIdRef.current = null;
     }
   }, [visible]);
 
@@ -229,8 +290,20 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
   };
 
   const runStripeCheckoutSurplus = useCallback(async (convertFcfaToEur: boolean) => {
+    console.log('[DEBUG][VehicleModificationSurplusModal] runStripeCheckoutSurplus: début. bookingId:', bookingId, 'amount:', surplusAmount);
     setLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.log('[DEBUG][VehicleModificationSurplusModal] runStripeCheckoutSurplus: session expirée');
+        Alert.alert('Session expirée', 'Veuillez vous reconnecter pour payer le surplus.');
+        return;
+      }
+      if (!modificationRequestPayload || Object.keys(modificationRequestPayload).length === 0) {
+        console.log('[DEBUG][VehicleModificationSurplusModal] runStripeCheckoutSurplus: modificationRequestPayload manquant');
+        Alert.alert('Erreur', 'Données de modification manquantes. Fermez et rouvrez le modal.');
+        return;
+      }
       const body: Record<string, unknown> = {
         booking_id: bookingId,
         amount: surplusAmount,
@@ -240,6 +313,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
         client: 'mobile',
         return_to_app: true,
         app_scheme: 'akwahomemobile',
+        modification_request: modificationRequestPayload,
       };
       if ((currency === 'EUR' && rates.EUR) || (convertFcfaToEur && rates.EUR)) {
         body.currency = 'eur';
@@ -248,18 +322,25 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
         body.currency = 'usd';
         body.rate = rates.USD;
       }
+      console.log('[DEBUG][VehicleModificationSurplusModal] runStripeCheckoutSurplus: appel createCheckoutSession...');
       const result = await createCheckoutSession(body);
-      setPendingStripeSessionId(result.session_id ?? null);
+      const sid = result.session_id ?? null;
+      console.log('[DEBUG][VehicleModificationSurplusModal] runStripeCheckoutSurplus: createCheckoutSession OK. session_id:', sid ? `${String(sid).substring(0, 24)}...` : 'null');
+      setPendingStripeSessionId(sid);
+      sessionIdRef.current = sid;
+      bookingIdRef.current = bookingId;
       setPendingStripeStartedAt(Date.now());
       setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
       setStripeCheckoutOpened(true);
       Linking.openURL(result.url);
+      console.log('[DEBUG][VehicleModificationSurplusModal] runStripeCheckoutSurplus: Linking.openURL appelé');
     } catch (e: unknown) {
+      console.log('[DEBUG][VehicleModificationSurplusModal] runStripeCheckoutSurplus: ERREUR', e);
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement Stripe');
     } finally {
       setLoading(false);
     }
-  }, [bookingId, surplusAmount, vehicleTitle, currency, rates.EUR, rates.USD]);
+  }, [bookingId, surplusAmount, vehicleTitle, currency, rates.EUR, rates.USD, modificationRequestPayload]);
 
   const handlePayment = async () => {
     if (!validatePaymentInfo()) return;
@@ -379,7 +460,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
 
       setTimeout(() => {
         setPaymentSuccess(false);
-        onPaymentComplete();
+        onPaymentComplete(undefined); // cash
         onClose();
       }, 2000);
     } catch (error: any) {

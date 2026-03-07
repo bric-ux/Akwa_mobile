@@ -1,3 +1,11 @@
+/**
+ * Handler global pour le retour Stripe : UNIQUEMENT réservation initiale (logement ou véhicule).
+ * Les URLs payment-success avec checkout_token = flux draft (résa créée par le webhook après paiement).
+ *
+ * La modification de réservation (surplus par CB) n'est PAS gérée ici : elle est gérée
+ * entièrement dans ModificationSurplusPaymentModal / VehicleModificationSurplusPaymentModal
+ * (flux dédié, pas de partage avec ce handler pour éviter les faux succès).
+ */
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
@@ -19,8 +27,9 @@ const PAYMENT_SUCCESS_PATH = 'payment-success';
 const MAX_POLL_ATTEMPTS = 6;
 const SHOW_CLOSE_AFTER_MS = 15000;
 
-type PendingPayment = { type: 'checkout_token'; value: string; bookingType: string } | { type: 'booking_id'; value: string; bookingType: string };
+type PendingPayment = { type: 'checkout_token'; value: string; bookingType: string };
 
+/** Ne traite que les URLs avec checkout_token (résa initiale). Toute URL avec booking_id est ignorée (modification = gérée par les modals). */
 function parsePaymentSuccessFromUrl(url: string): PendingPayment | null {
   try {
     if (!url || !url.includes(PAYMENT_SUCCESS_PATH)) return null;
@@ -28,8 +37,6 @@ function parsePaymentSuccessFromUrl(url: string): PendingPayment | null {
     const bookingType = bookingTypeMatch ? decodeURIComponent(bookingTypeMatch[1]) : 'property';
     const tokenMatch = url.match(/checkout_token=([^&]+)/);
     if (tokenMatch) return { type: 'checkout_token', value: decodeURIComponent(tokenMatch[1]), bookingType };
-    const bookingMatch = url.match(/booking_id=([^&]+)/);
-    if (bookingMatch) return { type: 'booking_id', value: decodeURIComponent(bookingMatch[1]), bookingType };
     return null;
   } catch {
     return null;
@@ -47,7 +54,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     try {
       const result = await checkPaymentStatus({
         booking_type: (payload.bookingType as 'property' | 'vehicle') || 'property',
-        ...(payload.type === 'checkout_token' ? { checkout_token: payload.value } : { booking_id: payload.value }),
+        checkout_token: payload.value,
       });
       if (result.error) return { paid: false, error: result.error };
       return { paid: result.is_confirmed };
@@ -72,16 +79,14 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
       if (pollDoneRef.current || cancelled) return;
       const result = await checkPayment(pendingPayment);
       if (cancelled) return;
+      console.log('[DEBUG][StripeReturnHandler] Poll checkPayment result:', { paid: result.paid, error: result.error });
       if (result.paid) {
+        console.log('[DEBUG][StripeReturnHandler] → Affichage succès (résa initiale)');
         pollDoneRef.current = true;
         setStatus('success');
         setMessage(pendingPayment.bookingType === 'vehicle'
-          ? (pendingPayment.type === 'booking_id'
-            ? 'Paiement confirmé ! Votre modification de réservation véhicule a bien été enregistrée.'
-            : 'Paiement confirmé ! Votre réservation véhicule a bien été enregistrée. Vous recevrez une confirmation par email.')
-          : pendingPayment.type === 'booking_id'
-            ? 'Paiement confirmé ! Votre modification a bien été enregistrée.'
-            : 'Paiement confirmé ! Vous recevrez un email de confirmation.');
+          ? 'Paiement confirmé ! Votre réservation véhicule a bien été enregistrée. Vous recevrez une confirmation par email.'
+          : 'Paiement confirmé ! Vous recevrez un email de confirmation.');
         return;
       }
       if (result.error) lastErrorMsg = result.error;
@@ -109,8 +114,14 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
 
   const handleOpenUrl = useCallback((url: string | null) => {
     if (!url) return;
+    console.log('[DEBUG][StripeReturnHandler] URL reçue:', url.substring(0, 120) + (url.length > 120 ? '...' : ''));
     const parsed = parsePaymentSuccessFromUrl(url);
-    if (parsed) setPendingPayment(parsed);
+    if (parsed) {
+      console.log('[DEBUG][StripeReturnHandler] Parsed checkout_token → pendingPayment défini, type:', parsed.type, 'bookingType:', parsed.bookingType);
+      setPendingPayment(parsed);
+    } else {
+      console.log('[DEBUG][StripeReturnHandler] URL ignorée (pas de checkout_token, modification = gérée par le modal)');
+    }
   }, []);
 
   useEffect(() => {
@@ -129,7 +140,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   }, [handleOpenUrl]);
 
   const closeModal = useCallback(() => {
-    const wasVehicleInitial = pendingPayment?.bookingType === 'vehicle' && pendingPayment?.type === 'checkout_token';
+    const wasVehicleInitial = pendingPayment?.bookingType === 'vehicle';
     setPendingPayment(null);
     setStatus('checking');
     setMessage('Vérification du paiement en cours...');

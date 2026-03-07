@@ -99,13 +99,11 @@ export async function checkPaymentStatus(
   if (payment_type) body.payment_type = payment_type;
   if (stripe_session_id) body.stripe_session_id = stripe_session_id;
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // Ne pas envoyer Content-Type manuellement : sur React Native/Expo ça peut vider le body (bug client Supabase)
+  const options: { body: Record<string, unknown>; headers?: Record<string, string> } = { body };
+  if (token) options.headers = { Authorization: `Bearer ${token}` };
 
-  const { data: rawData, error } = await supabase.functions.invoke(CHECK_PAYMENT_STATUS, {
-    body,
-    headers,
-  });
+  const { data: rawData, error } = await supabase.functions.invoke(CHECK_PAYMENT_STATUS, options);
 
   // Certains clients (ex. React Native) peuvent renvoyer la réponse dans data.data
   const data = (rawData && typeof rawData === 'object' && rawData.data != null)
@@ -124,6 +122,12 @@ export async function checkPaymentStatus(
   const isConfirmed = data?.is_confirmed === true;
   if (isConfirmed) {
     return { is_confirmed: true, payment_status: ps, booking_status: bs, booking_id: resolvedBookingId };
+  }
+
+  // Pour modification surplus : ne jamais confirmer sur booking_status (la résa est déjà confirmée, on vérifie uniquement le paiement du surplus).
+  const isSurplusCheck = payment_type === 'modification_surplus' || payment_type === 'vehicle_modification_surplus';
+  if (isSurplusCheck) {
+    return { is_confirmed: false, payment_status: ps, booking_status: bs, booking_id: resolvedBookingId };
   }
 
   const psLower = String(ps).toLowerCase();

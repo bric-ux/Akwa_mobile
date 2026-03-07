@@ -25,7 +25,6 @@ import ModificationSurplusPaymentModal from './ModificationSurplusPaymentModal';
 import { calculateTotalPrice, calculateFees } from '../hooks/usePricing';
 import { getCommissionRates } from '../lib/commissions';
 import { supabase } from '../services/supabase';
-import { checkPaymentStatus } from '../services/cardPaymentService';
 import { useCurrency } from '../contexts/CurrencyContext';
 
 interface BookingModificationModalProps {
@@ -670,36 +669,32 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     }
   };
 
-  const handlePaymentComplete = async () => {
+  const handlePaymentComplete = async (stripeSessionId?: string) => {
+    console.log('[DEBUG][BookingModificationModal] handlePaymentComplete appelé. stripeSessionId:', stripeSessionId ? `${stripeSessionId.substring(0, 24)}...` : 'undefined', 'pendingModificationData:', !!pendingModificationData);
     if (!pendingModificationData) return;
 
-    // Vérifier que le paiement surplus est bien confirmé (webhook) avant de créer la demande
-    try {
-      const checkResult = await checkPaymentStatus({
-        booking_id: pendingModificationData.bookingId,
-        booking_type: 'property',
-        payment_type: 'modification_surplus',
-      });
-      if (!checkResult.is_confirmed) {
-        Alert.alert(
-          'Paiement non confirmé',
-          'Le paiement du surplus n\'a pas encore été enregistré. Revenez après avoir terminé le paiement ou réessayez.'
-        );
-        return;
-      }
-    } catch (e) {
-      Alert.alert('Erreur', 'Impossible de vérifier le paiement. Réessayez.');
+    if (stripeSessionId) {
+      console.log('[DEBUG][BookingModificationModal] → Carte: fermeture + onModificationRequested');
+      // Carte : la demande a été créée par le webhook après paiement (draft → webhook)
+      setFinalTotalPrice(null);
+      setSurplusBreakdown(null);
+      setPendingModificationData(null);
+      onClose();
+      onModificationRequested?.();
       return;
     }
 
+    console.log('[DEBUG][BookingModificationModal] → Cash: createModificationRequest');
+    // Cash : créer la demande après confirmation du paiement cash
     setFinalTotalPrice(null);
     setSurplusBreakdown(null);
-
     const result = await createModificationRequest(pendingModificationData);
     if (result.success) {
       setPendingModificationData(null);
       onClose();
       onModificationRequested?.();
+    } else {
+      Alert.alert('Erreur', result.error || 'Impossible de soumettre la demande.');
     }
   };
 
@@ -1112,6 +1107,20 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
         surplusAmount={pendingModificationData?.surplusAmount ?? (priceDifference > 0 ? priceDifference : 0)}
         bookingId={booking.id}
         onPaymentComplete={handlePaymentComplete}
+        modificationRequestPayload={pendingModificationData ? {
+          booking_id: pendingModificationData.bookingId,
+          guest_id: pendingModificationData.guestId,
+          host_id: pendingModificationData.hostId,
+          original_check_in: pendingModificationData.originalCheckIn,
+          original_check_out: pendingModificationData.originalCheckOut,
+          original_guests_count: pendingModificationData.originalGuestsCount,
+          original_total_price: pendingModificationData.originalTotalPrice,
+          requested_check_in: pendingModificationData.requestedCheckIn,
+          requested_check_out: pendingModificationData.requestedCheckOut,
+          requested_guests_count: pendingModificationData.requestedGuestsCount,
+          requested_total_price: pendingModificationData.requestedTotalPrice,
+          guest_message: pendingModificationData.guestMessage ?? null,
+        } : undefined}
         propertyTitle={property?.title}
         propertyId={property?.id}
         originalTotalPrice={booking.total_price}
