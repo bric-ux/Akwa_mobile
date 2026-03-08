@@ -676,7 +676,10 @@ const VehicleBookingScreen: React.FC = () => {
       );
       setShowCardPaymentSuccess(true);
     } else if (result.error) {
-      Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
+      Alert.alert(
+        'Consultez « Mes réservations »',
+        'Votre paiement a peut-être déjà été enregistré. Pensez à consulter « Mes réservations » pour vérifier. Si besoin, réessayez dans quelques secondes.'
+      );
     }
   }, [pendingStripeBookingId, pendingStripeCheckoutToken, checkingStripeStatus, checkStripePaymentCompleted, vehicle?.auto_booking, resetStripePendingState, navigation]);
 

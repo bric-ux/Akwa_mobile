@@ -168,7 +168,10 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
         onClose();
       }, 1500);
     } else if (result.error) {
-      Alert.alert('Vérification', result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».');
+      Alert.alert(
+        'Consultez vos réservations',
+        'Votre paiement a peut-être déjà été enregistré. Consultez vos réservations pour vérifier, ou réessayez dans quelques secondes.'
+      );
     }
   }, [pendingStripeSessionId, bookingId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
 

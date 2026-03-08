@@ -73,7 +73,6 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     let cancelled = false;
     pollDoneRef.current = false;
     let attempts = 0;
-    let lastErrorMsg = '';
     let intervalId: ReturnType<typeof setInterval> | null = null;
     const poll = async () => {
       if (pollDoneRef.current || cancelled) return;
@@ -89,12 +88,11 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
           : 'Paiement confirmé ! Vous recevrez un email de confirmation.');
         return;
       }
-      if (result.error) lastErrorMsg = result.error;
       attempts += 1;
       if (attempts >= MAX_POLL_ATTEMPTS) {
         pollDoneRef.current = true;
         setStatus('error');
-        setMessage(lastErrorMsg || 'La vérification a échoué. Consultez « Mes réservations » pour confirmer votre paiement.');
+        setMessage('Votre paiement a peut-être déjà été enregistré. Consultez « Mes réservations » pour vérifier.');
       }
     };
     poll();
@@ -141,12 +139,25 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
 
   const closeModal = useCallback(() => {
     const wasVehicleInitial = pendingPayment?.bookingType === 'vehicle';
+    const nav = navigationRef?.current;
     setPendingPayment(null);
     setStatus('checking');
     setMessage('Vérification du paiement en cours...');
     setShowCloseAnyway(false);
-    if (!wasVehicleInitial && navigationRef?.current) {
-      navigationRef.current.navigate('Home' as never, { screen: 'BookingsTab' } as never);
+    if (!wasVehicleInitial && nav) {
+      // Différer la navigation pour éviter un gel : laisser le modal se fermer
+      // et le state se mettre à jour avant de changer d'écran (résidence meublée).
+      const scheduleNav = () => {
+        const current = navigationRef?.current;
+        if (current && (typeof (current as any).isReady !== 'function' || (current as any).isReady())) {
+          current.navigate('Home' as never, { screen: 'BookingsTab' } as never);
+        }
+      };
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => setTimeout(scheduleNav, 50));
+      } else {
+        setTimeout(scheduleNav, 100);
+      }
     }
   }, [navigationRef, pendingPayment]);
 
@@ -185,7 +196,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
           )}
           {status === 'error' && (
             <>
-              <Text style={styles.errorTitle}>Vérification impossible</Text>
+              <Text style={styles.errorTitle}>Consultez « Mes réservations »</Text>
               <Text style={styles.message}>{message}</Text>
               <TouchableOpacity style={styles.button} onPress={retryVerification}>
                 <Text style={styles.buttonText}>Réessayer</Text>

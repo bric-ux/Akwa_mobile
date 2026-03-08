@@ -844,9 +844,14 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const verifyStripePaymentNow = useCallback(async () => {
     if ((!pendingStripeCheckoutToken && !pendingStripeBookingId) || checkingStripeStatus) return;
     setCheckingStripeStatus(true);
-    const result = await checkStripePaymentCompleted(
-      pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken } : { bookingId: pendingStripeBookingId! }
-    );
+    const opts = pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken } : { bookingId: pendingStripeBookingId! };
+    const isRetryableError = (err: string) =>
+      /failed to send|edge function|network|timeout|connexion|erreur de connexion/i.test(err || '');
+    let result = await checkStripePaymentCompleted(opts);
+    for (let attempt = 1; attempt <= 2 && !result.paid && result.error && isRetryableError(result.error); attempt++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      result = await checkStripePaymentCompleted(opts);
+    }
     setCheckingStripeStatus(false);
 
     if (result.paid) {
@@ -867,24 +872,35 @@ const BookingModal: React.FC<BookingModalProps> = ({
       setVoucherCode('');
       setVoucherDiscount(null);
     } else if (result.error) {
+      const closeAndReset = () => {
+        resetStripePendingState();
+        setCheckIn(null);
+        setCheckOut(null);
+        setAdults(1);
+        setChildren(0);
+        setInfants(0);
+        setMessage('');
+        setVoucherCode('');
+        setVoucherDiscount(null);
+        onClose();
+      };
       Alert.alert(
-        'Vérification',
-        result.error + '\n\nRéessayez dans quelques secondes ou cliquez sur « Vérifier le paiement ».',
+        'Consultez « Mes réservations »',
+        'Votre paiement a peut-être déjà été enregistré. Pensez à consulter l\'onglet « Mes réservations » pour vérifier. Si la réservation n\'apparaît pas encore, réessayez dans quelques secondes.',
         [
-          { text: 'OK' },
+          {
+            text: 'OK',
+            onPress: () => {
+              // Différer pour éviter un gel au dismiss de l'Alert : arrêter le polling et fermer proprement.
+              setTimeout(() => {
+                closeAndReset();
+              }, 100);
+            },
+          },
           {
             text: 'Fermer quand même',
             onPress: () => {
-              resetStripePendingState();
-              setCheckIn(null);
-              setCheckOut(null);
-              setAdults(1);
-              setChildren(0);
-              setInfants(0);
-              setMessage('');
-              setVoucherCode('');
-              setVoucherDiscount(null);
-              onClose();
+              closeAndReset();
             },
           },
         ]
