@@ -1396,7 +1396,7 @@ const VehicleBookingScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Moyen de paiement</Text>
           <View style={styles.paymentMethodsContainer}>
             {[
-              ...(canPayByCard ? [{ value: 'card' as const, label: 'Carte bancaire (euros)', icon: 'card' as const }] : []),
+              ...(canPayByCard ? [{ value: 'card' as const, label: 'Carte bancaire', icon: 'card' as const }] : []),
               { value: 'wave' as const, label: 'Wave', icon: 'wallet' as const },
               { value: 'orange_money' as const, label: 'Orange Money', icon: 'phone-portrait' as const },
               { value: 'mtn_money' as const, label: 'MTN Money', icon: 'phone-portrait' as const },

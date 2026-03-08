@@ -52,6 +52,75 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   const [guestCancellationInfo, setGuestCancellationInfo] = useState<CancellationInfo | null>(null);
   const [loadingGuestCancellation, setLoadingGuestCancellation] = useState(false);
 
+  // Valeurs dérivées (avec garde pour booking null — tous les hooks doivent être appelés avant tout return)
+  const rentalDays = booking?.rental_days ?? 0;
+  const rentalHours = booking?.rental_hours ?? 0;
+  const daysPrice = (booking?.daily_rate ?? 0) * rentalDays;
+  const hoursPrice =
+    rentalHours > 0 && booking?.vehicle?.hourly_rental_enabled && booking?.vehicle?.price_per_hour
+      ? rentalHours * (booking.vehicle.price_per_hour ?? 0)
+      : 0;
+  const basePrice = daysPrice + hoursPrice;
+  const totalPrice = booking?.total_price ?? basePrice;
+
+  // Charger les infos d'annulation pour le locataire (mêmes règles que résidence meublée)
+  useEffect(() => {
+    if (!visible || !booking || isOwner) {
+      setGuestCancellationInfo(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingGuestCancellation(true);
+    setGuestCancellationInfo(null);
+    const policy = (booking.vehicle as any)?.cancellation_policy ?? (booking as any).cancellation_policy ?? 'flexible';
+    calculateCancellationInfoForVehicle(
+      booking.start_date,
+      booking.end_date,
+      totalPrice,
+      basePrice,
+      Math.max(1, rentalDays),
+      policy,
+      booking.status
+    ).then((info) => {
+      if (!cancelled) setGuestCancellationInfo(info ?? null);
+    }).finally(() => {
+      if (!cancelled) setLoadingGuestCancellation(false);
+    });
+    return () => { cancelled = true; };
+  }, [visible, booking?.id, isOwner, totalPrice, basePrice, rentalDays, booking?.status, booking?.start_date, booking?.end_date, calculateCancellationInfoForVehicle]);
+
+  // Résultat affiché (utilisé seulement quand booking est non null, après le return null)
+  const ownerResult =
+    booking && isOwner
+      ? calculateVehicleOwnerCancellationPenalty(
+          booking.start_date,
+          booking.end_date,
+          totalPrice,
+          basePrice,
+          Math.max(1, rentalDays),
+          booking.status
+        )
+      : null;
+
+  const penalty = isOwner ? (ownerResult?.penalty ?? 0) : (guestCancellationInfo?.penaltyAmount ?? 0);
+  const refundAmount = isOwner ? (ownerResult?.refundAmount ?? 0) : (guestCancellationInfo?.refundAmount ?? 0);
+  const penaltyDescription = isOwner
+    ? (ownerResult?.description ?? '')
+    : loadingGuestCancellation
+      ? 'Chargement des conditions d\'annulation...'
+      : guestCancellationInfo && !guestCancellationInfo.canCancel
+        ? 'Cette réservation est non remboursable. Aucun remboursement ne sera effectué.'
+        : guestCancellationInfo
+          ? (guestCancellationInfo.penaltyAmount && guestCancellationInfo.penaltyAmount > 0
+              ? `Pénalité de ${(guestCancellationInfo.penaltyAmount ?? 0).toLocaleString()} XOF. `
+              : '') +
+            (booking?.status === 'pending'
+              ? 'Aucune pénalité (demande en attente).'
+              : `Remboursement : ${(guestCancellationInfo.refundAmount ?? 0).toLocaleString()} XOF.`)
+          : '';
+
+  const canConfirmCancellation = isOwner || !guestCancellationInfo || guestCancellationInfo.canCancel;
+
   if (!booking) return null;
 
   const isBookingCompleted = () => {
@@ -63,81 +132,6 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   };
 
   const bookingIsCompleted = isBookingCompleted();
-
-  // Prix de base et total (pour les deux chemins)
-  const rentalDays = booking.rental_days || 0;
-  const rentalHours = booking.rental_hours || 0;
-  const daysPrice = (booking.daily_rate || 0) * rentalDays;
-  let hoursPrice = 0;
-  if (rentalHours > 0 && booking.vehicle?.hourly_rental_enabled && booking.vehicle?.price_per_hour) {
-    hoursPrice = rentalHours * booking.vehicle.price_per_hour;
-  }
-  const basePrice = daysPrice + hoursPrice;
-  const totalPrice = booking.total_price ?? basePrice;
-
-  // Charger les infos d'annulation pour le locataire (mêmes règles que résidence meublée)
-  useEffect(() => {
-    if (!visible || !booking || isOwner) {
-      setGuestCancellationInfo(null);
-      return;
-    }
-    let cancelled = false;
-    setLoadingGuestCancellation(true);
-    setGuestCancellationInfo(null);
-    // Politique du véhicule (priorité) ou fallback sur la réservation
-    const policy = (booking.vehicle as any)?.cancellation_policy ?? (booking as any).cancellation_policy ?? 'flexible';
-    calculateCancellationInfoForVehicle(
-      booking.start_date,
-      booking.end_date,
-      totalPrice,
-      basePrice,
-      Math.max(1, rentalDays),
-      policy,
-      booking.status
-    ).then((info) => {
-      if (!cancelled) {
-        setGuestCancellationInfo(info ?? null);
-      }
-    }).finally(() => {
-      if (!cancelled) setLoadingGuestCancellation(false);
-    });
-    return () => { cancelled = true; };
-  }, [visible, booking?.id, isOwner, totalPrice, basePrice, rentalDays, booking?.status, booking?.start_date, booking?.end_date]);
-
-  // Résultat affiché : propriétaire = même règles que résidence (0% / 20% / 40% / 40% en cours), locataire = politique flexible/moderate/strict/non_refundable
-  const ownerResult = isOwner
-    ? calculateVehicleOwnerCancellationPenalty(
-        booking.start_date,
-        booking.end_date,
-        totalPrice,
-        basePrice,
-        Math.max(1, rentalDays),
-        booking.status
-      )
-    : null;
-
-  const penalty = isOwner
-    ? (ownerResult?.penalty ?? 0)
-    : (guestCancellationInfo?.penaltyAmount ?? 0);
-  const refundAmount = isOwner
-    ? (ownerResult?.refundAmount ?? 0)
-    : (guestCancellationInfo?.refundAmount ?? 0);
-  const penaltyDescription = isOwner
-    ? (ownerResult?.description ?? '')
-    : loadingGuestCancellation
-      ? 'Chargement des conditions d\'annulation...'
-      : guestCancellationInfo && !guestCancellationInfo.canCancel
-        ? 'Cette réservation est non remboursable. Aucun remboursement ne sera effectué.'
-        : guestCancellationInfo
-          ? (guestCancellationInfo.penaltyAmount && guestCancellationInfo.penaltyAmount > 0
-              ? `Pénalité de ${(guestCancellationInfo.penaltyAmount ?? 0).toLocaleString()} XOF. `
-              : '') +
-            (booking.status === 'pending'
-              ? 'Aucune pénalité (demande en attente).'
-              : `Remboursement : ${(guestCancellationInfo.refundAmount ?? 0).toLocaleString()} XOF.`)
-          : '';
-
-  const canConfirmCancellation = isOwner || !guestCancellationInfo || guestCancellationInfo.canCancel;
 
   const handleCancel = async () => {
     if (bookingIsCompleted) {
@@ -195,111 +189,106 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       if (updateError) throw updateError;
 
       // Envoyer les emails de notification
+      const vehicleTitle = bookingData?.vehicle
+        ? `${bookingData.vehicle.brand || ''} ${bookingData.vehicle.model || ''}`.trim()
+        : 'Véhicule';
+      const startDate = booking.start_date;
+      const endDate = booking.end_date;
+      const startDateTime = booking.start_datetime || null;
+      const endDateTime = booking.end_datetime || null;
+      const renterEmail = bookingData?.renter?.email || user?.email;
+
+      const invokeSendEmail = async (body: { type: string; to: string; data: Record<string, unknown> }) => {
+        const { data: res, error } = await supabase.functions.invoke('send-email', { body });
+        if (error) {
+          console.warn('[VehicleCancellationModal] send-email erreur:', body.type, error);
+          return false;
+        }
+        if (res?.error) {
+          console.warn('[VehicleCancellationModal] send-email retour:', body.type, res.error);
+          return false;
+        }
+        return true;
+      };
+
       try {
-        const vehicleTitle = bookingData?.vehicle 
-          ? `${bookingData.vehicle.brand || ''} ${bookingData.vehicle.model || ''}`.trim() 
-          : 'Véhicule';
-
-        // BUG FIX: Envoyer les dates brutes (ISO) au lieu des dates formatées
-        // formatDateWithTime attend des dates ISO pour les formater correctement
-        const startDate = booking.start_date;
-        const endDate = booking.end_date;
-        const startDateTime = booking.start_datetime || null;
-        const endDateTime = booking.end_datetime || null;
-
-        // Email à l'autre partie ET au locataire qui annule
-        if (isOwner && bookingData?.renter?.email) {
-          // Propriétaire annule → Email au locataire
-          await supabase.functions.invoke('send-email', {
-            body: {
-              type: 'vehicle_booking_cancelled_by_owner',
-              to: bookingData.renter.email,
-              data: {
-                renterName: bookingData.renter.first_name || 'Cher client',
-                vehicleTitle: vehicleTitle,
-                startDate: startDate,
-                endDate: endDate,
-                startDateTime: startDateTime,
-                endDateTime: endDateTime,
-                reason: fullReason,
-                refundAmount: refundAmount, // Utiliser le refundAmount calculé (toujours 100% pour le locataire)
-              }
-            }
+        if (isOwner && renterEmail) {
+          await invokeSendEmail({
+            type: 'vehicle_booking_cancelled_by_owner',
+            to: renterEmail,
+            data: {
+              renterName: bookingData?.renter?.first_name || 'Cher client',
+              vehicleTitle,
+              startDate,
+              endDate,
+              startDateTime,
+              endDateTime,
+              reason: fullReason,
+              refundAmount,
+            },
           });
         } else if (!isOwner) {
-          // Locataire annule → Email au propriétaire
           if (bookingData?.vehicle?.owner_id) {
             const { data: ownerProfile } = await supabase
               .from('profiles')
               .select('email, first_name')
               .eq('user_id', bookingData.vehicle.owner_id)
               .single();
-              
             if (ownerProfile?.email) {
-              await supabase.functions.invoke('send-email', {
-                body: {
-                  type: 'vehicle_booking_cancelled_by_renter',
-                  to: ownerProfile.email,
-                  data: {
-                    ownerName: ownerProfile.first_name || 'Cher propriétaire',
-                    vehicleTitle: vehicleTitle,
-                    startDate: startDate,
-                    endDate: endDate,
-                    startDateTime: startDateTime,
-                    endDateTime: endDateTime,
-                    reason: fullReason,
-                    penaltyAmount: penalty,
-                  }
-                }
+              await invokeSendEmail({
+                type: 'vehicle_booking_cancelled_by_renter',
+                to: ownerProfile.email,
+                data: {
+                  ownerName: ownerProfile.first_name || 'Cher propriétaire',
+                  vehicleTitle,
+                  startDate,
+                  endDate,
+                  startDateTime,
+                  endDateTime,
+                  reason: fullReason,
+                  penaltyAmount: penalty,
+                },
               });
             }
           }
-          
-          // Email au locataire qui annule (confirmation de son annulation)
-          if (bookingData?.renter?.email) {
-            await supabase.functions.invoke('send-email', {
-              body: {
-                type: 'vehicle_booking_cancelled_by_renter_confirmation',
-                to: bookingData.renter.email,
-                data: {
-                  renterName: bookingData.renter.first_name || 'Cher client',
-                  vehicleTitle: vehicleTitle,
-                  startDate: startDate,
-                  endDate: endDate,
-                  startDateTime: startDateTime,
-                  endDateTime: endDateTime,
-                  reason: fullReason,
-                  penaltyAmount: penalty,
-                  refundAmount: refundAmount, // Utiliser le refundAmount calculé
-                }
-              }
+          if (renterEmail) {
+            await invokeSendEmail({
+              type: 'vehicle_booking_cancelled_by_renter_confirmation',
+              to: renterEmail,
+              data: {
+                renterName: bookingData?.renter?.first_name || 'Cher client',
+                vehicleTitle,
+                startDate,
+                endDate,
+                startDateTime,
+                endDateTime,
+                reason: fullReason,
+                penaltyAmount: penalty,
+                refundAmount,
+              },
             });
           }
         }
 
-        // Email à l'admin
-        await supabase.functions.invoke('send-email', {
-          body: {
-            type: 'vehicle_booking_cancelled_admin',
-            to: 'contact@akwahome.com',
-            data: {
-              bookingId: booking.id,
-              vehicleTitle: vehicleTitle,
-              cancelledBy: isOwner ? 'propriétaire' : 'locataire',
-              renterName: bookingData?.renter ? `${bookingData.renter.first_name || ''} ${bookingData.renter.last_name || ''}`.trim() : 'N/A',
-              startDate: startDate,
-              endDate: endDate,
-              startDateTime: startDateTime,
-              endDateTime: endDateTime,
-              reason: fullReason,
-              penaltyAmount: penalty,
-              totalPrice: booking.total_price,
-            }
-          }
+        await invokeSendEmail({
+          type: 'vehicle_booking_cancelled_admin',
+          to: 'contact@akwahome.com',
+          data: {
+            bookingId: booking.id,
+            vehicleTitle,
+            cancelledBy: isOwner ? 'propriétaire' : 'locataire',
+            renterName: bookingData?.renter ? `${bookingData.renter.first_name || ''} ${bookingData.renter.last_name || ''}`.trim() : 'N/A',
+            startDate,
+            endDate,
+            startDateTime,
+            endDateTime,
+            reason: fullReason,
+            penaltyAmount: penalty,
+            totalPrice: booking.total_price,
+          },
         });
       } catch (emailError) {
-        console.error('Erreur envoi email annulation:', emailError);
-        // Ne pas faire échouer l'annulation si l'email échoue
+        console.warn('[VehicleCancellationModal] Erreur envoi email annulation:', emailError);
       }
 
       Alert.alert('Succès', 'La réservation a été annulée avec succès.');

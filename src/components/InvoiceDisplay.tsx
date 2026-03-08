@@ -7,7 +7,7 @@ import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useCurrency } from '../hooks/useCurrency';
-import akwaHomeLogo from '../../assets/images/akwahome_logo.png';
+import akwaHomeLogo from '../../assets/icon.png';
 
 interface InvoiceDisplayProps {
   type: 'traveler' | 'host' | 'admin';

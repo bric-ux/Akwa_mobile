@@ -118,12 +118,9 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     lastProcessedUrlRef.current = url;
     const parsed = parsePaymentSuccessFromUrl(url);
     if (parsed) {
-      if (parsed.bookingType === 'property') {
-        return;
-      }
-      InteractionManager.runAfterInteractions(() => {
-        setTimeout(() => setPendingPayment(parsed), 600);
-      });
+      // Ne pas afficher le modal au retour par deep link (bouton Stripe) : ça provoque un gel
+      // pour résidence et véhicule. L'utilisateur consulte « Mes réservations » manuellement.
+      return;
     }
   }, []);
 

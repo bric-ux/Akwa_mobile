@@ -17,6 +17,7 @@ import {
   Linking,
   AppState,
   AppStateStatus,
+  InteractionManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -251,26 +252,21 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   }, [pendingStripeSessionId, verifyStripePaymentNow]);
 
   const handlePaymentSuccessUrl = useCallback((url: string | null) => {
-    if (!url) {
-      console.log('[DEBUG][ModificationSurplusModal] handlePaymentSuccessUrl: url vide');
-      return;
-    }
+    if (!url) return;
     if (!url.includes('payment-success')) return;
-    if (!bookingId) {
-      console.log('[DEBUG][ModificationSurplusModal] handlePaymentSuccessUrl: pas de bookingId');
-      return;
-    }
+    if (!bookingId) return;
     const bookingMatch = url.match(/booking_id=([^&]+)/);
     const urlBookingId = bookingMatch ? decodeURIComponent(bookingMatch[1]) : null;
-    if (urlBookingId !== bookingId) {
-      console.log('[DEBUG][ModificationSurplusModal] handlePaymentSuccessUrl: booking_id URL !== modal. urlBookingId:', urlBookingId, 'modal bookingId:', bookingId);
-      return;
-    }
+    if (urlBookingId !== bookingId) return;
     const sessionMatch = url.match(/session_id=([^&]+)/);
     const sessionId = sessionMatch?.[1] && !sessionMatch[1].startsWith('{') ? decodeURIComponent(sessionMatch[1]) : null;
-    console.log('[DEBUG][ModificationSurplusModal] handlePaymentSuccessUrl: retour Stripe, booking_id OK, session_id:', sessionId ? `${sessionId.substring(0, 20)}...` : 'absent');
-    setPendingStripeReturn(true);
-    if (sessionId) setPendingStripeSessionId(sessionId);
+    const apply = () => {
+      setPendingStripeReturn(true);
+      if (sessionId) setPendingStripeSessionId(sessionId);
+    };
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(apply, 400);
+    });
   }, [bookingId]);
 
   useEffect(() => {

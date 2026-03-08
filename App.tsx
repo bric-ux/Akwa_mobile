@@ -46,7 +46,7 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return (
       <View style={styles.splashContainer}>
         <Image
-          source={require('./assets/images/akwahome_logo.png')}
+          source={require('./assets/icon.png')}
           style={styles.splashLogo}
           resizeMode="contain"
         />

@@ -13,7 +13,7 @@ export const Header: React.FC<HeaderProps> = () => {
       <View style={styles.headerContent}>
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../../assets/images/akwahome_logo.png')} 
+            source={require('../../assets/icon.png')} 
             style={styles.logo}
             resizeMode="contain"
           />

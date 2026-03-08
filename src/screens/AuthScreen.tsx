@@ -524,7 +524,7 @@ const AuthScreen: React.FC = () => {
             
             <View style={styles.logoContainer}>
               <Image 
-                source={require('../../assets/images/akwahome_logo.png')} 
+                source={require('../../assets/icon.png')} 
                 style={styles.logoImage}
                 resizeMode="contain"
               />

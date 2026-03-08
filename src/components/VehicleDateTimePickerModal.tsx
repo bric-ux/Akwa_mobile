@@ -67,7 +67,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   const minutesScrollRef = useRef<ScrollView>(null);
   const datesScrollRef = useRef<ScrollView>(null);
 
-  // Générer les dates à afficher (30 jours à partir d'aujourd'hui)
+  // Générer les dates à afficher (1 an à partir d'aujourd'hui)
   const generateDates = (): Date[] => {
     const dates: Date[] = [];
     const today = new Date();
@@ -76,8 +76,8 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     // Aujourd'hui
     dates.push(new Date(today));
     
-    // 30 jours après
-    for (let i = 1; i <= 30; i++) {
+    // 365 jours après (1 an)
+    for (let i = 1; i <= 365; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() + i);
       dates.push(date);

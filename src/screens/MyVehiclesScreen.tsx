@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   Modal,
   Dimensions,
   StatusBar,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,9 +41,10 @@ const MyVehiclesScreen: React.FC = () => {
   const [selectedVehicleImages, setSelectedVehicleImages] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const galleryScrollViewRef = useRef<ScrollView>(null);
+  const loadVehiclesRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const insets = useSafeAreaInsets();
 
-  const loadVehicles = async () => {
+  const loadVehicles = useCallback(async () => {
     try {
       console.log('🔄 [MyVehiclesScreen] Chargement des véhicules...');
       const data = await getMyVehicles();
@@ -50,13 +53,24 @@ const MyVehiclesScreen: React.FC = () => {
     } catch (err) {
       console.error('❌ [MyVehiclesScreen] Erreur lors du chargement des véhicules:', err);
     }
-  };
+  }, [getMyVehicles]);
+
+  loadVehiclesRef.current = loadVehicles;
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       loadVehicles();
     }, [])
   );
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        loadVehiclesRef.current();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -89,20 +103,14 @@ const MyVehiclesScreen: React.FC = () => {
   };
 
   // Filtrer les véhicules selon l'onglet actif
-  // Véhicules actifs : is_active && is_approved
-  const activeVehicles = vehicles.filter(v => {
-    const isApproved = (v as any).is_approved === true;
-    const isActive = v.is_active === true;
-    return isActive && isApproved;
-  });
+  // Onglet Véhicules : tous les véhicules approuvés (actifs ET masqués), pour pouvoir réafficher les masqués
+  const approvedVehicles = vehicles.filter(v => (v as any).is_approved === true);
   // Candidatures : pas encore approuvés (is_approved est false, null, ou undefined)
-  const pendingVehicles = vehicles.filter(v => {
-    return (v as any).is_approved !== true;
-  });
+  const pendingVehicles = vehicles.filter(v => (v as any).is_approved !== true);
 
-  console.log(`📊 [MyVehiclesScreen] Total: ${vehicles.length}, Actifs: ${activeVehicles.length}, Candidatures: ${pendingVehicles.length}`);
+  console.log(`📊 [MyVehiclesScreen] Total: ${vehicles.length}, Approuvés: ${approvedVehicles.length}, Candidatures: ${pendingVehicles.length}`);
 
-  const currentVehicles = activeTab === 'vehicles' ? activeVehicles : pendingVehicles;
+  const currentVehicles = activeTab === 'vehicles' ? approvedVehicles : pendingVehicles;
 
   const handleImagePress = (e: any, vehicle: Vehicle) => {
     e.stopPropagation();
