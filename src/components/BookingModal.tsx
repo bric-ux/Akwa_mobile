@@ -12,6 +12,7 @@ import {
   Linking,
   AppState,
   AppStateStatus,
+  InteractionManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -872,37 +873,31 @@ const BookingModal: React.FC<BookingModalProps> = ({
       setVoucherCode('');
       setVoucherDiscount(null);
     } else if (result.error) {
-      const closeAndReset = () => {
+      const runAfterAlertDismissed = (fn: () => void) => {
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(fn, 400);
+        });
+      };
+      const onAlertButtonPress = () => {
         resetStripePendingState();
-        setCheckIn(null);
-        setCheckOut(null);
-        setAdults(1);
-        setChildren(0);
-        setInfants(0);
-        setMessage('');
-        setVoucherCode('');
-        setVoucherDiscount(null);
-        onClose();
+        runAfterAlertDismissed(() => {
+          setCheckIn(null);
+          setCheckOut(null);
+          setAdults(1);
+          setChildren(0);
+          setInfants(0);
+          setMessage('');
+          setVoucherCode('');
+          setVoucherDiscount(null);
+          onClose();
+        });
       };
       Alert.alert(
         'Consultez « Mes réservations »',
         'Votre paiement a peut-être déjà été enregistré. Pensez à consulter l\'onglet « Mes réservations » pour vérifier. Si la réservation n\'apparaît pas encore, réessayez dans quelques secondes.',
         [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Différer pour éviter un gel au dismiss de l'Alert : arrêter le polling et fermer proprement.
-              setTimeout(() => {
-                closeAndReset();
-              }, 100);
-            },
-          },
-          {
-            text: 'Fermer quand même',
-            onPress: () => {
-              closeAndReset();
-            },
-          },
+          { text: 'OK', onPress: onAlertButtonPress },
+          { text: 'Fermer', onPress: onAlertButtonPress },
         ]
       );
     }
