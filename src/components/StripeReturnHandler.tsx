@@ -116,9 +116,8 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     console.log('[DEBUG][StripeReturnHandler] URL reçue:', url.substring(0, 120) + (url.length > 120 ? '...' : ''));
     const parsed = parsePaymentSuccessFromUrl(url);
     if (parsed) {
-      console.log('[DEBUG][StripeReturnHandler] Parsed checkout_token → pendingPayment différé (éviter gel au retour deep link), type:', parsed.type, 'bookingType:', parsed.bookingType);
-      // Ouvrir l'app via le bouton Stripe (deep link) déclenchait un gel. On diffère l'affichage du modal
-      // pour laisser l'app et la navigation s'initialiser complètement.
+      console.log('[DEBUG][StripeReturnHandler] Parsed checkout_token → modal différé (comme véhicule), type:', parsed.bookingType);
+      // Même logique que véhicule : afficher le modal après un délai pour laisser l'app s'initialiser (évite gel au deep link).
       InteractionManager.runAfterInteractions(() => {
         setTimeout(() => setPendingPayment(parsed), 600);
       });
@@ -143,23 +142,17 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   }, [handleOpenUrl]);
 
   const closeModal = useCallback(() => {
-    const wasVehicleInitial = pendingPayment?.bookingType === 'vehicle';
-    const navRef = navigationRef;
+    // Comme pour le véhicule : on ferme uniquement le modal, sans appeler navigate().
+    // La navigation vers BookingsTab (résidence) provoquait un gel au retour par deep link.
     InteractionManager.runAfterInteractions(() => {
       setTimeout(() => {
         setPendingPayment(null);
         setStatus('checking');
         setMessage('Vérification du paiement en cours...');
         setShowCloseAnyway(false);
-        if (!wasVehicleInitial && navRef?.current) {
-          const current = navRef.current;
-          if (typeof (current as any).isReady !== 'function' || (current as any).isReady()) {
-            current.navigate('Home' as never, { screen: 'BookingsTab' } as never);
-          }
-        }
-      }, 350);
+      }, 200);
     });
-  }, [navigationRef, pendingPayment]);
+  }, []);
 
   const retryVerification = useCallback(() => {
     setStatus('checking');
