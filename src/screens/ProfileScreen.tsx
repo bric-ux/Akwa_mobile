@@ -410,7 +410,6 @@ const ProfileScreen: React.FC = () => {
     });
   }
 
-
   // Utiliser la liste construite dynamiquement
   const finalMenuItems = menuItems;
 

@@ -68,6 +68,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   const [showCloseAnyway, setShowCloseAnyway] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const pollDoneRef = useRef(false);
+  const lastProcessedUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!pendingPayment) return;
@@ -113,16 +114,16 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
 
   const handleOpenUrl = useCallback((url: string | null) => {
     if (!url) return;
-    console.log('[DEBUG][StripeReturnHandler] URL reçue:', url.substring(0, 120) + (url.length > 120 ? '...' : ''));
+    if (lastProcessedUrlRef.current === url) return;
+    lastProcessedUrlRef.current = url;
     const parsed = parsePaymentSuccessFromUrl(url);
     if (parsed) {
-      console.log('[DEBUG][StripeReturnHandler] Parsed checkout_token → modal différé (comme véhicule), type:', parsed.bookingType);
-      // Même logique que véhicule : afficher le modal après un délai pour laisser l'app s'initialiser (évite gel au deep link).
+      if (parsed.bookingType === 'property') {
+        return;
+      }
       InteractionManager.runAfterInteractions(() => {
         setTimeout(() => setPendingPayment(parsed), 600);
       });
-    } else {
-      console.log('[DEBUG][StripeReturnHandler] URL ignorée (pas de checkout_token, modification = gérée par le modal)');
     }
   }, []);
 
