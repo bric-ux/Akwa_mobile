@@ -248,13 +248,13 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     if (dateToFormat.getTime() === tomorrow.getTime()) {
-      return "Demain";
+      return date.getFullYear() !== today.getFullYear() ? `Demain (${date.getFullYear()})` : "Demain";
     }
     
     const days = ['Dim.', 'Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.'];
     const months = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-    
-    return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]}`;
+    const year = date.getFullYear();
+    return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]} ${year}`;
   };
 
   const formatTime = (date: Date): string => {
