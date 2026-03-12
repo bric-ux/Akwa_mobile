@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -42,6 +45,7 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
   const [respectRulesRating, setRespectRulesRating] = useState(0);
   const [comment, setComment] = useState('');
   const [hoveredRatings, setHoveredRatings] = useState<Record<string, number>>({});
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -119,114 +123,125 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={true}
+      transparent={false}
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.header}>
-            <View style={styles.headerTitleContainer}>
-              <Ionicons name="person-outline" size={20} color={VEHICLE_COLORS.primary} />
-              <Text style={styles.headerTitle}>Évaluer {renterName}</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView 
-            style={styles.scrollView} 
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={true}
-            nestedScrollEnabled={true}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Note globale */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Note globale *</Text>
-              <View style={styles.starsContainer}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => setRating(star)}
-                    style={styles.starButton}
-                  >
-                    <Ionicons
-                      name={rating >= star ? 'star' : 'star-outline'}
-                      size={32}
-                      color={rating >= star ? '#fbbf24' : '#d1d5db'}
-                    />
-                  </TouchableOpacity>
-                ))}
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoiding}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'position'}
+        >
+          <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
+            <View style={styles.header}>
+              <View style={styles.headerTitleContainer}>
+                <Ionicons name="person-outline" size={20} color={VEHICLE_COLORS.primary} />
+                <Text style={styles.headerTitle}>Évaluer {renterName}</Text>
               </View>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
             </View>
 
-            {/* Notes détaillées */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Notes détaillées</Text>
-              <View style={styles.ratingsGrid}>
-                <StarRating
-                  title="Soin du véhicule"
-                  icon="car-outline"
-                  rating={vehicleCareRating}
-                  setRating={setVehicleCareRating}
-                  category="vehicleCare"
-                />
-                <StarRating
-                  title="Ponctualité"
-                  icon="time-outline"
-                  rating={punctualityRating}
-                  setRating={setPunctualityRating}
-                  category="punctuality"
-                />
-                <StarRating
-                  title="Communication"
-                  icon="chatbubble-outline"
-                  rating={communicationRating}
-                  setRating={setCommunicationRating}
-                  category="communication"
-                />
-                <StarRating
-                  title="Respect des règles"
-                  icon="checkmark-circle-outline"
-                  rating={respectRulesRating}
-                  setRating={setRespectRulesRating}
-                  category="respectRules"
-                />
-              </View>
-            </View>
-
-            {/* Commentaire */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Votre commentaire</Text>
-              <TextInput
-                style={styles.commentInput}
-                placeholder="Partagez votre expérience avec ce locataire..."
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={4}
-                value={comment}
-                onChangeText={setComment}
-                textAlignVertical="top"
-              />
-            </View>
-          </ScrollView>
-
-          {/* Footer avec bouton de soumission fixe */}
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.submitButton, (rating === 0 || loading) && styles.submitButtonDisabled]}
-              onPress={handleSubmit}
-              disabled={rating === 0 || loading}
+            <ScrollView 
+              ref={scrollViewRef}
+              style={styles.scrollView} 
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitButtonText}>Envoyer mon avis</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+              {/* Note globale */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Note globale *</Text>
+                <View style={styles.starsContainer}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => setRating(star)}
+                      style={styles.starButton}
+                    >
+                      <Ionicons
+                        name={rating >= star ? 'star' : 'star-outline'}
+                        size={32}
+                        color={rating >= star ? '#fbbf24' : '#d1d5db'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Notes détaillées */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Notes détaillées</Text>
+                <View style={styles.ratingsGrid}>
+                  <StarRating
+                    title="Soin du véhicule"
+                    icon="car-outline"
+                    rating={vehicleCareRating}
+                    setRating={setVehicleCareRating}
+                    category="vehicleCare"
+                  />
+                  <StarRating
+                    title="Ponctualité"
+                    icon="time-outline"
+                    rating={punctualityRating}
+                    setRating={setPunctualityRating}
+                    category="punctuality"
+                  />
+                  <StarRating
+                    title="Communication"
+                    icon="chatbubble-outline"
+                    rating={communicationRating}
+                    setRating={setCommunicationRating}
+                    category="communication"
+                  />
+                  <StarRating
+                    title="Respect des règles"
+                    icon="checkmark-circle-outline"
+                    rating={respectRulesRating}
+                    setRating={setRespectRulesRating}
+                    category="respectRules"
+                  />
+                </View>
+              </View>
+
+              {/* Commentaire */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Votre commentaire</Text>
+                <TextInput
+                  style={styles.commentInput}
+                  placeholder="Partagez votre expérience avec ce locataire..."
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={4}
+                  value={comment}
+                  onChangeText={setComment}
+                  textAlignVertical="top"
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd({ animated: true });
+                    }, 150);
+                  }}
+                />
+              </View>
+            </ScrollView>
+
+            {/* Footer avec bouton de soumission fixe */}
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={[styles.submitButton, (rating === 0 || loading) && styles.submitButtonDisabled]}
+                onPress={handleSubmit}
+                disabled={rating === 0 || loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Envoyer mon avis</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -243,6 +258,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '95%',
+    flex: 1,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+  },
+  keyboardAvoiding: {
     flex: 1,
   },
   header: {
@@ -323,7 +342,8 @@ const styles = StyleSheet.create({
   footer: {
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#fff',
   },
   submitButton: {

@@ -11,6 +11,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -119,7 +120,7 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={true}
+      transparent={false}
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
@@ -127,22 +128,23 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
           style={styles.keyboardAvoiding}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
+          <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
             <View style={styles.header}>
               <View style={styles.headerTitleContainer}>
                 <Ionicons name="star-outline" size={20} color={VEHICLE_COLORS.primary} />
-                <Text style={styles.headerTitle} numberOfLines={2}>Votre avis sur {vehicleTitle}</Text>
+                <Text style={styles.headerTitle} numberOfLines={2}>
+                  Votre avis sur {vehicleTitle || 'ce véhicule'}
+                </Text>
               </View>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView 
+            <ScrollView
               ref={scrollViewRef}
-              style={styles.scrollView} 
+              style={styles.scrollView}
               contentContainerStyle={styles.scrollViewContent}
-              showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
             >
               {/* Note globale */}
@@ -219,7 +221,6 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
                   }}
                 />
               </View>
-
             </ScrollView>
 
             {/* Footer avec bouton fixe */}
@@ -246,14 +247,15 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: '#fff',
+    justifyContent: 'flex-start',
   },
   modalContainer: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '95%',
+    flex: 1,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+  },
+  keyboardAvoiding: {
     flex: 1,
   },
   header: {

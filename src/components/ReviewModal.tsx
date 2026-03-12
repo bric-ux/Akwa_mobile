@@ -11,6 +11,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -151,9 +152,9 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
       <View style={styles.modalOverlay}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoiding}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <SafeAreaView style={styles.container}>
+          <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             <View style={styles.header}>
               <Text style={styles.title}>Laisser un avis</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -278,6 +279,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
   header: {
     flexDirection: 'row',
