@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,7 +39,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
   const [valueRating, setValueRating] = useState(0);
   const [communicationRating, setCommunicationRating] = useState(0);
   const [comment, setComment] = useState('');
-  const [hoveredRating, setHoveredRating] = useState<{ category: string; value: number } | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   const handleSubmit = async () => {
     if (locationRating === 0 || cleanlinessRating === 0 || valueRating === 0 || communicationRating === 0) {
@@ -85,18 +87,16 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
     }
   };
 
-  const RatingCategory = ({ 
-    title, 
-    icon, 
-    rating, 
-    setRating, 
-    category 
-  }: { 
-    title: string; 
-    icon: string; 
-    rating: number; 
+  const RatingCategory = ({
+    title,
+    icon,
+    rating,
+    setRating,
+  }: {
+    title: string;
+    icon: string;
+    rating: number;
     setRating: (value: number) => void;
-    category: string;
   }) => {
     const getIconName = () => {
       switch (icon) {
@@ -119,14 +119,13 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
             <TouchableOpacity
               key={star}
               onPress={() => setRating(star)}
-              onPressIn={() => setHoveredRating({ category, value: star })}
-              onPressOut={() => setHoveredRating(null)}
               style={styles.starButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons
-                name={star <= (hoveredRating?.category === category ? hoveredRating.value : rating) ? 'star' : 'star-outline'}
-                size={28}
-                color={star <= (hoveredRating?.category === category ? hoveredRating.value : rating) ? '#FFD700' : '#ccc'}
+                name={star <= rating ? 'star' : 'star-outline'}
+                size={32}
+                color={star <= rating ? '#FFD700' : '#ccc'}
               />
             </TouchableOpacity>
           ))}
@@ -150,107 +149,118 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.container}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Laisser un avis</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <View style={styles.section}>
-              <RatingCategory
-                title="Localisation (Facilité à trouver)"
-                icon="location"
-                rating={locationRating}
-                setRating={setLocationRating}
-                category="location"
-              />
-
-              <RatingCategory
-                title="Propreté du logement"
-                icon="sparkles"
-                rating={cleanlinessRating}
-                setRating={setCleanlinessRating}
-                category="cleanliness"
-              />
-
-              <RatingCategory
-                title="Rapport qualité/prix"
-                icon="dollar"
-                rating={valueRating}
-                setRating={setValueRating}
-                category="value"
-              />
-
-              <RatingCategory
-                title="Communication"
-                icon="message"
-                rating={communicationRating}
-                setRating={setCommunicationRating}
-                category="communication"
-              />
-
-              {/* Moyenne */}
-              {averageRating > 0 && (
-                <View style={styles.averageContainer}>
-                  <Text style={styles.averageLabel}>Note moyenne</Text>
-                  <View style={styles.averageValueContainer}>
-                    <Ionicons name="star" size={24} color="#FFD700" />
-                    <Text style={styles.averageValue}>{averageRating}</Text>
-                    <Text style={styles.averageMax}>/5</Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Commentaire */}
-              <View style={styles.commentSection}>
-                <Text style={styles.commentLabel}>
-                  Commentaire public (optionnel)
-                </Text>
-                <TextInput
-                  style={styles.commentInput}
-                  value={comment}
-                  onChangeText={setComment}
-                  placeholder="Partagez votre expérience..."
-                  multiline
-                  numberOfLines={6}
-                  maxLength={1000}
-                  textAlignVertical="top"
-                />
-                <Text style={styles.charCount}>
-                  {comment.length}/1000 caractères
-                </Text>
-              </View>
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoiding}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <SafeAreaView style={styles.container}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Laisser un avis</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
             </View>
-          </ScrollView>
 
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={onClose}
-              disabled={loading}
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
-              <Text style={styles.cancelButtonText}>Annuler</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.submitButton,
-                (loading || locationRating === 0 || cleanlinessRating === 0 || valueRating === 0 || communicationRating === 0) && styles.submitButtonDisabled,
-              ]}
-              onPress={handleSubmit}
-              disabled={loading || locationRating === 0 || cleanlinessRating === 0 || valueRating === 0 || communicationRating === 0}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.submitButtonText}>Publier l'avis</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+              <View style={styles.section}>
+                <RatingCategory
+                  title="Localisation (Facilité à trouver)"
+                  icon="location"
+                  rating={locationRating}
+                  setRating={setLocationRating}
+                />
+
+                <RatingCategory
+                  title="Propreté du logement"
+                  icon="sparkles"
+                  rating={cleanlinessRating}
+                  setRating={setCleanlinessRating}
+                />
+
+                <RatingCategory
+                  title="Rapport qualité/prix"
+                  icon="dollar"
+                  rating={valueRating}
+                  setRating={setValueRating}
+                />
+
+                <RatingCategory
+                  title="Communication"
+                  icon="message"
+                  rating={communicationRating}
+                  setRating={setCommunicationRating}
+                />
+
+                {/* Moyenne */}
+                {averageRating > 0 && (
+                  <View style={styles.averageContainer}>
+                    <Text style={styles.averageLabel}>Note moyenne</Text>
+                    <View style={styles.averageValueContainer}>
+                      <Ionicons name="star" size={24} color="#FFD700" />
+                      <Text style={styles.averageValue}>{averageRating}</Text>
+                      <Text style={styles.averageMax}>/5</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Commentaire */}
+                <View style={styles.commentSection}>
+                  <Text style={styles.commentLabel}>
+                    Commentaire public (optionnel)
+                  </Text>
+                  <TextInput
+                    style={styles.commentInput}
+                    value={comment}
+                    onChangeText={setComment}
+                    placeholder="Partagez votre expérience..."
+                    multiline
+                    numberOfLines={6}
+                    maxLength={1000}
+                    textAlignVertical="top"
+                    onFocus={() => {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }, 150);
+                    }}
+                  />
+                  <Text style={styles.charCount}>
+                    {comment.length}/1000 caractères
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={[styles.button, styles.cancelButton]}
+                onPress={onClose}
+                disabled={loading}
+              >
+                <Text style={styles.cancelButtonText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  styles.submitButton,
+                  (loading || locationRating === 0 || cleanlinessRating === 0 || valueRating === 0 || communicationRating === 0) && styles.submitButtonDisabled,
+                ]}
+                onPress={handleSubmit}
+                disabled={loading || locationRating === 0 || cleanlinessRating === 0 || valueRating === 0 || communicationRating === 0}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Publier l'avis</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -290,6 +300,9 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  keyboardAvoiding: {
+    flex: 1,
+  },
   section: {
     gap: 20,
   },
@@ -313,7 +326,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   starButton: {
-    padding: 4,
+    padding: 8,
   },
   ratingValue: {
     fontSize: 14,

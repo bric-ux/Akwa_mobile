@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,6 +42,7 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
   const [communicationRating, setCommunicationRating] = useState(0);
   const [comment, setComment] = useState('');
   const [hoveredRatings, setHoveredRatings] = useState<{ [key: string]: number }>({});
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -120,110 +123,121 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
-          <View style={styles.header}>
-            <View style={styles.headerTitleContainer}>
-              <Ionicons name="star-outline" size={20} color={VEHICLE_COLORS.primary} />
-              <Text style={styles.headerTitle} numberOfLines={2}>Votre avis sur {vehicleTitle}</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView 
-            style={styles.scrollView} 
-            contentContainerStyle={styles.scrollViewContent}
-            showsVerticalScrollIndicator={true}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Note globale */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Note globale *</Text>
-              <View style={styles.starsContainer}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => setRating(star)}
-                    style={styles.starButton}
-                  >
-                    <Ionicons
-                      name={rating >= star ? 'star' : 'star-outline'}
-                      size={32}
-                      color={rating >= star ? '#fbbf24' : '#d1d5db'}
-                    />
-                  </TouchableOpacity>
-                ))}
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoiding}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
+            <View style={styles.header}>
+              <View style={styles.headerTitleContainer}>
+                <Ionicons name="star-outline" size={20} color={VEHICLE_COLORS.primary} />
+                <Text style={styles.headerTitle} numberOfLines={2}>Votre avis sur {vehicleTitle}</Text>
               </View>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
             </View>
 
-            {/* Notes détaillées */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Notes détaillées</Text>
-              <View style={styles.ratingsGrid}>
-                <StarRating
-                  title="État du véhicule"
-                  icon="car-outline"
-                  rating={conditionRating}
-                  setRating={setConditionRating}
-                  category="condition"
-                />
-                <StarRating
-                  title="Propreté"
-                  icon="sparkles-outline"
-                  rating={cleanlinessRating}
-                  setRating={setCleanlinessRating}
-                  category="cleanliness"
-                />
-                <StarRating
-                  title="Qualité/Prix"
-                  icon="cash-outline"
-                  rating={valueRating}
-                  setRating={setValueRating}
-                  category="value"
-                />
-                <StarRating
-                  title="Communication"
-                  icon="chatbubble-outline"
-                  rating={communicationRating}
-                  setRating={setCommunicationRating}
-                  category="communication"
-                />
-              </View>
-            </View>
-
-            {/* Commentaire */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Votre commentaire</Text>
-              <TextInput
-                style={styles.commentInput}
-                placeholder="Partagez votre expérience avec ce véhicule..."
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={4}
-                value={comment}
-                onChangeText={setComment}
-                textAlignVertical="top"
-              />
-            </View>
-
-          </ScrollView>
-
-          {/* Footer avec bouton fixe */}
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.submitButton, (rating === 0 || loading) && styles.submitButtonDisabled]}
-              onPress={handleSubmit}
-              disabled={rating === 0 || loading}
+            <ScrollView 
+              ref={scrollViewRef}
+              style={styles.scrollView} 
+              contentContainerStyle={styles.scrollViewContent}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitButtonText}>Envoyer mon avis</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+              {/* Note globale */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Note globale *</Text>
+                <View style={styles.starsContainer}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => setRating(star)}
+                      style={styles.starButton}
+                    >
+                      <Ionicons
+                        name={rating >= star ? 'star' : 'star-outline'}
+                        size={32}
+                        color={rating >= star ? '#fbbf24' : '#d1d5db'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Notes détaillées */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Notes détaillées</Text>
+                <View style={styles.ratingsGrid}>
+                  <StarRating
+                    title="État du véhicule"
+                    icon="car-outline"
+                    rating={conditionRating}
+                    setRating={setConditionRating}
+                    category="condition"
+                  />
+                  <StarRating
+                    title="Propreté"
+                    icon="sparkles-outline"
+                    rating={cleanlinessRating}
+                    setRating={setCleanlinessRating}
+                    category="cleanliness"
+                  />
+                  <StarRating
+                    title="Qualité/Prix"
+                    icon="cash-outline"
+                    rating={valueRating}
+                    setRating={setValueRating}
+                    category="value"
+                  />
+                  <StarRating
+                    title="Communication"
+                    icon="chatbubble-outline"
+                    rating={communicationRating}
+                    setRating={setCommunicationRating}
+                    category="communication"
+                  />
+                </View>
+              </View>
+
+              {/* Commentaire */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Votre commentaire</Text>
+                <TextInput
+                  style={styles.commentInput}
+                  placeholder="Partagez votre expérience avec ce véhicule..."
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={4}
+                  value={comment}
+                  onChangeText={setComment}
+                  textAlignVertical="top"
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd({ animated: true });
+                    }, 150);
+                  }}
+                />
+              </View>
+
+            </ScrollView>
+
+            {/* Footer avec bouton fixe */}
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={[styles.submitButton, (rating === 0 || loading) && styles.submitButtonDisabled]}
+                onPress={handleSubmit}
+                disabled={rating === 0 || loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Envoyer mon avis</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
