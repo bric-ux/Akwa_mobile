@@ -15,7 +15,7 @@ import {
   Dimensions,
   StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useGuestReviews, GuestReview } from '../hooks/useGuestReviews';
@@ -68,6 +68,7 @@ const MyGuestReviewsScreen: React.FC = () => {
   const { getReviewsForGuest, loading: guestReviewsLoading } = useGuestReviews();
   const { getReviewsAboutMe, createResponse, loading: vehicleReviewsLoading } = useVehicleRenterReviews();
   const { sendNewGuestReviewResponse, sendGuestReviewPublished } = useEmailService();
+  const insets = useSafeAreaInsets();
   
   // Avis reçus
   const [receivedPropertyReviews, setReceivedPropertyReviews] = useState<GuestReview[]>([]);
@@ -533,7 +534,7 @@ const MyGuestReviewsScreen: React.FC = () => {
           </Text>
         </View>
 
-        {isPropertyReview && !propertyReview.approved && (
+        {isPropertyReview && propertyReview && !propertyReview.approved && (
           <View style={styles.statusBadge}>
             <Ionicons name="time-outline" size={16} color="#e67e22" />
             <Text style={styles.statusText}>
@@ -549,7 +550,7 @@ const MyGuestReviewsScreen: React.FC = () => {
             </Text>
           </View>
         )}
-        {(isPropertyReview && propertyReview.approved) || (!isPropertyReview && vehicleReview?.is_published) ? (
+        {(isPropertyReview && propertyReview && propertyReview.approved) || (!isPropertyReview && vehicleReview?.is_published) ? (
           <View style={[styles.statusBadge, styles.statusBadgePublished]}>
             <Ionicons name="checkmark-circle-outline" size={16} color="#10b981" />
             <Text style={[styles.statusText, styles.statusTextPublished]}>
@@ -812,7 +813,7 @@ const MyGuestReviewsScreen: React.FC = () => {
             activeOpacity={1}
             onPress={() => setResponseModalVisible(false)}
           />
-          <View style={[styles.modalContainer, { paddingTop: StatusBar.currentHeight || 0 }]}>
+          <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {selectedReview?.response ? 'Modifier votre réponse' : 'Répondre à l\'avis'}

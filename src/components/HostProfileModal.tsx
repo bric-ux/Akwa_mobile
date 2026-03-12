@@ -41,6 +41,31 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
     }
   }, [visible, hostId, getHostProfile, getHostReviews]);
 
+  const totalReviewsCount = reviews.length;
+  const combinedAverageRating =
+    totalReviewsCount > 0
+      ? Number(
+          (
+            reviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
+            totalReviewsCount
+          ).toFixed(1),
+        )
+      : 0;
+
+  const distinctPropertyCount = new Set(
+    reviews
+      .filter((r) => r.review_type === 'property' && r.property_id)
+      .map((r) => r.property_id as string),
+  ).size;
+
+  const distinctVehicleCount = new Set(
+    reviews
+      .filter((r) => r.review_type === 'vehicle' && r.vehicle_id)
+      .map((r) => r.vehicle_id as string),
+  ).size;
+
+  const totalAssetsCount = distinctPropertyCount + distinctVehicleCount;
+
   const renderStars = (rating: number) => {
     return (
       <View style={styles.starsContainer}>
@@ -125,14 +150,14 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>
-                    {hostProfile.total_properties || 0}
+                    {totalAssetsCount}
                   </Text>
-                  <Text style={styles.statLabel}>Véhicules</Text>
+                  <Text style={styles.statLabel}>Biens notés</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>
-                    {hostProfile.average_rating ? hostProfile.average_rating.toFixed(1) : '0.0'}
+                    {combinedAverageRating.toFixed(1)}
                   </Text>
                   <Text style={styles.statLabel}>Note moyenne</Text>
                 </View>

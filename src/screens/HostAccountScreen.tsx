@@ -168,6 +168,12 @@ const HostAccountScreen: React.FC = () => {
       icon: 'add-circle-outline',
       onPress: () => navigation.navigate('BecomeHost' as never),
     },
+    {
+      id: 'myGuestReviews',
+      title: 'Mes avis',
+      icon: 'star-outline',
+      onPress: () => navigation.navigate('MyGuestReviews' as never),
+    },
     ...(FEATURE_MONTHLY_RENTAL ? [
     {
       id: 'subscription',

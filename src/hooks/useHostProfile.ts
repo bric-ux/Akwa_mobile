@@ -10,6 +10,9 @@ export interface HostProfile {
   phone?: string;
   email: string;
   created_at: string;
+  city?: string;
+  country?: string;
+  identity_verified?: boolean;
   properties?: {
     id: string;
     title: string;
@@ -72,13 +75,13 @@ export const useHostProfile = () => {
           if (profileError) {
             console.log('⚠️ [useHostProfile] Aucun profil trouvé non plus dans profiles pour hostId:', hostId);
             // Créer un profil par défaut si aucun profil n'existe
-            const defaultProfile = {
+            const defaultProfile: HostProfile = {
               id: hostId,
               first_name: 'Hôte',
               last_name: 'AkwaHome',
-              avatar_url: null,
-              bio: null,
-              phone: null,
+              avatar_url: undefined,
+              bio: undefined,
+              phone: undefined,
               email: 'hote@akwahome.com',
               created_at: new Date().toISOString(),
             };

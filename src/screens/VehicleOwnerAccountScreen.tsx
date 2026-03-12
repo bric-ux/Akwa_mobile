@@ -20,7 +20,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
 
 const VehicleOwnerAccountScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { t } = useLanguage();
   const { user, signOut } = useAuth();
   const { profile, loading, error, refreshProfile } = useUserProfile();
@@ -149,6 +149,12 @@ const VehicleOwnerAccountScreen: React.FC = () => {
       title: 'Ajouter un véhicule',
       icon: 'add-circle-outline',
       onPress: () => navigation.navigate('AddVehicle' as never),
+    },
+    {
+      id: 'myGuestReviews',
+      title: 'Mes avis',
+      icon: 'star-outline',
+      onPress: () => navigation.navigate('MyGuestReviews' as never),
     },
     {
       id: 'conciergerie',

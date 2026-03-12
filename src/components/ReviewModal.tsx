@@ -11,10 +11,9 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReviews } from '../hooks/useReviews';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -41,6 +40,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
   const [communicationRating, setCommunicationRating] = useState(0);
   const [comment, setComment] = useState('');
   const scrollViewRef = useRef<ScrollView | null>(null);
+  const insets = useSafeAreaInsets();
 
   const handleSubmit = async () => {
     if (locationRating === 0 || cleanlinessRating === 0 || valueRating === 0 || communicationRating === 0) {
@@ -154,8 +154,8 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
           style={styles.keyboardAvoiding}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            <View style={styles.header}>
+          <SafeAreaView style={styles.container} edges={['bottom']}>
+            <View style={[styles.header, { paddingTop: insets.top }]}>
               <Text style={styles.title}>Laisser un avis</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color="#333" />
@@ -279,7 +279,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
   header: {
     flexDirection: 'row',

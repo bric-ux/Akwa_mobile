@@ -24,6 +24,7 @@ export const useReviews = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { sendNewPropertyReview } = useEmailService();
 
   const getPropertyReviews = async (propertyId: string): Promise<Review[]> => {
     setLoading(true);
@@ -186,8 +187,8 @@ export const useReviews = () => {
           .eq('id', reviewData.propertyId)
           .single();
 
-        if (propertyData && propertyData.profiles) {
-          const hostProfile = propertyData.profiles;
+        if (propertyData && propertyData.profiles && Array.isArray(propertyData.profiles) && propertyData.profiles.length > 0) {
+          const hostProfile = propertyData.profiles[0];
           const hostName = `${hostProfile.first_name} ${hostProfile.last_name}`;
           const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
           

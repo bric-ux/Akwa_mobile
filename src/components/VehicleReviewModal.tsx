@@ -11,10 +11,9 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVehicleReviews } from '../hooks/useVehicleReviews';
 import { VEHICLE_COLORS } from '../constants/colors';
 
@@ -35,6 +34,7 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
   vehicleTitle,
   onReviewSubmitted,
 }) => {
+  const insets = useSafeAreaInsets();
   const { createReview, loading } = useVehicleReviews();
   const [rating, setRating] = useState(0);
   const [conditionRating, setConditionRating] = useState(0);
@@ -128,8 +128,8 @@ const VehicleReviewModal: React.FC<VehicleReviewModalProps> = ({
           style={styles.keyboardAvoiding}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
-            <View style={styles.header}>
+          <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
+            <View style={[styles.header, { paddingTop: insets.top }]}>
               <View style={styles.headerTitleContainer}>
                 <Ionicons name="star-outline" size={20} color={VEHICLE_COLORS.primary} />
                 <Text style={styles.headerTitle} numberOfLines={2}>
@@ -253,7 +253,6 @@ const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: '#fff',
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
   keyboardAvoiding: {
     flex: 1,
