@@ -3,7 +3,7 @@
     "name": "AkwaHomeMobile",
     "slug": "AkwaHomeMobile",
     "scheme": "akwahomemobile",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSCameraUsageDescription": "Cette application utilise la camera pour prendre des photos de profil, de proprietes et de vehicules.",
         "NSPhotoLibraryUsageDescription": "Cette application accede a votre phototheque pour selectionner des photos a televerser.",

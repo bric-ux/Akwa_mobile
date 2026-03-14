@@ -1211,7 +1211,6 @@ export const useVehicleBookings = () => {
           if (__DEV__) console.log('✅ [useVehicleBookings] Emails de confirmation envoyés');
 
           // Notification push au locataire (réservation véhicule confirmée par le propriétaire)
-          const vehicleTitle = (booking.vehicle as any)?.title || `${(booking.vehicle as any)?.brand || ''} ${(booking.vehicle as any)?.model || ''}`.trim();
           sendPushToUser(
             booking.renter_id,
             'Réservation véhicule confirmée',
