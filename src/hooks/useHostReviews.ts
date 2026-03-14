@@ -53,11 +53,16 @@ export const useHostReviews = () => {
   const [reviews, setReviews] = useState<HostReview[]>([]);
   const { user } = useAuth();
 
-  // Get reviews for a specific host by hostId (for public profile view)
-  const getHostReviews = useCallback(async (hostId: string): Promise<void> => {
+  // Get reviews for a specific host by hostId (for public profile view).
+  // When propertyOnly is true (e.g. from résidence meublée), only property reviews are fetched.
+  const getHostReviews = useCallback(async (
+    hostId: string,
+    options?: { propertyOnly?: boolean }
+  ): Promise<void> => {
     setLoading(true);
     try {
       const allReviews: HostReview[] = [];
+      const propertyOnly = options?.propertyOnly === true;
 
       // 1. Get reviews for properties
       const { data: properties, error: propError } = await supabase
@@ -112,59 +117,61 @@ export const useHostReviews = () => {
         }
       }
 
-      // 2. Get reviews for vehicles
-      const { data: vehicles, error: vehicleError } = await supabase
-        .from('vehicles')
-        .select('id')
-        .eq('owner_id', hostId);
+      // 2. Get reviews for vehicles (skip when propertyOnly = true, e.g. from résidence meublée)
+      if (!propertyOnly) {
+        const { data: vehicles, error: vehicleError } = await supabase
+          .from('vehicles')
+          .select('id')
+          .eq('owner_id', hostId);
 
-      if (!vehicleError && vehicles?.length) {
-        const vehicleIds = vehicles.map(v => v.id);
+        if (!vehicleError && vehicles?.length) {
+          const vehicleIds = vehicles.map(v => v.id);
 
-        const { data: vehicleReviewsData, error: vehicleReviewsError } = await (supabase as any)
-          .from('vehicle_reviews')
-          .select(`
-            id,
-            vehicle_id,
-            reviewer_id,
-            rating,
-            comment,
-            created_at,
-            profiles!vehicle_reviews_reviewer_id_fkey(first_name, last_name),
-            vehicles!vehicle_reviews_vehicle_id_fkey(brand, model, title)
-          `)
-          .in('vehicle_id', vehicleIds)
-          .eq('is_published', true)
-          .order('created_at', { ascending: false });
+          const { data: vehicleReviewsData, error: vehicleReviewsError } = await (supabase as any)
+            .from('vehicle_reviews')
+            .select(`
+              id,
+              vehicle_id,
+              reviewer_id,
+              rating,
+              comment,
+              created_at,
+              profiles!vehicle_reviews_reviewer_id_fkey(first_name, last_name),
+              vehicles!vehicle_reviews_vehicle_id_fkey(brand, model, title)
+            `)
+            .in('vehicle_id', vehicleIds)
+            .eq('is_published', true)
+            .order('created_at', { ascending: false });
 
-        if (!vehicleReviewsError && vehicleReviewsData) {
-          const vehicleReviews: HostReview[] = vehicleReviewsData.map((review: any) => {
-            const reviewer = review.profiles || review.profiles_vehicle_reviews_reviewer_id_fkey || null;
-            const vehicle = review.vehicles || review.vehicles_vehicle_reviews_vehicle_id_fkey || null;
-            
-            const reviewerName = reviewer 
-              ? `${reviewer.first_name || ''} ${reviewer.last_name || ''}`.trim() || 'Anonyme'
-              : 'Anonyme';
-            
-            const vehicleTitle = vehicle?.title || 
-              (vehicle?.brand && vehicle?.model 
-                ? `${vehicle.brand} ${vehicle.model}` 
-                : 'Véhicule');
-            
-            return {
-              id: review.id,
-              vehicle_id: review.vehicle_id,
-              reviewer_id: review.reviewer_id,
-              rating: review.rating || 0,
-              comment: review.comment || null,
-              created_at: review.created_at,
-              reviewer_name: reviewerName,
-              vehicle_title: vehicleTitle,
-              review_type: 'vehicle' as const,
-            };
-          });
+          if (!vehicleReviewsError && vehicleReviewsData) {
+            const vehicleReviews: HostReview[] = vehicleReviewsData.map((review: any) => {
+              const reviewer = review.profiles || review.profiles_vehicle_reviews_reviewer_id_fkey || null;
+              const vehicle = review.vehicles || review.vehicles_vehicle_reviews_vehicle_id_fkey || null;
+              
+              const reviewerName = reviewer 
+                ? `${reviewer.first_name || ''} ${reviewer.last_name || ''}`.trim() || 'Anonyme'
+                : 'Anonyme';
+              
+              const vehicleTitle = vehicle?.title || 
+                (vehicle?.brand && vehicle?.model 
+                  ? `${vehicle.brand} ${vehicle.model}` 
+                  : 'Véhicule');
+              
+              return {
+                id: review.id,
+                vehicle_id: review.vehicle_id,
+                reviewer_id: review.reviewer_id,
+                rating: review.rating || 0,
+                comment: review.comment || null,
+                created_at: review.created_at,
+                reviewer_name: reviewerName,
+                vehicle_title: vehicleTitle,
+                review_type: 'vehicle' as const,
+              };
+            });
 
-          allReviews.push(...vehicleReviews);
+            allReviews.push(...vehicleReviews);
+          }
         }
       }
 

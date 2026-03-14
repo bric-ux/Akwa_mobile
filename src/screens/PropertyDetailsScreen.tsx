@@ -476,7 +476,7 @@ const PropertyDetailsScreen: React.FC = () => {
               style={styles.hostCard}
               onPress={() => {
                 const nav = navigation as any;
-                nav.navigate('HostProfile', { hostId: property.host_id });
+                nav.navigate('HostProfile', { hostId: property.host_id, propertyOnly: true });
               }}
               activeOpacity={0.7}
             >

@@ -17,16 +17,16 @@ import { useHostReviews } from '../hooks/useHostReviews';
 const HostProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { hostId } = (route.params as any) || {};
+  const { hostId, propertyOnly } = (route.params as any) || {};
   const { hostProfile, loading, error, getHostProfile } = useHostProfile();
   const { reviews, loading: reviewsLoading, getHostReviews } = useHostReviews();
 
   useEffect(() => {
     if (hostId) {
       getHostProfile(hostId);
-      getHostReviews(hostId);
+      getHostReviews(hostId, { propertyOnly: propertyOnly === true });
     }
-  }, [hostId, getHostProfile, getHostReviews]);
+  }, [hostId, propertyOnly, getHostProfile, getHostReviews]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
