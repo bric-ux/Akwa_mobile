@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
+import { sendPushToUser } from '../services/pushNotificationService';
 
 export interface HostBooking {
   id: string;
@@ -512,6 +513,13 @@ export const useHostBookings = () => {
             console.error('❌ [useHostBookings] Erreur envoi emails:', error);
           }
 
+          // Notification push au voyageur (réservation confirmée par l'hôte)
+          sendPushToUser(
+            bookingData.guest_id,
+            'Réservation confirmée',
+            `Votre réservation pour "${bookingData.properties.title}" a été confirmée par l'hôte.`
+          ).catch(() => {});
+
           console.log('✅ [useHostBookings] Confirmation envoyée aux voyageurs et hôtes');
         } else if (status === 'cancelled') {
           // Email d'annulation au voyageur
@@ -537,6 +545,13 @@ export const useHostBookings = () => {
             bookingData.guests_count,
             bookingData.total_price
           );
+
+          // Notification push au voyageur (annulation par l'hôte)
+          sendPushToUser(
+            bookingData.guest_id,
+            'Réservation annulée',
+            `L'hôte a annulé votre réservation pour "${bookingData.properties.title}".`
+          ).catch(() => {});
 
           console.log('✅ [useHostBookings] Emails d\'annulation envoyés');
         }

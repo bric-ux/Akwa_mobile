@@ -6,6 +6,7 @@ import { useIdentityVerification } from './useIdentityVerification';
 import { getCommissionRates } from '../lib/commissions';
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
 import { useCurrency } from './useCurrency';
+import { sendPushToUser } from '../services/pushNotificationService';
 
 export type VehiclePaymentMethod = 'card' | 'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'paypal' | 'cash';
 
@@ -727,6 +728,13 @@ export const useVehicleBookings = () => {
                 data: emailData
               }
             });
+
+            // Notification push au propriétaire (réservation véhicule confirmée)
+            sendPushToUser(
+              vehicleInfo.owner_id,
+              'Nouvelle réservation véhicule',
+              `${renterName} a réservé "${vehicleTitle}" du ${bookingData.startDate} au ${bookingData.endDate}.`
+            ).catch(() => {});
           } else if (isCardPayment) {
             if (__DEV__) console.log('✅ [useVehicleBookings] Paiement carte - emails envoyés après confirmation Stripe');
           } else {
@@ -814,6 +822,13 @@ export const useVehicleBookings = () => {
                 }
               });
             }
+
+            // Notification push au propriétaire (demande de réservation véhicule)
+            sendPushToUser(
+              vehicleInfo.owner_id,
+              'Nouvelle demande de réservation véhicule',
+              `${renterName} souhaite réserver "${vehicleTitle}" du ${bookingData.startDate} au ${bookingData.endDate}.`
+            ).catch(() => {});
           }
 
           if (__DEV__) console.log('✅ [useVehicleBookings] Emails de réservation envoyés');
@@ -1194,10 +1209,26 @@ export const useVehicleBookings = () => {
           });
 
           if (__DEV__) console.log('✅ [useVehicleBookings] Emails de confirmation envoyés');
+
+          // Notification push au locataire (réservation véhicule confirmée par le propriétaire)
+          const vehicleTitle = (booking.vehicle as any)?.title || `${(booking.vehicle as any)?.brand || ''} ${(booking.vehicle as any)?.model || ''}`.trim();
+          sendPushToUser(
+            booking.renter_id,
+            'Réservation véhicule confirmée',
+            `Votre réservation pour "${vehicleTitle}" a été confirmée par le propriétaire.`
+          ).catch(() => {});
         } catch (emailError) {
           console.error('❌ [useVehicleBookings] Erreur envoi email:', emailError);
           // Ne pas faire échouer la mise à jour si l'email échoue
         }
+      } else if (status === 'cancelled') {
+        // Notification push au locataire (annulation par le propriétaire)
+        const vehicleTitle = (booking.vehicle as any)?.title || `${(booking.vehicle as any)?.brand || ''} ${(booking.vehicle as any)?.model || ''}`.trim();
+        sendPushToUser(
+          booking.renter_id,
+          'Réservation véhicule annulée',
+          `Le propriétaire a annulé votre réservation pour "${vehicleTitle}".`
+        ).catch(() => {});
       }
 
       return { success: true, booking: updatedBooking };
@@ -1220,6 +1251,15 @@ export const useVehicleBookings = () => {
         throw new Error('Utilisateur non connecté');
       }
 
+      // Récupérer le propriétaire pour la notification push avant mise à jour
+      const { data: bookingForOwner } = await supabase
+        .from('vehicle_bookings')
+        .select('vehicle:vehicles(owner_id, title, brand, model)')
+        .eq('id', bookingId)
+        .single();
+      const ownerId = (bookingForOwner?.vehicle as any)?.owner_id;
+      const vehicleTitle = (bookingForOwner?.vehicle as any)?.title || `${(bookingForOwner?.vehicle as any)?.brand || ''} ${(bookingForOwner?.vehicle as any)?.model || ''}`.trim();
+
       const { data, error: updateError } = await supabase
         .from('vehicle_bookings')
         .update({
@@ -1234,6 +1274,15 @@ export const useVehicleBookings = () => {
 
       if (updateError) {
         throw updateError;
+      }
+
+      // Notification push au propriétaire (annulation par le locataire)
+      if (ownerId) {
+        sendPushToUser(
+          ownerId,
+          'Réservation véhicule annulée',
+          `Le locataire a annulé sa réservation pour "${vehicleTitle}".`
+        ).catch(() => {});
       }
 
       return { success: true, booking: data };

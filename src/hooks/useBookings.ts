@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
 import { useIdentityVerification } from './useIdentityVerification';
+import { sendPushToUser } from '../services/pushNotificationService';
 
 export interface BookingData {
   propertyId: string;
@@ -701,6 +702,12 @@ export const useBookings = () => {
               console.error('❌ [useBookings] Erreur envoi emails:', emailError);
               // Ne pas faire échouer la réservation si l'email échoue
             }
+            // Notification push à l'hôte (réservation directe confirmée)
+            sendPushToUser(
+              propertyInfo.host_id,
+              'Nouvelle réservation confirmée',
+              `${guestName} a réservé "${propertyInfo.title}" du ${bookingData.checkInDate} au ${bookingData.checkOutDate}.`
+            ).catch(() => {});
           } else if (initialStatus === 'pending') {
             // Réservation en attente - envoyer les emails de demande (comme sur le site web)
             if (__DEV__) console.log('✅ [useBookings] Réservation en attente - envoi emails de demande');
@@ -736,6 +743,13 @@ export const useBookings = () => {
               bookingData.paymentCurrency || 'XOF',
               bookingData.paymentRate || undefined
             );
+
+            // Notification push à l'hôte (sur le téléphone, pas par mail)
+            sendPushToUser(
+              propertyInfo.host_id,
+              'Nouvelle demande de réservation',
+              `${guestName} souhaite réserver "${propertyInfo.title}" du ${bookingData.checkInDate} au ${bookingData.checkOutDate}.`
+            ).catch(() => {});
 
             // Délai pour éviter le rate limit
             await new Promise(resolve => setTimeout(resolve, 600));
@@ -1061,6 +1075,13 @@ export const useBookings = () => {
         setError('Erreur lors de l\'annulation de la réservation');
         return { success: false };
       }
+
+      // Notification push à l'hôte (annulation par le voyageur)
+      sendPushToUser(
+        fullBooking.properties.host_id,
+        'Réservation annulée',
+        `Le voyageur a annulé sa réservation pour "${fullBooking.properties.title}".`
+      ).catch(() => {});
 
       // Envoyer les emails explicites aux deux parties
       try {

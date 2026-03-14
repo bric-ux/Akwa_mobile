@@ -46,6 +46,14 @@
           }
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#e67e22",
+          "sounds": []
+        }
+      ],
       "expo-localization"
     ],
     "extra": {

@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from '../hooks/useEmailService';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { clearProfileCache } from '../hooks/useUserProfile';
 import { supabase } from '../services/supabase';
 import { useLanguage, Language } from '../contexts/LanguageContext';
@@ -25,6 +26,7 @@ const SettingsScreen: React.FC = () => {
   const { user, signOut } = useAuth();
   const { sendPasswordReset } = useEmailService();
   const { language, setLanguage, t } = useLanguage();
+  const { pushEnabled, setPushPreference, loading: pushLoading, error: pushError } = usePushNotifications();
   
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -32,8 +34,7 @@ const SettingsScreen: React.FC = () => {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // États pour les notifications
-  const [pushNotifications, setPushNotifications] = useState(true);
+  // États pour les notifications (email, réservations, messages, marketing restent locaux)
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [bookingNotifications, setBookingNotifications] = useState(true);
   const [messageNotifications, setMessageNotifications] = useState(true);
@@ -43,12 +44,18 @@ const SettingsScreen: React.FC = () => {
 
   const handleNotificationToggle = async (type: string, value: boolean) => {
     try {
-      // Ici on pourrait sauvegarder les préférences dans Supabase
-      // Pour l'instant, on met juste à jour l'état local
+      if (type === 'push') {
+        const ok = await setPushPreference(value);
+        if (!ok && value) {
+          Alert.alert(
+            'Notifications',
+            'Autorisez les notifications dans les paramètres de votre appareil pour recevoir des alertes (réservations, messages, etc.).'
+          );
+        }
+        if (pushError) Alert.alert('Notifications', pushError);
+        return;
+      }
       switch (type) {
-        case 'push':
-          setPushNotifications(value);
-          break;
         case 'email':
           setEmailNotifications(value);
           break;
@@ -62,13 +69,6 @@ const SettingsScreen: React.FC = () => {
           setMarketingNotifications(value);
           break;
       }
-      
-      // Sauvegarder dans les préférences utilisateur (à implémenter)
-      // await supabase.from('user_preferences').upsert({
-      //   user_id: user?.id,
-      //   [type]: value
-      // });
-      
     } catch (error) {
       console.error('Erreur sauvegarde préférences:', error);
       Alert.alert('Erreur', 'Impossible de sauvegarder les préférences');
@@ -345,8 +345,9 @@ const SettingsScreen: React.FC = () => {
             icon="notifications-outline"
             title={t('settings.pushNotifications')}
             subtitle={t('settings.pushNotifications')}
-            value={pushNotifications}
+            value={pushEnabled}
             onToggle={(value) => handleNotificationToggle('push', value)}
+            disabled={pushLoading}
           />
           
           <NotificationItem

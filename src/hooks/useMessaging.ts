@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Conversation, Message } from '../types';
 import { useEmailService } from './useEmailService';
+import { sendPushToUser } from '../services/pushNotificationService';
 import { log, logError, logWarn } from '../utils/logger';
 
 export const useMessaging = () => {
@@ -362,6 +363,11 @@ export const useMessaging = () => {
             );
             console.log('✅ [useMessaging] Email de notification envoyé à:', recipientProfile.email);
           }
+          // Notification push sur le téléphone du destinataire (sans email)
+          const recipientUserId = isHost ? conversationData.guest_id : conversationData.host_id;
+          const senderName = senderProfile?.first_name ? `${senderProfile.first_name} ${senderProfile.last_name || ''}`.trim() : 'Quelqu\'un';
+          const body = `${senderName} : ${message.trim().slice(0, 80)}${message.trim().length > 80 ? '...' : ''}`;
+          sendPushToUser(recipientUserId, 'Nouveau message', body).catch(() => {});
         }
       } catch (emailError) {
         console.error('❌ [useMessaging] Erreur envoi email notification:', emailError);

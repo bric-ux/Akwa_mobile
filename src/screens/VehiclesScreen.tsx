@@ -837,7 +837,7 @@ const VehiclesScreen: React.FC = () => {
             activeOpacity={0.7}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="arrow-back" size={24} color={isMapView ? '#fff' : '#333'} />
+            <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.locationSection, isMapView && styles.locationSectionMap]}
