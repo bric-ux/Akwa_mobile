@@ -8,10 +8,12 @@ import {
   Image,
   Alert,
   ActivityIndicator,
-  FlatList,
   Modal,
   Dimensions,
   StatusBar,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,22 +22,49 @@ import { useVehicles } from '../hooks/useVehicles';
 import { Vehicle } from '../types';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { RootStackParamList } from '../types';
+import { supabase } from '../services/supabase';
+import { useAuth } from '../services/AuthContext';
+import { useEmailService } from '../hooks/useEmailService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type VehicleManagementRouteProp = RouteProp<RootStackParamList, 'VehicleManagement'>;
 
+interface VehicleReviewItem {
+  id: string;
+  vehicle_id: string;
+  reviewer_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  condition_rating?: number | null;
+  cleanliness_rating?: number | null;
+  value_rating?: number | null;
+  communication_rating?: number | null;
+  reviewer?: { first_name: string | null; last_name: string | null };
+  response?: { id: string; response: string; created_at: string };
+}
+
 const VehicleManagementScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<VehicleManagementRouteProp>();
   const { vehicleId } = route.params;
+  const { user } = useAuth();
   const { getVehicleById, updateVehicle, deleteVehicle, loading } = useVehicles();
+  const { sendNewVehicleReviewResponse, sendVehicleReviewPublished } = useEmailService();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loadingVehicle, setLoadingVehicle] = useState(true);
   const [showImageGallery, setShowImageGallery] = useState(false);
   const [galleryStartIndex, setGalleryStartIndex] = useState(0);
   const galleryScrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+
+  const [vehicleReviews, setVehicleReviews] = useState<VehicleReviewItem[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [responseModalVisible, setResponseModalVisible] = useState(false);
+  const [selectedReview, setSelectedReview] = useState<VehicleReviewItem | null>(null);
+  const [responseText, setResponseText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   // Scroller vers l'image sélectionnée quand la galerie s'ouvre
   useEffect(() => {
@@ -58,11 +87,129 @@ const VehicleManagementScreen: React.FC = () => {
       setLoadingVehicle(true);
       const data = await getVehicleById(vehicleId);
       setVehicle(data);
+      if (data) await loadReviews();
     } catch (err) {
       console.error('Erreur lors du chargement du véhicule:', err);
       Alert.alert('Erreur', 'Impossible de charger le véhicule');
     } finally {
       setLoadingVehicle(false);
+    }
+  };
+
+  const loadReviews = async () => {
+    if (!vehicleId) return;
+    try {
+      setLoadingReviews(true);
+      const { data: reviewsData, error } = await (supabase as any)
+        .from('vehicle_reviews')
+        .select(`
+          *,
+          reviewer:profiles!vehicle_reviews_reviewer_id_fkey(first_name, last_name)
+        `)
+        .eq('vehicle_id', vehicleId)
+        .order('created_at', { ascending: false });
+      if (error) {
+        setVehicleReviews([]);
+        return;
+      }
+      const list = reviewsData || [];
+      let responses: any[] = [];
+      if (list.length > 0) {
+        const { data: responsesData } = await (supabase as any)
+          .from('vehicle_review_responses')
+          .select('*')
+          .in('review_id', list.map((r: any) => r.id));
+        responses = responsesData || [];
+      }
+      const enriched = list.map((r: any) => ({
+        ...r,
+        reviewer: r.reviewer || r.profiles,
+        response: responses.find((res: any) => res.review_id === r.id),
+      }));
+      setVehicleReviews(enriched);
+    } catch (e) {
+      console.error('Erreur chargement avis:', e);
+      setVehicleReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const renderStars = (rating: number) => (
+    <View style={styles.reviewStarsRow}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Ionicons
+          key={star}
+          name={star <= rating ? 'star' : 'star-outline'}
+          size={14}
+          color={star <= rating ? '#fbbf24' : '#d1d5db'}
+        />
+      ))}
+    </View>
+  );
+
+  const handleOpenResponseModal = (review: VehicleReviewItem) => {
+    setSelectedReview(review);
+    setResponseText(review.response?.response || '');
+    setResponseModalVisible(true);
+  };
+
+  const handleSubmitResponse = async () => {
+    if (!selectedReview || !user || !responseText.trim()) return;
+    setSubmitting(true);
+    try {
+      const isNewResponse = !selectedReview.response;
+      if (selectedReview.response) {
+        const { error } = await (supabase as any)
+          .from('vehicle_review_responses')
+          .update({ response: responseText.trim() })
+          .eq('id', selectedReview.response.id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from('vehicle_review_responses')
+          .insert({
+            review_id: selectedReview.id,
+            owner_id: user.id,
+            response: responseText.trim(),
+          });
+        if (error) throw error;
+      }
+      if (isNewResponse) {
+        try {
+          const { data: reviewData } = await (supabase as any)
+            .from('vehicle_reviews')
+            .select(`
+              reviewer_id, vehicle_id, rating, comment,
+              vehicles!vehicle_reviews_vehicle_id_fkey(title),
+              profiles!vehicle_reviews_reviewer_id_fkey(first_name, last_name, email)
+            `)
+            .eq('id', selectedReview.id)
+            .single();
+          const profiles = reviewData?.profiles;
+          const vehicles = reviewData?.vehicles;
+          const renter = profiles != null ? (Array.isArray(profiles) ? profiles[0] : profiles) : null;
+          const vehicleRow = vehicles != null ? (Array.isArray(vehicles) ? vehicles[0] : vehicles) : null;
+          if (renter?.email) {
+            const renterName = `${renter.first_name || ''} ${renter.last_name || ''}`.trim() || 'Locataire';
+            const ownerName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Propriétaire';
+            const vehicleTitle = vehicleRow?.title || 'Votre location';
+            await sendNewVehicleReviewResponse(renter.email, renterName, ownerName, vehicleTitle, responseText.trim());
+            await sendVehicleReviewPublished(renter.email, renterName, ownerName, vehicleTitle, reviewData?.rating || 0, reviewData?.comment || undefined);
+          }
+        } catch (emailErr) {
+          console.error('Erreur envoi email:', emailErr);
+        }
+      }
+      Alert.alert('Succès', 'Votre réponse a été enregistrée et l\'avis est maintenant publié');
+      setResponseModalVisible(false);
+      setSelectedReview(null);
+      setResponseText('');
+      await loadReviews();
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message || 'Impossible de soumettre votre réponse');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -319,6 +466,76 @@ const VehicleManagementScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Section Avis reçus - répondre directement */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="star-outline" size={20} color="#1e293b" />
+            <Text style={styles.sectionTitle}>Avis reçus</Text>
+            {vehicleReviews.length > 0 && (
+              <Text style={styles.reviewCount}>({vehicleReviews.length})</Text>
+            )}
+          </View>
+          {loadingReviews ? (
+            <View style={styles.reviewsLoadingBox}>
+              <ActivityIndicator size="small" color={VEHICLE_COLORS.primary} />
+              <Text style={styles.reviewsLoadingText}>Chargement des avis...</Text>
+            </View>
+          ) : vehicleReviews.length === 0 ? (
+            <View style={styles.reviewsEmptyBox}>
+              <Text style={styles.reviewsEmptyText}>Aucun avis pour le moment. Les avis des locataires apparaîtront ici.</Text>
+            </View>
+          ) : (
+            <View style={styles.reviewsList}>
+              {vehicleReviews.map((review) => (
+                <View
+                  key={review.id}
+                  style={[styles.reviewCard, !review.response && styles.reviewCardUnpublished]}
+                >
+                  {!review.response && (
+                    <View style={styles.reviewStatusBadge}>
+                      <Ionicons name="eye-off-outline" size={14} color="#e67e22" />
+                      <Text style={styles.reviewStatusText}>Non publié - Répondez pour publier</Text>
+                    </View>
+                  )}
+                  {review.response && (
+                    <View style={[styles.reviewStatusBadge, styles.reviewStatusBadgePublished]}>
+                      <Ionicons name="eye-outline" size={14} color="#10b981" />
+                      <Text style={[styles.reviewStatusText, styles.reviewStatusTextPublished]}>Publié</Text>
+                    </View>
+                  )}
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewerName}>
+                      {review.reviewer ? `${review.reviewer.first_name || ''} ${review.reviewer.last_name || ''}`.trim() || 'Anonyme' : 'Anonyme'}
+                    </Text>
+                    <View style={styles.reviewMeta}>
+                      {renderStars(review.rating)}
+                      <Text style={styles.reviewDate}>
+                        {new Date(review.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </Text>
+                    </View>
+                  </View>
+                  {review.comment ? <Text style={styles.reviewComment} numberOfLines={3}>{review.comment}</Text> : null}
+                  {review.response && (
+                    <View style={styles.reviewResponseBlock}>
+                      <Text style={styles.reviewResponseLabel}>Votre réponse</Text>
+                      <Text style={styles.reviewResponseText} numberOfLines={2}>{review.response.response}</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={styles.reviewResponseButton}
+                    onPress={() => handleOpenResponseModal(review)}
+                  >
+                    <Ionicons name="chatbubble-outline" size={18} color={VEHICLE_COLORS.primary} />
+                    <Text style={[styles.reviewResponseButtonText, { color: VEHICLE_COLORS.primary }]}>
+                      {review.response ? 'Modifier ma réponse' : 'Répondre à cet avis'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         {/* Option Supprimer */}
         <TouchableOpacity
           style={styles.deleteButton}
@@ -406,6 +623,70 @@ const VehicleManagementScreen: React.FC = () => {
               </View>
             </View>
           )}
+        </View>
+      </Modal>
+
+      {/* Modal Réponse à un avis */}
+      <Modal
+        visible={responseModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setResponseModalVisible(false)}
+        statusBarTranslucent
+      >
+        <StatusBar backgroundColor="rgba(0,0,0,0.5)" barStyle="light-content" />
+        <View style={styles.responseModalOverlay}>
+          <TouchableOpacity style={styles.responseModalOverlayTouch} activeOpacity={1} onPress={() => setResponseModalVisible(false)} />
+          <View style={[styles.responseModalContainer, { paddingTop: insets.top + 16 }]}>
+            <View style={styles.responseModalHeader}>
+              <Text style={styles.responseModalTitle}>
+                {selectedReview?.response ? 'Modifier votre réponse' : 'Répondre à l\'avis'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setResponseModalVisible(false);
+                  setSelectedReview(null);
+                  setResponseText('');
+                }}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.responseModalKV}>
+              <ScrollView style={styles.responseModalScroll} contentContainerStyle={styles.responseModalScrollContent} keyboardShouldPersistTaps="handled">
+                {selectedReview && (
+                  <View style={styles.responseModalPreview}>
+                    <Text style={styles.responseModalPreviewName}>
+                      {selectedReview.reviewer ? `${selectedReview.reviewer.first_name || ''} ${selectedReview.reviewer.last_name || ''}`.trim() || 'Anonyme' : 'Anonyme'}
+                    </Text>
+                    {renderStars(selectedReview.rating)}
+                    {selectedReview.comment ? <Text style={styles.responseModalPreviewComment}>{selectedReview.comment}</Text> : null}
+                  </View>
+                )}
+                <TextInput
+                  style={styles.responseModalInput}
+                  value={responseText}
+                  onChangeText={setResponseText}
+                  placeholder="Écrivez votre réponse..."
+                  multiline
+                  numberOfLines={6}
+                  textAlignVertical="top"
+                />
+              </ScrollView>
+            </KeyboardAvoidingView>
+            <View style={styles.responseModalFooter}>
+              <TouchableOpacity style={styles.responseModalCancelBtn} onPress={() => { setResponseModalVisible(false); setSelectedReview(null); setResponseText(''); }}>
+                <Text style={styles.responseModalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.responseModalSubmitBtn, (!responseText.trim() || submitting) && styles.responseModalSubmitBtnDisabled]}
+                onPress={handleSubmitResponse}
+                disabled={!responseText.trim() || submitting}
+              >
+                {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.responseModalSubmitText}>Envoyer</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -675,6 +956,229 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  reviewCount: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 4,
+  },
+  reviewsLoadingBox: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  reviewsLoadingText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  reviewsEmptyBox: {
+    paddingVertical: 20,
+  },
+  reviewsEmptyText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  reviewsList: {
+    gap: 12,
+  },
+  reviewCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  reviewCardUnpublished: {
+    borderColor: '#fbbf24',
+    backgroundColor: '#fffbeb',
+  },
+  reviewStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#fef3c7',
+  },
+  reviewStatusBadgePublished: {
+    backgroundColor: '#d1fae5',
+  },
+  reviewStatusText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#e67e22',
+  },
+  reviewStatusTextPublished: {
+    color: '#10b981',
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  reviewerName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1e293b',
+    flex: 1,
+  },
+  reviewMeta: {
+    alignItems: 'flex-end',
+  },
+  reviewStarsRow: {
+    flexDirection: 'row',
+    gap: 2,
+    marginBottom: 4,
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  reviewComment: {
+    fontSize: 13,
+    color: '#475569',
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  reviewResponseBlock: {
+    backgroundColor: '#f0fdf4',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: VEHICLE_COLORS.primary,
+  },
+  reviewResponseLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: VEHICLE_COLORS.primary,
+    marginBottom: 4,
+  },
+  reviewResponseText: {
+    fontSize: 13,
+    color: '#1e293b',
+  },
+  reviewResponseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: VEHICLE_COLORS.primary,
+  },
+  reviewResponseButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  responseModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  responseModalOverlayTouch: {
+    flex: 1,
+  },
+  responseModalContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    paddingBottom: 24,
+  },
+  responseModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  responseModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  responseModalKV: {
+    flex: 1,
+    maxHeight: 360,
+  },
+  responseModalScroll: {
+    flex: 1,
+  },
+  responseModalScrollContent: {
+    padding: 20,
+    paddingBottom: 16,
+  },
+  responseModalPreview: {
+    backgroundColor: '#f9fafb',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  responseModalPreviewName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 8,
+  },
+  responseModalPreviewComment: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  responseModalInput: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 160,
+    backgroundColor: '#f8f9fa',
+    color: '#333',
+  },
+  responseModalFooter: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  responseModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  responseModalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  responseModalSubmitBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: VEHICLE_COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  responseModalSubmitBtnDisabled: {
+    backgroundColor: '#94a3b8',
+  },
+  responseModalSubmitText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 

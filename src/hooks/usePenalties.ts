@@ -9,6 +9,7 @@ export interface Penalty {
   penalty_amount: number;
   penalty_type: string;
   status: 'pending' | 'deducted' | 'waived' | 'collected_manually' | 'paid_directly';
+  payment_method?: string | null;
   deducted_at?: string | null;
   waived_reason?: string | null;
   admin_notes?: string | null;

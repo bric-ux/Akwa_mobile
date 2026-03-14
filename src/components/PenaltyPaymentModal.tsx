@@ -35,21 +35,69 @@ interface PenaltyPaymentModalProps {
   onPaymentComplete: () => void;
 }
 
+const AKWAHOME_RIB = 'FR76 1759 8000 0100 0121 8085 961';
+const AKWAHOME_WAVE = '+225 07 79 57 13 48';
+
+type PenaltyPaymentMethod = 'bank_transfer' | 'wave' | 'deduct_from_next_booking' | 'card' | 'cash';
+
 const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
   visible,
   onClose,
   penalty,
   onPaymentComplete,
 }) => {
-  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'card' | 'cash'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<PenaltyPaymentMethod>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  const savePaymentMethodOnly = async (method: 'bank_transfer' | 'wave' | 'deduct_from_next_booking') => {
+    if (!penalty) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('penalty_tracking')
+        .update({
+          payment_method: method,
+          admin_notes: method === 'bank_transfer'
+            ? 'Pénalité à régler par virement - RIB AkwaHome communiqué.'
+            : method === 'wave'
+            ? 'Pénalité à régler par Wave - Numéro AkwaHome communiqué.'
+            : 'Pénalité à déduire de la prochaine paie.',
+        })
+        .eq('id', penalty.id);
+      if (error) throw error;
+      if (method === 'deduct_from_next_booking') {
+        Alert.alert(
+          'Choix enregistré',
+          'La pénalité sera déduite de votre prochaine paie. Elle apparaîtra clairement sur votre facture (retenue pour pénalité d\'annulation).',
+          [{ text: 'OK', onPress: () => { onPaymentComplete(); onClose(); setPaymentMethod('card'); } }]
+        );
+      } else {
+        Alert.alert(
+          'Coordonnées notées',
+          method === 'bank_transfer'
+            ? 'Effectuez le virement sur le RIB indiqué. AkwaHome validera le paiement après réception.'
+            : 'Effectuez le transfert Wave au numéro indiqué. AkwaHome validera le paiement après réception.',
+          [{ text: 'OK', onPress: () => { onPaymentComplete(); onClose(); setPaymentMethod('card'); } }]
+        );
+      }
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message || 'Impossible d\'enregistrer le choix');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePayment = async () => {
     if (!penalty) return;
 
-    if (paymentMethod === 'wave') {
-      Alert.alert('Bientot disponible', 'Wave sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
+    if (paymentMethod === 'bank_transfer' || paymentMethod === 'wave') {
+      await savePaymentMethodOnly(paymentMethod);
+      return;
+    }
+
+    if (paymentMethod === 'deduct_from_next_booking') {
+      await savePaymentMethodOnly('deduct_from_next_booking');
       return;
     }
 
@@ -75,19 +123,18 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
 
     setLoading(true);
     try {
-      // Mettre à jour le statut de la pénalité
       const { error } = await supabase
         .from('penalty_tracking')
         .update({
+          payment_method: 'pay_directly',
           status: 'paid_directly',
           deducted_at: new Date().toISOString(),
-          admin_notes: 'Paiement en espèces déclaré par le voyageur',
+          admin_notes: 'Paiement en espèces déclaré par l\'hôte',
         })
         .eq('id', penalty.id);
 
       if (error) throw error;
 
-      // Envoyer email de confirmation à l'admin
       await supabase.functions.invoke('send-email', {
         body: {
           type: 'penalty_payment_received',
@@ -95,7 +142,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
           data: {
             penaltyId: penalty.id,
             amount: penalty.penalty_amount,
-            paymentMethod: paymentMethod === 'cash' ? 'Especes' : 'Carte bancaire',
+            paymentMethod: 'Especes',
             phoneNumber: null,
             propertyTitle: penalty.booking?.property?.title || 'N/A',
             checkInDate: penalty.booking?.check_in_date,
@@ -105,11 +152,10 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
       });
 
       setPaymentSuccess(true);
-
       setTimeout(() => {
         Alert.alert(
           'Paiement initié',
-          'Votre declaration de paiement en especes a ete enregistree.',
+          'Votre déclaration de paiement en espèces a été enregistrée.',
           [
             {
               text: 'OK',
@@ -183,11 +229,31 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
             <Text style={styles.sectionTitle}>Mode de paiement</Text>
 
             <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                paymentMethod === 'wave' && styles.paymentMethodCardActive,
-              ]}
-              onPress={() => Alert.alert('Bientot disponible', 'Wave sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
+              style={[styles.paymentMethodCard, paymentMethod === 'bank_transfer' && styles.paymentMethodCardActive]}
+              onPress={() => setPaymentMethod('bank_transfer')}
+            >
+              <View style={styles.paymentMethodContent}>
+                <View style={[styles.paymentIcon, { backgroundColor: '#0ea5e9' }]}>
+                  <Ionicons name="business-outline" size={24} color="#fff" />
+                </View>
+                <View style={styles.paymentMethodInfo}>
+                  <Text style={styles.paymentMethodTitle}>Virement bancaire</Text>
+                  <Text style={styles.paymentMethodSubtitle}>RIB AkwaHome</Text>
+                </View>
+                <Ionicons name={paymentMethod === 'bank_transfer' ? 'radio-button-on' : 'radio-button-off'} size={24} color={paymentMethod === 'bank_transfer' ? '#e67e22' : '#ccc'} />
+              </View>
+            </TouchableOpacity>
+            {paymentMethod === 'bank_transfer' && (
+              <View style={styles.detailBox}>
+                <Text style={styles.detailLabel}>RIB AkwaHome</Text>
+                <Text style={styles.detailValue} selectable>{AKWAHOME_RIB}</Text>
+                <Text style={styles.detailHint}>Effectuez un virement de {formatAmount(penalty.penalty_amount)} à ce RIB, puis confirmez votre choix ci-dessous.</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.paymentMethodCard, paymentMethod === 'wave' && styles.paymentMethodCardActive]}
+              onPress={() => setPaymentMethod('wave')}
             >
               <View style={styles.paymentMethodContent}>
                 <View style={[styles.paymentIcon, { backgroundColor: '#1DA1F2' }]}>
@@ -195,21 +261,37 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                 </View>
                 <View style={styles.paymentMethodInfo}>
                   <Text style={styles.paymentMethodTitle}>Wave</Text>
-                  <Text style={styles.paymentMethodSubtitle}>Paiement mobile instantané</Text>
+                  <Text style={styles.paymentMethodSubtitle}>Numéro AkwaHome</Text>
                 </View>
-                <Ionicons
-                  name={paymentMethod === 'wave' ? 'radio-button-on' : 'radio-button-off'}
-                  size={24}
-                  color={paymentMethod === 'wave' ? '#e67e22' : '#ccc'}
-                />
+                <Ionicons name={paymentMethod === 'wave' ? 'radio-button-on' : 'radio-button-off'} size={24} color={paymentMethod === 'wave' ? '#e67e22' : '#ccc'} />
+              </View>
+            </TouchableOpacity>
+            {paymentMethod === 'wave' && (
+              <View style={styles.detailBox}>
+                <Text style={styles.detailLabel}>Numéro Wave AkwaHome</Text>
+                <Text style={styles.detailValue} selectable>{AKWAHOME_WAVE}</Text>
+                <Text style={styles.detailHint}>Envoyez {formatAmount(penalty.penalty_amount)} à ce numéro, puis confirmez votre choix ci-dessous.</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.paymentMethodCard, paymentMethod === 'deduct_from_next_booking' && styles.paymentMethodCardActive]}
+              onPress={() => setPaymentMethod('deduct_from_next_booking')}
+            >
+              <View style={styles.paymentMethodContent}>
+                <View style={[styles.paymentIcon, { backgroundColor: '#10b981' }]}>
+                  <Ionicons name="wallet-outline" size={24} color="#fff" />
+                </View>
+                <View style={styles.paymentMethodInfo}>
+                  <Text style={styles.paymentMethodTitle}>Déduire de ma prochaine paie</Text>
+                  <Text style={styles.paymentMethodSubtitle}>La retenue apparaîtra sur votre facture</Text>
+                </View>
+                <Ionicons name={paymentMethod === 'deduct_from_next_booking' ? 'radio-button-on' : 'radio-button-off'} size={24} color={paymentMethod === 'deduct_from_next_booking' ? '#e67e22' : '#ccc'} />
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                paymentMethod === 'card' && styles.paymentMethodCardActive,
-              ]}
+              style={[styles.paymentMethodCard, paymentMethod === 'card' && styles.paymentMethodCardActive]}
               onPress={() => setPaymentMethod('card')}
             >
               <View style={styles.paymentMethodContent}>
@@ -218,21 +300,14 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                 </View>
                 <View style={styles.paymentMethodInfo}>
                   <Text style={styles.paymentMethodTitle}>Carte bancaire</Text>
-                  <Text style={styles.paymentMethodSubtitle}>Visa, Mastercard</Text>
+                  <Text style={styles.paymentMethodSubtitle}>Visa, Mastercard (Stripe)</Text>
                 </View>
-                <Ionicons
-                  name={paymentMethod === 'card' ? 'radio-button-on' : 'radio-button-off'}
-                  size={24}
-                  color={paymentMethod === 'card' ? '#e67e22' : '#ccc'}
-                />
+                <Ionicons name={paymentMethod === 'card' ? 'radio-button-on' : 'radio-button-off'} size={24} color={paymentMethod === 'card' ? '#e67e22' : '#ccc'} />
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.paymentMethodCard,
-                paymentMethod === 'cash' && styles.paymentMethodCardActive,
-              ]}
+              style={[styles.paymentMethodCard, paymentMethod === 'cash' && styles.paymentMethodCardActive]}
               onPress={() => setPaymentMethod('cash')}
             >
               <View style={styles.paymentMethodContent}>
@@ -243,15 +318,10 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                   <Text style={styles.paymentMethodTitle}>Espèces</Text>
                   <Text style={styles.paymentMethodSubtitle}>Paiement hors application</Text>
                 </View>
-                <Ionicons
-                  name={paymentMethod === 'cash' ? 'radio-button-on' : 'radio-button-off'}
-                  size={24}
-                  color={paymentMethod === 'cash' ? '#e67e22' : '#ccc'}
-                />
+                <Ionicons name={paymentMethod === 'cash' ? 'radio-button-on' : 'radio-button-off'} size={24} color={paymentMethod === 'cash' ? '#e67e22' : '#ccc'} />
               </View>
             </TouchableOpacity>
 
-            {/* Info carte bancaire */}
             {paymentMethod === 'card' && (
               <View style={styles.infoCard}>
                 <Ionicons name="information-circle" size={20} color="#f59e0b" />
@@ -279,7 +349,13 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.payButtonText}>
-                  Payer {formatAmount(penalty.penalty_amount)}
+                  {paymentMethod === 'bank_transfer' || paymentMethod === 'wave'
+                    ? 'Confirmer mon choix'
+                    : paymentMethod === 'deduct_from_next_booking'
+                    ? 'Déduire de ma prochaine paie'
+                    : paymentMethod === 'cash'
+                    ? 'Déclarer le paiement'
+                    : `Payer ${formatAmount(penalty.penalty_amount)}`}
                 </Text>
               )}
             </TouchableOpacity>
@@ -419,6 +495,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 4,
+  },
+  detailBox: {
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0369a1',
+    marginBottom: 6,
+  },
+  detailValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0c4a6e',
+    marginBottom: 8,
+    letterSpacing: 1,
+  },
+  detailHint: {
+    fontSize: 12,
+    color: '#64748b',
   },
   infoCard: {
     flexDirection: 'row',

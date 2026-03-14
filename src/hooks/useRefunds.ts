@@ -14,6 +14,8 @@ export interface Refund {
   processed_at?: string | null;
   created_at: string;
   updated_at: string;
+  /** Moyen de paiement utilisé par le voyageur pour cette réservation (pour indiquer à l'hôte comment rembourser). */
+  guest_payment_method?: string | null;
   booking?: {
     id: string;
     check_in_date?: string;
@@ -22,6 +24,7 @@ export interface Refund {
     guests_count?: number;
     status?: string;
     cancellation_reason?: string;
+    payment_method?: string;
     property?: {
       title: string;
       address?: string;
@@ -33,6 +36,7 @@ export interface Refund {
       email?: string;
     } | null;
   } | null;
+  payment?: { payment_method?: string } | null;
 }
 
 export const useRefunds = (userId?: string) => {
@@ -80,6 +84,7 @@ export const useRefunds = (userId?: string) => {
         .from('refunds')
         .select(`
           *,
+          payment:payments(payment_method),
           booking:bookings(
             id,
             check_in_date,
@@ -88,6 +93,7 @@ export const useRefunds = (userId?: string) => {
             guests_count,
             status,
             cancellation_reason,
+            payment_method,
             property:properties(
               title,
               address,
@@ -119,6 +125,7 @@ export const useRefunds = (userId?: string) => {
             status,
             cancellation_reason,
             cancelled_at,
+            payment_method,
             property:properties!inner(
               title,
               address,
@@ -130,7 +137,8 @@ export const useRefunds = (userId?: string) => {
               first_name,
               last_name,
               email
-            )
+            ),
+            payments(payment_method)
           `)
           .eq('property.host_id', userId)
           .eq('status', 'cancelled')
@@ -141,7 +149,8 @@ export const useRefunds = (userId?: string) => {
         // Calculer les remboursements pour chaque réservation annulée
         refundsData = (cancelledBookings || []).map((booking) => {
           // Calculer le pourcentage de remboursement selon la politique
-          const policy = booking.property?.cancellation_policy || 'flexible';
+          const prop = Array.isArray((booking as any).property) ? (booking as any).property?.[0] : (booking as any).property;
+          const policy = prop?.cancellation_policy || 'flexible';
           const checkInDate = new Date(booking.check_in_date);
           const cancelledDate = booking.cancelled_at ? new Date(booking.cancelled_at) : new Date();
           const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - cancelledDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -167,6 +176,11 @@ export const useRefunds = (userId?: string) => {
             // total_price est en FCFA (comme sur le site web), on calcule le remboursement en FCFA aussi
             const refundAmount = Math.round((booking.total_price * refundPercentage) / 100);
 
+          const guestPaymentMethod =
+            (Array.isArray((booking as any).payments) && (booking as any).payments?.[0]?.payment_method) ||
+            (booking as any).payment_method ||
+            null;
+
           return {
             id: `calculated-${booking.id}`,
             payment_id: null,
@@ -178,6 +192,7 @@ export const useRefunds = (userId?: string) => {
             processed_at: booking.cancelled_at,
             created_at: booking.cancelled_at || booking.check_in_date,
             updated_at: booking.cancelled_at || booking.check_in_date,
+            guest_payment_method: guestPaymentMethod,
             booking: {
               id: booking.id,
               check_in_date: booking.check_in_date,
@@ -186,6 +201,7 @@ export const useRefunds = (userId?: string) => {
               guests_count: booking.guests_count,
               status: booking.status,
               cancellation_reason: booking.cancellation_reason,
+              payment_method: (booking as any).payment_method,
               property: booking.property,
               guest: booking.guest,
             },
@@ -195,8 +211,12 @@ export const useRefunds = (userId?: string) => {
         // Autre erreur que l'absence de table
         throw refundsError;
       } else if (refundsFromTable) {
-        // Table refunds existe et on a des données
-        refundsData = refundsFromTable;
+        // Table refunds existe : ajouter le moyen de paiement du voyageur (pour affichage à l'hôte)
+        refundsData = refundsFromTable.map((r: any) => ({
+          ...r,
+          guest_payment_method:
+            r.payment?.payment_method ?? r.booking?.payment_method ?? null,
+        }));
       }
 
       setRefunds(refundsData as Refund[]);
@@ -222,6 +242,56 @@ export const useRefunds = (userId?: string) => {
   const totalRefundedAmount = completedRefunds.reduce((sum, r) => sum + r.amount, 0);
   const totalPendingAmount = pendingRefunds.reduce((sum, r) => sum + r.amount, 0);
 
+  const declareRefundDone = async (refund: Refund): Promise<{ success: boolean; error?: string }> => {
+    if (!userId) return { success: false, error: 'Non connecté' };
+    const now = new Date().toISOString();
+    const isCalculated = typeof refund.id === 'string' && refund.id.startsWith('calculated-');
+
+    try {
+      if (isCalculated) {
+        const bookingId = refund.booking_id;
+        const { data: paymentRow } = await supabase
+          .from('payments')
+          .select('id')
+          .eq('booking_id', bookingId)
+          .limit(1)
+          .maybeSingle();
+        const paymentId = paymentRow?.id;
+        if (!paymentId) {
+          return { success: false, error: 'Aucun paiement trouvé pour cette réservation. Contactez le support.' };
+        }
+        const { error: insertError } = await supabase.from('refunds').insert({
+          payment_id: paymentId,
+          booking_id: bookingId,
+          amount: refund.amount,
+          reason: refund.reason || 'Remboursement effectué par l\'hôte',
+          status: 'completed',
+          refund_type: refund.refund_type || (refund.amount >= (refund.booking?.total_price || 0) ? 'full' : 'partial'),
+          processed_by: userId,
+          processed_at: now,
+          updated_at: now,
+        });
+        if (insertError) throw insertError;
+      } else {
+        const { error: updateError } = await supabase
+          .from('refunds')
+          .update({
+            status: 'completed',
+            processed_by: userId,
+            processed_at: now,
+            updated_at: now,
+          })
+          .eq('id', refund.id);
+        if (updateError) throw updateError;
+      }
+      await fetchRefunds();
+      return { success: true };
+    } catch (e: any) {
+      console.error('declareRefundDone:', e);
+      return { success: false, error: e.message || 'Impossible d\'enregistrer le remboursement' };
+    }
+  };
+
   return {
     refunds,
     pendingRefunds,
@@ -231,6 +301,7 @@ export const useRefunds = (userId?: string) => {
     loading,
     error,
     refreshRefunds,
+    declareRefundDone,
   };
 };
 

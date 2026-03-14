@@ -17,6 +17,12 @@ import { HOST_COLORS } from '../constants/colors';
 interface PayoutRow {
   id: string;
   host_amount: number;
+  payout_details?: {
+    original_host_amount?: number;
+    penalties_deducted?: number;
+    penalty_retention_label?: string;
+    final_host_amount?: number;
+  } | null;
   admin_payment_status: string | null;
   admin_paid_at: string | null;
   scheduled_for: string;
@@ -47,7 +53,7 @@ const HostPayoutsScreen: React.FC = () => {
       // Requête minimale d'abord pour vérifier que host_payouts est bien lu (RLS)
       const { data: rawData, error: rawError } = await supabase
         .from('host_payouts')
-        .select('id, host_amount, admin_payment_status, admin_paid_at, scheduled_for, booking_id, payment_id')
+        .select('id, host_amount, payout_details, admin_payment_status, admin_paid_at, scheduled_for, booking_id, payment_id')
         .eq('host_id', user.id)
         .order('scheduled_for', { ascending: false });
 
@@ -62,6 +68,7 @@ const HostPayoutsScreen: React.FC = () => {
       const rows = (rawData ?? []) as Array<{
         id: string;
         host_amount: number;
+        payout_details?: PayoutRow['payout_details'];
         admin_payment_status: string | null;
         admin_paid_at: string | null;
         scheduled_for: string;
@@ -107,6 +114,7 @@ const HostPayoutsScreen: React.FC = () => {
         return {
           id: r.id,
           host_amount: r.host_amount,
+          payout_details: r.payout_details as PayoutRow['payout_details'],
           admin_payment_status: r.admin_payment_status,
           admin_paid_at: r.admin_paid_at,
           scheduled_for: r.scheduled_for,
@@ -225,6 +233,14 @@ const HostPayoutsScreen: React.FC = () => {
                         </Text>
                       </View>
                     </View>
+                    {p.payout_details?.penalties_deducted && p.payout_details.penalties_deducted > 0 && (
+                      <View style={styles.penaltyRow}>
+                        <Text style={styles.penaltyLabel}>
+                          {p.payout_details.penalty_retention_label || 'Retenue pour pénalité d\'annulation'}
+                        </Text>
+                        <Text style={styles.penaltyAmount}>-{formatPrice(p.payout_details.penalties_deducted)}</Text>
+                      </View>
+                    )}
                   </View>
                   <View style={styles.cardRight}>
                     <Text style={styles.amount}>{formatPrice(p.host_amount)}</Text>
@@ -302,6 +318,17 @@ const styles = StyleSheet.create({
   cardRight: { alignItems: 'flex-end' },
   amount: { fontSize: 17, fontWeight: '700', color: HOST_COLORS.primary },
   paidAt: { fontSize: 11, color: '#64748b', marginTop: 4 },
+  penaltyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#fef3c7',
+  },
+  penaltyLabel: { fontSize: 12, color: '#b45309', fontWeight: '500' },
+  penaltyAmount: { fontSize: 13, fontWeight: '600', color: '#b45309' },
 });
 
 export default HostPayoutsScreen;

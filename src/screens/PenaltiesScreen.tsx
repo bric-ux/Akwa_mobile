@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +28,7 @@ const PenaltiesScreen: React.FC = () => {
   const [selectedPenalty, setSelectedPenalty] = useState<any>(null);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [declaringRefundId, setDeclaringRefundId] = useState<string | null>(null);
 
   // Charger les pénalités
   const {
@@ -45,7 +48,21 @@ const PenaltiesScreen: React.FC = () => {
     totalPendingAmount: totalPendingRefundAmount,
     loading: refundsLoading,
     refreshRefunds,
+    declareRefundDone,
   } = useRefunds(user?.id);
+
+  // Remboursements à afficher (résa déjà commencée = à effectuer par l'hôte, pas par AkwaHome)
+  const refundsToShowCount = refunds.filter((refund) => {
+    const checkIn = refund.booking?.check_in_date;
+    const cancelledAt = refund.processed_at || (refund as any).booking?.cancelled_at;
+    return !!(checkIn && cancelledAt && new Date(checkIn) <= new Date(cancelledAt));
+  }).length;
+  const pendingRefundsToShowCount = refunds.filter((refund) => {
+    const checkIn = refund.booking?.check_in_date;
+    const cancelledAt = refund.processed_at || (refund as any).booking?.cancelled_at;
+    const shown = !!(checkIn && cancelledAt && new Date(checkIn) <= new Date(cancelledAt));
+    return shown && (refund.status === 'pending' || refund.status === 'processing');
+  }).length;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -55,6 +72,22 @@ const PenaltiesScreen: React.FC = () => {
       await refreshRefunds();
     }
     setRefreshing(false);
+  };
+
+  const getPaymentMethodLabel = (method?: string | null): string => {
+    if (!method) return 'Non spécifié';
+    const labels: Record<string, string> = {
+      card: 'Carte bancaire',
+      bank_transfer: 'Virement bancaire',
+      wave: 'Wave',
+      cash: 'Espèces',
+      orange_money: 'Orange Money',
+      mtn_money: 'MTN Money',
+      moov_money: 'Moov Money',
+      mobile_money: 'Mobile Money',
+      paypal: 'PayPal',
+    };
+    return labels[method] || method;
   };
 
   const formatDate = (dateString?: string) => {
@@ -321,7 +354,17 @@ const PenaltiesScreen: React.FC = () => {
 
   const renderRefundsTab = () => {
     const loading = refundsLoading;
-    const data = refunds;
+    // Ne pas afficher les remboursements pris en charge par AkwaHome (résa non commencée)
+    const refundsToShow = refunds.filter((refund) => {
+      const checkIn = refund.booking?.check_in_date;
+      const cancelledAt = refund.processed_at || (refund as any).booking?.cancelled_at;
+      return !!(checkIn && cancelledAt && new Date(checkIn) <= new Date(cancelledAt));
+    });
+    const data = refundsToShow;
+    const completedToShow = refundsToShow.filter((r) => r.status === 'completed');
+    const pendingToShow = refundsToShow.filter((r) => r.status === 'pending' || r.status === 'processing');
+    const totalRefundedToShow = completedToShow.reduce((sum, r) => sum + r.amount, 0);
+    const totalPendingToShow = pendingToShow.reduce((sum, r) => sum + r.amount, 0);
 
     return (
       <ScrollView
@@ -368,20 +411,20 @@ const PenaltiesScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Stats */}
-        {(completedRefunds.length > 0 || pendingRefunds.length > 0) && (
+        {/* Stats (uniquement remboursements à effectuer par l'hôte, pas par AkwaHome) */}
+        {(completedToShow.length > 0 || pendingToShow.length > 0) && (
           <View style={styles.statsRow}>
-            {completedRefunds.length > 0 && (
+            {completedToShow.length > 0 && (
               <View style={[styles.statCard, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
                 <Ionicons name="checkmark-circle" size={24} color="#10b981" />
-                <Text style={styles.statValue}>{formatPrice(totalRefundedAmount)}</Text>
+                <Text style={styles.statValue}>{formatPrice(totalRefundedToShow)}</Text>
                 <Text style={styles.statLabel}>Remboursés</Text>
               </View>
             )}
-            {pendingRefunds.length > 0 && (
+            {pendingToShow.length > 0 && (
               <View style={[styles.statCard, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
                 <Ionicons name="time-outline" size={24} color="#f59e0b" />
-                <Text style={styles.statValue}>{formatPrice(totalPendingRefundAmount)}</Text>
+                <Text style={styles.statValue}>{formatPrice(totalPendingToShow)}</Text>
                 <Text style={styles.statLabel}>En attente</Text>
               </View>
             )}
@@ -495,6 +538,71 @@ const PenaltiesScreen: React.FC = () => {
                       </View>
                     </View>
 
+                    <View style={[styles.infoBox, { backgroundColor: '#fef3c7', borderLeftWidth: 4, borderLeftColor: '#f59e0b' }]}>
+                      <Text style={styles.infoLabel}>Remboursement à effectuer par vous au voyageur</Text>
+                      <Text style={styles.infoText}>
+                        Remboursez le voyageur par le même moyen de paiement qu'il a utilisé pour la réservation.
+                      </Text>
+                      {(refund.guest_payment_method || refund.booking?.payment_method || refund.payment?.payment_method) && (
+                        <Text style={[styles.infoText, { marginTop: 6, fontWeight: '600' }]}>
+                          Moyen du voyageur : {getPaymentMethodLabel(
+                            refund.guest_payment_method ?? refund.booking?.payment_method ?? refund.payment?.payment_method
+                          )}
+                        </Text>
+                      )}
+                    </View>
+
+                    {booking?.guest?.email && (refund.status === 'pending' || refund.status === 'processing') && (
+                      <View style={styles.infoBox}>
+                        <Text style={styles.infoLabel}>Contacter le voyageur pour le remboursement</Text>
+                        <TouchableOpacity
+                          onPress={() => Linking.openURL(`mailto:${booking?.guest?.email ?? ''}`)}
+                          style={styles.contactGuestRow}
+                        >
+                          <Ionicons name="mail-outline" size={18} color="#2563eb" />
+                          <Text style={styles.contactGuestLink}>{booking?.guest?.email ?? ''}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {(refund.status === 'pending' || refund.status === 'processing') && (
+                      <TouchableOpacity
+                        style={[styles.declareRefundButton, declaringRefundId === refund.id && styles.declareRefundButtonDisabled]}
+                        onPress={() => {
+                          Alert.alert(
+                            'Confirmer le remboursement',
+                            `Confirmez-vous avoir remboursé ${formatPrice(refund.amount)} à ${guestName} ?`,
+                            [
+                              { text: 'Annuler', style: 'cancel' },
+                              {
+                                text: 'Oui, j\'ai remboursé',
+                                onPress: async () => {
+                                  setDeclaringRefundId(refund.id);
+                                  const result = await declareRefundDone(refund);
+                                  setDeclaringRefundId(null);
+                                  if (result.success) {
+                                    Alert.alert('Enregistré', 'Le remboursement a été marqué comme effectué.');
+                                  } else {
+                                    Alert.alert('Erreur', result.error || 'Impossible d\'enregistrer.');
+                                  }
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                        disabled={declaringRefundId !== null}
+                      >
+                        {declaringRefundId === refund.id ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <>
+                            <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                            <Text style={styles.declareRefundButtonText}>J'ai effectué le remboursement</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
+
                     {refund.reason && (
                       <View style={styles.infoBox}>
                         <Text style={styles.infoLabel}>Raison du remboursement</Text>
@@ -584,8 +692,8 @@ const PenaltiesScreen: React.FC = () => {
             style={[styles.tabText, activeTab === 'refunds' && styles.tabTextActive]}
           >
             Remboursements
-            {pendingRefunds.length > 0 && (
-              <Text style={styles.tabBadge}> ({pendingRefunds.length})</Text>
+            {pendingRefundsToShowCount > 0 && (
+              <Text style={styles.tabBadge}> ({pendingRefundsToShowCount})</Text>
             )}
           </Text>
         </TouchableOpacity>
@@ -930,6 +1038,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginBottom: 4,
+  },
+  contactGuestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+  },
+  contactGuestLink: {
+    fontSize: 14,
+    color: '#2563eb',
+    fontWeight: '500',
+  },
+  declareRefundButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10b981',
+    borderRadius: 8,
+    padding: 14,
+    marginTop: 12,
+    gap: 8,
+  },
+  declareRefundButtonDisabled: {
+    opacity: 0.7,
+  },
+  declareRefundButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
   successRow: {
     flexDirection: 'row',

@@ -100,6 +100,7 @@ export const useHostBookings = () => {
             price_per_night,
             images,
             host_id,
+            is_active,
             check_in_time,
             check_out_time,
             house_rules,
@@ -130,6 +131,7 @@ export const useHostBookings = () => {
           )
         `)
         .eq('properties.host_id', user.id)
+        .eq('properties.is_active', true)
         .order('created_at', { ascending: false });
 
       if (bookingsError) {
