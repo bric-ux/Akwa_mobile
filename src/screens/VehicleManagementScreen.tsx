@@ -51,7 +51,7 @@ const VehicleManagementScreen: React.FC = () => {
   const { vehicleId } = route.params;
   const { user } = useAuth();
   const { getVehicleById, updateVehicle, deleteVehicle, loading } = useVehicles();
-  const { sendNewVehicleReviewResponse, sendVehicleReviewPublished } = useEmailService();
+  const { sendNewVehicleReviewResponse } = useEmailService();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loadingVehicle, setLoadingVehicle] = useState(true);
   const [showImageGallery, setShowImageGallery] = useState(false);
@@ -195,13 +195,12 @@ const VehicleManagementScreen: React.FC = () => {
             const ownerName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Propriétaire';
             const vehicleTitle = vehicleRow?.title || 'Votre location';
             await sendNewVehicleReviewResponse(renter.email, renterName, ownerName, vehicleTitle, responseText.trim());
-            await sendVehicleReviewPublished(renter.email, renterName, ownerName, vehicleTitle, reviewData?.rating || 0, reviewData?.comment || undefined);
           }
         } catch (emailErr) {
           console.error('Erreur envoi email:', emailErr);
         }
       }
-      Alert.alert('Succès', 'Votre réponse a été enregistrée et l\'avis est maintenant publié');
+      Alert.alert('Succès', 'Votre réponse a été enregistrée');
       setResponseModalVisible(false);
       setSelectedReview(null);
       setResponseText('');

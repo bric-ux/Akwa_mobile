@@ -16,7 +16,7 @@ export interface ReviewResponse {
 export const useReviewResponses = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
-  const { sendNewPropertyReviewResponse, sendPropertyReviewPublished } = useEmailService();
+  const { sendNewPropertyReviewResponse } = useEmailService();
 
   const getReviewResponse = async (reviewId: string): Promise<ReviewResponse | null> => {
     try {
@@ -109,17 +109,7 @@ export const useReviewResponses = () => {
             response
           );
 
-          // Envoyer aussi l'email de publication (l'avis est automatiquement publié par le trigger SQL)
-          if (guestEmail) await sendPropertyReviewPublished(
-            guestEmail,
-            guestName,
-            hostName,
-            propertyTitle,
-            avgRating,
-            reviewData.comment || undefined
-          );
-
-          if (guestEmail) console.log('✅ [useReviewResponses] Emails de notification envoyés au voyageur');
+          if (guestEmail) console.log('✅ [useReviewResponses] Email de réponse envoyé au voyageur');
         }
       } catch (emailError) {
         console.error('❌ [useReviewResponses] Erreur envoi email notification:', emailError);

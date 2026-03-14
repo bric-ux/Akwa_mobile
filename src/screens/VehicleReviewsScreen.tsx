@@ -44,7 +44,7 @@ const VehicleReviewsScreen: React.FC = () => {
   const { vehicleId } = route.params || {};
   const { user } = useAuth();
   const { getVehicleReviews, loading } = useVehicleReviews();
-  const { sendNewVehicleReviewResponse, sendVehicleReviewPublished } = useEmailService();
+  const { sendNewVehicleReviewResponse } = useEmailService();
   const [reviews, setReviews] = useState<VehicleReviewWithDetails[]>([]);
   const [vehicle, setVehicle] = useState<{ title?: string; brand?: string; model?: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -212,18 +212,6 @@ const VehicleReviewsScreen: React.FC = () => {
               vehicleTitle,
               responseText.trim()
             );
-
-            // Envoyer aussi l'email de publication (l'avis est automatiquement publié par le trigger SQL)
-            await sendVehicleReviewPublished(
-              renterEmail,
-              renterName,
-              ownerName,
-              vehicleTitle,
-              reviewData.rating || 0,
-              reviewData.comment || undefined
-            );
-
-            console.log('✅ [VehicleReviewsScreen] Emails de notification envoyés au locataire');
           }
         } catch (emailError) {
           console.error('❌ [VehicleReviewsScreen] Erreur envoi email notification:', emailError);

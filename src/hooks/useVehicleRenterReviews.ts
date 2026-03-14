@@ -44,7 +44,7 @@ export const useVehicleRenterReviews = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const { sendNewRenterReview, sendNewVehicleRenterReviewResponse, sendVehicleRenterReviewPublished } = useEmailService();
+  const { sendNewRenterReview, sendNewVehicleRenterReviewResponse, sendVehicleRenterReviewPublished, sendVehicleReviewPublished } = useEmailService();
 
   // Vérifier si le propriétaire peut laisser un avis pour une réservation
   const canReviewBooking = async (bookingId: string): Promise<boolean> => {
@@ -108,7 +108,7 @@ export const useVehicleRenterReviews = () => {
         .insert({
           ...reviewData,
           owner_id: user.id,
-          is_published: false, // Sera publié quand le locataire répondra
+          is_published: false, // Sera publié quand le locataire aura aussi noté le véhicule, ou après 48h
         });
 
       if (insertError) {
@@ -146,14 +146,29 @@ export const useVehicleRenterReviews = () => {
             reviewData.comment
           );
 
-          console.log('✅ [useVehicleRenterReviews] Email de notification envoyé au locataire');
         }
       } catch (emailError) {
         console.error('❌ [useVehicleRenterReviews] Erreur envoi email notification:', emailError);
-        // Ne pas faire échouer la soumission de l'avis si l'email échoue
       }
 
-      Alert.alert('Avis envoyé', 'Votre avis sera publié lorsque le locataire y aura répondu');
+      // Si le locataire a déjà noté le véhicule, les deux avis viennent d'être publiés (trigger) → envoyer les emails "avis publié"
+      try {
+        const { data: vehicleReview } = await supabase.from('vehicle_reviews').select('id, rating, comment, reviewer_id').eq('booking_id', reviewData.booking_id).maybeSingle();
+        if (vehicleReview) {
+          const { data: renterProfile } = await supabase.from('profiles').select('first_name, last_name, email').eq('user_id', reviewData.renter_id).single();
+          const { data: ownerProfile } = await supabase.from('profiles').select('first_name, last_name, email').eq('user_id', user.id).single();
+          const { data: vehicle } = await supabase.from('vehicles').select('title').eq('id', reviewData.vehicle_id).single();
+          const renterName = renterProfile ? `${renterProfile.first_name || ''} ${renterProfile.last_name || ''}`.trim() || 'Locataire' : 'Locataire';
+          const ownerName = ownerProfile ? `${ownerProfile.first_name || ''} ${ownerProfile.last_name || ''}`.trim() || 'Propriétaire' : 'Propriétaire';
+          const vehicleTitle = vehicle?.title || 'Votre véhicule';
+          if (renterProfile?.email) await sendVehicleReviewPublished(renterProfile.email, renterName, ownerName, vehicleTitle, vehicleReview.rating || 0, vehicleReview.comment || undefined);
+          if (ownerProfile?.email) await sendVehicleRenterReviewPublished(ownerProfile.email, ownerName, renterName, vehicleTitle, reviewData.rating, reviewData.comment || undefined);
+        }
+      } catch (e) {
+        console.error('❌ [useVehicleRenterReviews] Erreur envoi emails avis publiés:', e);
+      }
+
+      Alert.alert('Avis envoyé', 'Votre avis sera publié lorsque le locataire aura aussi noté le véhicule, ou au plus tard sous 48 h');
       return { success: true };
     } catch (err: any) {
       console.error('Error creating renter review:', err);

@@ -35,7 +35,7 @@ export const useGuestReviews = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const { sendNewGuestReview } = useEmailService();
+  const { sendNewGuestReview, sendPropertyReviewPublished, sendGuestReviewPublished } = useEmailService();
 
   // Get reviews written by a host for guests
   const getGuestReviewsByHost = async (hostId: string): Promise<GuestReview[]> => {
@@ -214,7 +214,7 @@ export const useGuestReviews = () => {
           communication_rating: reviewData.communicationRating || null,
           respect_rules_rating: reviewData.respectRulesRating || null,
           comment: reviewData.comment || null,
-          is_published: false // Sera publié quand le voyageur répondra
+          is_published: false // Sera publié quand le voyageur aura aussi noté le logement, ou après 48h
         });
 
       if (insertError) {
@@ -251,11 +251,33 @@ export const useGuestReviews = () => {
             reviewData.comment
           );
 
-          console.log('✅ [useGuestReviews] Email de notification envoyé au voyageur');
         }
       } catch (emailError) {
         console.error('❌ [useGuestReviews] Erreur envoi email notification:', emailError);
-        // Ne pas faire échouer la soumission de l'avis si l'email échoue
+      }
+
+      // Si le voyageur a déjà noté le logement, les deux avis viennent d'être publiés (trigger) → envoyer les emails "avis publié"
+      try {
+        const { data: guestReview } = await supabase
+          .from('reviews')
+          .select('id, rating, comment, location_rating, cleanliness_rating, value_rating, communication_rating')
+          .eq('booking_id', reviewData.bookingId)
+          .maybeSingle();
+
+        if (guestReview) {
+          const avgRating = guestReview.location_rating != null && guestReview.cleanliness_rating != null && guestReview.value_rating != null && guestReview.communication_rating != null
+            ? Math.round(((guestReview.location_rating + guestReview.cleanliness_rating + guestReview.value_rating + guestReview.communication_rating) / 4) * 10) / 10
+            : guestReview.rating || 0;
+          const { data: gData } = await supabase.from('profiles').select('first_name, last_name, email').eq('user_id', reviewData.guestId).single();
+          const { data: propData } = await supabase.from('properties').select('title, host_id').eq('id', reviewData.propertyId).single();
+          const { data: hostProfile } = propData?.host_id ? await supabase.from('profiles').select('first_name, last_name, email').eq('user_id', propData.host_id).single() : { data: null };
+          const guestName = gData ? `${gData.first_name || ''} ${gData.last_name || ''}`.trim() || 'Voyageur' : 'Voyageur';
+          const hostName = hostProfile ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte' : 'Hôte';
+          if (gData?.email) await sendPropertyReviewPublished(gData.email, guestName, hostName, propData?.title || 'Votre réservation', avgRating, guestReview.comment || undefined);
+          if (hostProfile?.email) await sendGuestReviewPublished(hostProfile.email, hostName, guestName, propData?.title || 'Votre propriété', reviewData.rating, reviewData.comment || undefined);
+        }
+      } catch (e) {
+        console.error('❌ [useGuestReviews] Erreur envoi emails avis publiés:', e);
       }
 
       return { success: true };

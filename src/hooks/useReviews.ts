@@ -24,7 +24,7 @@ export const useReviews = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const { sendNewPropertyReview } = useEmailService();
+  const { sendNewPropertyReview, sendPropertyReviewPublished, sendGuestReviewPublished } = useEmailService();
 
   const getPropertyReviews = async (propertyId: string): Promise<Review[]> => {
     setLoading(true);
@@ -215,7 +215,33 @@ export const useReviews = () => {
         }
       } catch (emailError) {
         console.error('❌ [useReviews] Erreur envoi email notification:', emailError);
-        // Ne pas faire échouer la soumission de l'avis si l'email échoue
+      }
+
+      // Si l'hôte a déjà noté le voyageur, les deux avis viennent d'être publiés (trigger) → envoyer les emails "avis publié"
+      try {
+        const { data: guestReviewRow } = await supabase
+          .from('guest_reviews')
+          .select('id, rating, comment')
+          .eq('booking_id', reviewData.bookingId)
+          .maybeSingle();
+
+        if (guestReviewRow) {
+          const avgRating = (
+            reviewData.locationRating +
+            reviewData.cleanlinessRating +
+            reviewData.valueRating +
+            reviewData.communicationRating
+          ) / 4;
+          const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
+          const { data: userProfile } = await supabase.from('profiles').select('email').eq('user_id', user.id).single();
+          const { data: propData } = await supabase.from('properties').select('title, host_id').eq('id', reviewData.propertyId).single();
+          const { data: hostProfile } = propData?.host_id ? await supabase.from('profiles').select('first_name, last_name, email').eq('user_id', propData.host_id).single() : { data: null };
+          const hostName = hostProfile ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte' : 'Hôte';
+          if (userProfile?.email) await sendPropertyReviewPublished(userProfile.email, guestName, hostName, propData?.title || 'Votre réservation', Math.round(avgRating * 10) / 10, reviewData.comment || undefined);
+          if (hostProfile?.email) await sendGuestReviewPublished(hostProfile.email, hostName, guestName, propData?.title || 'Votre propriété', guestReviewRow.rating, guestReviewRow.comment || undefined);
+        }
+      } catch (e) {
+        console.error('❌ [useReviews] Erreur envoi emails avis publiés:', e);
       }
 
       return { success: true };
