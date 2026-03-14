@@ -234,7 +234,7 @@ const EditPropertyScreen: React.FC = () => {
         bathrooms: formData.bathrooms ? Number(formData.bathrooms) : null,
         property_type: formData.property_type,
         cleaning_fee: formData.cleaning_fee ? Number(formData.cleaning_fee) : null,
-        taxes: formData.taxes ? Number(formData.taxes) : 0,
+        taxes: 0,
         free_cleaning_min_days: formData.free_cleaning_min_days ? Number(formData.free_cleaning_min_days) : null,
         minimum_nights: formData.minimum_nights ? Number(formData.minimum_nights) : null,
         amenities: selectedAmenities,
@@ -934,14 +934,6 @@ const EditPropertyScreen: React.FC = () => {
             'cleaning_fee',
             formData.cleaning_fee,
             'Frais de ménage',
-            'numeric'
-          )}
-          
-          {renderInputField(
-            'Taxe de séjour (FCFA)',
-            'taxes',
-            formData.taxes,
-            'Taxe de séjour',
             'numeric'
           )}
           

@@ -726,14 +726,14 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       'propertyType', 'location', 'guests', 'bedrooms', 'bathrooms',
       'title', 'description', 'price', 'addressDetails',
       'hostFullName', 'hostEmail', 'hostPhone', 'hostGuide',
-      'cleaningFee', 'taxes', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage', 'longStayDiscountMinNights', 'longStayDiscountPercentage',
+      'cleaningFee', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage', 'longStayDiscountMinNights', 'longStayDiscountPercentage',
       'autoBooking', 'cancellationPolicy'
     ];
     const monthlyOrder = [
       'propertyType', 'location', 'surfaceM2', 'numberOfRooms', 'bedrooms', 'bathrooms',
       'title', 'description', 'monthlyRentPrice', 'securityDeposit', 'minimumDurationMonths', 'addressDetails',
       'hostFullName', 'hostEmail', 'hostPhone', 'hostGuide',
-      'cleaningFee', 'taxes', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage', 'longStayDiscountMinNights', 'longStayDiscountPercentage',
+      'cleaningFee', 'freeCleaningMinDays', 'checkInTime', 'checkOutTime', 'minimumNights', 'discountMinNights', 'discountPercentage', 'longStayDiscountMinNights', 'longStayDiscountPercentage',
       'autoBooking', 'cancellationPolicy'
     ];
     const fieldOrder = listingType === 'monthly' ? monthlyOrder : shortTermOrder;
@@ -2214,23 +2214,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             placeholderTextColor="#999"
             returnKeyType="next"
             onSubmitEditing={() => handleInputSubmit('cleaningFee')}
-          />
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Taxe de séjour (FCFA)</Text>
-          <Text style={styles.helpText}>
-            Taxe de séjour payée par le voyageur (optionnel)
-          </Text>
-          <TextInput
-            ref={(ref) => { inputRefs.current['taxes'] = ref; }}
-            style={styles.input}
-            value={formData.taxes}
-            onChangeText={(value) => handleInputChange('taxes', value)}
-            placeholder="0"
-            keyboardType="numeric"
-            placeholderTextColor="#999"
-            returnKeyType="next"
-            onSubmitEditing={() => handleInputSubmit('taxes')}
           />
         </View>
       </View>
