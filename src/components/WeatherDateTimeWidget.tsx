@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 
 interface WeatherData {
   city: string;
@@ -10,6 +11,7 @@ interface WeatherData {
 }
 
 const WeatherDateTimeWidget: React.FC = () => {
+  const navigation = useNavigation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
 
@@ -121,7 +123,12 @@ const WeatherDateTimeWidget: React.FC = () => {
             const hour = parseInt(currentHour, 10);
             
             return (
-              <View key={index} style={styles.weatherCard}>
+              <TouchableOpacity
+                key={index}
+                style={styles.weatherCard}
+                activeOpacity={0.7}
+                onPress={() => (navigation as any).navigate('Search', { destination: weather.city })}
+              >
                 <Ionicons 
                   name={getWeatherIcon(weather.icon, hour) as any} 
                   size={18} 
@@ -129,7 +136,7 @@ const WeatherDateTimeWidget: React.FC = () => {
                 />
                 <Text style={styles.weatherTemp}>{weather.temp}°</Text>
                 <Text style={styles.weatherCity}>{weather.city}</Text>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </ScrollView>

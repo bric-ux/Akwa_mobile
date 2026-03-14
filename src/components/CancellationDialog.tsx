@@ -393,7 +393,11 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
               <Text style={styles.cancelButtonText}>Annuler</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.button, styles.confirmButton]}
+              style={[
+                styles.button,
+                styles.confirmButton,
+                (!selectedReason || loading || isConfirming) && styles.confirmButtonDisabled,
+              ]}
               onPress={handleCancel}
               disabled={!selectedReason || loading || isConfirming}
             >
@@ -667,6 +671,10 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     backgroundColor: '#e74c3c',
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#bdc3c7',
+    opacity: 0.8,
   },
   confirmButtonText: {
     fontSize: 16,
