@@ -90,6 +90,7 @@ import AdminBookingCalculationTestScreen from '../screens/AdminBookingCalculatio
 import AdminMonthlyRentalScreen from '../screens/AdminMonthlyRentalScreen';
 import HostReviewsScreen from '../screens/HostReviewsScreen';
 import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
+import MyVehicleRenterReviewsScreen from '../screens/MyVehicleRenterReviewsScreen';
 import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
 import StripeReturnHandler from '../components/StripeReturnHandler';
 
@@ -745,6 +746,14 @@ const AppNavigator = () => {
           component={MyGuestReviewsScreen}
           options={{ 
             title: 'Mes avis',
+            headerShown: false 
+          }}
+        />
+        <Stack.Screen 
+          name="MyVehicleRenterReviews" 
+          component={MyVehicleRenterReviewsScreen}
+          options={{ 
+            title: 'Avis reçus',
             headerShown: false 
           }}
         />

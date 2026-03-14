@@ -35,7 +35,7 @@ export const useGuestReviews = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const { sendNewGuestReview, sendPropertyReviewPublished, sendGuestReviewPublished } = useEmailService();
+  const { sendNewGuestReview, sendNewGuestReviewResponse, sendPropertyReviewPublished, sendGuestReviewPublished } = useEmailService();
 
   // Get reviews written by a host for guests
   const getGuestReviewsByHost = async (hostId: string): Promise<GuestReview[]> => {
@@ -330,6 +330,54 @@ export const useGuestReviews = () => {
     }
   };
 
+  // Répondre à un avis laissé par un hôte (pour les voyageurs)
+  const createResponseForGuestReview = async (reviewId: string, response: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user) {
+      setError('Vous devez être connecté');
+      return { success: false, error: 'Not authenticated' };
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: insertError } = await (supabase as any)
+        .from('guest_review_responses')
+        .insert({
+          guest_review_id: reviewId,
+          guest_id: user.id,
+          response: response.trim(),
+        });
+      if (insertError) {
+        setError(insertError.message || "Impossible de publier la réponse");
+        return { success: false, error: insertError.message };
+      }
+      try {
+        const { data: reviewRow } = await (supabase as any)
+          .from('guest_reviews')
+          .select('host_id, property_id, rating, comment')
+          .eq('id', reviewId)
+          .single();
+        if (reviewRow) {
+          const { data: hostProfile } = await supabase.from('profiles').select('first_name, last_name, email').eq('user_id', reviewRow.host_id).single();
+          const { data: prop } = await supabase.from('properties').select('title').eq('id', reviewRow.property_id).single();
+          const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
+          const hostName = hostProfile ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte' : 'Hôte';
+          const propertyTitle = (prop as any)?.title || 'Votre propriété';
+          if (hostProfile?.email) {
+            await sendNewGuestReviewResponse(hostProfile.email, hostName, guestName, propertyTitle, response.trim());
+          }
+        }
+      } catch (e) {
+        console.error('Erreur envoi email new_guest_review_response:', e);
+      }
+      return { success: true };
+    } catch (err: any) {
+      setError(err.message || "Impossible de publier la réponse");
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -338,7 +386,8 @@ export const useGuestReviews = () => {
     getPublishedReviewsForGuest,
     canReviewGuest,
     canReviewVehicleRenter,
-    submitGuestReview
+    submitGuestReview,
+    createResponseForGuestReview,
   };
 };
 

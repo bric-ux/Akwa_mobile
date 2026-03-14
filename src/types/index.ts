@@ -268,6 +268,7 @@ export type RootStackParamList = {
   ModeTransition: { targetMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental'; targetPath?: string; fromMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental' }; // Page de transition entre modes
   MyBookings: undefined;
   MyGuestReviews: undefined;
+  MyVehicleRenterReviews: undefined;
   PropertyBookingDetails: { bookingId: string };
   VehicleBookingDetails: { bookingId: string };
   Favorites: undefined;

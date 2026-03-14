@@ -11,10 +11,9 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVehicleRenterReviews } from '../hooks/useVehicleRenterReviews';
 import { VEHICLE_COLORS } from '../constants/colors';
 
@@ -37,6 +36,7 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
   vehicleId,
   onReviewSubmitted,
 }) => {
+  const insets = useSafeAreaInsets();
   const { createReview, loading } = useVehicleRenterReviews();
   const [rating, setRating] = useState(0);
   const [vehicleCareRating, setVehicleCareRating] = useState(0);
@@ -125,13 +125,14 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
       animationType="slide"
       transparent={false}
       onRequestClose={onClose}
+      statusBarTranslucent
     >
       <View style={styles.modalOverlay}>
         <KeyboardAvoidingView
-          style={styles.keyboardAvoiding}
+          style={[styles.keyboardAvoiding, { paddingTop: insets.top }]}
           behavior={Platform.OS === 'ios' ? 'padding' : 'position'}
         >
-          <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
+          <View style={styles.modalContainer}>
             <View style={styles.header}>
               <View style={styles.headerTitleContainer}>
                 <Ionicons name="person-outline" size={20} color={VEHICLE_COLORS.primary} />
@@ -240,7 +241,7 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
                 )}
               </TouchableOpacity>
             </View>
-          </SafeAreaView>
+          </View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -250,16 +251,12 @@ const VehicleRenterReviewModal: React.FC<VehicleRenterReviewModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: '#fff',
   },
   modalContainer: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '95%',
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+    backgroundColor: '#fff',
+    overflow: 'hidden',
   },
   keyboardAvoiding: {
     flex: 1,

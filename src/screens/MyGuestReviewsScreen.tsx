@@ -312,6 +312,22 @@ const MyGuestReviewsScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
+        {/* Lien vers avis reçus (véhicules) */}
+        <TouchableOpacity
+          style={styles.receivedReviewsCard}
+          onPress={() => navigation.navigate('MyVehicleRenterReviews' as never)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chatbubbles-outline" size={24} color="#0d9488" />
+          <View style={styles.receivedReviewsCardContent}>
+            <Text style={styles.receivedReviewsCardTitle}>Avis reçus</Text>
+            <Text style={styles.receivedReviewsCardSubtitle}>
+              Voir et répondre aux avis (résidence meublée & véhicules) laissés par les hôtes et propriétaires
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+        </TouchableOpacity>
+
         {/* Tabs Propriétés / Véhicules */}
         <View style={styles.tabsContainer}>
               <TouchableOpacity
@@ -396,6 +412,38 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  receivedReviewsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#ccfbf1',
+  },
+  receivedReviewsCardContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  receivedReviewsCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f766e',
+    marginBottom: 4,
+  },
+  receivedReviewsCardSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
   },
   sectionSelector: {
     flexDirection: 'row',

@@ -237,19 +237,19 @@ export const useVehicleRenterReviews = () => {
 
   // Récupérer les avis sur moi en tant que locataire (tous, pas seulement publiés)
   const getReviewsAboutMe = async (): Promise<VehicleRenterReview[]> => {
-    if (!user) return [];
+    if (!user) {
+      setLoading(false);
+      return [];
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      // Charger les avis avec les véhicules
+      // Charger les avis (sans relation pour éviter les erreurs de schéma)
       const { data: reviewsData, error: fetchError } = await (supabase as any)
         .from('vehicle_renter_reviews')
-        .select(`
-          *,
-          vehicle:vehicles(title, brand, model)
-        `)
+        .select('*')
         .eq('renter_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -261,28 +261,35 @@ export const useVehicleRenterReviews = () => {
 
       if (!reviewsData || reviewsData.length === 0) return [];
 
-      // Charger les informations des propriétaires séparément
-      const ownerIds = [...new Set(reviewsData.map((r: any) => r.owner_id))];
-      const { data: ownersData } = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name')
-        .in('user_id', ownerIds);
-
-      const ownersMap = new Map((ownersData || []).map((o: any) => [o.user_id, o]));
-
-      // Charger les réponses
       const reviewIds = reviewsData.map((r: any) => r.id);
-      const { data: responses } = await (supabase as any)
-        .from('vehicle_renter_review_responses')
-        .select('*')
-        .in('vehicle_renter_review_id', reviewIds);
+      const ownerIds = [...new Set(reviewsData.map((r: any) => r.owner_id))];
+      const vehicleIds = [...new Set(reviewsData.map((r: any) => r.vehicle_id))];
+
+      // Charger propriétaires, véhicules et réponses en parallèle
+      const [ownersResult, vehiclesResult, responsesResult] = await Promise.all([
+        ownerIds.length > 0
+          ? supabase.from('profiles').select('user_id, first_name, last_name').in('user_id', ownerIds)
+          : Promise.resolve({ data: [] }),
+        vehicleIds.length > 0
+          ? supabase.from('vehicles').select('id, title, brand, model').in('id', vehicleIds)
+          : Promise.resolve({ data: [] }),
+        (supabase as any)
+          .from('vehicle_renter_review_responses')
+          .select('*')
+          .in('vehicle_renter_review_id', reviewIds),
+      ]);
+
+      const ownersMap = new Map((ownersResult.data || []).map((o: any) => [o.user_id, o]));
+      const vehiclesMap = new Map((vehiclesResult.data || []).map((v: any) => [v.id, v]));
+      const responses = responsesResult.data || [];
 
       return reviewsData.map((review: any) => ({
         ...review,
-        owner: ownersMap.get(review.owner_id) 
+        owner: ownersMap.get(review.owner_id)
           ? { first_name: ownersMap.get(review.owner_id).first_name, last_name: ownersMap.get(review.owner_id).last_name }
           : undefined,
-        response: (responses || []).find((r: any) => r.vehicle_renter_review_id === review.id)
+        vehicle: vehiclesMap.get(review.vehicle_id) || undefined,
+        response: responses.find((r: any) => r.vehicle_renter_review_id === review.id),
       }));
     } catch (err) {
       console.error('Error fetching reviews about me:', err);
