@@ -831,6 +831,14 @@ const VehiclesScreen: React.FC = () => {
       <SafeAreaView style={isMapView ? styles.overlayContainer : styles.headerContainer} edges={['top']}>
         {/* Header avec position et dates/heures */}
         <View style={[styles.topHeaderBar, isMapView && styles.topHeaderBarTransparent]}>
+          <TouchableOpacity
+            style={[styles.headerBackButton, isMapView && styles.headerBackButtonMap]}
+            onPress={() => safeGoBack(navigation)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={isMapView ? '#fff' : '#333'} />
+          </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.locationSection, isMapView && styles.locationSectionMap]}
             onPress={() => setShowSearchModal(true)}
@@ -2429,6 +2437,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0, // Pas de bordure en mode carte
     borderBottomColor: 'transparent',
     paddingBottom: 8, // Réduire l'espacement en bas
+  },
+  headerBackButton: {
+    padding: 8,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerBackButtonMap: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 20,
+    padding: 8,
   },
   locationSection: {
     flex: 1,
