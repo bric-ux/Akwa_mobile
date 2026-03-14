@@ -62,6 +62,7 @@ const EditPropertyScreen: React.FC = () => {
     free_cleaning_min_days: '',
     minimum_nights: '',
     auto_booking: false,
+    allow_partial_payment: false,
     discount_enabled: false,
     discount_min_nights: '',
     discount_percentage: '',
@@ -130,6 +131,7 @@ const EditPropertyScreen: React.FC = () => {
           free_cleaning_min_days: propertyData.free_cleaning_min_days?.toString() || '',
           minimum_nights: propertyData.minimum_nights?.toString() || '',
           auto_booking: propertyData.auto_booking || false,
+          allow_partial_payment: propertyData.allow_partial_payment || false,
           discount_enabled: propertyData.discount_enabled || false,
           discount_min_nights: propertyData.discount_min_nights?.toString() || '',
           discount_percentage: propertyData.discount_percentage?.toString() || '',
@@ -240,6 +242,7 @@ const EditPropertyScreen: React.FC = () => {
           ? customAmenities.split(',').map(a => a.trim()).filter(a => a.length > 0)
           : null,
         auto_booking: formData.auto_booking,
+        allow_partial_payment: formData.allow_partial_payment,
         discount_enabled: formData.discount_enabled,
         discount_min_nights: formData.discount_min_nights ? Number(formData.discount_min_nights) : null,
         discount_percentage: formData.discount_percentage ? Number(formData.discount_percentage) : null,
@@ -975,6 +978,13 @@ const EditPropertyScreen: React.FC = () => {
             'auto_booking',
             formData.auto_booking,
             'Accepter automatiquement les réservations sans validation manuelle'
+          )}
+
+          {renderSwitchField(
+            'Autoriser le paiement partiel',
+            'allow_partial_payment',
+            formData.allow_partial_payment,
+            'Permettre au voyageur de payer une partie maintenant (ex: 50%) et le reste à l’arrivée. S’applique uniquement aux paiements par carte.'
           )}
         </View>
 

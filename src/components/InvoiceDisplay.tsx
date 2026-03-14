@@ -24,6 +24,7 @@ interface InvoiceDisplayProps {
     discount_amount?: number;
     discount_applied?: boolean;
     payment_method?: string;
+    payment_plan?: string | null;
     status?: string;
     properties?: {
       service_fee?: number;
@@ -747,6 +748,12 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const securityDeposit = serviceType === 'vehicle' 
     ? ((booking as any).security_deposit || (booking as any).vehicle?.security_deposit || 0)
     : 0;
+
+  // Paiement partiel : 100 % des frais de service au premier paiement, le reste en 50/50
+  const splitFirstPayment = booking.payment_plan === 'split'
+    ? Math.round((totalPaidByTraveler - (effectiveServiceFee ?? 0)) * 0.5) + (effectiveServiceFee ?? 0)
+    : 0;
+  const splitRemaining = booking.payment_plan === 'split' ? totalPaidByTraveler - splitFirstPayment : 0;
   
   if (__DEV__ && serviceType === 'vehicle') {
     console.log('🔍 [InvoiceDisplay] Caution:', {
@@ -1243,9 +1250,21 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
           {/* Total */}
           <View style={styles.financialRow}>
-            <Text style={styles.totalLabel}>Total payé</Text>
+            <Text style={styles.totalLabel}>Total {booking.payment_plan === 'split' ? 'de la réservation' : 'payé'}</Text>
             <Text style={styles.totalValue}>{formatPriceFCFA(totalPaidByTraveler)}</Text>
           </View>
+          {booking.payment_plan === 'split' && (
+            <>
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Payé à la réservation</Text>
+                <Text style={styles.financialValue}>{formatPriceFCFA(splitFirstPayment)}</Text>
+              </View>
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Restant à l'arrivée</Text>
+                <Text style={styles.financialValue}>{formatPriceFCFA(splitRemaining)}</Text>
+              </View>
+            </>
+          )}
 
           {/* Caution pour les véhicules */}
           {serviceType === 'vehicle' && securityDeposit > 0 && (
@@ -1380,9 +1399,21 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
           {/* Total payé par le voyageur */}
           <View style={styles.financialRow}>
-            <Text style={styles.totalLabel}>Total payé {serviceType === 'property' ? 'par le voyageur' : 'par le locataire'}</Text>
+            <Text style={styles.totalLabel}>Total {booking.payment_plan === 'split' ? 'de la réservation' : 'payé'} {serviceType === 'property' ? 'par le voyageur' : 'par le locataire'}</Text>
             <Text style={styles.totalValue}>{formatPriceFCFA(totalPaidByTraveler)}</Text>
           </View>
+          {booking.payment_plan === 'split' && (
+            <>
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Payé à la réservation</Text>
+                <Text style={styles.financialValue}>{formatPriceFCFA(splitFirstPayment)}</Text>
+              </View>
+              <View style={styles.financialRow}>
+                <Text style={styles.financialLabel}>Restant à l'arrivée</Text>
+                <Text style={styles.financialValue}>{formatPriceFCFA(splitRemaining)}</Text>
+              </View>
+            </>
+          )}
 
           {/* Caution pour les véhicules */}
           {serviceType === 'vehicle' && securityDeposit > 0 && (
@@ -1649,9 +1680,21 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
           {/* Résumé */}
           <View style={styles.summaryRow}>
-            <Text style={styles.financialLabel}>Total payé par le voyageur</Text>
+            <Text style={styles.financialLabel}>Total {booking.payment_plan === 'split' ? 'de la réservation' : 'payé'} par le voyageur</Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(totalPaidByTraveler)}</Text>
           </View>
+          {booking.payment_plan === 'split' && (
+            <>
+              <View style={styles.summaryRow}>
+                <Text style={styles.financialLabel}>Payé à la réservation</Text>
+                <Text style={styles.financialValue}>{formatPriceFCFA(splitFirstPayment)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.financialLabel}>Restant à l'arrivée</Text>
+                <Text style={styles.financialValue}>{formatPriceFCFA(splitRemaining)}</Text>
+              </View>
+            </>
+          )}
           <View style={styles.summaryRow}>
             <Text style={styles.financialLabel}>Versement net à l'hôte</Text>
             <Text style={[styles.financialValue, styles.netAmountText]}>

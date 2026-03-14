@@ -585,7 +585,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           client: 'mobile',
           return_to_app: true,
           app_scheme: 'akwahomemobile',
-          amount: pricing.finalTotal,
+          amount: cardChargeAmount,
           property_title: property.title,
           check_in: formatDateForAPI(checkIn!),
           check_out: formatDateForAPI(checkOut!),
@@ -604,7 +604,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           messageToHost: message.trim() || undefined,
           voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
           paymentMethod: 'card',
-          paymentPlan: paymentPlan,
+          paymentPlan: effectivePaymentPlan,
           paymentCurrency: currency,
           paymentRate: currency === 'EUR' ? rates.EUR : undefined,
         };
@@ -653,7 +653,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       messageToHost: message.trim() || undefined,
       voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
       paymentMethod: selectedPaymentMethod,
-      paymentPlan: paymentPlan,
+      paymentPlan: effectivePaymentPlan,
       paymentCurrency: currency,
       paymentRate: currency === 'EUR' ? rates.EUR : undefined,
     });
@@ -980,6 +980,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const { nights, pricing, fees, finalTotal } = calculateTotal();
+  // Paiement partiel : 100 % des frais de service au premier paiement, le reste (nuitées + ménage + taxes) en 50/50.
+  const serviceFee = fees.serviceFee ?? 0;
+  const effectivePaymentPlan = property.allow_partial_payment === true ? paymentPlan : 'full';
+  const cardChargeAmount = effectivePaymentPlan === 'split'
+    ? Math.round((finalTotal - serviceFee) * 0.5) + serviceFee
+    : finalTotal;
   const canPayByCard = true; // Carte acceptée en CFA (XOF) et en EUR
 
   if (showCardPaymentSuccess) {
@@ -1182,8 +1188,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
             />
           </View>
 
-          {/* Plan de paiement - Affiché après sélection des dates */}
-          {checkIn && checkOut && nights > 0 && (
+          {/* Plan de paiement - Affiché uniquement si le bien autorise le paiement partiel (pas si null/non renseigné) */}
+          {checkIn && checkOut && nights > 0 && property.allow_partial_payment === true && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('booking.paymentPlan')}</Text>
               <View style={styles.paymentPlanContainer}>
@@ -1258,7 +1264,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         {t('booking.paySplitDesc')}
                       </Text>
                       <Text style={styles.paymentPlanAmount}>
-                        50% {t('common.now')} ({formatPayment(finalTotal * 0.5)}), 50% {t('booking.onArrival')}
+                        {formatPayment(cardChargeAmount)} {t('common.now')}, {formatPayment(finalTotal - cardChargeAmount)} {t('booking.onArrival')}
                       </Text>
                     </View>
                     {paymentPlan === 'split' && selectedPaymentMethod !== 'cash' && (
@@ -1480,14 +1486,32 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 
                 <View style={[styles.priceRow, styles.totalRow]}>
                   <Text style={styles.totalLabel}>
-                    {selectedPaymentMethod === 'card' ? 'Total à payer par carte' : t('booking.total')}
+                    {selectedPaymentMethod === 'card'
+                      ? effectivePaymentPlan === 'split'
+                        ? 'Total à payer maintenant'
+                        : 'Total à payer par carte'
+                      : t('booking.total')}
                   </Text>
                   <Text style={styles.totalValue}>
-                    {selectedPaymentMethod === 'card' && currency === 'EUR' && rates.EUR
-                      ? `~${(finalTotal / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${finalTotal.toLocaleString('fr-FR')} FCFA)`
-                      : formatPayment(finalTotal)}
+                    {selectedPaymentMethod === 'card'
+                      ? (effectivePaymentPlan === 'split'
+                          ? (currency === 'EUR' && rates.EUR
+                              ? `~${(cardChargeAmount / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${cardChargeAmount.toLocaleString('fr-FR')} FCFA)`
+                              : formatPayment(cardChargeAmount))
+                          : (currency === 'EUR' && rates.EUR
+                              ? `~${(finalTotal / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${finalTotal.toLocaleString('fr-FR')} FCFA)`
+                              : formatPayment(finalTotal)))
+                      : (currency === 'EUR' && rates.EUR
+                          ? `~${(finalTotal / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${finalTotal.toLocaleString('fr-FR')} FCFA)`
+                          : formatPayment(finalTotal))}
                   </Text>
                 </View>
+                {selectedPaymentMethod === 'card' && effectivePaymentPlan === 'split' && (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>Restant à l'arrivée</Text>
+                    <Text style={styles.priceValue}>{formatPayment(finalTotal - cardChargeAmount)}</Text>
+                  </View>
+                )}
               </View>
             </View>
           )}
@@ -1522,8 +1546,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         : 'Payer et envoyer la demande'
                     : selectedPaymentMethod === 'cash'
                       ? t('booking.confirmBooking')
-                    : paymentPlan === 'split'
-                          ? `${t('booking.pay')} ${formatPayment(finalTotal * 0.5)} ${t('common.now')}`
+                    : effectivePaymentPlan === 'split'
+                          ? `${t('booking.pay')} ${formatPayment(cardChargeAmount)} ${t('common.now')}`
                           : property.auto_booking 
                             ? t('booking.payAndBook')
                             : t('booking.sendRequest')
