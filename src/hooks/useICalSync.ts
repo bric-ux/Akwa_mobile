@@ -115,12 +115,42 @@ export const useICalSync = () => {
     }
   };
 
+  const clearSyncedBlockedDates = async (
+    propertyId: string,
+    platform: string
+  ): Promise<{ success: boolean; deletedCount?: number }> => {
+    setLoading(true);
+    try {
+      const reason = `Synchronisation ${platform}`;
+      const { error, count } = await supabase
+        .from('blocked_dates')
+        .delete({ count: 'exact' })
+        .eq('property_id', propertyId)
+        .eq('reason', reason);
+
+      if (error) throw error;
+
+      Alert.alert(
+        'Succès',
+        `Blocages retirés (${count ?? 0}) pour ${platform}`
+      );
+      return { success: true, deletedCount: count ?? 0 };
+    } catch (error: any) {
+      console.error('Error clearing synced blocked dates:', error);
+      Alert.alert('Erreur', 'Erreur lors de la suppression des blocages');
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     getICalLinks,
     addICalLink,
     syncCalendar,
     removeICalLink,
+    clearSyncedBlockedDates,
   };
 };
 

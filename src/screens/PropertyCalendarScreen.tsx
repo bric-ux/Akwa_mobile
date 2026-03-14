@@ -26,7 +26,7 @@ const PropertyCalendarScreen: React.FC = () => {
 
   const { unavailableDates, loading: calendarLoading, refetch, isDateUnavailable } = useAvailabilityCalendar(propertyId);
   const { getBlockedDates, blockDates, unblockDates, loading: blockedLoading } = useBlockedDates();
-  const { getICalLinks, addICalLink, syncCalendar, removeICalLink, loading: icalLoading } = useICalSync();
+  const { getICalLinks, addICalLink, syncCalendar, removeICalLink, clearSyncedBlockedDates, loading: icalLoading } = useICalSync();
 
   const [blockedDatesList, setBlockedDatesList] = useState<BlockedDate[]>([]);
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
@@ -49,11 +49,10 @@ const PropertyCalendarScreen: React.FC = () => {
 
   const generateExportUrl = async () => {
     // Générer l'URL d'export iCal pour cette propriété
-    // Note: Cette URL devra être générée côté serveur, pour l'instant on utilise une URL générique
-    // L'URL d'export sera générée par le backend
-    // Pour l'instant, on utilise une URL placeholder qui sera remplacée par le backend
-    // TODO: Remplacer par l'URL réelle du backend
-    setExportUrl(`https://api.akwahome.com/api/ical/export/${propertyId}`);
+    // IMPORTANT: L'URL doit pointer vers un vrai flux .ics (text/calendar) pour fonctionner sur Airbnb/Booking/etc.
+    // On utilise l'Edge Function Supabase qui sert un fichier ICS.
+    const supabaseUrl = supabase?.supabaseUrl || 'https://hqzgndjbxzgsyfoictgo.supabase.co';
+    setExportUrl(`${supabaseUrl}/functions/v1/export-ical/${propertyId}.ics`);
   };
 
   const handleCopyExportUrl = async () => {
@@ -115,6 +114,28 @@ const PropertyCalendarScreen: React.FC = () => {
               await loadICalLinks();
               await loadBlockedDates();
               await refetch();
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClearLinkBlockedDates = async (platform: string) => {
+    Alert.alert(
+      'Retirer les blocages',
+      `Supprimer tous les blocages ajoutés via la synchronisation ${platform} ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Retirer',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await clearSyncedBlockedDates(propertyId, platform);
+            if (result.success) {
+              await loadBlockedDates();
+              await refetch();
+              await loadICalLinks();
             }
           },
         },
@@ -212,7 +233,7 @@ const PropertyCalendarScreen: React.FC = () => {
   };
 
   // Fonction pour obtenir le type de blocage d'une date
-  const getDateBlockType = (date: Date): 'reserved' | 'blocked' | 'available' => {
+  const getDateBlockType = (date: Date): 'reserved' | 'blocked' | 'synced' | 'available' => {
     const dateStr = formatDateToISO(date);
     const unavailable = unavailableDates.find(period => {
       return dateStr >= period.start_date && dateStr <= period.end_date;
@@ -221,11 +242,17 @@ const PropertyCalendarScreen: React.FC = () => {
     if (!unavailable) return 'available';
     
     // Vérifier si c'est une date bloquée manuellement
-    const isBlocked = blockedDatesList.some(blocked => {
+    const blockingEntry = blockedDatesList.find(blocked => {
       return dateStr >= blocked.start_date && dateStr <= blocked.end_date;
     });
-    
-    return isBlocked ? 'blocked' : 'reserved';
+
+    if (blockingEntry) {
+      const reason = String(blockingEntry.reason || '');
+      if (reason.startsWith('Synchronisation')) return 'synced';
+      return 'blocked';
+    }
+
+    return 'reserved';
   };
 
   // Fonction pour générer les jours du mois
@@ -344,6 +371,7 @@ const PropertyCalendarScreen: React.FC = () => {
                     isAvailable && styles.dayCellAvailable,
                     unavailable && blockType === 'reserved' && styles.dayCellReserved,
                     unavailable && blockType === 'blocked' && styles.dayCellBlocked,
+                    unavailable && blockType === 'synced' && styles.dayCellSynced,
                     isSelected && styles.dayCellSelected,
                     isStart && styles.dayCellStart,
                     isEnd && styles.dayCellEnd,
@@ -358,6 +386,7 @@ const PropertyCalendarScreen: React.FC = () => {
                       isAvailable && styles.dayTextAvailable,
                       unavailable && blockType === 'reserved' && styles.dayTextReserved,
                       unavailable && blockType === 'blocked' && styles.dayTextBlocked,
+                      unavailable && blockType === 'synced' && styles.dayTextSynced,
                       isSelected && styles.dayTextSelected,
                     ]}
                   >
@@ -457,7 +486,11 @@ const PropertyCalendarScreen: React.FC = () => {
                   <View style={styles.periodInfo}>
                     <View style={[
                       styles.badge,
-                      period.reason === 'Réservé' ? styles.badgeReserved : styles.badgeBlocked
+                      (period.reason || '').startsWith('Synchronisation')
+                        ? styles.badgeSynced
+                        : period.reason === 'Réservé'
+                          ? styles.badgeReserved
+                          : styles.badgeBlocked
                     ]}>
                       <Text style={styles.badgeText}>
                         {period.reason || 'Bloqué'}
@@ -631,6 +664,13 @@ const PropertyCalendarScreen: React.FC = () => {
                       <Ionicons name="refresh" size={18} color="#e67e22" />
                     </TouchableOpacity>
                     <TouchableOpacity
+                      style={[styles.syncButton, { marginRight: 12 }]}
+                      onPress={() => handleClearLinkBlockedDates(link.platform)}
+                      disabled={icalLoading}
+                    >
+                      <Ionicons name="remove-circle-outline" size={18} color="#e67e22" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
                       style={styles.deleteButton}
                       onPress={() => handleRemoveICalLink(link.id)}
                       disabled={icalLoading}
@@ -655,6 +695,10 @@ const PropertyCalendarScreen: React.FC = () => {
             <View style={styles.legendItem}>
               <View style={[styles.legendColor, { backgroundColor: '#e67e22' }]} />
               <Text style={styles.legendText}>Réservé</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendColor, { backgroundColor: '#6c5ce7' }]} />
+              <Text style={styles.legendText}>Bloqué (sync iCal)</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendColor, { backgroundColor: '#e74c3c' }]} />
@@ -760,6 +804,11 @@ const styles = StyleSheet.create({
     borderColor: '#e74c3c',
     borderWidth: 2,
   },
+  dayCellSynced: {
+    backgroundColor: '#f3f0ff',
+    borderColor: '#6c5ce7',
+    borderWidth: 2,
+  },
   dayCellCustomPrice: {
     borderWidth: 2,
     borderColor: '#2ecc71',
@@ -789,6 +838,10 @@ const styles = StyleSheet.create({
   },
   dayTextBlocked: {
     color: '#e74c3c',
+    fontWeight: '600',
+  },
+  dayTextSynced: {
+    color: '#6c5ce7',
     fontWeight: '600',
   },
   dayTextSelected: {
@@ -930,6 +983,9 @@ const styles = StyleSheet.create({
   },
   badgeBlocked: {
     backgroundColor: '#e74c3c',
+  },
+  badgeSynced: {
+    backgroundColor: '#6c5ce7',
   },
   badgeText: {
     color: '#fff',

@@ -1618,7 +1618,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     <View style={styles.paymentMethodInfo}>
                       <Text style={styles.paymentMethodTitle}>Carte bancaire</Text>
                       <Text style={styles.paymentMethodDescription}>
-                        Visa, Mastercard (paiement en CFA ou euros)
+                        Visa, Mastercard
                       </Text>
                     </View>
                   </View>
