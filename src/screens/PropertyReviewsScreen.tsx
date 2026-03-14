@@ -79,7 +79,7 @@ const PropertyReviewsScreen: React.FC = () => {
       
       setProperty(propData);
 
-      // Load reviews for this property
+      // Load all reviews for this property (approved and pending moderation) so host can see and respond
       const { data: reviewsData, error } = await supabase
         .from('reviews')
         .select(`
@@ -87,7 +87,6 @@ const PropertyReviewsScreen: React.FC = () => {
           profiles!reviewer_id(first_name, last_name, avatar_url)
         `)
         .eq('property_id', propertyId)
-        .eq('approved', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -182,8 +181,8 @@ const PropertyReviewsScreen: React.FC = () => {
   const respondedReviews = reviews.filter(r => r.has_response);
   const expiredReviews = reviews.filter(r => !r.has_response && r.is_deadline_passed);
 
-  const currentReviews = activeTab === 'pending' ? pendingReviews 
-    : activeTab === 'responded' ? respondedReviews 
+  const currentReviews = activeTab === 'pending' ? pendingReviews
+    : activeTab === 'responded' ? respondedReviews
     : expiredReviews;
 
   const ReviewCard = ({ review, showDeadline = false }: { review: PropertyReview; showDeadline?: boolean }) => (
@@ -245,8 +244,8 @@ const PropertyReviewsScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Response action */}
-      {!review.has_response && !review.is_deadline_passed && (
+      {/* Response action: only for approved reviews without response and not expired */}
+      {review.approved && !review.has_response && !review.is_deadline_passed && (
         <TouchableOpacity
           style={styles.responseButton}
           onPress={() => handleOpenResponseModal(review)}
@@ -365,7 +364,7 @@ const PropertyReviewsScreen: React.FC = () => {
               color="#d1d5db" 
             />
             <Text style={styles.emptyTitle}>
-              {activeTab === 'pending' ? 'Aucun avis en attente' 
+              {activeTab === 'pending' ? 'Aucun avis en attente'
                 : activeTab === 'responded' ? 'Aucun avis répondu'
                 : 'Aucun avis expiré'}
             </Text>

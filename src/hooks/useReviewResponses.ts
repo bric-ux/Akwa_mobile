@@ -75,22 +75,33 @@ export const useReviewResponses = () => {
           .eq('id', reviewId)
           .single();
 
-        if (reviewData && reviewData.profiles && reviewData.properties) {
-          const guestProfile = reviewData.profiles as any;
+        if (reviewData && reviewData.properties) {
           const propertyData = reviewData.properties as any;
-          const hostProfile = propertyData.profiles as any;
+          // Supabase peut renvoyer une relation FK en objet ou en tableau
+          const guestProfileRaw = reviewData.profiles;
+          const guestProfile = guestProfileRaw != null
+            ? (Array.isArray(guestProfileRaw) ? guestProfileRaw[0] : guestProfileRaw)
+            : null;
+          const hostProfileRaw = propertyData?.profiles;
+          const hostProfile = hostProfileRaw != null
+            ? (Array.isArray(hostProfileRaw) ? hostProfileRaw[0] : hostProfileRaw)
+            : null;
 
-          const guestEmail = guestProfile.email;
-          const guestName = `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim() || 'Voyageur';
-          const hostName = `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte';
-          const propertyTitle = propertyData.title || 'Votre réservation';
-          
+          const guestEmail = guestProfile?.email;
+          const guestName = guestProfile ? `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim() || 'Voyageur' : 'Voyageur';
+          const hostName = hostProfile ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte' : 'Hôte';
+          const propertyTitle = propertyData?.title || 'Votre réservation';
+
+          if (!guestEmail) {
+            console.warn('[useReviewResponses] Email voyageur non trouvé, envoi email ignoré');
+          }
+
           // Calculer la note moyenne
           const avgRating = reviewData.location_rating && reviewData.cleanliness_rating && reviewData.value_rating && reviewData.communication_rating
             ? Math.round(((reviewData.location_rating + reviewData.cleanliness_rating + reviewData.value_rating + reviewData.communication_rating) / 4) * 10) / 10
             : 0;
 
-          await sendNewPropertyReviewResponse(
+          if (guestEmail) await sendNewPropertyReviewResponse(
             guestEmail,
             guestName,
             hostName,
@@ -99,7 +110,7 @@ export const useReviewResponses = () => {
           );
 
           // Envoyer aussi l'email de publication (l'avis est automatiquement publié par le trigger SQL)
-          await sendPropertyReviewPublished(
+          if (guestEmail) await sendPropertyReviewPublished(
             guestEmail,
             guestName,
             hostName,
@@ -108,7 +119,7 @@ export const useReviewResponses = () => {
             reviewData.comment || undefined
           );
 
-          console.log('✅ [useReviewResponses] Emails de notification envoyés au voyageur');
+          if (guestEmail) console.log('✅ [useReviewResponses] Emails de notification envoyés au voyageur');
         }
       } catch (emailError) {
         console.error('❌ [useReviewResponses] Erreur envoi email notification:', emailError);

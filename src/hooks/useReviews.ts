@@ -187,12 +187,12 @@ export const useReviews = () => {
           .eq('id', reviewData.propertyId)
           .single();
 
-        if (propertyData && propertyData.profiles && Array.isArray(propertyData.profiles) && propertyData.profiles.length > 0) {
-          const hostProfile = propertyData.profiles[0];
-          const hostName = `${hostProfile.first_name} ${hostProfile.last_name}`;
+        const hostProfile = propertyData?.profiles != null
+          ? (Array.isArray(propertyData.profiles) ? propertyData.profiles[0] : propertyData.profiles)
+          : null;
+        if (propertyData && hostProfile && (hostProfile as any).email) {
+          const hostName = `${(hostProfile as any).first_name || ''} ${(hostProfile as any).last_name || ''}`.trim() || 'Hôte';
           const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
-          
-          // Calculer la note moyenne
           const averageRating = (
             reviewData.locationRating +
             reviewData.cleanlinessRating +
@@ -201,7 +201,7 @@ export const useReviews = () => {
           ) / 4;
 
           await sendNewPropertyReview(
-            hostProfile.email,
+            (hostProfile as any).email,
             hostName,
             guestName,
             propertyData.title,
@@ -210,6 +210,8 @@ export const useReviews = () => {
           );
 
           console.log('✅ [useReviews] Email de notification envoyé à l\'hôte');
+        } else if (propertyData && !hostProfile) {
+          console.warn('⚠️ [useReviews] Profil hôte non trouvé (profiles manquant ou vide)');
         }
       } catch (emailError) {
         console.error('❌ [useReviews] Erreur envoi email notification:', emailError);
