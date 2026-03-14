@@ -7,24 +7,15 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Modal,
-  TextInput,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
   Dimensions,
-  StatusBar,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { useGuestReviews, GuestReview } from '../hooks/useGuestReviews';
-import { useVehicleRenterReviews, VehicleRenterReview } from '../hooks/useVehicleRenterReviews';
-import { supabase } from '../services/supabase';
-import { useAuth } from '../services/AuthContext';
-import { useEmailService } from '../hooks/useEmailService';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../services/supabase';
+import { useAuth } from '../services/AuthContext';
 
 // Types pour les avis envoyés
 interface SentPropertyReview {
@@ -59,37 +50,16 @@ interface SentVehicleReview {
   is_published?: boolean;
 }
 
-type CombinedReview = GuestReview | VehicleRenterReview;
 type SentReview = SentPropertyReview | SentVehicleReview;
 
 const MyGuestReviewsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { getReviewsForGuest, loading: guestReviewsLoading } = useGuestReviews();
-  const { getReviewsAboutMe, createResponse, loading: vehicleReviewsLoading } = useVehicleRenterReviews();
-  const { sendNewGuestReviewResponse, sendGuestReviewPublished } = useEmailService();
-  const insets = useSafeAreaInsets();
-  
-  // Avis reçus
-  const [receivedPropertyReviews, setReceivedPropertyReviews] = useState<GuestReview[]>([]);
-  const [receivedVehicleReviews, setReceivedVehicleReviews] = useState<VehicleRenterReview[]>([]);
-  
-  // Avis envoyés
+
   const [sentPropertyReviews, setSentPropertyReviews] = useState<SentPropertyReview[]>([]);
   const [sentVehicleReviews, setSentVehicleReviews] = useState<SentVehicleReview[]>([]);
-  
-  // États pour la navigation entre sections
-  const [activeSection, setActiveSection] = useState<'sent' | 'received'>('received');
   const [sentActiveTab, setSentActiveTab] = useState<'property' | 'vehicle'>('property');
-  const [receivedActiveTab, setReceivedActiveTab] = useState<'property' | 'vehicle'>('property');
-  
-  const [averageRating, setAverageRating] = useState<number>(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [responseModalVisible, setResponseModalVisible] = useState(false);
-  const [selectedReview, setSelectedReview] = useState<CombinedReview | null>(null);
-  const [selectedReviewType, setSelectedReviewType] = useState<'property' | 'vehicle'>('property');
-  const [responseText, setResponseText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [loadingSent, setLoadingSent] = useState(false);
 
   useEffect(() => {
@@ -100,29 +70,7 @@ const MyGuestReviewsScreen: React.FC = () => {
 
   const loadAllReviews = async () => {
     if (!user) return;
-    await Promise.all([loadReceivedReviews(), loadSentReviews()]);
-  };
-
-  // Charger les avis reçus
-  const loadReceivedReviews = async () => {
-    if (!user) return;
-    
-    // Charger les avis de propriétés reçus
-    const propertyData = await getReviewsForGuest(user.id, true);
-    setReceivedPropertyReviews(propertyData);
-    
-    // Charger les avis de véhicules reçus
-    const vehicleData = await getReviewsAboutMe();
-    setReceivedVehicleReviews(vehicleData);
-    
-    // Calculer la moyenne globale des avis reçus
-    const allReceivedReviews = [...propertyData, ...vehicleData];
-    if (allReceivedReviews.length > 0) {
-      const avg = allReceivedReviews.reduce((acc, r) => acc + r.rating, 0) / allReceivedReviews.length;
-      setAverageRating(Math.round(avg * 10) / 10);
-    } else {
-      setAverageRating(0);
-    }
+    await loadSentReviews();
   };
 
   // Charger les avis envoyés
@@ -223,119 +171,6 @@ const MyGuestReviewsScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleOpenResponseModal = (review: CombinedReview, type: 'property' | 'vehicle') => {
-    setSelectedReview(review);
-    setSelectedReviewType(type);
-    setResponseText(review.response?.response || '');
-    setResponseModalVisible(true);
-  };
-
-  const handleSubmitResponse = async () => {
-    if (!selectedReview || !user || !responseText.trim()) return;
-
-    setSubmitting(true);
-    try {
-      if (selectedReviewType === 'property') {
-        const review = selectedReview as GuestReview;
-        const isNewResponse = !review.response;
-        
-        if (review.response) {
-          const { error } = await (supabase as any)
-            .from('guest_review_responses')
-            .update({ 
-              response: responseText.trim(), 
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', review.response.id);
-
-          if (error) throw error;
-        } else {
-          const { error } = await (supabase as any)
-            .from('guest_review_responses')
-            .insert({
-              guest_review_id: review.id,
-              guest_id: user.id,
-              response: responseText.trim(),
-            });
-
-          if (error) throw error;
-        }
-
-        // Envoyer un email de notification à l'hôte (seulement pour les nouvelles réponses)
-        if (isNewResponse) {
-          try {
-            // Récupérer les informations de l'avis, de l'hôte et de la propriété
-            const { data: reviewData } = await (supabase as any)
-              .from('guest_reviews')
-              .select(`
-                host_id,
-                property_id,
-                rating,
-                comment,
-                properties!guest_reviews_property_id_fkey(
-                  title
-                ),
-                profiles!guest_reviews_host_id_fkey(first_name, last_name, email)
-              `)
-              .eq('id', review.id)
-              .single();
-
-            if (reviewData && reviewData.profiles && reviewData.properties) {
-              const hostProfile = reviewData.profiles as any;
-              const propertyData = reviewData.properties as any;
-
-              const hostEmail = hostProfile.email;
-              const hostName = `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte';
-              const guestName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Voyageur';
-              const propertyTitle = propertyData.title || 'Votre propriété';
-
-              await sendNewGuestReviewResponse(
-                hostEmail,
-                hostName,
-                guestName,
-                propertyTitle,
-                responseText.trim()
-              );
-
-              // Envoyer aussi l'email de publication (l'avis est automatiquement publié par le trigger SQL)
-              await sendGuestReviewPublished(
-                hostEmail,
-                hostName,
-                guestName,
-                propertyTitle,
-                reviewData.rating || 0,
-                reviewData.comment || undefined
-              );
-
-              console.log('✅ [MyGuestReviewsScreen] Emails de notification envoyés à l\'hôte');
-            }
-          } catch (emailError) {
-            console.error('❌ [MyGuestReviewsScreen] Erreur envoi email notification:', emailError);
-            // Ne pas faire échouer la soumission de la réponse si l'email échoue
-          }
-        }
-      } else {
-        const review = selectedReview as VehicleRenterReview;
-        const result = await createResponse(review.id, responseText.trim());
-        if (!result.success) {
-          throw new Error(result.error || 'Erreur lors de la soumission');
-        }
-      }
-
-      Alert.alert('Succès', 'Votre réponse a été enregistrée');
-      setResponseModalVisible(false);
-      setSelectedReview(null);
-      setResponseText('');
-      setSelectedReviewType('property');
-      await loadReceivedReviews();
-    } catch (error: any) {
-      console.error('Erreur soumission réponse:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de soumettre votre réponse');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const renderStars = (rating: number) => {
     return (
       <View style={styles.starsContainer}>
@@ -347,162 +182,6 @@ const MyGuestReviewsScreen: React.FC = () => {
             color={star <= rating ? '#fbbf24' : '#d1d5db'}
           />
         ))}
-      </View>
-    );
-  };
-
-  // Rendre un avis reçu
-  const renderReceivedReview = (review: CombinedReview) => {
-    const isPropertyReview = 'property' in review || (review as any).type === 'property';
-    const reviewType = isPropertyReview ? 'property' : 'vehicle';
-    const propertyReview = isPropertyReview ? review as GuestReview : null;
-    const vehicleReview = !isPropertyReview ? review as VehicleRenterReview : null;
-    
-    return (
-      <View 
-        key={review.id} 
-        style={[
-          styles.reviewCard,
-          !review.is_published && styles.reviewCardUnpublished
-        ]}
-      >
-        <View style={styles.typeBadge}>
-          <Ionicons 
-            name={isPropertyReview ? 'home-outline' : 'car-outline'} 
-            size={14} 
-            color={isPropertyReview ? '#10b981' : '#2563eb'} 
-          />
-          <Text style={[styles.typeBadgeText, { color: isPropertyReview ? '#10b981' : '#2563eb' }]}>
-            {isPropertyReview ? 'Résidence meublée' : 'Véhicule'}
-          </Text>
-        </View>
-
-        {!review.is_published && (
-          <View style={styles.statusBadge}>
-            <Ionicons name="eye-off-outline" size={16} color="#e67e22" />
-            <Text style={styles.statusText}>
-              Non visible publiquement - Répondez pour publier cet avis
-            </Text>
-          </View>
-        )}
-        {review.is_published && (
-          <View style={[styles.statusBadge, styles.statusBadgePublished]}>
-            <Ionicons name="eye-outline" size={16} color="#10b981" />
-            <Text style={[styles.statusText, styles.statusTextPublished]}>
-              Publié et visible
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.reviewHeader}>
-          <View style={styles.reviewInfo}>
-            <View style={styles.propertyInfo}>
-              <Ionicons 
-                name={isPropertyReview ? 'home-outline' : 'car-outline'} 
-                size={16} 
-                color="#6b7280" 
-              />
-              <Text style={styles.propertyName}>
-                {isPropertyReview 
-                  ? (propertyReview?.property?.title || 'Propriété')
-                  : (vehicleReview?.vehicle 
-                      ? `${vehicleReview.vehicle.brand || ''} ${vehicleReview.vehicle.model || ''}`.trim() || 'Véhicule'
-                      : 'Véhicule')}
-              </Text>
-            </View>
-            <Text style={styles.hostName}>
-              Par {isPropertyReview 
-                ? `${propertyReview?.guest?.first_name || 'Hôte'} ${propertyReview?.guest?.last_name || ''}`
-                : `${vehicleReview?.owner?.first_name || 'Propriétaire'} ${vehicleReview?.owner?.last_name || ''}`}
-            </Text>
-          </View>
-          <View style={styles.ratingContainer}>
-            {renderStars(review.rating)}
-            <Text style={styles.reviewDate}>
-              {new Date(review.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </Text>
-          </View>
-        </View>
-
-        {isPropertyReview && (propertyReview?.cleanliness_rating || propertyReview?.communication_rating || propertyReview?.respect_rules_rating) && (
-          <View style={styles.ratingsBadges}>
-            {propertyReview.cleanliness_rating && (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingBadgeText}>
-                  Propreté: {propertyReview.cleanliness_rating}/5
-                </Text>
-              </View>
-            )}
-            {propertyReview.communication_rating && (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingBadgeText}>
-                  Communication: {propertyReview.communication_rating}/5
-                </Text>
-              </View>
-            )}
-            {propertyReview.respect_rules_rating && (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingBadgeText}>
-                  Respect règles: {propertyReview.respect_rules_rating}/5
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-        
-        {!isPropertyReview && (vehicleReview?.vehicle_care_rating || vehicleReview?.punctuality_rating || vehicleReview?.communication_rating || vehicleReview?.respect_rules_rating) && (
-          <View style={styles.ratingsBadges}>
-            {vehicleReview.vehicle_care_rating && (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingBadgeText}>
-                  Soin: {vehicleReview.vehicle_care_rating}/5
-                </Text>
-              </View>
-            )}
-            {vehicleReview.punctuality_rating && (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingBadgeText}>
-                  Ponctualité: {vehicleReview.punctuality_rating}/5
-                </Text>
-              </View>
-            )}
-            {vehicleReview.communication_rating && (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingBadgeText}>
-                  Communication: {vehicleReview.communication_rating}/5
-                </Text>
-              </View>
-            )}
-            {vehicleReview.respect_rules_rating && (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingBadgeText}>
-                  Respect règles: {vehicleReview.respect_rules_rating}/5
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {review.comment && (
-          <Text style={styles.comment}>{review.comment}</Text>
-        )}
-
-        {review.response && (
-          <View style={styles.responseSection}>
-            <Text style={styles.responseLabel}>Votre réponse</Text>
-            <Text style={styles.responseText}>{review.response.response}</Text>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={styles.responseButton}
-          onPress={() => handleOpenResponseModal(review, reviewType)}
-        >
-          <Ionicons name="chatbubble-outline" size={18} color="#2E7D32" />
-          <Text style={styles.responseButtonText}>
-            {review.response ? 'Modifier ma réponse' : 'Répondre à cet avis'}
-          </Text>
-        </TouchableOpacity>
       </View>
     );
   };
@@ -610,12 +289,6 @@ const MyGuestReviewsScreen: React.FC = () => {
     );
   }
 
-  const receivedReviews = receivedActiveTab === 'property' 
-    ? receivedPropertyReviews 
-    : receivedActiveTab === 'vehicle'
-    ? receivedVehicleReviews
-    : [...receivedPropertyReviews, ...receivedVehicleReviews];
-
   const sentReviews = sentActiveTab === 'property'
     ? sentPropertyReviews
     : sentActiveTab === 'vehicle'
@@ -639,40 +312,8 @@ const MyGuestReviewsScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Section selector */}
-        <View style={styles.sectionSelector}>
-          <TouchableOpacity
-            style={[styles.sectionButton, activeSection === 'sent' && styles.sectionButtonActive]}
-            onPress={() => setActiveSection('sent')}
-          >
-            <Ionicons 
-              name="send-outline" 
-              size={18} 
-              color={activeSection === 'sent' ? '#2E7D32' : '#6b7280'} 
-            />
-            <Text style={[styles.sectionButtonText, activeSection === 'sent' && styles.sectionButtonTextActive]}>
-              Mes avis envoyés
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.sectionButton, activeSection === 'received' && styles.sectionButtonActive]}
-            onPress={() => setActiveSection('received')}
-          >
-            <Ionicons 
-              name="mail-outline" 
-              size={18} 
-              color={activeSection === 'received' ? '#2E7D32' : '#6b7280'} 
-            />
-            <Text style={[styles.sectionButtonText, activeSection === 'received' && styles.sectionButtonTextActive]}>
-              Mes avis reçus
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {activeSection === 'sent' ? (
-          <>
-            {/* Tabs pour les avis envoyés */}
-            <View style={styles.tabsContainer}>
+        {/* Tabs Propriétés / Véhicules */}
+        <View style={styles.tabsContainer}>
               <TouchableOpacity
                 style={[styles.tab, sentActiveTab === 'property' && styles.tabActive]}
                 onPress={() => setSentActiveTab('property')}
@@ -716,196 +357,7 @@ const MyGuestReviewsScreen: React.FC = () => {
                 {sentReviews.map((review) => renderSentReview(review))}
               </View>
             )}
-          </>
-        ) : (
-          <>
-            {/* Statistics pour les avis reçus */}
-            <View style={styles.statsCard}>
-              <View style={styles.statItem}>
-                <View style={styles.statValue}>
-                  <Text style={styles.statNumber}>
-                    {averageRating > 0 ? averageRating.toFixed(1) : '-'}
-                  </Text>
-                  <Ionicons name="star" size={24} color="#fbbf24" />
-                </View>
-                <Text style={styles.statLabel}>Note moyenne</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{receivedPropertyReviews.length + receivedVehicleReviews.length}</Text>
-                <Text style={styles.statLabel}>Avis reçus</Text>
-              </View>
-            </View>
-
-            {/* Info card */}
-            <View style={styles.infoCard}>
-              <Ionicons name="information-circle-outline" size={20} color="#2563eb" />
-              <View style={styles.infoContent}>
-                <Text style={styles.infoTitle}>
-                  Comment fonctionne le système d'avis ?
-                </Text>
-                <Text style={styles.infoText}>
-                  Les avis ne sont visibles publiquement qu'une fois que vous y avez répondu. Répondez à chaque avis pour que les hôtes puissent voir votre profil complet.
-                </Text>
-              </View>
-            </View>
-
-            {/* Tabs pour les avis reçus */}
-            <View style={styles.tabsContainer}>
-              <TouchableOpacity
-                style={[styles.tab, receivedActiveTab === 'property' && styles.tabActive]}
-                onPress={() => setReceivedActiveTab('property')}
-              >
-                <Ionicons name="home-outline" size={16} color={receivedActiveTab === 'property' ? '#2E7D32' : '#6b7280'} />
-                <Text style={[styles.tabText, receivedActiveTab === 'property' && styles.tabTextActive]}>
-                  Propriétés ({receivedPropertyReviews.length})
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tab, receivedActiveTab === 'vehicle' && styles.tabActive]}
-                onPress={() => setReceivedActiveTab('vehicle')}
-              >
-                <Ionicons name="car-outline" size={16} color={receivedActiveTab === 'vehicle' ? '#2E7D32' : '#6b7280'} />
-                <Text style={[styles.tabText, receivedActiveTab === 'vehicle' && styles.tabTextActive]}>
-                  Véhicules ({receivedVehicleReviews.length})
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Liste des avis reçus */}
-            {(guestReviewsLoading || vehicleReviewsLoading) ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#2E7D32" />
-                <Text style={styles.loadingText}>Chargement des avis reçus...</Text>
-              </View>
-            ) : receivedReviews.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="star-outline" size={64} color="#d1d5db" />
-                <Text style={styles.emptyTitle}>Aucun avis pour le moment</Text>
-                <Text style={styles.emptyText}>
-                  {receivedActiveTab === 'property' 
-                    ? 'Les hôtes pourront laisser un avis après vos séjours'
-                    : receivedActiveTab === 'vehicle'
-                    ? 'Les propriétaires pourront laisser un avis après vos locations'
-                    : 'Les hôtes et propriétaires pourront laisser un avis après vos séjours et locations'}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.reviewsList}>
-                {receivedReviews.map((review) => renderReceivedReview(review))}
-              </View>
-            )}
-          </>
-        )}
       </ScrollView>
-
-      {/* Response Modal */}
-      <Modal
-        visible={responseModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setResponseModalVisible(false)}
-        statusBarTranslucent={true}
-      >
-        <StatusBar backgroundColor="rgba(0, 0, 0, 0.5)" barStyle="light-content" />
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity 
-            style={styles.overlayTouchable}
-            activeOpacity={1}
-            onPress={() => setResponseModalVisible(false)}
-          />
-          <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {selectedReview?.response ? 'Modifier votre réponse' : 'Répondre à l\'avis'}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setResponseModalVisible(false);
-                  setSelectedReview(null);
-                  setResponseText('');
-                  setSelectedReviewType('property');
-                }}
-              >
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-              style={styles.keyboardAvoidingView}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-            >
-              <ScrollView 
-                style={styles.modalContent}
-                contentContainerStyle={styles.modalContentContainer}
-                showsVerticalScrollIndicator={true}
-                keyboardShouldPersistTaps="handled"
-              >
-                {selectedReview && (
-                  <View style={styles.reviewPreview}>
-                    <View style={styles.reviewPreviewHeader}>
-                      <Text style={styles.reviewPreviewProperty}>
-                        {selectedReviewType === 'property'
-                          ? (selectedReview as GuestReview).property?.title || 'Propriété'
-                          : (() => {
-                              const vReview = selectedReview as VehicleRenterReview;
-                              return vReview.vehicle 
-                                ? `${vReview.vehicle.brand || ''} ${vReview.vehicle.model || ''}`.trim() || 'Véhicule'
-                                : 'Véhicule';
-                            })()}
-                      </Text>
-                      {renderStars(selectedReview.rating)}
-                    </View>
-                    {selectedReview.comment && (
-                      <Text style={styles.reviewPreviewComment}>
-                        {selectedReview.comment}
-                      </Text>
-                    )}
-                  </View>
-                )}
-
-                <TextInput
-                  style={styles.responseInput}
-                  value={responseText}
-                  onChangeText={setResponseText}
-                  placeholder="Écrivez votre réponse..."
-                  multiline
-                  numberOfLines={10}
-                  textAlignVertical="top"
-                />
-              </ScrollView>
-            </KeyboardAvoidingView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => {
-                  setResponseModalVisible(false);
-                  setSelectedReview(null);
-                  setResponseText('');
-                  setSelectedReviewType('property');
-                }}
-              >
-                <Text style={styles.modalCancelButtonText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalSubmitButton,
-                  (!responseText.trim() || submitting) && styles.modalSubmitButtonDisabled
-                ]}
-                onPress={handleSubmitResponse}
-                disabled={!responseText.trim() || submitting}
-              >
-                {submitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.modalSubmitButtonText}>Envoyer</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
