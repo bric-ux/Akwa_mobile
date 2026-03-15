@@ -423,6 +423,14 @@ const AdminDashboardScreen: React.FC = () => {
           />
 
           <QuickAction
+            title="Test paiement commission"
+            description="Vérifier les commissions et le statut de paiement (carte)"
+            icon="card-outline"
+            onPress={() => navigation.navigate('AdminCommissionPaymentTest' as never)}
+            color="#e67e22"
+          />
+
+          <QuickAction
             title="Validation des véhicules"
             description="Approuver ou rejeter les demandes de véhicules"
             icon="car-outline"

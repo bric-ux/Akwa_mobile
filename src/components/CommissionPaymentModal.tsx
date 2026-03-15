@@ -78,23 +78,26 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
   const checkCommissionPaymentStatus = useCallback(async (): Promise<{ is_confirmed: boolean }> => {
     if (!commission) return { is_confirmed: false };
     try {
+      // 1) Vérification directe en base en premier (RLS : on ne voit que nos lignes) — la plus fiable
+      const { data: row } = await supabase
+        .from('platform_commission_due')
+        .select('status')
+        .eq('id', commission.id)
+        .maybeSingle();
+      const directPaid = String(row?.status ?? '').toLowerCase() === 'paid';
+      if (directPaid) {
+        setLastPaymentStatus('paid');
+        return { is_confirmed: true };
+      }
+
+      // 2) Sinon appel API (pour cohérence avec le reste)
       const result = await checkPaymentStatus({
         payment_type: 'platform_commission',
         commission_due_id: commission.id,
         stripe_session_id: pendingStripeSessionId ?? undefined,
       });
       setLastPaymentStatus(result.payment_status ?? 'pending');
-      if (result.is_confirmed) return { is_confirmed: true };
-
-      // Fallback : lecture directe en base (webhook peut avoir mis à jour avant que l'API réponde)
-      const { data: row } = await supabase
-        .from('platform_commission_due')
-        .select('status')
-        .eq('id', commission.id)
-        .maybeSingle();
-      const isPaid = String(row?.status ?? '').toLowerCase() === 'paid';
-      if (isPaid) setLastPaymentStatus('paid');
-      return { is_confirmed: isPaid };
+      return { is_confirmed: result.is_confirmed ?? false };
     } catch {
       return { is_confirmed: false };
     }
@@ -143,7 +146,8 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
       }
     };
     poll();
-    const interval = setInterval(poll, 1500);
+    // Poll toutes les 1 s pour détecter le paiement rapidement dès que le webhook a mis à jour
+    const interval = setInterval(poll, 1000);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -171,8 +175,8 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
       if (wasBackground && nextState === 'active' && stripeCheckoutOpened && commission) {
-        // Délai pour laisser le webhook Stripe mettre à jour platform_commission_due avant la vérification
-        timeoutId = setTimeout(verifyCommissionPaymentNow, 2500);
+        // Court délai puis vérification (le poll à 1 s détectera aussi dès que la ligne est payée)
+        timeoutId = setTimeout(verifyCommissionPaymentNow, 1000);
       }
       appStateRef.current = nextState;
     });
@@ -191,7 +195,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     if (urlCommissionId !== commission.id) return;
     setPendingStripeReturn(true);
     InteractionManager.runAfterInteractions(() => {
-      setTimeout(verifyCommissionPaymentNow, 2500);
+      setTimeout(verifyCommissionPaymentNow, 1000);
     });
   }, [commission, verifyCommissionPaymentNow]);
 
