@@ -26,6 +26,8 @@ export interface CheckPaymentStatusParams {
   stripe_session_id?: string;
   /** Pour commission plateforme : id de la ligne platform_commission_due (remplace booking_id) */
   commission_due_id?: string;
+  /** Pour paiement pénalité annulation : id de la ligne penalty_tracking */
+  penalty_tracking_id?: string;
 }
 
 export interface CheckPaymentStatusResult {
@@ -87,9 +89,10 @@ export async function createCheckoutSession(
 export async function checkPaymentStatus(
   params: CheckPaymentStatusParams
 ): Promise<CheckPaymentStatusResult> {
-  const { booking_type, booking_id, checkout_token, payment_type, stripe_session_id, commission_due_id } = params;
+  const { booking_type, booking_id, checkout_token, payment_type, stripe_session_id, commission_due_id, penalty_tracking_id } = params;
   const isCommissionCheck = payment_type === 'platform_commission' && commission_due_id;
-  if (!isCommissionCheck && !booking_id && !checkout_token) {
+  const isPenaltyCheck = payment_type === 'penalty' && penalty_tracking_id;
+  if (!isCommissionCheck && !isPenaltyCheck && !booking_id && !checkout_token) {
     return { is_confirmed: false, payment_status: 'pending', booking_status: 'pending', error: 'booking_id ou checkout_token requis' };
   }
 
@@ -102,6 +105,7 @@ export async function checkPaymentStatus(
   if (payment_type) body.payment_type = payment_type;
   if (stripe_session_id) body.stripe_session_id = stripe_session_id;
   if (commission_due_id) body.commission_due_id = commission_due_id;
+  if (penalty_tracking_id) body.penalty_tracking_id = penalty_tracking_id;
 
   // Ne pas envoyer Content-Type manuellement : sur React Native/Expo ça peut vider le body (bug client Supabase)
   const options: { body: Record<string, unknown>; headers?: Record<string, string> } = { body };

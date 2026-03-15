@@ -289,6 +289,7 @@ export type RootStackParamList = {
   VehicleReviews: { vehicleId: string };
   HostVehicleBookings: { vehicleId?: string };
   Penalties: undefined;
+  DeclareDispute: undefined;
 };
 
 export type TabParamList = {

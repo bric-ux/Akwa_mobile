@@ -575,8 +575,8 @@ export const useHostBookings = () => {
   const cancelBooking = useCallback(async (
     bookingId: string,
     cancellationReason?: string,
-    penaltyPaymentMethod?: 'deduct_from_next_booking' | 'pay_directly'
-  ) => {
+    penaltyPaymentMethod?: 'deduct_from_next_booking' | 'pay_directly' | 'card'
+  ): Promise<{ success: boolean; penaltyTrackingId?: string }> => {
     if (!user) {
       setError('Vous devez être connecté');
       return { success: false };
@@ -656,19 +656,26 @@ export const useHostBookings = () => {
 
       if (updateError) throw updateError;
 
-      // Si une pénalité existe, créer une entrée dans penalty_tracking
+      // Si une pénalité existe, créer une entrée dans penalty_tracking (host_id/guest_id pour cohérence avec la table)
+      let penaltyTrackingId: string | undefined;
       if (penalty > 0) {
         try {
-          await supabase
+          const { data: penaltyRow, error: penaltyInsertErr } = await supabase
             .from('penalty_tracking')
             .insert({
               booking_id: bookingId,
-              user_id: user.id,
+              host_id: user.id,
+              guest_id: booking.guest_id,
               penalty_amount: penalty,
               penalty_type: 'host_cancellation',
-              payment_method: penaltyPaymentMethod || null,
+              payment_method: penaltyPaymentMethod === 'card' ? 'card' : penaltyPaymentMethod || null,
               status: 'pending',
-            });
+            })
+            .select('id')
+            .single();
+          if (!penaltyInsertErr && penaltyRow?.id) {
+            penaltyTrackingId = penaltyRow.id;
+          }
         } catch (penaltyError) {
           console.error('Erreur lors de la création de la pénalité:', penaltyError);
           // Ne pas faire échouer l'annulation si la pénalité ne peut pas être créée
@@ -740,11 +747,11 @@ export const useHostBookings = () => {
         // Ne pas faire échouer l'annulation si l'email échoue
       }
 
-      return { success: true };
+      return { success: true, penaltyTrackingId };
     } catch (error: any) {
       console.error('Erreur lors de l\'annulation:', error);
       setError(error?.message || 'Impossible d\'annuler la réservation');
-      return { success: false, error: error?.message || 'Impossible d\'annuler la réservation' };
+      return { success: false };
     } finally {
       setLoading(false);
     }

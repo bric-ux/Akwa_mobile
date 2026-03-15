@@ -387,13 +387,23 @@ const ProfileScreen: React.FC = () => {
     });
   }
 
-  // Remboursements & Pénalités : accessible à tout utilisateur connecté (hôte, propriétaire véhicule, ou les deux)
-  // pour qu'ils voient toujours la même page (pénalités, remboursements, commissions) quel que soit le mode
+  // Remboursements & Pénalités : uniquement dans les espaces hôte et véhicules (pas en espace voyageur)
+  const isHostOrVehicleSpace = route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab';
+  if (isHostOrVehicleSpace && (profile?.is_host || hasVehicles)) {
+    menuItems.push({
+      id: 'penalties',
+      title: 'Remboursements & Pénalités',
+      icon: 'alert-circle-outline',
+      onPress: () => navigation.navigate('Penalties' as never),
+    });
+  }
+
+  // Déclarer un litige : onglet voyageur (visible pour tous, envoi des infos à accueil@akwahome.com)
   menuItems.push({
-    id: 'penalties',
-    title: 'Remboursements & Pénalités',
-    icon: 'alert-circle-outline',
-    onPress: () => navigation.navigate('Penalties' as never),
+    id: 'declareDispute',
+    title: 'Déclarer un litige',
+    icon: 'document-text-outline',
+    onPress: () => navigation.navigate('DeclareDispute' as never),
   });
 
   // Ajouter les éléments communs

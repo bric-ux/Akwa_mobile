@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Linking,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { VehicleBooking } from '../types';
@@ -16,6 +19,8 @@ import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { useBookingCancellation, CancellationInfo } from '../hooks/useBookingCancellation';
+import { useCurrency } from '../hooks/useCurrency';
+import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
 
 interface VehicleCancellationModalProps {
   visible: boolean;
@@ -24,6 +29,8 @@ interface VehicleCancellationModalProps {
   isOwner: boolean;
   onCancelled: () => void;
 }
+
+const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 const cancellationReasons = [
   { value: 'change_plans', label: 'Changement de plans' },
@@ -51,6 +58,17 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   const [isConfirming, setIsConfirming] = useState(false);
   const [guestCancellationInfo, setGuestCancellationInfo] = useState<CancellationInfo | null>(null);
   const [loadingGuestCancellation, setLoadingGuestCancellation] = useState(false);
+  const [penaltyPaymentMethod, setPenaltyPaymentMethod] = useState<'deduct_from_next_booking' | 'pay_directly' | ''>('');
+  const [payDirectlyMethod, setPayDirectlyMethod] = useState<'card' | 'wave' | ''>('');
+  const [stripeCheckoutOpened, setStripeCheckoutOpened] = useState(false);
+  const [pendingPenaltyId, setPendingPenaltyId] = useState<string | null>(null);
+  const [pendingStripeSessionId, setPendingStripeSessionId] = useState<string | null>(null);
+  const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
+  const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
+  const [lastPaymentStatus, setLastPaymentStatus] = useState<string | null>(null);
+  const [checkingPenaltyStatus, setCheckingPenaltyStatus] = useState(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const { currency, rates } = useCurrency();
 
   // Valeurs dérivées (avec garde pour booking null — tous les hooks doivent être appelés avant tout return)
   const rentalDays = booking?.rental_days ?? 0;
@@ -121,6 +139,122 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
 
   const canConfirmCancellation = isOwner || !guestCancellationInfo || guestCancellationInfo.canCancel;
 
+  const resetPendingStripeState = useCallback(() => {
+    setStripeCheckoutOpened(false);
+    setPendingPenaltyId(null);
+    setPendingStripeSessionId(null);
+    setPendingStripeStartedAt(null);
+    setStripeTimeLeftSec(0);
+    setLastPaymentStatus(null);
+    setCheckingPenaltyStatus(false);
+  }, []);
+
+  const checkPenaltyPaymentStatus = useCallback(async (penaltyId: string, sessionId?: string | null) => {
+    try {
+      const result = await checkPaymentStatus({
+        payment_type: 'penalty',
+        penalty_tracking_id: penaltyId,
+        stripe_session_id: sessionId ?? undefined,
+      });
+      setLastPaymentStatus(result.payment_status ?? 'pending');
+      return result.is_confirmed ?? false;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const verifyPenaltyPaymentNow = useCallback(async () => {
+    if (!pendingPenaltyId) return;
+    setCheckingPenaltyStatus(true);
+    const paid = await checkPenaltyPaymentStatus(pendingPenaltyId, pendingStripeSessionId);
+    setCheckingPenaltyStatus(false);
+    if (paid) {
+      resetPendingStripeState();
+      onCancelled();
+      onClose();
+      setSelectedReason('');
+      setReason('');
+      setPenaltyPaymentMethod('');
+      setPayDirectlyMethod('');
+      Alert.alert('Succès', 'La réservation a été annulée et la pénalité a été payée.');
+    }
+  }, [pendingPenaltyId, pendingStripeSessionId, checkPenaltyPaymentStatus, resetPendingStripeState, onCancelled, onClose]);
+
+  useEffect(() => {
+    if (!visible) {
+      resetPendingStripeState();
+    }
+  }, [visible, resetPendingStripeState]);
+
+  useEffect(() => {
+    if (!visible || !stripeCheckoutOpened || !pendingPenaltyId) return;
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      const paid = await checkPenaltyPaymentStatus(pendingPenaltyId, pendingStripeSessionId);
+      if (cancelled) return;
+      if (paid) {
+        resetPendingStripeState();
+        onCancelled();
+        onClose();
+        setSelectedReason('');
+        setReason('');
+        setPenaltyPaymentMethod('');
+        setPayDirectlyMethod('');
+        Alert.alert('Succès', 'La réservation a été annulée et la pénalité a été payée.');
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [visible, stripeCheckoutOpened, pendingPenaltyId, pendingStripeSessionId, checkPenaltyPaymentStatus, resetPendingStripeState, onCancelled, onClose]);
+
+  useEffect(() => {
+    if (!stripeCheckoutOpened || !pendingStripeStartedAt) return;
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - pendingStripeStartedAt;
+      const remainingMs = Math.max(0, STRIPE_PENDING_TIMEOUT_MS - elapsed);
+      setStripeTimeLeftSec(Math.floor(remainingMs / 1000));
+      if (remainingMs <= 0) {
+        resetPendingStripeState();
+        Alert.alert('Paiement expiré', 'Le délai de paiement est dépassé. Vous pourrez régler la pénalité depuis Remboursements & Pénalités.');
+        onClose();
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [stripeCheckoutOpened, pendingStripeStartedAt, resetPendingStripeState, onClose]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
+      if (wasBackground && nextState === 'active' && stripeCheckoutOpened && pendingPenaltyId) {
+        setTimeout(verifyPenaltyPaymentNow, 1500);
+      }
+      appStateRef.current = nextState;
+    });
+    return () => sub.remove();
+  }, [stripeCheckoutOpened, pendingPenaltyId, verifyPenaltyPaymentNow]);
+
+  useEffect(() => {
+    if (!visible || !pendingPenaltyId) return;
+    const handleUrl = (url: string | null) => {
+      if (!url?.includes('payment-success') || !pendingPenaltyId) return;
+      const typeMatch = url.match(/payment_type=([^&]+)/);
+      if (typeMatch?.[1] !== 'penalty') return;
+      const idMatch = url.match(/penalty_tracking_id=([^&]+)/);
+      const id = idMatch ? decodeURIComponent(idMatch[1]) : null;
+      if (id === pendingPenaltyId) {
+        setTimeout(verifyPenaltyPaymentNow, 1000);
+      }
+    };
+    Linking.getInitialURL().then(handleUrl);
+    const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => sub.remove();
+  }, [visible, pendingPenaltyId, verifyPenaltyPaymentNow]);
+
   if (!booking) return null;
 
   const isBookingCompleted = () => {
@@ -144,10 +278,28 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       return;
     }
 
+    if (isOwner && penalty > 0 && !penaltyPaymentMethod) {
+      Alert.alert('Mode de paiement requis', 'Veuillez choisir comment vous souhaitez régler la pénalité');
+      return;
+    }
+    if (isOwner && penalty > 0 && penaltyPaymentMethod === 'pay_directly' && !payDirectlyMethod) {
+      Alert.alert(
+        'Mode de paiement requis',
+        "Choisissez Carte bancaire pour régler la pénalité (Wave n'est pas encore disponible)."
+      );
+      return;
+    }
+
     setIsConfirming(true);
 
     try {
       const reasonLabel = cancellationReasons.find((r) => r.value === selectedReason)?.label || selectedReason;
+      const effectivePenaltyMethod =
+        penaltyPaymentMethod === 'pay_directly' && payDirectlyMethod === 'card'
+          ? 'card'
+          : penaltyPaymentMethod === 'pay_directly' && payDirectlyMethod === 'wave'
+            ? undefined
+            : penaltyPaymentMethod || undefined;
       const fullReason = reason.trim() ? `${reasonLabel}: ${reason.trim()}` : reasonLabel;
 
       // Récupérer les informations complètes de la réservation pour les emails
@@ -291,11 +443,74 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         console.warn('[VehicleCancellationModal] Erreur envoi email annulation:', emailError);
       }
 
+      // Propriétaire avec pénalité : créer penalty_tracking et éventuellement rediriger vers Stripe (même principe que hôte résidence)
+      if (isOwner && penalty > 0 && booking.vehicle?.owner_id && effectivePenaltyMethod) {
+        const { data: bookingRow } = await supabase
+          .from('vehicle_bookings')
+          .select('renter_id')
+          .eq('id', booking.id)
+          .single();
+
+        if (bookingRow?.renter_id) {
+          const { data: insertedPenalty, error: penaltyErr } = await supabase
+            .from('penalty_tracking')
+            .insert({
+              booking_id: null,
+              vehicle_booking_id: booking.id,
+              host_id: booking.vehicle.owner_id,
+              guest_id: bookingRow.renter_id,
+              penalty_amount: penalty,
+              penalty_type: 'host_cancellation',
+              status: 'pending',
+              payment_method: effectivePenaltyMethod === 'card' ? 'pay_directly' : effectivePenaltyMethod,
+              service_type: 'vehicle',
+            })
+            .select('id')
+            .single();
+
+          if (!penaltyErr && insertedPenalty?.id && effectivePenaltyMethod === 'card') {
+            setStripeCheckoutOpened(true);
+            setPendingPenaltyId(insertedPenalty.id);
+            setIsConfirming(false);
+            try {
+              // Un seul paiement : remboursement locataire + pénalité (même logique que résidence)
+              const totalAmountXof = Math.round(refundAmount + penalty);
+              const body: Record<string, unknown> = {
+                payment_type: 'penalty',
+                penalty_tracking_id: insertedPenalty.id,
+                amount: totalAmountXof,
+                refund_amount_xof: refundAmount,
+                property_title: 'Remboursement locataire + Pénalité - Annulation véhicule AkwaHome',
+                return_to_app: true,
+                app_scheme: 'akwahomemobile',
+                client: 'mobile',
+              };
+              if (currency === 'EUR' && rates?.EUR && rates.EUR > 0) {
+                body.currency = 'eur';
+                body.rate = rates.EUR;
+              }
+              const checkoutResult = await createCheckoutSession(body);
+              if (checkoutResult.session_id) {
+                setPendingStripeSessionId(checkoutResult.session_id);
+                setPendingStripeStartedAt(Date.now());
+              }
+              await Linking.openURL(checkoutResult.url);
+            } catch (e: unknown) {
+              Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement');
+              resetPendingStripeState();
+            }
+            return;
+          }
+        }
+      }
+
       Alert.alert('Succès', 'La réservation a été annulée avec succès.');
       onCancelled();
       onClose();
       setSelectedReason('');
       setReason('');
+      setPenaltyPaymentMethod('');
+      setPayDirectlyMethod('');
     } catch (error: any) {
       console.error('Erreur annulation:', error);
       Alert.alert('Erreur', error.message || "Impossible d'annuler la réservation");
@@ -331,7 +546,38 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
             nestedScrollEnabled={true}
             keyboardShouldPersistTaps="handled"
           >
-            {bookingIsCompleted ? (
+            {stripeCheckoutOpened && pendingPenaltyId ? (
+              <View style={styles.pendingCard}>
+                <ActivityIndicator size="small" color="#e67e22" />
+                <Text style={styles.pendingTitle}>Paiement en attente</Text>
+                <Text style={styles.pendingText}>
+                  Revenez dans l'app après avoir terminé le paiement (remboursement locataire + pénalité).
+                </Text>
+                {lastPaymentStatus != null && (
+                  <Text style={styles.pendingStatus}>Statut : {lastPaymentStatus}</Text>
+                )}
+                {stripeTimeLeftSec > 0 && (
+                  <Text style={styles.pendingTimer}>
+                    Expiration dans {Math.floor(stripeTimeLeftSec / 60)} min {stripeTimeLeftSec % 60} s
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={styles.abandonButton}
+                  onPress={() => {
+                    Alert.alert(
+                      'Abandonner le paiement ?',
+                      'Si vous avez déjà payé, la réservation sera mise à jour sous peu. Sinon, vous pourrez régler depuis Remboursements & Pénalités.',
+                      [
+                        { text: 'Continuer', style: 'cancel' },
+                        { text: 'Abandonner', style: 'destructive', onPress: () => { resetPendingStripeState(); onClose(); } },
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={styles.abandonButtonText}>Abandonner</Text>
+                </TouchableOpacity>
+              </View>
+            ) : bookingIsCompleted ? (
               <View style={styles.warningContainer}>
                 <Ionicons name="information-circle" size={48} color="#ef4444" />
                 <Text style={styles.warningText}>
@@ -431,6 +677,71 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                     />
                   </View>
                 )}
+
+                {/* Mode de paiement de la pénalité (propriétaire, même principe que résidence meublée) */}
+                {isOwner && penalty > 0 && (
+                  <View style={styles.penaltyPaymentSection}>
+                    <Text style={styles.sectionTitle}>
+                      Comment souhaitez-vous régler la pénalité de {penalty.toLocaleString()} XOF ? *
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.reasonOption,
+                        penaltyPaymentMethod === 'deduct_from_next_booking' && styles.reasonOptionSelected,
+                      ]}
+                      onPress={() => {
+                        setPenaltyPaymentMethod('deduct_from_next_booking');
+                        setPayDirectlyMethod('');
+                      }}
+                    >
+                      <View style={styles.reasonRadio}>
+                        {penaltyPaymentMethod === 'deduct_from_next_booking' && <View style={styles.reasonRadioSelected} />}
+                      </View>
+                      <Text style={styles.reasonLabel}>Déduire sur ma prochaine réservation</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.reasonOption,
+                        penaltyPaymentMethod === 'pay_directly' && styles.reasonOptionSelected,
+                      ]}
+                      onPress={() => setPenaltyPaymentMethod('pay_directly')}
+                    >
+                      <View style={styles.reasonRadio}>
+                        {penaltyPaymentMethod === 'pay_directly' && <View style={styles.reasonRadioSelected} />}
+                      </View>
+                      <Text style={styles.reasonLabel}>Payer directement</Text>
+                    </TouchableOpacity>
+                    {penaltyPaymentMethod === 'pay_directly' && (
+                      <View style={styles.payDirectlyOptions}>
+                        <TouchableOpacity
+                          style={[
+                            styles.reasonOption,
+                            payDirectlyMethod === 'card' && styles.reasonOptionSelected,
+                          ]}
+                          onPress={() => setPayDirectlyMethod('card')}
+                        >
+                          <View style={styles.reasonRadio}>
+                            {payDirectlyMethod === 'card' && <View style={styles.reasonRadioSelected} />}
+                          </View>
+                          <Text style={styles.reasonLabel}>Carte bancaire</Text>
+                        </TouchableOpacity>
+                        <View style={[styles.reasonOption, styles.optionDisabled]}>
+                          <View style={styles.reasonRadio} />
+                          <Text style={[styles.reasonLabel, styles.labelMuted]}>Wave (non disponible)</Text>
+                        </View>
+                      </View>
+                    )}
+                    <Text style={styles.penaltyPaymentNote}>
+                      {penaltyPaymentMethod === 'deduct_from_next_booking'
+                        ? 'La pénalité sera automatiquement déduite de votre prochain paiement.'
+                        : penaltyPaymentMethod === 'pay_directly' && payDirectlyMethod === 'card'
+                          ? 'Vous réglerez en un seul paiement : remboursement au locataire + pénalité Akwahome. Vous serez redirigé vers le paiement sécurisé par carte.'
+                          : penaltyPaymentMethod === 'pay_directly'
+                            ? "Choisissez Carte bancaire pour régler maintenant (Wave n'est pas encore disponible)."
+                            : 'Veuillez choisir un mode de paiement.'}
+                    </Text>
+                  </View>
+                )}
               </>
             )}
           </ScrollView>
@@ -438,23 +749,69 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
           {/* Footer */}
           {!bookingIsCompleted && (
             <View style={styles.footer}>
-              <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>Annuler</Text>
-              </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmButton, (!selectedReason || !canConfirmCancellation) && styles.confirmButtonDisabled]}
-                onPress={handleCancel}
-                disabled={!selectedReason || isConfirming || !canConfirmCancellation}
+                style={styles.cancelButton}
+                onPress={() => {
+                  if (stripeCheckoutOpened && pendingPenaltyId) {
+                    Alert.alert(
+                      'Abandonner ?',
+                      'Si vous avez déjà payé, la réservation sera mise à jour sous peu.',
+                      [
+                        { text: 'Rester', style: 'cancel' },
+                        { text: 'Fermer', style: 'destructive', onPress: () => { resetPendingStripeState(); onClose(); } },
+                      ]
+                    );
+                  } else {
+                    onClose();
+                  }
+                }}
               >
-                {isConfirming ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="close-circle" size={20} color="#fff" />
-                    <Text style={styles.confirmButtonText}>Confirmer l'annulation</Text>
-                  </>
-                )}
+                <Text style={styles.cancelButtonText}>
+                  {stripeCheckoutOpened && pendingPenaltyId ? 'Fermer' : 'Annuler'}
+                </Text>
               </TouchableOpacity>
+              {stripeCheckoutOpened && pendingPenaltyId ? (
+                <TouchableOpacity
+                  style={[styles.confirmButton, checkingPenaltyStatus && styles.confirmButtonDisabled]}
+                  onPress={verifyPenaltyPaymentNow}
+                  disabled={checkingPenaltyStatus}
+                >
+                  {checkingPenaltyStatus ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="card" size={20} color="#fff" />
+                      <Text style={styles.confirmButtonText}>Vérifier le paiement</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.confirmButton,
+                    (!selectedReason ||
+                      !canConfirmCancellation ||
+                      (isOwner && penalty > 0 && (!penaltyPaymentMethod || (penaltyPaymentMethod === 'pay_directly' && !payDirectlyMethod)))) &&
+                      styles.confirmButtonDisabled,
+                  ]}
+                  onPress={handleCancel}
+                  disabled={
+                    !selectedReason ||
+                    isConfirming ||
+                    !canConfirmCancellation ||
+                    (isOwner && penalty > 0 && (!penaltyPaymentMethod || (penaltyPaymentMethod === 'pay_directly' && !payDirectlyMethod)))
+                  }
+                >
+                  {isConfirming ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="close-circle" size={20} color="#fff" />
+                      <Text style={styles.confirmButtonText}>Confirmer l'annulation</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -504,6 +861,47 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 20,
   },
+  pendingCard: {
+    margin: 20,
+    padding: 20,
+    backgroundColor: '#fff7ed',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+    alignItems: 'center',
+  },
+  pendingTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#c2410c',
+    marginTop: 8,
+  },
+  pendingText: {
+    fontSize: 14,
+    color: '#9a3412',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  pendingStatus: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 6,
+  },
+  pendingTimer: {
+    fontSize: 12,
+    color: '#b45309',
+    marginTop: 4,
+  },
+  abandonButton: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  abandonButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#c2410c',
+  },
   warningContainer: {
     alignItems: 'center',
     paddingVertical: 40,
@@ -539,6 +937,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1e293b',
     marginBottom: 12,
+  },
+  penaltyPaymentSection: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: '#fff7ed',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+  },
+  penaltyPaymentNote: {
+    fontSize: 12,
+    color: '#9a3412',
+    marginTop: 12,
+    lineHeight: 18,
+  },
+  payDirectlyOptions: {
+    marginLeft: 16,
+    marginTop: 8,
+  },
+  optionDisabled: {
+    opacity: 0.6,
+  },
+  labelMuted: {
+    color: '#6b7280',
   },
   reasonOption: {
     flexDirection: 'row',

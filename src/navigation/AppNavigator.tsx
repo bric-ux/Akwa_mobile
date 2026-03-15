@@ -83,6 +83,7 @@ import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
 import VehicleOwnerPayoutsScreen from '../screens/VehicleOwnerPayoutsScreen';
 import PenaltiesScreen from '../screens/PenaltiesScreen';
 import AdminPenaltiesScreen from '../screens/AdminPenaltiesScreen';
+import DeclareDisputeScreen from '../screens/DeclareDisputeScreen';
 import AdminRefundsScreen from '../screens/AdminRefundsScreen';
 import AdminRevenueScreen from '../screens/AdminRevenueScreen';
 import AdminPayoutsScreen from '../screens/AdminPayoutsScreen';
@@ -1145,6 +1146,14 @@ const AppNavigator = () => {
               component={PenaltiesScreen}
               options={{ 
                 title: 'Remboursements & Pénalités',
+                headerShown: false 
+              }}
+            />
+            <Stack.Screen 
+              name="DeclareDispute" 
+              component={DeclareDisputeScreen}
+              options={{ 
+                title: 'Déclarer un litige',
                 headerShown: false 
               }}
             />
