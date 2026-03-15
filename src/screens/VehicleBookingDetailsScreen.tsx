@@ -332,6 +332,12 @@ const VehicleBookingDetailsScreen: React.FC = () => {
           {getStatusBadge(booking.status)}
         </View>
 
+        {/* Numéro de réservation (ID en base) */}
+        <View style={[styles.section, { marginBottom: 0 }]}>
+          <Text style={styles.sectionTitle}>Numéro de réservation</Text>
+          <Text style={styles.reservationId}>#{booking.id}</Text>
+        </View>
+
         {/* Afficher la demande de modification en cours */}
         {pendingRequest && (
           <View style={styles.modificationRequestBanner}>
@@ -617,6 +623,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#333',
+  },
+  reservationId: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#333',
+    fontFamily: 'monospace',
   },
   infoSubtext: {
     fontSize: 12,

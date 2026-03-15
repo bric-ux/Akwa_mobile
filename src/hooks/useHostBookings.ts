@@ -575,7 +575,9 @@ export const useHostBookings = () => {
   const cancelBooking = useCallback(async (
     bookingId: string,
     cancellationReason?: string,
-    penaltyPaymentMethod?: 'deduct_from_next_booking' | 'pay_directly' | 'card'
+    penaltyPaymentMethod?: 'deduct_from_next_booking' | 'pay_directly' | 'card',
+    /** Si fourni, la pénalité a déjà été créée (flux paiement d'abord) : on ne crée pas de penalty_tracking, on met juste à jour la résa + emails. */
+    existingPenaltyTrackingId?: string
   ): Promise<{ success: boolean; penaltyTrackingId?: string }> => {
     if (!user) {
       setError('Vous devez être connecté');
@@ -625,20 +627,18 @@ export const useHostBookings = () => {
       const isInProgress = checkOutDate && checkInDate <= now && now <= checkOutDate;
       let penalty = 0;
 
+      // Pénalité à partir de 5 jours avant le début du séjour
       if (isInProgress) {
-        // Séjour en cours : Akwahome applique 40% sur les nuitées non consommées, remboursement intégral au voyageur
         const nightsElapsed = Math.max(0, Math.ceil((now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
         const remainingNights = Math.max(0, totalNights - nightsElapsed);
         const remainingBaseAmount = remainingNights * booking.properties.price_per_night;
         penalty = Math.round(remainingBaseAmount * 0.40);
-      } else if (hoursUntilCheckIn <= 48) {
-        penalty = Math.round(baseReservationAmount * 0.40);
-      } else if (daysUntilCheckIn > 2 && daysUntilCheckIn <= 28) {
+      } else if (daysUntilCheckIn > 5) {
+        penalty = 0;
+      } else if (daysUntilCheckIn > 2 && daysUntilCheckIn <= 5) {
         penalty = Math.round(baseReservationAmount * 0.20);
-      } else if (daysUntilCheckIn > 28 && totalNights > 30) {
-        penalty = 0;
-      } else if (daysUntilCheckIn > 28) {
-        penalty = 0;
+      } else {
+        penalty = Math.round(baseReservationAmount * 0.40);
       }
 
       const updateData: any = {
@@ -656,9 +656,9 @@ export const useHostBookings = () => {
 
       if (updateError) throw updateError;
 
-      // Si une pénalité existe, créer une entrée dans penalty_tracking (host_id/guest_id pour cohérence avec la table)
-      let penaltyTrackingId: string | undefined;
-      if (penalty > 0) {
+      // Créer penalty_tracking seulement si pas déjà créé (flux "paiement d'abord" fournit existingPenaltyTrackingId).
+      let penaltyTrackingId: string | undefined = existingPenaltyTrackingId;
+      if (!existingPenaltyTrackingId) {
         try {
           const { data: penaltyRow, error: penaltyInsertErr } = await supabase
             .from('penalty_tracking')
@@ -667,8 +667,8 @@ export const useHostBookings = () => {
               host_id: user.id,
               guest_id: booking.guest_id,
               penalty_amount: penalty,
-              penalty_type: 'host_cancellation',
-              payment_method: penaltyPaymentMethod === 'card' ? 'card' : penaltyPaymentMethod || null,
+              penalty_type: penalty > 0 ? 'host_cancellation' : 'host_cancellation',
+              payment_method: penaltyPaymentMethod === 'card' ? 'card' : penaltyPaymentMethod || (penalty === 0 ? 'card' : null),
               status: 'pending',
             })
             .select('id')
@@ -677,8 +677,7 @@ export const useHostBookings = () => {
             penaltyTrackingId = penaltyRow.id;
           }
         } catch (penaltyError) {
-          console.error('Erreur lors de la création de la pénalité:', penaltyError);
-          // Ne pas faire échouer l'annulation si la pénalité ne peut pas être créée
+          console.error('Erreur lors de la création de la pénalité / suivi remboursement:', penaltyError);
         }
       }
 

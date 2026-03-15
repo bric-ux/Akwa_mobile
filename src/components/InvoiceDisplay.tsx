@@ -961,9 +961,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           resizeMode="contain"
         />
         <View style={styles.headerRight}>
-          <Text style={styles.headerType}>{getTitle()}</Text>
-          <Text style={styles.invoiceNumber}>
-            N° {booking.id.substring(0, 8).toUpperCase()}
+          <Text style={styles.headerType} numberOfLines={2}>{getTitle()}</Text>
+          <Text style={styles.invoiceNumber} numberOfLines={2}>
+            N° {booking.id}
           </Text>
           <Text style={styles.rccmNumber}>
             NCC:2507662T
@@ -1832,7 +1832,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
                 </View>
                 <View style={styles.vatInvoiceRow}>
                   <Text style={styles.vatInvoiceLabel}>Numéro de facture</Text>
-                  <Text style={styles.vatInvoiceValue}>AKWA-{booking.id.substring(0, 8).toUpperCase()}</Text>
+                  <Text style={styles.vatInvoiceValue}>AKWA-{booking.id}</Text>
                 </View>
               </View>
 
@@ -1840,7 +1840,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
               <View style={styles.vatInvoiceSection}>
                 <Text style={styles.vatInvoiceSectionTitle}>Description</Text>
                 <Text style={styles.vatInvoiceDescription}>
-                  Frais d'utilisation de la plateforme en ligne pour la réservation {booking.id.substring(0, 8).toUpperCase()} du {formatDate(booking.created_at || new Date().toISOString())}
+                  Frais d'utilisation de la plateforme en ligne pour la réservation {booking.id} du {formatDate(booking.created_at || new Date().toISOString())}
                 </Text>
               </View>
 
@@ -1943,15 +1943,19 @@ const styles = StyleSheet.create({
     width: 120,
   },
   headerRight: {
+    flex: 1,
     alignItems: 'flex-end',
+    marginLeft: 12,
+    minWidth: 0,
   },
   headerType: {
     fontSize: 12,
     color: '#6b7280',
     marginBottom: 4,
+    textAlign: 'right',
   },
   invoiceNumber: {
-    fontSize: 14,
+    fontSize: 10,
     fontWeight: '600',
     color: '#333',
     fontFamily: 'monospace',

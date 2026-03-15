@@ -308,7 +308,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.bookingId}>Réservation #{booking.id ? String(booking.id.slice(0, 8)) : ''}</Text>
+          <Text style={styles.bookingId}>Réservation #{booking.id || ''}</Text>
 
           <ScrollView 
             style={styles.content} 
@@ -721,10 +721,11 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   bookingId: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#6b7280',
     paddingHorizontal: 20,
     paddingTop: 8,
+    fontFamily: 'monospace',
   },
   content: {
     flex: 1,

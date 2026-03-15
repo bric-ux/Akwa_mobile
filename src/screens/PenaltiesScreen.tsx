@@ -17,13 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { usePenalties } from '../hooks/usePenalties';
-import { useRefunds } from '../hooks/useRefunds';
 import { useCommissions } from '../hooks/useCommissions';
 import PenaltyPaymentModal from '../components/PenaltyPaymentModal';
 import CommissionPaymentModal from '../components/CommissionPaymentModal';
 import { formatPrice, formatAmount } from '../utils/priceCalculator';
 
-type TabType = 'penalties' | 'refunds' | 'commissions';
+type TabType = 'penalties' | 'commissions';
 
 const PenaltiesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -32,7 +31,6 @@ const PenaltiesScreen: React.FC = () => {
   const [selectedPenalty, setSelectedPenalty] = useState<any>(null);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [declaringRefundId, setDeclaringRefundId] = useState<string | null>(null);
   const [selectedCommission, setSelectedCommission] = useState<any>(null);
   const [commissionModalVisible, setCommissionModalVisible] = useState(false);
 
@@ -55,37 +53,10 @@ const PenaltiesScreen: React.FC = () => {
     refreshPenalties,
   } = usePenalties(user?.id);
 
-  // Charger les remboursements
-  const {
-    refunds,
-    pendingRefunds,
-    completedRefunds,
-    totalRefundedAmount,
-    totalPendingAmount: totalPendingRefundAmount,
-    loading: refundsLoading,
-    refreshRefunds,
-    declareRefundDone,
-  } = useRefunds(user?.id);
-
-  // Remboursements à afficher (résa déjà commencée = à effectuer par l'hôte, pas par AkwaHome)
-  const refundsToShowCount = refunds.filter((refund) => {
-    const checkIn = refund.booking?.check_in_date;
-    const cancelledAt = refund.processed_at || (refund as any).booking?.cancelled_at;
-    return !!(checkIn && cancelledAt && new Date(checkIn) <= new Date(cancelledAt));
-  }).length;
-  const pendingRefundsToShowCount = refunds.filter((refund) => {
-    const checkIn = refund.booking?.check_in_date;
-    const cancelledAt = refund.processed_at || (refund as any).booking?.cancelled_at;
-    const shown = !!(checkIn && cancelledAt && new Date(checkIn) <= new Date(cancelledAt));
-    return shown && (refund.status === 'pending' || refund.status === 'processing');
-  }).length;
-
   const onRefresh = async () => {
     setRefreshing(true);
     if (activeTab === 'penalties') {
       await refreshPenalties();
-    } else if (activeTab === 'refunds') {
-      await refreshRefunds();
     } else {
       await refreshCommissions();
     }
@@ -154,6 +125,7 @@ const PenaltiesScreen: React.FC = () => {
     return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   };
 
+  /** L'hôte/propriétaire reçoit l'argent 48h après le début de la réservation. */
   const getPenaltyStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -166,21 +138,6 @@ const PenaltiesScreen: React.FC = () => {
         return { color: '#10b981', icon: 'checkmark-circle-outline', label: 'Collectée' };
       case 'waived':
         return { color: '#6b7280', icon: 'close-circle-outline', label: 'Annulée' };
-      default:
-        return { color: '#666', icon: 'help-circle-outline', label: status };
-    }
-  };
-
-  const getRefundStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return { color: '#f59e0b', icon: 'time-outline', label: 'En attente' };
-      case 'processing':
-        return { color: '#3b82f6', icon: 'sync-outline', label: 'En traitement' };
-      case 'completed':
-        return { color: '#10b981', icon: 'checkmark-circle-outline', label: 'Complété' };
-      case 'failed':
-        return { color: '#ef4444', icon: 'close-circle-outline', label: 'Échoué' };
       default:
         return { color: '#666', icon: 'help-circle-outline', label: status };
     }
@@ -498,315 +455,30 @@ const PenaltiesScreen: React.FC = () => {
 
                     {penalty.status === 'pending' && (
                       <View style={styles.paymentSection}>
-                        <Text style={styles.paymentHint}>
-                          Réglez cette pénalité maintenant pour éviter qu'elle soit déduite de vos
-                          prochains revenus.
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.payButton}
-                          onPress={() => openPaymentDialog(penalty)}
-                        >
-                          <Ionicons name="card-outline" size={20} color="#fff" />
-                          <Text style={styles.payButtonText}>
-                            Payer {formatAmount(penalty.penalty_amount)}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
-    );
-  };
-
-  const renderRefundsTab = () => {
-    const loading = refundsLoading;
-    // Ne pas afficher les remboursements pris en charge par AkwaHome (résa non commencée)
-    const refundsToShow = refunds.filter((refund) => {
-      const checkIn = refund.booking?.check_in_date;
-      const cancelledAt = refund.processed_at || (refund as any).booking?.cancelled_at;
-      return !!(checkIn && cancelledAt && new Date(checkIn) <= new Date(cancelledAt));
-    });
-    const data = refundsToShow;
-    const completedToShow = refundsToShow.filter((r) => r.status === 'completed');
-    const pendingToShow = refundsToShow.filter((r) => r.status === 'pending' || r.status === 'processing');
-    const totalRefundedToShow = completedToShow.reduce((sum, r) => sum + r.amount, 0);
-    const totalPendingToShow = pendingToShow.reduce((sum, r) => sum + r.amount, 0);
-
-    return (
-      <ScrollView
-        style={styles.tabContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Info sur les remboursements */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoIconContainer}>
-            <Ionicons name="cash" size={24} color="#10b981" />
-          </View>
-          <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>Comment fonctionnent les remboursements ?</Text>
-            <Text style={styles.infoText}>
-              Lorsqu'un voyageur annule sa réservation, le montant du remboursement dépend de la
-              politique d'annulation de votre propriété :
-            </Text>
-            <View style={styles.policyList}>
-              <View style={styles.policyItem}>
-                <View style={[styles.policyDot, { backgroundColor: '#10b981' }]} />
-                <Text style={styles.policyText}>
-                  <Text style={styles.policyBold}>Flexible :</Text> 100% remboursé si annulation 1
-                  jour avant, 50% sinon
-                </Text>
-              </View>
-              <View style={styles.policyItem}>
-                <View style={[styles.policyDot, { backgroundColor: '#f59e0b' }]} />
-                <Text style={styles.policyText}>
-                  <Text style={styles.policyBold}>Modérée :</Text> 100% remboursé si annulation 5
-                  jours avant, 50% sinon
-                </Text>
-              </View>
-              <View style={styles.policyItem}>
-                <View style={[styles.policyDot, { backgroundColor: '#ef4444' }]} />
-                <Text style={styles.policyText}>
-                  <Text style={styles.policyBold}>Stricte :</Text> 50% remboursé si annulation 7
-                  jours avant, 0% sinon
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.infoHint}>
-              Les remboursements sont traités automatiquement selon ces politiques.
-            </Text>
-          </View>
-        </View>
-
-        {/* Stats (uniquement remboursements à effectuer par l'hôte, pas par AkwaHome) */}
-        {(completedToShow.length > 0 || pendingToShow.length > 0) && (
-          <View style={styles.statsRow}>
-            {completedToShow.length > 0 && (
-              <View style={[styles.statCard, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
-                <Ionicons name="checkmark-circle" size={24} color="#10b981" />
-                <Text style={styles.statValue}>{formatPrice(totalRefundedToShow)}</Text>
-                <Text style={styles.statLabel}>Remboursés</Text>
-              </View>
-            )}
-            {pendingToShow.length > 0 && (
-              <View style={[styles.statCard, { backgroundColor: '#fff7ed', borderColor: '#fed7aa' }]}>
-                <Ionicons name="time-outline" size={24} color="#f59e0b" />
-                <Text style={styles.statValue}>{formatPrice(totalPendingToShow)}</Text>
-                <Text style={styles.statLabel}>En attente</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#e67e22" />
-          </View>
-        ) : data.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="cash-outline" size={64} color="#10b981" />
-            <Text style={styles.emptyTitle}>Aucun remboursement enregistré</Text>
-            <Text style={styles.emptyText}>
-              Les remboursements apparaîtront ici lorsqu'un voyageur annule une réservation.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.listContainer}>
-            {data.map((refund) => {
-              const booking = refund.booking;
-              const nights = calculateNights(booking?.check_in_date, booking?.check_out_date);
-              const guestName = booking?.guest
-                ? `${booking.guest.first_name || ''} ${booking.guest.last_name || ''}`.trim()
-                : 'Voyageur';
-              const statusBadge = getRefundStatusBadge(refund.status);
-
-              return (
-                <View key={refund.id} style={styles.card}>
-                  <View style={styles.cardHeader}>
-                    <View style={styles.cardHeaderLeft}>
-                      <Ionicons name="home-outline" size={20} color="#10b981" />
-                      <View style={styles.cardHeaderText}>
-                        <Text style={styles.cardTitle}>{booking?.property?.title || 'Réservation'}</Text>
-                        {booking?.property?.address && (
-                          <View style={styles.addressRow}>
-                            <Ionicons name="location-outline" size={12} color="#666" />
-                            <Text style={styles.addressText}>{booking.property.address}</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                    <View style={styles.badgesContainer}>
-                      <View
-                        style={[styles.statusBadge, { backgroundColor: `${statusBadge.color}20` }]}
-                      >
-                        <Ionicons name={statusBadge.icon} size={14} color={statusBadge.color} />
-                        <Text style={[styles.statusBadgeText, { color: statusBadge.color }]}>
-                          {statusBadge.label}
-                        </Text>
-                      </View>
-                      {refund.refund_type === 'full' ? (
-                        <View style={[styles.typeBadge, { backgroundColor: '#10b98120' }]}>
-                          <Text style={[styles.typeBadgeText, { color: '#10b981' }]}>Complet</Text>
-                        </View>
-                      ) : (
-                        <View style={[styles.typeBadge, { backgroundColor: '#f59e0b20' }]}>
-                          <Text style={[styles.typeBadgeText, { color: '#f59e0b' }]}>Partiel</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={styles.cardContent}>
-                    <View style={styles.detailsGrid}>
-                      <View style={styles.detailItem}>
-                        <Ionicons name="calendar-outline" size={16} color="#666" />
-                        <View style={styles.detailContent}>
-                          <Text style={styles.detailLabel}>Période</Text>
-                          <Text style={styles.detailValue}>
-                            {formatDate(booking?.check_in_date)} - {formatDate(booking?.check_out_date)}
-                          </Text>
-                          <Text style={styles.detailSubtext}>
-                            {nights} nuit{nights > 1 ? 's' : ''}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.detailItem}>
-                        <Ionicons name="people-outline" size={16} color="#666" />
-                        <View style={styles.detailContent}>
-                          <Text style={styles.detailLabel}>Voyageur</Text>
-                          <Text style={styles.detailValue}>{guestName}</Text>
-                          {booking?.guests_count && (
-                            <Text style={styles.detailSubtext}>
-                              {booking.guests_count} personne{booking.guests_count > 1 ? 's' : ''}
+                        {(penalty.penalty_type === 'host_cancellation' || penalty.penalty_type === 'host_ongoing_cancellation') ? (
+                          <View style={styles.paymentAtCancelInfo}>
+                            <Ionicons name="information-circle" size={20} color="#0ea5e9" />
+                            <Text style={styles.paymentAtCancelText}>
+                              Le remboursement et la pénalité se règlent à l'annulation (paiement par carte). Si vous n'avez pas réglé à l'annulation, cette pénalité sera déduite de vos prochains revenus.
                             </Text>
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.detailItem}>
-                        <Ionicons name="cash-outline" size={16} color="#666" />
-                        <View style={styles.detailContent}>
-                          <Text style={styles.detailLabel}>Prix réservation</Text>
-                          <Text style={styles.detailValue}>
-                            {formatPrice(booking?.total_price || 0)}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.detailItem}>
-                        <Ionicons name="cash" size={16} color="#10b981" />
-                        <View style={styles.detailContent}>
-                          <Text style={styles.detailLabel}>Montant remboursé</Text>
-                          <Text style={[styles.detailValue, styles.refundAmount]}>
-                            {formatPrice(refund.amount)}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    <View style={[styles.infoBox, { backgroundColor: '#fef3c7', borderLeftWidth: 4, borderLeftColor: '#f59e0b' }]}>
-                      <Text style={styles.infoLabel}>Remboursement à effectuer par vous au voyageur</Text>
-                      <Text style={styles.infoText}>
-                        Remboursez le voyageur par le même moyen de paiement qu'il a utilisé pour la réservation.
-                      </Text>
-                      {(refund.guest_payment_method || refund.booking?.payment_method || refund.payment?.payment_method) && (
-                        <Text style={[styles.infoText, { marginTop: 6, fontWeight: '600' }]}>
-                          Moyen du voyageur : {getPaymentMethodLabel(
-                            refund.guest_payment_method ?? refund.booking?.payment_method ?? refund.payment?.payment_method
-                          )}
-                        </Text>
-                      )}
-                    </View>
-
-                    {booking?.guest?.email && (refund.status === 'pending' || refund.status === 'processing') && (
-                      <View style={styles.infoBox}>
-                        <Text style={styles.infoLabel}>Contacter le voyageur pour le remboursement</Text>
-                        <TouchableOpacity
-                          onPress={() => Linking.openURL(`mailto:${booking?.guest?.email ?? ''}`)}
-                          style={styles.contactGuestRow}
-                        >
-                          <Ionicons name="mail-outline" size={18} color="#2563eb" />
-                          <Text style={styles.contactGuestLink}>{booking?.guest?.email ?? ''}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-
-                    {(refund.status === 'pending' || refund.status === 'processing') && (
-                      <TouchableOpacity
-                        style={[styles.declareRefundButton, declaringRefundId === refund.id && styles.declareRefundButtonDisabled]}
-                        onPress={() => {
-                          Alert.alert(
-                            'Confirmer le remboursement',
-                            `Confirmez-vous avoir remboursé ${formatPrice(refund.amount)} à ${guestName} ?`,
-                            [
-                              { text: 'Annuler', style: 'cancel' },
-                              {
-                                text: 'Oui, j\'ai remboursé',
-                                onPress: async () => {
-                                  setDeclaringRefundId(refund.id);
-                                  const result = await declareRefundDone(refund);
-                                  setDeclaringRefundId(null);
-                                  if (result.success) {
-                                    Alert.alert('Enregistré', 'Le remboursement a été marqué comme effectué.');
-                                  } else {
-                                    Alert.alert('Erreur', result.error || 'Impossible d\'enregistrer.');
-                                  }
-                                },
-                              },
-                            ]
-                          );
-                        }}
-                        disabled={declaringRefundId !== null}
-                      >
-                        {declaringRefundId === refund.id ? (
-                          <ActivityIndicator size="small" color="#fff" />
+                          </View>
                         ) : (
                           <>
-                            <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-                            <Text style={styles.declareRefundButtonText}>J'ai effectué le remboursement</Text>
+                            <Text style={styles.paymentHint}>
+                              Réglez cette pénalité maintenant pour éviter qu'elle soit déduite de vos
+                              prochains revenus.
+                            </Text>
+                            <TouchableOpacity
+                              style={styles.payButton}
+                              onPress={() => openPaymentDialog(penalty)}
+                            >
+                              <Ionicons name="card-outline" size={20} color="#fff" />
+                              <Text style={styles.payButtonText}>
+                                Payer {formatAmount(penalty.penalty_amount)}
+                              </Text>
+                            </TouchableOpacity>
                           </>
                         )}
-                      </TouchableOpacity>
-                    )}
-
-                    {refund.reason && (
-                      <View style={styles.infoBox}>
-                        <Text style={styles.infoLabel}>Raison du remboursement</Text>
-                        <Text style={styles.infoText}>{refund.reason}</Text>
-                      </View>
-                    )}
-
-                    {booking?.cancellation_reason && (
-                      <View style={styles.infoBox}>
-                        <Text style={styles.infoLabel}>Raison de l'annulation</Text>
-                        <Text style={styles.infoText}>{booking.cancellation_reason}</Text>
-                      </View>
-                    )}
-
-                    {refund.status === 'completed' && refund.processed_at && (
-                      <View style={[styles.infoBox, { backgroundColor: '#d1fae5' }]}>
-                        <View style={styles.successRow}>
-                          <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-                          <Text style={[styles.infoText, { color: '#065f46' }]}>
-                            Remboursement complété le {formatDate(refund.processed_at)}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {refund.status === 'processing' && (
-                      <View style={[styles.infoBox, { backgroundColor: '#dbeafe' }]}>
-                        <View style={styles.successRow}>
-                          <Ionicons name="sync-outline" size={16} color="#3b82f6" />
-                          <Text style={[styles.infoText, { color: '#1e40af' }]}>
-                            Remboursement en cours de traitement
-                          </Text>
-                        </View>
                       </View>
                     )}
                   </View>
@@ -852,25 +524,6 @@ const PenaltiesScreen: React.FC = () => {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'refunds' && styles.tabActive]}
-          onPress={() => setActiveTab('refunds')}
-        >
-          <Ionicons
-            name="cash-outline"
-            size={20}
-            color={activeTab === 'refunds' ? '#e67e22' : '#666'}
-          />
-          <Text
-            style={[styles.tabText, activeTab === 'refunds' && styles.tabTextActive]}
-            numberOfLines={1}
-          >
-            Rembours.
-            {pendingRefundsToShowCount > 0 && (
-              <Text style={styles.tabBadge}> ({pendingRefundsToShowCount})</Text>
-            )}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.tab, activeTab === 'commissions' && styles.tabActive]}
           onPress={() => setActiveTab('commissions')}
         >
@@ -893,7 +546,6 @@ const PenaltiesScreen: React.FC = () => {
 
       {/* Tab Content */}
       {activeTab === 'penalties' && renderPenaltiesTab()}
-      {activeTab === 'refunds' && renderRefundsTab()}
       {activeTab === 'commissions' && renderCommissionsTab()}
 
       {/* Modal de paiement pénalité */}
@@ -1285,6 +937,22 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
+  },
+  paymentAtCancelInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  paymentAtCancelText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0369a1',
+    lineHeight: 20,
   },
   paymentHint: {
     fontSize: 14,

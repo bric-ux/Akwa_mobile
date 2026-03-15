@@ -175,6 +175,12 @@ const VehicleOwnerAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('Penalties' as never),
     },
     {
+      id: 'declareDispute',
+      title: 'Déclarer un litige',
+      icon: 'document-text-outline',
+      onPress: () => navigation.navigate('DeclareDispute' as never),
+    },
+    {
       id: 'settings',
       title: t('settings.title'),
       icon: 'settings-outline',

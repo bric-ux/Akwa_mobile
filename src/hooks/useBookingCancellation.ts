@@ -374,10 +374,10 @@ export const useBookingCancellation = () => {
   };
 
   /**
-   * Pénalité quand le propriétaire du véhicule annule (mêmes règles que l'hôte résidence meublée).
-   * - > 28 jours avant : 0%
-   * - entre 48h et 28 jours : 20% du montant de base
-   * - ≤ 48h avant : 40% du montant de base
+   * Pénalité quand le propriétaire du véhicule annule (à partir de 5 jours avant le début).
+   * - > 5 jours avant : 0%
+   * - entre 5 et 2 jours avant : 20% du montant de base
+   * - ≤ 2 jours avant : 40% du montant de base
    * - en cours de location : 40% sur les jours restants (locataire remboursé 100% des jours restants)
    */
   const calculateVehicleOwnerCancellationPenalty = (
@@ -414,34 +414,27 @@ export const useBookingCancellation = () => {
         description: `Annulation en cours de location (40% de pénalité sur ${remainingNights} jour(s) restant(s)). Le locataire sera remboursé intégralement.`,
       };
     }
-    if (hoursUntilStart <= 48) {
-      const penalty = Math.round(basePrice * 0.40);
+    // Pénalité à partir de 5 jours avant le début de la location
+    if (daysUntilStart > 5) {
       return {
-        penalty,
+        penalty: 0,
         refundAmount: totalPrice,
-        description: 'Annulation 48h ou moins avant le départ (40% de pénalité). Le locataire sera remboursé intégralement.',
+        description: 'Annulation gratuite (plus de 5 jours avant le début). Le locataire sera remboursé intégralement.',
       };
     }
-    if (daysUntilStart > 2 && daysUntilStart <= 28) {
+    if (daysUntilStart > 2 && daysUntilStart <= 5) {
       const penalty = Math.round(basePrice * 0.20);
       return {
         penalty,
         refundAmount: totalPrice,
-        description: 'Annulation entre 48h et 28 jours avant (20% de pénalité). Le locataire sera remboursé intégralement.',
-      };
-    }
-    if (daysUntilStart > 28) {
-      return {
-        penalty: 0,
-        refundAmount: totalPrice,
-        description: 'Annulation gratuite (plus de 28 jours avant). Le locataire sera remboursé intégralement.',
+        description: 'Annulation entre 5 et 2 jours avant le début (20% de pénalité). Le locataire sera remboursé intégralement.',
       };
     }
     const penalty = Math.round(basePrice * 0.40);
     return {
       penalty,
       refundAmount: totalPrice,
-      description: 'Annulation 48h ou moins avant le départ (40% de pénalité). Le locataire sera remboursé intégralement.',
+      description: 'Annulation 2 jours ou moins avant le début (40% de pénalité). Le locataire sera remboursé intégralement.',
     };
   };
 

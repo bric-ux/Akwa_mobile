@@ -37,6 +37,10 @@ const DeclareDisputeScreen: React.FC = () => {
   const [sent, setSent] = useState(false);
 
   const handleSubmit = async () => {
+    if (!bookingReference.trim()) {
+      Alert.alert('Champ requis', 'Veuillez indiquer la référence de la réservation concernée (ex. numéro de réservation ou logement).');
+      return;
+    }
     if (!subject.trim()) {
       Alert.alert('Champ requis', 'Veuillez indiquer un sujet.');
       return;
@@ -143,10 +147,10 @@ const DeclareDisputeScreen: React.FC = () => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Référence réservation (optionnel)</Text>
+            <Text style={styles.label}>Référence de réservation *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Ex. numéro de réservation ou logement"
+              placeholder="Ex. numéro de réservation, logement ou véhicule concerné"
               placeholderTextColor="#9ca3af"
               value={bookingReference}
               onChangeText={setBookingReference}

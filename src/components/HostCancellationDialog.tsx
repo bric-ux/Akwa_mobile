@@ -16,6 +16,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { HostBooking } from '../types';
 import { useHostBookings } from '../hooks/useHostBookings';
+import { useAuth } from '../services/AuthContext';
+import { supabase } from '../services/supabase';
 import { formatPrice } from '../utils/priceCalculator';
 import { useCurrency } from '../hooks/useCurrency';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
@@ -48,8 +50,8 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
 }) => {
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [reason, setReason] = useState('');
-  const [penaltyPaymentMethod, setPenaltyPaymentMethod] = useState<'deduct_from_next_booking' | 'pay_directly' | ''>('');
-  const [payDirectlyMethod, setPayDirectlyMethod] = useState<'card' | 'wave' | ''>('');
+  /** Si pénalité > 0 : true = régler remboursement + pénalité en un paiement ; false = remboursement seul (pénalité déduite plus tard) */
+  const [includePenaltyInPayment, setIncludePenaltyInPayment] = useState(true);
   const [isConfirming, setIsConfirming] = useState(false);
   const [stripeCheckoutOpened, setStripeCheckoutOpened] = useState(false);
   const [pendingPenaltyId, setPendingPenaltyId] = useState<string | null>(null);
@@ -59,11 +61,12 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   const [lastPaymentStatus, setLastPaymentStatus] = useState<string | null>(null);
   const [checkingPenaltyStatus, setCheckingPenaltyStatus] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const pendingCancellationReasonRef = useRef<string | null>(null);
+  const { user } = useAuth();
   const { cancelBooking, loading } = useHostBookings();
   const { currency, rates } = useCurrency();
 
-  // Calculer la pénalité selon les règles (avant début : 28j/48h ; séjour en cours : 40% sur nuitées non consommées)
-  // Fonction pure pour respecter les règles des hooks : tous les hooks doivent être appelés avant tout return.
+  // Pénalité à partir de 5 jours avant le début du séjour ; séjour en cours : 40% sur nuitées non consommées
   const calculateHostPenalty = (b: HostBooking) => {
     const checkInDate = new Date(b.check_in_date);
     checkInDate.setHours(0, 0, 0, 0);
@@ -89,21 +92,15 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
       const remainingBaseAmount = remainingNights * (b.properties?.price_per_night || 0);
       penalty = Math.round(remainingBaseAmount * 0.40);
       penaltyDescription = 'Annulation en cours de séjour : 40% des nuitées non consommées (remboursement intégral au voyageur)';
-    } else if (hoursUntilCheckIn <= 48) {
-      penalty = Math.round(baseReservationAmount * 0.40);
-      penaltyDescription = 'Annulation 48h ou moins avant l\'arrivée (40% du montant)';
-    } else if (daysUntilCheckIn > 2 && daysUntilCheckIn <= 28) {
+    } else if (daysUntilCheckIn > 5) {
+      penalty = 0;
+      penaltyDescription = 'Annulation gratuite (plus de 5 jours avant l\'arrivée)';
+    } else if (daysUntilCheckIn > 2 && daysUntilCheckIn <= 5) {
       penalty = Math.round(baseReservationAmount * 0.20);
-      penaltyDescription = 'Annulation entre 28 jours et 48h avant l\'arrivée (20% du montant)';
-    } else if (daysUntilCheckIn > 28 && totalNights > 30) {
-      penalty = 0;
-      penaltyDescription = 'Annulation gratuite (réservation longue durée, plus de 28 jours avant)';
-    } else if (daysUntilCheckIn > 28) {
-      penalty = 0;
-      penaltyDescription = 'Annulation gratuite (plus de 28 jours avant l\'arrivée)';
+      penaltyDescription = 'Annulation entre 5 et 2 jours avant l\'arrivée (20% du montant)';
     } else {
-      penalty = 0;
-      penaltyDescription = 'Annulation gratuite';
+      penalty = Math.round(baseReservationAmount * 0.40);
+      penaltyDescription = 'Annulation 2 jours ou moins avant l\'arrivée (40% du montant)';
     }
 
     return { penalty, penaltyDescription, isWithin48Hours: hoursUntilCheckIn <= 48 };
@@ -112,19 +109,18 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   const penaltyResult = booking ? calculateHostPenalty(booking) : { penalty: 0, penaltyDescription: '', isWithin48Hours: false };
   const { penalty: penaltyAmount, penaltyDescription } = penaltyResult;
 
+  /** L'hôte reçoit l'argent 48h après le début du séjour. Si pas encore perçu, c'est AkwaHome qui rembourse → on ne demande pas le remboursement à l'hôte. */
+  const hostHasReceivedMoney = booking?.check_in_date
+    ? new Date(booking.check_in_date).getTime() + 48 * 60 * 60 * 1000 <= Date.now()
+    : false;
+
   const guestName = booking?.guest_profile
     ? `${booking.guest_profile.first_name || ''} ${booking.guest_profile.last_name || ''}`.trim()
     : 'le voyageur';
 
-  const effectivePenaltyMethod = penaltyPaymentMethod === 'pay_directly' && payDirectlyMethod === 'card'
-    ? 'card'
-    : penaltyPaymentMethod === 'pay_directly' && payDirectlyMethod === 'wave'
-    ? undefined
-    : penaltyPaymentMethod || undefined;
-  const canConfirmPenaltyPayment =
-    penaltyAmount === 0 ||
-    penaltyPaymentMethod === 'deduct_from_next_booking' ||
-    (penaltyPaymentMethod === 'pay_directly' && payDirectlyMethod === 'card');
+  /** Carte obligatoire pour le remboursement. Pénalité : incluse dans le paiement (card) ou déduction ultérieure (deduct_from_next_booking). */
+  const effectivePenaltyMethod = (penaltyAmount > 0 && !includePenaltyInPayment) ? 'deduct_from_next_booking' : 'card';
+  const canConfirmPenaltyPayment = true; // Remboursement toujours par carte
 
   const resetPendingStripeState = useCallback(() => {
     setStripeCheckoutOpened(false);
@@ -151,53 +147,67 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   }, []);
 
   const verifyPenaltyPaymentNow = useCallback(async () => {
-    if (!pendingPenaltyId) return;
+    if (!pendingPenaltyId || !booking) return;
     setCheckingPenaltyStatus(true);
     const paid = await checkPenaltyPaymentStatus(pendingPenaltyId, pendingStripeSessionId);
     setCheckingPenaltyStatus(false);
     if (paid) {
+      const reasonToUse = pendingCancellationReasonRef.current || '[Annulé par l\'hôte]';
+      const result = await cancelBooking(booking.id, reasonToUse, 'card', pendingPenaltyId);
       resetPendingStripeState();
-      onCancelled();
-      onClose();
-      setSelectedReason('');
-      setReason('');
-      setPenaltyPaymentMethod('');
-      setPayDirectlyMethod('');
-      Alert.alert('Succès', 'La réservation a été annulée et la pénalité a été payée.');
+      pendingCancellationReasonRef.current = null;
+      if (result.success) {
+        onCancelled();
+        onClose();
+        setSelectedReason('');
+        setReason('');
+        setIncludePenaltyInPayment(true);
+        Alert.alert('Succès', 'La réservation a été annulée et le paiement a été effectué.');
+      } else {
+        Alert.alert('Erreur', 'Paiement reçu mais l\'annulation n\'a pas pu être enregistrée. Contactez le support.');
+      }
     }
-  }, [pendingPenaltyId, pendingStripeSessionId, checkPenaltyPaymentStatus, resetPendingStripeState, onCancelled, onClose]);
+  }, [booking, pendingPenaltyId, pendingStripeSessionId, checkPenaltyPaymentStatus, cancelBooking, resetPendingStripeState, onCancelled, onClose]);
 
   useEffect(() => {
     if (!visible) {
       resetPendingStripeState();
+      pendingCancellationReasonRef.current = null;
     }
   }, [visible, resetPendingStripeState]);
 
   useEffect(() => {
-    if (!visible || !stripeCheckoutOpened || !pendingPenaltyId) return;
+    if (!visible || !stripeCheckoutOpened || !pendingPenaltyId || !booking) return;
     let cancelled = false;
     const poll = async () => {
       if (cancelled) return;
       const paid = await checkPenaltyPaymentStatus(pendingPenaltyId, pendingStripeSessionId);
       if (cancelled) return;
       if (paid) {
+        const reasonToUse = pendingCancellationReasonRef.current || '[Annulé par l\'hôte]';
+        const result = await cancelBooking(booking.id, reasonToUse, 'card', pendingPenaltyId);
+        if (cancelled) return;
         resetPendingStripeState();
-        onCancelled();
-        onClose();
-        setSelectedReason('');
-        setReason('');
-        setPenaltyPaymentMethod('');
-        setPayDirectlyMethod('');
-        Alert.alert('Succès', 'La réservation a été annulée et la pénalité a été payée.');
+        pendingCancellationReasonRef.current = null;
+        if (result.success) {
+          onCancelled();
+          onClose();
+          setSelectedReason('');
+          setReason('');
+          setIncludePenaltyInPayment(true);
+          Alert.alert('Succès', 'La réservation a été annulée et le paiement a été effectué.');
+        } else {
+          Alert.alert('Erreur', 'Paiement reçu mais l\'annulation n\'a pas pu être enregistrée. Contactez le support.');
+        }
       }
     };
     poll();
-    const interval = setInterval(poll, 1000);
+    const interval = setInterval(poll, 2000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [visible, stripeCheckoutOpened, pendingPenaltyId, pendingStripeSessionId, checkPenaltyPaymentStatus, resetPendingStripeState, onCancelled, onClose]);
+  }, [visible, stripeCheckoutOpened, pendingPenaltyId, pendingStripeSessionId, booking, checkPenaltyPaymentStatus, cancelBooking, resetPendingStripeState, onCancelled, onClose]);
 
   useEffect(() => {
     if (!stripeCheckoutOpened || !pendingStripeStartedAt) return;
@@ -207,7 +217,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
       setStripeTimeLeftSec(Math.floor(remainingMs / 1000));
       if (remainingMs <= 0) {
         resetPendingStripeState();
-        Alert.alert('Paiement expiré', 'Le délai de paiement est dépassé. Vous pourrez régler la pénalité depuis Remboursements & Pénalités.');
+        Alert.alert('Paiement expiré', 'Le délai de paiement est dépassé. Remboursement et pénalité restent à régler (contactez le support ou Remboursements & Pénalités).');
         onClose();
       }
     }, 1000);
@@ -250,16 +260,6 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
       return;
     }
 
-    if (penaltyAmount > 0 && !canConfirmPenaltyPayment) {
-      Alert.alert(
-        'Mode de paiement requis',
-        penaltyPaymentMethod === 'pay_directly' && !payDirectlyMethod
-          ? 'Veuillez choisir Carte bancaire pour régler la pénalité (Wave n\'est pas encore disponible).'
-          : 'Veuillez choisir comment vous souhaitez régler la pénalité'
-      );
-      return;
-    }
-
     setIsConfirming(true);
 
     const reasonLabel = hostCancellationReasons.find(r => r.value === selectedReason)?.label || selectedReason;
@@ -267,49 +267,89 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
       ? `[Annulé par l'hôte] ${reasonLabel}: ${reason.trim()}`
       : `[Annulé par l'hôte] ${reasonLabel}`;
 
+    const refundAmount = booking.total_price ?? 0;
+    const mustPayRefund = hostHasReceivedMoney && refundAmount > 0;
+    const mustPayPenaltyNow = penaltyAmount > 0 && includePenaltyInPayment;
+    const needPaymentFirst = mustPayRefund || mustPayPenaltyNow;
+
+    if (needPaymentFirst && user) {
+      // Flux paiement d'abord : créer penalty_tracking, ouvrir Stripe. L'annulation sera faite après confirmation du paiement.
+      try {
+        const { data: penaltyRow, error: penaltyErr } = await supabase
+          .from('penalty_tracking')
+          .insert({
+            booking_id: booking.id,
+            host_id: user.id,
+            guest_id: booking.guest_id,
+            penalty_amount: penaltyAmount,
+            penalty_type: 'host_cancellation',
+            payment_method: 'card',
+            status: 'pending',
+          })
+          .select('id')
+          .single();
+
+        if (penaltyErr || !penaltyRow?.id) {
+          setIsConfirming(false);
+          Alert.alert('Erreur', penaltyErr?.message || 'Impossible de préparer le paiement.');
+          return;
+        }
+
+        const amountToCharge = mustPayRefund
+          ? Math.round(refundAmount + (includePenaltyInPayment ? penaltyAmount : 0))
+          : Math.round(penaltyAmount);
+
+        pendingCancellationReasonRef.current = fullReason;
+        setStripeCheckoutOpened(true);
+        setPendingPenaltyId(penaltyRow.id);
+        setIsConfirming(false);
+
+        const amountNum = Number(amountToCharge);
+        if (!Number.isFinite(amountNum) || amountNum <= 0) {
+          setIsConfirming(false);
+          Alert.alert('Erreur', 'Montant invalide pour le paiement.');
+          return;
+        }
+        const body: Record<string, unknown> = {
+          payment_type: 'penalty',
+          penalty_tracking_id: penaltyRow.id,
+          amount: amountNum,
+          refund_amount_xof: mustPayRefund ? refundAmount : 0,
+          property_title: mustPayRefund
+            ? (includePenaltyInPayment && penaltyAmount > 0 ? 'Remboursement voyageur + Pénalité - Annulation AkwaHome' : 'Remboursement voyageur - Annulation AkwaHome')
+            : 'Pénalité annulation - AkwaHome',
+          return_to_app: true,
+          app_scheme: 'akwahomemobile',
+          client: 'mobile',
+          booking_type: 'property',
+        };
+        if (currency === 'EUR' && rates.EUR && rates.EUR > 0) {
+          body.currency = 'eur';
+          body.rate = rates.EUR;
+        }
+        const checkoutResult = await createCheckoutSession(body);
+        if (checkoutResult.session_id) {
+          setPendingStripeSessionId(checkoutResult.session_id);
+          setPendingStripeStartedAt(Date.now());
+        }
+        await Linking.openURL(checkoutResult.url);
+      } catch (e: unknown) {
+        setIsConfirming(false);
+        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement');
+        resetPendingStripeState();
+      }
+      return;
+    }
+
+    // Pas de paiement carte : annulation immédiate (remboursement AkwaHome et/ou pénalité en déduction).
     const result = await cancelBooking(booking.id, fullReason, effectivePenaltyMethod as 'deduct_from_next_booking' | 'pay_directly' | 'card' | undefined);
 
     if (result.success) {
-      if (result.penaltyTrackingId && penaltyAmount > 0) {
-        setStripeCheckoutOpened(true);
-        setPendingPenaltyId(result.penaltyTrackingId);
-        setIsConfirming(false);
-        try {
-          // Un seul paiement : remboursement voyageur + pénalité Akwahome (même logique que commission)
-          const refundAmount = booking.total_price ?? 0;
-          const totalAmountXof = Math.round(refundAmount + penaltyAmount);
-          const body: Record<string, unknown> = {
-            payment_type: 'penalty',
-            penalty_tracking_id: result.penaltyTrackingId,
-            amount: totalAmountXof,
-            refund_amount_xof: refundAmount,
-            property_title: 'Remboursement voyageur + Pénalité - Annulation AkwaHome',
-            return_to_app: true,
-            app_scheme: 'akwahomemobile',
-            client: 'mobile',
-          };
-          if (currency === 'EUR' && rates.EUR && rates.EUR > 0) {
-            body.currency = 'eur';
-            body.rate = rates.EUR;
-          }
-          const checkoutResult = await createCheckoutSession(body);
-          if (checkoutResult.session_id) {
-            setPendingStripeSessionId(checkoutResult.session_id);
-            setPendingStripeStartedAt(Date.now());
-          }
-          await Linking.openURL(checkoutResult.url);
-        } catch (e: unknown) {
-          Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement');
-          resetPendingStripeState();
-        }
-        return;
-      }
       onCancelled();
       onClose();
       setSelectedReason('');
       setReason('');
-      setPenaltyPaymentMethod('');
-      setPayDirectlyMethod('');
+      setIncludePenaltyInPayment(true);
       Alert.alert('Succès', 'La réservation a été annulée');
     } else {
       Alert.alert('Erreur', 'Impossible d\'annuler la réservation');
@@ -345,7 +385,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                 <ActivityIndicator size="small" color="#e67e22" />
                 <Text style={styles.pendingTitle}>Paiement en attente</Text>
                 <Text style={styles.pendingText}>
-                  Revenez dans l'app après avoir terminé le paiement (remboursement voyageur + pénalité).
+                  Revenez dans l'app après avoir terminé le paiement {hostHasReceivedMoney ? '(remboursement voyageur + pénalité)' : '(pénalité)'}.
                 </Text>
                 {lastPaymentStatus != null && (
                   <Text style={styles.pendingStatus}>Statut : {lastPaymentStatus}</Text>
@@ -360,7 +400,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                   onPress={() => {
                     Alert.alert(
                       'Abandonner le paiement ?',
-                      'Si vous avez déjà payé, la réservation sera mise à jour sous peu. Sinon, vous pourrez régler depuis Remboursements & Pénalités.',
+                      'Si vous avez déjà payé, la réservation sera mise à jour sous peu. Sinon, le remboursement et la pénalité restent à régler.',
                       [
                         { text: 'Continuer', style: 'cancel' },
                         { text: 'Abandonner', style: 'destructive', onPress: () => { resetPendingStripeState(); onClose(); } },
@@ -421,14 +461,22 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                 <Text style={styles.financialLabel}>Prix total de la réservation</Text>
                 <Text style={styles.financialValue}>{formatPrice(booking.total_price)}</Text>
               </View>
-              
               <View style={styles.financialRow}>
                 <Text style={styles.financialLabel}>Remboursement au voyageur</Text>
                 <Text style={[styles.financialValue, styles.refundText]}>
                   {formatPrice(booking.total_price)}
                 </Text>
               </View>
-              
+              {!hostHasReceivedMoney && (
+                <Text style={[styles.penaltyInfo, { marginTop: 8 }]}>
+                  Le remboursement sera effectué par AkwaHome.
+                </Text>
+              )}
+              {hostHasReceivedMoney && (
+                <Text style={[styles.penaltyInfo, { marginTop: 8 }]}>
+                  Vous avez déjà perçu ce montant. Vous devrez le rembourser au voyageur par carte (voir ci-dessous).
+                </Text>
+              )}
               {penaltyAmount > 0 && (
                 <>
                   <View style={styles.separator} />
@@ -483,75 +531,116 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                 </View>
               )}
 
-              {/* Mode de paiement de la pénalité */}
-              {penaltyAmount > 0 && (
-                <View style={styles.paymentMethodContainer}>
-                  <Text style={styles.paymentMethodTitle}>
-                    Comment souhaitez-vous régler la pénalité de {formatPrice(penaltyAmount)} ? *
-                  </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.paymentMethodOption,
-                      penaltyPaymentMethod === 'deduct_from_next_booking' && styles.paymentMethodOptionSelected
-                    ]}
-                    onPress={() => { setPenaltyPaymentMethod('deduct_from_next_booking'); setPayDirectlyMethod(''); }}
-                  >
-                    <Ionicons 
-                      name={penaltyPaymentMethod === 'deduct_from_next_booking' ? 'radio-button-on' : 'radio-button-off'} 
-                      size={20} 
-                      color={penaltyPaymentMethod === 'deduct_from_next_booking' ? '#e67e22' : '#999'} 
-                    />
-                    <Text style={styles.paymentMethodText}>Déduire sur ma prochaine réservation</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.paymentMethodOption,
-                      penaltyPaymentMethod === 'pay_directly' && styles.paymentMethodOptionSelected
-                    ]}
-                    onPress={() => setPenaltyPaymentMethod('pay_directly')}
-                  >
-                    <Ionicons 
-                      name={penaltyPaymentMethod === 'pay_directly' ? 'radio-button-on' : 'radio-button-off'} 
-                      size={20} 
-                      color={penaltyPaymentMethod === 'pay_directly' ? '#e67e22' : '#999'} 
-                    />
-                    <Text style={styles.paymentMethodText}>Payer directement</Text>
-                  </TouchableOpacity>
-                  {penaltyPaymentMethod === 'pay_directly' && (
-                    <View style={styles.payDirectlySubOptions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.paymentMethodOption,
-                          payDirectlyMethod === 'card' && styles.paymentMethodOptionSelected
-                        ]}
-                        onPress={() => setPayDirectlyMethod('card')}
-                      >
-                        <Ionicons 
-                          name={payDirectlyMethod === 'card' ? 'radio-button-on' : 'radio-button-off'} 
-                          size={20} 
-                          color={payDirectlyMethod === 'card' ? '#e67e22' : '#999'} 
-                        />
-                        <Text style={styles.paymentMethodText}>Carte bancaire</Text>
-                      </TouchableOpacity>
-                      <View style={[styles.paymentMethodOption, styles.paymentMethodOptionDisabled]}>
-                        <Ionicons name="radio-button-off" size={20} color="#bbb" />
-                        <Text style={[styles.paymentMethodText, styles.paymentMethodTextDisabled]}>
-                          Wave (non disponible)
-                        </Text>
-                      </View>
+              {/* Paiement : remboursement (si hôte a déjà perçu) + pénalité optionnelle */}
+              <View style={styles.paymentMethodContainer}>
+                {hostHasReceivedMoney ? (
+                  <>
+                    <Text style={styles.paymentMethodTitle}>
+                      Remboursement obligatoire
+                    </Text>
+                    <View style={styles.paymentMethodOption}>
+                      <Ionicons name="card" size={20} color="#e67e22" />
+                      <Text style={styles.paymentMethodText}>
+                        Vous avez déjà perçu le montant. Le remboursement au voyageur ({formatPrice(booking.total_price ?? 0)}) s'effectue obligatoirement par carte bancaire (Stripe).
+                      </Text>
                     </View>
-                  )}
-                  <Text style={styles.paymentMethodNote}>
-                    {penaltyPaymentMethod === 'deduct_from_next_booking'
-                      ? 'La pénalité sera automatiquement déduite de votre prochain paiement.'
-                      : penaltyPaymentMethod === 'pay_directly' && payDirectlyMethod === 'card'
-                        ? 'Vous réglerez en un seul paiement : remboursement au voyageur + pénalité Akwahome. Vous serez redirigé vers le paiement sécurisé par carte.'
-                        : penaltyPaymentMethod === 'pay_directly'
-                          ? 'Choisissez Carte bancaire pour régler maintenant (Wave n\'est pas encore disponible).'
-                          : 'Veuillez choisir un mode de paiement.'}
-                  </Text>
-                </View>
-              )}
+                    {penaltyAmount > 0 && (
+                      <>
+                        <Text style={[styles.paymentMethodTitle, { marginTop: 16, marginBottom: 8 }]}>
+                          Pénalité AkwaHome — comment la régler ?
+                        </Text>
+                        <TouchableOpacity
+                          style={[styles.paymentMethodOption, includePenaltyInPayment && styles.paymentMethodOptionSelected]}
+                          onPress={() => setIncludePenaltyInPayment(true)}
+                        >
+                          <Ionicons
+                            name={includePenaltyInPayment ? 'radio-button-on' : 'radio-button-off'}
+                            size={22}
+                            color={includePenaltyInPayment ? '#e67e22' : '#999'}
+                          />
+                          <Text style={styles.paymentMethodText}>
+                            Régler la pénalité maintenant (avec le remboursement en un seul paiement par carte)
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.paymentMethodOption, !includePenaltyInPayment && styles.paymentMethodOptionSelected]}
+                          onPress={() => setIncludePenaltyInPayment(false)}
+                        >
+                          <Ionicons
+                            name={!includePenaltyInPayment ? 'radio-button-on' : 'radio-button-off'}
+                            size={22}
+                            color={!includePenaltyInPayment ? '#e67e22' : '#999'}
+                          />
+                          <Text style={styles.paymentMethodText}>
+                            Laisser AkwaHome prélever la pénalité sur ma prochaine réservation
+                          </Text>
+                        </TouchableOpacity>
+                        <Text style={styles.paymentMethodNote}>
+                          {includePenaltyInPayment
+                            ? `Montant à payer : remboursement + pénalité = ${formatPrice((booking.total_price ?? 0) + penaltyAmount)}.`
+                            : `Vous paierez le remboursement seul (${formatPrice(booking.total_price ?? 0)}). La pénalité sera déduite de vos prochains revenus.`}
+                        </Text>
+                      </>
+                    )}
+                    {penaltyAmount === 0 && (
+                      <Text style={styles.paymentMethodNote}>
+                        Aucune pénalité. Vous ne réglerez que le remboursement au voyageur.
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.paymentMethodOption}>
+                      <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                      <Text style={styles.paymentMethodText}>
+                        Le remboursement au voyageur sera effectué par AkwaHome. Aucun paiement de votre part pour le remboursement.
+                      </Text>
+                    </View>
+                    {penaltyAmount > 0 ? (
+                      <>
+                        <Text style={[styles.paymentMethodTitle, { marginTop: 16, marginBottom: 8 }]}>
+                          Pénalité AkwaHome — comment la régler ?
+                        </Text>
+                        <TouchableOpacity
+                          style={[styles.paymentMethodOption, includePenaltyInPayment && styles.paymentMethodOptionSelected]}
+                          onPress={() => setIncludePenaltyInPayment(true)}
+                        >
+                          <Ionicons
+                            name={includePenaltyInPayment ? 'radio-button-on' : 'radio-button-off'}
+                            size={22}
+                            color={includePenaltyInPayment ? '#e67e22' : '#999'}
+                          />
+                          <Text style={styles.paymentMethodText}>
+                            Régler la pénalité maintenant par carte
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.paymentMethodOption, !includePenaltyInPayment && styles.paymentMethodOptionSelected]}
+                          onPress={() => setIncludePenaltyInPayment(false)}
+                        >
+                          <Ionicons
+                            name={!includePenaltyInPayment ? 'radio-button-on' : 'radio-button-off'}
+                            size={22}
+                            color={!includePenaltyInPayment ? '#e67e22' : '#999'}
+                          />
+                          <Text style={styles.paymentMethodText}>
+                            Laisser AkwaHome prélever la pénalité sur ma prochaine réservation
+                          </Text>
+                        </TouchableOpacity>
+                        <Text style={styles.paymentMethodNote}>
+                          {includePenaltyInPayment
+                            ? `Montant à payer : pénalité seule = ${formatPrice(penaltyAmount)}.`
+                            : 'Aucun paiement maintenant. La pénalité sera déduite de vos prochains revenus.'}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={styles.paymentMethodNote}>
+                        Aucune pénalité. Aucun paiement à effectuer.
+                      </Text>
+                    )}
+                  </>
+                )}
+              </View>
             </View>
               </>
             )}
@@ -583,9 +672,9 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
             </TouchableOpacity>
             {!(stripeCheckoutOpened && pendingPenaltyId) ? (
               <TouchableOpacity
-                style={[styles.confirmButton, (!selectedReason || (penaltyAmount > 0 && !canConfirmPenaltyPayment) || loading || isConfirming) && styles.confirmButtonDisabled]}
+                style={[styles.confirmButton, (!selectedReason || loading || isConfirming) && styles.confirmButtonDisabled]}
                 onPress={handleCancel}
-                disabled={!selectedReason || (penaltyAmount > 0 && !canConfirmPenaltyPayment) || loading || isConfirming}
+                disabled={!selectedReason || loading || isConfirming}
               >
                 {loading || isConfirming ? (
                   <ActivityIndicator size="small" color="#fff" />
@@ -864,6 +953,7 @@ const styles = StyleSheet.create({
   paymentMethodText: {
     fontSize: 14,
     color: '#333',
+    flex: 1,
   },
   paymentMethodTextDisabled: {
     color: '#999',

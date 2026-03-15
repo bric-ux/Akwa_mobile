@@ -66,10 +66,10 @@ export const useCommissions = (userId?: string) => {
           .in('id', propertyIds);
         const titleByBookingId: Record<string, string> = {};
         (bookings || []).forEach((b: { id: string; property?: { title?: string } | null }) => {
-          titleByBookingId[b.id] = b.property?.title ? `Résidence : ${b.property.title}` : `Résa #${b.id.slice(0, 8)}`;
+          titleByBookingId[b.id] = b.property?.title ? `Résidence : ${b.property.title}` : `Résa #${b.id}`;
         });
         list.forEach((c) => {
-          if (c.booking_type === 'property') c.label = titleByBookingId[c.booking_id] || `Résa #${c.booking_id.slice(0, 8)}`;
+          if (c.booking_type === 'property') c.label = titleByBookingId[c.booking_id] || `Résa #${c.booking_id}`;
         });
       }
       if (vehicleIds.length > 0) {
@@ -82,7 +82,7 @@ export const useCommissions = (userId?: string) => {
           titleByVbId[vb.id] = vb.vehicle?.title ? `Véhicule : ${vb.vehicle.title}` : `Location #${vb.id.slice(0, 8)}`;
         });
         list.forEach((c) => {
-          if (c.booking_type === 'vehicle') c.label = titleByVbId[c.booking_id] || `Location #${c.booking_id.slice(0, 8)}`;
+          if (c.booking_type === 'vehicle') c.label = titleByVbId[c.booking_id] || `Location #${c.booking_id}`;
         });
       }
       setCommissions(list);
