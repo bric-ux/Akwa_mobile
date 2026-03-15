@@ -18,6 +18,7 @@ import { supabase } from '../services/supabase';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
 import { formatAmount } from '../utils/priceCalculator';
+import { useCurrency } from '../hooks/useCurrency';
 import type { CommissionDueItem, PlatformPaymentInfo } from '../hooks/useCommissions';
 
 const FALLBACK_WAVE = '+225 07 79 57 13 48';
@@ -55,12 +56,14 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const checkingRef = useRef(false);
 
+  const { currency, rates, formatPrice, formatPriceForPayment } = useCurrency();
   const wavePhone = paymentInfo?.wave_phone || FALLBACK_WAVE;
   const ribIban = paymentInfo?.rib_iban || FALLBACK_RIB;
   const commissionAmount = commission?.amount_due ?? 0;
   const cardFeePercent = 1;
   const cardFeeAmount = Math.round(commissionAmount * (cardFeePercent / 100));
   const cardTotalAmount = commissionAmount + cardFeeAmount;
+  const payInEur = currency === 'EUR' && rates.EUR && rates.EUR > 0;
 
   const resetPendingStripeState = useCallback(() => {
     setStripeCheckoutOpened(false);
@@ -205,7 +208,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     if (paymentMethod === 'card') {
       setLoading(true);
       try {
-        const result = await createCheckoutSession({
+        const body: Record<string, unknown> = {
           payment_type: 'platform_commission',
           commission_due_id: commission.id,
           booking_id: commission.booking_id,
@@ -214,7 +217,12 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
           return_to_app: true,
           app_scheme: 'akwahomemobile',
           client: 'mobile',
-        });
+        };
+        if (payInEur) {
+          body.currency = 'eur';
+          body.rate = rates.EUR;
+        }
+        const result = await createCheckoutSession(body);
         if (result.session_id) {
           setPendingStripeSessionId(result.session_id);
           setStripeCheckoutOpened(true);
@@ -327,21 +335,21 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
                 <>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Commission</Text>
-                    <Text style={styles.summaryValue}>{formatAmount(commission.amount_due)}</Text>
+                    <Text style={styles.summaryValue}>{payInEur ? formatPrice(commission.amount_due) : formatAmount(commission.amount_due)}</Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>+ 1% frais carte</Text>
-                    <Text style={styles.summaryValue}>{formatAmount(cardFeeAmount)}</Text>
+                    <Text style={styles.summaryValue}>{payInEur ? formatPrice(cardFeeAmount) : formatAmount(cardFeeAmount)}</Text>
                   </View>
                   <View style={[styles.summaryRow, styles.summaryTotal]}>
                     <Text style={styles.summaryTotalLabel}>Total à payer (carte)</Text>
-                    <Text style={styles.summaryTotalValue}>{formatAmount(cardTotalAmount)}</Text>
+                    <Text style={styles.summaryTotalValue}>{payInEur ? formatPriceForPayment(cardTotalAmount) : formatAmount(cardTotalAmount)}</Text>
                   </View>
                 </>
               ) : (
                 <View style={[styles.summaryRow, styles.summaryTotal]}>
                   <Text style={styles.summaryTotalLabel}>Montant à reverser</Text>
-                  <Text style={styles.summaryTotalValue}>{formatAmount(commission.amount_due)}</Text>
+                  <Text style={styles.summaryTotalValue}>{currency === 'EUR' ? formatPrice(commission.amount_due) : formatAmount(commission.amount_due)}</Text>
                 </View>
               )}
             </View>
@@ -441,7 +449,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.payButtonText}>
-                  {paymentMethod === 'wave' ? "J'ai payé par Wave" : `Payer ${formatAmount(cardTotalAmount)} par carte`}
+                  {paymentMethod === 'wave' ? "J'ai payé par Wave" : `Payer ${payInEur ? formatPriceForPayment(cardTotalAmount) : formatAmount(cardTotalAmount)} par carte`}
                 </Text>
               )}
             </TouchableOpacity>
