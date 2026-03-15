@@ -42,7 +42,16 @@ interface VehicleReviewItem {
   value_rating?: number | null;
   communication_rating?: number | null;
   reviewer?: { first_name: string | null; last_name: string | null };
-  response?: { id: string; response: string; created_at: string };
+  response?: {
+    id: string;
+    response: string;
+    created_at: string;
+    rating?: number | null;
+    vehicle_care_rating?: number | null;
+    punctuality_rating?: number | null;
+    communication_rating?: number | null;
+    respect_rules_rating?: number | null;
+  };
 }
 
 const VehicleManagementScreen: React.FC = () => {
@@ -135,30 +144,56 @@ const VehicleManagementScreen: React.FC = () => {
     }
   };
 
-  const renderStars = (rating: number) => (
+  const renderStars = (ratingValue: number) => (
     <View style={styles.reviewStarsRow}>
       {[1, 2, 3, 4, 5].map((star) => (
         <Ionicons
           key={star}
-          name={star <= rating ? 'star' : 'star-outline'}
+          name={star <= ratingValue ? 'star' : 'star-outline'}
           size={14}
-          color={star <= rating ? '#fbbf24' : '#d1d5db'}
+          color={star <= ratingValue ? '#fbbf24' : '#d1d5db'}
         />
       ))}
     </View>
   );
 
+  const StarRatingRow = ({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) => (
+    <View style={styles.responseRatingCategory}>
+      <Text style={styles.responseRatingCategoryLabel}>{label}</Text>
+      <View style={styles.responseStarsRowInput}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <TouchableOpacity key={star} onPress={() => onChange(star)} style={styles.responseStarTouch} activeOpacity={0.7}>
+            <Ionicons name={value >= star ? 'star' : 'star-outline'} size={28} color={value >= star ? '#fbbf24' : '#d1d5db'} />
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const isNewResponseModal = selectedReview && !selectedReview.response;
+  const canSubmitResponseModal = responseText.trim().length > 0 && (!!selectedReview?.response || (responseRating >= 1 && responseRating <= 5));
+
   const handleOpenResponseModal = (review: VehicleReviewItem) => {
     setSelectedReview(review);
     setResponseText(review.response?.response || '');
+    const resp = review.response as any;
+    setResponseRating(resp?.rating ?? 0);
+    setResponseVehicleCareRating(resp?.vehicle_care_rating ?? 0);
+    setResponsePunctualityRating(resp?.punctuality_rating ?? 0);
+    setResponseCommunicationRating(resp?.communication_rating ?? 0);
+    setResponseRespectRulesRating(resp?.respect_rules_rating ?? 0);
     setResponseModalVisible(true);
   };
 
   const handleSubmitResponse = async () => {
     if (!selectedReview || !user || !responseText.trim()) return;
+    const isNewResponse = !selectedReview.response;
+    if (isNewResponse && (responseRating < 1 || responseRating > 5)) {
+      Alert.alert('Erreur', 'Veuillez donner une note globale au locataire (1 à 5 étoiles) pour publier l\'avis.');
+      return;
+    }
     setSubmitting(true);
     try {
-      const isNewResponse = !selectedReview.response;
       if (selectedReview.response) {
         const { error } = await (supabase as any)
           .from('vehicle_review_responses')
@@ -166,13 +201,19 @@ const VehicleManagementScreen: React.FC = () => {
           .eq('id', selectedReview.response.id);
         if (error) throw error;
       } else {
+        const payload: Record<string, unknown> = {
+          review_id: selectedReview.id,
+          owner_id: user.id,
+          response: responseText.trim(),
+          rating: responseRating,
+        };
+        if (responseVehicleCareRating >= 1 && responseVehicleCareRating <= 5) payload.vehicle_care_rating = responseVehicleCareRating;
+        if (responsePunctualityRating >= 1 && responsePunctualityRating <= 5) payload.punctuality_rating = responsePunctualityRating;
+        if (responseCommunicationRating >= 1 && responseCommunicationRating <= 5) payload.communication_rating = responseCommunicationRating;
+        if (responseRespectRulesRating >= 1 && responseRespectRulesRating <= 5) payload.respect_rules_rating = responseRespectRulesRating;
         const { error } = await (supabase as any)
           .from('vehicle_review_responses')
-          .insert({
-            review_id: selectedReview.id,
-            owner_id: user.id,
-            response: responseText.trim(),
-          });
+          .insert(payload);
         if (error) throw error;
       }
       if (isNewResponse) {
@@ -204,6 +245,11 @@ const VehicleManagementScreen: React.FC = () => {
       setResponseModalVisible(false);
       setSelectedReview(null);
       setResponseText('');
+      setResponseRating(0);
+      setResponseVehicleCareRating(0);
+      setResponsePunctualityRating(0);
+      setResponseCommunicationRating(0);
+      setResponseRespectRulesRating(0);
       await loadReviews();
     } catch (err: any) {
       Alert.alert('Erreur', err.message || 'Impossible de soumettre votre réponse');
@@ -576,6 +622,11 @@ const VehicleManagementScreen: React.FC = () => {
                   setResponseModalVisible(false);
                   setSelectedReview(null);
                   setResponseText('');
+                  setResponseRating(0);
+                  setResponseVehicleCareRating(0);
+                  setResponsePunctualityRating(0);
+                  setResponseCommunicationRating(0);
+                  setResponseRespectRulesRating(0);
                 }}
               >
                 <Ionicons name="close" size={24} color="#333" />
@@ -592,6 +643,17 @@ const VehicleManagementScreen: React.FC = () => {
                     {selectedReview.comment ? <Text style={styles.responseModalPreviewComment}>{selectedReview.comment}</Text> : null}
                   </View>
                 )}
+                {isNewResponseModal && (
+                  <View style={styles.responseRatingSection}>
+                    <Text style={styles.responseRatingHint}>Pour que l'avis soit publié, donnez une note au locataire puis répondez.</Text>
+                    <StarRatingRow value={responseRating} onChange={setResponseRating} label="Note globale *" />
+                    <StarRatingRow value={responseVehicleCareRating} onChange={setResponseVehicleCareRating} label="Soin du véhicule" />
+                    <StarRatingRow value={responsePunctualityRating} onChange={setResponsePunctualityRating} label="Ponctualité" />
+                    <StarRatingRow value={responseCommunicationRating} onChange={setResponseCommunicationRating} label="Communication" />
+                    <StarRatingRow value={responseRespectRulesRating} onChange={setResponseRespectRulesRating} label="Respect des règles" />
+                  </View>
+                )}
+                <Text style={styles.responseModalResponseLabel}>Votre réponse</Text>
                 <TextInput
                   style={styles.responseModalInput}
                   value={responseText}
@@ -604,13 +666,25 @@ const VehicleManagementScreen: React.FC = () => {
               </ScrollView>
             </KeyboardAvoidingView>
             <View style={styles.responseModalFooter}>
-              <TouchableOpacity style={styles.responseModalCancelBtn} onPress={() => { setResponseModalVisible(false); setSelectedReview(null); setResponseText(''); }}>
+              <TouchableOpacity
+                style={styles.responseModalCancelBtn}
+                onPress={() => {
+                  setResponseModalVisible(false);
+                  setSelectedReview(null);
+                  setResponseText('');
+                  setResponseRating(0);
+                  setResponseVehicleCareRating(0);
+                  setResponsePunctualityRating(0);
+                  setResponseCommunicationRating(0);
+                  setResponseRespectRulesRating(0);
+                }}
+              >
                 <Text style={styles.responseModalCancelText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.responseModalSubmitBtn, (!responseText.trim() || submitting) && styles.responseModalSubmitBtnDisabled]}
+                style={[styles.responseModalSubmitBtn, (!canSubmitResponseModal || submitting) && styles.responseModalSubmitBtnDisabled]}
                 onPress={handleSubmitResponse}
-                disabled={!responseText.trim() || submitting}
+                disabled={!canSubmitResponseModal || submitting}
               >
                 {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.responseModalSubmitText}>Envoyer</Text>}
               </TouchableOpacity>
@@ -1061,6 +1135,38 @@ const styles = StyleSheet.create({
   responseModalPreviewComment: {
     fontSize: 13,
     color: '#6b7280',
+  },
+  responseRatingSection: {
+    marginBottom: 20,
+  },
+  responseRatingHint: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  responseRatingCategory: {
+    marginBottom: 14,
+  },
+  responseRatingCategoryLabel: {
+    fontSize: 13,
+    color: '#555',
+    marginBottom: 6,
+  },
+  responseStarsRowInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  responseStarTouch: {
+    padding: 4,
+  },
+  responseModalResponseLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
   },
   responseModalInput: {
     borderWidth: 1,

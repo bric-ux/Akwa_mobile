@@ -36,6 +36,11 @@ export interface VehicleRenterReview {
   response?: {
     id: string;
     response: string;
+    rating?: number | null;
+    vehicle_care_rating?: number | null;
+    punctuality_rating?: number | null;
+    communication_rating?: number | null;
+    respect_rules_rating?: number | null;
     created_at: string;
   };
 }
@@ -108,7 +113,7 @@ export const useVehicleRenterReviews = () => {
         .insert({
           ...reviewData,
           owner_id: user.id,
-          is_published: false, // Sera publié quand le locataire aura aussi noté le véhicule, ou après 48h
+          is_published: false, // Sera publié quand le locataire aura répondu à l'avis, ou après 48h
         });
 
       if (insertError) {
@@ -168,7 +173,7 @@ export const useVehicleRenterReviews = () => {
         console.error('❌ [useVehicleRenterReviews] Erreur envoi emails avis publiés:', e);
       }
 
-      Alert.alert('Avis envoyé', 'Votre avis sera publié lorsque le locataire aura aussi noté le véhicule, ou au plus tard sous 48 h');
+      Alert.alert('Avis envoyé', 'Votre avis sera publié lorsque le locataire aura répondu à l\'avis, ou au plus tard sous 48 h');
       return { success: true };
     } catch (err: any) {
       console.error('Error creating renter review:', err);
@@ -300,8 +305,12 @@ export const useVehicleRenterReviews = () => {
     }
   };
 
-  // Répondre à un avis (pour les locataires)
-  const createResponse = async (reviewId: string, response: string): Promise<{ success: boolean; error?: string }> => {
+  // Répondre à un avis (pour les locataires) : même système de notation (note globale + critères)
+  const createResponse = async (
+    reviewId: string,
+    response: string,
+    ratings: { rating: number; vehicleCareRating?: number; punctualityRating?: number; communicationRating?: number; respectRulesRating?: number }
+  ): Promise<{ success: boolean; error?: string }> => {
     if (!user) {
       setError('Vous devez être connecté');
       return { success: false, error: 'Not authenticated' };
@@ -311,13 +320,19 @@ export const useVehicleRenterReviews = () => {
     setError(null);
 
     try {
+      const payload: Record<string, unknown> = {
+        vehicle_renter_review_id: reviewId,
+        renter_id: user.id,
+        response: response.trim(),
+      };
+      if (ratings.rating >= 1 && ratings.rating <= 5) payload.rating = ratings.rating;
+      if (ratings.vehicleCareRating != null && ratings.vehicleCareRating >= 1 && ratings.vehicleCareRating <= 5) payload.vehicle_care_rating = ratings.vehicleCareRating;
+      if (ratings.punctualityRating != null && ratings.punctualityRating >= 1 && ratings.punctualityRating <= 5) payload.punctuality_rating = ratings.punctualityRating;
+      if (ratings.communicationRating != null && ratings.communicationRating >= 1 && ratings.communicationRating <= 5) payload.communication_rating = ratings.communicationRating;
+      if (ratings.respectRulesRating != null && ratings.respectRulesRating >= 1 && ratings.respectRulesRating <= 5) payload.respect_rules_rating = ratings.respectRulesRating;
       const { error: insertError } = await (supabase as any)
         .from('vehicle_renter_review_responses')
-        .insert({
-          vehicle_renter_review_id: reviewId,
-          renter_id: user.id,
-          response: response.trim()
-        });
+        .insert(payload);
 
       if (insertError) {
         console.error('Error creating response:', insertError);

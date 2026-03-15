@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,11 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGuestReviews } from '../hooks/useGuestReviews';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -42,6 +44,8 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
   const [respectRulesRating, setRespectRulesRating] = useState(0);
   const [comment, setComment] = useState('');
   const [hoveredRatings, setHoveredRatings] = useState<Record<string, number>>({});
+  const scrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -143,7 +147,11 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.container}>
+        <KeyboardAvoidingView
+          style={[styles.container, { paddingTop: insets.top }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
           <View style={styles.header}>
             <Text style={styles.title}>Évaluer {guestName}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -151,12 +159,14 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView 
-            style={styles.content} 
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.content}
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled={true}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
             <View style={styles.section}>
               {/* Note globale */}
@@ -213,6 +223,11 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
                   numberOfLines={6}
                   maxLength={1000}
                   textAlignVertical="top"
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd({ animated: true });
+                    }, 300);
+                  }}
                 />
                 <Text style={styles.charCount}>
                   {comment.length}/1000 caractères
@@ -245,7 +260,7 @@ const GuestReviewModal: React.FC<GuestReviewModalProps> = ({
               )}
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -287,7 +302,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   section: {
     gap: 20,

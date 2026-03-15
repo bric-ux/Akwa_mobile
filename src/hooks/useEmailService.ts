@@ -11,19 +11,25 @@ export interface EmailData {
 
 export const useEmailService = () => {
   const sendEmail = async (emailData: EmailData) => {
+    const to = (emailData.to ?? '').trim();
+    if (!to) {
+      console.warn('[useEmailService] Envoi ignoré: adresse "to" vide');
+      return { success: false, error: new Error('Adresse email manquante') };
+    }
+    const payload = { ...emailData, to };
     try {
       const { data, error } = await supabase.functions.invoke('send-email', {
-        body: emailData
+        body: payload
       });
 
       if (error) {
-        if (isDev) console.error('[useEmailService] Erreur:', error);
+        console.error('[useEmailService] Erreur invoke send-email:', error?.message ?? error, payload?.type, to);
         throw error;
       }
 
       return { success: true, data };
-    } catch (error) {
-      if (isDev) console.error('[useEmailService] Erreur:', error);
+    } catch (error: any) {
+      console.error('[useEmailService] Erreur envoi email:', error?.message ?? error, payload?.type, to);
       return { success: false, error };
     }
   };

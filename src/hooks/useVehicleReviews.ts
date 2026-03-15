@@ -112,7 +112,7 @@ export const useVehicleReviews = () => {
           communication_rating: reviewData.communication_rating || null,
           value_rating: reviewData.value_rating || null,
           comment: reviewData.comment?.trim() || null,
-          is_published: false, // Sera publié quand le propriétaire aura aussi noté le locataire, ou après 48h
+          is_published: false, // Sera publié quand le propriétaire aura répondu à l'avis, ou après 48h
         });
 
       if (error) {
@@ -166,7 +166,7 @@ export const useVehicleReviews = () => {
         console.error('❌ [useVehicleReviews] Erreur envoi emails avis publiés:', e);
       }
 
-      Alert.alert('Avis envoyé', 'Votre avis sera publié lorsque le propriétaire vous aura aussi noté, ou au plus tard sous 48 h');
+      Alert.alert('Avis envoyé', 'Votre avis sera publié lorsque le propriétaire aura répondu à l\'avis, ou au plus tard sous 48 h');
       return { success: true };
     } catch (error: any) {
       console.error('Error creating vehicle review:', error);

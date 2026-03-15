@@ -207,7 +207,7 @@ export const useHostReviews = () => {
 
       const propertyIds = properties.map(p => p.id);
 
-      // Get reviews for these properties
+      // Get ALL reviews (approved and pending) so the host can see and respond to pending ones
       const { data: reviews, error: reviewsError } = await supabase
         .from('reviews')
         .select(`
@@ -216,7 +216,6 @@ export const useHostReviews = () => {
           properties!property_id(id, title)
         `)
         .in('property_id', propertyIds)
-        .eq('approved', true)
         .order('created_at', { ascending: false });
 
       if (reviewsError) {

@@ -8,7 +8,7 @@ const CREATE_CHECKOUT_SESSION = 'create-checkout-session';
 const CHECK_PAYMENT_STATUS = 'check-payment-status';
 
 export type BookingType = 'property' | 'vehicle';
-export type PaymentType = 'booking' | 'modification_surplus' | 'vehicle_modification_surplus' | 'penalty';
+export type PaymentType = 'booking' | 'modification_surplus' | 'vehicle_modification_surplus' | 'penalty' | 'platform_commission';
 
 export interface CreateCheckoutSessionResult {
   url: string;
@@ -18,12 +18,14 @@ export interface CreateCheckoutSessionResult {
 }
 
 export interface CheckPaymentStatusParams {
-  booking_type: BookingType;
+  booking_type?: BookingType;
   booking_id?: string;
   checkout_token?: string;
   payment_type?: PaymentType;
   /** Pour surplus modification : id de la session Stripe en cours — la confirmation ne vaut que pour ce paiement */
   stripe_session_id?: string;
+  /** Pour commission plateforme : id de la ligne platform_commission_due (remplace booking_id) */
+  commission_due_id?: string;
 }
 
 export interface CheckPaymentStatusResult {
@@ -85,19 +87,21 @@ export async function createCheckoutSession(
 export async function checkPaymentStatus(
   params: CheckPaymentStatusParams
 ): Promise<CheckPaymentStatusResult> {
-  const { booking_type, booking_id, checkout_token, payment_type, stripe_session_id } = params;
-  if (!booking_id && !checkout_token) {
+  const { booking_type, booking_id, checkout_token, payment_type, stripe_session_id, commission_due_id } = params;
+  const isCommissionCheck = payment_type === 'platform_commission' && commission_due_id;
+  if (!isCommissionCheck && !booking_id && !checkout_token) {
     return { is_confirmed: false, payment_status: 'pending', booking_status: 'pending', error: 'booking_id ou checkout_token requis' };
   }
 
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData?.session?.access_token;
 
-  const body: Record<string, unknown> = { booking_type };
+  const body: Record<string, unknown> = { booking_type: booking_type ?? 'property' };
   if (checkout_token) body.checkout_token = checkout_token;
   if (booking_id) body.booking_id = booking_id;
   if (payment_type) body.payment_type = payment_type;
   if (stripe_session_id) body.stripe_session_id = stripe_session_id;
+  if (commission_due_id) body.commission_due_id = commission_due_id;
 
   // Ne pas envoyer Content-Type manuellement : sur React Native/Expo ça peut vider le body (bug client Supabase)
   const options: { body: Record<string, unknown>; headers?: Record<string, string> } = { body };

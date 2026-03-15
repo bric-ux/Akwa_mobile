@@ -164,24 +164,20 @@ const HostReviewsScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Response action */}
-      {!review.has_response && !review.is_deadline_passed && (
-        <TouchableOpacity
-          style={styles.responseButton}
-          onPress={() => handleOpenResponseModal(review)}
-        >
-          <Ionicons name="chatbubble-outline" size={18} color="#2E7D32" />
-          <Text style={styles.responseButtonText}>Répondre</Text>
-        </TouchableOpacity>
-      )}
-
-      {review.is_deadline_passed && !review.has_response && (
-        <View style={styles.expiredSection}>
-          <Ionicons name="alert-circle-outline" size={16} color="#e74c3c" />
-          <Text style={styles.expiredText}>
-            Délai de réponse expiré (48h)
-          </Text>
-        </View>
+      {/* Répondre : affiché dès qu'il n'y a pas de réponse (même si délai dépassé) */}
+      {!review.has_response && (
+        <>
+          {review.is_deadline_passed && (
+            <Text style={styles.expiredText}>Délai dépassé — vous pouvez encore répondre.</Text>
+          )}
+          <TouchableOpacity
+            style={styles.responseButton}
+            onPress={() => handleOpenResponseModal(review)}
+          >
+            <Ionicons name="chatbubble-outline" size={18} color="#2E7D32" />
+            <Text style={styles.responseButtonText}>Répondre</Text>
+          </TouchableOpacity>
+        </>
       )}
     </View>
   );
@@ -207,7 +203,7 @@ const HostReviewsScreen: React.FC = () => {
               {pendingReviews.length} avis en attente de réponse
             </Text>
             <Text style={styles.alertText}>
-              Vous avez 48h pour répondre à chaque avis après son approbation.
+              L'avis sera publié lorsque vous aurez répondu, ou après 48h si vous ne répondez pas.
             </Text>
           </View>
         </View>
@@ -235,11 +231,6 @@ const HostReviewsScreen: React.FC = () => {
           <Text style={[styles.tabText, activeTab === 'responded' && styles.tabTextActive]}>
             Répondus
           </Text>
-          {respondedReviews.length > 0 && (
-            <View style={styles.tabBadge}>
-              <Text style={styles.tabBadgeText}>{respondedReviews.length}</Text>
-            </View>
-          )}
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'expired' && styles.tabActive]}

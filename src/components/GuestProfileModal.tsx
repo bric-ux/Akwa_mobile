@@ -281,12 +281,24 @@ const GuestProfileModal: React.FC<GuestProfileModalProps> = ({
                           <Text style={styles.reviewComment}>{review.comment}</Text>
                         )}
                         
-                        {/* Guest response */}
+                        {/* Guest response = avis du voyageur (note + commentaire) */}
                         {review.response && (
                           <View style={styles.guestResponse}>
                             <Text style={styles.guestResponseLabel}>
-                              Réponse du voyageur
+                              Avis du voyageur
                             </Text>
+                            {review.response.rating != null && review.response.rating >= 1 && (
+                              <View style={styles.guestResponseStars}>
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Ionicons
+                                    key={star}
+                                    name={star <= review.response!.rating! ? 'star' : 'star-outline'}
+                                    size={16}
+                                    color={star <= review.response!.rating! ? '#fbbf24' : '#d1d5db'}
+                                  />
+                                ))}
+                              </View>
+                            )}
                             <Text style={styles.guestResponseText}>
                               {review.response.response}
                             </Text>
@@ -559,6 +571,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#2563eb',
+    marginBottom: 4,
+  },
+  guestResponseStars: {
+    flexDirection: 'row',
+    gap: 2,
     marginBottom: 4,
   },
   guestResponseText: {

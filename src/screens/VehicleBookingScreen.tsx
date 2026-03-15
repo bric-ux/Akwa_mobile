@@ -68,6 +68,7 @@ const VehicleBookingScreen: React.FC = () => {
   const [uploadingLicense, setUploadingLicense] = useState(false);
   const [showLicenseYearsPicker, setShowLicenseYearsPicker] = useState(false);
   const [useDriver, setUseDriver] = useState<boolean | null>(null);
+  const [isOutOfTownRental, setIsOutOfTownRental] = useState<boolean>(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'paypal' | 'cash'>('card');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -427,6 +428,19 @@ const VehicleBookingScreen: React.FC = () => {
   };
 
   const rentalDays = calculateRentalDays();
+
+  // Tarifs effectifs selon choix intra ville / hors ville (prix par jour et par heure exigés hors ville)
+  const allowOutOfTown = !!(vehicle as any)?.allow_out_of_town;
+  const outPerDay = (vehicle as any)?.out_of_town_price_per_day != null ? Number((vehicle as any).out_of_town_price_per_day) : null;
+  const outPerHour = (vehicle as any)?.out_of_town_price_per_hour != null ? Number((vehicle as any).out_of_town_price_per_hour) : null;
+  const outPriceLegacy = (vehicle as any)?.out_of_town_price != null ? Number((vehicle as any).out_of_town_price) : null;
+  const outTypeLegacy = (vehicle as any)?.out_of_town_price_type as 'per_day' | 'per_hour' | null;
+  const effectivePricePerDay = (isOutOfTownRental && allowOutOfTown && (outPerDay != null || outPriceLegacy != null))
+    ? (outPerDay != null ? outPerDay : (outTypeLegacy === 'per_day' ? outPriceLegacy! : Math.round(outPriceLegacy! * 24)))
+    : (vehicle?.price_per_day ?? 0);
+  const effectivePricePerHour = (isOutOfTownRental && allowOutOfTown && (outPerHour != null || outPriceLegacy != null))
+    ? (outPerHour != null ? outPerHour : (outTypeLegacy === 'per_hour' ? outPriceLegacy! : Math.round((outPriceLegacy ?? 0) / 24)))
+    : (vehicle?.price_per_hour ?? null);
   
   // Calculer les heures restantes si applicable
   const calculateRemainingHours = () => {
@@ -505,24 +519,32 @@ const VehicleBookingScreen: React.FC = () => {
     return vehicle.price_per_day || 0;
   };
 
-  const basePricePerDay = getBasePricePerDay();
+  const basePricePerDay = (isOutOfTownRental && allowOutOfTown && (outPerDay != null || outPriceLegacy != null))
+    ? effectivePricePerDay
+    : getBasePricePerDay();
   
-  // Calculer le prix avec réductions (comme sur le site web)
-  const discountConfig: DiscountConfig = {
-    enabled: vehicle?.discount_enabled || false,
-    minNights: vehicle?.discount_min_days || null,
-    percentage: vehicle?.discount_percentage || null
-  };
+  // Calculer le prix avec réductions (pas de réduc hors ville)
+  const discountConfig: DiscountConfig = (isOutOfTownRental && allowOutOfTown)
+    ? { enabled: false, minNights: null, percentage: null }
+    : {
+        enabled: vehicle?.discount_enabled || false,
+        minNights: vehicle?.discount_min_days || null,
+        percentage: vehicle?.discount_percentage || null
+      };
   
-  const longStayDiscountConfig: DiscountConfig | undefined = vehicle?.long_stay_discount_enabled ? {
-    enabled: vehicle?.long_stay_discount_enabled || false,
-    minNights: vehicle?.long_stay_discount_min_days || null,
-    percentage: vehicle?.long_stay_discount_percentage || null
-  } : undefined;
+  const longStayDiscountConfig = (isOutOfTownRental && allowOutOfTown)
+    ? undefined
+    : (vehicle?.long_stay_discount_enabled
+        ? {
+            enabled: vehicle?.long_stay_discount_enabled || false,
+            minNights: vehicle?.long_stay_discount_min_days || null,
+            percentage: vehicle?.long_stay_discount_percentage || null
+          }
+        : undefined);
   
   // Utiliser la fonction centralisée pour calculer le prix avec heures et réductions
-  const hourlyRateValue = (remainingHours > 0 && vehicle?.hourly_rental_enabled && vehicle?.price_per_hour) 
-    ? vehicle.price_per_hour 
+  const hourlyRateValue = (remainingHours > 0 && vehicle?.hourly_rental_enabled && (effectivePricePerHour != null && effectivePricePerHour > 0)) 
+    ? effectivePricePerHour 
     : 0;
   
   const priceCalculation = calculateVehiclePriceWithHours(
@@ -924,6 +946,7 @@ const VehicleBookingScreen: React.FC = () => {
         licenseNumber: isLicenseRequired && hasLicense ? licenseNumber : undefined,
         useDriver: useDriverToPass,
         driverFee: useDriverToPass === true && vehicle?.driver_fee != null ? Number(vehicle.driver_fee) : undefined,
+        isOutOfTownRental: isOutOfTownRental,
         paymentMethod: selectedPaymentMethod,
         paymentCurrency: payCurrency,
         paymentRate: payRate,
@@ -1156,9 +1179,7 @@ const VehicleBookingScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
             <Text style={styles.vehiclePrice}>
-              {rentalDays > 0 && basePricePerDay !== vehicle.price_per_day 
-                ? formatPrice(basePricePerDay) + ' / jour (tarif préférentiel)'
-                : formatPrice(vehicle.price_per_day || 0) + ' / jour'}
+              {formatPrice(rentalDays > 0 ? basePricePerDay : (vehicle.price_per_day || 0))} / jour
             </Text>
             {vehicle.price_per_week && vehicle.price_per_week > 0 ? (
               <Text style={styles.vehiclePriceAlt}>
@@ -1224,6 +1245,47 @@ const VehicleBookingScreen: React.FC = () => {
             </View>
           ) : null}
         </View>
+
+        {/* Type de déplacement : intra ville ou hors ville */}
+        {vehicle && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Type de déplacement</Text>
+            <Text style={styles.locationHint}>
+              {vehicle?.location?.name ? `Véhicule situé à ${vehicle.location.name}. ` : ''}
+              Souhaitez-vous réserver pour des déplacements uniquement en ville (tarif normal) ou hors ville (tarif spécial) ?
+            </Text>
+            <View style={styles.driverOptions}>
+              <TouchableOpacity
+                style={[styles.driverOption, isOutOfTownRental === false && styles.driverOptionActive]}
+                onPress={() => setIsOutOfTownRental(false)}
+              >
+                <Ionicons name={isOutOfTownRental === false ? 'radio-button-on' : 'radio-button-off'} size={24} color={isOutOfTownRental === false ? '#2E7D32' : '#ccc'} />
+                <Text style={styles.driverOptionText}>Intra ville (tarif normal)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.driverOption,
+                  isOutOfTownRental === true && styles.driverOptionActive,
+                  !allowOutOfTown && styles.driverOptionDisabled,
+                ]}
+                onPress={() => {
+                  if (allowOutOfTown) setIsOutOfTownRental(true);
+                  else Alert.alert('Non disponible', 'Ce véhicule n\'accepte pas les locations hors ville.');
+                }}
+              >
+                <Ionicons name={isOutOfTownRental === true ? 'radio-button-on' : 'radio-button-off'} size={24} color={isOutOfTownRental === true ? '#2E7D32' : !allowOutOfTown ? '#ccc' : '#ccc'} />
+                <Text style={[styles.driverOptionText, !allowOutOfTown && { color: '#9ca3af' }]}>
+                  Hors ville (tarif spécial){!allowOutOfTown ? ' — non proposé' : ''}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {isOutOfTownRental === true && allowOutOfTown && (vehicle as any)?.out_of_town_mileage_limit != null && (
+              <Text style={styles.locationHint}>
+                Kilométrage limite hors ville : {(vehicle as any).out_of_town_mileage_limit} km
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Choix du chauffeur */}
         {withDriver ? (
@@ -1528,9 +1590,7 @@ const VehicleBookingScreen: React.FC = () => {
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Prix par jour</Text>
             <Text style={styles.summaryValue}>
-              {basePricePerDay !== vehicle.price_per_day 
-                ? `${formatPrice(vehicle.price_per_day)} → ${formatPrice(basePricePerDay)}`
-                : formatPrice(basePricePerDay)}
+              {formatPrice(basePricePerDay)}
             </Text>
           </View>
           <View style={styles.summaryRow}>
@@ -1562,7 +1622,7 @@ const VehicleBookingScreen: React.FC = () => {
               <View style={styles.summaryRow}>
                 <View style={{ flex: 1, flexShrink: 1 }}>
                   <Text style={styles.summaryLabel} numberOfLines={2}>
-                    {remainingHours} heure{remainingHours > 1 ? 's' : ''} × {formatPrice(vehicle.price_per_hour)}/h
+                    {remainingHours} heure{remainingHours > 1 ? 's' : ''} × {formatPrice(effectivePricePerHour ?? 0)}/h
                   </Text>
                 </View>
                 <Text style={styles.summaryValue}>
@@ -1571,18 +1631,6 @@ const VehicleBookingScreen: React.FC = () => {
               </View>
             ) : null;
           })()}
-          {basePricePerDay !== vehicle.price_per_day ? (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Tarif préférentiel appliqué</Text>
-              <Text style={[styles.summaryValue, { color: '#2E7D32' }]}>
-                {vehicle.price_per_month && rentalDays >= 30 
-                  ? 'Tarif mensuel'
-                  : vehicle.price_per_week && rentalDays >= 7
-                  ? 'Tarif hebdomadaire'
-                  : 'Tarif préférentiel'}
-              </Text>
-            </View>
-          ) : null}
           {pricing.discountApplied && discountAmount > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>
@@ -2029,6 +2077,15 @@ const styles = StyleSheet.create({
   driverOptionActive: {
     backgroundColor: '#e8f5e9',
     borderColor: '#2E7D32',
+  },
+  driverOptionDisabled: {
+    opacity: 0.7,
+  },
+  locationHint: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 12,
+    lineHeight: 18,
   },
   driverOptionText: {
     marginLeft: 12,

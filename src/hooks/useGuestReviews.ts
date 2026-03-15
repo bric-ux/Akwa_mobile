@@ -27,6 +27,10 @@ export interface GuestReview {
   response?: {
     id: string;
     response: string;
+    rating?: number | null;
+    cleanliness_rating?: number | null;
+    communication_rating?: number | null;
+    respect_rules_rating?: number | null;
     created_at: string;
   };
 }
@@ -117,6 +121,10 @@ export const useGuestReviews = () => {
         responsesMap.set(resp.guest_review_id, {
           id: resp.id,
           response: resp.response,
+          rating: resp.rating ?? undefined,
+          cleanliness_rating: resp.cleanliness_rating ?? undefined,
+          communication_rating: resp.communication_rating ?? undefined,
+          respect_rules_rating: resp.respect_rules_rating ?? undefined,
           created_at: resp.created_at,
         });
       });
@@ -214,7 +222,7 @@ export const useGuestReviews = () => {
           communication_rating: reviewData.communicationRating || null,
           respect_rules_rating: reviewData.respectRulesRating || null,
           comment: reviewData.comment || null,
-          is_published: false // Sera publié quand le voyageur aura aussi noté le logement, ou après 48h
+          is_published: false // Sera publié quand le voyageur aura répondu à l'avis, ou après 48h
         });
 
       if (insertError) {
@@ -330,8 +338,12 @@ export const useGuestReviews = () => {
     }
   };
 
-  // Répondre à un avis laissé par un hôte (pour les voyageurs)
-  const createResponseForGuestReview = async (reviewId: string, response: string): Promise<{ success: boolean; error?: string }> => {
+  // Répondre à un avis laissé par un hôte (pour les voyageurs) : même système de notation (note globale + critères)
+  const createResponseForGuestReview = async (
+    reviewId: string,
+    response: string,
+    ratings: { rating: number; cleanlinessRating?: number; communicationRating?: number; respectRulesRating?: number }
+  ): Promise<{ success: boolean; error?: string }> => {
     if (!user) {
       setError('Vous devez être connecté');
       return { success: false, error: 'Not authenticated' };
@@ -339,13 +351,18 @@ export const useGuestReviews = () => {
     setLoading(true);
     setError(null);
     try {
+      const payload: Record<string, unknown> = {
+        guest_review_id: reviewId,
+        guest_id: user.id,
+        response: response.trim(),
+      };
+      if (ratings.rating >= 1 && ratings.rating <= 5) payload.rating = ratings.rating;
+      if (ratings.cleanlinessRating != null && ratings.cleanlinessRating >= 1 && ratings.cleanlinessRating <= 5) payload.cleanliness_rating = ratings.cleanlinessRating;
+      if (ratings.communicationRating != null && ratings.communicationRating >= 1 && ratings.communicationRating <= 5) payload.communication_rating = ratings.communicationRating;
+      if (ratings.respectRulesRating != null && ratings.respectRulesRating >= 1 && ratings.respectRulesRating <= 5) payload.respect_rules_rating = ratings.respectRulesRating;
       const { error: insertError } = await (supabase as any)
         .from('guest_review_responses')
-        .insert({
-          guest_review_id: reviewId,
-          guest_id: user.id,
-          response: response.trim(),
-        });
+        .insert(payload);
       if (insertError) {
         setError(insertError.message || "Impossible de publier la réponse");
         return { success: false, error: insertError.message };

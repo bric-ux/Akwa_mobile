@@ -34,7 +34,12 @@ export const useReviewResponses = () => {
     }
   };
 
-  const submitResponse = async (reviewId: string, response: string) => {
+  const submitResponse = async (
+    reviewId: string,
+    response: string,
+    guestRating?: number,
+    detailRatings?: { cleanlinessRating?: number; communicationRating?: number; respectRulesRating?: number }
+  ) => {
     if (!user) {
       Alert.alert('Erreur', 'Vous devez être connecté');
       return { success: false };
@@ -42,6 +47,44 @@ export const useReviewResponses = () => {
 
     setLoading(true);
     try {
+      // Si une note est fournie, créer ou mettre à jour le guest_review pour permettre la publication de l'avis
+      if (guestRating != null && guestRating >= 1 && guestRating <= 5) {
+        const { data: reviewRow, error: reviewErr } = await supabase
+          .from('reviews')
+          .select('booking_id, reviewer_id, property_id')
+          .eq('id', reviewId)
+          .single();
+
+        if (reviewErr || !reviewRow) {
+          console.warn('[useReviewResponses] Impossible de récupérer l’avis pour créer la note voyageur:', reviewErr);
+        } else {
+          const grPayload: Record<string, unknown> = {
+            booking_id: reviewRow.booking_id,
+            guest_id: reviewRow.reviewer_id,
+            host_id: user.id,
+            property_id: reviewRow.property_id,
+            rating: guestRating,
+          };
+          if (detailRatings?.cleanlinessRating != null && detailRatings.cleanlinessRating >= 1 && detailRatings.cleanlinessRating <= 5) {
+            grPayload.cleanliness_rating = detailRatings.cleanlinessRating;
+          }
+          if (detailRatings?.communicationRating != null && detailRatings.communicationRating >= 1 && detailRatings.communicationRating <= 5) {
+            grPayload.communication_rating = detailRatings.communicationRating;
+          }
+          if (detailRatings?.respectRulesRating != null && detailRatings.respectRulesRating >= 1 && detailRatings.respectRulesRating <= 5) {
+            grPayload.respect_rules_rating = detailRatings.respectRulesRating;
+          }
+          const { error: grError } = await supabase
+            .from('guest_reviews')
+            .upsert(grPayload as Record<string, unknown>, { onConflict: 'booking_id,host_id' });
+
+          if (grError) {
+            console.warn('[useReviewResponses] Erreur upsert guest_review:', grError);
+            // On continue quand même pour enregistrer la réponse
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('review_responses')
         .insert({
@@ -54,7 +97,6 @@ export const useReviewResponses = () => {
 
       // Envoyer un email de notification au voyageur
       try {
-        // Récupérer les informations de l'avis, du voyageur et de la propriété
         const { data: reviewData } = await supabase
           .from('reviews')
           .select(`
@@ -77,7 +119,6 @@ export const useReviewResponses = () => {
 
         if (reviewData && reviewData.properties) {
           const propertyData = reviewData.properties as any;
-          // Supabase peut renvoyer une relation FK en objet ou en tableau
           const guestProfileRaw = reviewData.profiles;
           const guestProfile = guestProfileRaw != null
             ? (Array.isArray(guestProfileRaw) ? guestProfileRaw[0] : guestProfileRaw)
@@ -87,33 +128,30 @@ export const useReviewResponses = () => {
             ? (Array.isArray(hostProfileRaw) ? hostProfileRaw[0] : hostProfileRaw)
             : null;
 
-          const guestEmail = guestProfile?.email;
+          const guestEmail = (guestProfile?.email ?? '').trim();
           const guestName = guestProfile ? `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim() || 'Voyageur' : 'Voyageur';
           const hostName = hostProfile ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte' : 'Hôte';
           const propertyTitle = propertyData?.title || 'Votre réservation';
 
           if (!guestEmail) {
             console.warn('[useReviewResponses] Email voyageur non trouvé, envoi email ignoré');
+          } else {
+            const result = await sendNewPropertyReviewResponse(
+              guestEmail,
+              guestName,
+              hostName,
+              propertyTitle,
+              response
+            );
+            if (result?.success) {
+              console.log('✅ [useReviewResponses] Email de réponse envoyé au voyageur');
+            } else {
+              console.error('❌ [useReviewResponses] Envoi email échoué:', result?.error);
+            }
           }
-
-          // Calculer la note moyenne
-          const avgRating = reviewData.location_rating && reviewData.cleanliness_rating && reviewData.value_rating && reviewData.communication_rating
-            ? Math.round(((reviewData.location_rating + reviewData.cleanliness_rating + reviewData.value_rating + reviewData.communication_rating) / 4) * 10) / 10
-            : 0;
-
-          if (guestEmail) await sendNewPropertyReviewResponse(
-            guestEmail,
-            guestName,
-            hostName,
-            propertyTitle,
-            response
-          );
-
-          if (guestEmail) console.log('✅ [useReviewResponses] Email de réponse envoyé au voyageur');
         }
       } catch (emailError) {
         console.error('❌ [useReviewResponses] Erreur envoi email notification:', emailError);
-        // Ne pas faire échouer la soumission de la réponse si l'email échoue
       }
 
       Alert.alert('Succès', 'Réponse publiée avec succès');

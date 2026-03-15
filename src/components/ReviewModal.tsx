@@ -64,7 +64,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
     if (result.success) {
       Alert.alert(
         'Avis soumis',
-        'Merci pour votre avis ! Il sera visible après validation par notre équipe.',
+        'Merci pour votre avis ! Il sera publié lorsque l\'hôte aura répondu à l\'avis, ou sous 48 h.',
         [
           {
             text: t('common.ok') || 'OK',

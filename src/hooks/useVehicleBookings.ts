@@ -28,6 +28,8 @@ export interface VehicleBookingData {
   useDriver?: boolean; // Si le locataire choisit d'utiliser le chauffeur (quand with_driver est true)
   /** Montant du surplus chauffeur (optionnel, pour éviter les écarts avec l'affichage écran). */
   driverFee?: number;
+  /** Si true, réservation pour déplacements hors ville (tarif spécial). */
+  isOutOfTownRental?: boolean;
   paymentMethod?: VehiclePaymentMethod; // Moyen de paiement choisi par le voyageur
   paymentCurrency?: 'XOF' | 'EUR' | 'USD';
   paymentRate?: number;
@@ -137,12 +139,40 @@ export const useVehicleBookings = () => {
       // Récupérer les informations du véhicule pour calculer le prix
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('price_per_day, price_per_hour, hourly_rental_enabled, minimum_rental_days, minimum_rental_hours, auto_booking, security_deposit, discount_enabled, discount_min_days, discount_percentage, long_stay_discount_enabled, long_stay_discount_min_days, long_stay_discount_percentage, with_driver, driver_fee')
+        .select('price_per_day, price_per_hour, hourly_rental_enabled, minimum_rental_days, minimum_rental_hours, auto_booking, security_deposit, discount_enabled, discount_min_days, discount_percentage, long_stay_discount_enabled, long_stay_discount_min_days, long_stay_discount_percentage, with_driver, driver_fee, allow_out_of_town, out_of_town_mileage_limit, out_of_town_price_type, out_of_town_price, out_of_town_price_per_day, out_of_town_price_per_hour')
         .eq('id', bookingData.vehicleId)
         .single();
 
       if (vehicleError || !vehicle) {
         throw new Error('Véhicule introuvable');
+      }
+
+      const isOutOfTown = !!bookingData.isOutOfTownRental;
+      if (isOutOfTown && !(vehicle as any).allow_out_of_town) {
+        throw new Error('Ce véhicule n\'accepte pas les locations hors ville');
+      }
+
+      // Tarifs effectifs : hors ville = tarifs par jour et par heure (exigés), sinon tarif normal
+      let effectivePricePerDay = vehicle.price_per_day;
+      let effectivePricePerHour: number | null = vehicle.price_per_hour ?? null;
+      if (isOutOfTown && (vehicle as any).allow_out_of_town) {
+        const outPerDay = (vehicle as any).out_of_town_price_per_day != null ? Number((vehicle as any).out_of_town_price_per_day) : null;
+        const outPerHour = (vehicle as any).out_of_town_price_per_hour != null ? Number((vehicle as any).out_of_town_price_per_hour) : null;
+        if (outPerDay != null && outPerHour != null) {
+          effectivePricePerDay = outPerDay;
+          effectivePricePerHour = outPerHour;
+        } else if ((vehicle as any).out_of_town_price != null) {
+          // Fallback ancien schéma (un seul tarif + type)
+          const outPrice = Number((vehicle as any).out_of_town_price);
+          const outType = (vehicle as any).out_of_town_price_type as 'per_day' | 'per_hour' | null;
+          if (outType === 'per_day') {
+            effectivePricePerDay = outPrice;
+            if (effectivePricePerHour == null && vehicle.hourly_rental_enabled) effectivePricePerHour = Math.round(outPrice / 24);
+          } else if (outType === 'per_hour') {
+            effectivePricePerHour = outPrice;
+            effectivePricePerDay = Math.round(outPrice * 24);
+          }
+        }
       }
 
       // Validation selon le type de location
@@ -155,7 +185,7 @@ export const useVehicleBookings = () => {
           throw new Error('Ce véhicule ne propose pas la location par heure');
         }
 
-        if (!vehicle.price_per_hour || vehicle.price_per_hour <= 0) {
+        if (effectivePricePerHour == null || effectivePricePerHour <= 0) {
           throw new Error('Le prix par heure n\'est pas défini pour ce véhicule');
         }
 
@@ -186,7 +216,7 @@ export const useVehicleBookings = () => {
         }
 
         // Validation : si totalHours < 24, on doit avoir hourly_rental_enabled
-        if (totalHours < 24 && (!vehicle.hourly_rental_enabled || !vehicle.price_per_hour)) {
+        if (totalHours < 24 && (!vehicle.hourly_rental_enabled || effectivePricePerHour == null)) {
           throw new Error('Les locations de moins de 24 heures nécessitent un tarif horaire');
         }
 
@@ -206,10 +236,10 @@ export const useVehicleBookings = () => {
         // Stocker les heures pour le calcul du prix
         // Si totalHours < 24, toutes les heures sont facturées comme heures (pas de jour complet)
         // Si totalHours >= 24, on facture les jours complets + les heures restantes
-        if (totalHours < 24 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
+        if (totalHours < 24 && vehicle.hourly_rental_enabled && effectivePricePerHour != null) {
           rentalHours = totalHours; // Toutes les heures sont facturées comme heures, pas de jour complet
           if (__DEV__) console.log(`✅ [useVehicleBookings] Location < 24h: ${totalHours}h facturées comme heures`);
-        } else if (remainingHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) {
+        } else if (remainingHours > 0 && vehicle.hourly_rental_enabled && effectivePricePerHour != null) {
           rentalHours = remainingHours; // Heures au-delà des jours complets
           if (__DEV__) console.log(`✅ [useVehicleBookings] Heures restantes calculées: ${remainingHours}h`);
         } else {
@@ -246,13 +276,13 @@ export const useVehicleBookings = () => {
 
       if (rentalType === 'hourly') {
         // Pour location par heure : pas de réductions, prix simple
-        hourlyRate = vehicle.price_per_hour!;
+        hourlyRate = effectivePricePerHour!;
         basePrice = hourlyRate! * rentalHours!;
         originalTotal = basePrice;
         discountType = null;
       } else {
-        // Pour location par jour : utiliser la logique existante avec réductions
-        dailyRate = vehicle.price_per_day;
+        // Pour location par jour : utiliser la logique existante avec réductions (pas de réduc si hors ville pour simplifier)
+        dailyRate = effectivePricePerDay;
         
         // Configuration des réductions
         const discountConfig = {
@@ -267,9 +297,11 @@ export const useVehicleBookings = () => {
           percentage: vehicle.long_stay_discount_percentage || null
         } : undefined;
         
-        // Utiliser la fonction centralisée pour calculer le prix avec heures et réductions
-        const hourlyRateValue = (rentalHours && rentalHours > 0 && vehicle.hourly_rental_enabled && vehicle.price_per_hour) 
-          ? vehicle.price_per_hour 
+        // Utiliser la fonction centralisée pour calculer le prix avec heures et réductions (hors ville = pas de réduc)
+        const discountConfigOut = isOutOfTown ? { enabled: false, minNights: null, percentage: null } : discountConfig;
+        const longStayDiscountConfigOut = isOutOfTown ? undefined : longStayDiscountConfig;
+        const hourlyRateValue = (rentalHours && rentalHours > 0 && vehicle.hourly_rental_enabled && effectivePricePerHour != null) 
+          ? effectivePricePerHour 
           : 0;
         
         priceCalculation = calculateVehiclePriceWithHours(
@@ -277,8 +309,8 @@ export const useVehicleBookings = () => {
           rentalDays,
           rentalHours || 0,
           hourlyRateValue,
-          discountConfig,
-          longStayDiscountConfig
+          discountConfigOut,
+          longStayDiscountConfigOut
         );
         
         const daysPrice = priceCalculation.daysPrice;
@@ -372,6 +404,7 @@ export const useVehicleBookings = () => {
         license_years: bookingData.licenseYears ? parseInt(bookingData.licenseYears) : null,
         license_number: bookingData.licenseNumber || null,
         with_driver: bookingData.useDriver === true,
+        is_out_of_town_rental: isOutOfTown,
         payment_method: bookingData.paymentMethod || null,
       };
 
@@ -385,7 +418,7 @@ export const useVehicleBookings = () => {
         bookingInsert.daily_rate = dailyRate;
         if (rentalHours && rentalHours > 0) {
           bookingInsert.rental_hours = rentalHours;
-          bookingInsert.hourly_rate = hourlyRate || vehicle.price_per_hour || 0;
+          bookingInsert.hourly_rate = hourlyRate ?? effectivePricePerHour ?? 0;
         }
         bookingInsert.discount_applied = discountApplied;
         bookingInsert.discount_amount = discountAmount;

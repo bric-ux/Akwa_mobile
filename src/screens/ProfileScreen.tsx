@@ -387,15 +387,14 @@ const ProfileScreen: React.FC = () => {
     });
   }
 
-  // Ajouter les pénalités si l'utilisateur est hôte ou a des véhicules
-  if (profile?.is_host || hasVehicles) {
-    menuItems.push({
-      id: 'penalties',
-      title: 'Remboursements & Pénalités',
-      icon: 'alert-circle-outline',
-      onPress: () => navigation.navigate('Penalties' as never),
-    });
-  }
+  // Remboursements & Pénalités : accessible à tout utilisateur connecté (hôte, propriétaire véhicule, ou les deux)
+  // pour qu'ils voient toujours la même page (pénalités, remboursements, commissions) quel que soit le mode
+  menuItems.push({
+    id: 'penalties',
+    title: 'Remboursements & Pénalités',
+    icon: 'alert-circle-outline',
+    onPress: () => navigation.navigate('Penalties' as never),
+  });
 
   // Ajouter les éléments communs
   menuItems = [...menuItems, ...commonMenuItems];

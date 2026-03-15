@@ -19,12 +19,15 @@ interface HostProfileModalProps {
   visible: boolean;
   onClose: () => void;
   hostId: string;
+  /** Contexte d'affichage : en "vehicle" (ex. depuis une fiche véhicule) on n'affiche que les avis véhicule. */
+  reviewsContext?: 'vehicle' | 'all';
 }
 
 const HostProfileModal: React.FC<HostProfileModalProps> = ({
   visible,
   onClose,
   hostId,
+  reviewsContext = 'all',
 }) => {
   const { hostProfile, loading, getHostProfile } = useHostProfile();
   const { reviews, loading: reviewsLoading, getHostReviews } = useHostReviews();
@@ -32,34 +35,39 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
 
   const MAX_REVIEWS_PREVIEW = 3;
 
+  // En contexte "location véhicule", n'afficher que les avis véhicule (pas résidence meublée)
+  const displayReviews =
+    reviewsContext === 'vehicle'
+      ? reviews.filter((r) => r.review_type === 'vehicle')
+      : reviews;
+
   useEffect(() => {
     if (visible && hostId) {
       getHostProfile(hostId);
       getHostReviews(hostId);
-      // Réinitialiser l'état quand le modal s'ouvre
       setShowAllReviews(false);
     }
   }, [visible, hostId, getHostProfile, getHostReviews]);
 
-  const totalReviewsCount = reviews.length;
+  const totalReviewsCount = displayReviews.length;
   const combinedAverageRating =
     totalReviewsCount > 0
       ? Number(
           (
-            reviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
+            displayReviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
             totalReviewsCount
           ).toFixed(1),
         )
       : 0;
 
   const distinctPropertyCount = new Set(
-    reviews
+    displayReviews
       .filter((r) => r.review_type === 'property' && r.property_id)
       .map((r) => r.property_id as string),
   ).size;
 
   const distinctVehicleCount = new Set(
-    reviews
+    displayReviews
       .filter((r) => r.review_type === 'vehicle' && r.vehicle_id)
       .map((r) => r.vehicle_id as string),
   ).size;
@@ -164,7 +172,7 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>
-                    {reviews.length}
+                    {totalReviewsCount}
                   </Text>
                   <Text style={styles.statLabel}>Avis</Text>
                 </View>
@@ -182,7 +190,7 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>
-                    Avis des locataires {reviews.length > 0 && `(${reviews.length})`}
+                    Avis des locataires {displayReviews.length > 0 && `(${displayReviews.length})`}
                   </Text>
                 </View>
                 {reviewsLoading ? (
@@ -190,9 +198,9 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                     <ActivityIndicator size="small" color="#2563eb" />
                     <Text style={styles.loadingReviewsText}>Chargement des avis...</Text>
                   </View>
-                ) : reviews.length > 0 ? (
+                ) : displayReviews.length > 0 ? (
                   <>
-                    {(showAllReviews ? reviews : reviews.slice(0, MAX_REVIEWS_PREVIEW)).map((review) => (
+                    {(showAllReviews ? displayReviews : displayReviews.slice(0, MAX_REVIEWS_PREVIEW)).map((review) => (
                       <View key={review.id} style={styles.reviewItem}>
                         <View style={styles.reviewHeader}>
                           <View style={styles.reviewerInfo}>
@@ -236,7 +244,7 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                         )}
                       </View>
                     ))}
-                    {reviews.length > MAX_REVIEWS_PREVIEW && (
+                    {displayReviews.length > MAX_REVIEWS_PREVIEW && (
                       <TouchableOpacity
                         style={styles.showAllButton}
                         onPress={() => setShowAllReviews(!showAllReviews)}
@@ -244,7 +252,7 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                         <Text style={styles.showAllButtonText}>
                           {showAllReviews 
                             ? 'Voir moins d\'avis' 
-                            : `Voir tous les avis (${reviews.length - MAX_REVIEWS_PREVIEW} de plus)`}
+                            : `Voir tous les avis (${displayReviews.length - MAX_REVIEWS_PREVIEW} de plus)`}
                         </Text>
                         <Ionicons 
                           name={showAllReviews ? 'chevron-up' : 'chevron-down'} 

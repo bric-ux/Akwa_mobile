@@ -487,6 +487,7 @@ const VehicleDetailsScreen: React.FC = () => {
         visible={showHostProfile}
         onClose={() => setShowHostProfile(false)}
         hostId={vehicle.owner?.user_id || vehicle.owner_id || ''}
+        reviewsContext="vehicle"
       />
 
       {/* Boutons d'action - Design moderne */}

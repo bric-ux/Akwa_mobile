@@ -107,6 +107,12 @@ const EditVehicleScreen: React.FC = () => {
     hourly_rental_enabled: false,
     price_per_hour: '',
     minimum_rental_hours: '1',
+    // Location hors ville (prix par jour et par heure exigés)
+    allow_out_of_town: false,
+    out_of_town_mileage_unlimited: true,
+    out_of_town_mileage_limit: '',
+    out_of_town_price_per_day: '',
+    out_of_town_price_per_hour: '',
     // Chauffeur
     with_driver: false,
     driver_fee: '',
@@ -185,6 +191,11 @@ const EditVehicleScreen: React.FC = () => {
           hourly_rental_enabled: vehicleData.hourly_rental_enabled || false,
           price_per_hour: vehicleData.price_per_hour?.toString() || '',
           minimum_rental_hours: vehicleData.minimum_rental_hours?.toString() || '1',
+          allow_out_of_town: (vehicleData as any).allow_out_of_town || false,
+          out_of_town_mileage_unlimited: (vehicleData as any).out_of_town_mileage_limit == null,
+          out_of_town_mileage_limit: (vehicleData as any).out_of_town_mileage_limit?.toString() || '',
+          out_of_town_price_per_day: (vehicleData as any).out_of_town_price_per_day?.toString() || '',
+          out_of_town_price_per_hour: (vehicleData as any).out_of_town_price_per_hour?.toString() || '',
           with_driver: (vehicleData as any).with_driver || false,
           driver_fee: (vehicleData as any).driver_fee?.toString() || '0',
           cancellation_policy: (vehicleData as any).cancellation_policy || 'flexible',
@@ -329,6 +340,16 @@ const EditVehicleScreen: React.FC = () => {
       Alert.alert('Erreur', 'Veuillez saisir un prix par jour valide');
       return;
     }
+    if (formData.allow_out_of_town) {
+      if (!formData.out_of_town_price_per_day || parseInt(formData.out_of_town_price_per_day, 10) <= 0) {
+        Alert.alert('Erreur', 'Veuillez saisir le prix par jour hors ville (obligatoire)');
+        return;
+      }
+      if (!formData.out_of_town_price_per_hour || parseInt(formData.out_of_town_price_per_hour, 10) <= 0) {
+        Alert.alert('Erreur', 'Veuillez saisir le prix par heure hors ville (obligatoire)');
+        return;
+      }
+    }
 
     const result = await updateVehicle(vehicleId, {
       title: formData.title.trim(),
@@ -352,6 +373,11 @@ const EditVehicleScreen: React.FC = () => {
       hourly_rental_enabled: formData.hourly_rental_enabled,
       price_per_hour: formData.hourly_rental_enabled && formData.price_per_hour ? parseInt(formData.price_per_hour) : null,
       minimum_rental_hours: formData.hourly_rental_enabled ? parseInt(formData.minimum_rental_hours) || 1 : null,
+      allow_out_of_town: formData.allow_out_of_town,
+      out_of_town_mileage_limit: formData.allow_out_of_town && !formData.out_of_town_mileage_unlimited && formData.out_of_town_mileage_limit
+        ? parseInt(formData.out_of_town_mileage_limit) : null,
+      out_of_town_price_per_day: formData.allow_out_of_town && formData.out_of_town_price_per_day ? parseInt(formData.out_of_town_price_per_day) : null,
+      out_of_town_price_per_hour: formData.allow_out_of_town && formData.out_of_town_price_per_hour ? parseInt(formData.out_of_town_price_per_hour) : null,
       with_driver: formData.with_driver,
       driver_fee: formData.with_driver && formData.driver_fee ? parseInt(formData.driver_fee) : 0,
       cancellation_policy: formData.cancellation_policy || 'flexible',
@@ -692,6 +718,88 @@ const EditVehicleScreen: React.FC = () => {
                   placeholder="1"
                   value={formData.minimum_rental_hours}
                   onChangeText={(value) => handleInputChange('minimum_rental_hours', value)}
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Location hors ville */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Location hors ville</Text>
+            <View style={styles.checkboxContainer}>
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => {
+                  const newValue = !formData.allow_out_of_town;
+                  setFormData(prev => ({
+                    ...prev,
+                    allow_out_of_town: newValue,
+                    out_of_town_price_per_day: newValue ? prev.out_of_town_price_per_day : '',
+                    out_of_town_price_per_hour: newValue ? prev.out_of_town_price_per_hour : '',
+                    out_of_town_mileage_limit: newValue ? prev.out_of_town_mileage_limit : '',
+                  }));
+                }}
+              >
+                <View style={[styles.checkbox, formData.allow_out_of_town && styles.checkboxChecked]}>
+                  {formData.allow_out_of_town && <Ionicons name="checkmark" size={16} color="#fff" />}
+                </View>
+                <View style={styles.checkboxLabelContainer}>
+                  <Text style={styles.checkboxLabel}>Accepter la location hors de la ville</Text>
+                  <Text style={styles.checkboxDescription}>
+                    Le locataire pourra réserver pour des déplacements hors de la ville du véhicule (tarif spécial)
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            {formData.allow_out_of_town && (
+              <View style={styles.hourlySection}>
+                <Text style={styles.label}>Kilométrage limite hors ville</Text>
+                <View style={styles.checkboxContainer}>
+                  <TouchableOpacity
+                    style={styles.checkboxRow}
+                    onPress={() => setFormData(prev => ({ ...prev, out_of_town_mileage_unlimited: true, out_of_town_mileage_limit: '' }))}
+                  >
+                    <View style={[styles.checkbox, formData.out_of_town_mileage_unlimited && styles.checkboxChecked]}>
+                      {formData.out_of_town_mileage_unlimited && <Ionicons name="checkmark" size={16} color="#fff" />}
+                    </View>
+                    <Text style={styles.checkboxLabel}>Illimité</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.checkboxContainer}>
+                  <TouchableOpacity
+                    style={styles.checkboxRow}
+                    onPress={() => setFormData(prev => ({ ...prev, out_of_town_mileage_unlimited: false }))}
+                  >
+                    <View style={[styles.checkbox, !formData.out_of_town_mileage_unlimited && styles.checkboxChecked]}>
+                      {!formData.out_of_town_mileage_unlimited && <Ionicons name="checkmark" size={16} color="#fff" />}
+                    </View>
+                    <Text style={styles.checkboxLabel}>Limite (km)</Text>
+                  </TouchableOpacity>
+                </View>
+                {!formData.out_of_town_mileage_unlimited && (
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: 500"
+                    value={formData.out_of_town_mileage_limit}
+                    onChangeText={(value) => handleInputChange('out_of_town_mileage_limit', value)}
+                    keyboardType="numeric"
+                  />
+                )}
+                <Text style={styles.label}>Prix par jour hors ville (XOF) *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 25000"
+                  value={formData.out_of_town_price_per_day}
+                  onChangeText={(value) => handleInputChange('out_of_town_price_per_day', value)}
+                  keyboardType="numeric"
+                />
+                <Text style={[styles.label, { marginTop: 12 }]}>Prix par heure hors ville (XOF) *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 3000"
+                  value={formData.out_of_town_price_per_hour}
+                  onChangeText={(value) => handleInputChange('out_of_town_price_per_hour', value)}
                   keyboardType="numeric"
                 />
               </View>
@@ -1242,6 +1350,28 @@ const styles = StyleSheet.create({
   checkboxDescription: {
     fontSize: 14,
     color: '#666',
+  },
+  tabLikeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  tabLikeButtonActive: {
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#22c55e',
+  },
+  tabLikeButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  tabLikeButtonTextActive: {
+    color: '#166534',
+    fontWeight: '600',
   },
   hourlySection: {
     marginTop: 16,

@@ -388,6 +388,10 @@ export interface Vehicle {
   rules: string[];
   cancellation_policy?: string | null;
   auto_booking?: boolean;
+  allow_out_of_town?: boolean;
+  out_of_town_mileage_limit?: number | null;
+  out_of_town_price_type?: 'per_day' | 'per_hour' | null;
+  out_of_town_price?: number | null;
   created_at: string;
   updated_at: string;
   photos?: VehiclePhoto[];
@@ -514,6 +518,7 @@ export interface VehicleBooking {
   discount_applied?: boolean;
   discount_amount?: number;
   original_total?: number;
+  is_out_of_town_rental?: boolean;
   created_at: string;
   updated_at: string;
   vehicle?: Vehicle;

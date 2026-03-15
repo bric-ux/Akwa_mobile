@@ -190,7 +190,10 @@ const MyVehicleRenterReviewsScreen: React.FC = () => {
                   {review.comment ? <Text style={styles.comment}>{review.comment}</Text> : null}
                   {review.response ? (
                     <View style={styles.responseSection}>
-                      <Text style={styles.responseLabel}>Votre réponse</Text>
+                      <Text style={styles.responseLabel}>Mon avis</Text>
+                      {review.response.rating != null && review.response.rating >= 1 ? (
+                        <View style={styles.responseRatingRow}>{renderStars(review.response.rating)}</View>
+                      ) : null}
                       <Text style={styles.responseText}>{review.response.response}</Text>
                     </View>
                   ) : null}
@@ -203,7 +206,7 @@ const MyVehicleRenterReviewsScreen: React.FC = () => {
                   >
                     <Ionicons name="chatbubble-outline" size={18} color="#2E7D32" />
                     <Text style={[styles.responseButtonText, { color: '#2E7D32' }]}>
-                      {review.response ? 'Voir ma réponse' : 'Répondre à cet avis'}
+                      {review.response ? 'Voir mon avis' : 'Répondre à cet avis'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -241,7 +244,10 @@ const MyVehicleRenterReviewsScreen: React.FC = () => {
                   {review.comment ? <Text style={styles.comment}>{review.comment}</Text> : null}
                   {review.response ? (
                     <View style={styles.responseSection}>
-                      <Text style={styles.responseLabel}>Votre réponse</Text>
+                      <Text style={styles.responseLabel}>Mon avis</Text>
+                      {review.response.rating != null && review.response.rating >= 1 ? (
+                        <View style={styles.responseRatingRow}>{renderStars(review.response.rating)}</View>
+                      ) : null}
                       <Text style={styles.responseText}>{review.response.response}</Text>
                     </View>
                   ) : null}
@@ -254,7 +260,7 @@ const MyVehicleRenterReviewsScreen: React.FC = () => {
                   >
                     <Ionicons name="chatbubble-outline" size={18} color={VEHICLE_COLORS.primary} />
                     <Text style={[styles.responseButtonText, { color: VEHICLE_COLORS.primary }]}>
-                      {review.response ? 'Voir ma réponse' : 'Répondre à cet avis'}
+                      {review.response ? 'Voir mon avis' : 'Répondre à cet avis'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -458,6 +464,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#059669',
+    marginBottom: 6,
+  },
+  responseRatingRow: {
     marginBottom: 6,
   },
   responseText: {

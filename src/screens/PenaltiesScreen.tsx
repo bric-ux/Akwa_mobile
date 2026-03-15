@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,21 @@ import {
   RefreshControl,
   Alert,
   Linking,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { usePenalties } from '../hooks/usePenalties';
 import { useRefunds } from '../hooks/useRefunds';
+import { useCommissions } from '../hooks/useCommissions';
 import PenaltyPaymentModal from '../components/PenaltyPaymentModal';
+import CommissionPaymentModal from '../components/CommissionPaymentModal';
 import { formatPrice, formatAmount } from '../utils/priceCalculator';
 
-type TabType = 'penalties' | 'refunds';
+type TabType = 'penalties' | 'refunds' | 'commissions';
 
 const PenaltiesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -29,6 +33,18 @@ const PenaltiesScreen: React.FC = () => {
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [declaringRefundId, setDeclaringRefundId] = useState<string | null>(null);
+  const [selectedCommission, setSelectedCommission] = useState<any>(null);
+  const [commissionModalVisible, setCommissionModalVisible] = useState(false);
+
+  // Charger les commissions (réservations espèces)
+  const {
+    commissions,
+    pendingCommissions,
+    totalCommissionDue,
+    paymentInfo: commissionPaymentInfo,
+    loading: commissionsLoading,
+    refreshCommissions,
+  } = useCommissions(user?.id);
 
   // Charger les pénalités
   const {
@@ -68,11 +84,42 @@ const PenaltiesScreen: React.FC = () => {
     setRefreshing(true);
     if (activeTab === 'penalties') {
       await refreshPenalties();
-    } else {
+    } else if (activeTab === 'refunds') {
       await refreshRefunds();
+    } else {
+      await refreshCommissions();
     }
     setRefreshing(false);
   };
+
+  // Au retour de Stripe (deep link commission), rafraîchir les commissions pour mettre à jour le statut (comme pour les réservations)
+  const checkCommissionReturnUrl = useCallback((url: string | null) => {
+    if (!url?.includes('payment-success')) return;
+    const typeMatch = url.match(/payment_type=([^&]+)/);
+    if (typeMatch?.[1] === 'platform_commission') {
+      refreshCommissions();
+    }
+  }, [refreshCommissions]);
+
+  useFocusEffect(
+    useCallback(() => {
+      Linking.getInitialURL().then(checkCommissionReturnUrl);
+    }, [checkCommissionReturnUrl])
+  );
+
+  useEffect(() => {
+    const sub = Linking.addEventListener('url', ({ url }) => checkCommissionReturnUrl(url));
+    return () => sub.remove();
+  }, [checkCommissionReturnUrl]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        Linking.getInitialURL().then(checkCommissionReturnUrl);
+      }
+    });
+    return () => sub.remove();
+  }, [checkCommissionReturnUrl]);
 
   const getPaymentMethodLabel = (method?: string | null): string => {
     if (!method) return 'Non spécifié';
@@ -157,6 +204,130 @@ const PenaltiesScreen: React.FC = () => {
     refreshPenalties();
     setPaymentModalVisible(false);
     setSelectedPenalty(null);
+  };
+
+  const handleCommissionPaymentComplete = () => {
+    refreshCommissions();
+    setCommissionModalVisible(false);
+    setSelectedCommission(null);
+  };
+
+  const renderCommissionsTab = () => {
+    const loading = commissionsLoading;
+    const data = commissions;
+
+    return (
+      <ScrollView
+        style={styles.tabContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.infoCard}>
+          <View style={styles.infoIconContainer}>
+            <Ionicons name="wallet-outline" size={24} color="#10b981" />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.infoTitle}>Commissions espèces</Text>
+            <Text style={styles.infoText}>
+              Pour les réservations payées en espèces par le voyageur ou le locataire, vous avez reçu la totalité.
+              Reversez ici la commission AkwaHome (Wave ou carte bancaire).
+            </Text>
+          </View>
+        </View>
+
+        {(commissionPaymentInfo?.wave_phone || commissionPaymentInfo?.rib_iban) && (
+          <View style={[styles.statsCard, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
+            <Text style={[styles.statsLabel, { color: '#065f46' }]}>Coordonnées AkwaHome</Text>
+            {commissionPaymentInfo.wave_phone && (
+              <Text style={[styles.detailValue, { color: '#047857', marginBottom: 4 }]} selectable>
+                Wave : {commissionPaymentInfo.wave_phone}
+              </Text>
+            )}
+            {commissionPaymentInfo.rib_iban && (
+              <Text style={[styles.detailValue, { color: '#047857' }]} selectable>
+                RIB : {commissionPaymentInfo.rib_iban}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {pendingCommissions.length > 0 && (
+          <View style={styles.statsCard}>
+            <View style={styles.statsContent}>
+              <View style={styles.statsLeft}>
+                <Text style={styles.statsLabel}>Commissions en attente</Text>
+                <Text style={styles.statsAmount}>{formatAmount(totalCommissionDue)}</Text>
+                <Text style={styles.statsCount}>
+                  {pendingCommissions.length} commission{pendingCommissions.length > 1 ? 's' : ''} à régler
+                </Text>
+              </View>
+              <Ionicons name="wallet-outline" size={48} color="#f59e0b" />
+            </View>
+          </View>
+        )}
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#e67e22" />
+          </View>
+        ) : data.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="checkmark-circle" size={64} color="#10b981" />
+            <Text style={styles.emptyTitle}>Aucune commission à régler</Text>
+            <Text style={styles.emptyText}>
+              Les réservations payées en espèces apparaîtront ici.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.listContainer}>
+            {data.map((commission) => {
+              const statusBadge =
+                commission.status === 'paid'
+                  ? { color: '#10b981', icon: 'checkmark-circle-outline' as const, label: 'Payée' }
+                  : { color: '#f59e0b', icon: 'time-outline' as const, label: 'À régler' };
+              return (
+                <View key={commission.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardHeaderLeft}>
+                      <Ionicons
+                        name={commission.booking_type === 'vehicle' ? 'car-outline' : 'home-outline'}
+                        size={20}
+                        color={commission.booking_type === 'vehicle' ? '#3b82f6' : '#e67e22'}
+                      />
+                      <View style={styles.cardHeaderText}>
+                        <Text style={styles.cardTitle}>
+                          {commission.label || (commission.booking_type === 'vehicle' ? 'Location véhicule' : 'Résidence')}
+                        </Text>
+                        <Text style={[styles.detailValue, { marginTop: 4 }]}>
+                          Commission : {formatAmount(commission.amount_due)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: `${statusBadge.color}20` }]}>
+                      <Ionicons name={statusBadge.icon} size={14} color={statusBadge.color} />
+                      <Text style={[styles.statusBadgeText, { color: statusBadge.color }]}>{statusBadge.label}</Text>
+                    </View>
+                  </View>
+                  {commission.status === 'pending' && (
+                    <View style={styles.cardContent}>
+                      <TouchableOpacity
+                        style={styles.payButton}
+                        onPress={() => {
+                          setSelectedCommission(commission);
+                          setCommissionModalVisible(true);
+                        }}
+                      >
+                        <Ionicons name="card-outline" size={20} color="#fff" />
+                        <Text style={styles.payButtonText}>Régler la commission</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+    );
   };
 
   const renderPenaltiesTab = () => {
@@ -672,6 +843,7 @@ const PenaltiesScreen: React.FC = () => {
           />
           <Text
             style={[styles.tabText, activeTab === 'penalties' && styles.tabTextActive]}
+            numberOfLines={1}
           >
             Pénalités
             {pendingPenalties.length > 0 && (
@@ -690,19 +862,41 @@ const PenaltiesScreen: React.FC = () => {
           />
           <Text
             style={[styles.tabText, activeTab === 'refunds' && styles.tabTextActive]}
+            numberOfLines={1}
           >
-            Remboursements
+            Rembours.
             {pendingRefundsToShowCount > 0 && (
               <Text style={styles.tabBadge}> ({pendingRefundsToShowCount})</Text>
+            )}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'commissions' && styles.tabActive]}
+          onPress={() => setActiveTab('commissions')}
+        >
+          <Ionicons
+            name="wallet-outline"
+            size={20}
+            color={activeTab === 'commissions' ? '#e67e22' : '#666'}
+          />
+          <Text
+            style={[styles.tabText, activeTab === 'commissions' && styles.tabTextActive]}
+            numberOfLines={1}
+          >
+            Commissions
+            {pendingCommissions.length > 0 && (
+              <Text style={styles.tabBadge}> ({pendingCommissions.length})</Text>
             )}
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Tab Content */}
-      {activeTab === 'penalties' ? renderPenaltiesTab() : renderRefundsTab()}
+      {activeTab === 'penalties' && renderPenaltiesTab()}
+      {activeTab === 'refunds' && renderRefundsTab()}
+      {activeTab === 'commissions' && renderCommissionsTab()}
 
-      {/* Modal de paiement */}
+      {/* Modal de paiement pénalité */}
       <PenaltyPaymentModal
         visible={paymentModalVisible}
         onClose={() => {
@@ -711,6 +905,19 @@ const PenaltiesScreen: React.FC = () => {
         }}
         penalty={selectedPenalty}
         onPaymentComplete={handlePaymentComplete}
+      />
+
+      {/* Modal paiement commission */}
+      <CommissionPaymentModal
+        visible={commissionModalVisible}
+        onClose={() => {
+          setCommissionModalVisible(false);
+          setSelectedCommission(null);
+          refreshCommissions();
+        }}
+        commission={selectedCommission}
+        paymentInfo={commissionPaymentInfo}
+        onPaymentComplete={handleCommissionPaymentComplete}
       />
     </SafeAreaView>
   );

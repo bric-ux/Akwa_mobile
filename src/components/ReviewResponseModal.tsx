@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReviewResponses } from '../hooks/useReviewResponses';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -36,13 +36,23 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
   existingResponse,
   onResponseSubmitted,
 }) => {
+  const insets = useSafeAreaInsets();
   const { t } = useLanguage();
   const { submitResponse, updateResponse, deleteResponse, loading } = useReviewResponses();
   const [responseText, setResponseText] = useState('');
+  const [rating, setRating] = useState(0);
+  const [cleanlinessRating, setCleanlinessRating] = useState(0);
+  const [communicationRating, setCommunicationRating] = useState(0);
+  const [respectRulesRating, setRespectRulesRating] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (visible) {
       setResponseText(existingResponse || '');
+      setRating(0);
+      setCleanlinessRating(0);
+      setCommunicationRating(0);
+      setRespectRulesRating(0);
     }
   }, [visible, existingResponse]);
 
@@ -55,9 +65,21 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
       return;
     }
 
+    if (!existingResponse && (rating < 1 || rating > 5)) {
+      Alert.alert(
+        t('common.error'),
+        t('review.rateGuestToPublish') || 'Pour que l’avis soit publié, donnez une note au voyageur (1 à 5 étoiles).'
+      );
+      return;
+    }
+
     const result = existingResponse
       ? await updateResponse(reviewId, responseText)
-      : await submitResponse(reviewId, responseText);
+      : await submitResponse(reviewId, responseText, rating, {
+          cleanlinessRating: cleanlinessRating || undefined,
+          communicationRating: communicationRating || undefined,
+          respectRulesRating: respectRulesRating || undefined,
+        });
 
     if (result.success) {
       Alert.alert(
@@ -68,6 +90,10 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
             text: t('common.ok'),
             onPress: () => {
               setResponseText('');
+              setRating(0);
+              setCleanlinessRating(0);
+              setCommunicationRating(0);
+              setRespectRulesRating(0);
               onResponseSubmitted();
               onClose();
             },
@@ -77,7 +103,7 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
     } else {
       Alert.alert(
         t('common.error'),
-        result.error || t('review.responseError') || 'Erreur lors de la publication de la réponse'
+        t('review.responseError') || 'Erreur lors de la publication de la réponse'
       );
     }
   };
@@ -100,7 +126,7 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
             } else {
               Alert.alert(
                 t('common.error'),
-                result.error || t('review.deleteError') || 'Erreur lors de la suppression'
+                t('review.deleteError') || 'Erreur lors de la suppression'
               );
             }
           },
@@ -109,7 +135,20 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
     );
   };
 
-  const statusBarHeight = StatusBar.currentHeight || 0;
+  const canSubmit = responseText.trim().length > 0 && (!!existingResponse || (rating >= 1 && rating <= 5));
+
+  const StarRatingRow = ({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) => (
+    <View style={styles.ratingCategory}>
+      <Text style={styles.ratingCategoryLabel}>{label}</Text>
+      <View style={styles.starsRowInput}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <TouchableOpacity key={star} onPress={() => onChange(star)} style={styles.starTouch} activeOpacity={0.7}>
+            <Ionicons name={value >= star ? 'star' : 'star-outline'} size={28} color={value >= star ? '#fbbf24' : '#d1d5db'} />
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
 
   return (
     <Modal
@@ -126,7 +165,7 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
           activeOpacity={1}
           onPress={onClose}
         />
-        <View style={[styles.container, { paddingTop: statusBarHeight }]}>
+        <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
           <View style={styles.header}>
             <Text style={styles.title}>
               {existingResponse ? (t('review.editResponse') || 'Modifier votre réponse') : (t('review.respond') || 'Répondre à cet avis')}
@@ -139,32 +178,64 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.keyboardAvoidingView}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
           >
-            <ScrollView 
-              style={styles.content} 
-              contentContainerStyle={styles.contentContainer}
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.content}
+              contentContainerStyle={[styles.contentContainer, { paddingBottom: 280 }]}
               showsVerticalScrollIndicator={true}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
             >
+              {!existingResponse && (
                 <View style={styles.section}>
-                  <Text style={styles.label}>
-                    {t('review.yourResponse') || 'Votre réponse'}
+                  <Text style={styles.ratingHint}>
+                    {t('review.rateGuestToPublishHint')}
                   </Text>
-                  <TextInput
-                    style={styles.responseInput}
-                    value={responseText}
-                    onChangeText={setResponseText}
-                    placeholder={t('review.responsePlaceholder') || 'Écrivez votre réponse à cet avis...'}
-                    multiline
-                    numberOfLines={10}
-                    maxLength={1000}
-                    textAlignVertical="top"
+                  <StarRatingRow
+                    value={rating}
+                    onChange={setRating}
+                    label={t('review.rateGuest')}
                   />
-                  <Text style={styles.charCount}>
-                    {responseText.length}/1000 {t('review.characters')}
-                  </Text>
+                  <StarRatingRow
+                    value={cleanlinessRating}
+                    onChange={setCleanlinessRating}
+                    label={t('review.cleanliness')}
+                  />
+                  <StarRatingRow
+                    value={communicationRating}
+                    onChange={setCommunicationRating}
+                    label={t('review.communication')}
+                  />
+                  <StarRatingRow
+                    value={respectRulesRating}
+                    onChange={setRespectRulesRating}
+                    label={t('review.respectRules')}
+                  />
                 </View>
+              )}
+              <View style={styles.section}>
+                <Text style={styles.label}>
+                  {t('review.yourResponse') || 'Votre réponse'}
+                </Text>
+                <TextInput
+                  style={styles.responseInput}
+                  value={responseText}
+                  onChangeText={setResponseText}
+                  placeholder={t('review.responsePlaceholder') || 'Écrivez votre réponse à cet avis...'}
+                  multiline
+                  numberOfLines={10}
+                  maxLength={1000}
+                  textAlignVertical="top"
+                  onFocus={() => {
+                    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+                  }}
+                />
+                <Text style={styles.charCount}>
+                  {responseText.length}/1000 {t('review.characters')}
+                </Text>
+              </View>
             </ScrollView>
           </KeyboardAvoidingView>
 
@@ -192,10 +263,10 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
               style={[
                 styles.button,
                 styles.submitButton,
-                (loading || !responseText.trim()) && styles.submitButtonDisabled,
+                (loading || !canSubmit) && styles.submitButtonDisabled,
               ]}
               onPress={handleSubmit}
-              disabled={loading || !responseText.trim()}
+              disabled={loading || !canSubmit}
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -268,6 +339,39 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 24,
+  },
+  ratingHint: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  starTouch: {
+    padding: 4,
+  },
+  ratingLabel: {
+    fontSize: 13,
+    color: '#666',
+  },
+  ratingCategory: {
+    marginBottom: 14,
+  },
+  ratingCategoryLabel: {
+    fontSize: 13,
+    color: '#555',
+    marginBottom: 6,
+  },
+  starsRowInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
   },
   label: {
     fontSize: 16,
