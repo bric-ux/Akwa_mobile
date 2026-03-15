@@ -94,6 +94,13 @@ export const useVehicles = () => {
         query = query.eq('with_driver', filters.withDriver);
       }
 
+      // Filtrer par type de réservation : intra ville uniquement ou proposant extra ville (hors ville)
+      if (filters?.locationType === 'intra_ville') {
+        query = query.eq('allow_out_of_town', false);
+      } else if (filters?.locationType === 'extra_ville') {
+        query = query.eq('allow_out_of_town', true);
+      }
+
       // Recherche hiérarchique par localisation (comme pour les propriétés)
       let locationIds: string[] | null = null;
       

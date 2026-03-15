@@ -569,6 +569,8 @@ export interface VehicleFilters {
   rentalType?: RentalType; // Type de location recherché: 'daily' ou 'hourly'
   autoBooking?: boolean; // Mode de location: true = réservation automatique, false = sur demande
   withDriver?: boolean; // Filtrer les véhicules avec chauffeur: true = avec chauffeur, false = sans chauffeur
+  /** Filtrer par type de réservation : intra ville uniquement, ou proposant hors ville (extra ville) */
+  locationType?: 'intra_ville' | 'extra_ville';
   features?: string[];
   search?: string;
 }

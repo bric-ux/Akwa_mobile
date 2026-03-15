@@ -209,6 +209,7 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
     if (priceMin) count++;
     if (priceMax) count++;
     if (filters.withDriver !== undefined) count++;
+    if (filters.locationType) count++;
     if (selectedFeatures.length > 0) count++;
     return count;
   };
@@ -433,6 +434,56 @@ const VehicleFiltersModal: React.FC<VehicleFiltersModalProps> = ({
               </View>
             </View>
 
+            {/* Type de réservation : intra ville / extra ville */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Réservation</Text>
+              <Text style={styles.sectionSubtitle}>Propose intra ville uniquement ou hors ville (extra ville)</Text>
+              <View style={styles.optionsContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.option,
+                    filters.locationType === 'intra_ville' && styles.optionSelected,
+                  ]}
+                  onPress={() =>
+                    setFilters(prev => ({
+                      ...prev,
+                      locationType: prev.locationType === 'intra_ville' ? undefined : 'intra_ville',
+                    }))
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      filters.locationType === 'intra_ville' && styles.optionTextSelected,
+                    ]}
+                  >
+                    Intra ville uniquement
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.option,
+                    filters.locationType === 'extra_ville' && styles.optionSelected,
+                  ]}
+                  onPress={() =>
+                    setFilters(prev => ({
+                      ...prev,
+                      locationType: prev.locationType === 'extra_ville' ? undefined : 'extra_ville',
+                    }))
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      filters.locationType === 'extra_ville' && styles.optionTextSelected,
+                    ]}
+                  >
+                    Propose hors ville (extra ville)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Équipements */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Équipements</Text>
@@ -543,6 +594,11 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     marginBottom: 16,
     letterSpacing: -0.3,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    marginBottom: 12,
   },
   optionsContainer: {
     flexDirection: 'row',

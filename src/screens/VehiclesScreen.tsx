@@ -726,6 +726,7 @@ const VehiclesScreen: React.FC = () => {
     if (filters.autoBooking !== undefined) count++;
     if (filters.rentalType) count++;
     if (filters.withDriver !== undefined) count++;
+    if (filters.locationType) count++;
     return count;
   };
 
@@ -1221,6 +1222,16 @@ const VehiclesScreen: React.FC = () => {
                           {filters.withDriver ? 'Avec chauffeur' : 'Sans chauffeur'}
                         </Text>
                         <TouchableOpacity onPress={() => removeFilter('withDriver')}>
+                          <Ionicons name="close" size={12} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {filters.locationType && (
+                      <View style={styles.chip}>
+                        <Text style={styles.chipText}>
+                          {filters.locationType === 'intra_ville' ? 'Intra ville uniquement' : 'Propose hors ville'}
+                        </Text>
+                        <TouchableOpacity onPress={() => removeFilter('locationType')}>
                           <Ionicons name="close" size={12} color="#2563eb" />
                         </TouchableOpacity>
                       </View>
