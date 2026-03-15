@@ -54,6 +54,7 @@ const VehicleBookingScreen: React.FC = () => {
   const { isDateUnavailable, isDateRangeUnavailable } = useVehicleAvailabilityCalendar(vehicleId);
 
   const [vehicle, setVehicle] = useState<any>(null);
+  const [locationCityName, setLocationCityName] = useState<string | null>(null);
   const [loadingVehicle, setLoadingVehicle] = useState(true);
   const [startDate, setStartDate] = useState<string>(searchDates.checkIn || '');
   const [endDate, setEndDate] = useState<string>(searchDates.checkOut || '');
@@ -87,11 +88,22 @@ const VehicleBookingScreen: React.FC = () => {
   const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
   useEffect(() => {
+    const getCityNameFromEmbed = (loc: any): string | null => {
+      if (!loc) return null;
+      if (loc.type === 'city') return loc.name;
+      if (loc.parent?.type === 'city') return loc.parent.name;
+      if (loc.parent?.city?.name) return loc.parent.city.name;
+      return null;
+    };
+
     const loadVehicle = async () => {
       try {
         setLoadingVehicle(true);
+        setLocationCityName(null);
         const vehicleData = await getVehicleById(vehicleId);
         setVehicle(vehicleData);
+        const cityFromEmbed = getCityNameFromEmbed(vehicleData?.location);
+        if (cityFromEmbed) setLocationCityName(cityFromEmbed);
       } catch (error) {
         console.error('Erreur lors du chargement du véhicule:', error);
         Alert.alert('Erreur', 'Impossible de charger les détails du véhicule');
@@ -103,6 +115,43 @@ const VehicleBookingScreen: React.FC = () => {
 
     loadVehicle();
   }, [vehicleId]);
+
+  // Fallback : récupérer la ville par requêtes si l'embed ne l'a pas fournie (commune/quartier sans parent chargé)
+  useEffect(() => {
+    const loc = vehicle?.location;
+    if (!loc?.id || locationCityName != null) return;
+    if (loc.type === 'city') {
+      setLocationCityName(loc.name);
+      return;
+    }
+    const fetchCityName = async () => {
+      try {
+        const { data: row } = await supabase.from('locations').select('id, name, type, parent_id').eq('id', loc.id).single();
+        if (!row) {
+          setLocationCityName(loc.name);
+          return;
+        }
+        if (row.type === 'city') {
+          setLocationCityName(row.name);
+          return;
+        }
+        const { data: parent } = await supabase.from('locations').select('id, name, type, parent_id').eq('id', row.parent_id).single();
+        if (!parent) {
+          setLocationCityName(loc.name);
+          return;
+        }
+        if (parent.type === 'city') {
+          setLocationCityName(parent.name);
+          return;
+        }
+        const { data: cityRow } = await supabase.from('locations').select('id, name').eq('id', parent.parent_id).single();
+        setLocationCityName(cityRow?.name ?? loc.name);
+      } catch {
+        setLocationCityName(loc.name);
+      }
+    };
+    fetchCityName();
+  }, [vehicle?.location?.id, locationCityName]);
 
   // Initialiser les dates depuis le contexte si disponibles
   useEffect(() => {
@@ -1251,7 +1300,15 @@ const VehicleBookingScreen: React.FC = () => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Type de déplacement</Text>
             <Text style={styles.locationHint}>
-              {vehicle?.location?.name ? `Véhicule situé à ${vehicle.location.name}. ` : ''}
+              {vehicle?.location
+                ? (() => {
+                    const loc = vehicle.location;
+                    const cityName = locationCityName ?? (loc.type === 'city' ? loc.name : null) ?? '...';
+                    const isCity = loc.type === 'city';
+                    const locationLabel = isCity ? cityName : `${cityName} (${loc.name})`;
+                    return `Véhicule situé à ${locationLabel}. `;
+                  })()
+                : ''}
               Souhaitez-vous réserver pour des déplacements uniquement en ville (tarif normal) ou hors ville (tarif spécial) ?
             </Text>
             <View style={styles.driverOptions}>

@@ -420,7 +420,18 @@ export const useVehicles = () => {
             type,
             latitude,
             longitude,
-            parent_id
+            parent_id,
+            parent:locations!parent_id (
+              id,
+              name,
+              type,
+              parent_id,
+              city:locations!parent_id (
+                id,
+                name,
+                type
+              )
+            )
           ),
           vehicle_photos (
             id,
@@ -472,6 +483,7 @@ export const useVehicles = () => {
           latitude: data.locations.latitude,
           longitude: data.locations.longitude,
           parent_id: data.locations.parent_id,
+          parent: data.locations.parent,
         } : undefined,
         photos: photos,
         images: images,

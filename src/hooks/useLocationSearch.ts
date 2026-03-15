@@ -143,33 +143,50 @@ export const useLocationSearch = () => {
         .ilike('name', `%${query}%`)
         .limit(10);
 
-      if (!neighborhoodsError && neighborhoodsData) {
-        // Récupérer les noms des communes parentes pour l'affichage
+      if (!neighborhoodsError && neighborhoodsData && neighborhoodsData.length > 0) {
         const parentIds = neighborhoodsData.map(n => n.parent_id).filter(Boolean) as string[];
         let parentNames: { [key: string]: string } = {};
-        
+        let parentParentIds: string[] = [];
         if (parentIds.length > 0) {
           const { data: parents } = await supabase
             .from('locations')
-            .select('id, name, type')
+            .select('id, name, type, parent_id')
             .in('id', parentIds);
-          
           if (parents) {
             parentNames = parents.reduce((acc, p) => {
               acc[p.id] = p.name;
               return acc;
             }, {} as { [key: string]: string });
+            parentParentIds = parents.map(p => p.parent_id).filter(Boolean) as string[];
           }
         }
+        let cityNames: Record<string, string> = {};
+        if (parentParentIds.length > 0) {
+          const { data: cityRows } = await supabase
+            .from('locations')
+            .select('id, name')
+            .in('id', parentParentIds);
+          if (cityRows) cityNames = cityRows.reduce((acc, r) => { acc[r.id] = r.name; return acc; }, {} as Record<string, string>);
+        }
+
+        const communeToCityId = parentIds.length > 0 && parents
+          ? (parents as { id: string; parent_id?: string }[]).reduce((acc, p) => {
+              if (p.parent_id) acc[p.id] = p.parent_id;
+              return acc;
+            }, {} as Record<string, string>)
+          : {};
 
         neighborhoodsData.forEach(neighborhood => {
           const score = calculateRelevanceScore(neighborhood, query, 'neighborhood');
           if (score > 0) {
             const communeName = neighborhood.parent_id ? parentNames[neighborhood.parent_id] : undefined;
+            const cityId = neighborhood.parent_id ? communeToCityId[neighborhood.parent_id] : undefined;
+            const cityName = cityId ? cityNames[cityId] : undefined;
             results.push({
               id: neighborhood.id,
               name: neighborhood.name,
               type: 'neighborhood' as const,
+              cityName,
               commune: communeName,
               city_id: neighborhood.parent_id,
               latitude: neighborhood.latitude,

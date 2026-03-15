@@ -976,7 +976,7 @@ const EditPropertyScreen: React.FC = () => {
             'Autoriser le paiement partiel',
             'allow_partial_payment',
             formData.allow_partial_payment,
-            'Permettre au voyageur de payer une partie maintenant (ex: 50%) et le reste à l’arrivée.'
+            "Permettre au voyageur de payer 50% à la réservation et le reste à l'arrivée auprès de vous"
           )}
         </View>
 
