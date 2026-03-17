@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Alert } from 'react-native';
 
@@ -16,7 +16,7 @@ export interface CancellationInfo {
 export const useBookingCancellation = () => {
   const [loading, setLoading] = useState(false);
 
-  const calculateCancellationInfo = async (
+  const calculateCancellationInfo = useCallback(async (
     bookingId: string,
     checkInDate: string,
     checkOutDate: string,
@@ -187,7 +187,7 @@ export const useBookingCancellation = () => {
       console.error('Error calculating cancellation info:', error);
       return null;
     }
-  };
+  }, []);
 
   const cancelBooking = async (
     bookingId: string,
@@ -350,7 +350,7 @@ export const useBookingCancellation = () => {
    * @param cancellationPolicy politique (défaut 'flexible')
    * @param status statut de la réservation
    */
-  const calculateCancellationInfoForVehicle = async (
+  const calculateCancellationInfoForVehicle = useCallback(async (
     startDate: string,
     endDate: string,
     totalPrice: number,
@@ -371,7 +371,7 @@ export const useBookingCancellation = () => {
       status,
       totalNights
     );
-  };
+  }, [calculateCancellationInfo]);
 
   /**
    * Pénalité quand le propriétaire du véhicule annule (à partir de 5 jours avant le début).
@@ -380,7 +380,7 @@ export const useBookingCancellation = () => {
    * - ≤ 2 jours avant : 40% du montant de base
    * - en cours de location : 40% sur les jours restants (locataire remboursé 100% des jours restants)
    */
-  const calculateVehicleOwnerCancellationPenalty = (
+  const calculateVehicleOwnerCancellationPenalty = useCallback((
     startDate: string,
     endDate: string,
     totalPrice: number,
@@ -438,7 +438,7 @@ export const useBookingCancellation = () => {
       refundAmount: totalPrice,
       description: 'Annulation 2 jours ou moins avant le début (40% de pénalité). Le locataire sera remboursé intégralement.',
     };
-  };
+  }, []);
 
   return {
     cancelBooking,

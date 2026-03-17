@@ -69,10 +69,10 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
   const pricePerNight = property?.price_per_night || 0;
 
   useEffect(() => {
-    if (visible && booking && user) {
+    if (visible && booking?.id && user) {
       loadCancellationInfo();
     }
-  }, [visible, booking]);
+  }, [visible, booking?.id, booking?.check_in_date, booking?.check_out_date, booking?.total_price, booking?.status, cancellationPolicy, pricePerNight]);
 
   const loadCancellationInfo = async () => {
     if (!booking || !user) return;

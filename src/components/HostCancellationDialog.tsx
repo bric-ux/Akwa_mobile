@@ -62,6 +62,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   const [checkingPenaltyStatus, setCheckingPenaltyStatus] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const pendingCancellationReasonRef = useRef<string | null>(null);
+  const verifyPenaltyPaymentNowRef = useRef<() => Promise<void>>(async () => {});
   const { user } = useAuth();
   const { cancelBooking, loading } = useHostBookings();
   const { currency, rates } = useCurrency();
@@ -169,6 +170,8 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
     }
   }, [booking, pendingPenaltyId, pendingStripeSessionId, checkPenaltyPaymentStatus, cancelBooking, resetPendingStripeState, onCancelled, onClose]);
 
+  verifyPenaltyPaymentNowRef.current = verifyPenaltyPaymentNow;
+
   useEffect(() => {
     if (!visible) {
       resetPendingStripeState();
@@ -228,12 +231,12 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
       if (wasBackground && nextState === 'active' && stripeCheckoutOpened && pendingPenaltyId) {
-        setTimeout(verifyPenaltyPaymentNow, 1500);
+        setTimeout(() => verifyPenaltyPaymentNowRef.current(), 1500);
       }
       appStateRef.current = nextState;
     });
     return () => sub.remove();
-  }, [stripeCheckoutOpened, pendingPenaltyId, verifyPenaltyPaymentNow]);
+  }, [stripeCheckoutOpened, pendingPenaltyId]);
 
   useEffect(() => {
     if (!visible || !pendingPenaltyId) return;
@@ -244,13 +247,13 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
       const idMatch = url.match(/penalty_tracking_id=([^&]+)/);
       const id = idMatch ? decodeURIComponent(idMatch[1]) : null;
       if (id === pendingPenaltyId) {
-        setTimeout(verifyPenaltyPaymentNow, 1000);
+        setTimeout(() => verifyPenaltyPaymentNowRef.current(), 1000);
       }
     };
     Linking.getInitialURL().then(handleUrl);
     const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
     return () => sub.remove();
-  }, [visible, pendingPenaltyId, verifyPenaltyPaymentNow]);
+  }, [visible, pendingPenaltyId]);
 
   if (!booking) return null;
 

@@ -44,6 +44,7 @@ interface InvoiceDisplayProps {
     };
     vehicle?: {
       rules?: string[];
+      cancellation_policy?: string | null;
       discount_enabled?: boolean;
       discount_min_days?: number | null;
       discount_percentage?: number | null;
@@ -145,10 +146,10 @@ const getServiceTypeLabel = (serviceType: ServiceType): string => {
 };
 
 const getCancellationPolicyText = (policy?: string | null, serviceType: ServiceType = 'property'): string => {
+  const fallbackProperty = 'Annulation gratuite jusqu\'à 1 jour avant l\'arrivée. Remboursement intégral.';
+  const fallbackVehicle = 'Annulation gratuite jusqu\'à 24h avant le début. Remboursement intégral.';
   if (!policy) {
-    return serviceType === 'property' 
-      ? 'Annulation gratuite jusqu\'à 1 jour avant l\'arrivée. Remboursement intégral.'
-      : 'Annulation gratuite jusqu\'à 7 jours avant. Remboursement intégral.';
+    return serviceType === 'property' ? fallbackProperty : fallbackVehicle;
   }
 
   if (serviceType === 'property') {
@@ -162,11 +163,21 @@ const getCancellationPolicyText = (policy?: string | null, serviceType: ServiceT
       case 'non_refundable':
         return 'Aucun remboursement en cas d\'annulation.';
       default:
-        return 'Annulation gratuite jusqu\'à 1 jour avant l\'arrivée. Remboursement intégral.';
+        return fallbackProperty;
     }
-  } else {
-    // Pour les véhicules, les règles sont différentes
-    return 'Annulation gratuite jusqu\'à 7 jours avant. Entre 3 et 7 jours : 10% de pénalité. Moins de 3 jours : 20% de pénalité.';
+  }
+  // Véhicule : mêmes 4 politiques que la résidence (flexible, moderate, strict, non_refundable)
+  switch (policy) {
+    case 'flexible':
+      return 'Flexible – Annulation gratuite jusqu\'à 24h avant le début. Remboursement intégral.';
+    case 'moderate':
+      return 'Modérée – Annulation gratuite jusqu\'à 5 jours avant le début. Après, 50% de pénalité.';
+    case 'strict':
+      return 'Stricte – Remboursement 50% jusqu\'à 7 jours avant le début. Après, pénalité plus forte.';
+    case 'non_refundable':
+      return 'Non remboursable – Aucun remboursement en cas d\'annulation.';
+    default:
+      return fallbackVehicle;
   }
 };
 
@@ -555,7 +566,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   // Ces valeurs seront remplacées par calculationDetails si disponible (voir plus bas)
   let priceAfterDiscount = basePrice - discountAmount; // Prix après réduction (sans chauffeur pour véhicules)
   let priceAfterDiscountWithDriver = serviceType === 'vehicle' ? priceAfterDiscount + driverFee : priceAfterDiscount; // Prix après réduction + chauffeur pour véhicules
-  const actualDiscountAmount = discountAmount;
+  let actualDiscountAmount = discountAmount; // peut être écrasé par calculationDetails pour propriété
   // La taxe de séjour est par nuit, donc multiplier par le nombre de nuits
   const taxesPerNight = providedTaxes !== undefined 
     ? providedTaxes 
@@ -632,8 +643,29 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   let totalPaidByTraveler: number;
   let akwaHomeTotalRevenue: number;
 
+  // Prix unitaire affiché : stocké à la réservation (calculation_snapshot) ou actuel (fallback)
+  let effectivePricePerUnit = pricePerUnit;
+
   if (calculationDetails) {
     // ✅ UTILISER DIRECTEMENT les valeurs stockées - AUCUN calcul
+    // Pour les propriétés : base_price, price_after_discount et prix/nuit au moment de la réservation
+    if (serviceType === 'property') {
+      basePrice = calculationDetails.base_price ?? basePrice;
+      priceAfterDiscount = calculationDetails.price_after_discount ?? priceAfterDiscount;
+      discountAmount = calculationDetails.discount_amount ?? discountAmount;
+      actualDiscountAmount = discountAmount;
+      daysPrice = basePrice; // Pour propriété, daysPrice = base_price (nuits × prix/nuit)
+      effectivePricePerUnit = calculationDetails.calculation_snapshot?.pricePerNight
+        ?? (nights > 0 ? Math.round((calculationDetails.base_price ?? 0) / nights) : pricePerUnit);
+      if (__DEV__) {
+        console.log('✅ [InvoiceDisplay] Utilisation données stockées propriété:', {
+          base_price: basePrice,
+          price_after_discount: priceAfterDiscount,
+          effectivePricePerUnit,
+          discount_amount: discountAmount,
+        });
+      }
+    }
     // Pour les véhicules, utiliser aussi days_price, hours_price et driver_fee depuis calculationDetails
     if (serviceType === 'vehicle') {
       daysPrice = calculationDetails.days_price ?? daysPrice;
@@ -643,7 +675,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       // ✅ IMPORTANT: Utiliser ?? au lieu de || pour éviter que 0 soit remplacé par la valeur par défaut
       driverFee = calculationDetails.driver_fee ?? 0; // ✅ Utiliser driver_fee stocké (même si 0)
       priceAfterDiscountWithDriver = calculationDetails.base_price_with_driver ?? (priceAfterDiscount + driverFee); // ✅ Utiliser base_price_with_driver stocké
-      
+      effectivePricePerUnit = nights > 0 ? Math.round((calculationDetails.days_price ?? 0) / nights) : pricePerUnit;
       if (__DEV__) {
         console.log('✅ [InvoiceDisplay] Utilisation données stockées véhicule:', {
           'calculationDetails.driver_fee': calculationDetails.driver_fee,
@@ -728,7 +760,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       hostNetAmount = priceAfterDiscountWithDriver - hostCommission;
     } else {
       const result = calculateHostNetAmountCentralized({
-        pricePerNight: pricePerUnit,
+        pricePerNight: effectivePricePerUnit,
         nights: nights,
         discountAmount: actualDiscountAmount,
         cleaningFee: effectiveCleaningFee,
@@ -834,7 +866,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             title: propertyOrVehicleTitle || '',
             address: booking.properties?.address || '',
             city_name: booking.properties?.locations?.name || '',
-            price_per_night: pricePerUnit,
+            price_per_night: effectivePricePerUnit,
             cleaning_fee: booking.properties?.cleaning_fee || 0, // Utiliser la valeur brute, pas effectiveCleaningFee
             service_fee: booking.properties?.service_fee || 0,
             taxes: taxesPerNight, // Utiliser taxesPerNight (par nuit), pas effectiveTaxes
@@ -893,7 +925,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           endDateTime: approvedModification?.requested_end_datetime || (booking as any).end_datetime || undefined,
           rentalDays: nights,
           rentalHours: rentalHours,
-          dailyRate: pricePerUnit,
+          dailyRate: effectivePricePerUnit,
           hourlyRate: hourlyRate,
           basePrice: priceAfterDiscount,
           totalPrice: totalPaidByTraveler,
@@ -1150,7 +1182,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Prix des jours */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              {String(nights)} {serviceType === 'property' ? 'nuit' : 'jour'}{nights > 1 ? 's' : ''} × {formatPriceFCFA(pricePerUnit)}/{serviceType === 'property' ? 'nuit' : 'jour'}
+              {String(nights)} {serviceType === 'property' ? 'nuit' : 'jour'}{nights > 1 ? 's' : ''} × {formatPriceFCFA(effectivePricePerUnit)}/{serviceType === 'property' ? 'nuit' : 'jour'}
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(daysPrice)}</Text>
           </View>
@@ -1308,7 +1340,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           {/* Prix des jours */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>
-              {String(nights)} {serviceType === 'property' ? 'nuit' : 'jour'}{nights > 1 ? 's' : ''} × {formatPriceFCFA(pricePerUnit)}/{serviceType === 'property' ? 'nuit' : 'jour'}
+              {String(nights)} {serviceType === 'property' ? 'nuit' : 'jour'}{nights > 1 ? 's' : ''} × {formatPriceFCFA(effectivePricePerUnit)}/{serviceType === 'property' ? 'nuit' : 'jour'}
             </Text>
             <Text style={styles.financialValue}>{formatPriceFCFA(daysPrice)}</Text>
           </View>
@@ -1718,7 +1750,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         </View>
         <Text style={styles.cancellationText}>
           {getCancellationPolicyText(
-            serviceType === 'property' ? booking.properties?.cancellation_policy : undefined,
+            serviceType === 'property' ? booking.properties?.cancellation_policy : booking.vehicle?.cancellation_policy,
             serviceType
           )}
         </Text>

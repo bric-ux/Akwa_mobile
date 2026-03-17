@@ -100,25 +100,31 @@ Si la location a déjà commencé :
 
 ---
 
-## 📝 Calcul de la pénalité
+## 📝 Calcul de la pénalité dans l'application mobile
 
-```typescript
-// Base de calcul
-const basePrice = daily_rate × rental_days
-const daysUntilStart = nombre de jours entre aujourd'hui et start_date
+L'app utilise la **politique d'annulation du véhicule** (`cancellation_policy` : flexible, moderate, strict, non_refundable), comme pour les résidences meublées.
 
-// Pour le locataire (mobile)
-if (daysUntilStart >= 7) {
-  penalty = 0
-} else if (daysUntilStart >= 3) {
-  penalty = basePrice × 0.10  // 10%
-} else {
-  penalty = basePrice × 0.20  // 20%
-}
+### Annulation par le LOCATAIRE (véhicule)
 
-// Pour le propriétaire (mobile)
-// Même calcul mais le locataire est toujours remboursé à 100%
-```
+- **Source** : `useBookingCancellation.calculateCancellationInfoForVehicle` → appelle `calculateCancellationInfo` avec la politique du véhicule.
+- **Réservation en attente** : annulation gratuite, remboursement 100%.
+- **Avant le début** (selon la politique du véhicule) :
+  - **flexible** : gratuit si ≥ 24h avant ; sinon remboursement 80% du montant des jours + taxes au prorata.
+  - **moderate** : gratuit si ≥ 5 jours avant ; sinon 50% du montant des jours + taxes au prorata.
+  - **strict** : 100% si ≥ 28 jours ; 50% du total si 7–28 jours ; sinon taxes au prorata uniquement.
+  - **non_refundable** : pas d'annulation possible (ou 0% remboursé).
+- **En cours de location** : remboursement selon la politique (80% / 50% / taxes seules) sur les **jours restants** ; le reste = pénalité.
+
+### Annulation par le PROPRIÉTAIRE (véhicule)
+
+- **Source** : `useBookingCancellation.calculateVehicleOwnerCancellationPenalty`.
+- **Réservation en attente** : pénalité 0, remboursement 100%.
+- **Plus de 5 jours avant le début** : pénalité 0%, locataire remboursé 100%.
+- **Entre 5 et 2 jours avant** : pénalité = 20% du montant de base (jours + heures), locataire remboursé 100%.
+- **2 jours ou moins avant** : pénalité = 40% du montant de base, locataire remboursé 100%.
+- **En cours de location** : pénalité = 40% du montant des **jours restants** ; locataire remboursé du restant des jours non consommés (au prorata du total payé).
+
+La politique du véhicule est stockée sur la fiche véhicule (`vehicles.cancellation_policy`) et affichée dans le détail de la réservation (écran détail + facture).
 
 ---
 

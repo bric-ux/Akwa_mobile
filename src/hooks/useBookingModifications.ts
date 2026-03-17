@@ -330,17 +330,35 @@ export const useBookingModifications = () => {
 
       if (fetchError) throw fetchError;
 
-      // Calculer host_net_amount pour la modification
+      // Calculer host_net_amount et discount pour la modification (nouvelles nuits)
       const nights = Math.ceil(
         (new Date(request.requested_check_out).getTime() - new Date(request.requested_check_in).getTime()) 
         / (1000 * 60 * 60 * 24)
       );
 
+      const pricePerNight = request.booking.properties.price_per_night || 0;
+      const discountConfig = {
+        enabled: request.booking.properties.discount_enabled || false,
+        minNights: request.booking.properties.discount_min_nights ?? null,
+        percentage: request.booking.properties.discount_percentage ?? null,
+      };
+      const longStayConfig = request.booking.properties.long_stay_discount_enabled ? {
+        enabled: request.booking.properties.long_stay_discount_enabled || false,
+        minNights: request.booking.properties.long_stay_discount_min_nights ?? null,
+        percentage: request.booking.properties.long_stay_discount_percentage ?? null,
+      } : undefined;
+
+      const { calculateTotalPrice } = await import('../hooks/usePricing');
+      const newNightsPricing = calculateTotalPrice(pricePerNight, nights, discountConfig, longStayConfig);
+      const newDiscountAmount = newNightsPricing.discountAmount || 0;
+      const newDiscountApplied = newNightsPricing.discountApplied || false;
+      const newOriginalTotal = newNightsPricing.originalTotal ?? pricePerNight * nights;
+
       const { calculateHostNetAmount } = await import('../lib/hostNetAmount');
       const hostNetAmountResult = calculateHostNetAmount({
-        pricePerNight: request.booking.properties.price_per_night || 0,
-        nights: nights,
-        discountAmount: request.booking.discount_amount || 0,
+        pricePerNight,
+        nights,
+        discountAmount: newDiscountAmount,
         cleaningFee: request.booking.properties.cleaning_fee || 0,
         taxesPerNight: request.booking.properties.taxes || 0,
         freeCleaningMinDays: request.booking.properties.free_cleaning_min_days || null,
@@ -348,22 +366,26 @@ export const useBookingModifications = () => {
         serviceType: 'property',
       });
 
-      // Mettre à jour la réservation originale
+      // Mettre à jour la réservation originale (avec discount/original_total cohérents pour les nouvelles nuits)
+      const bookingUpdate: Record<string, unknown> = {
+        check_in_date: request.requested_check_in,
+        check_out_date: request.requested_check_out,
+        guests_count: request.requested_guests_count,
+        total_price: request.requested_total_price,
+        host_net_amount: hostNetAmountResult.hostNetAmount,
+        updated_at: new Date().toISOString(),
+        discount_amount: newDiscountAmount,
+        discount_applied: newDiscountApplied,
+        original_total: newOriginalTotal,
+      };
       const { error: updateBookingError } = await supabase
         .from('bookings')
-        .update({
-          check_in_date: request.requested_check_in,
-          check_out_date: request.requested_check_out,
-          guests_count: request.requested_guests_count,
-          total_price: request.requested_total_price,
-          host_net_amount: hostNetAmountResult.hostNetAmount,
-          updated_at: new Date().toISOString()
-        })
+        .update(bookingUpdate)
         .eq('id', request.booking_id);
 
       if (updateBookingError) throw updateBookingError;
 
-      // ✅ Mettre à jour booking_calculation_details
+      // ✅ Mettre à jour booking_calculation_details (avec les mêmes valeurs pour cohérence facture)
       const { updatePropertyBookingCalculationDetails } = await import('../lib/updateBookingCalculationDetails');
       await updatePropertyBookingCalculationDetails(
         request.booking_id,
@@ -371,9 +393,9 @@ export const useBookingModifications = () => {
           check_in_date: request.requested_check_in,
           check_out_date: request.requested_check_out,
           total_price: request.requested_total_price,
-          discount_amount: request.booking.discount_amount,
-          discount_applied: request.booking.discount_applied,
-          original_total: request.booking.original_total,
+          discount_amount: newDiscountAmount,
+          discount_applied: newDiscountApplied,
+          original_total: newOriginalTotal,
           payment_currency: (request.booking as any).payment_currency,
         },
         {

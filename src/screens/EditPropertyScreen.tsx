@@ -71,6 +71,7 @@ const EditPropertyScreen: React.FC = () => {
     security_deposit: '',
     minimum_duration_months: '',
     charges_included: false,
+    cancellation_policy: 'flexible' as 'flexible' | 'moderate' | 'strict' | 'non_refundable',
   });
 
   const propertyTypes = [
@@ -79,6 +80,13 @@ const EditPropertyScreen: React.FC = () => {
     { value: 'villa', label: 'Villa' },
     { value: 'eco_lodge', label: 'Éco-lodge' },
     { value: 'other', label: 'Autre' },
+  ];
+
+  const CANCELLATION_POLICIES = [
+    { value: 'flexible' as const, label: 'Flexible', description: 'Remboursement intégral jusqu\'à 24h avant l\'arrivée' },
+    { value: 'moderate' as const, label: 'Modérée', description: 'Remboursement intégral jusqu\'à 5 jours avant l\'arrivée' },
+    { value: 'strict' as const, label: 'Stricte', description: 'Remboursement 50% jusqu\'à 7 jours avant ; moins de 7 jours : taxes au prorata uniquement' },
+    { value: 'non_refundable' as const, label: 'Non remboursable', description: 'Aucun remboursement en cas d\'annulation par le voyageur' },
   ];
 
   // États pour la gestion des photos
@@ -140,6 +148,7 @@ const EditPropertyScreen: React.FC = () => {
           security_deposit: propertyData.security_deposit?.toString() || '',
           minimum_duration_months: propertyData.minimum_duration_months?.toString() || '',
           charges_included: propertyData.charges_included || false,
+          cancellation_policy: (propertyData as any).cancellation_policy || 'flexible',
         });
 
         // Charger les photos
@@ -246,6 +255,7 @@ const EditPropertyScreen: React.FC = () => {
         discount_enabled: formData.discount_enabled,
         discount_min_nights: formData.discount_min_nights ? Number(formData.discount_min_nights) : null,
         discount_percentage: formData.discount_percentage ? Number(formData.discount_percentage) : null,
+        cancellation_policy: formData.cancellation_policy || 'flexible',
         updated_at: new Date().toISOString(),
       };
       
@@ -980,6 +990,39 @@ const EditPropertyScreen: React.FC = () => {
           )}
         </View>
 
+        {/* Politique d'annulation */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+          <Text style={[styles.switchDescription, { marginBottom: 12 }]}>
+            Conditions appliquées en cas d'annulation par le voyageur
+          </Text>
+          {CANCELLATION_POLICIES.map((policy) => (
+            <TouchableOpacity
+              key={policy.value}
+              style={[
+                styles.cancellationOption,
+                formData.cancellation_policy === policy.value && styles.cancellationOptionSelected,
+              ]}
+              onPress={() => handleInputChange('cancellation_policy', policy.value)}
+            >
+              <View style={styles.cancellationOptionHeader}>
+                <Text
+                  style={[
+                    styles.cancellationOptionLabel,
+                    formData.cancellation_policy === policy.value && styles.cancellationOptionLabelSelected,
+                  ]}
+                >
+                  {policy.label}
+                </Text>
+                {formData.cancellation_policy === policy.value && (
+                  <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                )}
+              </View>
+              <Text style={styles.cancellationOptionDescription}>{policy.description}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* Bouton de sauvegarde */}
         <View style={styles.saveSection}>
           <TouchableOpacity
@@ -1080,6 +1123,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 16,
+  },
+  switchDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  cancellationOption: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    marginBottom: 10,
+  },
+  cancellationOptionSelected: {
+    borderColor: '#2E7D32',
+    backgroundColor: '#f0fdf4',
+  },
+  cancellationOptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  cancellationOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  cancellationOptionLabelSelected: {
+    color: '#2E7D32',
+  },
+  cancellationOptionDescription: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
   },
   amenitiesGrid: {
     flexDirection: 'row',

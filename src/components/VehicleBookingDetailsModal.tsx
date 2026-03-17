@@ -602,6 +602,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                     hourly_rate: booking.hourly_rate || 0, // Passer hourly_rate de la réservation
                     vehicle: {
                       rules: booking.vehicle?.rules || [],
+                      cancellation_policy: booking.vehicle?.cancellation_policy ?? undefined,
                       discount_enabled: booking.vehicle?.discount_enabled,
                       discount_min_days: booking.vehicle?.discount_min_days,
                       discount_percentage: booking.vehicle?.discount_percentage,

@@ -474,6 +474,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                   security_deposit: booking.security_deposit || booking.vehicle?.security_deposit || 0, // Caution
                   vehicle: {
                     rules: booking.vehicle?.rules || [],
+                    cancellation_policy: booking.vehicle?.cancellation_policy ?? undefined,
                     discount_enabled: booking.vehicle?.discount_enabled,
                     discount_min_days: booking.vehicle?.discount_min_days,
                     discount_percentage: booking.vehicle?.discount_percentage,
