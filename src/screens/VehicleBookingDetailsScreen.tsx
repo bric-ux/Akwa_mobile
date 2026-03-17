@@ -241,10 +241,25 @@ const VehicleBookingDetailsScreen: React.FC = () => {
     });
   };
 
+  const getEffectiveStatus = (): string => {
+    if (!booking) return 'pending';
+    if (booking.status === 'cancelled' || booking.status === 'completed') return booking.status;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(booking.start_date);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(booking.end_date);
+    endDate.setHours(0, 0, 0, 0);
+    if (endDate < today) return 'completed';
+    if (startDate <= today && endDate >= today && booking.status === 'confirmed') return 'in_progress';
+    return booking.status;
+  };
+
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { color: string; label: string }> = {
       pending: { color: '#f39c12', label: 'En attente' },
       confirmed: { color: '#27ae60', label: 'Confirmée' },
+      in_progress: { color: '#3498db', label: 'En cours' },
       cancelled: { color: '#e74c3c', label: 'Annulée' },
       completed: { color: '#3498db', label: 'Terminée' },
     };
@@ -329,7 +344,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Statut */}
         <View style={styles.statusContainer}>
-          {getStatusBadge(booking.status)}
+          {getStatusBadge(getEffectiveStatus())}
         </View>
 
         {/* Numéro de réservation (ID en base) */}

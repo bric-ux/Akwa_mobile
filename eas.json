@@ -19,13 +19,15 @@
     "internal": {
       "android": {
         "track": "internal",
-        "releaseStatus": "completed"
+        "releaseStatus": "completed",
+        "serviceAccountKeyPath": "./google-service-account.json"
       }
     },
     "production": {
       "android": {
         "track": "production",
-        "releaseStatus": "completed"
+        "releaseStatus": "completed",
+        "serviceAccountKeyPath": "./google-service-account.json"
       }
     }
   }

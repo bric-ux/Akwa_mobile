@@ -408,10 +408,12 @@ export const useBookingCancellation = () => {
       const remainingNights = Math.max(0, totalNights - nightsElapsed);
       const remainingBaseAmount = remainingNights * pricePerNight;
       const penalty = Math.round(remainingBaseAmount * 0.40);
+      // Remboursement = restant des jours non consommés (au prorata du total payé)
+      const refundAmount = totalNights > 0 ? Math.round((remainingNights / totalNights) * totalPrice) : 0;
       return {
         penalty,
-        refundAmount: totalPrice,
-        description: `Annulation en cours de location (40% de pénalité sur ${remainingNights} jour(s) restant(s)). Le locataire sera remboursé intégralement.`,
+        refundAmount,
+        description: `Annulation en cours de location (40% de pénalité sur ${remainingNights} jour(s) restant(s)). Le locataire sera remboursé du restant des jours non consommés.`,
       };
     }
     // Pénalité à partir de 5 jours avant le début de la location

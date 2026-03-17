@@ -169,6 +169,19 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
     return dateFormatted;
   };
 
+  const getEffectiveStatus = (): string => {
+    if (booking.status === 'cancelled' || booking.status === 'completed') return booking.status;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(booking.start_date);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(booking.end_date);
+    endDate.setHours(0, 0, 0, 0);
+    if (endDate < today) return 'completed';
+    if (startDate <= today && endDate >= today && booking.status === 'confirmed') return 'in_progress';
+    return booking.status;
+  };
+
   const getStatusBadge = (status: string) => {
     const statusConfig: { [key: string]: { color: string; label: string; icon: string } } = {
       pending: { color: '#f59e0b', label: 'En attente', icon: 'time-outline' },
@@ -187,6 +200,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
     );
   };
 
+  const effectiveStatus = getEffectiveStatus();
   const vehicle = booking.vehicle;
   const renter = booking.renter;
   const owner = vehicle?.owner;
@@ -319,7 +333,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
 
             {/* Statut */}
             <View style={styles.section}>
-              {getStatusBadge(booking.status)}
+              {getStatusBadge(effectiveStatus)}
             </View>
 
             {/* Demande de modification en attente - uniquement pour le propriétaire */}

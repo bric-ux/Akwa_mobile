@@ -73,6 +73,31 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
 
   if (!booking) return null;
 
+  const getEffectiveStatus = (): string => {
+    if (booking.status === 'cancelled' || booking.status === 'completed') return booking.status;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkIn = new Date(booking.check_in_date);
+    checkIn.setHours(0, 0, 0, 0);
+    const checkOut = new Date(booking.check_out_date);
+    checkOut.setHours(0, 0, 0, 0);
+    if (checkOut < today) return 'completed';
+    if (checkIn <= today && checkOut >= today && booking.status === 'confirmed') return 'in_progress';
+    return booking.status;
+  };
+
+  const effectiveStatus = getEffectiveStatus();
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'En attente';
+      case 'confirmed': return 'Confirmée';
+      case 'in_progress': return 'En cours';
+      case 'cancelled': return 'Annulée';
+      case 'completed': return 'Terminée';
+      default: return status;
+    }
+  };
+
   const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed' || booking.status === 'in_progress';
 
   return (
@@ -147,7 +172,7 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
 
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Statut</Text>
-                <Text style={styles.infoValue}>{booking.status}</Text>
+                <Text style={styles.infoValue}>{getStatusLabel(effectiveStatus)}</Text>
               </View>
 
               {(booking as any).created_at && (
@@ -192,7 +217,7 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
             )}
 
             {/* Bouton Annuler pour les réservations confirmées ou en cours */}
-            {(booking.status === 'confirmed' || booking.status === 'in_progress') && (
+            {(effectiveStatus === 'confirmed' || effectiveStatus === 'in_progress') && (
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setHostCancellationDialogVisible(true)}

@@ -626,6 +626,8 @@ export const useHostBookings = () => {
 
       const isInProgress = checkOutDate && checkInDate <= now && now <= checkOutDate;
       let penalty = 0;
+      /** Remboursement au voyageur : 100% du total avant le séjour, ou 100% du restant des nuitées non consommées si séjour en cours. */
+      let refundAmount = booking.total_price;
 
       // Pénalité à partir de 5 jours avant le début du séjour
       if (isInProgress) {
@@ -633,6 +635,8 @@ export const useHostBookings = () => {
         const remainingNights = Math.max(0, totalNights - nightsElapsed);
         const remainingBaseAmount = remainingNights * booking.properties.price_per_night;
         penalty = Math.round(remainingBaseAmount * 0.40);
+        // Remboursement = restant des nuitées non consommées (au prorata du total payé)
+        refundAmount = totalNights > 0 ? Math.round((remainingNights / totalNights) * booking.total_price) : 0;
       } else if (daysUntilCheckIn > 5) {
         penalty = 0;
       } else if (daysUntilCheckIn > 2 && daysUntilCheckIn <= 5) {
@@ -709,7 +713,7 @@ export const useHostBookings = () => {
                 checkOut: booking.check_out_date,
                 guests: booking.guests_count,
                 totalPrice: booking.total_price,
-                refundAmount: booking.total_price,
+                refundAmount,
                 penaltyAmount: penalty,
                 reason: cancellationReason || 'Annulation par l\'hôte',
                 siteUrl: 'https://akwahome.com'

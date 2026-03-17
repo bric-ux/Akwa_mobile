@@ -178,12 +178,29 @@ const HostBookingsScreen: React.FC = () => {
     });
   };
 
+  const getEffectiveStatus = (item: HostBooking): string => {
+    if (item.status === 'cancelled' || item.status === 'completed') {
+      return item.status;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkIn = new Date(item.check_in_date);
+    checkIn.setHours(0, 0, 0, 0);
+    const checkOut = new Date(item.check_out_date);
+    checkOut.setHours(0, 0, 0, 0);
+    if (checkOut < today) return 'completed';
+    if (checkIn <= today && checkOut >= today && item.status === 'confirmed') return 'in_progress';
+    return item.status;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
         return '#FFA500';
       case 'confirmed':
         return '#4CAF50';
+      case 'in_progress':
+        return '#2196F3';
       case 'cancelled':
         return '#F44336';
       case 'completed':
@@ -479,8 +496,8 @@ const HostBookingsScreen: React.FC = () => {
             </Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(getEffectiveStatus(item)) }]}>
+          <Text style={styles.statusText}>{getStatusText(getEffectiveStatus(item))}</Text>
         </View>
       </View>
 

@@ -604,13 +604,21 @@ const VehicleCalendarScreen: React.FC = () => {
           ) : bookings.length === 0 ? (
             <Text style={styles.emptyText}>Aucune réservation</Text>
           ) : (
-            bookings.map((booking) => (
+            bookings.map((booking) => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const startDate = new Date(booking.start_date);
+              startDate.setHours(0, 0, 0, 0);
+              const endDate = new Date(booking.end_date);
+              endDate.setHours(0, 0, 0, 0);
+              const isInProgress = booking.status === 'confirmed' && startDate <= today && endDate >= today;
+              const statusLabel = booking.status === 'pending' ? 'En attente' : isInProgress ? 'En cours' : 'Confirmée';
+              return (
               <View key={booking.id} style={styles.periodCard}>
                 <View style={styles.periodInfo}>
                   <View style={[styles.badgeBlocked, { backgroundColor: '#2563eb' }]}>
                     <Text style={styles.badgeText}>
-                      {booking.status === 'confirmed' ? 'Confirmée' : 
-                       booking.status === 'pending' ? 'En attente' : 'En cours'}
+                      {statusLabel}
                     </Text>
                   </View>
                   <Text style={styles.periodDate}>
@@ -624,7 +632,8 @@ const VehicleCalendarScreen: React.FC = () => {
                   </Text>
                 </View>
               </View>
-            ))
+            );
+            })
           )}
         </View>
 
