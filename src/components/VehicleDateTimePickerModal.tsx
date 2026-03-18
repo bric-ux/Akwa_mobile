@@ -283,17 +283,14 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       tempEndDateMinutes: tempEndDate.getMinutes(),
     });
     
-    // Vérification finale : s'assurer que la date de fin est après la date de début
-    const startDateOnly = new Date(finalStartDate);
-    startDateOnly.setHours(0, 0, 0, 0);
-    const endDateOnly = new Date(finalEndDate);
-    endDateOnly.setHours(0, 0, 0, 0);
-    
-    if (endDateOnly.getTime() <= startDateOnly.getTime()) {
-      // Si la date de fin est avant ou égale à la date de début, ajuster
+    // Validation finale : end doit être strictement après start
+    // IMPORTANT : on compare les datetime complets.
+    // Sinon, en mode horaire (même jour), une fin à 20h30 serait corrigée à tort en start+1h.
+    if (finalEndDate.getTime() <= finalStartDate.getTime()) {
       finalEndDate.setTime(finalStartDate.getTime());
+      // Conserver les minutes (00/30) et forcer +1h minimum
       finalEndDate.setHours(finalEndDate.getHours() + 1, finalEndDate.getMinutes(), 0, 0);
-      console.log(`⚠️ [VehicleDateTimePickerModal] Date de fin ajustée car <= date de début`);
+      console.log(`⚠️ [VehicleDateTimePickerModal] Date de fin ajustée car <= date de début (datetime)`);
     }
     
     // Vérifier que la date de début n'est pas dans le passé
