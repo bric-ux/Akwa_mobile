@@ -1270,6 +1270,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         {/* Aperçu: montants si l'utilisateur choisit "split" */}
                         {formatPayment(splitCardChargeAmount)} {t('common.now')}, {formatPayment(finalTotal - splitCardChargeAmount)} {t('booking.onArrival')}
                       </Text>
+                      <Text style={styles.paymentPlanNote}>
+                        Le premier paiement inclut tous les frais AkwaHome. Le reste sera payable à l’arrivée.
+                      </Text>
                     </View>
                     {paymentPlan === 'split' && selectedPaymentMethod !== 'cash' && (
                       <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
@@ -2099,6 +2102,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2E7D32',
     marginTop: 4,
+  },
+  paymentPlanNote: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+    lineHeight: 16,
   },
   paymentPlanDisabled: {
     opacity: 0.5,
