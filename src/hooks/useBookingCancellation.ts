@@ -100,7 +100,9 @@ export const useBookingCancellation = () => {
           refundAmount = 0;
           penaltyAmount = totalPrice;
         } else {
-          const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+          // Pour véhicule: on ne proratiste plus les taxes/frais sur la partie non consommée.
+          // Cela évite un remboursement trop proche du total (et donc une pénalité affichée à 0).
+          const taxesProRata = 0;
           switch (policy) {
             case 'flexible':
               refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
@@ -129,7 +131,7 @@ export const useBookingCancellation = () => {
               refundAmount = totalPrice;
               penaltyAmount = 0;
             } else {
-              const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+              const taxesProRata = 0;
               refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
               penaltyAmount = Math.max(0, totalPrice - refundAmount);
             }
@@ -139,7 +141,7 @@ export const useBookingCancellation = () => {
               refundAmount = totalPrice;
               penaltyAmount = 0;
             } else {
-              const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+              const taxesProRata = 0;
               refundAmount = Math.round(0.5 * remainingNightsAmount + taxesProRata);
               penaltyAmount = Math.max(0, totalPrice - refundAmount);
             }
@@ -152,7 +154,7 @@ export const useBookingCancellation = () => {
               refundAmount = Math.round(0.5 * totalPrice);
               penaltyAmount = totalPrice - refundAmount;
             } else {
-              const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+              const taxesProRata = 0;
               refundAmount = Math.round(taxesProRata);
               penaltyAmount = Math.max(0, totalPrice - refundAmount);
             }
@@ -166,7 +168,7 @@ export const useBookingCancellation = () => {
               refundAmount = totalPrice;
               penaltyAmount = 0;
             } else {
-              const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
+              const taxesProRata = 0;
               refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
               penaltyAmount = Math.max(0, totalPrice - refundAmount);
             }

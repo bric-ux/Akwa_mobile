@@ -137,12 +137,9 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       : guestCancellationInfo && !guestCancellationInfo.canCancel
         ? 'Cette réservation est non remboursable. Aucun remboursement ne sera effectué.'
         : guestCancellationInfo
-          ? (guestCancellationInfo.penaltyAmount && guestCancellationInfo.penaltyAmount > 0
-              ? `Pénalité de ${(guestCancellationInfo.penaltyAmount ?? 0).toLocaleString()} XOF. `
-              : '') +
-            (booking?.status === 'pending'
-              ? 'Aucune pénalité (demande en attente).'
-              : `Remboursement : ${(guestCancellationInfo.refundAmount ?? 0).toLocaleString()} XOF.`)
+          ? (booking?.status === 'pending'
+              ? 'Demande en attente. Aucun paiement effectué.'
+              : `Montant à rembourser : ${(guestCancellationInfo.refundAmount ?? 0).toLocaleString()} XOF.`)
           : '';
 
   const canConfirmCancellation = isOwner || !guestCancellationInfo || guestCancellationInfo.canCancel;
@@ -762,9 +759,9 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                   ) : (
                     <Text style={styles.infoText}>
                       {penaltyDescription}
-                      {'\n\n'}
                       {isOwner ? (
                         <>
+                          {'\n\n'}
                           {penalty > 0 ? (
                             <>
                               Vous serez pénalisé de {penalty.toLocaleString()} XOF.
@@ -779,23 +776,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                             </>
                           )}
                         </>
-                      ) : (
-                        <>
-                          {penalty > 0 ? (
-                            <>
-                              Une pénalité de {penalty.toLocaleString()} XOF sera appliquée.
-                              {'\n'}
-                              Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
-                            </>
-                          ) : (
-                            <>
-                              Aucune pénalité ne sera appliquée.
-                              {'\n'}
-                              Le montant remboursé sera de {refundAmount.toLocaleString()} XOF.
-                            </>
-                          )}
-                        </>
-                      )}
+                      ) : null}
                     </Text>
                   )}
                 </View>
