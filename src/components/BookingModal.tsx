@@ -983,9 +983,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
   // Paiement partiel : 100 % des frais de service au premier paiement, le reste (nuitées + ménage + taxes) en 50/50.
   const serviceFee = fees.serviceFee ?? 0;
   const effectivePaymentPlan = property.allow_partial_payment === true ? paymentPlan : 'full';
+  // Montants pré-calculés pour l'aperçu (option "split") et le calcul du montant réellement dû.
+  const splitCardChargeAmount = Math.round((finalTotal - serviceFee) * 0.5) + serviceFee;
+  const fullCardChargeAmount = finalTotal;
   const cardChargeAmount = effectivePaymentPlan === 'split'
-    ? Math.round((finalTotal - serviceFee) * 0.5) + serviceFee
-    : finalTotal;
+    ? splitCardChargeAmount
+    : fullCardChargeAmount;
   const canPayByCard = true; // Carte acceptée en CFA (XOF) et en EUR
 
   if (showCardPaymentSuccess) {
@@ -1264,7 +1267,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         {t('booking.paySplitDesc')}
                       </Text>
                       <Text style={styles.paymentPlanAmount}>
-                        {formatPayment(cardChargeAmount)} {t('common.now')}, {formatPayment(finalTotal - cardChargeAmount)} {t('booking.onArrival')}
+                        {/* Aperçu: montants si l'utilisateur choisit "split" */}
+                        {formatPayment(splitCardChargeAmount)} {t('common.now')}, {formatPayment(finalTotal - splitCardChargeAmount)} {t('booking.onArrival')}
                       </Text>
                     </View>
                     {paymentPlan === 'split' && selectedPaymentMethod !== 'cash' && (
