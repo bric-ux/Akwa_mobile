@@ -880,6 +880,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       if (serviceType === 'property') {
         emailData = {
           bookingId: booking.id,
+          bookingCode: (booking as any).booking_code,
           created_at: (booking as any).created_at,
           bookingDate: (booking as any).created_at,
           recipientName: type === 'traveler' ? (travelerName || 'Voyageur') : (hostName || 'Hôte'),
@@ -940,6 +941,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         // Pour les véhicules - format attendu par l'Edge Function
         emailData = {
           bookingId: booking.id,
+          vehicleBookingCode: (booking as any).vehicle_booking_code,
           created_at: (booking as any).created_at,
           bookingDate: (booking as any).created_at,
           recipientName: type === 'traveler' ? (travelerName || 'Locataire') : (hostName || 'Propriétaire'),
@@ -1031,9 +1033,6 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         />
         <View style={styles.headerRight}>
           <Text style={styles.headerType} numberOfLines={2}>{getTitle()}</Text>
-          <Text style={styles.invoiceNumber} numberOfLines={2}>
-            N° {booking.id}
-          </Text>
           <Text style={styles.rccmNumber}>
             NCC:2507662T
           </Text>
@@ -1044,6 +1043,14 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Type de service</Text>
         <Text style={styles.sectionValue}>{getServiceTypeLabel(serviceType)}</Text>
+      </View>
+
+      {/* Détails: numéro de réservation (code court) */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Numéro de réservation</Text>
+        <Text style={styles.sectionValue} numberOfLines={2}>
+          {(booking as any).vehicle_booking_code || (booking as any).booking_code || booking.id}
+        </Text>
       </View>
 
       {/* Titre propriété/véhicule */}

@@ -322,7 +322,9 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.bookingId}>Réservation #{booking.id || ''}</Text>
+          <Text style={styles.bookingId}>
+            Réservation #{(booking as any).vehicle_booking_code || (booking as any).booking_code || booking.id || ''}
+          </Text>
 
           <ScrollView 
             style={styles.content} 

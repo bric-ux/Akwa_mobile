@@ -347,10 +347,12 @@ const VehicleBookingDetailsScreen: React.FC = () => {
           {getStatusBadge(getEffectiveStatus())}
         </View>
 
-        {/* Numéro de réservation (ID en base) */}
+        {/* Numéro de réservation (code court) */}
         <View style={[styles.section, { marginBottom: 0 }]}>
           <Text style={styles.sectionTitle}>Numéro de réservation</Text>
-          <Text style={styles.reservationId}>#{booking.id}</Text>
+          <Text style={styles.reservationId}>
+            #{(booking as any).vehicle_booking_code || (booking as any).booking_code || booking.id}
+          </Text>
         </View>
 
         {/* Afficher la demande de modification en cours */}
@@ -458,6 +460,8 @@ const VehicleBookingDetailsScreen: React.FC = () => {
                 serviceType="vehicle"
                 booking={{
                   id: booking.id,
+                  // Code court lisible (en base) pour l'affichage
+                  vehicle_booking_code: (booking as any).vehicle_booking_code,
                   start_date: booking.start_date,
                   end_date: booking.end_date,
                   start_datetime: booking.start_datetime, // Ajouté pour afficher les heures
