@@ -205,6 +205,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   const [travelerEmail, setTravelerEmail] = useState<string | undefined>(providedTravelerEmail);
   const [hostEmail, setHostEmail] = useState<string | undefined>(providedHostEmail);
   const [approvedModification, setApprovedModification] = useState<any>(null);
+  /** Pénalité(s) à déduire de la prochaine paie (choix "prélèvement sur prochaine réservation") — pour affichage facture hôte + PDF */
+  const [hostPendingPenaltyDeduct, setHostPendingPenaltyDeduct] = useState<number>(0);
 
   // Debug: Vérifier les données disponibles
   useEffect(() => {
@@ -219,6 +221,39 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       });
     }
   }, [booking, serviceType]);
+
+  // Récupérer la pénalité "à déduire de la prochaine paie" pour l'hôte (affichage facture + PDF)
+  useEffect(() => {
+    if (type !== 'host' || !booking) {
+      setHostPendingPenaltyDeduct(0);
+      return;
+    }
+    const hostId = serviceType === 'property'
+      ? (booking.properties as any)?.host_id
+      : (booking.vehicle as any)?.owner_id;
+    if (!hostId) {
+      setHostPendingPenaltyDeduct(0);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data: rows, error } = await supabase
+        .from('penalty_tracking')
+        .select('penalty_amount')
+        .eq('host_id', hostId)
+        .eq('payment_method', 'deduct_from_next_booking')
+        .eq('status', 'pending');
+      if (cancelled) return;
+      if (error) {
+        if (__DEV__) console.warn('[InvoiceDisplay] Erreur chargement pénalités à déduire:', error);
+        setHostPendingPenaltyDeduct(0);
+        return;
+      }
+      const total = (rows || []).reduce((sum, r) => sum + (Number(r.penalty_amount) || 0), 0);
+      setHostPendingPenaltyDeduct(total);
+    })();
+    return () => { cancelled = true; };
+  }, [type, booking?.id, serviceType, (booking as any)?.properties?.host_id, (booking as any)?.vehicle?.owner_id]);
 
   // Récupérer les emails si non fournis
   useEffect(() => {
@@ -899,6 +934,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           payment_plan: booking.payment_plan || '',
           payment_currency: displayCurrency,
           exchange_rate: displayRate > 0 ? displayRate : undefined,
+          host_pending_penalty_deduct: type === 'host' ? hostPendingPenaltyDeduct : undefined,
         };
       } else {
         // Pour les véhicules - format attendu par l'Edge Function
@@ -943,6 +979,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           vehicleDriverFee: booking.vehicle?.driver_fee || 0, // BUG FIX: Ajouter vehicleDriverFee pour le calcul PDF
           payment_currency: displayCurrency,
           exchange_rate: displayRate > 0 ? displayRate : undefined,
+          host_pending_penalty_deduct: type === 'host' ? hostPendingPenaltyDeduct : undefined,
         };
       }
 
@@ -1566,6 +1603,18 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
             </Text>
           </View>
 
+          {/* Pénalité à déduire de la prochaine paie (choix "prélèvement sur prochaine réservation") */}
+          {hostPendingPenaltyDeduct > 0 && (
+            <View style={styles.financialRow}>
+              <Text style={[styles.financialLabel, styles.penaltyDeductLabel]}>
+                Pénalité d'annulation (sera déduite de votre prochaine paie)
+              </Text>
+              <Text style={[styles.financialValue, styles.penaltyDeductValue]}>
+                -{formatPriceFCFA(hostPendingPenaltyDeduct)}
+              </Text>
+            </View>
+          )}
+
           {/* Mode de paiement */}
           <View style={styles.financialRow}>
             <Text style={styles.financialLabel}>Mode de paiement</Text>
@@ -2073,6 +2122,13 @@ const styles = StyleSheet.create({
   },
   netAmountText: {
     color: '#059669',
+  },
+  penaltyDeductLabel: {
+    color: '#b45309',
+  },
+  penaltyDeductValue: {
+    color: '#b45309',
+    fontWeight: '600',
   },
   contactSection: {
     marginTop: 16,

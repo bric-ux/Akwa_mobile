@@ -616,7 +616,8 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     setFinalTotalPrice(finalTotalPrice);
     setSurplusBreakdown(calculatedSurplusBreakdown);
 
-    // Préparer les données de modification (surplusAmount = montant à prélever pour le modal de paiement)
+    // requestedTotalPrice = NOUVEAU TOTAL (ancien + surplus), pas seulement le surplus. C'est ce montant qui sera enregistré en base à l'approbation.
+    // surplusAmount = montant à prélever maintenant (différence à payer).
     const modificationData = {
       bookingId: booking.id,
       guestId: user.id,
@@ -628,7 +629,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
       requestedCheckIn: formatDateForAPI(finalCheckIn),
       requestedCheckOut: formatDateForAPI(finalCheckOut),
       requestedGuestsCount: guestsCount,
-      requestedTotalPrice: finalTotalPrice,
+      requestedTotalPrice: finalTotalPrice, // ancien total + surplus (full new total)
       surplusAmount: finalPriceDifference > 0 ? finalPriceDifference : 0,
       guestMessage: message.trim() || undefined,
     };
