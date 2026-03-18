@@ -901,16 +901,14 @@ const VehicleBookingScreen: React.FC = () => {
       return;
     }
 
-    if (!startDate || !endDate) {
-      Alert.alert('Erreur', 'Veuillez sélectionner les dates de début et de fin');
+    if (!startDateTime || !endDateTime) {
+      Alert.alert('Erreur', 'Veuillez sélectionner les dates et heures de début et de fin');
       return;
     }
 
-    // Comparer les dates en format string pour éviter les problèmes de fuseau horaire
-    // Le format "YYYY-MM-DD" est lexicographiquement comparable
-    // La date de fin doit être strictement supérieure à la date de début
-    if (endDate <= startDate) {
-      Alert.alert('Erreur', 'La date de rendu doit être strictement supérieure à la date de prise. Vous ne pouvez pas commencer et terminer la location le même jour.');
+    // L'heure de rendu doit être strictement après l'heure de prise (même jour autorisé, ex. 11:30 → 20:30)
+    if (new Date(endDateTime) <= new Date(startDateTime)) {
+      Alert.alert('Erreur', 'L\'heure de rendu doit être après l\'heure de prise.');
       return;
     }
 
@@ -1258,8 +1256,8 @@ const VehicleBookingScreen: React.FC = () => {
                   <Text style={styles.dateTimeButtonText}>
                     {(() => {
                       const startDate = new Date(startDateTime);
-                      const dateStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-                      const timeStr = `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`;
+                      const dateStr = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const timeStr = `${String(startDate.getUTCHours()).padStart(2, '0')}:${String(startDate.getUTCMinutes()).padStart(2, '0')}`;
                       if (__DEV__) console.log(`📅 [VehicleBookingScreen] Affichage début: ${dateStr} ${timeStr} (startDateTime: ${startDateTime})`);
                       return `${dateStr} ${timeStr}`;
                     })()}
@@ -1267,8 +1265,8 @@ const VehicleBookingScreen: React.FC = () => {
                   <Text style={styles.dateTimeButtonText}>
                     {(() => {
                       const endDate = new Date(endDateTime);
-                      const dateStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-                      const timeStr = `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+                      const dateStr = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const timeStr = `${String(endDate.getUTCHours()).padStart(2, '0')}:${String(endDate.getUTCMinutes()).padStart(2, '0')}`;
                       if (__DEV__) console.log(`📅 [VehicleBookingScreen] Affichage fin: ${dateStr} ${timeStr} (endDateTime: ${endDateTime})`);
                       return `${dateStr} ${timeStr}`;
                     })()}
@@ -1644,12 +1642,22 @@ const VehicleBookingScreen: React.FC = () => {
         {/* Résumé */}
         <View style={styles.summarySection}>
           <Text style={styles.sectionTitle}>Résumé</Text>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Prix par jour</Text>
-            <Text style={styles.summaryValue}>
-              {formatPrice(basePricePerDay)}
-            </Text>
-          </View>
+          {/* Prix par jour uniquement si la durée comprend des jours ; sinon afficher prix par heure (location à l'heure seule) */}
+          {rentalDays > 0 ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Prix par jour</Text>
+              <Text style={styles.summaryValue}>
+                {formatPrice(basePricePerDay)}
+              </Text>
+            </View>
+          ) : remainingHours > 0 && (effectivePricePerHour ?? 0) > 0 ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Prix par heure</Text>
+              <Text style={styles.summaryValue}>
+                {formatPrice(effectivePricePerHour ?? 0)}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Durée de location</Text>
             <Text style={styles.summaryValue}>

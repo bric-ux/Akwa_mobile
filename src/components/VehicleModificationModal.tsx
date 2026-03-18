@@ -575,17 +575,19 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                     <>
                       <Text style={styles.dateTimeButtonText}>
                         {(() => {
+                          const tz = 'Africa/Abidjan';
                           const startDate = new Date(startDateTime);
-                          const dateStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-                          const timeStr = startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                          const dateStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
+                          const timeStr = startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
                           return `${dateStr} à ${timeStr}`;
                         })()}
                       </Text>
                       <Text style={styles.dateTimeButtonSubtext}>
                         {(() => {
+                          const tz = 'Africa/Abidjan';
                           const endDate = new Date(endDateTime);
-                          const dateStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-                          const timeStr = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                          const dateStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
+                          const timeStr = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
                           return `Jusqu'au ${dateStr} à ${timeStr}`;
                         })()}
                       </Text>

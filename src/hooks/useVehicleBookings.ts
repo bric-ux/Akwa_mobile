@@ -128,11 +128,6 @@ export const useVehicleBookings = () => {
       const startDate = start.toISOString().split('T')[0];
       const endDate = end.toISOString().split('T')[0];
 
-      // Validation : la date de fin doit être strictement supérieure à la date de début
-      if (endDate <= startDate) {
-        throw new Error('La date de rendu doit être strictement supérieure à la date de prise. Vous ne pouvez pas commencer et terminer la location le même jour.');
-      }
-
       // Déterminer le type de location
       const rentalType = bookingData.rentalType || 'daily';
       
@@ -383,7 +378,9 @@ export const useVehicleBookings = () => {
       // IMPORTANT: La caution n'est PAS incluse dans le revenu net car elle est payée en espèces
       const hostNetAmount = basePriceWithDriver - hostCommissionData.hostCommission;
       
-      // Paiement carte : ne rien créer en base avant paiement (flux draft comme résidence).
+      // Heures choisies (HH:mm) pour affichage email/PDF sans ambiguïté
+      const startTimeStr = startDateTime?.includes('T') ? startDateTime.split('T')[1].slice(0, 5) : null;
+      const endTimeStr = endDateTime?.includes('T') ? endDateTime.split('T')[1].slice(0, 5) : null;
 
       const bookingInsert: any = {
         vehicle_id: bookingData.vehicleId,
@@ -393,6 +390,8 @@ export const useVehicleBookings = () => {
         end_date: endDate,
         start_datetime: startDateTime,
         end_datetime: endDateTime,
+        start_time: startTimeStr,
+        end_time: endTimeStr,
         total_price: totalPrice,
         host_net_amount: hostNetAmount,
         security_deposit: vehicle.security_deposit ?? 0,
@@ -1195,6 +1194,8 @@ export const useVehicleBookings = () => {
             endDate: formatDate(booking.end_date),
             startDateTime: booking.start_datetime || undefined,
             endDateTime: booking.end_datetime || undefined,
+            startTime: (booking as any).start_time || undefined,
+            endTime: (booking as any).end_time || undefined,
             rentalDays: booking.rental_days,
             rentalHours: booking.rental_hours || 0,
             dailyRate: booking.daily_rate,

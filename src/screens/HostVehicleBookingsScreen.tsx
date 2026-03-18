@@ -126,9 +126,9 @@ const HostVehicleBookingsScreen: React.FC = () => {
         ? 'Voulez-vous confirmer cette réservation ?'
         : 'Voulez-vous annuler cette réservation ?',
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: 'Retour', style: 'cancel' },
         {
-          text: status === 'confirmed' ? 'Confirmer' : 'Annuler',
+          text: status === 'confirmed' ? 'Confirmer' : 'Oui, annuler',
           style: status === 'cancelled' ? 'destructive' : 'default',
           onPress: async () => {
             try {
@@ -158,17 +158,19 @@ const HostVehicleBookingsScreen: React.FC = () => {
   };
 
   const formatDateWithTime = (dateString: string, dateTimeString?: string) => {
-    const date = new Date(dateString);
+    const tz = 'Africa/Abidjan';
+    const date = new Date(dateTimeString || dateString);
     const dateFormatted = date.toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
+      timeZone: tz,
     });
     if (dateTimeString) {
-      const time = new Date(dateTimeString);
-      const timeFormatted = time.toLocaleTimeString('fr-FR', {
+      const timeFormatted = date.toLocaleTimeString('fr-FR', {
         hour: '2-digit',
         minute: '2-digit',
+        timeZone: tz,
       });
       return `${dateFormatted} à ${timeFormatted}`;
     }

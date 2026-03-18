@@ -388,7 +388,10 @@ const MyBookingsScreen: React.FC = () => {
     const formatDateWithTime = (dateStr: string, datetimeStr?: string | null) => {
       if (datetimeStr) {
         const dt = new Date(datetimeStr);
-        return `${formatDate(dateStr)} à ${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
+        const tz = 'Africa/Abidjan';
+        const dateFormatted = dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz });
+        const timeFormatted = dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+        return `${dateFormatted} à ${timeFormatted}`;
       }
       return formatDate(dateStr);
     };

@@ -29,6 +29,12 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   onClose,
   onConfirm,
 }) => {
+  /** Parse l'ISO en date d'affichage : les chiffres de l'ISO (ex. 11:30) = heure affichée (pas de conversion timezone). */
+  const isoToDisplayDate = (iso: string): Date => {
+    const d = new Date(iso);
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), 0, 0);
+  };
+
   const normalizeToMinuteSlot = (date: Date): Date => {
     const normalized = new Date(date);
     const minute = normalized.getMinutes();
@@ -53,11 +59,11 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   const [mode, setMode] = useState<'manual' | 'days'>('manual'); // 'manual' = sélection manuelle, 'days' = nombre de jours
   const [rentalDays, setRentalDays] = useState<string>('1');
   const [tempStartDate, setTempStartDate] = useState<Date>(() => {
-    if (startDateTime) return normalizeToMinuteSlot(new Date(startDateTime));
+    if (startDateTime) return normalizeToMinuteSlot(isoToDisplayDate(startDateTime));
     return roundUpToNextMinuteSlot(new Date());
   });
   const [tempEndDate, setTempEndDate] = useState<Date>(() => {
-    if (endDateTime) return normalizeToMinuteSlot(new Date(endDateTime));
+    if (endDateTime) return normalizeToMinuteSlot(isoToDisplayDate(endDateTime));
     const base = roundUpToNextMinuteSlot(new Date());
     base.setHours(base.getHours() + 1);
     return base;
@@ -300,8 +306,25 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       console.log(`⚠️ [VehicleDateTimePickerModal] Date de début ajustée car dans le passé`);
     }
     
-    const startISO = finalStartDate.toISOString();
-    const endISO = finalEndDate.toISOString();
+    // Heure affichée = heure stockée : on encode en ISO sans conversion timezone (évite -2h en base)
+    const startISO = new Date(Date.UTC(
+      finalStartDate.getFullYear(),
+      finalStartDate.getMonth(),
+      finalStartDate.getDate(),
+      finalStartDate.getHours(),
+      finalStartDate.getMinutes(),
+      0,
+      0
+    )).toISOString();
+    const endISO = new Date(Date.UTC(
+      finalEndDate.getFullYear(),
+      finalEndDate.getMonth(),
+      finalEndDate.getDate(),
+      finalEndDate.getHours(),
+      finalEndDate.getMinutes(),
+      0,
+      0
+    )).toISOString();
     
     console.log(`✅ [VehicleDateTimePickerModal] handleConfirm - FINAL:`, {
       startISO,
@@ -392,9 +415,9 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   const hasInitializedRef = useRef(false);
   useEffect(() => {
     if (visible && !hasInitializedRef.current) {
-      // Première ouverture du modal : initialiser depuis les props
+      // Première ouverture : initialiser depuis les props (ISO = heure affichée, pas conversion tz)
       if (startDateTime) {
-        const newStartDate = normalizeToMinuteSlot(new Date(startDateTime));
+        const newStartDate = normalizeToMinuteSlot(isoToDisplayDate(startDateTime));
         setTempStartDate(newStartDate);
         console.log(`🔄 [VehicleDateTimePickerModal] Initialisation tempStartDate depuis props:`, {
           startDateTime,
@@ -403,7 +426,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
         });
       }
       if (endDateTime) {
-        const newEndDate = normalizeToMinuteSlot(new Date(endDateTime));
+        const newEndDate = normalizeToMinuteSlot(isoToDisplayDate(endDateTime));
         setTempEndDate(newEndDate);
         console.log(`🔄 [VehicleDateTimePickerModal] Initialisation tempEndDate depuis props:`, {
           endDateTime,

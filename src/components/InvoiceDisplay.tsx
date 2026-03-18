@@ -81,20 +81,20 @@ const formatDate = (dateString?: string): string => {
   });
 };
 
+// Fuseau utilisé pour l'affichage des réservations (aligné avec le PDF/email = UTC = Abidjan)
+const BOOKING_DISPLAY_TIMEZONE = 'Africa/Abidjan';
+
 const formatDateWithTime = (dateString?: string, dateTimeString?: string): string => {
   if (!dateString) return '-';
   try {
-    const date = new Date(dateString);
-    const dateFormatted = date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    const opts = { day: '2-digit' as const, month: '2-digit' as const, year: 'numeric' as const, timeZone: BOOKING_DISPLAY_TIMEZONE };
+    const date = new Date(dateTimeString || dateString);
+    const dateFormatted = date.toLocaleDateString('fr-FR', opts);
     if (dateTimeString) {
-      const time = new Date(dateTimeString);
-      const timeFormatted = time.toLocaleTimeString('fr-FR', {
+      const timeFormatted = date.toLocaleTimeString('fr-FR', {
         hour: '2-digit',
         minute: '2-digit',
+        timeZone: BOOKING_DISPLAY_TIMEZONE,
       });
       return `${dateFormatted} à ${timeFormatted}`;
     }

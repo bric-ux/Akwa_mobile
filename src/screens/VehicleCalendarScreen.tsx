@@ -304,17 +304,19 @@ const VehicleCalendarScreen: React.FC = () => {
   };
 
   const formatDateWithTime = (dateString: string, dateTimeString?: string) => {
-    const date = new Date(dateString);
+    const tz = 'Africa/Abidjan';
+    const date = new Date(dateTimeString || dateString);
     const dateFormatted = date.toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
+      timeZone: tz,
     });
     if (dateTimeString) {
-      const time = new Date(dateTimeString);
-      const timeFormatted = time.toLocaleTimeString('fr-FR', {
+      const timeFormatted = date.toLocaleTimeString('fr-FR', {
         hour: '2-digit',
         minute: '2-digit',
+        timeZone: tz,
       });
       return `${dateFormatted} à ${timeFormatted}`;
     }
@@ -655,7 +657,7 @@ const VehicleCalendarScreen: React.FC = () => {
                   </View>
                   <Text style={styles.periodDate}>
                     {blocked.period_type === 'hourly' && blocked.start_datetime && blocked.end_datetime
-                      ? `${new Date(blocked.start_datetime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} → ${new Date(blocked.end_datetime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                      ? `${new Date(blocked.start_datetime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Abidjan' })} → ${new Date(blocked.end_datetime).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Abidjan' })}`
                       : blocked.start_date === blocked.end_date
                         ? formatDateShort(new Date(blocked.start_date))
                         : `${formatDateShort(new Date(blocked.start_date))} → ${formatDateShort(new Date(blocked.end_date))}`

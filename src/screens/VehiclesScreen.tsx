@@ -870,18 +870,18 @@ const VehiclesScreen: React.FC = () => {
                   <Text style={styles.dateTimeText}>
                     {(() => {
                       const startDate = new Date(startDateTime);
-                      const dateStr = startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-                      const timeStr = `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`;
-                      console.log(`📅 [VehiclesScreen] Affichage début: ${dateStr} ${timeStr} (startDateTime: ${startDateTime}, heures: ${startDate.getHours()}, minutes: ${startDate.getMinutes()})`);
+                      const dateStr = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const timeStr = `${String(startDate.getUTCHours()).padStart(2, '0')}:${String(startDate.getUTCMinutes()).padStart(2, '0')}`;
+                      console.log(`📅 [VehiclesScreen] Affichage début: ${dateStr} ${timeStr} (startDateTime: ${startDateTime})`);
                       return `${dateStr} ${timeStr}`;
                     })()}
                   </Text>
                   <Text style={styles.dateTimeText}>
                     {(() => {
                       const endDate = new Date(endDateTime);
-                      const dateStr = endDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-                      const timeStr = `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
-                      console.log(`📅 [VehiclesScreen] Affichage fin: ${dateStr} ${timeStr} (endDateTime: ${endDateTime}, heures: ${endDate.getHours()}, minutes: ${endDate.getMinutes()})`);
+                      const dateStr = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate())).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                      const timeStr = `${String(endDate.getUTCHours()).padStart(2, '0')}:${String(endDate.getUTCMinutes()).padStart(2, '0')}`;
+                      console.log(`📅 [VehiclesScreen] Affichage fin: ${dateStr} ${timeStr} (endDateTime: ${endDateTime})`);
                       return `${dateStr} ${timeStr}`;
                     })()}
                   </Text>

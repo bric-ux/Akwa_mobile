@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,8 @@ import { getCommissionRates } from '../lib/commissions';
 interface VehicleDateTimeSelectorProps {
   startDateTime?: string; // ISO string
   endDateTime?: string; // ISO string
-  onDateTimeChange: (startDateTime: string, endDateTime: string) => void;
+  /** startDateTime, endDateTime (ISO), optionnellement startTime et endTime en "HH:mm" (heure affichée = stockée telle quelle) */
+  onDateTimeChange: (startDateTime: string, endDateTime: string, startTime?: string, endTime?: string) => void;
   isDateUnavailable?: (date: Date) => boolean;
   hourlyRentalEnabled?: boolean; // Si false, mode simplifié : nombre de jours + date/heure départ
   // Props pour la prévisualisation du prix
@@ -78,10 +79,19 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
     return newDate;
   };
 
-  // États temporaires - initialiser avec des heures par défaut (09:00 et 18:00)
+  // Interpréter une ISO en "date + heure Abidjan" pour affichage et envoi cohérents (évite décalage 2h email/PDF)
+  const isoToLocalDisplayDate = (iso: string): Date => {
+    const d = new Date(iso);
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0);
+  };
+  const isoToLocalDisplayTime = (iso: string): Date => {
+    const d = new Date(iso);
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), 0, 0);
+  };
+
   const getInitialStartDate = (): Date => {
     if (startDateTime) {
-      return new Date(startDateTime);
+      return isoToLocalDisplayDate(startDateTime);
     }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -90,18 +100,17 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
 
   const getInitialStartTime = (): Date => {
     if (startDateTime) {
-      return new Date(startDateTime);
+      return isoToLocalDisplayTime(startDateTime);
     }
     const now = new Date();
-    // Utiliser l'heure actuelle arrondie à l'heure supérieure
     const defaultTime = new Date(now);
-    defaultTime.setHours(now.getHours() + 1, 0, 0, 0); // Heure actuelle + 1 heure
+    defaultTime.setHours(now.getHours() + 1, 0, 0, 0);
     return defaultTime;
   };
 
   const getInitialEndDate = (): Date => {
     if (endDateTime) {
-      return new Date(endDateTime);
+      return isoToLocalDisplayDate(endDateTime);
     }
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -111,12 +120,11 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
 
   const getInitialEndTime = (): Date => {
     if (endDateTime) {
-      return new Date(endDateTime);
+      return isoToLocalDisplayTime(endDateTime);
     }
     const now = new Date();
-    // Utiliser l'heure actuelle + 1 heure (pour la date de fin, qui est généralement demain)
     const defaultTime = new Date(now);
-    defaultTime.setHours(now.getHours() + 1, 0, 0, 0); // Heure actuelle + 1 heure
+    defaultTime.setHours(now.getHours() + 1, 0, 0, 0);
     return defaultTime;
   };
 
@@ -125,17 +133,47 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   const [tempEndDate, setTempEndDate] = useState<Date>(getInitialEndDate());
   const [tempEndTime, setTempEndTime] = useState<Date>(getInitialEndTime());
 
-  // Mettre à jour les états temporaires quand les props changent
+  // Heures/minutes sélectionnées directement (pas l'heure système) — utilisées pour construire l'ISO envoyé
+  const getInitialSelectedStartHM = (): { h: number; m: number } => {
+    if (startDateTime) {
+      const d = new Date(startDateTime);
+      return { h: d.getUTCHours(), m: d.getUTCMinutes() };
+    }
+    const t = getInitialStartTime();
+    return { h: t.getHours(), m: t.getMinutes() };
+  };
+  const getInitialSelectedEndHM = (): { h: number; m: number } => {
+    if (endDateTime) {
+      const d = new Date(endDateTime);
+      return { h: d.getUTCHours(), m: d.getUTCMinutes() };
+    }
+    const t = getInitialEndTime();
+    return { h: t.getHours(), m: t.getMinutes() };
+  };
+  const [selectedStartHM, setSelectedStartHM] = useState<{ h: number; m: number }>(getInitialSelectedStartHM());
+  const [selectedEndHM, setSelectedEndHM] = useState<{ h: number; m: number }>(getInitialSelectedEndHM());
+
+  // Refs pour lire la dernière heure affichée au moment du Confirm (évite stale state)
+  const tempStartTimeRef = useRef<Date>(getInitialStartTime());
+  const tempEndTimeRef = useRef<Date>(getInitialEndTime());
+  useEffect(() => {
+    tempStartTimeRef.current = tempStartTime;
+    tempEndTimeRef.current = tempEndTime;
+  }, [tempStartTime, tempEndTime]);
+
+  // Mettre à jour les états temporaires quand les props changent (affichage = heure Abidjan/UTC)
   useEffect(() => {
     if (startDateTime) {
-      const start = new Date(startDateTime);
-      setTempStartDate(start);
-      setTempStartTime(start);
+      setTempStartDate(isoToLocalDisplayDate(startDateTime));
+      setTempStartTime(isoToLocalDisplayTime(startDateTime));
+      const d = new Date(startDateTime);
+      setSelectedStartHM({ h: d.getUTCHours(), m: d.getUTCMinutes() });
     }
     if (endDateTime) {
-      const end = new Date(endDateTime);
-      setTempEndDate(end);
-      setTempEndTime(end);
+      setTempEndDate(isoToLocalDisplayDate(endDateTime));
+      setTempEndTime(isoToLocalDisplayTime(endDateTime));
+      const d = new Date(endDateTime);
+      setSelectedEndHM({ h: d.getUTCHours(), m: d.getUTCMinutes() });
     }
     
     // Calculer le nombre de jours si on est en mode simplifié et qu'on a des dates
@@ -176,6 +214,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       
       setTempEndDate(calculatedEndDate);
       setTempEndTime(calculatedEndTime);
+      setSelectedEndHM({ h: calculatedEndTime.getHours(), m: calculatedEndTime.getMinutes() });
     }
   }, [hourlyRentalEnabled, tempStartDate, tempStartTime, rentalDays, customRentalHours, useCustomDuration]);
   
@@ -192,9 +231,10 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       if (endDateOnly.getTime() !== startDateOnly.getTime()) {
         const newEndTime = new Date(tempStartTime);
         setTempEndTime(newEndTime);
+        setSelectedEndHM({ h: selectedStartHM.h, m: selectedStartHM.m });
       }
     }
-  }, [hourlyRentalEnabled, tempStartDate, tempStartTime, tempEndDate]);
+  }, [hourlyRentalEnabled, tempStartDate, tempStartTime, tempEndDate, selectedStartHM]);
 
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('fr-FR', {
@@ -241,6 +281,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
           minTime.setHours(minTime.getHours() + 1);
           minTime.setMinutes(0);
           setTempStartTime(minTime);
+          tempStartTimeRef.current = minTime;
         }
         
         // Si la date de fin est avant ou égale à la nouvelle date de début, ajuster au lendemain
@@ -258,45 +299,48 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
         }
         break;
         
-      case 'startTime':
+      case 'startTime': {
+        const startH = selectedDate.getHours();
+        const startM = selectedDate.getMinutes();
+        setSelectedStartHM({ h: startH, m: startM });
         const startCombined = new Date(tempStartDate);
-        startCombined.setHours(selectedDate.getHours());
-        startCombined.setMinutes(selectedDate.getMinutes());
-        startCombined.setSeconds(0);
-        startCombined.setMilliseconds(0);
-        
-        // Vérifier que l'heure est dans le futur si c'est aujourd'hui
+        startCombined.setHours(startH, startM, 0, 0);
         const startDateCheck = new Date(tempStartDate);
         startDateCheck.setHours(0, 0, 0, 0);
         const todayCheck = new Date(now);
         todayCheck.setHours(0, 0, 0, 0);
-        
         if (startDateCheck.getTime() === todayCheck.getTime() && startCombined <= now) {
           const minTime = new Date(now);
-          minTime.setHours(minTime.getHours() + 1);
-          minTime.setMinutes(0);
+          minTime.setHours(minTime.getHours() + 1, 0, 0, 0);
           setTempStartTime(minTime);
+          tempStartTimeRef.current = minTime;
+          setSelectedStartHM({ h: minTime.getHours(), m: minTime.getMinutes() });
         } else {
           setTempStartTime(startCombined);
+          tempStartTimeRef.current = startCombined;
         }
         
-        // Si même date, forcer la date de fin au lendemain
+        // Si même date, s'assurer que l'heure de fin reste après l'heure de début (location même jour autorisée)
         const endDateCheck = new Date(tempEndDate);
         endDateCheck.setHours(0, 0, 0, 0);
         if (endDateCheck.getTime() === startDateCheck.getTime()) {
-          // Forcer la date de fin au lendemain
-          const nextDay = new Date(tempStartDate);
-          nextDay.setDate(nextDay.getDate() + 1);
-          setTempEndDate(nextDay);
-          // Ajuster l'heure de fin à la même heure que l'heure de début
-          setTempEndTime(startCombined);
+          const endCombinedCur = new Date(tempEndDate);
+          endCombinedCur.setHours(tempEndTime.getHours());
+          endCombinedCur.setMinutes(tempEndTime.getMinutes());
+          if (endCombinedCur <= startCombined) {
+            const minEnd = new Date(startCombined);
+            minEnd.setHours(minEnd.getHours() + 1);
+            minEnd.setMinutes(0);
+            setTempEndTime(minEnd);
+          }
         }
         
         if (Platform.OS === 'android') {
           setPickingField(null);
         }
         break;
-        
+      }
+
       case 'endDate':
         const newEndDateOnly = new Date(selectedDate);
         newEndDateOnly.setHours(0, 0, 0, 0);
@@ -311,51 +355,53 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
           return;
         }
         
-        // Si même date, forcer au lendemain
+        // Même jour autorisé : 11:30 → 20:30 le même jour. Sinon garder la date choisie.
         if (newEndDateOnly.getTime() === startDateOnlyCheck.getTime()) {
-          alert('La date de rendu doit être strictement supérieure à la date de prise. La date de fin a été ajustée au lendemain.');
-          const nextDay = new Date(selectedDate);
-          nextDay.setDate(nextDay.getDate() + 1);
-          setTempEndDate(nextDay);
-          // Ajuster l'heure de fin à la même heure que l'heure de début
+          setTempEndDate(selectedDate);
           const startCombined = new Date(tempStartDate);
           startCombined.setHours(tempStartTime.getHours());
           startCombined.setMinutes(tempStartTime.getMinutes());
-          setTempEndTime(startCombined);
+          const curEnd = new Date(tempEndDate);
+          curEnd.setHours(tempEndTime.getHours());
+          curEnd.setMinutes(tempEndTime.getMinutes());
+          if (curEnd <= startCombined) {
+            const minEnd = new Date(startCombined);
+            minEnd.setHours(minEnd.getHours() + 1, 0, 0, 0);
+            setTempEndTime(minEnd);
+            tempEndTimeRef.current = minEnd;
+            setSelectedEndHM({ h: minEnd.getHours(), m: minEnd.getMinutes() });
+          }
         } else {
           setTempEndDate(selectedDate);
         }
-        
         if (Platform.OS === 'android') {
           setPickingField(null);
         }
         break;
         
-      case 'endTime':
+      case 'endTime': {
+        const endH = selectedDate.getHours();
+        const endM = selectedDate.getMinutes();
+        setSelectedEndHM({ h: endH, m: endM });
         const endCombined = new Date(tempEndDate);
-        endCombined.setHours(selectedDate.getHours());
-        endCombined.setMinutes(selectedDate.getMinutes());
-        endCombined.setSeconds(0);
-        endCombined.setMilliseconds(0);
-        
-        // Vérifier que l'heure de fin est après l'heure de début
+        endCombined.setHours(endH, endM, 0, 0);
         const startFull = new Date(tempStartDate);
-        startFull.setHours(tempStartTime.getHours());
-        startFull.setMinutes(tempStartTime.getMinutes());
-        
+        startFull.setHours(selectedStartHM.h, selectedStartHM.m, 0, 0);
         if (endCombined <= startFull) {
           const minEndTime = new Date(startFull);
-          minEndTime.setHours(minEndTime.getHours() + 1);
-          minEndTime.setMinutes(0);
+          minEndTime.setHours(minEndTime.getHours() + 1, 0, 0, 0);
           setTempEndTime(minEndTime);
+          tempEndTimeRef.current = minEndTime;
+          setSelectedEndHM({ h: minEndTime.getHours(), m: minEndTime.getMinutes() });
         } else {
           setTempEndTime(endCombined);
+          tempEndTimeRef.current = endCombined;
         }
-        
         if (Platform.OS === 'android') {
           setPickingField(null);
         }
         break;
+      }
     }
   };
 
@@ -391,25 +437,25 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       setTempEndTime(calculatedEndTime);
     }
     
-    // Combiner date et heure pour start
+    // Heure affichée à l'écran = ce qu'on envoie et stocke (ref pour éviter stale state au clic Confirmer)
+    const startDisplay = tempStartTimeRef.current;
+    const endDisplay = tempEndTimeRef.current;
+    const startH = startDisplay.getHours();
+    const startM = startDisplay.getMinutes();
+    const endH = endDisplay.getHours();
+    const endM = endDisplay.getMinutes();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const startTimeStr = `${pad(startH)}:${pad(startM)}`;
+    const endTimeStr = `${pad(endH)}:${pad(endM)}`;
     const startYear = tempStartDate.getFullYear();
     const startMonth = tempStartDate.getMonth();
     const startDay = tempStartDate.getDate();
-    const startHours = tempStartTime.getHours();
-    const startMinutes = tempStartTime.getMinutes();
-    
-    // Créer une date UTC avec l'heure locale (Côte d'Ivoire = GMT+0, donc UTC = heure locale)
-    const start = new Date(Date.UTC(startYear, startMonth, startDay, startHours, startMinutes, 0, 0));
-
-    // Combiner date et heure pour end
     const endYear = tempEndDate.getFullYear();
     const endMonth = tempEndDate.getMonth();
     const endDay = tempEndDate.getDate();
-    const endHours = tempEndTime.getHours();
-    const endMinutes = tempEndTime.getMinutes();
-    
-    // Créer une date UTC avec l'heure locale
-    const end = new Date(Date.UTC(endYear, endMonth, endDay, endHours, endMinutes, 0, 0));
+
+    const start = new Date(Date.UTC(startYear, startMonth, startDay, startH, startM, 0, 0));
+    const end = new Date(Date.UTC(endYear, endMonth, endDay, endH, endM, 0, 0));
 
     // Vérifications finales
     const now = new Date();
@@ -418,15 +464,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       return;
     }
 
-    // Vérifier que la date de fin est strictement supérieure à la date de début
-    const startDateOnly = new Date(startYear, startMonth, startDay);
-    const endDateOnly = new Date(endYear, endMonth, endDay);
-    
-    if (startDateOnly.getTime() >= endDateOnly.getTime()) {
-      alert('La date de rendu doit être strictement supérieure à la date de prise. Vous ne pouvez pas commencer et terminer la location le même jour.');
-      return;
-    }
-
+    // L'heure de rendu doit être après l'heure de prise (même jour autorisé)
     if (end <= start) {
       alert('L\'heure de fin doit être après l\'heure de début');
       return;
@@ -438,7 +476,7 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       return;
     }
 
-    onDateTimeChange(start.toISOString(), end.toISOString());
+    onDateTimeChange(start.toISOString(), end.toISOString(), startTimeStr, endTimeStr);
     setShowModal(false);
     setPickingField(null);
   };
@@ -446,11 +484,11 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   const handleCancel = () => {
     setShowModal(false);
     setPickingField(null);
-    // Réinitialiser les valeurs temporaires avec les valeurs par défaut
     if (startDateTime) {
-      const start = new Date(startDateTime);
-      setTempStartDate(start);
-      setTempStartTime(start);
+      setTempStartDate(isoToLocalDisplayDate(startDateTime));
+      setTempStartTime(isoToLocalDisplayTime(startDateTime));
+      const d = new Date(startDateTime);
+      setSelectedStartHM({ h: d.getUTCHours(), m: d.getUTCMinutes() });
     } else {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -458,11 +496,13 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       const defaultStartTime = new Date(today);
       defaultStartTime.setHours(9, 0, 0, 0);
       setTempStartTime(defaultStartTime);
+      setSelectedStartHM({ h: 9, m: 0 });
     }
     if (endDateTime) {
-      const end = new Date(endDateTime);
-      setTempEndDate(end);
-      setTempEndTime(end);
+      setTempEndDate(isoToLocalDisplayDate(endDateTime));
+      setTempEndTime(isoToLocalDisplayTime(endDateTime));
+      const d = new Date(endDateTime);
+      setSelectedEndHM({ h: d.getUTCHours(), m: d.getUTCMinutes() });
     } else {
       const endDate = new Date(tempStartDate);
       endDate.setDate(endDate.getDate() + 1);
@@ -470,41 +510,39 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       const defaultEndTime = new Date(endDate);
       defaultEndTime.setHours(18, 0, 0, 0);
       setTempEndTime(defaultEndTime);
+      setSelectedEndHM({ h: 18, m: 0 });
     }
   };
 
   const openModal = () => {
-    // Initialiser les valeurs temporaires avec des valeurs par défaut cohérentes
     if (startDateTime) {
-      const start = new Date(startDateTime);
-      setTempStartDate(start);
-      setTempStartTime(start);
+      setTempStartDate(isoToLocalDisplayDate(startDateTime));
+      setTempStartTime(isoToLocalDisplayTime(startDateTime));
+      const d = new Date(startDateTime);
+      setSelectedStartHM({ h: d.getUTCHours(), m: d.getUTCMinutes() });
     } else {
-      // Date de début : aujourd'hui
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       setTempStartDate(today);
-      // Heure par défaut : 09:00 (au lieu de l'heure actuelle)
       const defaultStartTime = new Date(today);
       defaultStartTime.setHours(9, 0, 0, 0);
       setTempStartTime(defaultStartTime);
+      setSelectedStartHM({ h: 9, m: 0 });
     }
-    
     if (endDateTime) {
-      const end = new Date(endDateTime);
-      setTempEndDate(end);
-      setTempEndTime(end);
+      setTempEndDate(isoToLocalDisplayDate(endDateTime));
+      setTempEndTime(isoToLocalDisplayTime(endDateTime));
+      const d = new Date(endDateTime);
+      setSelectedEndHM({ h: d.getUTCHours(), m: d.getUTCMinutes() });
     } else {
-      // Date de fin : jour suivant la date de début
       const endDate = new Date(tempStartDate);
       endDate.setDate(endDate.getDate() + 1);
       setTempEndDate(endDate);
-      // Heure par défaut : 18:00
       const defaultEndTime = new Date(endDate);
       defaultEndTime.setHours(18, 0, 0, 0);
       setTempEndTime(defaultEndTime);
+      setSelectedEndHM({ h: 18, m: 0 });
     }
-    
     setShowModal(true);
   };
 
@@ -614,28 +652,32 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
   const handleSuggestedHour = (hour: number) => {
     const newTime = new Date(tempStartTime);
     newTime.setHours(hour, 0, 0, 0);
-    
-    // Vérifier que l'heure est dans le futur si c'est aujourd'hui
     const now = new Date();
     const startDateOnly = new Date(tempStartDate);
     startDateOnly.setHours(0, 0, 0, 0);
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);
-    
     if (startDateOnly.getTime() === today.getTime() && newTime <= now) {
-      // Si c'est aujourd'hui et l'heure est passée, utiliser l'heure actuelle + 1
       const minTime = new Date(now);
       minTime.setHours(minTime.getHours() + 1, 0, 0, 0);
       setTempStartTime(minTime);
-      // Synchroniser l'heure de fin
+      tempStartTimeRef.current = minTime;
+      setSelectedStartHM({ h: minTime.getHours(), m: minTime.getMinutes() });
       if (!hourlyRentalEnabled || tempEndDate.getTime() !== tempStartDate.getTime()) {
-        setTempEndTime(new Date(minTime));
+        const endCopy = new Date(minTime);
+        setTempEndTime(endCopy);
+        tempEndTimeRef.current = endCopy;
+        setSelectedEndHM({ h: minTime.getHours(), m: minTime.getMinutes() });
       }
     } else {
       setTempStartTime(newTime);
-      // AMÉLIORATION: Synchroniser automatiquement l'heure de fin avec l'heure de début
+      tempStartTimeRef.current = newTime;
+      setSelectedStartHM({ h: hour, m: 0 });
       if (!hourlyRentalEnabled || tempEndDate.getTime() !== tempStartDate.getTime()) {
-        setTempEndTime(new Date(newTime));
+        const endCopy = new Date(newTime);
+        setTempEndTime(endCopy);
+        tempEndTimeRef.current = endCopy;
+        setSelectedEndHM({ h: hour, m: 0 });
       }
     }
   };
