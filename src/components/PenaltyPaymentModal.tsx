@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,14 @@ import {
   Alert,
   ScrollView,
   Linking,
+  AppState,
+  AppStateStatus,
+  InteractionManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
-import { createCheckoutSession } from '../services/cardPaymentService';
+import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
+import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
 import { formatAmount } from '../utils/priceCalculator';
 
@@ -49,6 +53,119 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PenaltyPaymentMethod>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [pendingWaveCheckoutToken, setPendingWaveCheckoutToken] = useState<string | null>(null);
+  const [pendingWaveReturn, setPendingWaveReturn] = useState(false);
+  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const checkingRef = useRef(false);
+
+  const resetPendingWaveState = useCallback(() => {
+    setPendingWaveCheckoutToken(null);
+    setPendingWaveReturn(false);
+    setCheckingPaymentStatus(false);
+  }, []);
+
+  const checkPenaltyWavePaymentStatus = useCallback(async (token?: string | null) => {
+    if (!penalty) return false;
+    const checkoutToken = token ?? pendingWaveCheckoutToken;
+    if (!checkoutToken) return false;
+    try {
+      const result = await checkPaymentStatus({
+        payment_type: 'penalty',
+        penalty_id: penalty.id,
+        checkout_token: checkoutToken,
+        wave: true,
+      });
+      return result.is_confirmed ?? false;
+    } catch {
+      return false;
+    }
+  }, [penalty, pendingWaveCheckoutToken]);
+
+  const verifyWavePaymentNow = useCallback(async () => {
+    if (!penalty || !pendingWaveCheckoutToken) return;
+    if (checkingRef.current) return;
+    checkingRef.current = true;
+    setCheckingPaymentStatus(true);
+    setPendingWaveReturn(true);
+    const confirmed = await checkPenaltyWavePaymentStatus(pendingWaveCheckoutToken);
+    checkingRef.current = false;
+    setCheckingPaymentStatus(false);
+    if (confirmed) {
+      resetPendingWaveState();
+      setPaymentSuccess(true);
+      setTimeout(() => {
+        onPaymentComplete();
+        onClose();
+      }, 1200);
+    }
+  }, [penalty, pendingWaveCheckoutToken, checkPenaltyWavePaymentStatus, resetPendingWaveState, onPaymentComplete, onClose]);
+
+  useEffect(() => {
+    if (!visible) {
+      resetPendingWaveState();
+      setPaymentMethod('card');
+    }
+  }, [visible, resetPendingWaveState]);
+
+  useEffect(() => {
+    if (!visible || !pendingWaveCheckoutToken || !penalty) return;
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      const confirmed = await checkPenaltyWavePaymentStatus();
+      if (cancelled) return;
+      if (confirmed) {
+        resetPendingWaveState();
+        setPaymentSuccess(true);
+        setTimeout(() => {
+          onPaymentComplete();
+          onClose();
+        }, 1200);
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [visible, pendingWaveCheckoutToken, penalty, checkPenaltyWavePaymentStatus, resetPendingWaveState, onPaymentComplete, onClose]);
+
+  const handleWaveSuccessUrl = useCallback((url: string | null) => {
+    if (!url?.includes('payment-success')) return;
+    const typeMatch = url.match(/payment_type=([^&]+)/);
+    if (typeMatch?.[1] !== 'penalty') return;
+    const tokenMatch = url.match(/checkout_token=([^&]+)/);
+    const urlToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+    if (!urlToken || !pendingWaveCheckoutToken || urlToken !== pendingWaveCheckoutToken) return;
+    setPendingWaveReturn(true);
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(verifyWavePaymentNow, 1000);
+    });
+  }, [pendingWaveCheckoutToken, verifyWavePaymentNow]);
+
+  useEffect(() => {
+    if (!visible) return;
+    Linking.getInitialURL().then(handleWaveSuccessUrl);
+    const sub = Linking.addEventListener('url', ({ url }) => handleWaveSuccessUrl(url));
+    return () => sub.remove();
+  }, [visible, handleWaveSuccessUrl]);
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
+      if (wasBackground && nextState === 'active' && pendingWaveCheckoutToken && penalty) {
+        timeoutId = setTimeout(verifyWavePaymentNow, 1000);
+      }
+      appStateRef.current = nextState;
+    });
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      sub.remove();
+    };
+  }, [pendingWaveCheckoutToken, penalty, verifyWavePaymentNow]);
 
   const savePaymentMethodOnly = async (method: 'bank_transfer' | 'wave' | 'deduct_from_next_booking') => {
     if (!penalty) return;
@@ -91,8 +208,33 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
   const handlePayment = async () => {
     if (!penalty) return;
 
-    if (paymentMethod === 'bank_transfer' || paymentMethod === 'wave') {
+    if (paymentMethod === 'bank_transfer') {
       await savePaymentMethodOnly(paymentMethod);
+      return;
+    }
+
+    if (paymentMethod === 'wave') {
+      setLoading(true);
+      try {
+        const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
+        const result = await createWaveCheckoutSession({
+          payment_type: 'penalty',
+          penalty_id: penalty.id,
+          booking_id: penalty.booking_id,
+          amount: penalty.penalty_amount,
+          property_title: penalty.booking?.property?.title || 'Paiement de penalite',
+          checkout_token: checkoutToken,
+          return_to_app: true,
+          app_scheme: 'akwahomemobile',
+          client: 'mobile',
+        });
+        setPendingWaveCheckoutToken(result.checkout_token ?? checkoutToken);
+        await openWavePayment(result.wave_launch_url);
+      } catch (e: unknown) {
+        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement Wave');
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -330,27 +472,52 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                 </Text>
               </View>
             )}
+            {paymentMethod === 'wave' && (
+              <View style={styles.infoCard}>
+                <Ionicons name="information-circle" size={20} color="#1DA1F2" />
+                <Text style={styles.infoText}>
+                  Vous serez redirigé vers Wave pour effectuer le paiement de la pénalité en toute sécurité.
+                </Text>
+              </View>
+            )}
+            {(pendingWaveCheckoutToken || pendingWaveReturn) && (
+              <View style={styles.infoCard}>
+                <ActivityIndicator size="small" color="#1DA1F2" />
+                <Text style={styles.infoText}>
+                  {pendingWaveReturn || checkingPaymentStatus
+                    ? 'Vérification du paiement Wave en cours...'
+                    : 'Revenez dans l’app après avoir terminé le paiement sur Wave.'}
+                </Text>
+              </View>
+            )}
           </ScrollView>
 
           <View style={styles.footer}>
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
-              onPress={onClose}
-              disabled={loading}
+              onPress={() => {
+                if (pendingWaveCheckoutToken || pendingWaveReturn) {
+                  resetPendingWaveState();
+                }
+                onClose();
+              }}
+              disabled={loading || checkingPaymentStatus}
             >
               <Text style={styles.cancelButtonText}>Annuler</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.button, styles.payButton, loading && styles.payButtonDisabled]}
+              style={[styles.button, styles.payButton, (loading || checkingPaymentStatus || !!pendingWaveCheckoutToken) && styles.payButtonDisabled]}
               onPress={handlePayment}
-              disabled={loading}
+              disabled={loading || checkingPaymentStatus || !!pendingWaveCheckoutToken}
             >
-              {loading ? (
+              {loading || checkingPaymentStatus ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.payButtonText}>
                   {paymentMethod === 'bank_transfer' || paymentMethod === 'wave'
-                    ? 'Confirmer mon choix'
+                    ? paymentMethod === 'wave'
+                      ? `Payer ${formatAmount(penalty.penalty_amount)} avec Wave`
+                      : 'Confirmer mon choix'
                     : paymentMethod === 'deduct_from_next_booking'
                     ? 'Déduire de ma prochaine paie'
                     : paymentMethod === 'cash'

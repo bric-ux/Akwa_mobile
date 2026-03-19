@@ -28,7 +28,7 @@ const PAYMENT_SUCCESS_PATH = 'payment-success';
 const MAX_POLL_ATTEMPTS = 6;
 const SHOW_CLOSE_AFTER_MS = 15000;
 
-type PendingPayment = { type: 'checkout_token'; value: string; bookingType: string };
+type PendingPayment = { type: 'checkout_token'; value: string; bookingType: string; wave?: boolean };
 
 /** Ne traite que les URLs avec checkout_token (résa initiale). Toute URL avec booking_id est ignorée (modification = gérée par les modals). */
 function parsePaymentSuccessFromUrl(url: string): PendingPayment | null {
@@ -37,7 +37,9 @@ function parsePaymentSuccessFromUrl(url: string): PendingPayment | null {
     const bookingTypeMatch = url.match(/booking_type=([^&]+)/);
     const bookingType = bookingTypeMatch ? decodeURIComponent(bookingTypeMatch[1]) : 'property';
     const tokenMatch = url.match(/checkout_token=([^&]+)/);
-    if (tokenMatch) return { type: 'checkout_token', value: decodeURIComponent(tokenMatch[1]), bookingType };
+    const waveMatch = url.match(/[?&]wave=([^&]+)/);
+    const wave = waveMatch ? ['1', 'true', 'yes'].includes(String(waveMatch[1]).toLowerCase()) : false;
+    if (tokenMatch) return { type: 'checkout_token', value: decodeURIComponent(tokenMatch[1]), bookingType, wave };
     return null;
   } catch {
     return null;
@@ -55,7 +57,9 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     try {
       const result = await checkPaymentStatus({
         booking_type: (payload.bookingType as 'property' | 'vehicle') || 'property',
+        payment_type: 'booking',
         checkout_token: payload.value,
+        ...(payload.wave ? { wave: true } : {}),
       });
       if (result.error) return { paid: false, error: result.error };
       return { paid: result.is_confirmed };

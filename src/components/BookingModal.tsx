@@ -25,6 +25,7 @@ import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import BookingIdentityAlert from './BookingIdentityAlert';
 import { supabase } from '../services/supabase';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
+import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
 import AvailabilityCalendar from './AvailabilityCalendar';
 import { getAveragePriceForPeriod } from '../utils/priceCalculator';
@@ -86,6 +87,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [openingStripe, setOpeningStripe] = useState(false);
   const [pendingStripeBookingId, setPendingStripeBookingId] = useState<string | null>(null);
   const [pendingStripeCheckoutToken, setPendingStripeCheckoutToken] = useState<string | null>(null);
+  const [pendingWaveCheckoutToken, setPendingWaveCheckoutToken] = useState<string | null>(null);
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
   const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
   const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
@@ -546,7 +548,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       finalTotal: pricing.finalTotal
     });
 
-    // Paiement par carte (résidence) : pas de résa en base avant paiement → create-checkout-session avec checkout_token + payload
+    // Paiement par carte ou Wave (résidence) : pas de résa en base avant paiement → checkout session puis redirection
     if (selectedPaymentMethod === 'card') {
       if (identityLoading) {
         Alert.alert('Vérification', 'Vérification de l\'identité en cours...');
@@ -571,6 +573,32 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
       // Paiement carte : en CFA (XOF) ou en EUR selon la devise choisie
       await runStripeCheckout(currency === 'EUR');
+      return;
+    }
+
+    if (selectedPaymentMethod === 'wave') {
+      if (identityLoading) {
+        Alert.alert('Vérification', 'Vérification de l\'identité en cours...');
+        return;
+      }
+      if (!hasUploadedIdentity) {
+        Alert.alert(
+          'Vérification d\'identité requise',
+          'Vous devez envoyer une pièce d\'identité pour effectuer une réservation. Rendez-vous dans votre profil.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      if (!isVerified && verificationStatus !== 'pending') {
+        Alert.alert(
+          'Identité en cours de vérification',
+          'Votre pièce d\'identité est en cours de vérification. Vous pourrez réserver une fois qu\'elle sera validée par notre équipe.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      await runWaveCheckout();
       return;
     }
 
@@ -633,6 +661,62 @@ const BookingModal: React.FC<BookingModalProps> = ({
         setOpeningStripe(false);
         const msg = stripeErr instanceof Error ? stripeErr.message : 'Le paiement n\'a pas pu être initié. Veuillez réessayer.';
         Alert.alert('Paiement', msg, [{ text: 'OK' }]);
+        return;
+      }
+    }
+
+    async function runWaveCheckout() {
+      try {
+        setOpeningStripe(true);
+        const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
+        const ep = property.allow_partial_payment === true ? paymentPlan : 'full';
+        const svcFee = pricing.fees?.serviceFee ?? 0;
+        const chargeAmt = ep === 'split' ? Math.round((pricing.finalTotal - svcFee) * 0.5) + svcFee : pricing.finalTotal;
+        const waveAmountXof = currency === 'EUR' && rates.EUR
+          ? Math.round(chargeAmt * rates.EUR)
+          : Math.round(chargeAmt);
+        const waveBody: Record<string, unknown> = {
+          checkout_token: checkoutToken,
+          payment_type: 'booking',
+          booking_type: 'property',
+          client: 'mobile',
+          return_to_app: true,
+          app_scheme: 'akwahomemobile',
+          amount: waveAmountXof,
+          property_title: property.title,
+          check_in: formatDateForAPI(checkIn!),
+          check_out: formatDateForAPI(checkOut!),
+          customer_country: ((user?.user_metadata as any)?.country_code || (user?.user_metadata as any)?.country || ''),
+          propertyId: property.id,
+          checkInDate: formatDateForAPI(checkIn!),
+          checkOutDate: formatDateForAPI(checkOut!),
+          guestsCount: totalGuests,
+          adultsCount: adults,
+          childrenCount: children,
+          infantsCount: infants,
+          totalPrice: pricing.finalTotal,
+          discountAmount: totalDiscountAmount,
+          discountApplied,
+          originalTotal,
+          messageToHost: message.trim() || undefined,
+          voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
+          paymentMethod: 'wave',
+          paymentPlan: ep,
+          paymentCurrency: currency,
+          paymentRate: currency === 'EUR' ? rates.EUR : undefined,
+        };
+        const waveResult = await createWaveCheckoutSession(waveBody);
+        setPendingWaveCheckoutToken(waveResult.checkout_token ?? checkoutToken);
+        setPendingStripeStartedAt(Date.now());
+        setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
+        setOpeningStripe(false);
+        await openWavePayment(waveResult.wave_launch_url);
+        return;
+      } catch (waveErr) {
+        console.error('Wave checkout error:', waveErr);
+        setOpeningStripe(false);
+        const msg = waveErr instanceof Error ? waveErr.message : 'Le paiement Wave n\'a pas pu être initié. Veuillez réessayer.';
+        Alert.alert('Paiement Wave', msg, [{ text: 'OK' }]);
         return;
       }
     }
@@ -714,15 +798,17 @@ const BookingModal: React.FC<BookingModalProps> = ({
 
   const [lastPaymentStatus, setLastPaymentStatus] = useState<{ payment_status: string; booking_status: string } | null>(null);
 
-  const checkStripePaymentCompleted = useCallback(async (opts: { bookingId?: string; checkoutToken?: string }): Promise<{ paid: boolean; payment_status?: string; booking_status?: string; error?: string }> => {
-    const { bookingId, checkoutToken } = opts;
+  const checkStripePaymentCompleted = useCallback(async (opts: { bookingId?: string; checkoutToken?: string; wave?: boolean }): Promise<{ paid: boolean; payment_status?: string; booking_status?: string; error?: string }> => {
+    const { bookingId, checkoutToken, wave } = opts;
     const fallback = { paid: false, payment_status: 'pending', booking_status: 'pending' };
     if (!bookingId && !checkoutToken) return fallback;
     try {
       const result = await checkPaymentStatus({
         booking_type: 'property',
+        payment_type: 'booking',
         ...(checkoutToken ? { checkout_token: checkoutToken } : {}),
         ...(bookingId ? { booking_id: bookingId } : {}),
+        ...(wave ? { wave: true } : {}),
       });
       setLastPaymentStatus({ payment_status: result.payment_status ?? 'pending', booking_status: result.booking_status ?? 'pending' });
       if (result.error) return { paid: false, payment_status: result.payment_status, booking_status: result.booking_status, error: result.error };
@@ -799,6 +885,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const resetStripePendingState = useCallback(() => {
     setPendingStripeBookingId(null);
     setPendingStripeCheckoutToken(null);
+    setPendingWaveCheckoutToken(null);
     setPendingStripeStartedAt(null);
     setStripeTimeLeftSec(0);
     setCheckingStripeStatus(false);
@@ -806,11 +893,22 @@ const BookingModal: React.FC<BookingModalProps> = ({
     setLastPaymentStatus(null);
   }, []);
 
-  const isPendingStripe = !!pendingStripeCheckoutToken || !!pendingStripeBookingId;
+  const isPendingStripe = !!pendingStripeCheckoutToken || !!pendingStripeBookingId || !!pendingWaveCheckoutToken;
 
   const handleAbandonStripeOperation = useCallback(async () => {
     if (!isPendingStripe) {
       onClose();
+      return;
+    }
+    if (pendingWaveCheckoutToken) {
+      Alert.alert(
+        'Abandonner le paiement ?',
+        "Vous pourrez réserver à nouveau plus tard. Aucune réservation n'a été créée.",
+        [
+          { text: 'Continuer le paiement', style: 'cancel' },
+          { text: "J'abandonne", style: 'destructive', onPress: () => { resetStripePendingState(); onClose(); } },
+        ]
+      );
       return;
     }
     if (pendingStripeCheckoutToken) {
@@ -840,12 +938,17 @@ const BookingModal: React.FC<BookingModalProps> = ({
         },
       ]
     );
-  }, [isPendingStripe, pendingStripeCheckoutToken, pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState, onClose]);
+  }, [isPendingStripe, pendingStripeCheckoutToken, pendingWaveCheckoutToken, pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState, onClose]);
 
   const verifyStripePaymentNow = useCallback(async () => {
-    if ((!pendingStripeCheckoutToken && !pendingStripeBookingId) || checkingStripeStatus) return;
+    const hasPending = pendingStripeCheckoutToken || pendingStripeBookingId || pendingWaveCheckoutToken;
+    if (!hasPending || checkingStripeStatus) return;
     setCheckingStripeStatus(true);
-    const opts = pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken } : { bookingId: pendingStripeBookingId! };
+    const opts = pendingWaveCheckoutToken
+      ? { checkoutToken: pendingWaveCheckoutToken, wave: true }
+      : pendingStripeCheckoutToken
+        ? { checkoutToken: pendingStripeCheckoutToken }
+        : { bookingId: pendingStripeBookingId! };
     const isRetryableError = (err: string) =>
       /failed to send|edge function|network|timeout|connexion|erreur de connexion/i.test(err || '');
     let result = await checkStripePaymentCompleted(opts);
@@ -903,6 +1006,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [
     pendingStripeCheckoutToken,
+    pendingWaveCheckoutToken,
     pendingStripeBookingId,
     checkingStripeStatus,
     checkStripePaymentCompleted,
@@ -912,7 +1016,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
   ]);
 
   useEffect(() => {
-    if ((!pendingStripeCheckoutToken && !pendingStripeBookingId) || !pendingStripeStartedAt) return;
+    const hasPending = pendingStripeCheckoutToken || pendingStripeBookingId || pendingWaveCheckoutToken;
+    if (!hasPending || !pendingStripeStartedAt) return;
 
     const timer = setInterval(() => {
       const elapsed = Date.now() - pendingStripeStartedAt;
@@ -937,19 +1042,21 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [pendingStripeCheckoutToken, pendingStripeBookingId, pendingStripeStartedAt, cancelPendingCardBooking, resetStripePendingState]);
+  }, [pendingStripeCheckoutToken, pendingWaveCheckoutToken, pendingStripeBookingId, pendingStripeStartedAt, cancelPendingCardBooking, resetStripePendingState]);
 
   useEffect(() => {
-    if (!pendingStripeCheckoutToken && !pendingStripeBookingId) return;
+    const hasPending = pendingStripeCheckoutToken || pendingStripeBookingId || pendingWaveCheckoutToken;
+    if (!hasPending) return;
     const poller = setInterval(() => verifyStripePaymentNow(), 2000);
     return () => clearInterval(poller);
-  }, [pendingStripeCheckoutToken, pendingStripeBookingId, verifyStripePaymentNow]);
+  }, [pendingStripeCheckoutToken, pendingWaveCheckoutToken, pendingStripeBookingId, verifyStripePaymentNow]);
 
   useEffect(() => {
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     const subscription = AppState.addEventListener('change', (nextState) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
-      if (wasBackground && nextState === 'active' && (pendingStripeCheckoutToken || pendingStripeBookingId)) {
+      const hasPending = pendingStripeCheckoutToken || pendingStripeBookingId || pendingWaveCheckoutToken;
+      if (wasBackground && nextState === 'active' && hasPending) {
         verifyStripePaymentNow();
         retryTimeout = setTimeout(() => verifyStripePaymentNow(), 2000);
       }
@@ -959,7 +1066,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       if (retryTimeout) clearTimeout(retryTimeout);
       subscription.remove();
     };
-  }, [pendingStripeCheckoutToken, pendingStripeBookingId, verifyStripePaymentNow]);
+  }, [pendingStripeCheckoutToken, pendingWaveCheckoutToken, pendingStripeBookingId, verifyStripePaymentNow]);
 
   useEffect(() => {
     if (!visible) {
@@ -971,8 +1078,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
   }, [visible, pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState]);
 
   const validatePaymentInfo = () => {
-    // Carte : pas de saisie dans l'app, redirection vers Stripe Checkout.
-    if (selectedPaymentMethod === 'card' || selectedPaymentMethod === 'cash') {
+    // Carte, Wave, cash : pas de saisie dans l'app (carte/Wave → checkout, cash → résa directe).
+    if (selectedPaymentMethod === 'card' || selectedPaymentMethod === 'cash' || selectedPaymentMethod === 'wave') {
       return true;
     }
     Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible.');
@@ -1283,17 +1390,21 @@ const BookingModal: React.FC<BookingModalProps> = ({
             </View>
           )}
 
-          {(pendingStripeBookingId || pendingStripeCheckoutToken) && (
+          {(pendingStripeBookingId || pendingStripeCheckoutToken || pendingWaveCheckoutToken) && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 {property.auto_booking ? 'Paiement en attente' : 'En attente d\'acceptation'}
               </Text>
               <View style={styles.stripePendingBox}>
-                <ActivityIndicator size="small" color="#2563eb" />
+                <ActivityIndicator size="small" color={pendingWaveCheckoutToken ? '#8b5cf6' : '#2563eb'} />
                 <Text style={styles.stripePendingText}>
-                  {property.auto_booking
-                    ? 'Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.'
-                    : 'Finalisez le paiement sur Stripe. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par l\'hôte.'}
+                  {pendingWaveCheckoutToken
+                    ? (property.auto_booking
+                        ? 'Finalisez le paiement sur Wave. En revenant ici, la confirmation se fera automatiquement.'
+                        : 'Finalisez le paiement sur Wave. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par l\'hôte.')
+                    : (property.auto_booking
+                        ? 'Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.'
+                        : 'Finalisez le paiement sur Stripe. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par l\'hôte.')}
                 </Text>
                 {lastPaymentStatus && (
                   <Text style={styles.stripeStatusText}>
@@ -1319,7 +1430,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
                     style={[styles.stripeActionButton, styles.stripeActionDanger]}
                     onPress={handleAbandonStripeOperation}
                   >
-                    <Text style={styles.stripeActionDangerText}>J’abandonne l’operation</Text>
+                    <Text style={styles.stripeActionDangerText}>Annuler le paiement</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1397,12 +1508,25 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 </View>
               )}
 
-              {(selectedPaymentMethod === 'wave' || selectedPaymentMethod === 'paypal' || selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
+              {selectedPaymentMethod === 'wave' && (
+                <View style={styles.paymentInfoContainer}>
+                  <View style={styles.securityInfo}>
+                    <Ionicons name="phone-portrait" size={20} color="#8b5cf6" />
+                    <Text style={styles.securityText}>
+                      {property.auto_booking
+                        ? 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre réservation sera confirmée automatiquement.'
+                        : 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre demande de réservation sera envoyée au propriétaire.'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {(selectedPaymentMethod === 'paypal' || selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
                 <View style={styles.paymentInfoContainer}>
                   <View style={styles.securityInfo}>
                     <Ionicons name="time-outline" size={20} color="#f59e0b" />
                     <Text style={styles.securityText}>
-                      Ce moyen de paiement sera bientot disponible. {canPayByCard ? 'Utilisez Carte bancaire (Stripe) ou Espèces pour continuer.' : 'Utilisez Espèces pour continuer.'}
+                      Ce moyen de paiement sera bientot disponible. {canPayByCard ? 'Utilisez Carte bancaire (Stripe), Wave ou Espèces pour continuer.' : 'Utilisez Wave ou Espèces pour continuer.'}
                     </Text>
                   </View>
                 </View>
@@ -1544,13 +1668,17 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   : hasUploadedIdentity && !isVerified && verificationStatus === 'rejected'
                     ? 'Identité rejetée'
                     : openingStripe
-                      ? 'Ouverture de Stripe...'
+                      ? (selectedPaymentMethod === 'wave' ? 'Ouverture de Wave...' : 'Ouverture de Stripe...')
                     : isPendingStripe
                       ? (property.auto_booking ? 'Paiement en attente...' : 'En attente d\'acceptation...')
                     : selectedPaymentMethod === 'card'
                       ? property.auto_booking
                         ? 'Payer et confirmer'
                         : 'Payer et envoyer la demande'
+                    : selectedPaymentMethod === 'wave'
+                      ? property.auto_booking
+                        ? 'Payer avec Wave'
+                        : 'Payer avec Wave et envoyer la demande'
                     : selectedPaymentMethod === 'cash'
                       ? t('booking.confirmBooking')
                     : effectivePaymentPlan === 'split'
@@ -1740,7 +1868,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   selectedPaymentMethod === 'wave' && styles.paymentMethodSelected
                 ]}
                 onPress={() => {
-                  Alert.alert('Bientot disponible', 'Wave sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
+                  setSelectedPaymentMethod('wave');
+                  setShowPaymentMethodModal(false);
                 }}
               >
                 <View style={styles.paymentMethodContent}>

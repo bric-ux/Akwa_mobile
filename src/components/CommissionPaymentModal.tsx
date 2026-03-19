@@ -16,13 +16,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
+import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
 import { formatAmount } from '../utils/priceCalculator';
 import { useCurrency } from '../hooks/useCurrency';
 import type { CommissionDueItem, PlatformPaymentInfo } from '../hooks/useCommissions';
 
 const FALLBACK_WAVE = '+225 07 79 57 13 48';
-const FALLBACK_RIB = 'FR76 1759 8000 0100 0121 8085 961';
 const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 interface CommissionPaymentModalProps {
@@ -43,12 +43,12 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
   onPaymentComplete,
 }) => {
   const [paymentMethod, setPaymentMethod] = useState<CommissionPaymentMethod>('card');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [stripeCheckoutOpened, setStripeCheckoutOpened] = useState(false);
   const [pendingStripeReturn, setPendingStripeReturn] = useState(false);
   const [pendingStripeSessionId, setPendingStripeSessionId] = useState<string | null>(null);
+  const [pendingWaveCheckoutToken, setPendingWaveCheckoutToken] = useState<string | null>(null);
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
   const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
   const [lastPaymentStatus, setLastPaymentStatus] = useState<string | null>(null);
@@ -58,7 +58,6 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
 
   const { currency, rates, formatPrice, formatPriceForPayment } = useCurrency();
   const wavePhone = paymentInfo?.wave_phone || FALLBACK_WAVE;
-  const ribIban = paymentInfo?.rib_iban || FALLBACK_RIB;
   const commissionAmount = commission?.amount_due ?? 0;
   const cardFeePercent = 1;
   const cardFeeAmount = Math.round(commissionAmount * (cardFeePercent / 100));
@@ -69,16 +68,28 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     setStripeCheckoutOpened(false);
     setPendingStripeReturn(false);
     setPendingStripeSessionId(null);
+    setPendingWaveCheckoutToken(null);
     setPendingStripeStartedAt(null);
     setStripeTimeLeftSec(0);
     setLastPaymentStatus(null);
     setCheckingStripeStatus(false);
   }, []);
 
-  const checkCommissionPaymentStatus = useCallback(async (): Promise<{ is_confirmed: boolean }> => {
+  const checkCommissionPaymentStatus = useCallback(async (waveToken?: string | null): Promise<{ is_confirmed: boolean }> => {
     if (!commission) return { is_confirmed: false };
+    const token = waveToken ?? pendingWaveCheckoutToken;
     try {
-      // 1) Vérification directe en base en premier (RLS : on ne voit que nos lignes) — la plus fiable
+      // Wave : vérifier via check-payment-status avec wave: true
+      if (token) {
+        const result = await checkPaymentStatus({
+          checkout_token: token,
+          wave: true,
+          payment_type: 'platform_commission',
+        });
+        setLastPaymentStatus(result.payment_status ?? 'pending');
+        return { is_confirmed: result.is_confirmed ?? false };
+      }
+      // 1) Vérification directe en base (Stripe ou déclaration manuelle)
       const { data: row } = await supabase
         .from('platform_commission_due')
         .select('status')
@@ -89,8 +100,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
         setLastPaymentStatus('paid');
         return { is_confirmed: true };
       }
-
-      // 2) Sinon appel API (pour cohérence avec le reste)
+      // 2) Sinon appel API Stripe
       const result = await checkPaymentStatus({
         payment_type: 'platform_commission',
         commission_due_id: commission.id,
@@ -101,7 +111,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     } catch {
       return { is_confirmed: false };
     }
-  }, [commission, pendingStripeSessionId]);
+  }, [commission, pendingStripeSessionId, pendingWaveCheckoutToken]);
 
   const verifyCommissionPaymentNow = useCallback(async () => {
     if (!commission) return;
@@ -109,7 +119,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     checkingRef.current = true;
     setCheckingStripeStatus(true);
     setPendingStripeReturn(true);
-    const result = await checkCommissionPaymentStatus();
+    const result = await checkCommissionPaymentStatus(pendingWaveCheckoutToken ?? undefined);
     checkingRef.current = false;
     setCheckingStripeStatus(false);
     if (result.is_confirmed) {
@@ -120,7 +130,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
         onClose();
       }, 1500);
     }
-  }, [commission, checkCommissionPaymentStatus, resetPendingStripeState, onPaymentComplete, onClose]);
+  }, [commission, pendingWaveCheckoutToken, checkCommissionPaymentStatus, resetPendingStripeState, onPaymentComplete, onClose]);
 
   useEffect(() => {
     if (visible) {
@@ -130,7 +140,8 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
   }, [visible, resetPendingStripeState]);
 
   useEffect(() => {
-    if (!visible || !stripeCheckoutOpened || !commission) return;
+    const hasPending = stripeCheckoutOpened || !!pendingWaveCheckoutToken;
+    if (!visible || !hasPending || !commission) return;
     let cancelled = false;
     const poll = async () => {
       if (cancelled) return;
@@ -152,7 +163,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [visible, stripeCheckoutOpened, commission, checkCommissionPaymentStatus, resetPendingStripeState, onPaymentComplete, onClose]);
+  }, [visible, stripeCheckoutOpened, pendingWaveCheckoutToken, commission, checkCommissionPaymentStatus, resetPendingStripeState, onPaymentComplete, onClose]);
 
   useEffect(() => {
     if (!stripeCheckoutOpened || !pendingStripeStartedAt) return;
@@ -174,7 +185,8 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
-      if (wasBackground && nextState === 'active' && stripeCheckoutOpened && commission) {
+      const hasPending = stripeCheckoutOpened || !!pendingWaveCheckoutToken;
+      if (wasBackground && nextState === 'active' && hasPending && commission) {
         // Court délai puis vérification (le poll à 1 s détectera aussi dès que la ligne est payée)
         timeoutId = setTimeout(verifyCommissionPaymentNow, 1000);
       }
@@ -187,9 +199,19 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
   }, [stripeCheckoutOpened, commission, verifyCommissionPaymentNow]);
 
   const handlePaymentSuccessUrl = useCallback((url: string | null) => {
-    if (!url?.includes('payment-success') || !commission) return;
+    if (!url?.includes('payment-success')) return;
     const typeMatch = url.match(/payment_type=([^&]+)/);
     if (typeMatch?.[1] !== 'platform_commission') return;
+    const tokenMatch = url.match(/checkout_token=([^&]+)/);
+    const urlToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+    if (urlToken && pendingWaveCheckoutToken && urlToken === pendingWaveCheckoutToken) {
+      setPendingStripeReturn(true);
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(verifyCommissionPaymentNow, 1000);
+      });
+      return;
+    }
+    if (!commission) return;
     const commissionMatch = url.match(/commission_due_id=([^&]+)/);
     const urlCommissionId = commissionMatch ? decodeURIComponent(commissionMatch[1]) : null;
     if (urlCommissionId !== commission.id) return;
@@ -197,7 +219,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     InteractionManager.runAfterInteractions(() => {
       setTimeout(verifyCommissionPaymentNow, 1000);
     });
-  }, [commission, verifyCommissionPaymentNow]);
+  }, [commission, pendingWaveCheckoutToken, verifyCommissionPaymentNow]);
 
   useEffect(() => {
     if (!visible) return;
@@ -241,64 +263,26 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
       return;
     }
 
-    // Wave : marquer payé + notifier admin
+    // Wave : créer checkout Wave unifié (webhook marque la commission comme payée)
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('platform_commission_due')
-        .update({
-          status: 'paid',
-          paid_at: new Date().toISOString(),
-          payment_method: 'wave',
-          payment_reference: phoneNumber.trim() ? `Wave ${phoneNumber.trim()}` : null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', commission.id);
-
-      if (error) throw error;
-
-      await supabase.functions.invoke('send-email', {
-        body: {
-          type: 'commission_wave_declaration',
-          to: 'contact@akwahome.com',
-          data: {
-            commissionDueId: commission.id,
-            amount: commission.amount_due,
-            phoneNumber: phoneNumber.trim() || null,
-            reference: null,
-            label: commission.label,
-            bookingType: commission.booking_type,
-          },
-        },
-      });
-      await supabase.functions.invoke('send-email', {
-        body: {
-          type: 'commission_payment_confirmation',
-          to: 'contact@akwahome.com',
-          data: { commissionDueId: commission.id },
-        },
-      });
-
-      setPaymentSuccess(true);
-      setTimeout(() => {
-        Alert.alert(
-          'Paiement enregistré',
-          "Votre reversement de commission a été enregistré. AkwaHome vérifiera le paiement sous peu.",
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                onPaymentComplete();
-                onClose();
-                setPaymentSuccess(false);
-                setPhoneNumber('');
-              },
-            },
-          ]
-        );
-      }, 1500);
+      const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
+      const waveBody: Record<string, unknown> = {
+        payment_type: 'platform_commission',
+        commission_due_id: commission.id,
+        amount: commission.amount_due,
+        checkout_token: checkoutToken,
+        client: 'mobile',
+        return_to_app: true,
+        app_scheme: 'akwahomemobile',
+      };
+      const waveResult = await createWaveCheckoutSession(waveBody);
+      setPendingWaveCheckoutToken(waveResult.checkout_token ?? checkoutToken);
+      setStripeCheckoutOpened(true);
+      setPendingStripeStartedAt(Date.now());
+      await openWavePayment(waveResult.wave_launch_url);
     } catch (err: unknown) {
-      Alert.alert('Erreur', err instanceof Error ? err.message : "Impossible d'enregistrer le paiement");
+      Alert.alert('Erreur', err instanceof Error ? err.message : "Impossible d'ouvrir le paiement Wave");
     } finally {
       setLoading(false);
     }
@@ -325,6 +309,15 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
             <TouchableOpacity onPress={onClose} disabled={loading}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
+            {paymentMethod === 'wave' && (
+              <View style={styles.detailBox}>
+                <Text style={styles.detailLabel}>Numéro Wave AkwaHome</Text>
+                <Text style={styles.detailValue} selectable>{wavePhone}</Text>
+                <Text style={styles.detailHint}>
+                  Vous paierez {currency === 'EUR' ? formatPriceForPayment(commissionAmount) : formatAmount(commissionAmount)} depuis l&apos;app Wave.
+                </Text>
+              </View>
+            )}
           </View>
 
           <ScrollView style={styles.content}>
@@ -360,17 +353,21 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
 
             <Text style={styles.sectionTitle}>Moyen de paiement</Text>
 
-            <View style={[styles.paymentMethodCard, { opacity: 0.7, backgroundColor: '#f3f4f6' }]}>
+            <TouchableOpacity
+              style={[styles.paymentMethodCard, paymentMethod === 'wave' && styles.paymentMethodCardActive]}
+              onPress={() => setPaymentMethod('wave')}
+            >
               <View style={styles.paymentMethodContent}>
                 <View style={[styles.paymentIcon, { backgroundColor: '#1DA1F2' }]}>
                   <Ionicons name="phone-portrait" size={24} color="#fff" />
                 </View>
                 <View style={styles.paymentMethodInfo}>
                   <Text style={styles.paymentMethodTitle}>Wave</Text>
-                  <Text style={styles.paymentMethodSubtitle}>Paiement mobile — Bientôt disponible</Text>
+                  <Text style={styles.paymentMethodSubtitle}>Paiement mobile sécurisé</Text>
                 </View>
+                <Ionicons name={paymentMethod === 'wave' ? 'radio-button-on' : 'radio-button-off'} size={24} color={paymentMethod === 'wave' ? '#e67e22' : '#ccc'} />
               </View>
-            </View>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.paymentMethodCard, paymentMethod === 'card' && styles.paymentMethodCardActive]}
@@ -395,14 +392,24 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
                 </Text>
               </View>
             )}
+            {paymentMethod === 'wave' && (
+              <View style={styles.infoCard}>
+                <Ionicons name="information-circle" size={20} color="#1DA1F2" />
+                <Text style={styles.infoText}>
+                  Vous serez redirigé vers Wave. Revenez ici après avoir payé pour confirmer.
+                </Text>
+              </View>
+            )}
             {(stripeCheckoutOpened || pendingStripeReturn) && (
               <View style={styles.pendingCard}>
-                <ActivityIndicator size="small" color="#e67e22" />
+                <ActivityIndicator size="small" color={pendingWaveCheckoutToken ? '#1DA1F2' : '#e67e22'} />
                 <Text style={styles.pendingTitle}>Paiement en attente</Text>
                 <Text style={styles.pendingText}>
                   {pendingStripeReturn
                     ? 'Vérification du paiement en cours…'
-                    : 'Revenez dans l’app après avoir terminé le paiement sur Stripe.'}
+                    : pendingWaveCheckoutToken
+                      ? 'Revenez dans l’app après avoir terminé le paiement sur Wave.'
+                      : 'Revenez dans l’app après avoir terminé le paiement sur Stripe.'}
                 </Text>
                 {lastPaymentStatus != null && (
                   <Text style={styles.pendingStatus}>Statut : {lastPaymentStatus}</Text>
@@ -453,7 +460,9 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.payButtonText}>
-                  {paymentMethod === 'wave' ? "J'ai payé par Wave" : `Payer ${payInEur ? formatPriceForPayment(cardTotalAmount) : formatAmount(cardTotalAmount)} par carte`}
+                  {paymentMethod === 'wave'
+                    ? `Payer ${currency === 'EUR' ? formatPriceForPayment(commissionAmount) : formatAmount(commissionAmount)} avec Wave`
+                    : `Payer ${payInEur ? formatPriceForPayment(cardTotalAmount) : formatAmount(cardTotalAmount)} par carte`}
                 </Text>
               )}
             </TouchableOpacity>

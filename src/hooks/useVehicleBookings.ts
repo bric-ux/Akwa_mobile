@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { createCheckoutSession } from '../services/cardPaymentService';
+import { createWaveCheckoutSession } from '../services/wavePaymentService';
 import { VehicleBooking, VehicleBookingStatus } from '../types';
 import { useIdentityVerification } from './useIdentityVerification';
 import { getCommissionRates } from '../lib/commissions';
@@ -425,6 +426,36 @@ export const useVehicleBookings = () => {
       }
 
       // Carte : créer uniquement la session Stripe (résa créée par le webhook après paiement).
+      const isWavePayment = bookingData.paymentMethod === 'wave';
+      if (isWavePayment) {
+        const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
+        const checkoutBody: Record<string, unknown> = {
+          payment_type: 'booking',
+          booking_type: 'vehicle',
+          checkout_token: checkoutToken,
+          client: 'mobile',
+          return_to_app: true,
+          app_scheme: 'akwahomemobile',
+          amount: totalPrice,
+          ...bookingInsert,
+        };
+        try {
+          const waveResult = await createWaveCheckoutSession(checkoutBody);
+          return {
+            success: true,
+            booking: null,
+            status: undefined,
+            checkoutUrl: waveResult.wave_launch_url,
+            paymentInitError: null,
+            checkoutToken: waveResult.checkout_token,
+            paymentProvider: 'wave' as const,
+          };
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : "Impossible d'ouvrir Wave.";
+          console.error('❌ [useVehicleBookings] Erreur init Wave checkout:', err);
+          return { success: false, booking: null, status: undefined, checkoutUrl: null, paymentInitError: errMsg, checkoutToken: null, error: errMsg };
+        }
+      }
       if (isCardPayment) {
         const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
         const vehicleTitle = (vehicle as any).title || `${(vehicle as any).brand || ''} ${(vehicle as any).model || ''}`.trim() || 'Réservation véhicule';

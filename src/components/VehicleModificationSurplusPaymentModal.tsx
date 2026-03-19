@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
+import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
 import { useCurrency } from '../hooks/useCurrency';
 
@@ -78,6 +79,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
   const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
   const [pendingStripeSessionId, setPendingStripeSessionId] = useState<string | null>(null);
+  const [pendingWaveCheckoutToken, setPendingWaveCheckoutToken] = useState<string | null>(null);
 
   const sessionIdRef = useRef<string | null>(null);
   const bookingIdRef = useRef<string | null>(null);
@@ -116,6 +118,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
     setLastPaymentStatus(null);
     setCheckingStripeStatus(false);
     setPendingStripeSessionId(null);
+    setPendingWaveCheckoutToken(null);
     sessionIdRef.current = null;
     bookingIdRef.current = null;
   }, []);
@@ -131,12 +134,28 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
       setStripeTimeLeftSec(0);
       setLastPaymentStatus(null);
       setPendingStripeSessionId(null);
+      setPendingWaveCheckoutToken(null);
       sessionIdRef.current = null;
       bookingIdRef.current = null;
     }
   }, [visible, bookingId]);
 
   const verifyStripePaymentNow = useCallback(async () => {
+    if (pendingWaveCheckoutToken) {
+      if (checkingRef.current) return;
+      checkingRef.current = true;
+      setCheckingStripeStatus(true);
+      setPendingStripeReturn(true);
+      const result = await checkWavePaymentStatus();
+      checkingRef.current = false;
+      setCheckingStripeStatus(false);
+      if (result.is_confirmed) {
+        resetPendingStripeState();
+        setPaymentSuccess(true);
+        setTimeout(() => { onPaymentComplete(undefined); onClose(); }, 1500);
+      }
+      return;
+    }
     const sid = sessionIdRef.current ?? pendingStripeSessionId;
     const bid = bookingIdRef.current ?? bookingId;
     console.log('[DEBUG][VehicleModificationSurplusModal] verifyStripePaymentNow: sid=', !!sid, 'bid=', bid);
@@ -162,7 +181,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
         'Votre paiement a peut-être déjà été enregistré. Consultez vos réservations pour vérifier, ou réessayez dans quelques secondes.'
       );
     }
-  }, [pendingStripeSessionId, bookingId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
+  }, [pendingStripeSessionId, pendingWaveCheckoutToken, bookingId, checkPaymentStatusFull, checkWavePaymentStatus, resetPendingStripeState, onPaymentComplete, onClose]);
 
   const handleAbandonStripeOperation = useCallback(() => {
     Alert.alert(
@@ -177,24 +196,13 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
 
   useEffect(() => {
     if (!visible || !stripeCheckoutOpened) return;
-    if (!pendingStripeSessionId && !sessionIdRef.current) return;
+    const hasStripe = pendingStripeSessionId || sessionIdRef.current;
+    const hasWave = !!pendingWaveCheckoutToken;
+    if (!hasStripe && !hasWave) return;
     let cancelled = false;
     const poll = async () => {
       if (cancelled) return;
-      const sid = sessionIdRef.current ?? pendingStripeSessionId;
-      const bid = bookingIdRef.current ?? bookingId;
-      if (!sid || !bid) return;
-      const result = await checkPaymentStatusFull(sid, bid);
-      if (cancelled) return;
-      if (result.is_confirmed) {
-        console.log('[DEBUG][VehicleModificationSurplusModal] Poll: CONFIRMÉ → onPaymentComplete(sessionId), puis onClose');
-        resetPendingStripeState();
-        setPaymentSuccess(true);
-        setTimeout(() => {
-          onPaymentComplete(sid ?? undefined);
-          onClose();
-        }, 1500);
-      }
+      await verifyStripePaymentNow();
     };
     poll();
     const interval = setInterval(poll, 2500);
@@ -202,7 +210,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
       cancelled = true;
       clearInterval(interval);
     };
-  }, [visible, stripeCheckoutOpened, pendingStripeSessionId, bookingId, checkPaymentStatusFull, resetPendingStripeState, onPaymentComplete, onClose]);
+  }, [visible, stripeCheckoutOpened, pendingStripeSessionId, pendingWaveCheckoutToken, verifyStripePaymentNow]);
 
   useEffect(() => {
     if (!stripeCheckoutOpened || !pendingStripeStartedAt) return;
@@ -234,7 +242,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
       if (retryTimeout) clearTimeout(retryTimeout);
       sub.remove();
     };
-  }, [pendingStripeSessionId, verifyStripePaymentNow]);
+  }, [pendingStripeSessionId, pendingWaveCheckoutToken, verifyStripePaymentNow]);
 
   const handlePaymentSuccessUrl = useCallback((url: string | null) => {
     if (!url) return;
@@ -276,6 +284,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
       setPendingStripeStartedAt(null);
       setLastPaymentStatus(null);
       setPendingStripeSessionId(null);
+      setPendingWaveCheckoutToken(null);
       sessionIdRef.current = null;
       bookingIdRef.current = null;
     }
@@ -284,11 +293,11 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
   const formatPrice = (price: number) => formatPriceForPayment(price);
 
   const validatePaymentInfo = (): boolean => {
-    if (paymentMethod === 'card' || paymentMethod === 'cash') {
+    if (paymentMethod === 'card' || paymentMethod === 'cash' || paymentMethod === 'wave') {
       return true;
     }
-    if (['wave', 'orange_money', 'mtn_money', 'moov_money', 'paypal'].includes(paymentMethod)) {
-      Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
+    if (['orange_money', 'mtn_money', 'moov_money', 'paypal'].includes(paymentMethod)) {
+      Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe), Wave ou Espèces.');
       return false;
     }
     return true;
@@ -347,12 +356,63 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
     }
   }, [bookingId, surplusAmount, vehicleTitle, currency, rates.EUR, rates.USD, modificationRequestPayload]);
 
+  const runWaveCheckoutSurplus = useCallback(async () => {
+    if (!modificationRequestPayload || Object.keys(modificationRequestPayload).length === 0) {
+      Alert.alert('Erreur', 'Données de modification manquantes.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const waveAmountXof = currency === 'EUR' && rates.EUR ? Math.round(surplusAmount * rates.EUR) : Math.round(surplusAmount);
+      const body: Record<string, unknown> = {
+        payment_type: 'modification_surplus',
+        amount: waveAmountXof,
+        client: 'mobile',
+        return_to_app: true,
+        app_scheme: 'akwahomemobile',
+        modification_request: { ...modificationRequestPayload, booking_type: 'vehicle' },
+        booking_type: 'vehicle',
+      };
+      const waveResult = await createWaveCheckoutSession(body);
+      setPendingWaveCheckoutToken(waveResult.checkout_token ?? null);
+      setPendingStripeStartedAt(Date.now());
+      setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
+      setStripeCheckoutOpened(true);
+      setLoading(false);
+      await openWavePayment(waveResult.wave_launch_url);
+    } catch (e) {
+      setLoading(false);
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement Wave');
+    }
+  }, [surplusAmount, currency, rates.EUR, modificationRequestPayload]);
+
+  const checkWavePaymentStatus = useCallback(async (): Promise<{ is_confirmed: boolean }> => {
+    const token = pendingWaveCheckoutToken;
+    if (!token) return { is_confirmed: false };
+    try {
+      const result = await checkPaymentStatus({
+        checkout_token: token,
+        booking_type: 'vehicle',
+        payment_type: 'vehicle_modification_surplus',
+        wave: true,
+      });
+      setLastPaymentStatus(result.payment_status ?? 'pending');
+      return { is_confirmed: result.is_confirmed ?? false };
+    } catch {
+      return { is_confirmed: false };
+    }
+  }, [pendingWaveCheckoutToken]);
+
   const handlePayment = async () => {
     if (!validatePaymentInfo()) return;
 
     if (paymentMethod === 'card') {
-      // En CFA (XOF) : on n'envoie pas currency/rate → Stripe débite en FCFA. En EUR : on envoie eur + rate.
       await runStripeCheckoutSurplus(currency === 'EUR');
+      return;
+    }
+
+    if (paymentMethod === 'wave') {
+      await runWaveCheckoutSurplus();
       return;
     }
 
@@ -594,7 +654,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
                   styles.paymentMethod,
                   paymentMethod === 'wave' && styles.paymentMethodSelected,
                 ]}
-                onPress={() => Alert.alert('Bientot disponible', 'Wave sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
+                onPress={() => setPaymentMethod('wave')}
               >
                 <Ionicons name="wallet" size={24} color={paymentMethod === 'wave' ? '#e67e22' : '#6b7280'} />
                 <Text style={[styles.paymentMethodText, paymentMethod === 'wave' && styles.paymentMethodTextSelected]}>
@@ -680,7 +740,16 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
               </TouchableOpacity>
             </View>
 
-            {(paymentMethod === 'wave' || paymentMethod === 'orange_money' || paymentMethod === 'mtn_money' || paymentMethod === 'moov_money' || paymentMethod === 'paypal') && (
+            {paymentMethod === 'wave' && (
+              <View style={[styles.paymentFormSection, { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#f3e8ff', padding: 16, borderRadius: 8 }]}>
+                <Ionicons name="phone-portrait" size={24} color="#8b5cf6" />
+                <Text style={[styles.inputLabel, { flex: 1, marginBottom: 0 }]}>
+                  Vous serez redirigé vers l'app Wave pour régler le surplus. Après paiement validé, votre demande de modification sera envoyée au propriétaire.
+                </Text>
+              </View>
+            )}
+
+            {(paymentMethod === 'orange_money' || paymentMethod === 'mtn_money' || paymentMethod === 'moov_money' || paymentMethod === 'paypal') && (
               <View style={[styles.paymentFormSection, { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#f8f9fa', padding: 16, borderRadius: 8 }]}>
                 <Ionicons name="time-outline" size={24} color="#f59e0b" />
                 <Text style={[styles.inputLabel, { flex: 1, marginBottom: 0 }]}>

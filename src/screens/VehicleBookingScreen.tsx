@@ -79,6 +79,7 @@ const VehicleBookingScreen: React.FC = () => {
   const [openingStripe, setOpeningStripe] = useState(false);
   const [pendingStripeBookingId, setPendingStripeBookingId] = useState<string | null>(null);
   const [pendingStripeCheckoutToken, setPendingStripeCheckoutToken] = useState<string | null>(null);
+  const [pendingPaymentProvider, setPendingPaymentProvider] = useState<'stripe' | 'wave' | null>(null);
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
   const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
   const [checkingStripeStatus, setCheckingStripeStatus] = useState(false);
@@ -636,15 +637,17 @@ const VehicleBookingScreen: React.FC = () => {
   const canPayByCard = currency === 'EUR' || currency === 'XOF';
   const [lastPaymentStatus, setLastPaymentStatus] = useState<{ payment_status: string; booking_status: string } | null>(null);
 
-  const checkStripePaymentCompleted = useCallback(async (opts: { bookingId?: string; checkoutToken?: string }): Promise<{ paid: boolean; payment_status?: string; booking_status?: string; booking_id?: string; error?: string }> => {
-    const { bookingId, checkoutToken } = opts;
+  const checkStripePaymentCompleted = useCallback(async (opts: { bookingId?: string; checkoutToken?: string; wave?: boolean }): Promise<{ paid: boolean; payment_status?: string; booking_status?: string; booking_id?: string; error?: string }> => {
+    const { bookingId, checkoutToken, wave } = opts;
     const fallback = { paid: false, payment_status: 'pending', booking_status: 'pending' };
     if (!bookingId && !checkoutToken) return fallback;
     try {
       const result = await checkPaymentStatus({
         booking_type: 'vehicle',
+        payment_type: 'booking',
         ...(checkoutToken ? { checkout_token: checkoutToken } : {}),
         ...(bookingId ? { booking_id: bookingId } : {}),
+        ...(wave ? { wave: true } : {}),
       });
       setLastPaymentStatus({ payment_status: result.payment_status ?? 'pending', booking_status: result.booking_status ?? 'pending' });
       if (result.error) return { paid: false, payment_status: result.payment_status, booking_status: result.booking_status, error: result.error };
@@ -714,6 +717,7 @@ const VehicleBookingScreen: React.FC = () => {
   const resetStripePendingState = useCallback(() => {
     setPendingStripeBookingId(null);
     setPendingStripeCheckoutToken(null);
+    setPendingPaymentProvider(null);
     setPendingStripeStartedAt(null);
     setStripeTimeLeftSec(0);
     setCheckingStripeStatus(false);
@@ -722,7 +726,7 @@ const VehicleBookingScreen: React.FC = () => {
   }, []);
 
   const verifyStripePaymentNow = useCallback(async () => {
-    const idOrToken = pendingStripeBookingId ? { bookingId: pendingStripeBookingId } : pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken } : null;
+    const idOrToken = pendingStripeBookingId ? { bookingId: pendingStripeBookingId } : pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken, wave: pendingPaymentProvider === 'wave' } : null;
     if (!idOrToken || checkingStripeStatus) return;
     setCheckingStripeStatus(true);
     const result = await checkStripePaymentCompleted(idOrToken);
@@ -752,7 +756,7 @@ const VehicleBookingScreen: React.FC = () => {
         'Votre paiement a peut-être déjà été enregistré. Pensez à consulter « Mes réservations » pour vérifier. Si besoin, réessayez dans quelques secondes.'
       );
     }
-  }, [pendingStripeBookingId, pendingStripeCheckoutToken, checkingStripeStatus, checkStripePaymentCompleted, vehicle?.auto_booking, resetStripePendingState, navigation]);
+  }, [pendingStripeBookingId, pendingStripeCheckoutToken, pendingPaymentProvider, checkingStripeStatus, checkStripePaymentCompleted, vehicle?.auto_booking, resetStripePendingState, navigation]);
 
   const handleAbandonStripeOperation = useCallback(() => {
     const hasPending = pendingStripeBookingId || pendingStripeCheckoutToken;
@@ -832,7 +836,7 @@ const VehicleBookingScreen: React.FC = () => {
       if (!pendingStripeBookingId && !pendingStripeCheckoutToken) return;
       e.preventDefault();
       (async () => {
-        const idOrToken = pendingStripeBookingId ? { bookingId: pendingStripeBookingId } : pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken } : null;
+        const idOrToken = pendingStripeBookingId ? { bookingId: pendingStripeBookingId } : pendingStripeCheckoutToken ? { checkoutToken: pendingStripeCheckoutToken, wave: pendingPaymentProvider === 'wave' } : null;
         if (!idOrToken) return;
         const result = await checkStripePaymentCompleted(idOrToken);
         if (result.paid) {
@@ -859,7 +863,7 @@ const VehicleBookingScreen: React.FC = () => {
       })();
     });
     return unsubscribe;
-  }, [navigation, pendingStripeBookingId, pendingStripeCheckoutToken, handleAbandonStripeOperation, checkStripePaymentCompleted, resetStripePendingState, vehicle?.auto_booking]);
+  }, [navigation, pendingStripeBookingId, pendingStripeCheckoutToken, pendingPaymentProvider, handleAbandonStripeOperation, checkStripePaymentCompleted, resetStripePendingState, vehicle?.auto_booking]);
 
   const handleSubmit = async () => {
     if (!user) {
@@ -917,12 +921,12 @@ const VehicleBookingScreen: React.FC = () => {
       return;
     }
 
-    // Valider les informations de paiement (comme résidence meublée)
+    // Valider les informations de paiement (carte, Wave, espèces)
     const validatePaymentInfo = () => {
-      if (selectedPaymentMethod === 'card' || selectedPaymentMethod === 'cash') {
+      if (selectedPaymentMethod === 'card' || selectedPaymentMethod === 'wave' || selectedPaymentMethod === 'cash') {
         return true;
       }
-      Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
+      Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire, Wave ou Espèces.');
       return false;
     };
     if (!validatePaymentInfo()) return;
@@ -1007,10 +1011,11 @@ const VehicleBookingScreen: React.FC = () => {
 
       if (result.success) {
         const isCardPayment = selectedPaymentMethod === 'card';
+        const isWavePayment = selectedPaymentMethod === 'wave' || (result as any).paymentProvider === 'wave';
         const isConfirmed = result.status === 'confirmed';
 
-        // Paiement carte: garder l'écran ouvert en attente de confirmation Stripe.
-        if (isCardPayment) {
+        // Paiement carte ou Wave: garder l'écran ouvert en attente de confirmation.
+        if (isCardPayment || isWavePayment) {
           const checkoutUrl = result.checkoutUrl ?? null;
           const checkoutToken = (result as any).checkoutToken ?? null;
           const bookingId = result.booking?.id ?? null;
@@ -1028,15 +1033,17 @@ const VehicleBookingScreen: React.FC = () => {
           if (checkoutToken) {
             setPendingStripeCheckoutToken(checkoutToken);
             setPendingStripeBookingId(null);
+            setPendingPaymentProvider(isWavePayment ? 'wave' : 'stripe');
           } else {
             setPendingStripeBookingId(bookingId!);
             setPendingStripeCheckoutToken(null);
+            setPendingPaymentProvider('stripe');
           }
           setPendingStripeStartedAt(Date.now());
           setStripeTimeLeftSec(Math.floor(STRIPE_PENDING_TIMEOUT_MS / 1000));
           setOpeningStripe(false);
           Linking.openURL(checkoutUrl).catch(async (openErr: any) => {
-            if (bookingId) await cancelPendingCardBooking(bookingId, 'Impossible d’ouvrir Stripe Checkout');
+            if (!isWavePayment && bookingId) await cancelPendingCardBooking(bookingId, 'Impossible d’ouvrir Stripe Checkout');
             resetStripePendingState();
             Alert.alert('Erreur', openErr?.message || 'Impossible d’ouvrir Stripe.');
           });
@@ -1532,6 +1539,10 @@ const VehicleBookingScreen: React.FC = () => {
                     setSelectedPaymentMethod('cash');
                     return;
                   }
+                  if (method.value === 'wave') {
+                    setSelectedPaymentMethod('wave');
+                    return;
+                  }
                   if (method.value === 'card') {
                     if (currency === 'XOF' && rates.EUR) {
                       const eurAmount = totalPrice / rates.EUR;
@@ -1549,7 +1560,11 @@ const VehicleBookingScreen: React.FC = () => {
                     setSelectedPaymentMethod('card');
                     return;
                   }
-                  Alert.alert('Bientot disponible', `${method.label} sera bientot disponible. ${canPayByCard ? 'Utilisez Carte bancaire (Stripe) ou Espèces.' : 'Utilisez Espèces.'}`);
+                  if (method.value === 'wave') {
+                    setSelectedPaymentMethod('wave');
+                    return;
+                  }
+                  Alert.alert('Bientot disponible', `${method.label} sera bientot disponible. ${canPayByCard ? 'Utilisez Carte bancaire (Stripe), Wave ou Espèces.' : 'Utilisez Wave ou Espèces.'}`);
                 }}
               >
                 <Ionicons name={method.icon as any} size={24} color={selectedPaymentMethod === method.value ? '#2E7D32' : '#666'} />
@@ -1575,11 +1590,24 @@ const VehicleBookingScreen: React.FC = () => {
             </View>
           )}
 
-          {(selectedPaymentMethod === 'wave' || selectedPaymentMethod === 'paypal' || selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
+          {selectedPaymentMethod === 'wave' && (
+            <View style={styles.paymentInfoContainer}>
+              <View style={styles.securityInfo}>
+                <Ionicons name="phone-portrait" size={20} color="#8b5cf6" />
+                <Text style={styles.securityText}>
+                  {vehicle?.auto_booking
+                    ? 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre réservation sera confirmée automatiquement.'
+                    : 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre demande sera transmise au propriétaire.'}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {(selectedPaymentMethod === 'paypal' || selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
             <View style={styles.paymentInfoContainer}>
               <View style={styles.securityInfo}>
                 <Ionicons name="time-outline" size={20} color="#f59e0b" />
-                <Text style={styles.securityText}>Ce moyen de paiement sera bientot disponible. {canPayByCard ? 'Utilisez Carte bancaire (Stripe) ou Espèces.' : 'Utilisez Espèces.'}</Text>
+                <Text style={styles.securityText}>Ce moyen de paiement sera bientot disponible. {canPayByCard ? 'Utilisez Carte bancaire (Stripe), Wave ou Espèces.' : 'Utilisez Wave ou Espèces.'}</Text>
               </View>
             </View>
           )}
@@ -1602,11 +1630,15 @@ const VehicleBookingScreen: React.FC = () => {
               {vehicle?.auto_booking ? 'Paiement en attente' : 'En attente d\'acceptation'}
             </Text>
             <View style={styles.stripePendingBox}>
-              <ActivityIndicator size="small" color="#2563eb" />
+              <ActivityIndicator size="small" color={pendingPaymentProvider === 'wave' ? '#8b5cf6' : '#2563eb'} />
               <Text style={styles.stripePendingText}>
-                {vehicle?.auto_booking
-                  ? 'Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.'
-                  : 'Finalisez le paiement sur Stripe. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par le propriétaire.'}
+                {pendingPaymentProvider === 'wave'
+                  ? (vehicle?.auto_booking
+                    ? 'Finalisez le paiement sur Wave. En revenant ici, la confirmation se fera automatiquement.'
+                    : 'Finalisez le paiement sur Wave. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par le propriétaire.')
+                  : (vehicle?.auto_booking
+                    ? 'Finalisez le paiement sur Stripe. En revenant ici, la confirmation se fera automatiquement.'
+                    : 'Finalisez le paiement sur Stripe. En revenant ici, votre demande sera enregistrée et vous serez en attente d\'acceptation par le propriétaire.')}
               </Text>
               {lastPaymentStatus && (
                 <Text style={styles.stripeStatusText}>
