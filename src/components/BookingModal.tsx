@@ -1441,6 +1441,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           {checkIn && checkOut && nights > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('booking.paymentMethod')}</Text>
+              <Text style={styles.paymentMethodHint}>Cliquez pour voir les autres moyens de paiement</Text>
               
               {/* Bouton pour ouvrir la pop-up de sélection */}
               <TouchableOpacity
@@ -2041,6 +2042,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 15,
+  },
+  paymentMethodHint: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: -12,
+    marginBottom: 12,
   },
   dateSelector: {
     flexDirection: 'row',

@@ -935,54 +935,30 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                 </View>
               </View>
 
-              {/* Résumé des changements */}
+              {/* Détail des modifications */}
               {hasChanges && (
                 <View style={styles.changesCard}>
-                  <Text style={styles.changesTitle}>Résumé des modifications</Text>
+                  <Text style={styles.changesTitle}>Détail des modifications</Text>
                   
-                  {(checkInChanged || checkOutChanged) && (
-                    <View style={styles.changeRow}>
-                      <Text style={styles.changeLabel}>Dates:</Text>
-                      <Text style={styles.changeValue}>
-                        {formatDate(new Date(booking.check_in_date))} - {formatDate(new Date(booking.check_out_date))}
+                  {/* Bloc Avant / Après */}
+                  <View style={styles.modificationDetailSection}>
+                    <View style={styles.modificationDetailRow}>
+                      <Text style={styles.modificationDetailLabel}>Avant :</Text>
+                      <Text style={styles.modificationDetailValue}>
+                        {formatDate(new Date(booking.check_in_date))} → {formatDate(new Date(booking.check_out_date))}
+                        {' • '}{originalNights} nuit{originalNights > 1 ? 's' : ''}
+                        {' • '}{booking.guests_count} voyageur{booking.guests_count > 1 ? 's' : ''}
+                        {' • '}{formatPrice(booking.total_price || 0)}
                       </Text>
-                      <Ionicons name="arrow-forward" size={16} color="#666" />
-                      <Text style={styles.changeValueNew}>
-                        {formatDate(effectiveCheckIn)} - {formatDate(effectiveCheckOut)}
+                    </View>
+                    <View style={styles.modificationDetailRow}>
+                      <Text style={[styles.modificationDetailLabel, styles.modificationDetailLabelAfter]}>Après :</Text>
+                      <Text style={[styles.modificationDetailValue, styles.modificationDetailValueAfter]}>
+                        {formatDate(effectiveCheckIn)} → {formatDate(effectiveCheckOut)}
+                        {' • '}{nights} nuit{nights > 1 ? 's' : ''}
+                        {' • '}{guestsCount} voyageur{guestsCount > 1 ? 's' : ''}
+                        {' • '}{formatPrice(newTotalPrice)}
                       </Text>
-                    </View>
-                  )}
-
-                  {guestsChanged && (
-                    <View style={styles.changeRow}>
-                      <Text style={styles.changeLabel}>Voyageurs:</Text>
-                      <Text style={styles.changeValue}>{booking.guests_count}</Text>
-                      <Ionicons name="arrow-forward" size={16} color="#666" />
-                      <Text style={styles.changeValueNew}>{guestsCount}</Text>
-                    </View>
-                  )}
-
-                  {(checkInChanged || checkOutChanged) && (
-                    <View style={styles.changeRow}>
-                      <Text style={styles.changeLabel}>Nuits:</Text>
-                      <Text style={styles.changeValue}>{originalNights}</Text>
-                      <Ionicons name="arrow-forward" size={16} color="#666" />
-                      <Text style={styles.changeValueNew}>{nights}</Text>
-                    </View>
-                  )}
-
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>Nouveau total</Text>
-                    <View style={styles.priceContainer}>
-                      <Text style={styles.priceValue}>{formatPrice(newTotalPrice)}</Text>
-                      {priceDifference !== 0 && (
-                        <Text style={[
-                          styles.priceDifference,
-                          priceDifference > 0 ? styles.priceIncrease : styles.priceDecrease
-                        ]}>
-                          {priceDifference > 0 ? '+' : ''}{formatPrice(priceDifference)}
-                        </Text>
-                      )}
                     </View>
                   </View>
                 </View>
@@ -1308,7 +1284,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    marginBottom: 12,
+  },
+  modificationDetailSection: {
     marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  modificationDetailRow: {
+    marginBottom: 8,
+  },
+  modificationDetailLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  modificationDetailValue: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  modificationDetailLabelAfter: {
+    color: '#059669',
+    fontWeight: '600',
+  },
+  modificationDetailValueAfter: {
+    color: '#059669',
+    fontWeight: '600',
   },
   changeRow: {
     flexDirection: 'row',

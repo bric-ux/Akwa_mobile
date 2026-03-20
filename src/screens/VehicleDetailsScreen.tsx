@@ -12,7 +12,7 @@ import {
   LinearGradient,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import { RouteProp, useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import { useVehicles } from '../hooks/useVehicles';
 import { Vehicle } from '../types';
@@ -34,7 +34,7 @@ const VehicleDetailsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { vehicleId } = route.params;
   const { getVehicleById } = useVehicles();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, refreshCurrency } = useCurrency();
   const { t } = useLanguage();
   const { user } = useAuth();
   
@@ -43,6 +43,12 @@ const VehicleDetailsScreen: React.FC = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showHostProfile, setShowHostProfile] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshCurrency();
+    }, [refreshCurrency])
+  );
 
   useEffect(() => {
     const loadVehicle = async () => {

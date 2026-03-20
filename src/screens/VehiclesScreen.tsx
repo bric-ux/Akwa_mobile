@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
 import { Vehicle, VehicleFilters } from '../types';
 import VehicleCard from '../components/VehicleCard';
@@ -39,6 +39,7 @@ import { useAuth } from '../services/AuthContext';
 import { safeGoBack } from '../utils/navigation';
 import { VEHICLE_COLORS, TRAVELER_COLORS } from '../constants/colors';
 import VehicleMapView from '../components/VehicleMapView';
+import CurrencyBadge from '../components/CurrencyBadge';
 import { VehicleType } from '../types';
 
 const { width, height } = Dimensions.get('window');
@@ -60,7 +61,7 @@ const VehiclesScreen: React.FC = () => {
   const navigation = useNavigation();
   const { vehicles, loading, error, fetchVehicles, refetch } = useVehicles();
   const { t } = useLanguage();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, refreshCurrency } = useCurrency();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -122,6 +123,13 @@ const VehiclesScreen: React.FC = () => {
       minute: '2-digit' 
     });
   };
+
+  // Recharger la devise à chaque focus (ex. depuis Réservations > Découvrir véhicules) pour afficher EUR si sélectionné
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshCurrency();
+    }, [refreshCurrency])
+  );
 
   // Réinitialiser la liste filtrée quand les véhicules changent
   useEffect(() => {
@@ -891,6 +899,9 @@ const VehiclesScreen: React.FC = () => {
               )}
             </View>
           </TouchableOpacity>
+          <View style={styles.currencyBadgeWrapper}>
+            <CurrencyBadge />
+          </View>
         </View>
         
         {/* Barre de filtres en haut */}
@@ -2499,6 +2510,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexShrink: 0,
+  },
+  currencyBadgeWrapper: {
+    marginLeft: 8,
     flexShrink: 0,
   },
   dateTimeSectionMap: {

@@ -28,6 +28,8 @@ interface CurrencyContextType {
   currencySymbol: string;
   currencyName: string;
   changeCurrency: (newCurrency: Currency) => Promise<void>;
+  /** Recharge la devise depuis le stockage (utile quand on revient sur un écran). */
+  refreshCurrency: () => Promise<void>;
   convert: (amountXOF: number) => { converted: number; formatted: string };
   formatPrice: (amountXOF: number, showOriginal?: boolean) => string;
   /** Pour le paiement : conversion en EUR/USD selon devise choisie, sinon FCFA. */
@@ -73,6 +75,15 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
     } catch (error) {
       console.error('Erreur changement devise:', error);
     }
+  };
+
+  const refreshCurrency = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('selectedCurrency');
+      if (saved && (saved === 'XOF' || saved === 'EUR')) {
+        setCurrency(saved as Currency);
+      }
+    } catch (_) {}
   };
 
   const convert = (amountXOF: number): { converted: number; formatted: string } => {
@@ -124,6 +135,7 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
         currencySymbol: CURRENCY_SYMBOLS[currency],
         currencyName: CURRENCY_NAMES[currency],
         changeCurrency,
+        refreshCurrency,
         convert,
         formatPrice,
         formatPriceForPayment,

@@ -165,7 +165,9 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const currentPriceAfterDiscount = currentBasePrice - currentDiscountAmount;
   const currentServiceFee = Math.round(currentPriceAfterDiscount * 0.12); // 10% + 20% TVA = 12%
   const currentTotalPrice = currentPriceAfterDiscount + currentServiceFee;
-  
+  // Total réel payé (inclut chauffeur, frais) - pour affichage Avant et calcul surplus
+  const originalTotalPrice = booking.total_price ?? currentTotalPrice;
+
   // Calculer le surplus (différence entre nouvelles et anciennes valeurs)
   const daysDifference = rentalDays - currentRentalDays;
   const hoursDifference = remainingHours - currentRentalHours;
@@ -244,13 +246,14 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const daysDiff = rentalDays - currentRentalDays;
   const hoursDiff = remainingHours - currentRentalHours;
   
-  // Calculer le prix des jours/heures supplémentaires SANS réduction
+  // Delta de prix : positif quand on ajoute, négatif quand on réduit
+  const priceDelta = (daysDiff * dailyRate) + (hoursDiff * hourlyRate);
   const additionalDaysPrice = daysDiff > 0 ? daysDiff * dailyRate : 0;
   const additionalHoursPrice = hoursDiff > 0 ? hoursDiff * hourlyRate : 0;
-  
-  // Le nouveau prix après réduction = ancien prix après réduction + prix supplémentaires (sans réduction)
   const additionalPrice = additionalDaysPrice + additionalHoursPrice;
-  const basePrice = currentPriceAfterDiscount + additionalPrice;
+  
+  // Nouveau prix après réduction : ancien + delta (delta négatif = réduction)
+  const basePrice = Math.max(0, currentPriceAfterDiscount + priceDelta);
   
   // La réduction reste la même que l'ancienne réservation (on ne la recalcule PAS)
   const discountAmount = currentDiscountAmount;
@@ -259,9 +262,9 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const driverFee = (booking.with_driver && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
   const basePriceWithDriver = basePrice + driverFee;
   
-  // Pour l'affichage : prix totaux
-  const daysPrice = currentDaysPrice + additionalDaysPrice;
-  const hoursPrice = currentHoursPrice + additionalHoursPrice;
+  // Pour l'affichage : prix totaux (basés sur la nouvelle durée)
+  const daysPrice = rentalDays * dailyRate;
+  const hoursPrice = remainingHours > 0 && hourlyRate > 0 ? remainingHours * hourlyRate : 0;
   const totalBeforeDiscount = daysPrice + hoursPrice;
   
   // Frais de service : 11% si CB, 10% sinon (sur basePriceWithDriver, inclut chauffeur)
@@ -321,8 +324,8 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
     }
 
     // ✅ CALCUL SIMPLE ET COHÉRENT DU SURPLUS
-    // Le surplus = nouveau total - ancien total, point final
-    let priceDifference = totalPrice - currentTotalPrice;
+    // Le surplus = nouveau total - ancien total (réel payé), point final
+    let priceDifference = totalPrice - originalTotalPrice;
     // Quand on RÉDUIT la durée (jours ou heures) : jamais de surplus à payer
     const isReduction = daysDiff < 0 || hoursDiff < 0;
     if (isReduction && priceDifference > 0) {
@@ -605,6 +608,50 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
               </TouchableOpacity>
               {hasModification && rentalDays > 0 && (
                 <View style={styles.summaryBox}>
+                  {/* Détail des modifications : dates, durée, prix avant / après */}
+                  <View style={styles.modificationDetailSection}>
+                    <Text style={styles.modificationDetailTitle}>Détail des modifications</Text>
+                    <View style={styles.modificationDetailRow}>
+                      <Text style={styles.modificationDetailLabel}>Avant :</Text>
+                      <Text style={styles.modificationDetailValue}>
+                        {booking.start_datetime && booking.end_datetime
+                          ? (() => {
+                              const tz = 'Africa/Abidjan';
+                              const start = new Date(booking.start_datetime);
+                              const end = new Date(booking.end_datetime);
+                              const d1 = start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
+                              const t1 = start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                              const d2 = end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
+                              const t2 = end.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                              return `${d1} ${t1} → ${d2} ${t2}`;
+                            })()
+                          : `${formatDate(booking.start_date)} → ${formatDate(booking.end_date)}`}
+                        {' • '}{currentRentalDays} jour{currentRentalDays > 1 ? 's' : ''}
+                        {currentRentalHours > 0 && ` et ${currentRentalHours} h`}
+                        {' • '}{formatPrice(originalTotalPrice)}
+                      </Text>
+                    </View>
+                    <View style={styles.modificationDetailRow}>
+                      <Text style={[styles.modificationDetailLabel, styles.modificationDetailLabelAfter]}>Après :</Text>
+                      <Text style={[styles.modificationDetailValue, styles.modificationDetailValueAfter]}>
+                        {startDateTime && endDateTime
+                          ? (() => {
+                              const tz = 'Africa/Abidjan';
+                              const start = new Date(startDateTime);
+                              const end = new Date(endDateTime);
+                              const d1 = start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
+                              const t1 = start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                              const d2 = end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
+                              const t2 = end.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+                              return `${d1} ${t1} → ${d2} ${t2}`;
+                            })()
+                          : `${formatDate(startDate)} → ${formatDate(endDate)}`}
+                        {' • '}{rentalDays} jour{rentalDays > 1 ? 's' : ''}
+                        {remainingHours > 0 && ` et ${remainingHours} h`}
+                        {' • '}{formatPrice(totalPrice)}
+                      </Text>
+                    </View>
+                  </View>
                   {/* Calculer les différences */}
                   {(() => {
                     const daysDiff = rentalDays - currentRentalDays;
@@ -614,7 +661,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                     const discountDiff = currentDiscountAmount - discountAmount;
                     const basePriceDiff = basePrice - currentPriceAfterDiscount;
                     const serviceFeeDiff = effectiveServiceFee - currentServiceFee;
-                    let totalDiff = totalPrice - currentTotalPrice;
+                    let totalDiff = totalPrice - originalTotalPrice;
                     // Quand on réduit : jamais de surplus à afficher (réduction = pas de paiement supplémentaire)
                     const isReduction = daysDiff < 0 || hoursDiff < 0;
                     if (isReduction && totalDiff > 0) totalDiff = 0;
@@ -763,13 +810,13 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
           setPendingRequestPayload(null);
           setSurplusBreakdown(null);
         }}
-        surplusAmount={((daysDiff < 0 || hoursDiff < 0) ? 0 : (totalPrice > currentTotalPrice ? totalPrice - currentTotalPrice : 0))}
+        surplusAmount={((daysDiff < 0 || hoursDiff < 0) ? 0 : (totalPrice > originalTotalPrice ? totalPrice - originalTotalPrice : 0))}
         bookingId={booking.id}
         onPaymentComplete={handlePaymentComplete}
         modificationRequestPayload={pendingRequestPayload ?? undefined}
         vehicleTitle={vehicle?.title || `${vehicle?.brand} ${vehicle?.model}`}
         vehicleId={vehicle?.id}
-        originalTotalPrice={currentTotalPrice}
+        originalTotalPrice={originalTotalPrice}
         newTotalPrice={totalPrice}
         priceBreakdown={surplusBreakdown || undefined}
       />
@@ -854,6 +901,38 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginTop: 16,
+  },
+  modificationDetailSection: {
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modificationDetailTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 10,
+  },
+  modificationDetailRow: {
+    marginBottom: 6,
+  },
+  modificationDetailLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  modificationDetailValue: {
+    fontSize: 14,
+    color: '#1f2937',
+  },
+  modificationDetailLabelAfter: {
+    color: '#059669',
+    fontWeight: '600',
+  },
+  modificationDetailValueAfter: {
+    color: '#059669',
+    fontWeight: '600',
   },
   summaryRow: {
     flexDirection: 'row',
