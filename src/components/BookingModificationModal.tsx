@@ -26,6 +26,8 @@ import { calculateTotalPrice, calculateFees } from '../hooks/usePricing';
 import { getCommissionRates } from '../lib/commissions';
 import { supabase } from '../services/supabase';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useBookingCancellation } from '../hooks/useBookingCancellation';
+import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 
 interface BookingModificationModalProps {
   visible: boolean;
@@ -43,6 +45,7 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
   const { createModificationRequest, getBookingPendingRequest, cancelModificationRequest, loading } = useBookingModifications();
+  const { calculateCancellationInfo } = useBookingCancellation();
   
   // Initialiser les dates directement depuis booking
   const [checkIn, setCheckIn] = useState<Date | null>(() => {
@@ -83,6 +86,8 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     serviceFeeVATDiff?: number;
     taxesDiff?: number;
   } | null>(null);
+  /** Remboursement selon la politique d'annulation (en cas de réduction des nuits) */
+  const [reductionRefundAmount, setReductionRefundAmount] = useState<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
   /** Déduit le sous-total (après réduction) du total payé, pour garder le même prix/nuit sur les nuits existantes */
@@ -259,32 +264,43 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
     return () => { cancelled = true; };
   }, [isExtension, nights, originalNights, booking.check_out_date, booking.total_price, property, pricePerNight, cleaningFee, serviceFee]);
 
-  // Calculer le prix correctement avec réductions et TVA
-  const basePricePerNight = effectivePrice || pricePerNight;
-  const discountConfig = property ? {
-    enabled: property.discount_enabled || false,
-    minNights: property.discount_min_nights || null,
-    percentage: property.discount_percentage || null
-  } : { enabled: false, minNights: null, percentage: null };
-  
-  const longStayDiscountConfig = property?.long_stay_discount_enabled ? {
-    enabled: property.long_stay_discount_enabled || false,
-    minNights: property.long_stay_discount_min_nights || null,
-    percentage: property.long_stay_discount_percentage || null
-  } : undefined;
-  
-  const pricing = calculateTotalPrice(basePricePerNight, nights, discountConfig, longStayDiscountConfig);
-  const priceAfterDiscount = pricing.totalPrice;
-  
-  // Calculer les frais avec TVA
-  const fees = calculateFees(priceAfterDiscount, nights, 'property', {
-    cleaning_fee: cleaningFee,
-    service_fee: serviceFee,
-    taxes: property?.taxes || 0,
-    free_cleaning_min_days: property?.free_cleaning_min_days || null
-  });
-  
-  const newTotalPrice = priceAfterDiscount + fees.totalFees;
+  // Quand on réduit les nuits : utiliser le prix proportionnel de la réservation d'origine
+  // (pas le prix actuel de la nuitée qui a pu changer)
+  const originalTotal = Math.max(0, Number(booking.total_price) || 0);
+  const isReductionNights = !isExtension && nights < originalNights;
+
+  let newTotalPrice: number;
+  if (isReductionNights && originalNights > 0) {
+    // Réduction : proportion du total payé (basé sur le prix d'origine)
+    const ratio = nights / originalNights;
+    newTotalPrice = Math.round(ratio * originalTotal);
+  } else {
+    // Extension ou pas de changement de nuits : recalculer avec le prix actuel
+    const basePricePerNight = effectivePrice || pricePerNight;
+    const discountConfig = property ? {
+      enabled: property.discount_enabled || false,
+      minNights: property.discount_min_nights || null,
+      percentage: property.discount_percentage || null
+    } : { enabled: false, minNights: null, percentage: null };
+
+    const longStayDiscountConfig = property?.long_stay_discount_enabled ? {
+      enabled: property.long_stay_discount_enabled || false,
+      minNights: property.long_stay_discount_min_nights || null,
+      percentage: property.long_stay_discount_percentage || null
+    } : undefined;
+
+    const pricing = calculateTotalPrice(basePricePerNight, nights, discountConfig, longStayDiscountConfig);
+    const priceAfterDiscount = pricing.totalPrice;
+
+    const fees = calculateFees(priceAfterDiscount, nights, 'property', {
+      cleaning_fee: cleaningFee,
+      service_fee: serviceFee,
+      taxes: property?.taxes || 0,
+      free_cleaning_min_days: property?.free_cleaning_min_days || null
+    });
+
+    newTotalPrice = priceAfterDiscount + fees.totalFees;
+  }
 
   // Vérifier s'il y a des changements (dates ou nombre de voyageurs)
   const checkInChanged = checkIn && formatDateForAPI(checkIn) !== booking.check_in_date;
@@ -293,12 +309,45 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   
   const hasChanges = checkInChanged || checkOutChanged || guestsChanged;
 
-  const originalTotal = Number(booking.total_price);
   const rawPriceDiff = (isExtension && extensionSurplus !== null)
     ? extensionSurplus
     : (newTotalPrice - originalTotal);
   // Quand on réduit les nuits : jamais de surplus à afficher (réduction = pas de paiement supplémentaire)
   const priceDifference = (!isExtension && nights < originalNights && rawPriceDiff > 0) ? 0 : rawPriceDiff;
+
+  const isReduction = !isExtension && nights < originalNights;
+  const amountSaved = originalTotal - newTotalPrice;
+
+  // Remboursement selon la politique d'annulation quand on réduit les nuits
+  useEffect(() => {
+    if (!visible || !property || !isReduction || amountSaved <= 0) {
+      setReductionRefundAmount(null);
+      return;
+    }
+    let cancelled = false;
+    const policy = property.cancellation_policy || 'flexible';
+    const originalSubtotal = inferOriginalSubtotal(originalTotal, originalNights, property);
+    const basePricePerNightForRefund = originalNights > 0 ? originalSubtotal / originalNights : (effectivePrice ?? pricePerNight);
+    calculateCancellationInfo(
+      booking.id,
+      booking.check_in_date,
+      booking.check_out_date,
+      originalTotal,
+      basePricePerNightForRefund,
+      policy,
+      booking.status || 'confirmed'
+    ).then((info) => {
+      if (cancelled || !info) {
+        setReductionRefundAmount(0);
+        return;
+      }
+      const refundRate = originalTotal > 0 && info.refundAmount != null
+        ? info.refundAmount / originalTotal
+        : 0;
+      setReductionRefundAmount(Math.round(refundRate * amountSaved));
+    });
+    return () => { cancelled = true; };
+  }, [visible, property?.id, isReduction, amountSaved, originalTotal, originalNights, effectivePrice, pricePerNight, booking.id, booking.check_in_date, booking.check_out_date, booking.status, calculateCancellationInfo]);
 
   const handleDateSelect = (selectedCheckIn: Date | null, selectedCheckOut: Date | null) => {
     if (selectedCheckIn) {
@@ -935,8 +984,8 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                 </View>
               </View>
 
-              {/* Détail des modifications */}
-              {hasChanges && (
+              {/* Détail des modifications - visible dès qu'on a des dates (même sans changement) */}
+              {effectiveCheckIn && effectiveCheckOut && (
                 <View style={styles.changesCard}>
                   <Text style={styles.changesTitle}>Détail des modifications</Text>
                   
@@ -961,6 +1010,24 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
                       </Text>
                     </View>
                   </View>
+
+                  {/* Remboursement selon la politique quand on réduit les nuits */}
+                  {isReduction && priceDifference < 0 && (
+                    <View style={styles.refundSection}>
+                      <View style={styles.refundRow}>
+                        <Text style={styles.refundLabel}>Remboursement :</Text>
+                        <Text style={[styles.refundValue, { color: '#059669' }]}>
+                          {formatPrice(reductionRefundAmount !== null ? reductionRefundAmount : Math.abs(priceDifference))}
+                        </Text>
+                      </View>
+                      <View style={styles.policyNoteContainer}>
+                        <Text style={styles.policyNoteLabel}>Conditions d'annulation :</Text>
+                        <Text style={styles.policyNote}>
+                          {getCancellationPolicyText(property?.cancellation_policy, 'property')}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -1144,7 +1211,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40, // Espace supplémentaire pour le clavier
+    paddingBottom: 60, // Espace pour scroller et voir les conditions d'annulation
   },
   centerContainer: {
     flex: 1,
@@ -1279,6 +1346,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#e9ecef',
+    overflow: 'visible',
   },
   changesTitle: {
     fontSize: 16,
@@ -1312,6 +1380,44 @@ const styles = StyleSheet.create({
   modificationDetailValueAfter: {
     color: '#059669',
     fontWeight: '600',
+  },
+  refundSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  refundRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  refundLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  refundValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  policyNoteContainer: {
+    marginTop: 12,
+    width: '100%',
+    alignSelf: 'stretch',
+  },
+  policyNoteLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  policyNote: {
+    fontSize: 11,
+    color: '#6b7280',
+    lineHeight: 16,
+    flexShrink: 1,
   },
   changeRow: {
     flexDirection: 'row',

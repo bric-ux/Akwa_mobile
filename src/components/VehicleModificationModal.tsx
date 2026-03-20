@@ -20,6 +20,8 @@ import { getCommissionRates } from '../lib/commissions';
 import { calculateVehiclePriceWithHours, calculateTotalPrice, calculateHostCommission, type DiscountConfig } from '../hooks/usePricing';
 import VehicleModificationSurplusPaymentModal from './VehicleModificationSurplusPaymentModal';
 import { supabase } from '../services/supabase';
+import { useBookingCancellation } from '../hooks/useBookingCancellation';
+import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 
 interface VehicleModificationModalProps {
   visible: boolean;
@@ -28,7 +30,13 @@ interface VehicleModificationModalProps {
   onModified: () => void;
 }
 
-const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
+const VehicleModificationModal: React.FC<VehicleModificationModalProps> = (props) => {
+  const { visible, onClose, booking, onModified } = props;
+  if (!booking) return null;
+  return <VehicleModificationModalContent {...props} booking={booking} />;
+};
+
+const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & { booking: VehicleBooking }> = ({
   visible,
   onClose,
   booking,
@@ -36,6 +44,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 }) => {
   const { formatPrice } = useCurrency();
   const { modifyBooking, loading, getBookingPendingRequest } = useVehicleBookingModifications();
+  const { calculateCancellationInfoForVehicle } = useBookingCancellation();
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [startDateTime, setStartDateTime] = useState<string | null>(null);
@@ -57,19 +66,18 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
     serviceFeeHTDiff?: number;
     serviceFeeVATDiff?: number;
   } | null>(null);
+  /** Remboursement selon la politique d'annulation (en cas de réduction) */
+  const [reductionRefundAmount, setReductionRefundAmount] = useState<number | null>(null);
 
   useEffect(() => {
-    if (booking && visible) {
-      // Pré-remplir avec les dates/heures actuelles de la réservation
+    if (visible) {
       setStartDate(booking.start_date);
       setEndDate(booking.end_date);
       setStartDateTime(booking.start_datetime || null);
       setEndDateTime(booking.end_datetime || null);
       setMessage('');
     }
-  }, [booking, visible]);
-
-  if (!booking) return null;
+  }, [booking.id, visible, booking.start_date, booking.end_date, booking.start_datetime, booking.end_datetime]);
 
   const vehicle = booking.vehicle;
   const dailyRate = booking.daily_rate || vehicle?.price_per_day || 0;
@@ -273,6 +281,38 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
   const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
   const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
   const totalPrice = basePriceWithDriver + effectiveServiceFee; // Total avec frais de service
+
+  // Remboursement selon la politique d'annulation quand on réduit les jours
+  const isReduction = (rentalDays - currentRentalDays) < 0 || (remainingHours - currentRentalHours) < 0;
+  const amountSaved = originalTotalPrice - totalPrice;
+  useEffect(() => {
+    if (!visible || !booking || !isReduction || amountSaved <= 0) {
+      setReductionRefundAmount(null);
+      return;
+    }
+    let cancelled = false;
+    const policy = (vehicle as any)?.cancellation_policy ?? (booking as any).cancellation_policy ?? 'flexible';
+    const currentBase = currentDaysPrice + currentHoursPrice;
+    calculateCancellationInfoForVehicle(
+      booking.start_date,
+      booking.end_date,
+      originalTotalPrice,
+      Math.max(1, currentBase),
+      currentRentalDays,
+      policy,
+      booking.status || 'confirmed'
+    ).then((info) => {
+      if (cancelled || !info) {
+        setReductionRefundAmount(0);
+        return;
+      }
+      const refundRate = originalTotalPrice > 0 && info.refundAmount != null
+        ? info.refundAmount / originalTotalPrice
+        : 0;
+      setReductionRefundAmount(Math.round(refundRate * amountSaved));
+    });
+    return () => { cancelled = true; };
+  }, [visible, booking?.id, isReduction, amountSaved, originalTotalPrice, currentDaysPrice, currentHoursPrice, currentRentalDays, vehicle?.cancellation_policy, booking?.status, booking?.start_date, booking?.end_date, calculateCancellationInfoForVehicle]);
 
   const handleDateTimeChange = (start: string, end: string) => {
     const startDateObj = new Date(start);
@@ -540,7 +580,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             {/* Informations actuelles */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Réservation actuelle</Text>
@@ -606,7 +646,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#999" />
               </TouchableOpacity>
-              {hasModification && rentalDays > 0 && (
+              {(startDateTime && endDateTime && rentalDays > 0) && (
                 <View style={styles.summaryBox}>
                   {/* Détail des modifications : dates, durée, prix avant / après */}
                   <View style={styles.modificationDetailSection}>
@@ -752,10 +792,21 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                             {totalDiff > 0 
                               ? `+${formatPrice(totalDiff)}`
                               : totalDiff < 0
-                              ? formatPrice(Math.abs(totalDiff))
+                              ? formatPrice(isReduction && reductionRefundAmount !== null ? reductionRefundAmount : Math.abs(totalDiff))
                               : formatPrice(0)}
                           </Text>
                         </View>
+                        {isReduction && totalDiff < 0 && (() => {
+                          const policy = (vehicle as any)?.cancellation_policy ?? (booking as any).cancellation_policy ?? 'flexible';
+                          return (
+                            <View style={styles.policyNoteContainer}>
+                              <Text style={styles.policyNoteLabel}>Conditions d'annulation :</Text>
+                              <Text style={styles.policyNote}>
+                                {getCancellationPolicyText(policy, 'vehicle')}
+                              </Text>
+                            </View>
+                          );
+                        })()}
                       </>
                     );
                   })()}
@@ -873,6 +924,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
+  scrollContent: {
+    paddingBottom: 60,
+  },
   section: {
     marginTop: 24,
   },
@@ -969,7 +1023,21 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2563eb',
+  },
+  policyNoteContainer: {
+    marginTop: 12,
+    width: '100%',
+  },
+  policyNoteLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  policyNote: {
+    fontSize: 11,
+    color: '#6b7280',
+    lineHeight: 16,
   },
   messageInput: {
     borderWidth: 1,
