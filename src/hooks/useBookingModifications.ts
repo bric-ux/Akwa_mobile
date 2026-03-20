@@ -503,7 +503,9 @@ export const useBookingModifications = () => {
             last_name: hostProfile?.last_name,
             email: hostProfile?.email,
             phone: hostProfile?.phone
-          }
+          },
+          payment_currency: (request.booking as any)?.payment_currency || undefined,
+          exchange_rate: (request.booking as any)?.exchange_rate || undefined
         };
 
         // Email de modification approuvée avec nouvelle facture au voyageur

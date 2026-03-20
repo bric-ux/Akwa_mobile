@@ -171,6 +171,8 @@ export const useVehicleBookingModifications = () => {
                   newBasePrice: newBasePrice,
                   newOwnerNetRevenue: newOwnerNetRevenue,
                   message: data.message || null,
+                  payment_currency: (booking as any).payment_currency || undefined,
+                  exchange_rate: (booking as any).exchange_rate || undefined
                 },
               },
             });
@@ -195,6 +197,8 @@ export const useVehicleBookingModifications = () => {
                   newRentalHours: data.requestedRentalHours || 0,
                   oldTotalPrice: booking.total_price,
                   newTotalPrice: data.requestedTotalPrice,
+                  payment_currency: (booking as any).payment_currency || undefined,
+                  exchange_rate: (booking as any).exchange_rate || undefined
                 },
               },
             });
@@ -318,6 +322,8 @@ export const useVehicleBookingModifications = () => {
                 surplusNetOwner: surplusNetOwner, // ✅ Surplus net reçu par le propriétaire (seulement le surplus net, pas le total)
                 renterMessage: data.message || null,
                 bookingId: booking.id,
+                payment_currency: (booking as any).payment_currency || undefined,
+                exchange_rate: (booking as any).exchange_rate || undefined
               },
             },
           });
@@ -345,6 +351,8 @@ export const useVehicleBookingModifications = () => {
               surplusAmount: surplusAmount, // ✅ Surplus payé par le locataire
               dailyRate: booking.vehicle.price_per_day || booking.daily_rate || 0,
               bookingId: booking.id,
+              payment_currency: (booking as any).payment_currency || undefined,
+              exchange_rate: (booking as any).exchange_rate || undefined
             };
             
             if (__DEV__) console.log('📧 [useVehicleBookingModifications] Envoi email au locataire:', {
@@ -705,6 +713,8 @@ export const useVehicleBookingModifications = () => {
           vehicleLongStayDiscountEnabled: vehicle.long_stay_discount_enabled || false,
           vehicleLongStayDiscountMinDays: vehicle.long_stay_discount_min_days || null,
           vehicleLongStayDiscountPercentage: vehicle.long_stay_discount_percentage || null,
+          payment_currency: (bookingData as any).payment_currency || undefined,
+          exchange_rate: (bookingData as any).exchange_rate || undefined
         };
 
         // Email au locataire avec PDF
@@ -813,6 +823,7 @@ export const useVehicleBookingModifications = () => {
         const vehicle = request.booking?.vehicles;
         
         if (renter?.email) {
+          const booking = request.booking as any;
           await supabase.functions.invoke('send-email', {
             body: {
               type: 'vehicle_modification_rejected',
@@ -821,7 +832,16 @@ export const useVehicleBookingModifications = () => {
                 renterName: `${renter.first_name || ''} ${renter.last_name || ''}`.trim() || 'Cher client',
                 vehicleTitle: `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim() || 'Véhicule',
                 ownerMessage: ownerMessage || null,
-                bookingId: request.booking_id
+                bookingId: request.booking_id,
+                originalStartDate: booking?.start_date,
+                originalEndDate: booking?.end_date,
+                originalStartDateTime: booking?.start_datetime,
+                originalEndDateTime: booking?.end_datetime,
+                originalDays: booking?.rental_days,
+                originalHours: booking?.rental_hours || 0,
+                originalPrice: booking?.total_price,
+                payment_currency: booking?.payment_currency || undefined,
+                exchange_rate: booking?.exchange_rate || undefined
               }
             }
           });

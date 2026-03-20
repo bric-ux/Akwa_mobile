@@ -424,7 +424,9 @@ export const useHostBookings = () => {
                 status: 'confirmed',
                 message: bookingData.message_to_host || '',
                 payment_method: bookingData.payment_method || '',
-                payment_plan: bookingData.payment_plan || ''
+                payment_plan: bookingData.payment_plan || '',
+                payment_currency: (bookingData as any).payment_currency || undefined,
+                exchange_rate: (bookingData as any).exchange_rate || undefined
               }
             };
 
@@ -492,7 +494,9 @@ export const useHostBookings = () => {
                 status: 'confirmed',
                 message: bookingData.message_to_host || '',
                 payment_method: bookingData.payment_method || '',
-                payment_plan: bookingData.payment_plan || ''
+                payment_plan: bookingData.payment_plan || '',
+                payment_currency: (bookingData as any).payment_currency || undefined,
+                exchange_rate: (bookingData as any).exchange_rate || undefined
               }
             };
             
