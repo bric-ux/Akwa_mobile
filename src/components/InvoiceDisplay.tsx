@@ -646,7 +646,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
   const snapshotCurrency = calculationDetails?.calculation_snapshot?.paymentCurrency;
   const snapshotRate = calculationDetails?.calculation_snapshot?.paymentRate;
-  const displayCurrency = snapshotCurrency || (booking as any)?.payment_currency || currency;
+  // Priorité à la devise choisie par l'utilisateur (EUR/USD) dans son compte, sinon devise de la réservation
+  const displayCurrency = (currency !== 'XOF' ? currency : null) || snapshotCurrency || (booking as any)?.payment_currency || currency;
   const commissionRates = getCommissionRates(serviceType, displayCurrency as import('../lib/commissions').CurrencyCode);
   const displayRate =
     Number(snapshotRate) ||

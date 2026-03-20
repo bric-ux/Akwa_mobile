@@ -238,7 +238,8 @@ const HostVehicleBookingsScreen: React.FC = () => {
   };
 
   const formatAmountForBooking = (amountXof: number, booking: VehicleBooking): string => {
-    const bookingCurrency = ((booking as any).payment_currency || currency) as 'XOF' | 'EUR' | 'USD';
+    // Priorité à la devise choisie par l'utilisateur (EUR), sinon devise de la réservation
+    const bookingCurrency = (currency !== 'XOF' ? currency : null) || ((booking as any).payment_currency || currency) as 'XOF' | 'EUR' | 'USD';
     const bookingRate =
       Number((booking as any).exchange_rate) ||
       (bookingCurrency === 'EUR' ? Number(rates.EUR) : bookingCurrency === 'USD' ? Number(rates.USD) : 0);
