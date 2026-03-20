@@ -22,7 +22,6 @@ import { formatAmount } from '../utils/priceCalculator';
 import { useCurrency } from '../hooks/useCurrency';
 import type { CommissionDueItem, PlatformPaymentInfo } from '../hooks/useCommissions';
 
-const FALLBACK_WAVE = '+225 07 79 57 13 48';
 const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 interface CommissionPaymentModalProps {
@@ -57,7 +56,6 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
   const checkingRef = useRef(false);
 
   const { currency, rates, formatPrice, formatPriceForPayment } = useCurrency();
-  const wavePhone = paymentInfo?.wave_phone || FALLBACK_WAVE;
   const commissionAmount = commission?.amount_due ?? 0;
   const cardFeePercent = 1;
   const cardFeeAmount = Math.round(commissionAmount * (cardFeePercent / 100));
@@ -309,15 +307,6 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
             <TouchableOpacity onPress={onClose} disabled={loading}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
-            {paymentMethod === 'wave' && (
-              <View style={styles.detailBox}>
-                <Text style={styles.detailLabel}>Numéro Wave AkwaHome</Text>
-                <Text style={styles.detailValue} selectable>{wavePhone}</Text>
-                <Text style={styles.detailHint}>
-                  Vous paierez {currency === 'EUR' ? formatPriceForPayment(commissionAmount) : formatAmount(commissionAmount)} depuis l&apos;app Wave.
-                </Text>
-              </View>
-            )}
           </View>
 
           <ScrollView style={styles.content}>
@@ -580,31 +569,6 @@ const styles = StyleSheet.create({
   paymentMethodSubtitle: {
     fontSize: 14,
     color: '#666',
-  },
-  detailBox: {
-    backgroundColor: '#f0f9ff',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#bae6fd',
-  },
-  detailLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0369a1',
-    marginBottom: 6,
-  },
-  detailValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0c4a6e',
-    marginBottom: 8,
-    letterSpacing: 1,
-  },
-  detailHint: {
-    fontSize: 12,
-    color: '#64748b',
   },
   infoCard: {
     flexDirection: 'row',
