@@ -936,6 +936,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           payment_plan: booking.payment_plan || '',
           payment_currency: displayCurrency,
           exchange_rate: displayRate > 0 ? displayRate : (displayCurrency === 'EUR' ? 655.957 : displayCurrency === 'USD' ? 600 : undefined),
+          preferCurrency: displayCurrency,
           host_pending_penalty_deduct: type === 'host' ? hostPendingPenaltyDeduct : undefined,
         };
       } else {
@@ -982,6 +983,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           vehicleDriverFee: booking.vehicle?.driver_fee || 0, // BUG FIX: Ajouter vehicleDriverFee pour le calcul PDF
           payment_currency: displayCurrency,
           exchange_rate: displayRate > 0 ? displayRate : (displayCurrency === 'EUR' ? 655.957 : displayCurrency === 'USD' ? 600 : undefined),
+          preferCurrency: displayCurrency,
           host_pending_penalty_deduct: type === 'host' ? hostPendingPenaltyDeduct : undefined,
         };
       }
