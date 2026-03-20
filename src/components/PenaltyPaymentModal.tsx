@@ -18,7 +18,7 @@ import { supabase } from '../services/supabase';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
 import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
-import { formatAmount } from '../utils/priceCalculator';
+import { useCurrency } from '../hooks/useCurrency';
 
 interface PenaltyPaymentModalProps {
   visible: boolean;
@@ -50,6 +50,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
   penalty,
   onPaymentComplete,
 }) => {
+  const { formatPrice, formatPriceForPayment } = useCurrency();
   const [paymentMethod, setPaymentMethod] = useState<PenaltyPaymentMethod>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -362,7 +363,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
               <View style={[styles.summaryRow, styles.summaryTotal]}>
                 <Text style={styles.summaryTotalLabel}>Montant à payer</Text>
                 <Text style={styles.summaryTotalValue}>
-                  {formatAmount(penalty.penalty_amount)}
+                  {formatPrice(penalty.penalty_amount)}
                 </Text>
               </View>
             </View>
@@ -389,7 +390,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
               <View style={styles.detailBox}>
                 <Text style={styles.detailLabel}>RIB AkwaHome</Text>
                 <Text style={styles.detailValue} selectable>{AKWAHOME_RIB}</Text>
-                <Text style={styles.detailHint}>Effectuez un virement de {formatAmount(penalty.penalty_amount)} à ce RIB, puis confirmez votre choix ci-dessous.</Text>
+                <Text style={styles.detailHint}>Effectuez un virement de {formatPriceForPayment(penalty.penalty_amount)} à ce RIB, puis confirmez votre choix ci-dessous.</Text>
               </View>
             )}
 
@@ -412,7 +413,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
               <View style={styles.detailBox}>
                 <Text style={styles.detailLabel}>Numéro Wave AkwaHome</Text>
                 <Text style={styles.detailValue} selectable>{AKWAHOME_WAVE}</Text>
-                <Text style={styles.detailHint}>Envoyez {formatAmount(penalty.penalty_amount)} à ce numéro, puis confirmez votre choix ci-dessous.</Text>
+                <Text style={styles.detailHint}>Envoyez {formatPriceForPayment(penalty.penalty_amount)} à ce numéro, puis confirmez votre choix ci-dessous.</Text>
               </View>
             )}
 
@@ -516,13 +517,13 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                 <Text style={styles.payButtonText}>
                   {paymentMethod === 'bank_transfer' || paymentMethod === 'wave'
                     ? paymentMethod === 'wave'
-                      ? `Payer ${formatAmount(penalty.penalty_amount)} avec Wave`
+                      ? `Payer ${formatPrice(penalty.penalty_amount)} avec Wave`
                       : 'Confirmer mon choix'
                     : paymentMethod === 'deduct_from_next_booking'
                     ? 'Déduire de ma prochaine paie'
                     : paymentMethod === 'cash'
                     ? 'Déclarer le paiement'
-                    : `Payer ${formatAmount(penalty.penalty_amount)}`}
+                    : `Payer ${formatPriceForPayment(penalty.penalty_amount)}`}
                 </Text>
               )}
             </TouchableOpacity>

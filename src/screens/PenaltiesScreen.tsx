@@ -20,13 +20,14 @@ import { usePenalties } from '../hooks/usePenalties';
 import { useCommissions } from '../hooks/useCommissions';
 import PenaltyPaymentModal from '../components/PenaltyPaymentModal';
 import CommissionPaymentModal from '../components/CommissionPaymentModal';
-import { formatPrice, formatAmount } from '../utils/priceCalculator';
+import { useCurrency } from '../hooks/useCurrency';
 
 type TabType = 'penalties' | 'commissions';
 
 const PenaltiesScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { formatPrice } = useCurrency();
   const [activeTab, setActiveTab] = useState<TabType>('penalties');
   const [selectedPenalty, setSelectedPenalty] = useState<any>(null);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
@@ -212,7 +213,7 @@ const PenaltiesScreen: React.FC = () => {
             <View style={styles.statsContent}>
               <View style={styles.statsLeft}>
                 <Text style={styles.statsLabel}>Commissions en attente</Text>
-                <Text style={styles.statsAmount}>{formatAmount(totalCommissionDue)}</Text>
+                <Text style={styles.statsAmount}>{formatPrice(totalCommissionDue)}</Text>
                 <Text style={styles.statsCount}>
                   {pendingCommissions.length} commission{pendingCommissions.length > 1 ? 's' : ''} à régler
                 </Text>
@@ -255,7 +256,7 @@ const PenaltiesScreen: React.FC = () => {
                           {commission.label || (commission.booking_type === 'vehicle' ? 'Location véhicule' : 'Résidence')}
                         </Text>
                         <Text style={[styles.detailValue, { marginTop: 4 }]}>
-                          Commission : {formatAmount(commission.amount_due)}
+                          Commission : {formatPrice(commission.amount_due)}
                         </Text>
                       </View>
                     </View>
@@ -302,7 +303,7 @@ const PenaltiesScreen: React.FC = () => {
             <View style={styles.statsContent}>
               <View style={styles.statsLeft}>
                 <Text style={styles.statsLabel}>Pénalités en attente de paiement</Text>
-                <Text style={styles.statsAmount}>{formatAmount(totalPendingAmount)}</Text>
+                <Text style={styles.statsAmount}>{formatPrice(totalPendingAmount)}</Text>
                 <Text style={styles.statsCount}>
                   {pendingPenalties.length} pénalité{pendingPenalties.length > 1 ? 's' : ''} à régler
                 </Text>
@@ -404,7 +405,7 @@ const PenaltiesScreen: React.FC = () => {
                         <View style={styles.detailContent}>
                           <Text style={styles.detailLabel}>Prix réservation</Text>
                           <Text style={styles.detailValue}>
-                            {formatPrice(booking?.total_price || 0)}
+                            {formatPrice(booking?.total_price ?? 0)}
                           </Text>
                         </View>
                       </View>
@@ -414,7 +415,7 @@ const PenaltiesScreen: React.FC = () => {
                         <View style={styles.detailContent}>
                           <Text style={styles.detailLabel}>Pénalité à payer</Text>
                           <Text style={[styles.detailValue, styles.penaltyAmount]}>
-                            {formatAmount(penalty.penalty_amount)}
+                            {formatPrice(penalty.penalty_amount)}
                           </Text>
                         </View>
                       </View>
@@ -474,7 +475,7 @@ const PenaltiesScreen: React.FC = () => {
                             >
                               <Ionicons name="card-outline" size={20} color="#fff" />
                               <Text style={styles.payButtonText}>
-                                Payer {formatAmount(penalty.penalty_amount)}
+                                Payer {formatPrice(penalty.penalty_amount)}
                               </Text>
                             </TouchableOpacity>
                           </>
