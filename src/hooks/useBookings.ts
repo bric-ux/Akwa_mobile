@@ -348,6 +348,8 @@ export const useBookings = () => {
           original_total: bookingData.originalTotal || bookingData.totalPrice,
           payment_method: bookingData.paymentMethod || null,
           payment_plan: bookingData.paymentPlan || null,
+          payment_currency: bookingData.paymentCurrency || 'XOF',
+          exchange_rate: bookingData.paymentRate ?? null,
           status: initialStatus,
         })
         .select(`

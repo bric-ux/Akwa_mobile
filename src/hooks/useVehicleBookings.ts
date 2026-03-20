@@ -406,6 +406,8 @@ export const useVehicleBookings = () => {
         with_driver: bookingData.useDriver === true,
         is_out_of_town_rental: isOutOfTown,
         payment_method: bookingData.paymentMethod || null,
+        payment_currency: bookingData.paymentCurrency || currency || 'XOF',
+        exchange_rate: bookingData.paymentRate ?? (bookingData.paymentCurrency === 'EUR' ? rates.EUR : bookingData.paymentCurrency === 'USD' ? rates.USD : null),
       };
 
       if (rentalType === 'hourly') {

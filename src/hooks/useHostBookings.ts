@@ -287,6 +287,25 @@ export const useHostBookings = () => {
         return { success: false, error: errorMessage };
       }
 
+      // Fallback devise : si payment_currency absent (anciennes réservations), récupérer depuis booking_calculation_details
+      let paymentCurrency = (bookingData as any).payment_currency;
+      let exchangeRate = (bookingData as any).exchange_rate;
+      if (!paymentCurrency || exchangeRate == null) {
+        try {
+          const { data: calcDetails } = await supabase
+            .from('booking_calculation_details')
+            .select('calculation_snapshot')
+            .eq('booking_id', bookingData.id)
+            .eq('booking_type', 'property')
+            .maybeSingle();
+          const snapshot = calcDetails?.calculation_snapshot as { paymentCurrency?: string; paymentRate?: number } | null;
+          if (snapshot) {
+            paymentCurrency = paymentCurrency || snapshot.paymentCurrency;
+            exchangeRate = exchangeRate ?? snapshot.paymentRate;
+          }
+        } catch (_) {}
+      }
+
       // Récupérer séparément le profil de l'invité
       let guestProfile: { first_name: string | null; last_name: string | null; email: string | null; phone: string | null } | null = null;
       
@@ -425,8 +444,8 @@ export const useHostBookings = () => {
                 message: bookingData.message_to_host || '',
                 payment_method: bookingData.payment_method || '',
                 payment_plan: bookingData.payment_plan || '',
-                payment_currency: (bookingData as any).payment_currency || undefined,
-                exchange_rate: (bookingData as any).exchange_rate || undefined
+                payment_currency: paymentCurrency || undefined,
+                exchange_rate: exchangeRate ?? undefined
               }
             };
 
@@ -495,8 +514,8 @@ export const useHostBookings = () => {
                 message: bookingData.message_to_host || '',
                 payment_method: bookingData.payment_method || '',
                 payment_plan: bookingData.payment_plan || '',
-                payment_currency: (bookingData as any).payment_currency || undefined,
-                exchange_rate: (bookingData as any).exchange_rate || undefined
+                payment_currency: paymentCurrency || undefined,
+                exchange_rate: exchangeRate ?? undefined
               }
             };
             
