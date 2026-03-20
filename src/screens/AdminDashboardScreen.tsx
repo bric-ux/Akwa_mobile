@@ -431,6 +431,14 @@ const AdminDashboardScreen: React.FC = () => {
           />
 
           <QuickAction
+            title="Test paiement Wave"
+            description="Simuler un paiement Wave réussi sans compte Wave"
+            icon="phone-portrait-outline"
+            onPress={() => navigation.navigate('AdminWaveTest' as never)}
+            color="#8b5cf6"
+          />
+
+          <QuickAction
             title="Validation des véhicules"
             description="Approuver ou rejeter les demandes de véhicules"
             icon="car-outline"

@@ -100,6 +100,24 @@ export async function checkPaymentStatus(
     return { is_confirmed: false, payment_status: 'pending', booking_status: 'pending', error: 'booking_id ou checkout_token requis' };
   }
 
+  // Wave : regarder d'abord en base (source de vérité = webhook → wave_payment_completions)
+  if (isWave && checkout_token) {
+    const { data: directRow } = await supabase
+      .from('wave_payment_completions')
+      .select('status, reference_id')
+      .eq('checkout_token', checkout_token)
+      .maybeSingle();
+    if (directRow && String(directRow.status).toLowerCase() === 'completed') {
+      return {
+        is_confirmed: true,
+        payment_status: 'completed',
+        booking_status: 'confirmed',
+        booking_id: (directRow.reference_id as string) ?? booking_id,
+      };
+    }
+    // Pas encore en base : appeler l'API (même source, utile si latence webhook) puis renvoyer pending
+  }
+
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData?.session?.access_token;
 
@@ -129,6 +147,7 @@ export async function checkPaymentStatus(
   const resolvedBookingId = (data?.booking_id ?? booking_id) as string | undefined;
 
   if (error) {
+    // Wave : on a déjà regardé en base en premier ; si on arrive ici c'est que la ligne n'existait pas
     const errMsg = (data as { error?: string })?.error || error?.message || 'Erreur de vérification';
     return { is_confirmed: false, payment_status: ps, booking_status: bs, booking_id: resolvedBookingId, error: errMsg };
   }

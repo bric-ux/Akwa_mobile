@@ -258,6 +258,8 @@ export type RootStackParamList = {
   AdminRefunds: undefined;
   AdminRevenue: undefined;
   AdminBookingCalculationTest: undefined;
+  AdminCommissionPaymentTest: undefined;
+  AdminWaveTest: undefined;
   AdminMonthlyRental: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };

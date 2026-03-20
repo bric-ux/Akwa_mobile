@@ -25,7 +25,7 @@ import CardPaymentSuccessView from './CardPaymentSuccessView';
 
 const POLL_INTERVAL_MS = 2500;
 const PAYMENT_SUCCESS_PATH = 'payment-success';
-const MAX_POLL_ATTEMPTS = 6;
+const MAX_POLL_ATTEMPTS = 10; // Wave : le webhook peut prendre quelques secondes
 const SHOW_CLOSE_AFTER_MS = 15000;
 
 type PendingPayment = { type: 'checkout_token'; value: string; bookingType: string; wave?: boolean };
@@ -122,8 +122,13 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     lastProcessedUrlRef.current = url;
     const parsed = parsePaymentSuccessFromUrl(url);
     if (parsed) {
-      // Ne pas afficher le modal au retour par deep link (bouton Stripe) : ça provoque un gel
-      // pour résidence et véhicule. L'utilisateur consulte « Mes réservations » manuellement.
+      // Wave : afficher le modal et poller (retour depuis /wave-return après paiement Wave)
+      if (parsed.wave) {
+        setPendingPayment(parsed);
+        return;
+      }
+      // Stripe (checkout_token sans wave) : ne pas afficher le modal (provoque un gel).
+      // L'utilisateur consulte « Mes réservations » manuellement.
       return;
     }
   }, []);

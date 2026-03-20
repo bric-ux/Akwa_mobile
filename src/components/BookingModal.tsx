@@ -71,7 +71,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [infants, setInfants] = useState(0);
   const [message, setMessage] = useState('');
   const [showCalendar, setShowCalendar] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'orange_money' | 'mtn_money' | 'moov_money' | 'wave' | 'paypal' | 'cash'>('card');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'orange_money' | 'mtn_money' | 'moov_money' | 'wave' | 'paypal' | 'cash' | null>(null);
   const [paymentPlan, setPaymentPlan] = useState<'full' | 'split'>('full');
   const [effectivePrice, setEffectivePrice] = useState<number | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(false);
@@ -1078,6 +1078,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
   }, [visible, pendingStripeBookingId, cancelPendingCardBooking, resetStripePendingState]);
 
   const validatePaymentInfo = () => {
+    if (!selectedPaymentMethod) {
+      Alert.alert('Méthode de paiement requise', 'Veuillez choisir une méthode de paiement pour continuer.');
+      return false;
+    }
     // Carte, Wave, cash : pas de saisie dans l'app (carte/Wave → checkout, cash → résa directe).
     if (selectedPaymentMethod === 'card' || selectedPaymentMethod === 'cash' || selectedPaymentMethod === 'wave') {
       return true;
@@ -1441,7 +1445,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           {checkIn && checkOut && nights > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('booking.paymentMethod')}</Text>
-              <Text style={styles.paymentMethodHint}>Cliquez pour voir les autres moyens de paiement</Text>
+              <Text style={styles.paymentMethodHint}>Cliquez pour choisir votre moyen de paiement</Text>
               
               {/* Bouton pour ouvrir la pop-up de sélection */}
               <TouchableOpacity
@@ -1449,6 +1453,12 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 onPress={() => setShowPaymentMethodModal(true)}
               >
                 <View style={styles.paymentMethodSelectorContent}>
+                  {!selectedPaymentMethod && (
+                    <>
+                      <Ionicons name="wallet-outline" size={24} color="#666" />
+                      <Text style={[styles.paymentMethodSelectorText, { color: '#666' }]}>Choisir une méthode de paiement</Text>
+                    </>
+                  )}
                   {selectedPaymentMethod === 'card' && (
                     <>
                       <Ionicons name="card" size={24} color="#2563eb" />
@@ -1618,27 +1628,27 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 
                 <View style={[styles.priceRow, styles.totalRow]}>
                   <Text style={styles.totalLabel}>
-                    {selectedPaymentMethod === 'card'
-                      ? effectivePaymentPlan === 'split'
-                        ? 'Total à payer maintenant'
-                        : 'Total à payer par carte'
-                      : t('booking.total')}
+                    {(selectedPaymentMethod === 'card' || selectedPaymentMethod === 'wave') && effectivePaymentPlan === 'split'
+                      ? 'Total à payer maintenant'
+                      : selectedPaymentMethod === 'card'
+                        ? 'Total à payer par carte'
+                        : t('booking.total')}
                   </Text>
                   <Text style={styles.totalValue}>
-                    {selectedPaymentMethod === 'card'
-                      ? (effectivePaymentPlan === 'split'
-                          ? (currency === 'EUR' && rates.EUR
-                              ? `~${(cardChargeAmount / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${cardChargeAmount.toLocaleString('fr-FR')} FCFA)`
-                              : formatPayment(cardChargeAmount))
-                          : (currency === 'EUR' && rates.EUR
-                              ? `~${(finalTotal / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${finalTotal.toLocaleString('fr-FR')} FCFA)`
-                              : formatPayment(finalTotal)))
+                    {(selectedPaymentMethod === 'card' || selectedPaymentMethod === 'wave') && effectivePaymentPlan === 'split'
+                      ? (currency === 'EUR' && rates.EUR
+                          ? `~${(cardChargeAmount / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${cardChargeAmount.toLocaleString('fr-FR')} FCFA)`
+                          : formatPayment(cardChargeAmount))
+                      : selectedPaymentMethod === 'card'
+                        ? (currency === 'EUR' && rates.EUR
+                            ? `~${(finalTotal / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${finalTotal.toLocaleString('fr-FR')} FCFA)`
+                            : formatPayment(finalTotal))
                       : (currency === 'EUR' && rates.EUR
                           ? `~${(finalTotal / rates.EUR).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (${finalTotal.toLocaleString('fr-FR')} FCFA)`
                           : formatPayment(finalTotal))}
                   </Text>
                 </View>
-                {selectedPaymentMethod === 'card' && effectivePaymentPlan === 'split' && (
+                {(selectedPaymentMethod === 'card' || selectedPaymentMethod === 'wave') && effectivePaymentPlan === 'split' && (
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>Restant à l'arrivée</Text>
                     <Text style={styles.priceValue}>{formatPayment(finalTotal - cardChargeAmount)}</Text>
@@ -1682,6 +1692,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
                         : 'Payer avec Wave et envoyer la demande'
                     : selectedPaymentMethod === 'cash'
                       ? t('booking.confirmBooking')
+                    : !selectedPaymentMethod
+                      ? 'Choisir une méthode de paiement'
                     : effectivePaymentPlan === 'split'
                           ? `${t('booking.pay')} ${formatPayment(cardChargeAmount)} ${t('common.now')}`
                           : property.auto_booking 
@@ -1713,6 +1725,11 @@ const BookingModal: React.FC<BookingModalProps> = ({
               setCheckIn(normalizedCheckIn);
               setCheckOut(normalizedCheckOut);
               // La sauvegarde sera faite automatiquement par le useEffect
+              // Redirection automatique vers la popup méthode de paiement après sélection des dates
+              const hasBothDates = normalizedCheckIn && normalizedCheckOut && normalizedCheckOut > normalizedCheckIn;
+              if (hasBothDates) {
+                setTimeout(() => setShowPaymentMethodModal(true), 400);
+              }
             }}
             onClose={() => setShowCalendar(false)}
           />

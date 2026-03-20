@@ -89,6 +89,7 @@ import AdminRevenueScreen from '../screens/AdminRevenueScreen';
 import AdminPayoutsScreen from '../screens/AdminPayoutsScreen';
 import AdminBookingCalculationTestScreen from '../screens/AdminBookingCalculationTestScreen';
 import AdminCommissionPaymentTestScreen from '../screens/AdminCommissionPaymentTestScreen';
+import AdminWaveTestScreen from '../screens/AdminWaveTestScreen';
 import AdminMonthlyRentalScreen from '../screens/AdminMonthlyRentalScreen';
 import HostReviewsScreen from '../screens/HostReviewsScreen';
 import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
@@ -927,6 +928,14 @@ const AppNavigator = () => {
               component={AdminCommissionPaymentTestScreen}
               options={{
                 title: 'Test paiement commission',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminWaveTest"
+              component={AdminWaveTestScreen}
+              options={{
+                title: 'Test paiement Wave',
                 headerShown: false
               }}
             />

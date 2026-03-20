@@ -28,19 +28,19 @@ export async function createWaveCheckoutSession(
 
   if (error) {
     let serverMessage: string | null = null;
+    let debugInfo: string | null = null;
     try {
-      const err = error as { context?: { json?: () => Promise<{ error?: string }> } };
+      const err = error as { context?: { json?: () => Promise<{ error?: string; _debug?: string }> } };
       if (err?.context?.json) {
         const parsed = await err.context.json();
         serverMessage = parsed?.error ? String(parsed.error) : null;
+        debugInfo = parsed?._debug ? String(parsed._debug) : null;
       }
     } catch {
       // ignore
     }
-    const msg =
-      serverMessage && serverMessage.length < 120
-        ? serverMessage
-        : error?.message || "Erreur lors de l'ouverture du paiement Wave";
+    const baseMsg = serverMessage && serverMessage.length < 120 ? serverMessage : error?.message || "Erreur lors de l'ouverture du paiement Wave";
+    const msg = __DEV__ && debugInfo ? `${baseMsg} (${debugInfo})` : baseMsg;
     throw new Error(msg);
   }
 
