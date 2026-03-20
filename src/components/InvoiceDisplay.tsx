@@ -935,7 +935,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           payment_method: effectivePaymentMethod,
           payment_plan: booking.payment_plan || '',
           payment_currency: displayCurrency,
-          exchange_rate: displayRate > 0 ? displayRate : undefined,
+          exchange_rate: displayRate > 0 ? displayRate : (displayCurrency === 'EUR' ? 655.957 : displayCurrency === 'USD' ? 600 : undefined),
           host_pending_penalty_deduct: type === 'host' ? hostPendingPenaltyDeduct : undefined,
         };
       } else {
@@ -981,7 +981,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           withDriver: (booking as any).with_driver || booking.vehicle?.with_driver || false, // Vérifier booking.with_driver en priorité
           vehicleDriverFee: booking.vehicle?.driver_fee || 0, // BUG FIX: Ajouter vehicleDriverFee pour le calcul PDF
           payment_currency: displayCurrency,
-          exchange_rate: displayRate > 0 ? displayRate : undefined,
+          exchange_rate: displayRate > 0 ? displayRate : (displayCurrency === 'EUR' ? 655.957 : displayCurrency === 'USD' ? 600 : undefined),
           host_pending_penalty_deduct: type === 'host' ? hostPendingPenaltyDeduct : undefined,
         };
       }
