@@ -85,6 +85,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
   /** Session Stripe de cette tentative — permet de ne confirmer que le paiement de CETTE session (pas un ancien surplus) */
   const [pendingStripeSessionId, setPendingStripeSessionId] = useState<string | null>(null);
+  const [pendingWaveCheckoutToken, setPendingWaveCheckoutToken] = useState<string | null>(null);
 
   /** Refs pour que le retour à l'app (sans clic sur "Ouvrir") déclenche quand même la vérification avec les bons ids */
   const sessionIdRef = useRef<string | null>(null);

@@ -32,6 +32,16 @@ interface VehicleCancellationModalProps {
 
 const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
+const getPolicyLabel = (policy: string | null) => {
+  switch (policy) {
+    case 'flexible': return 'Flexible';
+    case 'moderate': return 'Modérée';
+    case 'strict': return 'Stricte';
+    case 'non_refundable': return 'Non remboursable';
+    default: return 'Flexible';
+  }
+};
+
 const cancellationReasons = [
   { value: 'change_plans', label: 'Changement de plans' },
   { value: 'vehicle_unavailable', label: 'Véhicule non disponible' },
@@ -125,6 +135,8 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   const penalty = isOwner ? (ownerResult?.penalty ?? 0) : (guestCancellationInfo?.penaltyAmount ?? 0);
   const refundAmount = isOwner ? (ownerResult?.refundAmount ?? 0) : (guestCancellationInfo?.refundAmount ?? 0);
 
+  const cancellationPolicy = (booking?.vehicle as any)?.cancellation_policy ?? (booking as any)?.cancellation_policy ?? 'flexible';
+
   /** Le propriétaire reçoit l'argent 48h après le début de la location. Si pas encore perçu, c'est AkwaHome qui rembourse → on ne demande pas le remboursement au propriétaire. */
   const ownerHasReceivedMoney = booking?.start_date
     ? new Date(booking.start_date).getTime() + 48 * 60 * 60 * 1000 <= Date.now()
@@ -139,7 +151,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         : guestCancellationInfo
           ? (booking?.status === 'pending'
               ? 'Demande en attente. Aucun paiement effectué.'
-              : `Montant à rembourser : ${(guestCancellationInfo.refundAmount ?? 0).toLocaleString()} XOF.`)
+              : `Politique d'annulation : ${getPolicyLabel(cancellationPolicy)}. Montant à rembourser : ${(guestCancellationInfo.refundAmount ?? 0).toLocaleString()} XOF.`)
           : '';
 
   const canConfirmCancellation = isOwner || !guestCancellationInfo || guestCancellationInfo.canCancel;

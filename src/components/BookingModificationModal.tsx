@@ -294,9 +294,11 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
   const hasChanges = checkInChanged || checkOutChanged || guestsChanged;
 
   const originalTotal = Number(booking.total_price);
-  const priceDifference = (isExtension && extensionSurplus !== null)
+  const rawPriceDiff = (isExtension && extensionSurplus !== null)
     ? extensionSurplus
     : (newTotalPrice - originalTotal);
+  // Quand on réduit les nuits : jamais de surplus à afficher (réduction = pas de paiement supplémentaire)
+  const priceDifference = (!isExtension && nights < originalNights && rawPriceDiff > 0) ? 0 : rawPriceDiff;
 
   const handleDateSelect = (selectedCheckIn: Date | null, selectedCheckOut: Date | null) => {
     if (selectedCheckIn) {
@@ -577,7 +579,10 @@ const BookingModificationModal: React.FC<BookingModificationModalProps> = ({
         free_cleaning_min_days: property.free_cleaning_min_days || null
       });
       finalTotalPrice = finalPriceAfterDiscount + finalFees.totalFees;
-      finalPriceDifference = finalTotalPrice - originalTotalPrice;
+      let rawPriceDifference = finalTotalPrice - originalTotalPrice;
+      // Quand on réduit le nombre de nuits : jamais de surplus à payer (réduction = pas de paiement supplémentaire)
+      const isReduction = finalNights < originalNightsSubmit;
+      finalPriceDifference = isReduction && rawPriceDifference > 0 ? 0 : rawPriceDifference;
     }
 
     const originalNights = originalNightsSubmit;

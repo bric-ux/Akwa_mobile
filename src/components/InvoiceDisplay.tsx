@@ -1016,7 +1016,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
   const getTitle = () => {
     switch (type) {
-      case 'traveler': return 'Facture voyageur';
+      case 'traveler': return 'Justificatif de réservation';
       case 'host': return 'Justificatif hôte';
       case 'admin': return 'Facture interne Akwahome';
     }
@@ -1033,9 +1033,6 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         />
         <View style={styles.headerRight}>
           <Text style={styles.headerType} numberOfLines={2}>{getTitle()}</Text>
-          <Text style={styles.rccmNumber}>
-            NCC:2507662T
-          </Text>
         </View>
       </View>
 
@@ -1842,6 +1839,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         <Text style={styles.footerBrandText}>
           AkwaHome - Votre plateforme de réservation en Côte d'Ivoire
         </Text>
+        <Text style={styles.footerNcc}>NCC:2507662T</Text>
       </View>
 
       {/* Bouton de téléchargement PDF */}
@@ -2046,12 +2044,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: '#333',
-    fontFamily: 'monospace',
-  },
-  rccmNumber: {
-    fontSize: 10,
-    color: '#6b7280',
-    marginTop: 4,
     fontFamily: 'monospace',
   },
   section: {
@@ -2335,6 +2327,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6b7280',
     textAlign: 'center',
+  },
+  footerNcc: {
+    fontSize: 10,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 4,
+    fontFamily: 'monospace',
   },
   // Styles pour détails TVA
   vatDetailsContainer: {

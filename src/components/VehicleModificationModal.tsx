@@ -322,7 +322,12 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
 
     // ✅ CALCUL SIMPLE ET COHÉRENT DU SURPLUS
     // Le surplus = nouveau total - ancien total, point final
-    const priceDifference = totalPrice - currentTotalPrice;
+    let priceDifference = totalPrice - currentTotalPrice;
+    // Quand on RÉDUIT la durée (jours ou heures) : jamais de surplus à payer
+    const isReduction = daysDiff < 0 || hoursDiff < 0;
+    if (isReduction && priceDifference > 0) {
+      priceDifference = 0;
+    }
     
     // Calculer les frais de service actuels pour la comparaison
     const currentServiceFeeHT = Math.round(currentPriceAfterDiscount * 0.10);
@@ -609,7 +614,12 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                     const discountDiff = currentDiscountAmount - discountAmount;
                     const basePriceDiff = basePrice - currentPriceAfterDiscount;
                     const serviceFeeDiff = effectiveServiceFee - currentServiceFee;
-                    const totalDiff = totalPrice - currentTotalPrice;
+                    let totalDiff = totalPrice - currentTotalPrice;
+                    // Quand on réduit : jamais de surplus à afficher (réduction = pas de paiement supplémentaire)
+                    const isReduction = daysDiff < 0 || hoursDiff < 0;
+                    if (isReduction && totalDiff > 0) totalDiff = 0;
+                    // En cas de réduction : afficher uniquement la durée et le total (pas le détail prix/frais qui prête à confusion)
+                    const showDetailedBreakdown = !isReduction;
                     
                     return (
                       <>
@@ -627,7 +637,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                             )}
                           </Text>
                         </View>
-                        {(daysPriceDiff !== 0 || hoursPriceDiff !== 0) && (
+                        {showDetailedBreakdown && (daysPriceDiff !== 0 || hoursPriceDiff !== 0) && (
                           <>
                             {daysPriceDiff !== 0 && (
                               <View style={styles.summaryRow}>
@@ -653,7 +663,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                             )}
                           </>
                         )}
-                        {(daysPriceDiff !== 0 || hoursPriceDiff !== 0) && (
+                        {showDetailedBreakdown && (daysPriceDiff !== 0 || hoursPriceDiff !== 0) && (
                           <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Prix de base (avant réduction):</Text>
                             <Text style={styles.summaryValue}>
@@ -661,7 +671,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                             </Text>
                           </View>
                         )}
-                        {discountDiff !== 0 && (
+                        {showDetailedBreakdown && discountDiff !== 0 && (
                           <View style={styles.summaryRow}>
                             <Text style={[styles.summaryLabel, discountDiff > 0 ? { color: '#e74c3c' } : { color: '#059669' }]}>
                               {discountDiff > 0 ? 'Perte de réduction:' : 'Gain de réduction:'}
@@ -671,7 +681,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                             </Text>
                           </View>
                         )}
-                        {basePriceDiff !== 0 && (
+                        {showDetailedBreakdown && basePriceDiff !== 0 && (
                           <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Prix après réduction:</Text>
                             <Text style={styles.summaryValue}>
@@ -679,7 +689,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
                             </Text>
                           </View>
                         )}
-                        {serviceFeeDiff !== 0 && (
+                        {showDetailedBreakdown && serviceFeeDiff !== 0 && (
                           <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Frais de service:</Text>
                             <Text style={styles.summaryValue}>
@@ -753,7 +763,7 @@ const VehicleModificationModal: React.FC<VehicleModificationModalProps> = ({
           setPendingRequestPayload(null);
           setSurplusBreakdown(null);
         }}
-        surplusAmount={totalPrice > currentTotalPrice ? totalPrice - currentTotalPrice : 0}
+        surplusAmount={((daysDiff < 0 || hoursDiff < 0) ? 0 : (totalPrice > currentTotalPrice ? totalPrice - currentTotalPrice : 0))}
         bookingId={booking.id}
         onPaymentComplete={handlePaymentComplete}
         modificationRequestPayload={pendingRequestPayload ?? undefined}
