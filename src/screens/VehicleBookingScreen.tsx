@@ -46,7 +46,7 @@ const VehicleBookingScreen: React.FC = () => {
   const route = useRoute<VehicleBookingRouteProp>();
   const { vehicleId } = route.params;
   const { user } = useAuth();
-  const { currency, rates, formatPrice } = useCurrency();
+  const { currency, rates, formatPrice, changeCurrency } = useCurrency();
   const { getVehicleById } = useVehicles();
   const { createBooking, loading } = useVehicleBookings();
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
@@ -931,6 +931,21 @@ const VehicleBookingScreen: React.FC = () => {
     };
     if (!validatePaymentInfo()) return;
 
+    if (selectedPaymentMethod === 'wave' && currency !== 'XOF') {
+      Alert.alert(
+        'Devise requise',
+        'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Passer en CFA', onPress: async () => {
+            await changeCurrency('XOF');
+            Alert.alert('Devise mise à jour', 'La devise a été passée en Franc CFA. Vous pouvez maintenant cliquer sur le bouton de réservation pour continuer avec Wave.');
+          } },
+        ]
+      );
+      return;
+    }
+
     if (isLicenseRequired) {
       if (!hasLicense) {
         const message = (withDriver && useDriver === false) 
@@ -1540,6 +1555,20 @@ const VehicleBookingScreen: React.FC = () => {
                     return;
                   }
                   if (method.value === 'wave') {
+                    if (currency !== 'XOF') {
+                      Alert.alert(
+                        'Devise requise',
+                        'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+                        [
+                          { text: 'Annuler', style: 'cancel' },
+                          { text: 'Passer en CFA', onPress: async () => {
+                            await changeCurrency('XOF');
+                            setSelectedPaymentMethod('wave');
+                          } },
+                        ]
+                      );
+                      return;
+                    }
                     setSelectedPaymentMethod('wave');
                     return;
                   }
@@ -1558,10 +1587,6 @@ const VehicleBookingScreen: React.FC = () => {
                       return;
                     }
                     setSelectedPaymentMethod('card');
-                    return;
-                  }
-                  if (method.value === 'wave') {
-                    setSelectedPaymentMethod('wave');
                     return;
                   }
                   Alert.alert('Bientot disponible', `${method.label} sera bientot disponible. ${canPayByCard ? 'Utilisez Carte bancaire (Stripe), Wave ou Espèces.' : 'Utilisez Wave ou Espèces.'}`);

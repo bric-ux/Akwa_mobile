@@ -68,7 +68,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
 }) => {
   const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
   const navigation = useNavigation();
-  const { currency, rates, formatPriceForPayment } = useCurrency();
+  const { currency, rates, formatPriceForPayment, changeCurrency } = useCurrency();
   const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -412,6 +412,20 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
     }
 
     if (paymentMethod === 'wave') {
+      if (currency !== 'XOF') {
+        Alert.alert(
+          'Devise requise',
+          'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Passer en CFA', onPress: async () => {
+              await changeCurrency('XOF');
+              Alert.alert('Devise mise à jour', 'La devise a été passée en Franc CFA. Vous pouvez maintenant cliquer sur le bouton de paiement pour continuer avec Wave.');
+            } },
+          ]
+        );
+        return;
+      }
       await runWaveCheckoutSurplus();
       return;
     }

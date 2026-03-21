@@ -55,7 +55,7 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const checkingRef = useRef(false);
 
-  const { currency, rates, formatPrice, formatPriceForPayment } = useCurrency();
+  const { currency, rates, formatPrice, formatPriceForPayment, changeCurrency } = useCurrency();
   const commissionAmount = commission?.amount_due ?? 0;
   const cardFeePercent = 1;
   const cardFeeAmount = Math.round(commissionAmount * (cardFeePercent / 100));
@@ -262,6 +262,20 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
     }
 
     // Wave : créer checkout Wave unifié (webhook marque la commission comme payée)
+    if (currency !== 'XOF') {
+      Alert.alert(
+        'Devise requise',
+        'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Passer en CFA', onPress: async () => {
+            await changeCurrency('XOF');
+            Alert.alert('Devise mise à jour', 'La devise a été passée en Franc CFA. Vous pouvez maintenant cliquer sur le bouton de paiement pour continuer avec Wave.');
+          } },
+        ]
+      );
+      return;
+    }
     setLoading(true);
     try {
       const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
@@ -344,7 +358,23 @@ const CommissionPaymentModal: React.FC<CommissionPaymentModalProps> = ({
 
             <TouchableOpacity
               style={[styles.paymentMethodCard, paymentMethod === 'wave' && styles.paymentMethodCardActive]}
-              onPress={() => setPaymentMethod('wave')}
+              onPress={() => {
+                if (currency !== 'XOF') {
+                  Alert.alert(
+                    'Devise requise',
+                    'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+                    [
+                      { text: 'Annuler', style: 'cancel' },
+                      { text: 'Passer en CFA', onPress: async () => {
+                        await changeCurrency('XOF');
+                        setPaymentMethod('wave');
+                      } },
+                    ]
+                  );
+                  return;
+                }
+                setPaymentMethod('wave');
+              }}
             >
               <View style={styles.paymentMethodContent}>
                 <View style={[styles.paymentIcon, { backgroundColor: '#1DA1F2' }]}>

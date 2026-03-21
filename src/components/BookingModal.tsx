@@ -58,7 +58,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
 }) => {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { currency, rates, formatPrice: formatPriceCurrency, formatPriceForPayment } = useCurrency();
+  const { currency, rates, formatPrice: formatPriceCurrency, formatPriceForPayment, changeCurrency } = useCurrency();
   const { createBooking, loading } = useBookings();
   const { sendBookingRequestSent, sendBookingRequest } = useEmailService();
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } = useIdentityVerification();
@@ -577,6 +577,20 @@ const BookingModal: React.FC<BookingModalProps> = ({
     }
 
     if (selectedPaymentMethod === 'wave') {
+      if (currency !== 'XOF') {
+        Alert.alert(
+          'Devise requise',
+          'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Passer en CFA', onPress: async () => {
+              await changeCurrency('XOF');
+              Alert.alert('Devise mise à jour', 'La devise a été passée en Franc CFA. Vous pouvez maintenant cliquer sur le bouton de paiement pour continuer avec Wave.');
+            } },
+          ]
+        );
+        return;
+      }
       if (identityLoading) {
         Alert.alert('Vérification', 'Vérification de l\'identité en cours...');
         return;
@@ -1886,8 +1900,23 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   selectedPaymentMethod === 'wave' && styles.paymentMethodSelected
                 ]}
                 onPress={() => {
-                  setSelectedPaymentMethod('wave');
-                  setShowPaymentMethodModal(false);
+                  if (currency !== 'XOF') {
+                    Alert.alert(
+                      'Devise requise',
+                      'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+                      [
+                        { text: 'Annuler', style: 'cancel' },
+                        { text: 'Passer en CFA', onPress: async () => {
+                          await changeCurrency('XOF');
+                          setSelectedPaymentMethod('wave');
+                          setShowPaymentMethodModal(false);
+                        } },
+                      ]
+                    );
+                  } else {
+                    setSelectedPaymentMethod('wave');
+                    setShowPaymentMethodModal(false);
+                  }
                 }}
               >
                 <View style={styles.paymentMethodContent}>

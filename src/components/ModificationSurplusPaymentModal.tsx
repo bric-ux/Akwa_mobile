@@ -65,7 +65,7 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
   priceBreakdown,
 }) => {
   const navigation = useNavigation();
-  const { currency, rates, formatPriceForPayment } = useCurrency();
+  const { currency, rates, formatPriceForPayment, changeCurrency } = useCurrency();
 
   // Ne jamais facturer plus que le surplus réel (nouveau total - ancien total)
   const originalTotal = Number(originalTotalPrice) || 0;
@@ -450,6 +450,20 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
     }
 
     if (paymentMethod === 'wave') {
+      if (currency !== 'XOF') {
+        Alert.alert(
+          'Devise requise',
+          'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Voulez-vous passer en CFA pour pouvoir payer avec Wave ?',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Passer en CFA', onPress: async () => {
+              await changeCurrency('XOF');
+              Alert.alert('Devise mise à jour', 'La devise a été passée en Franc CFA. Vous pouvez maintenant cliquer sur le bouton de paiement pour continuer avec Wave.');
+            } },
+          ]
+        );
+        return;
+      }
       await runWaveCheckoutSurplus();
       return;
     }

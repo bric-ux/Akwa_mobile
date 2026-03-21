@@ -342,9 +342,14 @@ const BookingCard: React.FC<BookingCardProps> = ({
             style={styles.propertyImage}
           />
           <View style={styles.propertyDetails}>
-            <Text style={styles.propertyTitle} numberOfLines={2}>
-              {booking.properties?.title || 'Propriété non trouvée'}
-            </Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.propertyTitle} numberOfLines={2}>
+                {booking.properties?.title || 'Propriété non trouvée'}
+              </Text>
+              <Text style={styles.reservationNumber}>
+                #{(booking as any).booking_code || (booking as any).vehicle_booking_code || booking.id}
+              </Text>
+            </View>
             <Text style={styles.propertyLocation}>
               📍 {booking.properties?.location?.name || booking.properties?.locations?.name || 'Localisation inconnue'}
             </Text>
@@ -581,11 +586,23 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 4,
+  },
   propertyTitle: {
+    flex: 1,
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
+  },
+  reservationNumber: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '500',
   },
   propertyLocation: {
     fontSize: 14,
