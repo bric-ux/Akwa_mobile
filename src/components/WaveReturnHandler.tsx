@@ -1,10 +1,6 @@
 /**
- * Handler global pour le retour Stripe : UNIQUEMENT réservation initiale (logement ou véhicule).
- * Les URLs payment-success avec checkout_token = flux draft (résa créée par le webhook après paiement).
- *
- * La modification de réservation (surplus par CB) n'est PAS gérée ici : elle est gérée
- * entièrement dans ModificationSurplusPaymentModal / VehicleModificationSurplusPaymentModal
- * (flux dédié, pas de partage avec ce handler pour éviter les faux succès).
+ * Handler dédié au retour Wave (réservation initiale logement ou véhicule).
+ * Délais importants pour éviter le gel au retour depuis le navigateur.
  */
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
@@ -18,40 +14,46 @@ import {
   AppState,
   AppStateStatus,
   InteractionManager,
+  Platform,
 } from 'react-native';
-import type { NavigationContainerRef } from '@react-navigation/native';
 import { checkPaymentStatus } from '../services/cardPaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
 
 const POLL_INTERVAL_MS = 2500;
 const PAYMENT_SUCCESS_PATH = 'payment-success';
-const MAX_POLL_ATTEMPTS = 10; // Wave : le webhook peut prendre quelques secondes
+const MAX_POLL_ATTEMPTS = 10;
 const SHOW_CLOSE_AFTER_MS = 15000;
+/** Délai avant d'afficher le modal : laisser l'app stabiliser après le deep link */
+const DEFER_MS = Platform.OS === 'ios' ? 900 : 1000;
+/** Délai supplémentaire quand l'app revient de background (AppState active) */
+const DEFER_APP_STATE_MS = 400;
 
 type PendingPayment = { type: 'checkout_token'; value: string; bookingType: string; wave?: boolean };
 
-/** Ne traite que les URLs avec checkout_token (résa initiale). Toute URL avec booking_id est ignorée (modification = gérée par les modals). */
-function parsePaymentSuccessFromUrl(url: string): PendingPayment | null {
+function parseWavePaymentSuccessFromUrl(url: string): PendingPayment | null {
   try {
     if (!url || !url.includes(PAYMENT_SUCCESS_PATH)) return null;
+    const waveMatch = url.match(/[?&]wave=([^&]+)/);
+    if (!waveMatch || !['1', 'true', 'yes'].includes(String(waveMatch[1]).toLowerCase())) return null;
     const bookingTypeMatch = url.match(/booking_type=([^&]+)/);
     const bookingType = bookingTypeMatch ? decodeURIComponent(bookingTypeMatch[1]) : 'property';
     const tokenMatch = url.match(/checkout_token=([^&]+)/);
-    const waveMatch = url.match(/[?&]wave=([^&]+)/);
-    const wave = waveMatch ? ['1', 'true', 'yes'].includes(String(waveMatch[1]).toLowerCase()) : false;
-    if (tokenMatch) return { type: 'checkout_token', value: decodeURIComponent(tokenMatch[1]), bookingType, wave };
-    return null;
+    if (!tokenMatch) return null;
+    return { type: 'checkout_token', value: decodeURIComponent(tokenMatch[1]), bookingType, wave: true };
   } catch {
     return null;
   }
 }
 
-type Props = { navigationRef?: React.RefObject<NavigationContainerRef<unknown> | null> };
-
-export default function StripeReturnHandler({ navigationRef }: Props) {
+export default function WaveReturnHandler() {
   const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null);
   const [status, setStatus] = useState<'checking' | 'success' | 'error'>('checking');
   const [message, setMessage] = useState<string>('Vérification du paiement en cours...');
+  const [showCloseAnyway, setShowCloseAnyway] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const pollDoneRef = useRef(false);
+  const lastProcessedUrlRef = useRef<string | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const checkPayment = useCallback(async (payload: PendingPayment): Promise<{ paid: boolean; error?: string }> => {
     try {
@@ -59,7 +61,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
         booking_type: (payload.bookingType as 'property' | 'vehicle') || 'property',
         payment_type: 'booking',
         checkout_token: payload.value,
-        ...(payload.wave ? { wave: true } : {}),
+        wave: true,
       });
       if (result.error) return { paid: false, error: result.error };
       return { paid: result.is_confirmed };
@@ -68,11 +70,6 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
       return { paid: false, error: errMsg };
     }
   }, []);
-
-  const [showCloseAnyway, setShowCloseAnyway] = useState(false);
-  const [retryKey, setRetryKey] = useState(0);
-  const pollDoneRef = useRef(false);
-  const lastProcessedUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!pendingPayment) return;
@@ -84,9 +81,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
       if (pollDoneRef.current || cancelled) return;
       const result = await checkPayment(pendingPayment);
       if (cancelled) return;
-      console.log('[DEBUG][StripeReturnHandler] Poll checkPayment result:', { paid: result.paid, error: result.error });
       if (result.paid) {
-        console.log('[DEBUG][StripeReturnHandler] → Affichage succès (résa initiale)');
         pollDoneRef.current = true;
         setStatus('success');
         setMessage(pendingPayment.bookingType === 'vehicle'
@@ -101,53 +96,73 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
         setMessage('Votre paiement a peut-être déjà été enregistré. Consultez « Mes réservations » pour vérifier.');
       }
     };
-    poll();
-    intervalId = setInterval(() => {
-      if (cancelled || pollDoneRef.current) return;
+    // Délai initial avant le premier poll : laisser le modal s'afficher complètement
+    const startTimeout = setTimeout(() => {
+      if (cancelled) return;
       poll();
-    }, POLL_INTERVAL_MS);
+      intervalId = setInterval(() => {
+        if (cancelled || pollDoneRef.current) return;
+        poll();
+      }, POLL_INTERVAL_MS);
+    }, 400);
     const closeTimer = setTimeout(() => {
       if (!cancelled) setShowCloseAnyway(true);
     }, SHOW_CLOSE_AFTER_MS);
     return () => {
       cancelled = true;
+      clearTimeout(startTimeout);
       if (intervalId) clearInterval(intervalId);
       clearTimeout(closeTimer);
     };
   }, [pendingPayment, checkPayment, retryKey]);
 
-  const handleOpenUrl = useCallback((url: string | null) => {
+  const handleOpenUrl = useCallback((url: string | null, fromAppState = false) => {
     if (!url) return;
     if (lastProcessedUrlRef.current === url) return;
-    lastProcessedUrlRef.current = url;
-    const parsed = parsePaymentSuccessFromUrl(url);
-    if (parsed) {
-      // Wave : géré par WaveReturnHandler (pas ici)
-      if (parsed.wave) return;
-      // Stripe (checkout_token sans wave) : ne pas afficher le modal (provoque un gel).
-      // L'utilisateur consulte « Mes réservations » manuellement.
-      return;
-    }
+    const parsed = parseWavePaymentSuccessFromUrl(url);
+    if (!parsed) return;
+
+    const apply = () => {
+      if (lastProcessedUrlRef.current === url) return;
+      lastProcessedUrlRef.current = url;
+      setPendingPayment(parsed);
+    };
+
+    // Délai plus long quand l'app revient de background (clic bouton wave-return)
+    const delay = fromAppState ? DEFER_MS + DEFER_APP_STATE_MS : DEFER_MS;
+
+    // 1. InteractionManager : attendre la fin des animations en cours
+    // 2. requestAnimationFrame : laisser un frame se peindre
+    // 3. setTimeout : délai pour que l'app soit pleinement opérationnelle
+    InteractionManager.runAfterInteractions(() => {
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => {
+          setTimeout(apply, delay);
+        });
+      } else {
+        setTimeout(apply, delay);
+      }
+    });
   }, []);
 
   useEffect(() => {
-    Linking.getInitialURL().then(handleOpenUrl);
-    const sub = Linking.addEventListener('url', ({ url }) => handleOpenUrl(url));
+    Linking.getInitialURL().then((url) => handleOpenUrl(url, false));
+    const sub = Linking.addEventListener('url', ({ url }) => handleOpenUrl(url, false));
     return () => sub.remove();
   }, [handleOpenUrl]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      if (nextState === 'active') {
-        Linking.getInitialURL().then(handleOpenUrl);
+      const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
+      appStateRef.current = nextState;
+      if (wasBackground && nextState === 'active') {
+        Linking.getInitialURL().then((url) => handleOpenUrl(url, true));
       }
     });
     return () => subscription.remove();
   }, [handleOpenUrl]);
 
   const closeModal = useCallback(() => {
-    // Comme pour le véhicule : on ferme uniquement le modal, sans appeler navigate().
-    // La navigation vers BookingsTab (résidence) provoquait un gel au retour par deep link.
     InteractionManager.runAfterInteractions(() => {
       setTimeout(() => {
         setPendingPayment(null);
@@ -168,7 +183,13 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   if (!pendingPayment) return null;
 
   return (
-    <Modal visible transparent animationType="fade">
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={closeModal}
+    >
       <View style={styles.overlay}>
         <View style={styles.box}>
           {status === 'checking' && (
