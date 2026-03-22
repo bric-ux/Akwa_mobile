@@ -999,7 +999,7 @@ export const useBookings = () => {
       const policy = fullBooking.properties.cancellation_policy || 'flexible';
       const isPending = fullBooking.status === 'pending';
       const isInProgress = checkInDate <= now && now <= checkOutDate;
-      const nightsElapsed = isInProgress ? Math.max(0, Math.ceil((now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+      const nightsElapsed = isInProgress ? Math.max(0, Math.floor((now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
       const remainingNights = isInProgress ? Math.max(0, totalNights - nightsElapsed) : totalNights;
       const remainingNightsAmount = remainingNights * fullBooking.properties.price_per_night;
 

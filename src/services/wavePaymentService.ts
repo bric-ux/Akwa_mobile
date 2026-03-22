@@ -8,7 +8,7 @@ import { supabase } from './supabase';
 
 const CREATE_WAVE_CHECKOUT = 'create-wave-checkout-session';
 
-export type WavePaymentType = 'booking' | 'modification_surplus' | 'penalty' | 'platform_commission';
+export type WavePaymentType = 'booking' | 'modification_surplus' | 'penalty' | 'platform_commission' | 'host_refund';
 
 export interface CreateWaveCheckoutResult {
   wave_launch_url: string;

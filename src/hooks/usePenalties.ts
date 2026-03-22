@@ -3,7 +3,8 @@ import { supabase } from '../services/supabase';
 
 export interface Penalty {
   id: string;
-  booking_id: string;
+  booking_id?: string | null;
+  vehicle_booking_id?: string | null;
   host_id: string;
   guest_id: string;
   penalty_amount: number;
@@ -64,6 +65,10 @@ export const usePenalties = (userId?: string) => {
             cancellation_reason,
             property:properties(title, address, price_per_night),
             guest:profiles!guest_id(first_name, last_name, email)
+          ),
+          vehicle_booking:vehicle_bookings(
+            id,
+            vehicle:vehicles(title, brand, model)
           )
         `)
         .eq('host_id', userId)

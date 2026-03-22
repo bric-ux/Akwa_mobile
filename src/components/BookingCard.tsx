@@ -346,9 +346,6 @@ const BookingCard: React.FC<BookingCardProps> = ({
               <Text style={styles.propertyTitle} numberOfLines={2}>
                 {booking.properties?.title || 'Propriété non trouvée'}
               </Text>
-              <Text style={styles.reservationNumber}>
-                #{(booking as any).booking_code || (booking as any).vehicle_booking_code || booking.id}
-              </Text>
             </View>
             <Text style={styles.propertyLocation}>
               📍 {booking.properties?.location?.name || booking.properties?.locations?.name || 'Localisation inconnue'}
@@ -449,7 +446,9 @@ const BookingCard: React.FC<BookingCardProps> = ({
           </View>
           {booking.cancellation_penalty !== undefined && booking.cancellation_penalty > 0 && (
             <View style={styles.cancellationInfo}>
-              <Text style={styles.cancellationLabel}>Pénalité d'annulation :</Text>
+              <Text style={styles.cancellationLabel}>
+                {booking.properties ? 'Nuit(s) consommée(s) + Frais d\'annulation :' : 'Pénalité d\'annulation :'}
+              </Text>
               <Text style={styles.cancellationPenalty}>
                 {formatPrice(booking.cancellation_penalty)}
               </Text>
@@ -598,11 +597,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-  },
-  reservationNumber: {
-    fontSize: 11,
-    color: '#666',
-    fontWeight: '500',
   },
   propertyLocation: {
     fontSize: 14,

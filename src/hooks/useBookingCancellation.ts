@@ -9,6 +9,10 @@ export interface CancellationInfo {
   isInProgress?: boolean;
   remainingNights?: number;
   remainingNightsAmount?: number;
+  /** Nuitées déjà consommées (résidence meublée en cours) */
+  consumedNightsAmount?: number;
+  /** Frais d'annulation (part non remboursée hors nuitées consommées) */
+  cancellationFeeAmount?: number;
   penaltyAmount?: number;
   refundAmount?: number;
 }
@@ -52,12 +56,13 @@ export const useBookingCancellation = () => {
         totalNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
       }
       const baseAmount = totalNights * pricePerNight;
-      const feesAndTaxes = Math.max(0, totalPrice - baseAmount);
+      // Résidence meublée : pas de prorata de taxes dans le calcul d'annulation
 
       // Vérifier si la réservation est en cours
       if (checkOut && checkIn <= today && today <= checkOut) {
         isInProgress = true;
-        const nightsElapsed = Math.max(0, Math.ceil((today.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+        // Nuitées écoulées = nuits complètement consommées (floor)
+        const nightsElapsed = Math.max(0, Math.floor((today.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
         remainingNights = Math.max(0, totalNights - nightsElapsed);
         remainingNightsAmount = remainingNights * pricePerNight;
         canCancel = true;
@@ -91,6 +96,8 @@ export const useBookingCancellation = () => {
       // Calcul des montants selon les nouvelles règles (8.1, 8.2, 8.3)
       let refundAmount = 0;
       let penaltyAmount = 0;
+      let consumedNightsAmount = 0;
+      let cancellationFeeAmount = 0;
 
       if (isPending) {
         refundAmount = totalPrice;
@@ -100,21 +107,19 @@ export const useBookingCancellation = () => {
           refundAmount = 0;
           penaltyAmount = totalPrice;
         } else {
-          // Pour véhicule: on ne proratiste plus les taxes/frais sur la partie non consommée.
-          // Cela évite un remboursement trop proche du total (et donc une pénalité affichée à 0).
-          const taxesProRata = 0;
+          // Résidence meublée : remboursement basé uniquement sur les nuitées restantes (sans prorata taxes)
           switch (policy) {
             case 'flexible':
-              refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+              refundAmount = Math.round(0.8 * remainingNightsAmount);
               break;
             case 'moderate':
-              refundAmount = Math.round(0.5 * remainingNightsAmount + taxesProRata);
+              refundAmount = Math.round(0.5 * remainingNightsAmount);
               break;
             case 'strict':
-              refundAmount = Math.round(taxesProRata);
+              refundAmount = 0;
               break;
             default:
-              refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+              refundAmount = Math.round(0.8 * remainingNightsAmount);
           }
           penaltyAmount = Math.max(0, totalPrice - refundAmount);
         }
@@ -131,8 +136,7 @@ export const useBookingCancellation = () => {
               refundAmount = totalPrice;
               penaltyAmount = 0;
             } else {
-              const taxesProRata = 0;
-              refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+              refundAmount = Math.round(0.8 * remainingNightsAmount);
               penaltyAmount = Math.max(0, totalPrice - refundAmount);
             }
             break;
@@ -141,8 +145,7 @@ export const useBookingCancellation = () => {
               refundAmount = totalPrice;
               penaltyAmount = 0;
             } else {
-              const taxesProRata = 0;
-              refundAmount = Math.round(0.5 * remainingNightsAmount + taxesProRata);
+              refundAmount = Math.round(0.5 * remainingNightsAmount);
               penaltyAmount = Math.max(0, totalPrice - refundAmount);
             }
             break;
@@ -154,8 +157,7 @@ export const useBookingCancellation = () => {
               refundAmount = Math.round(0.5 * totalPrice);
               penaltyAmount = totalPrice - refundAmount;
             } else {
-              const taxesProRata = 0;
-              refundAmount = Math.round(taxesProRata);
+              refundAmount = 0;
               penaltyAmount = Math.max(0, totalPrice - refundAmount);
             }
             break;
@@ -168,11 +170,19 @@ export const useBookingCancellation = () => {
               refundAmount = totalPrice;
               penaltyAmount = 0;
             } else {
-              const taxesProRata = 0;
-              refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+              refundAmount = Math.round(0.8 * remainingNightsAmount);
               penaltyAmount = Math.max(0, totalPrice - refundAmount);
             }
         }
+      }
+
+      // Répartition pénalité = nuit(s) consommée(s) + frais d'annulation (résidence meublée)
+      if (penaltyAmount > 0 && isInProgress && remainingNights !== undefined) {
+        const nightsElapsed = totalNights - remainingNights;
+        consumedNightsAmount = Math.round((nightsElapsed / totalNights) * totalPrice);
+        cancellationFeeAmount = Math.max(0, penaltyAmount - consumedNightsAmount);
+      } else if (penaltyAmount > 0) {
+        cancellationFeeAmount = penaltyAmount;
       }
 
       return {
@@ -182,6 +192,8 @@ export const useBookingCancellation = () => {
         isInProgress,
         remainingNights,
         remainingNightsAmount,
+        consumedNightsAmount,
+        cancellationFeeAmount,
         penaltyAmount,
         refundAmount,
       };
@@ -259,17 +271,49 @@ export const useBookingCancellation = () => {
         return { success: false };
       }
 
-      // Envoyer les emails de notification
-      await sendCancellationEmails(data, penaltyAmount, cancellationInfo.refundAmount || 0);
+      // Si le voyageur a payé via CB/Wave et l'hôte a déjà perçu (48h après check-in),
+      // l'hôte doit rembourser AkwaHome (car c'est AkwaHome qui rembourse le voyageur)
+      const refundAmount = cancellationInfo.refundAmount || 0;
+      const totalPrice = data?.total_price ?? 1;
+      const hostNetAmount = data?.host_net_amount ?? data?.total_price ?? refundAmount;
+      /** L'hôte reverse le montant net qu'il a perçu (au prorata si remboursement partiel). */
+      const hostReimbursementAmount = refundAmount > 0 && totalPrice > 0
+        ? Math.round((refundAmount / totalPrice) * hostNetAmount)
+        : refundAmount;
+      const guestPaidViaPlatform = data?.payment_method === 'card' || data?.payment_method === 'wave';
+      const hostHasReceivedMoney = data?.check_in_date
+        ? new Date(data.check_in_date).getTime() + 48 * 60 * 60 * 1000 <= Date.now()
+        : false;
+
+      if (refundAmount > 0 && guestPaidViaPlatform && hostHasReceivedMoney && data?.properties?.host_id) {
+        try {
+          await supabase.from('penalty_tracking').insert({
+            booking_id: bookingId,
+            host_id: data.properties.host_id,
+            guest_id: data.guest_id,
+            penalty_amount: hostReimbursementAmount,
+            penalty_type: 'guest_cancellation',
+            payment_method: null,
+            status: 'pending',
+            service_type: 'property',
+          });
+        } catch (e) {
+          console.error('Erreur création penalty_tracking (remboursement hôte):', e);
+        }
+      }
+
+      // Envoyer les emails de notification (avec indication si hôte doit rembourser directement en cas de paiement espèces)
+      const hostMustReimburseDirectly = refundAmount > 0 && !guestPaidViaPlatform;
+      await sendCancellationEmails(data, penaltyAmount, refundAmount, hostMustReimburseDirectly);
 
       Alert.alert(
         'Réservation annulée',
         penaltyAmount > 0 
-          ? `Pénalité de ${penaltyAmount.toLocaleString('fr-FR')} FCFA appliquée. Remboursement de ${(cancellationInfo.refundAmount || 0).toLocaleString('fr-FR')} FCFA.`
+          ? `Nuit(s) consommée(s) + frais d'annulation : ${penaltyAmount.toLocaleString('fr-FR')} FCFA. Remboursement : ${refundAmount.toLocaleString('fr-FR')} FCFA.`
           : 'Annulation gratuite. Remboursement intégral.'
       );
 
-      return { success: true, data, penaltyAmount, refundAmount: cancellationInfo.refundAmount };
+      return { success: true, data, penaltyAmount, refundAmount };
 
     } catch (error) {
       console.error('Error in cancelBooking:', error);
@@ -280,7 +324,7 @@ export const useBookingCancellation = () => {
     }
   };
 
-  const sendCancellationEmails = async (bookingData: any, penaltyAmount: number, refundAmount: number) => {
+  const sendCancellationEmails = async (bookingData: any, penaltyAmount: number, refundAmount: number, hostMustReimburseDirectly = false) => {
     try {
       // Email à l'hôte
       if (bookingData.properties?.host_id) {
@@ -304,6 +348,8 @@ export const useBookingCancellation = () => {
                 guests: bookingData.guests_count || 1,
                 totalPrice: bookingData.total_price,
                 penaltyAmount: penaltyAmount,
+                refundAmount: refundAmount,
+                hostMustReimburseDirectly: hostMustReimburseDirectly,
                 reason: bookingData.cancellation_reason || 'Annulation par le voyageur',
                 siteUrl: 'https://akwahome.com'
               }
@@ -382,13 +428,17 @@ export const useBookingCancellation = () => {
    * - ≤ 2 jours avant : 40% du montant de base
    * - en cours de location : 40% sur les jours restants (locataire remboursé 100% des jours restants)
    */
+  /**
+   * @param ownerNetAmountOption Si fourni, la pénalité est calculée sur ce montant net (au lieu de basePrice)
+   */
   const calculateVehicleOwnerCancellationPenalty = useCallback((
     startDate: string,
     endDate: string,
     totalPrice: number,
     basePrice: number,
     rentalDays: number,
-    status: string
+    status: string,
+    ownerNetAmountOption?: number
   ): { penalty: number; refundAmount: number; description: string } => {
     if (status === 'pending') {
       return { penalty: 0, refundAmount: totalPrice, description: 'Aucune pénalité (demande en attente)' };
@@ -400,17 +450,17 @@ export const useBookingCancellation = () => {
     const end = new Date(endDate);
     end.setHours(0, 0, 0, 0);
     const daysUntilStart = Math.ceil((start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    const hoursUntilStart = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
     const totalNights = Math.max(1, rentalDays);
     const pricePerNight = basePrice / totalNights;
     const isInProgress = start <= now && now <= end;
+    const netBase = ownerNetAmountOption ?? basePrice;
 
     if (isInProgress) {
-      const nightsElapsed = Math.max(0, Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+      // Jours écoulés = jours complètement consommés (floor)
+      const nightsElapsed = Math.max(0, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
       const remainingNights = Math.max(0, totalNights - nightsElapsed);
-      const remainingBaseAmount = remainingNights * pricePerNight;
-      const penalty = Math.round(remainingBaseAmount * 0.40);
-      // Remboursement = restant des jours non consommés (au prorata du total payé)
+      const applicableNet = totalNights > 0 ? (remainingNights / totalNights) * netBase : 0;
+      const penalty = Math.round(applicableNet * 0.40);
       const refundAmount = totalNights > 0 ? Math.round((remainingNights / totalNights) * totalPrice) : 0;
       return {
         penalty,
@@ -418,7 +468,6 @@ export const useBookingCancellation = () => {
         description: `Annulation en cours de location (40% de pénalité sur ${remainingNights} jour(s) restant(s)). Le locataire sera remboursé du restant des jours non consommés.`,
       };
     }
-    // Pénalité à partir de 5 jours avant le début de la location
     if (daysUntilStart > 5) {
       return {
         penalty: 0,
@@ -427,18 +476,18 @@ export const useBookingCancellation = () => {
       };
     }
     if (daysUntilStart > 2 && daysUntilStart <= 5) {
-      const penalty = Math.round(basePrice * 0.20);
+      const penalty = Math.round(netBase * 0.20);
       return {
         penalty,
         refundAmount: totalPrice,
-        description: 'Annulation entre 5 et 2 jours avant le début (20% de pénalité). Le locataire sera remboursé intégralement.',
+        description: 'Annulation entre 5 et 2 jours avant le début (20% de pénalité sur montant net). Le locataire sera remboursé intégralement.',
       };
     }
-    const penalty = Math.round(basePrice * 0.40);
+    const penalty = Math.round(netBase * 0.40);
     return {
       penalty,
       refundAmount: totalPrice,
-      description: 'Annulation 2 jours ou moins avant le début (40% de pénalité). Le locataire sera remboursé intégralement.',
+      description: 'Annulation 2 jours ou moins avant le début (40% de pénalité sur montant net). Le locataire sera remboursé intégralement.',
     };
   }, []);
 

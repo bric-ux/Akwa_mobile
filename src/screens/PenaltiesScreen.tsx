@@ -18,8 +18,10 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { usePenalties } from '../hooks/usePenalties';
 import { useCommissions } from '../hooks/useCommissions';
+import { useHostRefunds } from '../hooks/useHostRefunds';
 import PenaltyPaymentModal from '../components/PenaltyPaymentModal';
 import CommissionPaymentModal from '../components/CommissionPaymentModal';
+import HostRefundPaymentModal from '../components/HostRefundPaymentModal';
 import { useCurrency } from '../hooks/useCurrency';
 
 type TabType = 'penalties' | 'commissions';
@@ -34,6 +36,8 @@ const PenaltiesScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCommission, setSelectedCommission] = useState<any>(null);
   const [commissionModalVisible, setCommissionModalVisible] = useState(false);
+  const [selectedHostRefund, setSelectedHostRefund] = useState<any>(null);
+  const [hostRefundModalVisible, setHostRefundModalVisible] = useState(false);
 
   // Charger les commissions (réservations espèces)
   const {
@@ -44,6 +48,15 @@ const PenaltiesScreen: React.FC = () => {
     loading: commissionsLoading,
     refreshCommissions,
   } = useCommissions(user?.id);
+
+  // Charger les remboursements à reverser (annulations hôte)
+  const {
+    refunds: hostRefunds,
+    pendingRefunds: pendingHostRefunds,
+    totalRefundDue,
+    loading: hostRefundsLoading,
+    refreshRefunds: refreshHostRefunds,
+  } = useHostRefunds(user?.id);
 
   // Charger les pénalités
   const {
@@ -59,7 +72,7 @@ const PenaltiesScreen: React.FC = () => {
     if (activeTab === 'penalties') {
       await refreshPenalties();
     } else {
-      await refreshCommissions();
+      await Promise.all([refreshCommissions(), refreshHostRefunds()]);
     }
     setRefreshing(false);
   };
@@ -70,8 +83,10 @@ const PenaltiesScreen: React.FC = () => {
     const typeMatch = url.match(/payment_type=([^&]+)/);
     if (typeMatch?.[1] === 'platform_commission') {
       refreshCommissions();
+    } else if (typeMatch?.[1] === 'host_refund') {
+      refreshHostRefunds();
     }
-  }, [refreshCommissions]);
+  }, [refreshCommissions, refreshHostRefunds]);
 
   useFocusEffect(
     useCallback(() => {
@@ -171,8 +186,10 @@ const PenaltiesScreen: React.FC = () => {
   };
 
   const renderCommissionsTab = () => {
-    const loading = commissionsLoading;
-    const data = commissions;
+    const loading = commissionsLoading || hostRefundsLoading;
+    const hasCommissions = commissions.length > 0;
+    const hasHostRefunds = hostRefunds.length > 0;
+    const hasAny = hasCommissions || hasHostRefunds;
 
     return (
       <ScrollView
@@ -184,10 +201,10 @@ const PenaltiesScreen: React.FC = () => {
             <Ionicons name="wallet-outline" size={24} color="#10b981" />
           </View>
           <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>Commissions espèces</Text>
+            <Text style={styles.infoTitle}>Remboursements à régler</Text>
             <Text style={styles.infoText}>
-              Pour les réservations payées en espèces par le voyageur ou le locataire, vous avez reçu la totalité.
-              Reversez ici la commission AkwaHome (Wave ou carte bancaire).
+              Commissions espèces : reversez la commission AkwaHome (Wave ou carte).
+              Remboursements annulation : après annulation, reversez le montant net à AkwaHome.
             </Text>
           </View>
         </View>
@@ -208,14 +225,14 @@ const PenaltiesScreen: React.FC = () => {
           </View>
         )}
 
-        {pendingCommissions.length > 0 && (
+        {(pendingCommissions.length > 0 || pendingHostRefunds.length > 0) && (
           <View style={styles.statsCard}>
             <View style={styles.statsContent}>
               <View style={styles.statsLeft}>
-                <Text style={styles.statsLabel}>Commissions en attente</Text>
-                <Text style={styles.statsAmount}>{formatPrice(totalCommissionDue)}</Text>
+                <Text style={styles.statsLabel}>Total à régler</Text>
+                <Text style={styles.statsAmount}>{formatPrice(totalCommissionDue + totalRefundDue)}</Text>
                 <Text style={styles.statsCount}>
-                  {pendingCommissions.length} commission{pendingCommissions.length > 1 ? 's' : ''} à régler
+                  {pendingCommissions.length + pendingHostRefunds.length} élément{(pendingCommissions.length + pendingHostRefunds.length) > 1 ? 's' : ''} à régler
                 </Text>
               </View>
               <Ionicons name="wallet-outline" size={48} color="#f59e0b" />
@@ -227,17 +244,17 @@ const PenaltiesScreen: React.FC = () => {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#e67e22" />
           </View>
-        ) : data.length === 0 ? (
+        ) : !hasAny ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="checkmark-circle" size={64} color="#10b981" />
-            <Text style={styles.emptyTitle}>Aucune commission à régler</Text>
+            <Text style={styles.emptyTitle}>Aucun remboursement à régler</Text>
             <Text style={styles.emptyText}>
-              Les réservations payées en espèces apparaîtront ici.
+              Commissions espèces et remboursements annulation apparaîtront ici.
             </Text>
           </View>
         ) : (
           <View style={styles.listContainer}>
-            {data.map((commission) => {
+            {commissions.map((commission) => {
               const statusBadge =
                 commission.status === 'paid'
                   ? { color: '#10b981', icon: 'checkmark-circle-outline' as const, label: 'Payée' }
@@ -276,6 +293,51 @@ const PenaltiesScreen: React.FC = () => {
                       >
                         <Ionicons name="card-outline" size={20} color="#fff" />
                         <Text style={styles.payButtonText}>Régler la commission</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+            {hostRefunds.map((refund) => {
+              const statusBadge =
+                refund.status === 'paid'
+                  ? { color: '#10b981', icon: 'checkmark-circle-outline' as const, label: 'Payé' }
+                  : { color: '#f59e0b', icon: 'time-outline' as const, label: 'À régler' };
+              return (
+                <View key={refund.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardHeaderLeft}>
+                      <Ionicons
+                        name={refund.booking_type === 'vehicle' ? 'car-outline' : 'home-outline'}
+                        size={20}
+                        color={refund.booking_type === 'vehicle' ? '#3b82f6' : '#e67e22'}
+                      />
+                      <View style={styles.cardHeaderText}>
+                        <Text style={styles.cardTitle}>
+                          Remboursement annulation — {refund.label || (refund.booking_type === 'vehicle' ? 'Location véhicule' : 'Résidence')}
+                        </Text>
+                        <Text style={[styles.detailValue, { marginTop: 4 }]}>
+                          Montant à reverser : {formatPrice(refund.amount_due)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: `${statusBadge.color}20` }]}>
+                      <Ionicons name={statusBadge.icon} size={14} color={statusBadge.color} />
+                      <Text style={[styles.statusBadgeText, { color: statusBadge.color }]}>{statusBadge.label}</Text>
+                    </View>
+                  </View>
+                  {refund.status === 'pending' && (
+                    <View style={styles.cardContent}>
+                      <TouchableOpacity
+                        style={styles.payButton}
+                        onPress={() => {
+                          setSelectedHostRefund(refund);
+                          setHostRefundModalVisible(true);
+                        }}
+                      >
+                        <Ionicons name="card-outline" size={20} color="#fff" />
+                        <Text style={styles.payButtonText}>Régler le remboursement</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -456,30 +518,20 @@ const PenaltiesScreen: React.FC = () => {
 
                     {penalty.status === 'pending' && (
                       <View style={styles.paymentSection}>
-                        {(penalty.penalty_type === 'host_cancellation' || penalty.penalty_type === 'host_ongoing_cancellation') ? (
-                          <View style={styles.paymentAtCancelInfo}>
-                            <Ionicons name="information-circle" size={20} color="#0ea5e9" />
-                            <Text style={styles.paymentAtCancelText}>
-                              Le remboursement et la pénalité se règlent à l'annulation (paiement par carte). Si vous n'avez pas réglé à l'annulation, cette pénalité sera déduite de vos prochains revenus.
-                            </Text>
-                          </View>
-                        ) : (
-                          <>
-                            <Text style={styles.paymentHint}>
-                              Réglez cette pénalité maintenant pour éviter qu'elle soit déduite de vos
-                              prochains revenus.
-                            </Text>
-                            <TouchableOpacity
-                              style={styles.payButton}
-                              onPress={() => openPaymentDialog(penalty)}
-                            >
-                              <Ionicons name="card-outline" size={20} color="#fff" />
-                              <Text style={styles.payButtonText}>
-                                Payer {formatPrice(penalty.penalty_amount)}
-                              </Text>
-                            </TouchableOpacity>
-                          </>
-                        )}
+                        <Text style={styles.paymentHint}>
+                          {(penalty.penalty_type === 'host_cancellation' || penalty.penalty_type === 'host_ongoing_cancellation')
+                            ? "Réglez cette pénalité maintenant (carte ou Wave) ou elle sera déduite de vos prochains revenus."
+                            : "Réglez cette pénalité maintenant pour éviter qu'elle soit déduite de vos prochains revenus."}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.payButton}
+                          onPress={() => openPaymentDialog(penalty)}
+                        >
+                          <Ionicons name="card-outline" size={20} color="#fff" />
+                          <Text style={styles.payButtonText}>
+                            Payer {formatPrice(penalty.penalty_amount)}
+                          </Text>
+                        </TouchableOpacity>
                       </View>
                     )}
                   </View>
@@ -537,9 +589,9 @@ const PenaltiesScreen: React.FC = () => {
             style={[styles.tabText, activeTab === 'commissions' && styles.tabTextActive]}
             numberOfLines={1}
           >
-            Commissions
-            {pendingCommissions.length > 0 && (
-              <Text style={styles.tabBadge}> ({pendingCommissions.length})</Text>
+            Remboursements
+            {(pendingCommissions.length > 0 || pendingHostRefunds.length > 0) && (
+              <Text style={styles.tabBadge}> ({pendingCommissions.length + pendingHostRefunds.length})</Text>
             )}
           </Text>
         </TouchableOpacity>
@@ -571,6 +623,23 @@ const PenaltiesScreen: React.FC = () => {
         commission={selectedCommission}
         paymentInfo={commissionPaymentInfo}
         onPaymentComplete={handleCommissionPaymentComplete}
+      />
+
+      {/* Modal paiement remboursement annulation */}
+      <HostRefundPaymentModal
+        visible={hostRefundModalVisible}
+        onClose={() => {
+          setHostRefundModalVisible(false);
+          setSelectedHostRefund(null);
+          refreshHostRefunds();
+        }}
+        refund={selectedHostRefund}
+        paymentInfo={commissionPaymentInfo}
+        onPaymentComplete={() => {
+          refreshHostRefunds();
+          setHostRefundModalVisible(false);
+          setSelectedHostRefund(null);
+        }}
       />
     </SafeAreaView>
   );

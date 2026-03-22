@@ -325,7 +325,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
           </View>
 
           <Text style={styles.bookingId}>
-            Réservation #{(booking as any).vehicle_booking_code || (booking as any).booking_code || booking.id || ''}
+            Réservation #{(booking as any).vehicle_booking_code || (booking as any).booking_code || `AKWA-${(booking.id || '').toString().substring(0, 8).toUpperCase()}`}
           </Text>
 
           <ScrollView 

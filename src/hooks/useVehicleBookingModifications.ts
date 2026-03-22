@@ -434,7 +434,7 @@ export const useVehicleBookingModifications = () => {
     }
   }, []);
 
-  // Récupérer la demande en attente pour une réservation
+  // Récupérer la demande en attente pour une réservation (prend la plus récente si plusieurs)
   const getBookingPendingRequest = useCallback(async (bookingId: string) => {
     try {
       const { data, error } = await supabase
@@ -442,6 +442,8 @@ export const useVehicleBookingModifications = () => {
         .select('*')
         .eq('booking_id', bookingId)
         .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;

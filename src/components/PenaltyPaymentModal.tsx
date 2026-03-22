@@ -26,8 +26,12 @@ interface PenaltyPaymentModalProps {
   penalty: {
     id: string;
     penalty_amount: number;
-    booking_id: string;
+    booking_id?: string | null;
+    vehicle_booking_id?: string | null;
     penalty_type: string;
+    vehicle_booking?: {
+      vehicle?: { title?: string; brand?: string; model?: string } | null;
+    } | null;
     booking?: {
       property?: {
         title: string;
@@ -232,12 +236,21 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
       setLoading(true);
       try {
         const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
+        const waveBookingId = penalty.booking_id ?? penalty.vehicle_booking_id;
+        if (!waveBookingId) {
+          Alert.alert('Erreur', 'Identifiant de réservation manquant pour le paiement Wave');
+          return;
+        }
+        const wavePropertyTitle = penalty.booking?.property?.title
+          || (penalty.vehicle_booking?.vehicle
+            ? `${penalty.vehicle_booking.vehicle.brand || ''} ${penalty.vehicle_booking.vehicle.model || penalty.vehicle_booking.vehicle.title || ''}`.trim() || 'Pénalité véhicule'
+            : 'Paiement de pénalité');
         const result = await createWaveCheckoutSession({
           payment_type: 'penalty',
           penalty_id: penalty.id,
-          booking_id: penalty.booking_id,
+          booking_id: waveBookingId,
           amount: penalty.penalty_amount,
-          property_title: penalty.booking?.property?.title || 'Paiement de penalite',
+          property_title: wavePropertyTitle,
           checkout_token: checkoutToken,
           return_to_app: true,
           app_scheme: 'akwahomemobile',
@@ -261,10 +274,18 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
     if (paymentMethod === 'card') {
       setLoading(true);
       try {
+        const effectiveBookingId = penalty.booking_id ?? penalty.vehicle_booking_id;
+        if (!effectiveBookingId) {
+          throw new Error('Identifiant de réservation manquant pour le paiement');
+        }
+        const propertyTitle = penalty.booking?.property?.title
+          || (penalty.vehicle_booking?.vehicle
+            ? `${penalty.vehicle_booking.vehicle.brand || ''} ${penalty.vehicle_booking.vehicle.model || penalty.vehicle_booking.vehicle.title || ''}`.trim() || 'Pénalité véhicule'
+            : 'Paiement de pénalité');
         const result = await createCheckoutSession({
-          booking_id: penalty.booking_id,
+          booking_id: effectiveBookingId,
           amount: penalty.penalty_amount,
-          property_title: penalty.booking?.property?.title || 'Paiement de penalite',
+          property_title: propertyTitle,
           payment_type: 'penalty',
           penalty_id: penalty.id,
         });

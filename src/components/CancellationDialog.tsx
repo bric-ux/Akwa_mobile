@@ -149,15 +149,15 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
   const getPolicyDescription = (policy: string | null) => {
     switch (policy) {
       case 'flexible':
-        return 'Remboursement intégral si annulation ≥ 24h avant l\'arrivée. Si < 24h : taxes au prorata + 80% des nuitées non consommées.';
+        return 'Remboursement intégral si annulation ≥ 24h avant l\'arrivée. Si < 24h : 80% des nuitées non consommées.';
       case 'moderate':
-        return 'Remboursement intégral si annulation ≥ 5 jours avant. Si < 5 jours : taxes au prorata + 50% des nuitées non consommées.';
+        return 'Remboursement intégral si annulation ≥ 5 jours avant. Si < 5 jours : 50% des nuitées non consommées.';
       case 'strict':
-        return 'Remboursement intégral si ≥ 28 jours avant. Entre 7 et 28 jours : 50% remboursé. < 7 jours : taxes au prorata uniquement.';
+        return 'Remboursement intégral si ≥ 28 jours avant. Entre 7 et 28 jours : 50% remboursé. < 7 jours : 0% des nuitées restantes.';
       case 'non_refundable':
         return 'Aucun remboursement en cas d\'annulation';
       default:
-        return 'Remboursement intégral si annulation ≥ 24h avant l\'arrivée. Si < 24h : taxes au prorata + 80% des nuitées non consommées.';
+        return 'Remboursement intégral si annulation ≥ 24h avant l\'arrivée. Si < 24h : 80% des nuitées non consommées.';
     }
   };
 
@@ -232,7 +232,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
     );
   }
 
-  const { refundPercentage, isInProgress, remainingNights, penaltyAmount, refundAmount } = cancellationInfo;
+  const { refundPercentage, isInProgress, remainingNights, penaltyAmount, refundAmount, consumedNightsAmount = 0, cancellationFeeAmount = 0 } = cancellationInfo;
   const isPending = booking.status === 'pending';
   const finalRefundAmount = refundAmount ?? 0;
   const finalPenaltyAmount = penaltyAmount ?? Math.max(0, booking.total_price - finalRefundAmount);
@@ -288,7 +288,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                 <View style={styles.alertContent}>
                   <Text style={styles.alertTitle}>Réservation en cours</Text>
                   <Text style={styles.alertText}>
-                    Remboursement selon la politique "{getPolicyLabel(cancellationPolicy)}" : taxes au prorata + part des nuitées restantes (voir montant ci-dessous).
+                    Remboursement selon la politique "{getPolicyLabel(cancellationPolicy)}" : part des nuitées restantes (voir montant ci-dessous).
                   </Text>
                 </View>
               </View>
@@ -296,12 +296,12 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
               <View style={[styles.alert, styles.alertWarning]}>
                 <Ionicons name="alert-circle-outline" size={20} color="#e67e22" />
                 <View style={styles.alertContent}>
-                  <Text style={styles.alertTitle}>Pénalité appliquée</Text>
+                  <Text style={styles.alertTitle}>Montant retenu</Text>
                   <Text style={styles.alertText}>
                     Remboursement partiel selon la politique "{getPolicyLabel(cancellationPolicy)}"
                   </Text>
                   <Text style={styles.alertAmount}>
-                    Montant de la pénalité : {formatPrice(finalPenaltyAmount)}
+                    Nuit(s) consommée(s) + Frais d'annulation : {formatPrice(finalPenaltyAmount)}
                   </Text>
                 </View>
               </View>
@@ -325,14 +325,39 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
               </View>
               
               {finalPenaltyAmount > 0 && (
-                <View style={styles.financialRow}>
-                  <Text style={[styles.financialLabel, styles.penaltyLabel]}>
-                    Pénalité d'annulation :
-                  </Text>
-                  <Text style={[styles.financialValue, styles.penaltyValue]}>
-                    -{formatPrice(finalPenaltyAmount)}
-                  </Text>
-                </View>
+                (consumedNightsAmount > 0 || cancellationFeeAmount > 0) ? (
+                  <>
+                    {consumedNightsAmount > 0 && (
+                      <View style={styles.financialRow}>
+                        <Text style={[styles.financialLabel, styles.penaltyLabel]}>
+                          Nuit(s) consommée(s) :
+                        </Text>
+                        <Text style={[styles.financialValue, styles.penaltyValue]}>
+                          -{formatPrice(consumedNightsAmount)}
+                        </Text>
+                      </View>
+                    )}
+                    {cancellationFeeAmount > 0 && (
+                      <View style={styles.financialRow}>
+                        <Text style={[styles.financialLabel, styles.penaltyLabel]}>
+                          Frais d'annulation :
+                        </Text>
+                        <Text style={[styles.financialValue, styles.penaltyValue]}>
+                          -{formatPrice(cancellationFeeAmount)}
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  <View style={styles.financialRow}>
+                    <Text style={[styles.financialLabel, styles.penaltyLabel]}>
+                      Nuit(s) consommée(s) + Frais d'annulation :
+                    </Text>
+                    <Text style={[styles.financialValue, styles.penaltyValue]}>
+                      -{formatPrice(finalPenaltyAmount)}
+                    </Text>
+                  </View>
+                )
               )}
               
               <View style={[styles.financialRow, styles.refundRow]}>
@@ -340,6 +365,19 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                 <Text style={styles.refundValue}>{formatPrice(finalRefundAmount)}</Text>
               </View>
             </View>
+
+            {/* Comment le remboursement va se passer - en rouge (seulement si remboursement > 0) */}
+            {finalRefundAmount > 0 && (
+              <View style={[styles.alert, styles.alertRefundProcess]}>
+                <Ionicons name="information-circle" size={20} color="#c62828" />
+                <View style={styles.alertContent}>
+                  <Text style={styles.alertRefundProcessTitle}>Comment le remboursement va se passer</Text>
+                  <Text style={styles.alertRefundProcessText}>
+                    Le montant de {formatPrice(finalRefundAmount)} sera remboursé sur votre moyen de paiement initial sous 5 à 10 jours ouvrés.
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* Description de la politique */}
             <View style={styles.policySection}>
@@ -511,6 +549,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFEBEE',
     borderLeftWidth: 4,
     borderLeftColor: '#e74c3c',
+  },
+  alertRefundProcess: {
+    backgroundColor: '#FFEBEE',
+    borderLeftWidth: 4,
+    borderLeftColor: '#c62828',
+  },
+  alertRefundProcessTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+    color: '#c62828',
+  },
+  alertRefundProcessText: {
+    fontSize: 14,
+    color: '#b71c1c',
+    lineHeight: 20,
   },
   alertContent: {
     flex: 1,

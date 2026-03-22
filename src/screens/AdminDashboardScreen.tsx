@@ -476,6 +476,14 @@ const AdminDashboardScreen: React.FC = () => {
             color="#e67e22"
           />
 
+          <QuickAction
+            title="Gestion réservation"
+            description="Rechercher une réservation par numéro (akwa-xxx)"
+            icon="search-outline"
+            onPress={() => navigation.navigate('AdminBookingManagement' as never)}
+            color="#3498db"
+          />
+
           {FEATURE_MONTHLY_RENTAL && (
           <QuickAction
             title="Locations mensuelles"

@@ -21,6 +21,9 @@ import { supabase } from '../services/supabase';
 import { useBookingCancellation, CancellationInfo } from '../hooks/useBookingCancellation';
 import { useCurrency } from '../hooks/useCurrency';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
+import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
+import { calculateHostCommission } from '../hooks/usePricing';
+import { getAmountInXOF } from '../utils/amountUtils';
 
 interface VehicleCancellationModalProps {
   visible: boolean;
@@ -68,19 +71,24 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   const [isConfirming, setIsConfirming] = useState(false);
   const [guestCancellationInfo, setGuestCancellationInfo] = useState<CancellationInfo | null>(null);
   const [loadingGuestCancellation, setLoadingGuestCancellation] = useState(false);
-  /** Si pénalité > 0 : true = régler remboursement + pénalité en un paiement ; false = remboursement seul (pénalité déduite plus tard) */
+  /** Si pénalité > 0 : true = régler la pénalité maintenant (carte/Wave) ; false = pénalité déduite plus tard. Le remboursement se règle dans l'onglet Remboursements. */
   const [includePenaltyInPayment, setIncludePenaltyInPayment] = useState(true);
   const [stripeCheckoutOpened, setStripeCheckoutOpened] = useState(false);
+  const [waveCheckoutOpened, setWaveCheckoutOpened] = useState(false);
   const [pendingPenaltyId, setPendingPenaltyId] = useState<string | null>(null);
   const [pendingStripeSessionId, setPendingStripeSessionId] = useState<string | null>(null);
+  const [pendingWaveCheckoutToken, setPendingWaveCheckoutToken] = useState<string | null>(null);
   const [pendingStripeStartedAt, setPendingStripeStartedAt] = useState<number | null>(null);
+  const [penaltyPaymentMethod, setPenaltyPaymentMethod] = useState<'card' | 'wave'>('card');
   const [stripeTimeLeftSec, setStripeTimeLeftSec] = useState(0);
   const [lastPaymentStatus, setLastPaymentStatus] = useState<string | null>(null);
   const [checkingPenaltyStatus, setCheckingPenaltyStatus] = useState(false);
+  /** Pour espèces/virement (propriétaire) : true si commission plateforme payée, false sinon, null si pas chargé */
+  const [commissionPaidForCashBooking, setCommissionPaidForCashBooking] = useState<boolean | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const pendingCancellationReasonRef = useRef<string | null>(null);
   const verifyPenaltyPaymentNowRef = useRef<() => Promise<void>>(async () => {});
-  const { currency, rates } = useCurrency();
+  const { currency, rates, formatPrice } = useCurrency();
 
   // Valeurs dérivées (avec garde pour booking null — tous les hooks doivent être appelés avant tout return)
   const rentalDays = booking?.rental_days ?? 0;
@@ -119,7 +127,64 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
     return () => { cancelled = true; };
   }, [visible, booking?.id, isOwner, totalPrice, basePrice, rentalDays, booking?.status, booking?.start_date, booking?.end_date, calculateCancellationInfoForVehicle]);
 
-  // Résultat affiché (utilisé seulement quand booking est non null, après le return null)
+  // Pour espèces/virement (propriétaire) : vérifier si la commission plateforme est payée
+  useEffect(() => {
+    const paymentMethod = (booking as any)?.payment_method;
+    const isCash = paymentMethod !== 'card' && paymentMethod !== 'wave';
+    if (!visible || !booking || !isOwner || !isCash) {
+      setCommissionPaidForCashBooking(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('platform_commission_due')
+        .select('status')
+        .eq('booking_id', booking.id)
+        .eq('booking_type', 'vehicle')
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        setCommissionPaidForCashBooking(false);
+        return;
+      }
+      setCommissionPaidForCashBooking(data.status === 'paid');
+    })();
+    return () => { cancelled = true; };
+  }, [visible, booking?.id, isOwner, (booking as any)?.payment_method]);
+
+  const cancellationPolicy = (booking?.vehicle as any)?.cancellation_policy ?? (booking as any)?.cancellation_policy ?? 'flexible';
+  /** Le locataire a payé via la plateforme (CB, Wave) → l'argent est passé par AkwaHome. Sinon (cash, virement) → le propriétaire a reçu directement. */
+  const renterPaidViaPlatform = (booking as any)?.payment_method === 'card' || (booking as any)?.payment_method === 'wave';
+  /** Le propriétaire reçoit l'argent 48h après le début de la location (pour paiement CB/Wave). Si pas encore perçu, c'est AkwaHome qui rembourse. */
+  const ownerHasReceivedMoney = booking?.start_date
+    ? new Date(booking.start_date).getTime() + 48 * 60 * 60 * 1000 <= Date.now()
+    : false;
+
+  /** Montant net perçu par le propriétaire = base pour pénalité et remboursement. CB/Wave: host_net_amount. Espèces: si commission payée → host_net_amount, sinon total. */
+  const ownerNetAmount = (() => {
+    if (!booking) return 0;
+    if (renterPaidViaPlatform) {
+      const stored = (booking as any)?.host_net_amount;
+      if (stored != null) return stored;
+      const tp = booking?.total_price ?? 0;
+      if (tp <= 0) return 0;
+      const basePriceWithDriver = Math.round(tp / 1.12);
+      return basePriceWithDriver - calculateHostCommission(basePriceWithDriver, 'vehicle').hostCommission;
+    }
+    // Espèces/virement : si commission payée → host_net_amount (net)
+    if (commissionPaidForCashBooking === true) {
+      const stored = (booking as any)?.host_net_amount;
+      if (stored != null && stored > 0) return stored;
+      const tp = booking?.total_price ?? 0;
+      if (tp <= 0) return 0;
+      const basePriceWithDriver = Math.round(tp / 1.12);
+      return basePriceWithDriver - calculateHostCommission(basePriceWithDriver, 'vehicle').hostCommission;
+    }
+    return booking?.total_price ?? 0;
+  })();
+
+  // Résultat avec pénalité calculée sur le montant NET du propriétaire
   const ownerResult =
     booking && isOwner
       ? calculateVehicleOwnerCancellationPenalty(
@@ -128,19 +193,21 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
           totalPrice,
           basePrice,
           Math.max(1, rentalDays),
-          booking.status
+          booking.status,
+          ownerNetAmount
         )
       : null;
 
   const penalty = isOwner ? (ownerResult?.penalty ?? 0) : (guestCancellationInfo?.penaltyAmount ?? 0);
   const refundAmount = isOwner ? (ownerResult?.refundAmount ?? 0) : (guestCancellationInfo?.refundAmount ?? 0);
+  /** Le propriétaire doit payer le remboursement : seulement si paiement plateforme ET propriétaire a déjà perçu (48h passées). */
+  const mustPayRefundViaStripe = isOwner && renterPaidViaPlatform && ownerHasReceivedMoney && refundAmount > 0;
 
-  const cancellationPolicy = (booking?.vehicle as any)?.cancellation_policy ?? (booking as any)?.cancellation_policy ?? 'flexible';
-
-  /** Le propriétaire reçoit l'argent 48h après le début de la location. Si pas encore perçu, c'est AkwaHome qui rembourse → on ne demande pas le remboursement au propriétaire. */
-  const ownerHasReceivedMoney = booking?.start_date
-    ? new Date(booking.start_date).getTime() + 48 * 60 * 60 * 1000 <= Date.now()
-    : false;
+  const totalPriceForOwner = booking?.total_price ?? 1;
+  const amountToReverse = totalPriceForOwner > 0 ? Math.round((refundAmount / totalPriceForOwner) * ownerNetAmount) : 0;
+  const pc = (booking as any)?.payment_currency;
+  const er = (booking as any)?.exchange_rate;
+  const amountToReverseXOF = getAmountInXOF(amountToReverse, pc, er);
 
   const penaltyDescription = isOwner
     ? (ownerResult?.description ?? '')
@@ -151,27 +218,31 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         : guestCancellationInfo
           ? (booking?.status === 'pending'
               ? 'Demande en attente. Aucun paiement effectué.'
-              : `Politique d'annulation : ${getPolicyLabel(cancellationPolicy)}. Montant à rembourser : ${(guestCancellationInfo.refundAmount ?? 0).toLocaleString()} XOF.`)
+              : `Politique d'annulation : ${getPolicyLabel(cancellationPolicy)}. Montant à rembourser : ${formatPrice(guestCancellationInfo.refundAmount ?? 0)}.`)
           : '';
 
   const canConfirmCancellation = isOwner || !guestCancellationInfo || guestCancellationInfo.canCancel;
 
   const resetPendingStripeState = useCallback(() => {
     setStripeCheckoutOpened(false);
+    setWaveCheckoutOpened(false);
     setPendingPenaltyId(null);
     setPendingStripeSessionId(null);
+    setPendingWaveCheckoutToken(null);
     setPendingStripeStartedAt(null);
     setStripeTimeLeftSec(0);
     setLastPaymentStatus(null);
     setCheckingPenaltyStatus(false);
   }, []);
 
-  const checkPenaltyPaymentStatus = useCallback(async (penaltyId: string, sessionId?: string | null) => {
+  const checkPenaltyPaymentStatus = useCallback(async (penaltyId: string, sessionId?: string | null, waveToken?: string | null) => {
     try {
       const result = await checkPaymentStatus({
         payment_type: 'penalty',
         penalty_tracking_id: penaltyId,
         stripe_session_id: sessionId ?? undefined,
+        checkout_token: waveToken ?? undefined,
+        wave: !!waveToken,
       });
       setLastPaymentStatus(result.payment_status ?? 'pending');
       return result.is_confirmed ?? false;
@@ -180,7 +251,11 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
     }
   }, []);
 
-  const applyVehicleCancellationAfterPayment = useCallback(async (bookingId: string, fullReason: string) => {
+  const applyVehicleCancellationAfterPayment = useCallback(async (
+    bookingId: string,
+    fullReason: string,
+    opts?: { penaltyTrackingId?: string; hostRefundAmountXOF?: number }
+  ) => {
     if (!user) return false;
     const { data: bookingData, error: fetchErr } = await supabase
       .from('vehicle_bookings')
@@ -203,6 +278,20 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       })
       .eq('id', bookingId);
     if (updateError) return false;
+    if (opts?.hostRefundAmountXOF != null && opts.hostRefundAmountXOF > 0 && bookingData?.vehicle?.owner_id) {
+      try {
+        await supabase.from('host_refund_due').insert({
+          host_id: bookingData.vehicle.owner_id,
+          booking_type: 'vehicle',
+          booking_id: bookingId,
+          amount_due: Math.round(opts.hostRefundAmountXOF),
+          status: 'pending',
+          penalty_tracking_id: opts.penaltyTrackingId || null,
+        });
+      } catch (e) {
+        console.error('Erreur création host_refund_due:', e);
+      }
+    }
     const vehicleTitle = bookingData?.vehicle ? `${bookingData.vehicle.brand || ''} ${bookingData.vehicle.model || ''}`.trim() : 'Véhicule';
     const startDate = bookingData.start_date;
     const endDate = bookingData.end_date;
@@ -253,11 +342,14 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   const verifyPenaltyPaymentNow = useCallback(async () => {
     if (!pendingPenaltyId || !booking) return;
     setCheckingPenaltyStatus(true);
-    const paid = await checkPenaltyPaymentStatus(pendingPenaltyId, pendingStripeSessionId);
+    const paid = await checkPenaltyPaymentStatus(pendingPenaltyId, pendingStripeSessionId, pendingWaveCheckoutToken);
     setCheckingPenaltyStatus(false);
     if (paid) {
       const reasonToUse = pendingCancellationReasonRef.current || 'Annulation';
-      const ok = await applyVehicleCancellationAfterPayment(booking.id, reasonToUse);
+      const hostRefundOpts = mustPayRefundViaStripe && amountToReverse > 0
+        ? { penaltyTrackingId: pendingPenaltyId ?? undefined, hostRefundAmountXOF: amountToReverseXOF }
+        : undefined;
+      const ok = await applyVehicleCancellationAfterPayment(booking.id, reasonToUse, hostRefundOpts);
       resetPendingStripeState();
       pendingCancellationReasonRef.current = null;
       if (ok) {
@@ -271,7 +363,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         Alert.alert('Erreur', 'Paiement reçu mais l\'annulation n\'a pas pu être enregistrée. Contactez le support.');
       }
     }
-  }, [booking, pendingPenaltyId, pendingStripeSessionId, checkPenaltyPaymentStatus, applyVehicleCancellationAfterPayment, resetPendingStripeState, onCancelled, onClose]);
+  }, [booking, pendingPenaltyId, pendingStripeSessionId, pendingWaveCheckoutToken, mustPayRefundViaStripe, amountToReverse, amountToReverseXOF, checkPenaltyPaymentStatus, applyVehicleCancellationAfterPayment, resetPendingStripeState, onCancelled, onClose]);
 
   verifyPenaltyPaymentNowRef.current = verifyPenaltyPaymentNow;
 
@@ -283,15 +375,18 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   }, [visible, resetPendingStripeState]);
 
   useEffect(() => {
-    if (!visible || !stripeCheckoutOpened || !pendingPenaltyId || !booking) return;
+    if (!visible || (!stripeCheckoutOpened && !waveCheckoutOpened) || !pendingPenaltyId || !booking) return;
     let cancelled = false;
     const poll = async () => {
       if (cancelled) return;
-      const paid = await checkPenaltyPaymentStatus(pendingPenaltyId, pendingStripeSessionId);
+      const paid = await checkPenaltyPaymentStatus(pendingPenaltyId, pendingStripeSessionId, pendingWaveCheckoutToken);
       if (cancelled) return;
       if (paid) {
         const reasonToUse = pendingCancellationReasonRef.current || 'Annulation';
-        const ok = await applyVehicleCancellationAfterPayment(booking.id, reasonToUse);
+        const hostRefundOpts = mustPayRefundViaStripe && amountToReverse > 0
+          ? { penaltyTrackingId: pendingPenaltyId ?? undefined, hostRefundAmountXOF: amountToReverseXOF }
+          : undefined;
+        const ok = await applyVehicleCancellationAfterPayment(booking.id, reasonToUse, hostRefundOpts);
         if (cancelled) return;
         resetPendingStripeState();
         pendingCancellationReasonRef.current = null;
@@ -313,7 +408,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [visible, stripeCheckoutOpened, pendingPenaltyId, pendingStripeSessionId, booking, checkPenaltyPaymentStatus, applyVehicleCancellationAfterPayment, resetPendingStripeState, onCancelled, onClose]);
+  }, [visible, stripeCheckoutOpened, waveCheckoutOpened, pendingPenaltyId, pendingStripeSessionId, pendingWaveCheckoutToken, booking, mustPayRefundViaStripe, amountToReverse, amountToReverseXOF, checkPenaltyPaymentStatus, applyVehicleCancellationAfterPayment, resetPendingStripeState, onCancelled, onClose]);
 
   useEffect(() => {
     if (!stripeCheckoutOpened || !pendingStripeStartedAt) return;
@@ -333,30 +428,41 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
-      if (wasBackground && nextState === 'active' && stripeCheckoutOpened && pendingPenaltyId) {
+      const hasPendingPayment = (stripeCheckoutOpened || waveCheckoutOpened) && pendingPenaltyId;
+      if (wasBackground && nextState === 'active' && hasPendingPayment) {
         setTimeout(() => verifyPenaltyPaymentNowRef.current(), 1500);
       }
       appStateRef.current = nextState;
     });
     return () => sub.remove();
-  }, [stripeCheckoutOpened, pendingPenaltyId]);
+  }, [stripeCheckoutOpened, waveCheckoutOpened, pendingPenaltyId]);
 
   useEffect(() => {
     if (!visible || !pendingPenaltyId) return;
     const handleUrl = (url: string | null) => {
-      if (!url?.includes('payment-success') || !pendingPenaltyId) return;
+      if (!url) return;
       const typeMatch = url.match(/payment_type=([^&]+)/);
       if (typeMatch?.[1] !== 'penalty') return;
       const idMatch = url.match(/penalty_tracking_id=([^&]+)/);
-      const id = idMatch ? decodeURIComponent(idMatch[1]) : null;
-      if (id === pendingPenaltyId) {
-        setTimeout(() => verifyPenaltyPaymentNowRef.current(), 1000);
+      const tokenMatch = url.match(/checkout_token=([^&]+)/);
+      const waveMatch = url.match(/[?&]wave=([^&]+)/);
+      const isWave = waveMatch && ['1', 'true', 'yes'].includes(String(waveMatch[1]).toLowerCase());
+      if (isWave && pendingWaveCheckoutToken && tokenMatch) {
+        const urlToken = decodeURIComponent(tokenMatch[1]);
+        if (urlToken === pendingWaveCheckoutToken) {
+          setTimeout(() => verifyPenaltyPaymentNowRef.current(), 1000);
+        }
+      } else if (!isWave && idMatch) {
+        const id = decodeURIComponent(idMatch[1]);
+        if (id === pendingPenaltyId) {
+          setTimeout(() => verifyPenaltyPaymentNowRef.current(), 1000);
+        }
       }
     };
     Linking.getInitialURL().then(handleUrl);
     const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
     return () => sub.remove();
-  }, [visible, pendingPenaltyId]);
+  }, [visible, pendingPenaltyId, pendingWaveCheckoutToken]);
 
   if (!booking) return null;
 
@@ -385,12 +491,12 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
 
     try {
       const reasonLabel = cancellationReasons.find((r) => r.value === selectedReason)?.label || selectedReason;
-      const effectivePenaltyMethod = (penalty > 0 && !includePenaltyInPayment) ? 'deduct_from_next_booking' : 'card';
+      const effectivePenaltyMethod = (penalty > 0 && !includePenaltyInPayment) ? 'deduct_from_next_booking' : penaltyPaymentMethod;
       const fullReason = reason.trim() ? `${reasonLabel}: ${reason.trim()}` : reasonLabel;
 
-      const mustPayRefund = ownerHasReceivedMoney && refundAmount > 0;
+      /** Popup : on ne paie que la pénalité. Le remboursement se règle dans l'onglet Remboursements. */
       const mustPayPenaltyNow = penalty > 0 && includePenaltyInPayment;
-      const needPaymentFirst = isOwner && (mustPayRefund || mustPayPenaltyNow);
+      const needPaymentFirst = isOwner && mustPayPenaltyNow;
 
       // Flux paiement d'abord (comme résidence) : créer penalty_tracking, ouvrir Stripe. Annulation après confirmation paiement.
       const vehicleOwnerId = booking.vehicle?.owner_id;
@@ -400,6 +506,13 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         vehicleRenterId = row?.renter_id ?? undefined;
       }
       if (needPaymentFirst && vehicleOwnerId && vehicleRenterId) {
+        if (effectivePenaltyMethod === 'wave' && currency !== 'XOF') {
+          setIsConfirming(false);
+          Alert.alert('Wave : XOF requis', 'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Passez en CFA ou choisissez la carte.');
+          return;
+        }
+
+        const paymentMethod = effectivePenaltyMethod === 'wave' ? 'wave' : 'card';
         const { data: insertedPenalty, error: penaltyErr } = await supabase
           .from('penalty_tracking')
           .insert({
@@ -410,7 +523,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
             penalty_amount: penalty,
             penalty_type: 'host_cancellation',
             status: 'pending',
-            payment_method: 'card',
+            payment_method: paymentMethod,
             service_type: 'vehicle',
           })
           .select('id')
@@ -422,35 +535,56 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
           return;
         }
 
-        const amountToCharge = mustPayRefund ? Math.round(refundAmount + (includePenaltyInPayment ? penalty : 0)) : Math.round(penalty);
+        const amountToChargeXof = Math.round(penalty);
         pendingCancellationReasonRef.current = fullReason;
-        setStripeCheckoutOpened(true);
         setPendingPenaltyId(insertedPenalty.id);
         setIsConfirming(false);
 
         try {
-          const amountNum = Number(amountToCharge);
+          const amountNum = Number(amountToChargeXof);
           if (!Number.isFinite(amountNum) || amountNum <= 0) {
             throw new Error('Montant invalide pour le paiement');
           }
-          const body: Record<string, unknown> = {
-            payment_type: 'penalty',
-            penalty_tracking_id: insertedPenalty.id,
-            amount: amountNum,
-            refund_amount_xof: mustPayRefund ? refundAmount : 0,
-            property_title: mustPayRefund ? (includePenaltyInPayment && penalty > 0 ? 'Remboursement locataire + Pénalité - Annulation véhicule AkwaHome' : 'Remboursement locataire - Annulation véhicule AkwaHome') : 'Pénalité annulation véhicule - AkwaHome',
-            return_to_app: true,
-            app_scheme: 'akwahomemobile',
-            client: 'mobile',
-            booking_type: 'vehicle',
-          };
-          if (currency === 'EUR' && rates?.EUR && rates.EUR > 0) { body.currency = 'eur'; body.rate = rates.EUR; }
-          const checkoutResult = await createCheckoutSession(body);
-          if (checkoutResult.session_id) {
-            setPendingStripeSessionId(checkoutResult.session_id);
+          if (effectivePenaltyMethod === 'wave') {
+            setWaveCheckoutOpened(true);
+            const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
+            const result = await createWaveCheckoutSession({
+              payment_type: 'penalty',
+              penalty_tracking_id: insertedPenalty.id,
+              penalty_id: insertedPenalty.id,
+              booking_id: booking.id,
+              amount: amountNum,
+              property_title: 'Pénalité annulation véhicule - AkwaHome',
+              checkout_token: checkoutToken,
+              return_to_app: true,
+              app_scheme: 'akwahomemobile',
+              client: 'mobile',
+              booking_type: 'vehicle',
+            });
+            setPendingWaveCheckoutToken(result.checkout_token ?? checkoutToken);
+            await openWavePayment(result.wave_launch_url);
+          } else {
+            setStripeCheckoutOpened(true);
             setPendingStripeStartedAt(Date.now());
+            const body: Record<string, unknown> = {
+              payment_type: 'penalty',
+              booking_id: booking.id,
+              penalty_tracking_id: insertedPenalty.id,
+              amount: amountNum,
+              refund_amount_xof: 0,
+              property_title: 'Pénalité annulation véhicule - AkwaHome',
+              return_to_app: true,
+              app_scheme: 'akwahomemobile',
+              client: 'mobile',
+              booking_type: 'vehicle',
+            };
+            if (currency === 'EUR' && rates?.EUR && rates.EUR > 0) { body.currency = 'eur'; body.rate = rates.EUR; }
+            const checkoutResult = await createCheckoutSession(body);
+            if (checkoutResult.session_id) {
+              setPendingStripeSessionId(checkoutResult.session_id);
+            }
+            await Linking.openURL(checkoutResult.url);
           }
-          await Linking.openURL(checkoutResult.url);
         } catch (e: unknown) {
           setIsConfirming(false);
           Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement');
@@ -496,6 +630,52 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         .eq('id', booking.id);
 
       if (updateError) throw updateError;
+
+      // Propriétaire annule et doit reverser : créer host_refund_due (règlement dans onglet Remboursements)
+      if (isOwner && mustPayRefundViaStripe && amountToReverse > 0 && bookingData?.vehicle?.owner_id) {
+        try {
+          await supabase.from('host_refund_due').insert({
+            host_id: bookingData.vehicle.owner_id,
+            booking_type: 'vehicle',
+            booking_id: booking.id,
+            amount_due: Math.round(amountToReverseXOF),
+            status: 'pending',
+            penalty_tracking_id: null,
+          });
+        } catch (e) {
+          console.error('Erreur création host_refund_due:', e);
+        }
+      }
+
+      // Si le locataire a payé via CB/Wave et le propriétaire a déjà perçu (48h après début),
+      // le propriétaire doit rembourser AkwaHome (car c'est AkwaHome qui rembourse le locataire)
+      if (!isOwner && refundAmount > 0 && renterPaidViaPlatform && ownerHasReceivedMoney && bookingData?.vehicle?.owner_id) {
+        const vbTotalPrice = bookingData?.total_price ?? 1;
+        let vbHostNetAmount = (bookingData as any)?.host_net_amount;
+        if (vbHostNetAmount == null && vbTotalPrice > 0) {
+          const basePriceWithDriver = Math.round(vbTotalPrice / 1.12);
+          vbHostNetAmount = basePriceWithDriver - calculateHostCommission(basePriceWithDriver, 'vehicle').hostCommission;
+        }
+        vbHostNetAmount = vbHostNetAmount ?? refundAmount;
+        const ownerReimbursementAmount = vbTotalPrice > 0
+          ? Math.round((refundAmount / vbTotalPrice) * vbHostNetAmount)
+          : refundAmount;
+        try {
+          await supabase.from('penalty_tracking').insert({
+            booking_id: null,
+            vehicle_booking_id: booking.id,
+            host_id: bookingData.vehicle.owner_id,
+            guest_id: booking.renter_id,
+            penalty_amount: ownerReimbursementAmount,
+            penalty_type: 'guest_cancellation',
+            payment_method: null,
+            status: 'pending',
+            service_type: 'vehicle',
+          });
+        } catch (e) {
+          console.error('Erreur création penalty_tracking (remboursement propriétaire):', e);
+        }
+      }
 
       // Envoyer les emails de notification
       const vehicleTitle = bookingData?.vehicle
@@ -600,7 +780,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         console.warn('[VehicleCancellationModal] Erreur envoi email annulation:', emailError);
       }
 
-      // Propriétaire : créer penalty_tracking si remboursement à sa charge ou pénalité. Stripe uniquement si propriétaire a déjà perçu (remboursement) ou souhaite régler la pénalité maintenant.
+      // Propriétaire : créer penalty_tracking pour pénalité. Stripe uniquement pour pénalité (le remboursement se règle dans onglet Remboursements).
       if (isOwner && booking.vehicle?.owner_id && (refundAmount > 0 || penalty > 0)) {
         const { data: bookingRow } = await supabase
           .from('vehicle_bookings')
@@ -609,6 +789,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
           .single();
 
         if (bookingRow?.renter_id) {
+          const payMethod = effectivePenaltyMethod === 'deduct_from_next_booking' ? effectivePenaltyMethod : (effectivePenaltyMethod === 'wave' ? 'wave' : 'card');
           const { data: insertedPenalty, error: penaltyErr } = await supabase
             .from('penalty_tracking')
             .insert({
@@ -619,51 +800,68 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
               penalty_amount: penalty,
               penalty_type: 'host_cancellation',
               status: 'pending',
-              payment_method: effectivePenaltyMethod === 'card' ? 'pay_directly' : effectivePenaltyMethod,
+              payment_method: payMethod,
               service_type: 'vehicle',
             })
             .select('id')
             .single();
 
           if (!penaltyErr && insertedPenalty?.id) {
-            const mustPayRefund = ownerHasReceivedMoney && refundAmount > 0;
             const mustPayPenaltyNow = penalty > 0 && includePenaltyInPayment;
-            const openStripe = mustPayRefund || mustPayPenaltyNow;
-            const amountToCharge = mustPayRefund
-              ? Math.round(refundAmount + (includePenaltyInPayment ? penalty : 0))
-              : mustPayPenaltyNow
-                ? Math.round(penalty)
-                : 0;
+            const amountToCharge = mustPayPenaltyNow ? Math.round(penalty) : 0;
 
-            if (openStripe && amountToCharge > 0) {
-              setStripeCheckoutOpened(true);
+            if (amountToCharge > 0) {
               setPendingPenaltyId(insertedPenalty.id);
               setIsConfirming(false);
               try {
                 const amountNum = Number(amountToCharge);
-                const body: Record<string, unknown> = {
-                  payment_type: 'penalty',
-                  penalty_tracking_id: insertedPenalty.id,
-                  amount: Number.isFinite(amountNum) ? amountNum : amountToCharge,
-                  refund_amount_xof: mustPayRefund ? refundAmount : 0,
-                  property_title: mustPayRefund
-                    ? (includePenaltyInPayment && penalty > 0 ? 'Remboursement locataire + Pénalité - Annulation véhicule AkwaHome' : 'Remboursement locataire - Annulation véhicule AkwaHome')
-                    : 'Pénalité annulation véhicule - AkwaHome',
-                  return_to_app: true,
-                  app_scheme: 'akwahomemobile',
-                  client: 'mobile',
-                  booking_type: 'vehicle',
-                };
-                if (currency === 'EUR' && rates?.EUR && rates.EUR > 0) {
-                  body.currency = 'eur';
-                  body.rate = rates.EUR;
+                if (effectivePenaltyMethod === 'wave' && currency !== 'XOF') {
+                  Alert.alert('Wave : XOF requis', 'Le paiement Wave n\'accepte que le Franc CFA (FCFA). Passez en CFA ou choisissez la carte.');
+                  return;
                 }
-                const checkoutResult = await createCheckoutSession(body);
-                if (checkoutResult.session_id) {
-                  setPendingStripeSessionId(checkoutResult.session_id);
+                if (effectivePenaltyMethod === 'wave') {
+                  setWaveCheckoutOpened(true);
+                  const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
+                  const result = await createWaveCheckoutSession({
+                    payment_type: 'penalty',
+                    penalty_tracking_id: insertedPenalty.id,
+                    penalty_id: insertedPenalty.id,
+                    booking_id: booking.id,
+                    amount: Number.isFinite(amountNum) ? amountNum : amountToCharge,
+                    property_title: 'Pénalité annulation véhicule - AkwaHome',
+                    checkout_token: checkoutToken,
+                    return_to_app: true,
+                    app_scheme: 'akwahomemobile',
+                    client: 'mobile',
+                    booking_type: 'vehicle',
+                  });
+                  setPendingWaveCheckoutToken(result.checkout_token ?? checkoutToken);
+                  await openWavePayment(result.wave_launch_url);
+                } else {
+                  setStripeCheckoutOpened(true);
                   setPendingStripeStartedAt(Date.now());
+                  const body: Record<string, unknown> = {
+                    payment_type: 'penalty',
+                    booking_id: booking.id,
+                    penalty_tracking_id: insertedPenalty.id,
+                    amount: Number.isFinite(amountNum) ? amountNum : amountToCharge,
+                    refund_amount_xof: 0,
+                    property_title: 'Pénalité annulation véhicule - AkwaHome',
+                    return_to_app: true,
+                    app_scheme: 'akwahomemobile',
+                    client: 'mobile',
+                    booking_type: 'vehicle',
+                  };
+                  if (currency === 'EUR' && rates?.EUR && rates.EUR > 0) {
+                    body.currency = 'eur';
+                    body.rate = rates.EUR;
+                  }
+                  const checkoutResult = await createCheckoutSession(body);
+                  if (checkoutResult.session_id) {
+                    setPendingStripeSessionId(checkoutResult.session_id);
+                  }
+                  await Linking.openURL(checkoutResult.url);
                 }
-                await Linking.openURL(checkoutResult.url);
               } catch (e: unknown) {
                 Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ouvrir le paiement');
                 resetPendingStripeState();
@@ -715,12 +913,12 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
             nestedScrollEnabled={true}
             keyboardShouldPersistTaps="handled"
           >
-            {stripeCheckoutOpened && pendingPenaltyId ? (
+            {(stripeCheckoutOpened || waveCheckoutOpened) && pendingPenaltyId ? (
               <View style={styles.pendingCard}>
                 <ActivityIndicator size="small" color="#e67e22" />
                 <Text style={styles.pendingTitle}>Paiement en attente</Text>
                 <Text style={styles.pendingText}>
-                  Revenez dans l'app après avoir terminé le paiement {ownerHasReceivedMoney ? '(remboursement locataire + pénalité)' : '(pénalité)'}.
+                  Revenez dans l'app après avoir terminé le paiement (pénalité). Le remboursement se règle dans l'onglet Remboursements.
                 </Text>
                 {lastPaymentStatus != null && (
                   <Text style={styles.pendingStatus}>Statut : {lastPaymentStatus}</Text>
@@ -735,7 +933,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                   onPress={() => {
                     Alert.alert(
                       'Abandonner le paiement ?',
-                      'Si vous avez déjà payé, la réservation sera mise à jour sous peu. Sinon, le remboursement et la pénalité restent à régler.',
+                      'Si vous avez déjà payé, la réservation sera mise à jour sous peu. Sinon, la pénalité et le remboursement restent à régler (onglet Remboursements).',
                       [
                         { text: 'Continuer', style: 'cancel' },
                         { text: 'Abandonner', style: 'destructive', onPress: () => { resetPendingStripeState(); onClose(); } },
@@ -776,15 +974,13 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                           {'\n\n'}
                           {penalty > 0 ? (
                             <>
-                              Vous serez pénalisé de {penalty.toLocaleString()} XOF.
-                              {'\n'}
-                              Le locataire sera remboursé intégralement de {refundAmount.toLocaleString()} XOF.
+                              Vous serez pénalisé de {formatPrice(penalty)}.
+                              {mustPayRefundViaStripe && ` Le remboursement (${formatPrice(amountToReverse)}) se règle dans l'onglet Remboursements.`}
                             </>
                           ) : (
                             <>
                               Aucune pénalité ne sera appliquée.
-                              {'\n'}
-                              Le locataire sera remboursé intégralement de {refundAmount.toLocaleString()} XOF.
+                              {mustPayRefundViaStripe && ` Le remboursement (${formatPrice(amountToReverse)}) se règle dans l'onglet Remboursements.`}
                             </>
                           )}
                         </>
@@ -831,18 +1027,72 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                   </View>
                 )}
 
-                {/* Paiement : remboursement (si propriétaire a déjà perçu) + pénalité optionnelle */}
+                {/* Détails financiers et Comment le remboursement va se passer - uniquement quand le propriétaire doit reverser */}
+                {isOwner && refundAmount > 0 && (mustPayRefundViaStripe || !renterPaidViaPlatform) && (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Détails financiers</Text>
+                    {mustPayRefundViaStripe && (
+                      <>
+                        <View style={{ marginBottom: 8 }}>
+                          <Text style={styles.reasonLabel}>Remboursement au locataire : {formatPrice(refundAmount)}</Text>
+                        </View>
+                        {amountToReverse > 0 && (
+                          <View style={{ marginBottom: 8 }}>
+                            <Text style={[styles.reasonLabel, { fontWeight: '600', color: '#c62828' }]}>
+                              Montant net à reverser : {formatPrice(amountToReverse)}
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+                    {!renterPaidViaPlatform && (
+                      <View style={{ marginBottom: 8 }}>
+                        <Text style={[styles.reasonLabel, { fontWeight: '600', color: '#c62828' }]}>
+                          À rembourser au locataire : {formatPrice(refundAmount)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Comment le remboursement va se passer - montants uniquement quand propriétaire doit reverser */}
+                {refundAmount > 0 && (
+                  <View style={styles.refundProcessBox}>
+                    <Text style={styles.refundProcessTitle}>Comment le remboursement va se passer</Text>
+                    {isOwner ? (
+                      mustPayRefundViaStripe ? (
+                        <Text style={styles.refundProcessText}>
+                          Vous reversez {formatPrice(amountToReverse)} (montant net) — à régler dans l'onglet Remboursements de la page Remboursements & Pénalités.
+                        </Text>
+                      ) : !renterPaidViaPlatform ? (
+                        <Text style={styles.refundProcessText}>
+                          Le locataire a payé en espèces ou par virement. Vous devez le rembourser directement ({formatPrice(refundAmount)}). La plateforme ne peut pas effectuer ce remboursement.
+                        </Text>
+                      ) : (
+                        <Text style={styles.refundProcessText}>
+                          Le remboursement au locataire sera effectué par AkwaHome. Aucun paiement de votre part.
+                        </Text>
+                      )
+                    ) : (
+                      <Text style={styles.refundProcessText}>
+                        Le montant de {formatPrice(refundAmount)} sera remboursé sur votre moyen de paiement initial sous 5 à 10 jours ouvrés.
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Paiement : uniquement pénalité ici. Le remboursement se règle dans l'onglet Remboursements. */}
                 {isOwner && (refundAmount > 0 || penalty > 0) && (
                   <View style={styles.penaltyPaymentSection}>
-                    {ownerHasReceivedMoney ? (
+                    {mustPayRefundViaStripe ? (
                       <>
                         <Text style={styles.sectionTitle}>
-                          Remboursement obligatoire
+                          Remboursement à régler dans l'onglet Remboursements
                         </Text>
                         <View style={[styles.reasonOption, { opacity: 1 }]}>
-                          <Ionicons name="card" size={20} color="#e67e22" />
+                          <Ionicons name="information-circle" size={20} color="#e67e22" />
                           <Text style={styles.reasonLabel}>
-                            Vous avez déjà perçu le montant. Le remboursement au locataire ({refundAmount.toLocaleString()} XOF) s'effectue obligatoirement par carte bancaire (Stripe).
+                            Vous reversez {formatPrice(amountToReverse)} (montant net) — à régler dans l'onglet Remboursements de la page Remboursements & Pénalités. Ici vous ne réglez que la pénalité.
                           </Text>
                         </View>
                         {penalty > 0 && (
@@ -858,9 +1108,27 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                                 {includePenaltyInPayment && <View style={styles.reasonRadioSelected} />}
                               </View>
                               <Text style={styles.reasonLabel}>
-                                Régler la pénalité maintenant (avec le remboursement en un seul paiement par carte)
+                                Régler la pénalité maintenant (carte ou Wave)
                               </Text>
                             </TouchableOpacity>
+                            {includePenaltyInPayment && (
+                              <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                                <TouchableOpacity
+                                  style={[styles.reasonOption, { flex: 1 }, penaltyPaymentMethod === 'card' && styles.reasonOptionSelected]}
+                                  onPress={() => setPenaltyPaymentMethod('card')}
+                                >
+                                  <Ionicons name="card" size={20} color={penaltyPaymentMethod === 'card' ? '#e67e22' : '#666'} />
+                                  <Text style={styles.reasonLabel}>Carte</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={[styles.reasonOption, { flex: 1 }, penaltyPaymentMethod === 'wave' && styles.reasonOptionSelected]}
+                                  onPress={() => setPenaltyPaymentMethod('wave')}
+                                >
+                                  <Ionicons name="phone-portrait" size={20} color={penaltyPaymentMethod === 'wave' ? '#e67e22' : '#666'} />
+                                  <Text style={styles.reasonLabel}>Wave</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
                             <TouchableOpacity
                               style={[styles.reasonOption, !includePenaltyInPayment && styles.reasonOptionSelected]}
                               onPress={() => setIncludePenaltyInPayment(false)}
@@ -874,14 +1142,82 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                             </TouchableOpacity>
                             <Text style={styles.penaltyPaymentNote}>
                               {includePenaltyInPayment
-                                ? `Montant à payer : remboursement + pénalité = ${(refundAmount + penalty).toLocaleString()} XOF.`
-                                : `Vous paierez le remboursement seul (${refundAmount.toLocaleString()} XOF). La pénalité sera déduite de vos prochains revenus.`}
+                                ? `Montant à payer ici : ${formatPrice(penalty)} (pénalité seule). Le remboursement se règle dans l'onglet Remboursements.`
+                                : `Le remboursement (${formatPrice(amountToReverse)}) se règle dans l'onglet Remboursements. La pénalité sera déduite de vos prochains revenus.`}
                             </Text>
                           </>
                         )}
                         {penalty === 0 && refundAmount > 0 && (
                           <Text style={styles.penaltyPaymentNote}>
-                            Aucune pénalité. Vous ne réglerez que le remboursement au locataire.
+                            Aucune pénalité. Règlez le remboursement ({formatPrice(amountToReverse)}) dans l'onglet Remboursements.
+                          </Text>
+                        )}
+                      </>
+                    ) : !renterPaidViaPlatform && refundAmount > 0 ? (
+                      <>
+                        <Text style={styles.sectionTitle}>
+                          Remboursement au locataire (espèces/virement)
+                        </Text>
+                        <View style={[styles.reasonOption, { opacity: 1 }]}>
+                          <Ionicons name="cash" size={20} color="#e67e22" />
+                          <Text style={styles.reasonLabel}>
+                            Le locataire a payé en espèces ou par virement. Vous devez le rembourser directement ({formatPrice(refundAmount)}). La plateforme ne peut pas effectuer ce remboursement.
+                          </Text>
+                        </View>
+                        {penalty > 0 ? (
+                          <>
+                            <Text style={[styles.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>
+                              Pénalité AkwaHome — comment la régler ?
+                            </Text>
+                            <TouchableOpacity
+                              style={[styles.reasonOption, includePenaltyInPayment && styles.reasonOptionSelected]}
+                              onPress={() => setIncludePenaltyInPayment(true)}
+                            >
+                              <View style={styles.reasonRadio}>
+                                {includePenaltyInPayment && <View style={styles.reasonRadioSelected} />}
+                              </View>
+                              <Text style={styles.reasonLabel}>
+                                Régler la pénalité maintenant
+                              </Text>
+                            </TouchableOpacity>
+                            {includePenaltyInPayment && (
+                              <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                                <TouchableOpacity
+                                  style={[styles.reasonOption, { flex: 1 }, penaltyPaymentMethod === 'card' && styles.reasonOptionSelected]}
+                                  onPress={() => setPenaltyPaymentMethod('card')}
+                                >
+                                  <Ionicons name="card" size={20} color={penaltyPaymentMethod === 'card' ? '#e67e22' : '#666'} />
+                                  <Text style={styles.reasonLabel}>Carte</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={[styles.reasonOption, { flex: 1 }, penaltyPaymentMethod === 'wave' && styles.reasonOptionSelected]}
+                                  onPress={() => setPenaltyPaymentMethod('wave')}
+                                >
+                                  <Ionicons name="phone-portrait" size={20} color={penaltyPaymentMethod === 'wave' ? '#e67e22' : '#666'} />
+                                  <Text style={styles.reasonLabel}>Wave</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                            <TouchableOpacity
+                              style={[styles.reasonOption, !includePenaltyInPayment && styles.reasonOptionSelected]}
+                              onPress={() => setIncludePenaltyInPayment(false)}
+                            >
+                              <View style={styles.reasonRadio}>
+                                {!includePenaltyInPayment && <View style={styles.reasonRadioSelected} />}
+                              </View>
+                              <Text style={styles.reasonLabel}>
+                                Laisser AkwaHome prélever la pénalité sur ma prochaine réservation
+                              </Text>
+                            </TouchableOpacity>
+                            <Text style={styles.penaltyPaymentNote}>
+                              {includePenaltyInPayment
+                                ? `Montant à payer : pénalité = ${formatPrice(penalty)}.`
+                                : 'La pénalité sera déduite de vos prochains revenus.'}
+                            </Text>
+                          </>
+                        ) : (
+                          <Text style={styles.penaltyPaymentNote}>
+                            Aucune pénalité. Remboursez le locataire directement.
                           </Text>
                         )}
                       </>
@@ -922,7 +1258,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                             </TouchableOpacity>
                             <Text style={styles.penaltyPaymentNote}>
                               {includePenaltyInPayment
-                                ? `Montant à payer : pénalité seule = ${penalty.toLocaleString()} XOF.`
+                                ? `Montant à payer : pénalité seule = ${formatPrice(penalty)}.`
                                 : 'Aucun paiement maintenant. La pénalité sera déduite de vos prochains revenus.'}
                             </Text>
                           </>
@@ -945,7 +1281,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => {
-                  if (stripeCheckoutOpened && pendingPenaltyId) {
+                  if ((stripeCheckoutOpened || waveCheckoutOpened) && pendingPenaltyId) {
                     Alert.alert(
                       'Abandonner ?',
                       'Si vous avez déjà payé, la réservation sera mise à jour sous peu.',
@@ -960,10 +1296,10 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                 }}
               >
                 <Text style={styles.cancelButtonText}>
-                  {stripeCheckoutOpened && pendingPenaltyId ? 'Fermer' : 'Annuler'}
+                  {(stripeCheckoutOpened || waveCheckoutOpened) && pendingPenaltyId ? 'Fermer' : 'Annuler'}
                 </Text>
               </TouchableOpacity>
-              {stripeCheckoutOpened && pendingPenaltyId ? (
+              {(stripeCheckoutOpened || waveCheckoutOpened) && pendingPenaltyId ? (
                 <TouchableOpacity
                   style={[styles.confirmButton, checkingPenaltyStatus && styles.confirmButtonDisabled]}
                   onPress={verifyPenaltyPaymentNow}
@@ -1122,6 +1458,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1e293b',
     marginBottom: 12,
+  },
+  refundProcessBox: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#FFEBEE',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#c62828',
+  },
+  refundProcessTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#c62828',
+    marginBottom: 6,
+  },
+  refundProcessText: {
+    fontSize: 13,
+    color: '#b71c1c',
+    lineHeight: 20,
   },
   penaltyPaymentSection: {
     marginBottom: 24,

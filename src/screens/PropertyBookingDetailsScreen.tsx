@@ -267,16 +267,6 @@ const PropertyBookingDetailsScreen: React.FC = () => {
           {getStatusBadge(getEffectiveStatus())}
         </View>
 
-        {/* Numéro de réservation (code court) */}
-        {booking?.id && (
-          <View style={[styles.section, { marginBottom: 0 }]}>
-            <Text style={styles.sectionTitle}>Numéro de réservation</Text>
-            <Text style={styles.reservationId}>
-              #{(booking as any).booking_code || (booking as any).vehicle_booking_code || booking.id}
-            </Text>
-          </View>
-        )}
-
         {/* Date de réservation */}
         {(booking as any).created_at && (
           <View style={[styles.section, { marginBottom: 0 }]}>
@@ -336,7 +326,7 @@ const PropertyBookingDetailsScreen: React.FC = () => {
             
             {booking.cancellation_penalty !== undefined && booking.cancellation_penalty > 0 && (
               <View style={styles.cancellationInfo}>
-                <Text style={styles.cancellationLabel}>Pénalité d'annulation :</Text>
+                <Text style={styles.cancellationLabel}>Nuit(s) consommée(s) + Frais d'annulation :</Text>
                 <Text style={styles.cancellationPenalty}>
                   {formatBookingAmount(booking.cancellation_penalty)}
                 </Text>

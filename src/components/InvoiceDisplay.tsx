@@ -1045,11 +1045,11 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
         <Text style={styles.sectionValue}>{getServiceTypeLabel(serviceType)}</Text>
       </View>
 
-      {/* Détails: numéro de réservation (code court) */}
+      {/* Détails: numéro de réservation (code AKWA) */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Numéro de réservation</Text>
         <Text style={styles.sectionValue} numberOfLines={2}>
-          {(booking as any).vehicle_booking_code || (booking as any).booking_code || booking.id}
+          {(booking as any).vehicle_booking_code || (booking as any).booking_code || `AKWA-${(booking.id || '').toString().substring(0, 8).toUpperCase()}`}
         </Text>
       </View>
 

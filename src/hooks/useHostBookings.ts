@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
 import { sendPushToUser } from '../services/pushNotificationService';
+import { calculateHostNetAmount } from '../lib/hostNetAmount';
 
 export interface HostBooking {
   id: string;
@@ -16,6 +17,8 @@ export interface HostBooking {
   infants_count: number;
   total_price: number;
   payment_method?: string;
+  payment_currency?: string | null;
+  exchange_rate?: number | null;
   host_net_amount?: number | null;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   message_to_host?: string;
@@ -600,7 +603,9 @@ export const useHostBookings = () => {
     cancellationReason?: string,
     penaltyPaymentMethod?: 'deduct_from_next_booking' | 'pay_directly' | 'card',
     /** Si fourni, la pénalité a déjà été créée (flux paiement d'abord) : on ne crée pas de penalty_tracking, on met juste à jour la résa + emails. */
-    existingPenaltyTrackingId?: string
+    existingPenaltyTrackingId?: string,
+    /** Si fourni et > 0, crée une entrée host_refund_due pour régler le remboursement dans l'onglet Remboursements. */
+    hostRefundAmount?: number
   ): Promise<{ success: boolean; penaltyTrackingId?: string }> => {
     if (!user) {
       setError('Vous devez être connecté');
@@ -619,7 +624,10 @@ export const useHostBookings = () => {
           properties!inner(
             price_per_night,
             host_id,
-            title
+            title,
+            cleaning_fee,
+            taxes,
+            free_cleaning_min_days
           )
         `)
         .eq('id', bookingId)
@@ -632,7 +640,62 @@ export const useHostBookings = () => {
         return { success: false };
       }
 
-      // Calculer la pénalité basée sur le délai d'annulation (ou 40% sur nuitées non consommées si séjour en cours)
+      // Pour espèces/virement : vérifier si l'hôte a déjà payé la commission plateforme
+      let commissionPaidForCash = false;
+      const guestPaidViaPlatform = booking.payment_method === 'card' || booking.payment_method === 'wave';
+      if (!guestPaidViaPlatform) {
+        const { data: commissionRow } = await supabase
+          .from('platform_commission_due')
+          .select('status')
+          .eq('booking_id', bookingId)
+          .eq('booking_type', 'property')
+          .maybeSingle();
+        commissionPaidForCash = commissionRow?.status === 'paid';
+      }
+
+      // Montant net perçu par l'hôte = base pour pénalité. CB/Wave: host_net_amount. Espèces: si commission payée → host_net_amount, sinon total.
+      let hostNetAmount: number;
+      if (!guestPaidViaPlatform) {
+        if (commissionPaidForCash) {
+          if (booking.host_net_amount != null && booking.host_net_amount > 0) {
+            hostNetAmount = booking.host_net_amount;
+          } else {
+            const checkIn = new Date(booking.check_in_date);
+            const checkOut = new Date(booking.check_out_date);
+            const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)) || 1;
+            hostNetAmount = calculateHostNetAmount({
+              pricePerNight: booking.properties?.price_per_night || 0,
+              nights,
+              discountAmount: booking.discount_amount ?? 0,
+              cleaningFee: booking.properties?.cleaning_fee || 0,
+              taxesPerNight: booking.properties?.taxes || 0,
+              freeCleaningMinDays: booking.properties?.free_cleaning_min_days ?? null,
+              status: booking.status || 'confirmed',
+              serviceType: 'property',
+            }).hostNetAmount;
+          }
+        } else {
+          hostNetAmount = booking.total_price ?? 0;
+        }
+      } else if (booking.host_net_amount != null) {
+        hostNetAmount = booking.host_net_amount;
+      } else {
+        const checkIn = new Date(booking.check_in_date);
+        const checkOut = new Date(booking.check_out_date);
+        const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)) || 1;
+        hostNetAmount = calculateHostNetAmount({
+          pricePerNight: booking.properties?.price_per_night || 0,
+          nights,
+          discountAmount: booking.discount_amount ?? 0,
+          cleaningFee: booking.properties?.cleaning_fee || 0,
+          taxesPerNight: booking.properties?.taxes || 0,
+          freeCleaningMinDays: booking.properties?.free_cleaning_min_days ?? null,
+          status: booking.status || 'confirmed',
+          serviceType: 'property',
+        }).hostNetAmount;
+      }
+
+      // Calculer la pénalité basée sur le montant NET (pas le brut). Séjour en cours : 40% des nuitées non consommées (portion nette).
       const checkInDate = new Date(booking.check_in_date);
       checkInDate.setHours(0, 0, 0, 0);
       const checkOutDate = booking.check_out_date ? new Date(booking.check_out_date) : null;
@@ -645,27 +708,27 @@ export const useHostBookings = () => {
       const totalNights = checkOutDate
         ? Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
         : 1;
-      const baseReservationAmount = booking.properties.price_per_night * totalNights;
+      const totalPriceDisplay = booking.total_price ?? 1;
 
       const isInProgress = checkOutDate && checkInDate <= now && now <= checkOutDate;
       let penalty = 0;
-      /** Remboursement au voyageur : 100% du total avant le séjour, ou 100% du restant des nuitées non consommées si séjour en cours. */
+      /** Remboursement au voyageur : 100% du total avant le séjour, ou prorata des nuitées non consommées si séjour en cours. */
       let refundAmount = booking.total_price;
 
-      // Pénalité à partir de 5 jours avant le début du séjour
       if (isInProgress) {
-        const nightsElapsed = Math.max(0, Math.ceil((now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+        // Nuitées écoulées = nuits complètement consommées (floor). Ex: 21/03 10h → 6 nuits faites, 2 restantes.
+        const nightsElapsed = Math.max(0, Math.floor((now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
         const remainingNights = Math.max(0, totalNights - nightsElapsed);
-        const remainingBaseAmount = remainingNights * booking.properties.price_per_night;
-        penalty = Math.round(remainingBaseAmount * 0.40);
-        // Remboursement = restant des nuitées non consommées (au prorata du total payé)
-        refundAmount = totalNights > 0 ? Math.round((remainingNights / totalNights) * booking.total_price) : 0;
+        refundAmount = totalNights > 0 ? Math.round((remainingNights / totalNights) * (booking.total_price ?? 0)) : 0;
+        // Pénalité = 40% de la portion NET correspondant aux nuitées non consommées
+        const applicableNet = totalPriceDisplay > 0 ? (refundAmount / totalPriceDisplay) * hostNetAmount : 0;
+        penalty = Math.round(0.40 * applicableNet);
       } else if (daysUntilCheckIn > 5) {
         penalty = 0;
       } else if (daysUntilCheckIn > 2 && daysUntilCheckIn <= 5) {
-        penalty = Math.round(baseReservationAmount * 0.20);
+        penalty = Math.round(0.20 * hostNetAmount);
       } else {
-        penalty = Math.round(baseReservationAmount * 0.40);
+        penalty = Math.round(0.40 * hostNetAmount);
       }
 
       const updateData: any = {
@@ -705,6 +768,27 @@ export const useHostBookings = () => {
           }
         } catch (penaltyError) {
           console.error('Erreur lors de la création de la pénalité / suivi remboursement:', penaltyError);
+        }
+      }
+
+      // Créer host_refund_due si l'hôte doit reverser (règlement dans l'onglet Remboursements)
+      if (hostRefundAmount != null && hostRefundAmount > 0) {
+        try {
+          const { error: refundErr } = await supabase
+            .from('host_refund_due')
+            .insert({
+              host_id: user.id,
+              booking_type: 'property',
+              booking_id: bookingId,
+              amount_due: Math.round(hostRefundAmount),
+              status: 'pending',
+              penalty_tracking_id: penaltyTrackingId || null,
+            });
+          if (refundErr) {
+            console.error('Erreur création host_refund_due:', refundErr);
+          }
+        } catch (refundError) {
+          console.error('Erreur lors de la création de host_refund_due:', refundError);
         }
       }
 

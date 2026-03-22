@@ -25,6 +25,8 @@ import CardPaymentSuccessView from './CardPaymentSuccessView';
 
 const POLL_INTERVAL_MS = 2500;
 const PAYMENT_SUCCESS_PATH = 'payment-success';
+/** Délai avant de traiter le deep link Stripe pour éviter le gel au retour (Stripe redirige directement vers l'app). */
+const STRIPE_RETURN_DELAY_MS = 800;
 const MAX_POLL_ATTEMPTS = 10; // Wave : le webhook peut prendre quelques secondes
 const SHOW_CLOSE_AFTER_MS = 15000;
 
@@ -124,9 +126,10 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     if (parsed) {
       // Wave : géré par WaveReturnHandler (pas ici)
       if (parsed.wave) return;
-      // Stripe (checkout_token sans wave) : ne pas afficher le modal (provoque un gel).
-      // L'utilisateur consulte « Mes réservations » manuellement.
-      return;
+      // Stripe : délai + InteractionManager pour éviter gel au retour (navigation directe depuis Stripe)
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(() => setPendingPayment(parsed), STRIPE_RETURN_DELAY_MS);
+      });
     }
   }, []);
 
@@ -187,8 +190,11 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
             <>
               <CardPaymentSuccessView subtitle={message} style={styles.successViewBox} />
               <TouchableOpacity style={styles.button} onPress={closeModal}>
-                <Text style={styles.buttonText}>Voir mes réservations</Text>
+                <Text style={styles.buttonText}>Fermer</Text>
               </TouchableOpacity>
+              <Text style={[styles.message, { marginTop: 12, fontSize: 13 }]}>
+                Consultez « Mes réservations » lorsque vous le souhaitez.
+              </Text>
             </>
           )}
           {status === 'error' && (

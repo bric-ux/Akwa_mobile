@@ -265,7 +265,7 @@ export const useBookingModifications = () => {
     }
   };
 
-  // Vérifier si une réservation a une demande en cours
+  // Vérifier si une réservation a une demande en cours (prend la plus récente si plusieurs)
   const getBookingPendingRequest = async (bookingId: string) => {
     try {
       const { data, error } = await supabase
@@ -273,6 +273,8 @@ export const useBookingModifications = () => {
         .select('*')
         .eq('booking_id', bookingId)
         .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;

@@ -40,6 +40,8 @@ interface Refund {
     end_date?: string;
     total_price: number;
     status: string;
+    booking_code?: string | null;
+    vehicle_booking_code?: string | null;
     properties?: {
       id: string;
       title: string;
@@ -379,6 +381,10 @@ const AdminRefundsScreen: React.FC = () => {
             const statusConfig = getStatusBadge(refund.status);
             const customer = refund.booking?.guest_profile;
 
+            const reservationRef = refund.type === 'vehicle'
+              ? (refund.booking?.vehicle_booking_code || `#${(refund.booking?.id || '').toString().substring(0, 8).toUpperCase()}`)
+              : (refund.booking?.booking_code || `#${(refund.booking?.id || '').toString().substring(0, 8).toUpperCase()}`);
+
             return (
               <TouchableOpacity
                 key={refund.id}
@@ -406,6 +412,20 @@ const AdminRefundsScreen: React.FC = () => {
                   </View>
                 </View>
 
+                <View style={styles.refundSection}>
+                  <Text style={styles.refundSectionLabel}>Réservation concernée</Text>
+                  <Text style={styles.refundSectionValue}>
+                    {reservationRef} • {refund.type === 'vehicle' ? 'Location véhicule' : 'Résidence'}
+                  </Text>
+                </View>
+
+                <View style={styles.refundSection}>
+                  <Text style={styles.refundSectionLabel}>Montant à rembourser</Text>
+                  <Text style={[styles.refundSectionValue, styles.amountText]}>
+                    {formatAmount(refund.amount)}
+                  </Text>
+                </View>
+
                 <View style={styles.refundDetails}>
                   <View style={styles.detailRow}>
                     <Ionicons name="person-outline" size={16} color="#666" />
@@ -414,26 +434,24 @@ const AdminRefundsScreen: React.FC = () => {
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Ionicons name="cash-outline" size={16} color="#666" />
-                    <Text style={[styles.detailText, styles.amountText]}>
-                      {formatAmount(refund.amount)}
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
                     <Ionicons name="calendar-outline" size={16} color="#666" />
-                    <Text style={styles.detailText}>{formatDate(refund.created_at)}</Text>
+                    <Text style={styles.detailText}>
+                      {refund.type === 'vehicle'
+                        ? `${formatDate(refund.booking?.start_date || '')} - ${formatDate(refund.booking?.end_date || '')}`
+                        : `${formatDate(refund.booking?.check_in_date || '')} - ${formatDate(refund.booking?.check_out_date || '')}`}
+                    </Text>
                   </View>
                 </View>
 
                 <View style={styles.reasonContainer}>
-                  <Text style={styles.reasonLabel}>Raison:</Text>
+                  <Text style={styles.reasonLabel}>Détails / Raison</Text>
                   <Text style={styles.reasonText} numberOfLines={2}>
                     {refund.reason}
                   </Text>
                 </View>
 
                 <View style={styles.viewDetailsButton}>
-                  <Text style={styles.viewDetailsText}>Voir les détails</Text>
+                  <Text style={styles.viewDetailsText}>Voir les détails complets</Text>
                   <Ionicons name="chevron-forward" size={20} color="#e67e22" />
                 </View>
               </TouchableOpacity>
@@ -461,13 +479,62 @@ const AdminRefundsScreen: React.FC = () => {
             {selectedRefund && (
               <ScrollView style={styles.modalBody}>
                 <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Informations générales</Text>
+                  <Text style={styles.sectionTitle}>Montant à rembourser</Text>
+                  <View style={[styles.amountHighlight, { backgroundColor: '#fef2f2' }]}>
+                    <Text style={[styles.amountValue, { fontSize: 22 }]}>
+                      {formatAmount(selectedRefund.amount)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.sectionTitle}>Réservation concernée</Text>
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>ID Remboursement</Text>
-                    <Text style={styles.infoValue}>{selectedRefund.id}</Text>
+                    <Text style={styles.infoLabel}>Référence</Text>
+                    <Text style={styles.infoValue}>
+                      {selectedRefund.type === 'vehicle'
+                        ? (selectedRefund.booking?.vehicle_booking_code || `#${(selectedRefund.booking?.id || '').toString().substring(0, 8).toUpperCase()}`)
+                        : (selectedRefund.booking?.booking_code || `#${(selectedRefund.booking?.id || '').toString().substring(0, 8).toUpperCase()}`)}
+                    </Text>
                   </View>
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Statut</Text>
+                    <Text style={styles.infoLabel}>Type</Text>
+                    <Text style={styles.infoValue}>
+                      {selectedRefund.type === 'vehicle' ? 'Location véhicule' : 'Résidence meublée'}
+                    </Text>
+                  </View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>
+                      {selectedRefund.type === 'vehicle' ? 'Véhicule' : 'Propriété'}
+                    </Text>
+                    <Text style={styles.infoValue}>
+                      {selectedRefund.type === 'vehicle'
+                        ? `${selectedRefund.booking?.vehicles?.brand || ''} ${selectedRefund.booking?.vehicles?.model || ''}`.trim() || selectedRefund.booking?.vehicles?.title || 'N/A'
+                        : selectedRefund.booking?.properties?.title || 'N/A'}
+                    </Text>
+                  </View>
+                  {(selectedRefund.booking?.check_in_date || selectedRefund.booking?.start_date) && (
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Dates séjour</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedRefund.type === 'vehicle'
+                          ? `${formatDate(selectedRefund.booking.start_date || '')} - ${formatDate(selectedRefund.booking.end_date || '')}`
+                          : `${formatDate(selectedRefund.booking.check_in_date || '')} - ${formatDate(selectedRefund.booking.check_out_date || '')}`}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Montant total réservation</Text>
+                    <Text style={styles.infoValue}>
+                      {formatAmount(selectedRefund.booking?.total_price || 0)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.sectionTitle}>Détails</Text>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Statut remboursement</Text>
                     <View style={[styles.statusBadge, { backgroundColor: getStatusBadge(selectedRefund.status).color + '20' }]}>
                       <Text style={[styles.statusText, { color: getStatusBadge(selectedRefund.status).color }]}>
                         {getStatusBadge(selectedRefund.status).label}
@@ -475,15 +542,9 @@ const AdminRefundsScreen: React.FC = () => {
                     </View>
                   </View>
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Type</Text>
+                    <Text style={styles.infoLabel}>Type remboursement</Text>
                     <Text style={styles.infoValue}>
                       {selectedRefund.refund_type === 'full' ? 'Complet' : 'Partiel'}
-                    </Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Montant</Text>
-                    <Text style={[styles.infoValue, styles.amountValue]}>
-                      {formatAmount(selectedRefund.amount)}
                     </Text>
                   </View>
                   <View style={styles.infoRow}>
@@ -499,51 +560,7 @@ const AdminRefundsScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Réservation</Text>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Type</Text>
-                    <View style={styles.infoValueContainer}>
-                      <Ionicons 
-                        name={selectedRefund.type === 'vehicle' ? 'car-outline' : 'home-outline'} 
-                        size={16} 
-                        color={selectedRefund.type === 'vehicle' ? '#e67e22' : '#3498db'} 
-                      />
-                      <Text style={styles.infoValue}>
-                        {selectedRefund.type === 'vehicle' ? 'Location de véhicule' : 'Résidence meublée'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>
-                      {selectedRefund.type === 'vehicle' ? 'Véhicule' : 'Propriété'}
-                    </Text>
-                    <Text style={styles.infoValue}>
-                      {selectedRefund.type === 'vehicle'
-                        ? `${selectedRefund.booking?.vehicles?.brand || ''} ${selectedRefund.booking?.vehicles?.model || ''}`.trim() || selectedRefund.booking?.vehicles?.title || 'N/A'
-                        : selectedRefund.booking?.properties?.title || 'N/A'}
-                    </Text>
-                  </View>
-                  {(selectedRefund.booking?.check_in_date || selectedRefund.booking?.start_date) && (
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Dates</Text>
-                      <Text style={styles.infoValue}>
-                        {selectedRefund.type === 'vehicle'
-                          ? `${formatDate(selectedRefund.booking.start_date || '')} - ${formatDate(selectedRefund.booking.end_date || '')}`
-                          : `${formatDate(selectedRefund.booking.check_in_date || '')} - ${formatDate(selectedRefund.booking.check_out_date || '')}`
-                        }
-                      </Text>
-                    </View>
-                  )}
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Montant réservation</Text>
-                    <Text style={styles.infoValue}>
-                      {formatAmount(selectedRefund.booking?.total_price || 0)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.modalSection}>
-                  <Text style={styles.sectionTitle}>Client</Text>
+                  <Text style={styles.sectionTitle}>Client / Locataire</Text>
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Nom</Text>
                     <Text style={styles.infoValue}>
@@ -745,6 +762,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  refundSection: {
+    marginBottom: 12,
+  },
+  refundSectionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#888',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  refundSectionValue: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
   refundDetails: {
     gap: 8,
     marginBottom: 12,
@@ -859,6 +891,11 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  amountHighlight: {
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   emailValue: {
     fontSize: 12,

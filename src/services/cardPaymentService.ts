@@ -8,7 +8,7 @@ const CREATE_CHECKOUT_SESSION = 'create-checkout-session';
 const CHECK_PAYMENT_STATUS = 'check-payment-status';
 
 export type BookingType = 'property' | 'vehicle';
-export type PaymentType = 'booking' | 'modification_surplus' | 'vehicle_modification_surplus' | 'penalty' | 'platform_commission';
+export type PaymentType = 'booking' | 'modification_surplus' | 'vehicle_modification_surplus' | 'penalty' | 'platform_commission' | 'host_refund';
 
 export interface CreateCheckoutSessionResult {
   url: string;
@@ -26,6 +26,8 @@ export interface CheckPaymentStatusParams {
   stripe_session_id?: string;
   /** Pour commission plateforme : id de la ligne platform_commission_due (remplace booking_id) */
   commission_due_id?: string;
+  /** Pour remboursement annulation hôte : id de la ligne host_refund_due */
+  host_refund_due_id?: string;
   /** Pour paiement pénalité annulation : id de la ligne penalty_tracking */
   penalty_tracking_id?: string;
   /** true = paiement Wave (vérifie wave_payment_completions au lieu de Stripe) */
@@ -92,12 +94,25 @@ export async function createCheckoutSession(
 export async function checkPaymentStatus(
   params: CheckPaymentStatusParams
 ): Promise<CheckPaymentStatusResult> {
-  const { booking_type, booking_id, checkout_token, payment_type, stripe_session_id, commission_due_id, penalty_tracking_id, wave, payment_provider } = params;
+  const { booking_type, booking_id, checkout_token, payment_type, stripe_session_id, commission_due_id, penalty_tracking_id, host_refund_due_id, wave, payment_provider } = params;
   const isWave = wave === true || payment_provider === 'wave';
   const isCommissionCheck = payment_type === 'platform_commission' && commission_due_id;
   const isPenaltyCheck = payment_type === 'penalty' && penalty_tracking_id;
-  if (!isCommissionCheck && !isPenaltyCheck && !booking_id && !checkout_token) {
+  const isHostRefundCheck = payment_type === 'host_refund' && host_refund_due_id;
+  if (!isCommissionCheck && !isPenaltyCheck && !isHostRefundCheck && !booking_id && !checkout_token) {
     return { is_confirmed: false, payment_status: 'pending', booking_status: 'pending', error: 'booking_id ou checkout_token requis' };
+  }
+
+  // host_refund : vérifier directement en base (comme platform_commission)
+  if (isHostRefundCheck && host_refund_due_id) {
+    const { data: refundRow } = await supabase
+      .from('host_refund_due')
+      .select('status')
+      .eq('id', host_refund_due_id)
+      .maybeSingle();
+    if (refundRow && String(refundRow.status).toLowerCase() === 'paid') {
+      return { is_confirmed: true, payment_status: 'paid', booking_status: 'confirmed', booking_id };
+    }
   }
 
   // Wave : regarder d'abord en base (source de vérité = webhook → wave_payment_completions)
@@ -128,6 +143,7 @@ export async function checkPaymentStatus(
   if (stripe_session_id) body.stripe_session_id = stripe_session_id;
   if (commission_due_id) body.commission_due_id = commission_due_id;
   if (penalty_tracking_id) body.penalty_tracking_id = penalty_tracking_id;
+  if (host_refund_due_id) body.host_refund_due_id = host_refund_due_id;
   if (isWave) body.wave = true;
   if (payment_provider) body.payment_provider = payment_provider;
 

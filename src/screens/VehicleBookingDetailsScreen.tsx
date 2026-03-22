@@ -351,7 +351,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         <View style={[styles.section, { marginBottom: 0 }]}>
           <Text style={styles.sectionTitle}>Numéro de réservation</Text>
           <Text style={styles.reservationId}>
-            #{(booking as any).vehicle_booking_code || (booking as any).booking_code || booking.id}
+            #{(booking as any).vehicle_booking_code || (booking as any).booking_code || `AKWA-${(booking.id || '').toString().substring(0, 8).toUpperCase()}`}
           </Text>
         </View>
 
