@@ -111,6 +111,7 @@ export const useHostBookings = () => {
             cleaning_fee,
             service_fee,
             taxes,
+            cancellation_policy,
             free_cleaning_min_days,
             discount_enabled,
             discount_min_nights,

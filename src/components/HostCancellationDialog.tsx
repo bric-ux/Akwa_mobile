@@ -132,10 +132,14 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
     let penaltyDescription = '';
     let refundAmount = (b.total_price ?? 0);
 
+    let nightsElapsed = 0;
+    let remainingNights = totalNights;
+    let applicableNetForPenalty = 0;
+
     if (isInProgress) {
       // Nuitées écoulées = nuits complètement consommées (floor). Ex: 21/03 10h → 6 nuits faites, 2 restantes.
-        const nightsElapsed = Math.max(0, Math.floor((nowNormalized.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
-      const remainingNights = Math.max(0, totalNights - nightsElapsed);
+      nightsElapsed = Math.max(0, Math.floor((nowNormalized.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+      remainingNights = Math.max(0, totalNights - nightsElapsed);
       penaltyRatio = 0.40;
       penaltyDescription = remainingNights > 0
         ? 'Annulation en cours de séjour : 40% des nuitées non consommées à verser à AkwaHome. Le voyageur sera remboursé au prorata des nuitées restantes.'
@@ -152,11 +156,21 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
       penaltyDescription = 'Annulation 2 jours ou moins avant l\'arrivée (40% du montant net)';
     }
 
-    return { penaltyRatio, penaltyDescription, isWithin48Hours: hoursUntilCheckIn <= 48, refundAmount, totalNights, isInProgress };
+    const breakdown = {
+      totalNights,
+      nightsElapsed: isInProgress ? nightsElapsed : undefined,
+      remainingNights,
+      penaltyRatePercent: Math.round(penaltyRatio * 100),
+      appliedRule: penaltyRatio === 0 ? 'Plus de 5 jours avant : aucune pénalité'
+        : penaltyRatio === 0.20 ? 'Entre 5 et 2 jours avant : 20% du montant net'
+        : '2 jours ou moins / en cours : 40% du montant net applicable',
+    };
+
+    return { penaltyRatio, penaltyDescription, isWithin48Hours: hoursUntilCheckIn <= 48, refundAmount, totalNights, isInProgress, breakdown };
   };
 
-  const penaltyResult = booking ? calculateHostPenalty(booking) : { penaltyRatio: 0, penaltyDescription: '', isWithin48Hours: false, refundAmount: 0, totalNights: 1, isInProgress: false };
-  const { penaltyRatio, penaltyDescription, refundAmount: computedRefundAmount, totalNights, isInProgress } = penaltyResult;
+  const penaltyResult = booking ? calculateHostPenalty(booking) : { penaltyRatio: 0, penaltyDescription: '', isWithin48Hours: false, refundAmount: 0, totalNights: 1, isInProgress: false, breakdown: undefined };
+  const { penaltyRatio, penaltyDescription, refundAmount: computedRefundAmount, totalNights, isInProgress, breakdown: hostBreakdown } = penaltyResult;
 
   /** Le voyageur a payé via la plateforme (CB, Wave) → l'argent est passé par AkwaHome. Sinon (cash, virement) → l'hôte a reçu directement. */
   const guestPaidViaPlatform = booking?.payment_method === 'card' || booking?.payment_method === 'wave';
@@ -602,6 +616,67 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
               )}
             </View>
 
+            {/* Détail du calcul (prorata net) */}
+            {hostBreakdown && (
+              <View style={styles.breakdownSection}>
+                <Text style={styles.breakdownTitle}>Détail du calcul</Text>
+                <View style={styles.breakdownContent}>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Nombre total de nuits</Text>
+                    <Text style={styles.breakdownValue}>{hostBreakdown.totalNights}</Text>
+                  </View>
+                  {hostBreakdown.nightsElapsed != null && (
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>Nuitées consommées</Text>
+                      <Text style={styles.breakdownValue}>{hostBreakdown.nightsElapsed}</Text>
+                    </View>
+                  )}
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Nuitées restantes</Text>
+                    <Text style={styles.breakdownValue}>{hostBreakdown.remainingNights}</Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Montant net perçu par l'hôte</Text>
+                    <Text style={styles.breakdownValue}>{formatPrice(hostNetAmount)}</Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Taux pénalité</Text>
+                    <Text style={styles.breakdownValue}>{hostBreakdown.penaltyRatePercent}%</Text>
+                  </View>
+                  {mustPayRefundViaStripe && amountToReverse > 0 && totalPriceDisplay > 0 && (
+                    <>
+                      <View style={[styles.breakdownRow, styles.breakdownRule]}>
+                        <Text style={styles.breakdownRuleText}>Calcul du montant à reverser (prorata net)</Text>
+                      </View>
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>Remboursement voyageur</Text>
+                        <Text style={styles.breakdownValue}>{formatPrice(computedRefundAmount)}</Text>
+                      </View>
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>Total payé (réservation)</Text>
+                        <Text style={styles.breakdownValue}>{formatPrice(totalPriceDisplay)}</Text>
+                      </View>
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>Formule</Text>
+                        <Text style={[styles.breakdownValue, { fontSize: 11 }]}>
+                          (Remb. / Total) × Net
+                        </Text>
+                      </View>
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>Montant net à reverser</Text>
+                        <Text style={[styles.breakdownValue, { fontWeight: '700', color: '#c62828' }]}>
+                          {formatPrice(amountToReverse)}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                  <View style={[styles.breakdownRow, styles.breakdownRule]}>
+                    <Text style={styles.breakdownRuleText}>{hostBreakdown.appliedRule}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Alerte de pénalité */}
             {penaltyAmount > 0 ? (
               <View style={styles.penaltyAlert}>
@@ -670,7 +745,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                 <>
                   <View style={styles.separator} />
                   <View style={styles.financialRow}>
-                    <Text style={styles.financialLabel}>Pénalité à payer à AkwaHome (popup)</Text>
+                    <Text style={styles.financialLabel}>Pénalité à payer à AkwaHome</Text>
                     <Text style={[styles.financialValue, styles.penaltyText]}>
                       {formatPrice(penaltyAmountXOF)}
                     </Text>
@@ -1077,6 +1152,36 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
+  breakdownSection: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    padding: 15,
+    margin: 20,
+    marginTop: 0,
+  },
+  breakdownTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  breakdownContent: { gap: 8 },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  breakdownLabel: { fontSize: 13, color: '#666', flex: 1 },
+  breakdownValue: { fontSize: 13, fontWeight: '500', color: '#333' },
+  breakdownRule: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  breakdownRuleText: { fontSize: 12, color: '#555', fontStyle: 'italic' },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',

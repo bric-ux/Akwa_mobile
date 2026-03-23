@@ -24,6 +24,7 @@ import HostProfileModal from '../components/HostProfileModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '../utils/navigation';
 import { VEHICLE_COLORS } from '../constants/colors';
+import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -471,16 +472,7 @@ const VehicleDetailsScreen: React.FC = () => {
               <View style={styles.featureTextContainer}>
                 <Text style={styles.featureLabel}>Conditions en cas d'annulation</Text>
                 <Text style={styles.featureValue}>
-                  {(() => {
-                    const p = String((vehicle as any).cancellation_policy || 'flexible');
-                    const labels: Record<string, string> = {
-                      flexible: 'Flexible – Remboursement intégral jusqu\'à 24h avant',
-                      moderate: 'Modérée – Remboursement intégral jusqu\'à 5 jours avant',
-                      strict: 'Stricte – Remboursement 50% jusqu\'à 7 jours avant',
-                      non_refundable: 'Non remboursable',
-                    };
-                    return labels[p] || p;
-                  })()}
+                  {getCancellationPolicyText(vehicle.cancellation_policy ?? undefined, 'vehicle')}
                 </Text>
               </View>
             </View>

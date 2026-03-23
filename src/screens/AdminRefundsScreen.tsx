@@ -125,8 +125,35 @@ const AdminRefundsScreen: React.FC = () => {
         }
       }
 
-      // Récupérer les remboursements de véhicules (s'il y a une table vehicle_refunds)
-      // Pour l'instant, on utilise les annulations de réservations de véhicules
+      // Récupérer les annulations de réservations de propriétés (remboursement au voyageur)
+      let propertyCancellationsQuery = supabase
+        .from('bookings')
+        .select(`
+          id,
+          check_in_date,
+          check_out_date,
+          total_price,
+          status,
+          cancelled_at,
+          cancellation_penalty,
+          cancellation_reason,
+          guest_id,
+          properties(
+            id,
+            title
+          )
+        `)
+        .eq('status', 'cancelled')
+        .not('cancelled_at', 'is', null)
+        .order('cancelled_at', { ascending: false });
+
+      const { data: propertyCancellations, error: propertyCancellationsError } = await propertyCancellationsQuery;
+
+      if (propertyCancellationsError) {
+        console.warn('Erreur chargement annulations propriétés:', propertyCancellationsError);
+      }
+
+      // Récupérer les annulations de réservations de véhicules
       let vehicleRefundsQuery = supabase
         .from('vehicle_bookings')
         .select(`
@@ -188,6 +215,51 @@ const AdminRefundsScreen: React.FC = () => {
             },
             processor_profile: processorResult.data,
           });
+        }
+      }
+
+      // Traiter les annulations de propriétés comme remboursements (voyageur annule → remboursement au voyageur)
+      const propertyBookingIdsInRefunds = new Set((propertyRefunds || []).map((r: any) => r.booking?.id).filter(Boolean));
+      if (propertyCancellations && !propertyCancellationsError) {
+        for (const cancellation of propertyCancellations) {
+          if (propertyBookingIdsInRefunds.has(cancellation.id)) continue; // Éviter doublon avec table refunds
+          const refundAmount = (cancellation.total_price || 0) - (cancellation.cancellation_penalty || 0);
+          if (refundAmount > 0) {
+            const [guestResult] = await Promise.all([
+              cancellation.guest_id
+                ? supabase
+                    .from('profiles')
+                    .select('first_name, last_name, email, phone')
+                    .eq('user_id', cancellation.guest_id)
+                    .single()
+                : { data: null },
+            ]);
+            allRefunds.push({
+              id: `property-${cancellation.id}`,
+              amount: refundAmount,
+              reason: cancellation.cancellation_reason || 'Annulation de réservation',
+              status: 'pending',
+              refund_type: cancellation.cancellation_penalty > 0 ? 'partial' : 'full',
+              created_at: cancellation.cancelled_at,
+              processed_at: null,
+              type: 'property',
+              booking: {
+                id: cancellation.id,
+                check_in_date: cancellation.check_in_date,
+                check_out_date: cancellation.check_out_date,
+                total_price: cancellation.total_price,
+                status: 'cancelled',
+                properties: cancellation.properties,
+                guest_profile: guestResult.data,
+              },
+              payment: {
+                id: `property-payment-${cancellation.id}`,
+                amount: cancellation.total_price,
+                payment_method: 'Non spécifié',
+                status: 'pending_refund',
+              },
+            });
+          }
         }
       }
 

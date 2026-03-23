@@ -994,14 +994,15 @@ export const useBookings = () => {
       const now = new Date();
       now.setHours(0, 0, 0, 0);
       const totalNights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
-      const baseAmount = fullBooking.properties.price_per_night * totalNights;
-      const feesAndTaxes = Math.max(0, fullBooking.total_price - baseAmount);
+      // Aligné avec useBookingCancellation : pas de prorata de taxes
+      const pricePerNight = fullBooking.properties.price_per_night;
+      const baseAmount = pricePerNight * totalNights;
       const policy = fullBooking.properties.cancellation_policy || 'flexible';
       const isPending = fullBooking.status === 'pending';
       const isInProgress = checkInDate <= now && now <= checkOutDate;
       const nightsElapsed = isInProgress ? Math.max(0, Math.floor((now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
       const remainingNights = isInProgress ? Math.max(0, totalNights - nightsElapsed) : totalNights;
-      const remainingNightsAmount = remainingNights * fullBooking.properties.price_per_night;
+      const remainingNightsAmount = remainingNights * pricePerNight;
 
       let refundAmount = 0;
       let penaltyAmount = 0;
@@ -1013,11 +1014,10 @@ export const useBookings = () => {
           refundAmount = 0;
           penaltyAmount = fullBooking.total_price;
         } else {
-          const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
-          if (policy === 'flexible') refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
-          else if (policy === 'moderate') refundAmount = Math.round(0.5 * remainingNightsAmount + taxesProRata);
-          else if (policy === 'strict') refundAmount = Math.round(taxesProRata);
-          else refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+          if (policy === 'flexible') refundAmount = Math.round(0.8 * remainingNightsAmount);
+          else if (policy === 'moderate') refundAmount = Math.round(0.5 * remainingNightsAmount);
+          else if (policy === 'strict') refundAmount = 0;
+          else refundAmount = Math.round(0.8 * remainingNightsAmount);
           penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
         }
       } else {
@@ -1026,15 +1026,13 @@ export const useBookings = () => {
         if (policy === 'flexible') {
           if (hoursUntilCheckIn >= 24) refundAmount = fullBooking.total_price;
           else {
-            const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
-            refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+            refundAmount = Math.round(0.8 * remainingNightsAmount);
             penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
           }
         } else if (policy === 'moderate') {
           if (daysUntilCheckIn >= 5) refundAmount = fullBooking.total_price;
           else {
-            const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
-            refundAmount = Math.round(0.5 * remainingNightsAmount + taxesProRata);
+            refundAmount = Math.round(0.5 * remainingNightsAmount);
             penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
           }
         } else if (policy === 'strict') {
@@ -1043,8 +1041,7 @@ export const useBookings = () => {
             refundAmount = Math.round(0.5 * fullBooking.total_price);
             penaltyAmount = fullBooking.total_price - refundAmount;
           } else {
-            const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
-            refundAmount = Math.round(taxesProRata);
+            refundAmount = 0;
             penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
           }
         } else if (policy === 'non_refundable') {
@@ -1052,8 +1049,7 @@ export const useBookings = () => {
         } else {
           if (hoursUntilCheckIn >= 24) refundAmount = fullBooking.total_price;
           else {
-            const taxesProRata = totalNights > 0 ? (remainingNights / totalNights) * feesAndTaxes : 0;
-            refundAmount = Math.round(0.8 * remainingNightsAmount + taxesProRata);
+            refundAmount = Math.round(0.8 * remainingNightsAmount);
             penaltyAmount = Math.max(0, fullBooking.total_price - refundAmount);
           }
         }

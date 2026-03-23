@@ -258,7 +258,7 @@ const PenaltiesScreen: React.FC = () => {
               const statusBadge =
                 commission.status === 'paid'
                   ? { color: '#10b981', icon: 'checkmark-circle-outline' as const, label: 'Payée' }
-                  : { color: '#f59e0b', icon: 'time-outline' as const, label: 'À régler' };
+                  : { color: '#f59e0b', icon: 'time-outline' as const, label: 'Commission à régler' };
               return (
                 <View key={commission.id} style={styles.card}>
                   <View style={styles.cardHeader}>
@@ -303,7 +303,7 @@ const PenaltiesScreen: React.FC = () => {
               const statusBadge =
                 refund.status === 'paid'
                   ? { color: '#10b981', icon: 'checkmark-circle-outline' as const, label: 'Payé' }
-                  : { color: '#f59e0b', icon: 'time-outline' as const, label: 'À régler' };
+                  : { color: '#f59e0b', icon: 'time-outline' as const, label: 'Remboursement à régler' };
               return (
                 <View key={refund.id} style={styles.card}>
                   <View style={styles.cardHeader}>

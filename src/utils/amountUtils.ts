@@ -1,4 +1,21 @@
 /**
+ * Déduit le sous-total hébergement (après réduction) du total payé.
+ * Utilisé pour le calcul du prix effectif par nuit lors des annulations (cohérence avec modification).
+ */
+export function inferOriginalSubtotal(
+  totalPrice: number,
+  nights: number,
+  prop: { cleaning_fee?: number; taxes?: number; free_cleaning_min_days?: number | null }
+): number {
+  const total = Number(totalPrice);
+  const isFreeCleaning = prop.free_cleaning_min_days != null && nights >= prop.free_cleaning_min_days;
+  const cleaning = isFreeCleaning ? 0 : (prop.cleaning_fee || 0);
+  const taxes = (prop.taxes || 0) * nights;
+  const serviceFeeRate = 0.12 * 1.2; // 12% HT + 20% TVA
+  return Math.round((total - cleaning - taxes) / (1 + serviceFeeRate));
+}
+
+/**
  * Convertit un montant vers XOF pour affichage.
  * Si la réservation a été payée en EUR/USD, total_price peut être stocké dans cette devise.
  * exchange_rate = XOF par unité de devise (ex: 655.957 pour EUR).

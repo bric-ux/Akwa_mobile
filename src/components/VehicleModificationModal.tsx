@@ -73,8 +73,11 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
     if (visible) {
       setStartDate(booking.start_date);
       setEndDate(booking.end_date);
-      setStartDateTime(booking.start_datetime || null);
-      setEndDateTime(booking.end_datetime || null);
+      // Si pas de datetime, dériver de start_date/end_date pour éviter rentalDays=0 et faux calculs
+      const startDt = booking.start_datetime || (booking.start_date ? `${booking.start_date}T08:00:00.000Z` : null);
+      const endDt = booking.end_datetime || (booking.end_date ? `${booking.end_date}T18:00:00.000Z` : null);
+      setStartDateTime(startDt);
+      setEndDateTime(endDt);
       setMessage('');
     }
   }, [booking.id, visible, booking.start_date, booking.end_date, booking.start_datetime, booking.end_datetime]);
@@ -646,7 +649,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#999" />
               </TouchableOpacity>
-              {(startDateTime && endDateTime && rentalDays > 0) && (
+              {(startDateTime && endDateTime && rentalDays > 0 && hasModification) && (
                 <View style={styles.summaryBox}>
                   {/* Détail des modifications : dates, durée, prix avant / après */}
                   <View style={styles.modificationDetailSection}>

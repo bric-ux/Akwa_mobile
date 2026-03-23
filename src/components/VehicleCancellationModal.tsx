@@ -25,6 +25,47 @@ import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaym
 import { calculateHostCommission } from '../hooks/usePricing';
 import { getAmountInXOF } from '../utils/amountUtils';
 
+const BreakdownSection: React.FC<{
+  title: string;
+  rows: { label: string; value: string | number }[];
+  rule?: string;
+}> = ({ title, rows, rule }) => (
+  <View style={breakdownStyles.section}>
+    <Text style={breakdownStyles.title}>{title}</Text>
+    <View style={breakdownStyles.content}>
+      {rows.map((r, i) => (
+        <View key={i} style={breakdownStyles.row}>
+          <Text style={breakdownStyles.label}>{r.label}</Text>
+          <Text style={breakdownStyles.value}>{r.value}</Text>
+        </View>
+      ))}
+      {rule && (
+        <View style={breakdownStyles.ruleRow}>
+          <Text style={breakdownStyles.ruleText}>{rule}</Text>
+        </View>
+      )}
+    </View>
+  </View>
+);
+
+const breakdownStyles = StyleSheet.create({
+  section: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+  },
+  title: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 12 },
+  content: { gap: 8 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  label: { fontSize: 13, color: '#666', flex: 1 },
+  value: { fontSize: 13, fontWeight: '500', color: '#333' },
+  ruleRow: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#e0e0e0' },
+  ruleText: { fontSize: 12, color: '#555', fontStyle: 'italic' },
+});
+
 interface VehicleCancellationModalProps {
   visible: boolean;
   onClose: () => void;
@@ -988,6 +1029,47 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                     </Text>
                   )}
                 </View>
+
+                {/* Détail du calcul */}
+                {!isOwner && guestCancellationInfo?.breakdown && (
+                  <BreakdownSection
+                    title="Détail du calcul"
+                    rows={[
+                      { label: 'Nombre total de jours', value: String(guestCancellationInfo.breakdown.totalNights) },
+                      ...(guestCancellationInfo.breakdown.nightsElapsed != null
+                        ? [{ label: 'Jours consommés', value: String(guestCancellationInfo.breakdown.nightsElapsed) }]
+                        : []),
+                      { label: 'Jours restants', value: String(guestCancellationInfo.breakdown.remainingNights) },
+                      { label: 'Prix par jour (base)', value: formatPrice(guestCancellationInfo.breakdown.pricePerNightUsed) },
+                      { label: 'Montant jours restants', value: formatPrice(guestCancellationInfo.breakdown.remainingNightsAmount) },
+                      { label: 'Taux remboursement', value: `${guestCancellationInfo.breakdown.refundRatePercent}%` },
+                    ]}
+                    rule={guestCancellationInfo.breakdown.appliedRule}
+                  />
+                )}
+                {isOwner && ownerResult?.breakdown && (
+                  <BreakdownSection
+                    title="Détail du calcul (prorata net)"
+                    rows={[
+                      { label: 'Nombre total de jours', value: String(ownerResult.breakdown.totalDays) },
+                      ...(ownerResult.breakdown.daysElapsed != null
+                        ? [{ label: 'Jours consommés', value: String(ownerResult.breakdown.daysElapsed) }]
+                        : []),
+                      { label: 'Jours restants', value: String(ownerResult.breakdown.remainingDays) },
+                      { label: 'Montant net perçu par le propriétaire', value: formatPrice(ownerNetAmount) },
+                      { label: 'Taux pénalité', value: `${ownerResult.breakdown.penaltyRatePercent}%` },
+                      ...(mustPayRefundViaStripe && amountToReverse > 0 && totalPriceForOwner > 0
+                        ? [
+                            { label: 'Remboursement locataire', value: formatPrice(refundAmount) },
+                            { label: 'Total payé (réservation)', value: formatPrice(totalPriceForOwner) },
+                            { label: 'Formule', value: '(Remb. / Total) × Net' },
+                            { label: 'Montant net à reverser', value: formatPrice(amountToReverse) },
+                          ]
+                        : []),
+                    ]}
+                    rule={ownerResult.breakdown.appliedRule}
+                  />
+                )}
 
                 {/* Raison */}
                 <View style={styles.section}>

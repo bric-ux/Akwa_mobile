@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Modal, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getCommissionRates, type ServiceType } from '../lib/commissions';
+import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { calculateTotalPrice, calculateHostCommission, calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
 import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../lib/hostNetAmount';
 import { supabase } from '../services/supabase';
@@ -143,42 +144,6 @@ const getPaymentMethodLabel = (method?: string): string => {
 
 const getServiceTypeLabel = (serviceType: ServiceType): string => {
   return serviceType === 'property' ? 'Résidence meublée' : 'Location de véhicule';
-};
-
-const getCancellationPolicyText = (policy?: string | null, serviceType: ServiceType = 'property'): string => {
-  const fallbackProperty = 'Annulation gratuite jusqu\'à 1 jour avant l\'arrivée. Remboursement intégral.';
-  const fallbackVehicle = 'Annulation gratuite jusqu\'à 24h avant le début. Remboursement intégral.';
-  if (!policy) {
-    return serviceType === 'property' ? fallbackProperty : fallbackVehicle;
-  }
-
-  if (serviceType === 'property') {
-    switch (policy) {
-      case 'flexible':
-        return 'Annulation gratuite jusqu\'à 24h avant l\'arrivée. Remboursement intégral.';
-      case 'moderate':
-        return 'Annulation gratuite jusqu\'à 5 jours avant l\'arrivée. Après, 50% de pénalité.';
-      case 'strict':
-        return 'Annulation gratuite jusqu\'à 7 jours avant l\'arrivée. Après, 50% de pénalité.';
-      case 'non_refundable':
-        return 'Aucun remboursement en cas d\'annulation.';
-      default:
-        return fallbackProperty;
-    }
-  }
-  // Véhicule : mêmes 4 politiques que la résidence (flexible, moderate, strict, non_refundable)
-  switch (policy) {
-    case 'flexible':
-      return 'Flexible – Annulation gratuite jusqu\'à 24h avant le début. Remboursement intégral.';
-    case 'moderate':
-      return 'Modérée – Annulation gratuite jusqu\'à 5 jours avant le début. Après, 50% de pénalité.';
-    case 'strict':
-      return 'Stricte – Remboursement 50% jusqu\'à 7 jours avant le début. Après, pénalité plus forte.';
-    case 'non_refundable':
-      return 'Non remboursable – Aucun remboursement en cas d\'annulation.';
-    default:
-      return fallbackVehicle;
-  }
 };
 
 export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
@@ -784,12 +749,10 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     const calculatedTotal = priceForTotal + effectiveServiceFee + effectiveCleaningFee + effectiveTaxes;
     // Pour les véhicules, toujours utiliser le calcul pour s'assurer que les frais de service sont inclus
     // (même si booking.total_price existe, il peut ne pas inclure les frais de service pour les anciennes réservations)
-    // Pour les propriétés, utiliser booking.total_price s'il existe et correspond au calcul
+    // Priorité au montant stocké en base (booking.total_price) pour éviter les écarts quand le prix/nuit a été modifié
     totalPaidByTraveler = (serviceType === 'vehicle') 
-      ? calculatedTotal // Toujours utiliser le calcul pour inclure les frais de service
-      : (booking.total_price && Math.abs(booking.total_price - calculatedTotal) <= 100) 
-        ? booking.total_price 
-        : calculatedTotal;
+      ? (booking.total_price && typeof booking.total_price === 'number') ? booking.total_price : calculatedTotal
+      : (booking.total_price && typeof booking.total_price === 'number') ? booking.total_price : calculatedTotal;
     
     // Calculer hostNetAmount
     if (serviceType === 'vehicle') {

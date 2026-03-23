@@ -32,6 +32,7 @@ import { useCurrency } from '../hooks/useCurrency';
 import PropertyReviews from '../components/PropertyReviews';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { log, logError } from '../utils/logger';
+import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   apartment: 'Appartement',
@@ -436,6 +437,22 @@ const PropertyDetailsScreen: React.FC = () => {
             </View>
           ) : null;
         })()}
+
+        {/* Politique d'annulation */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+          <View style={styles.rulesCard}>
+            <View style={styles.rulesCardHeader}>
+              <Ionicons name="document-text-outline" size={20} color="#e67e22" />
+              <Text style={styles.rulesCardTitle}>Conditions en cas d'annulation</Text>
+            </View>
+            <View style={styles.rulesCardContent}>
+              <Text style={styles.rulesText}>
+                {getCancellationPolicyText(property.cancellation_policy ?? undefined, 'property')}
+              </Text>
+            </View>
+          </View>
+        </View>
 
         {/* Informations pratiques */}
         <View style={styles.section}>

@@ -12,8 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useBookingCancellation, CancellationInfo } from '../hooks/useBookingCancellation';
+import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { useAuth } from '../services/AuthContext';
 import { formatPrice } from '../utils/priceCalculator';
+import { inferOriginalSubtotal } from '../utils/amountUtils';
 
 interface CancellationDialogProps {
   visible: boolean;
@@ -24,15 +26,22 @@ interface CancellationDialogProps {
     check_out_date: string;
     total_price: number;
     status?: string;
+    discount_amount?: number;
     properties?: {
       title: string;
       price_per_night: number;
       cancellation_policy?: string | null;
+      cleaning_fee?: number;
+      taxes?: number;
+      free_cleaning_min_days?: number | null;
     };
     property?: {
       title: string;
       price_per_night: number;
       cancellation_policy?: string | null;
+      cleaning_fee?: number;
+      taxes?: number;
+      free_cleaning_min_days?: number | null;
     };
   };
   onCancelled: () => void;
@@ -68,11 +77,22 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
   const cancellationPolicy = property?.cancellation_policy || null;
   const pricePerNight = property?.price_per_night || 0;
 
+  // Prix effectif par nuit (montant réel payé pour l'hébergement) - cohérent avec modification
+  const effectivePricePerNight = (() => {
+    const prop = property;
+    if (!prop || !booking.check_in_date || !booking.check_out_date) return undefined;
+    const nights = Math.ceil(
+      (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / (1000 * 60 * 60 * 24)
+    ) || 1;
+    const subtotal = inferOriginalSubtotal(booking.total_price, nights, prop);
+    return nights > 0 ? Math.round(subtotal / nights) : undefined;
+  })();
+
   useEffect(() => {
     if (visible && booking?.id && user) {
       loadCancellationInfo();
     }
-  }, [visible, booking?.id, booking?.check_in_date, booking?.check_out_date, booking?.total_price, booking?.status, cancellationPolicy, pricePerNight]);
+  }, [visible, booking?.id, booking?.check_in_date, booking?.check_out_date, booking?.total_price, booking?.status, cancellationPolicy, pricePerNight, effectivePricePerNight]);
 
   const loadCancellationInfo = async () => {
     if (!booking || !user) return;
@@ -86,7 +106,9 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
         booking.total_price,
         pricePerNight,
         cancellationPolicy,
-        booking.status || 'pending'
+        booking.status ?? 'confirmed',
+        undefined,
+        effectivePricePerNight
       );
       setCancellationInfo(info);
     } catch (error) {
@@ -118,7 +140,8 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
       booking.total_price,
       pricePerNight,
       cancellationPolicy,
-      booking.status || 'pending'
+      booking.status ?? 'confirmed',
+      effectivePricePerNight
     );
 
     if (result.success) {
@@ -142,22 +165,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
       case 'non_refundable':
         return 'Non remboursable';
       default:
-        return 'Flexible';
-    }
-  };
-
-  const getPolicyDescription = (policy: string | null) => {
-    switch (policy) {
-      case 'flexible':
-        return 'Remboursement intégral si annulation ≥ 24h avant l\'arrivée. Si < 24h : 80% des nuitées non consommées.';
-      case 'moderate':
-        return 'Remboursement intégral si annulation ≥ 5 jours avant. Si < 5 jours : 50% des nuitées non consommées.';
-      case 'strict':
-        return 'Remboursement intégral si ≥ 28 jours avant. Entre 7 et 28 jours : 50% remboursé. < 7 jours : 0% des nuitées restantes.';
-      case 'non_refundable':
-        return 'Aucun remboursement en cas d\'annulation';
-      default:
-        return 'Remboursement intégral si annulation ≥ 24h avant l\'arrivée. Si < 24h : 80% des nuitées non consommées.';
+        return policy ? 'Autre' : 'Non spécifiée';
     }
   };
 
@@ -212,7 +220,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                     Politique : {getPolicyLabel(cancellationPolicy)}
                   </Text>
                   <Text style={styles.policyDescription}>
-                    {getPolicyDescription(cancellationPolicy)}
+                    {getCancellationPolicyText(cancellationPolicy ?? undefined, 'property')}
                   </Text>
                 </View>
               </View>
@@ -366,6 +374,44 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
               </View>
             </View>
 
+            {/* Détail transparent du calcul */}
+            {cancellationInfo.breakdown && (
+              <View style={styles.breakdownSection}>
+                <Text style={styles.breakdownTitle}>Détail du calcul</Text>
+                <View style={styles.breakdownContent}>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Nombre total de nuits</Text>
+                    <Text style={styles.breakdownValue}>{cancellationInfo.breakdown.totalNights}</Text>
+                  </View>
+                  {cancellationInfo.breakdown.nightsElapsed != null && (
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>Nuitées consommées</Text>
+                      <Text style={styles.breakdownValue}>{cancellationInfo.breakdown.nightsElapsed}</Text>
+                    </View>
+                  )}
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Nuitées restantes</Text>
+                    <Text style={styles.breakdownValue}>{cancellationInfo.breakdown.remainingNights}</Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Prix par nuit (base calcul)</Text>
+                    <Text style={styles.breakdownValue}>{formatPrice(cancellationInfo.breakdown.pricePerNightUsed)}</Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Montant nuitées restantes</Text>
+                    <Text style={styles.breakdownValue}>{formatPrice(cancellationInfo.breakdown.remainingNightsAmount)}</Text>
+                  </View>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Taux remboursement</Text>
+                    <Text style={styles.breakdownValue}>{cancellationInfo.breakdown.refundRatePercent}%</Text>
+                  </View>
+                  <View style={[styles.breakdownRow, styles.breakdownRule]}>
+                    <Text style={styles.breakdownRuleText}>{cancellationInfo.breakdown.appliedRule}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Comment le remboursement va se passer - en rouge (seulement si remboursement > 0) */}
             {finalRefundAmount > 0 && (
               <View style={[styles.alert, styles.alertRefundProcess]}>
@@ -379,10 +425,10 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
               </View>
             )}
 
-            {/* Description de la politique */}
+            {/* Description de la politique - utilise la politique réelle de la propriété */}
             <View style={styles.policySection}>
               <Text style={styles.policyTitle}>Politique d'annulation</Text>
-              <Text style={styles.policyText}>{getPolicyDescription(cancellationPolicy)}</Text>
+              <Text style={styles.policyText}>{getCancellationPolicyText(cancellationPolicy ?? undefined, 'property')}</Text>
             </View>
 
             {/* Raison de l'annulation */}
@@ -628,6 +674,49 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#4CAF50',
+  },
+  breakdownSection: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+  },
+  breakdownTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  breakdownContent: {
+    gap: 8,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  breakdownLabel: {
+    fontSize: 13,
+    color: '#666',
+    flex: 1,
+  },
+  breakdownValue: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#333',
+  },
+  breakdownRule: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  breakdownRuleText: {
+    fontSize: 12,
+    color: '#555',
+    fontStyle: 'italic',
   },
   policySection: {
     backgroundColor: '#f8f9fa',
