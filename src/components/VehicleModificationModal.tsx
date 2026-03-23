@@ -649,7 +649,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#999" />
               </TouchableOpacity>
-              {(startDateTime && endDateTime && rentalDays > 0 && hasModification) && (
+              {(startDateTime && endDateTime && rentalDays > 0 && (daysDiff !== 0 || hoursDiff !== 0)) && (
                 <View style={styles.summaryBox}>
                   {/* Détail des modifications : dates, durée, prix avant / après */}
                   <View style={styles.modificationDetailSection}>
