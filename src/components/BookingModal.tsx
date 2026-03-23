@@ -12,7 +12,6 @@ import {
   Linking,
   AppState,
   AppStateStatus,
-  InteractionManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,6 +31,7 @@ import { getAveragePriceForPeriod } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { useCurrency } from '../hooks/useCurrency';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface BookingModalProps {
   visible: boolean;
@@ -989,35 +989,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
       setMessage('');
       setVoucherCode('');
       setVoucherDiscount(null);
-    } else if (result.error) {
-      const runAfterAlertDismissed = (fn: () => void) => {
-        InteractionManager.runAfterInteractions(() => {
-          setTimeout(fn, 400);
-        });
-      };
-      const onAlertButtonPress = () => {
-        resetStripePendingState();
-        runAfterAlertDismissed(() => {
-          setCheckIn(null);
-          setCheckOut(null);
-          setAdults(1);
-          setChildren(0);
-          setInfants(0);
-          setMessage('');
-          setVoucherCode('');
-          setVoucherDiscount(null);
-          onClose();
-        });
-      };
-      Alert.alert(
-        'Consultez « Mes réservations »',
-        'Votre paiement a peut-être déjà été enregistré. Pensez à consulter l\'onglet « Mes réservations » pour vérifier. Si la réservation n\'apparaît pas encore, réessayez dans quelques secondes.',
-        [
-          { text: 'OK', onPress: onAlertButtonPress },
-          { text: 'Fermer', onPress: onAlertButtonPress },
-        ]
-      );
     }
+    // Si result.error : ne rien afficher, laisser le polling continuer jusqu'à ce que le paiement soit confirmé
   }, [
     pendingStripeCheckoutToken,
     pendingWaveCheckoutToken,
@@ -1071,8 +1044,25 @@ const BookingModal: React.FC<BookingModalProps> = ({
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
       const hasPending = pendingStripeCheckoutToken || pendingStripeBookingId || pendingWaveCheckoutToken;
       if (wasBackground && nextState === 'active' && hasPending) {
-        verifyStripePaymentNow();
-        retryTimeout = setTimeout(() => verifyStripePaymentNow(), 2000);
+        // Délai pour laisser le StripeReturnHandler stocker le token d'annulation (évite le gel)
+        setTimeout(async () => {
+          const stored = await AsyncStorage.getItem('stripe_cancel_token');
+          if (stored) {
+            try {
+              const { token, bookingId } = JSON.parse(stored);
+              const matchesCancel = (token && token === pendingStripeCheckoutToken) || (bookingId && bookingId === pendingStripeBookingId);
+              if (matchesCancel) {
+                await AsyncStorage.removeItem('stripe_cancel_token');
+                resetStripePendingState();
+                return;
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          verifyStripePaymentNow();
+          retryTimeout = setTimeout(() => verifyStripePaymentNow(), 2000);
+        }, 200);
       }
       appStateRef.current = nextState;
     });
@@ -1080,7 +1070,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
       if (retryTimeout) clearTimeout(retryTimeout);
       subscription.remove();
     };
-  }, [pendingStripeCheckoutToken, pendingWaveCheckoutToken, pendingStripeBookingId, verifyStripePaymentNow]);
+  }, [pendingStripeCheckoutToken, pendingWaveCheckoutToken, pendingStripeBookingId, verifyStripePaymentNow, resetStripePendingState]);
 
   useEffect(() => {
     if (!visible) {

@@ -19,14 +19,17 @@ import {
   AppStateStatus,
   InteractionManager,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { NavigationContainerRef } from '@react-navigation/native';
 import { checkPaymentStatus } from '../services/cardPaymentService';
 import CardPaymentSuccessView from './CardPaymentSuccessView';
 
 const POLL_INTERVAL_MS = 2500;
 const PAYMENT_SUCCESS_PATH = 'payment-success';
-/** Délai avant de traiter le deep link Stripe pour éviter le gel au retour (Stripe redirige directement vers l'app). */
-const STRIPE_RETURN_DELAY_MS = 800;
+const PAYMENT_CANCELLED_PATH = 'payment-cancelled';
+const STRIPE_CANCEL_STORAGE_KEY = 'stripe_cancel_token';
+/** Délai avant de traiter le deep link pour éviter le gel (navigation automatique lors du retour). */
+const STRIPE_RETURN_DELAY_MS = 1800;
 const MAX_POLL_ATTEMPTS = 10; // Wave : le webhook peut prendre quelques secondes
 const SHOW_CLOSE_AFTER_MS = 15000;
 
@@ -122,6 +125,19 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
     if (!url) return;
     if (lastProcessedUrlRef.current === url) return;
     lastProcessedUrlRef.current = url;
+    // Annulation : stocker le token pour que BookingModal/VehicleBookingScreen puissent reset sans navigation
+    if (url.includes(PAYMENT_CANCELLED_PATH)) {
+      try {
+        const tokenMatch = url.match(/checkout_token=([^&]+)/);
+        const bookingIdMatch = url.match(/booking_id=([^&]+)/);
+        const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+        const bookingId = bookingIdMatch ? decodeURIComponent(bookingIdMatch[1]) : null;
+        AsyncStorage.setItem(STRIPE_CANCEL_STORAGE_KEY, JSON.stringify({ token, bookingId }));
+      } catch {
+        // ignore
+      }
+      return;
+    }
     const parsed = parsePaymentSuccessFromUrl(url);
     if (parsed) {
       // Wave : géré par WaveReturnHandler (pas ici)

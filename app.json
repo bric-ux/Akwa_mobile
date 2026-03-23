@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
-      "buildNumber": "14",
+      "buildNumber": "15",
       "infoPlist": {
         "NSCameraUsageDescription": "Cette application utilise la camera pour prendre des photos de profil, de proprietes et de vehicules.",
         "NSPhotoLibraryUsageDescription": "Cette application accede a votre phototheque pour selectionner des photos a televerser.",

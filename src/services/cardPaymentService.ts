@@ -133,6 +133,58 @@ export async function checkPaymentStatus(
     // Pas encore en base : appeler l'API (même source, utile si latence webhook) puis renvoyer pending
   }
 
+  // Stripe booking : vérification directe en base (bookings + payments) avant l'edge function
+  // Cas où le webhook a déjà créé la résa → plus rapide, évite l'appel edge
+  if (
+    !isWave &&
+    !isCommissionCheck &&
+    !isPenaltyCheck &&
+    !isHostRefundCheck &&
+    payment_type === 'booking' &&
+    (checkout_token || booking_id)
+  ) {
+    const table = booking_type === 'vehicle' ? 'vehicle_bookings' : 'bookings';
+    const paymentTable = booking_type === 'vehicle' ? 'vehicle_payments' : 'payments';
+    let resolvedId = booking_id;
+
+    if (!resolvedId && checkout_token) {
+      const { data: b } = await supabase
+        .from(table)
+        .select('id, status')
+        .eq('stripe_checkout_token', checkout_token)
+        .maybeSingle();
+      resolvedId = b?.id ?? null;
+    }
+
+    if (resolvedId) {
+      const { data: payment } = await supabase
+        .from(paymentTable)
+        .select('status, paid_at')
+        .eq('booking_id', resolvedId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const { data: booking } = await supabase
+        .from(table)
+        .select('status')
+        .eq('id', resolvedId)
+        .maybeSingle();
+
+      const ps = payment?.status ?? 'pending';
+      const bs = booking?.status ?? 'pending';
+      const psLower = String(ps).toLowerCase();
+      const bsLower = String(bs).toLowerCase();
+      if (['completed', 'succeeded', 'paid'].includes(psLower) || ['confirmed', 'completed'].includes(bsLower)) {
+        return {
+          is_confirmed: true,
+          payment_status: ps,
+          booking_status: bs,
+          booking_id: resolvedId,
+        };
+      }
+    }
+  }
+
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData?.session?.access_token;
 

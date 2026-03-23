@@ -38,6 +38,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '../services/supabase';
 import { checkPaymentStatus } from '../services/cardPaymentService';
 import CardPaymentSuccessView from '../components/CardPaymentSuccessView';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type VehicleBookingRouteProp = RouteProp<RootStackParamList, 'VehicleBooking'>;
 
@@ -750,12 +751,8 @@ const VehicleBookingScreen: React.FC = () => {
           : 'Votre demande a été envoyée au propriétaire. Vous recevrez une réponse par email.'
       );
       setShowCardPaymentSuccess(true);
-    } else if (result.error) {
-      Alert.alert(
-        'Consultez « Mes réservations »',
-        'Votre paiement a peut-être déjà été enregistré. Pensez à consulter « Mes réservations » pour vérifier. Si besoin, réessayez dans quelques secondes.'
-      );
     }
+    // Si result.error : ne rien afficher, laisser le polling continuer jusqu'à ce que le paiement soit confirmé
   }, [pendingStripeBookingId, pendingStripeCheckoutToken, pendingPaymentProvider, checkingStripeStatus, checkStripePaymentCompleted, vehicle?.auto_booking, resetStripePendingState, navigation]);
 
   const handleAbandonStripeOperation = useCallback(() => {
@@ -820,8 +817,24 @@ const VehicleBookingScreen: React.FC = () => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       const wasBackground = appStateRef.current === 'background' || appStateRef.current === 'inactive';
       if (wasBackground && nextState === 'active' && hasPending) {
-        verifyStripePaymentNow();
-        retryTimeout = setTimeout(() => verifyStripePaymentNow(), 2000);
+        setTimeout(async () => {
+          const stored = await AsyncStorage.getItem('stripe_cancel_token');
+          if (stored) {
+            try {
+              const { token, bookingId } = JSON.parse(stored);
+              const matchesCancel = (token && token === pendingStripeCheckoutToken) || (bookingId && bookingId === pendingStripeBookingId);
+              if (matchesCancel) {
+                await AsyncStorage.removeItem('stripe_cancel_token');
+                resetStripePendingState();
+                return;
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          verifyStripePaymentNow();
+          retryTimeout = setTimeout(() => verifyStripePaymentNow(), 2000);
+        }, 200);
       }
       appStateRef.current = nextState;
     });
@@ -829,7 +842,7 @@ const VehicleBookingScreen: React.FC = () => {
       if (retryTimeout) clearTimeout(retryTimeout);
       subscription.remove();
     };
-  }, [pendingStripeBookingId, pendingStripeCheckoutToken, verifyStripePaymentNow]);
+  }, [pendingStripeBookingId, pendingStripeCheckoutToken, verifyStripePaymentNow, resetStripePendingState]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
