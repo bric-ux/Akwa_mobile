@@ -799,6 +799,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
             check_out_date: selectedPropertyBookingForCancellation.check_out_date,
             total_price: selectedPropertyBookingForCancellation.total_price,
             status: selectedPropertyBookingForCancellation.status,
+            payment_method: selectedPropertyBookingForCancellation.payment_method,
             properties: {
               title: selectedPropertyBookingForCancellation.properties?.title || 'Propriété',
               price_per_night: selectedPropertyBookingForCancellation.properties?.price_per_night || 0,

@@ -21,7 +21,55 @@ import { calculateVehiclePriceWithHours, calculateTotalPrice, calculateHostCommi
 import VehicleModificationSurplusPaymentModal from './VehicleModificationSurplusPaymentModal';
 import { supabase } from '../services/supabase';
 import { useBookingCancellation } from '../hooks/useBookingCancellation';
-import { getCancellationPolicyText } from '../utils/cancellationPolicy';
+import {
+  getCancellationPolicyText,
+  ownerReceivedFundsForModificationRefundVehicle,
+} from '../utils/cancellationPolicy';
+import { computeVehicleRentalDurationFromIso as computeVehicleRentalDurationBase } from '../lib/vehicleRentalDuration';
+
+/** YYYY-MM-DD du créneau ISO dans le fuseau des réservations (évite jour décalé avec toISOString().split UTC). */
+const BOOKING_DISPLAY_TZ = 'Africa/Abidjan';
+function isoUtcToYmdInTz(isoUtc: string, timeZone: string): string {
+  const d = new Date(isoUtc);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const y = parts.find((p) => p.type === 'year')?.value;
+  const m = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  if (!y || !m || !day) {
+    return d.toISOString().split('T')[0];
+  }
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Alignement avec le sélecteur (VehicleDateTimePickerModal) : ISO avec chiffres = UTC.
+ * Sans fuseau explicite, JS interprète en heure locale → décalage d’instant vs `…Z` et durée/prix faux.
+ */
+function normalizeVehicleBookingIsoUtc(iso: string | null | undefined): string | null {
+  if (iso == null || typeof iso !== 'string') return null;
+  const s = iso.trim();
+  if (!s) return null;
+  if (/Z|[+-]\d{2}:?\d{2}$/.test(s)) return s;
+  const withoutMs = s.replace(/\.\d{1,3}$/, '');
+  return `${withoutMs}Z`;
+}
+
+/** Même base que recherche / réservation ; &lt; 24 h : minimum 1 jour affiché (pas de facturation horaire seule ici). */
+function computeRentalDurationFromIso(
+  startIso: string | null,
+  endIso: string | null
+): { rentalDays: number; remainingHours: number; totalHours: number } {
+  const d = computeVehicleRentalDurationBase(startIso, endIso);
+  if (d.totalHours < 24 && d.totalHours > 0) {
+    return { rentalDays: 1, remainingHours: 0, totalHours: d.totalHours };
+  }
+  return d;
+}
 
 interface VehicleModificationModalProps {
   visible: boolean;
@@ -62,20 +110,32 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
     basePriceBeforeDiscountDiff?: number;
     discountDiff?: number;
     basePriceAfterDiscountDiff?: number;
+    /** Forfait chauffeur (montant appliqué sur le nouveau total) */
+    driverFeeAmount?: number;
+    driverFeeDiff?: number;
+    /** base location + chauffeur, avant frais de service Akwa */
+    subtotalWithDriverDiff?: number;
     serviceFeeDiff?: number;
     serviceFeeHTDiff?: number;
     serviceFeeVATDiff?: number;
   } | null>(null);
   /** Remboursement selon la politique d'annulation (en cas de réduction) */
   const [reductionRefundAmount, setReductionRefundAmount] = useState<number | null>(null);
+  /** Aligné sur VehicleBookingScreen : le picker ne bloque pas les créneaux ; on vérifie après chaque choix. */
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [availabilityChecking, setAvailabilityChecking] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setStartDate(booking.start_date);
       setEndDate(booking.end_date);
       // Si pas de datetime, dériver de start_date/end_date pour éviter rentalDays=0 et faux calculs
-      const startDt = booking.start_datetime || (booking.start_date ? `${booking.start_date}T08:00:00.000Z` : null);
-      const endDt = booking.end_datetime || (booking.end_date ? `${booking.end_date}T18:00:00.000Z` : null);
+      const startDt =
+        normalizeVehicleBookingIsoUtc(booking.start_datetime) ||
+        (booking.start_date ? `${booking.start_date}T08:00:00.000Z` : null);
+      const endDt =
+        normalizeVehicleBookingIsoUtc(booking.end_datetime) ||
+        (booking.end_date ? `${booking.end_date}T18:00:00.000Z` : null);
       setStartDateTime(startDt);
       setEndDateTime(endDt);
       setMessage('');
@@ -83,90 +143,96 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
   }, [booking.id, visible, booking.start_date, booking.end_date, booking.start_datetime, booking.end_datetime]);
 
   const vehicle = booking.vehicle;
+
+  useEffect(() => {
+    if (!visible || !startDateTime || !endDateTime || !vehicle?.id) {
+      setAvailabilityError(null);
+      setAvailabilityChecking(false);
+      return;
+    }
+    let cancelled = false;
+    setAvailabilityChecking(true);
+    (async () => {
+      try {
+        const { data: isAvailable, error: rpcError } = await supabase.rpc('check_vehicle_hourly_availability', {
+          p_vehicle_id: vehicle.id,
+          p_start_datetime: startDateTime,
+          p_end_datetime: endDateTime,
+          p_exclude_booking_id: booking.id,
+        });
+        if (cancelled) return;
+        if (rpcError) {
+          console.error('[VehicleModificationModal] Erreur vérification disponibilité:', rpcError);
+          setAvailabilityError('Erreur lors de la vérification de disponibilité');
+          return;
+        }
+        if (!isAvailable) {
+          setAvailabilityError('Ce créneau (dates et heures) n\'est pas disponible pour ce véhicule');
+        } else {
+          setAvailabilityError(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[VehicleModificationModal] disponibilité:', e);
+          setAvailabilityError('Erreur lors de la vérification de disponibilité');
+        }
+      } finally {
+        if (!cancelled) setAvailabilityChecking(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, booking.id, vehicle?.id, startDateTime, endDateTime]);
+
   const dailyRate = booking.daily_rate || vehicle?.price_per_day || 0;
 
-  // Calculer les heures totales et les heures restantes si applicable
-  // C'est la source de vérité pour déterminer les jours et heures de location
-  const calculateRentalDuration = () => {
-    // Si les datetime sont disponibles, les utiliser pour un calcul précis
-    if (startDateTime && endDateTime) {
-      const start = new Date(startDateTime);
-      const end = new Date(endDateTime);
-      
-      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-        const diffTime = end.getTime() - start.getTime();
-        const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
-        
-        // Calculer les jours complets directement à partir des heures totales
-        const fullDaysFromHours = Math.floor(totalHours / 24);
-        
-        // Logique corrigée : utiliser les heures réelles comme base principale
-        // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
-        // Si totalHours < 24 : facturer 1 jour minimum
-        // Ne pas utiliser les jours calendaires qui peuvent donner des résultats incorrects
-        let rentalDays: number;
-        if (totalHours >= 24) {
-          rentalDays = fullDaysFromHours; // Utiliser directement les jours calculés à partir des heures
-        } else {
-          rentalDays = 1; // Minimum 1 jour pour toute location
-        }
-        
-        console.log('🔍 [VehicleModificationModal] Calcul jours:', {
-          totalHours,
-          fullDaysFromHours,
-          rentalDays
-        });
-        
-        // Calculer les heures restantes : durée totale - (jours complets × 24 heures)
-        // Utiliser fullDaysFromHours pour le calcul des heures, pas rentalDays
-        const hoursInFullDays = fullDaysFromHours * 24;
-        const remainingHours = totalHours - hoursInFullDays;
-        
-        // Logique de facturation :
-        // - Si moins de 24h : facturer 1 jour minimum (pas d'heures supplémentaires)
-        // - Si 24h ou plus : facturer les jours complets + les heures restantes
-        let finalRentalDays: number;
-        let finalRemainingHours: number;
-        
-        if (totalHours < 24) {
-          // Moins de 24h : facturer 1 jour minimum, pas d'heures supplémentaires
-          finalRentalDays = 1;
-          finalRemainingHours = 0;
-        } else {
-          // 24h ou plus : utiliser rentalDays calculé (max entre fullDaysFromHours et rentalDaysFromDates)
-          // et les heures restantes basées sur fullDaysFromHours
-          finalRentalDays = rentalDays;
-          finalRemainingHours = remainingHours > 0 ? remainingHours : 0;
-        }
-        
-        return { 
-          rentalDays: finalRentalDays, 
-          remainingHours: finalRemainingHours, 
-          totalHours 
-        };
-      }
-    }
-    
-    // Si les datetime ne sont pas disponibles, retourner 0 (pas de calcul basé sur les valeurs de la réservation)
-    // L'utilisateur doit sélectionner les nouvelles dates/heures
-    return { rentalDays: 0, remainingHours: 0, totalHours: 0 };
+  /** Comparaison d’instants ISO (évite faux écarts Z vs +00:00) */
+  const isoTimesEqual = (a: string | null | undefined, b: string | null | undefined): boolean => {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    const ta = new Date(a).getTime();
+    const tb = new Date(b).getTime();
+    if (Number.isNaN(ta) || Number.isNaN(tb)) return false;
+    return ta === tb;
   };
 
-  const durationCalculation = calculateRentalDuration();
-  const rentalDays = durationCalculation.rentalDays;
-  const remainingHours = durationCalculation.remainingHours;
-  
-  // Vérifier si les dates/heures ont été modifiées par rapport à la réservation actuelle
-  const hasDatesChanged = startDateTime !== booking.start_datetime || endDateTime !== booking.end_datetime;
-  const hasDurationChanged = rentalDays !== (booking.rental_days || 0) || remainingHours !== (booking.rental_hours || 0);
+  /** ISO de référence de la réservation (alignés sur l’init du modal + même convention UTC que le picker) */
+  const bookingRefStartIso =
+    normalizeVehicleBookingIsoUtc(booking.start_datetime) ||
+    (booking.start_date ? `${booking.start_date}T08:00:00.000Z` : null);
+  const bookingRefEndIso =
+    normalizeVehicleBookingIsoUtc(booking.end_datetime) ||
+    (booking.end_date ? `${booking.end_date}T18:00:00.000Z` : null);
+
+  /** Durée « avant » et « après » : même formule (ISO → heures → jours + h restantes). */
+  const referenceDuration = computeRentalDurationFromIso(bookingRefStartIso, bookingRefEndIso);
+  const selectedDuration = computeRentalDurationFromIso(startDateTime, endDateTime);
+
+  const rentalDays = selectedDuration.rentalDays;
+  const remainingHours = selectedDuration.remainingHours;
+  const durationCalculation = selectedDuration;
+
+  /** Même créneau que la réservation : comparer aux refs normalisées (évite échec si format ISO diffère). */
+  const sameBookingWindow =
+    startDateTime != null &&
+    endDateTime != null &&
+    bookingRefStartIso != null &&
+    bookingRefEndIso != null &&
+    isoTimesEqual(startDateTime, bookingRefStartIso) &&
+    isoTimesEqual(endDateTime, bookingRefEndIso);
+
+  const hasDatesChanged = !sameBookingWindow;
+  const hasDurationChanged =
+    selectedDuration.totalHours !== referenceDuration.totalHours;
   const hasModification = hasDatesChanged || hasDurationChanged;
   
   // Utiliser hourly_rate de la réservation si disponible, sinon price_per_hour du véhicule
   const hourlyRate = booking.hourly_rate || vehicle?.price_per_hour || 0;
   
-  // Calculer les valeurs de la réservation actuelle
-  const currentRentalDays = booking.rental_days || 0;
-  const currentRentalHours = booking.rental_hours || 0;
+  // Référence « avant » = même règle que la sélection (pas rental_days en base, souvent décalé)
+  const currentRentalDays = referenceDuration.rentalDays;
+  const currentRentalHours = referenceDuration.remainingHours;
   const currentDailyRate = booking.daily_rate || vehicle?.price_per_day || 0;
   const currentHourlyRate = booking.hourly_rate || vehicle?.price_per_hour || 0;
   const currentDaysPrice = currentDailyRate * currentRentalDays;
@@ -174,8 +240,14 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
   const currentBasePrice = currentDaysPrice + currentHoursPrice;
   const currentDiscountAmount = booking.discount_amount || 0;
   const currentPriceAfterDiscount = currentBasePrice - currentDiscountAmount;
-  const currentServiceFee = Math.round(currentPriceAfterDiscount * 0.12); // 10% + 20% TVA = 12%
-  const currentTotalPrice = currentPriceAfterDiscount + currentServiceFee;
+  const currentDriverFee = (booking.with_driver && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
+  const currentBaseForService = currentPriceAfterDiscount + currentDriverFee;
+  const vehicleUsesPlatformCardRate = booking.payment_method === 'card' || booking.payment_method === 'wave';
+  const currentCommissionRates = getCommissionRates('vehicle', undefined, vehicleUsesPlatformCardRate);
+  const currentServiceFeeHT = Math.round(currentBaseForService * (currentCommissionRates.travelerFeePercent / 100));
+  const currentServiceFeeVAT = Math.round(currentServiceFeeHT * 0.20);
+  const currentServiceFee = currentServiceFeeHT + currentServiceFeeVAT;
+  const currentTotalPrice = currentBaseForService + currentServiceFee;
   // Total réel payé (inclut chauffeur, frais) - pour affichage Avant et calcul surplus
   const originalTotalPrice = booking.total_price ?? currentTotalPrice;
 
@@ -250,42 +322,93 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
     surplusBasePrice
   });
   
-  // ✅ CORRECTION CRITIQUE : Pour le calcul du surplus, on doit PRÉSERVER la réduction de l'ancienne réservation
-  // et simplement ajouter le prix des heures/jours supplémentaires SANS recalculer la réduction
-  
-  // Calculer la différence de jours et d'heures
+  // Réduction de durée : recalcul complet (seuils promo / long séjour) — peut augmenter le total
+  // si le locataire ne remplit plus les conditions → surplus à payer.
+  // Extension / même durée : on conserve la réduction de la réservation et on ajoute seulement le delta.
   const daysDiff = rentalDays - currentRentalDays;
   const hoursDiff = remainingHours - currentRentalHours;
-  
-  // Delta de prix : positif quand on ajoute, négatif quand on réduit
+  const isReductionDuration = daysDiff < 0 || hoursDiff < 0;
+
+  const commissionRates = getCommissionRates('vehicle', undefined, vehicleUsesPlatformCardRate);
+  const driverFee = (booking.with_driver && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
+
+  let basePrice: number;
+  let discountAmount: number;
+  let daysPrice: number;
+  let hoursPrice: number;
+  let totalBeforeDiscount: number;
+  let basePriceWithDriver: number;
+  let serviceFeeHT: number;
+  let serviceFeeVAT: number;
+  let effectiveServiceFee: number;
+  let totalPrice: number;
+
   const priceDelta = (daysDiff * dailyRate) + (hoursDiff * hourlyRate);
   const additionalDaysPrice = daysDiff > 0 ? daysDiff * dailyRate : 0;
   const additionalHoursPrice = hoursDiff > 0 ? hoursDiff * hourlyRate : 0;
   const additionalPrice = additionalDaysPrice + additionalHoursPrice;
-  
-  // Nouveau prix après réduction : ancien + delta (delta négatif = réduction)
-  const basePrice = Math.max(0, currentPriceAfterDiscount + priceDelta);
-  
-  // La réduction reste la même que l'ancienne réservation (on ne la recalcule PAS)
-  const discountAmount = currentDiscountAmount;
-  
-  // ✅ CORRECTION : Ajouter le driverFee si applicable (préservé de l'ancienne réservation)
-  const driverFee = (booking.with_driver && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
-  const basePriceWithDriver = basePrice + driverFee;
-  
-  // Pour l'affichage : prix totaux (basés sur la nouvelle durée)
-  const daysPrice = rentalDays * dailyRate;
-  const hoursPrice = remainingHours > 0 && hourlyRate > 0 ? remainingHours * hourlyRate : 0;
-  const totalBeforeDiscount = daysPrice + hoursPrice;
-  
-  // Frais de service : 11% si CB, 10% sinon (sur basePriceWithDriver, inclut chauffeur)
-  const commissionRates = getCommissionRates('vehicle', undefined, booking.payment_method === 'card');
-  const serviceFeeHT = Math.round(basePriceWithDriver * (commissionRates.travelerFeePercent / 100));
-  const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
-  const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
-  const totalPrice = basePriceWithDriver + effectiveServiceFee; // Total avec frais de service
 
-  // Remboursement selon la politique d'annulation quand on réduit les jours
+  if (isReductionDuration) {
+    const discountConfig: DiscountConfig = {
+      enabled: vehicle?.discount_enabled || false,
+      minNights: vehicle?.discount_min_days ?? null,
+      percentage: vehicle?.discount_percentage ?? null,
+    };
+    const longStayDiscountConfig: DiscountConfig | undefined = vehicle?.long_stay_discount_enabled
+      ? {
+          enabled: vehicle.long_stay_discount_enabled,
+          minNights: vehicle.long_stay_discount_min_days ?? null,
+          percentage: vehicle.long_stay_discount_percentage ?? null,
+        }
+      : undefined;
+    const vp = calculateVehiclePriceWithHours(
+      dailyRate,
+      rentalDays,
+      remainingHours,
+      hourlyRate,
+      discountConfig,
+      longStayDiscountConfig
+    );
+    daysPrice = vp.daysPrice;
+    hoursPrice = vp.hoursPrice;
+    totalBeforeDiscount = vp.totalBeforeDiscount;
+    discountAmount = vp.discountAmount;
+    basePrice = vp.basePrice;
+    basePriceWithDriver = basePrice + driverFee;
+    serviceFeeHT = Math.round(basePriceWithDriver * (commissionRates.travelerFeePercent / 100));
+    serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
+    effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
+    totalPrice = basePriceWithDriver + effectiveServiceFee;
+  } else {
+    basePrice = Math.max(0, currentPriceAfterDiscount + priceDelta);
+    discountAmount = currentDiscountAmount;
+    daysPrice = rentalDays * dailyRate;
+    hoursPrice = remainingHours > 0 && hourlyRate > 0 ? remainingHours * hourlyRate : 0;
+    totalBeforeDiscount = daysPrice + hoursPrice;
+    basePriceWithDriver = basePrice + driverFee;
+    serviceFeeHT = Math.round(basePriceWithDriver * (commissionRates.travelerFeePercent / 100));
+    serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
+    effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
+    const modelTotalExtension = basePriceWithDriver + effectiveServiceFee;
+    // Ancrer sur le montant réellement payé : le « recalcul » de l’ancien séjour (currentTotalPrice) peut
+    // différer de la facture (promo, arrondis). Sans ça, le surplus ≠ somme des lignes du détail.
+    const paid = originalTotalPrice ?? 0;
+    totalPrice =
+      paid > 0
+        ? paid + (modelTotalExtension - currentTotalPrice)
+        : modelTotalExtension;
+  }
+
+  // Même durée facturable ou même créneau : conserver le total payé (évite surplus ~arrondis frais / recalcul)
+  if (sameBookingWindow || (daysDiff === 0 && hoursDiff === 0)) {
+    totalPrice = originalTotalPrice;
+  }
+
+  const priceDiffVsBooking = totalPrice - originalTotalPrice;
+  /** Afficher le détail / surplus dès qu’il y a un écart de prix ou de durée, ou des dates/heures différentes de la réservation */
+  const showModificationSummary =
+    Boolean(startDateTime && endDateTime && rentalDays > 0) &&
+    (!sameBookingWindow || Math.abs(priceDiffVsBooking) >= 1);
   const isReduction = (rentalDays - currentRentalDays) < 0 || (remainingHours - currentRentalHours) < 0;
   const amountSaved = originalTotalPrice - totalPrice;
   useEffect(() => {
@@ -312,19 +435,26 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
       const refundRate = originalTotalPrice > 0 && info.refundAmount != null
         ? info.refundAmount / originalTotalPrice
         : 0;
-      setReductionRefundAmount(Math.round(refundRate * amountSaved));
+      let refund = Math.round(refundRate * amountSaved);
+      if (
+        !ownerReceivedFundsForModificationRefundVehicle({
+          start_date: booking.start_date,
+          start_datetime: booking.start_datetime,
+          payment_method: booking.payment_method,
+        })
+      ) {
+        refund = 0;
+      }
+      setReductionRefundAmount(refund);
     });
     return () => { cancelled = true; };
-  }, [visible, booking?.id, isReduction, amountSaved, originalTotalPrice, currentDaysPrice, currentHoursPrice, currentRentalDays, vehicle?.cancellation_policy, booking?.status, booking?.start_date, booking?.end_date, calculateCancellationInfoForVehicle]);
+  }, [visible, booking?.id, isReduction, amountSaved, originalTotalPrice, currentDaysPrice, currentHoursPrice, currentRentalDays, vehicle?.cancellation_policy, booking?.status, booking?.start_date, booking?.end_date, booking?.start_datetime, booking?.payment_method, calculateCancellationInfoForVehicle]);
 
   const handleDateTimeChange = (start: string, end: string) => {
-    const startDateObj = new Date(start);
-    setStartDate(startDateObj.toISOString().split('T')[0]);
     setStartDateTime(start);
-    
-    const endDateObj = new Date(end);
-    setEndDate(endDateObj.toISOString().split('T')[0]);
     setEndDateTime(end);
+    setStartDate(isoUtcToYmdInTz(start, BOOKING_DISPLAY_TZ));
+    setEndDate(isoUtcToYmdInTz(end, BOOKING_DISPLAY_TZ));
   };
 
   const handleSubmit = async () => {
@@ -342,6 +472,15 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
 
     if (rentalDays < 1) {
       Alert.alert('Erreur', 'La durée de location doit être d\'au moins 1 jour');
+      return;
+    }
+
+    if (availabilityChecking) {
+      Alert.alert('Patientez', 'Vérification de la disponibilité en cours…');
+      return;
+    }
+    if (availabilityError) {
+      Alert.alert('Créneau indisponible', availabilityError);
       return;
     }
 
@@ -366,40 +505,36 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
       return;
     }
 
-    // ✅ CALCUL SIMPLE ET COHÉRENT DU SURPLUS
-    // Le surplus = nouveau total - ancien total (réel payé), point final
-    let priceDifference = totalPrice - originalTotalPrice;
-    // Quand on RÉDUIT la durée (jours ou heures) : jamais de surplus à payer
-    const isReduction = daysDiff < 0 || hoursDiff < 0;
-    if (isReduction && priceDifference > 0) {
-      priceDifference = 0;
-    }
-    
-    // Calculer les frais de service actuels pour la comparaison
-    const currentServiceFeeHT = Math.round(currentPriceAfterDiscount * 0.10);
-    const currentServiceFeeVAT = Math.round(currentServiceFeeHT * 0.20);
-    const currentServiceFee = currentServiceFeeHT + currentServiceFeeVAT;
-    
-    // ✅ CALCUL SIMPLIFIÉ : Le surplus = prix supplémentaires (sans réduction) + frais de service
-    // La réduction de l'ancienne réservation est PRÉSERVÉE, pas recalculée
-    
-    const daysPriceDiff = additionalDaysPrice;
-    const hoursPriceDiff = additionalHoursPrice;
-    const totalBeforeDiscountDiff = additionalPrice;
-    
-    // La réduction ne change PAS (on la préserve de l'ancienne réservation)
-    const discountDiff = 0; // Pas de changement de réduction
-    
-    // Prix après réduction = ancien prix après réduction + prix supplémentaires
-    const basePriceAfterDiscountDiff = additionalPrice; // Simple : juste le prix supplémentaire
+    // Surplus = nouveau total − ancien total (réduction de durée recalculée avec seuils promo → peut être > 0)
+    const priceDifference = totalPrice - originalTotalPrice;
+    const reducing = daysDiff < 0 || hoursDiff < 0;
+
+    const daysPriceDiff = reducing
+      ? daysPrice - currentDaysPrice
+      : additionalDaysPrice;
+    const hoursPriceDiff = reducing
+      ? hoursPrice - currentHoursPrice
+      : additionalHoursPrice;
+    const totalBeforeDiscountDiff = reducing
+      ? totalBeforeDiscount - (currentDaysPrice + currentHoursPrice)
+      : additionalPrice;
+    const discountDiff = reducing
+      ? discountAmount - currentDiscountAmount
+      : 0;
+    const basePriceAfterDiscountDiff = reducing
+      ? basePrice - currentPriceAfterDiscount
+      : additionalPrice;
     
     // Frais de service
     const serviceFeeHTDiff = serviceFeeHT - currentServiceFeeHT;
     const serviceFeeVATDiff = serviceFeeVAT - currentServiceFeeVAT;
     const serviceFeeDiff = effectiveServiceFee - currentServiceFee;
-    
-    // Vérification de cohérence : le surplus doit être égal à la somme des différences
-    const calculatedSurplus = basePriceAfterDiscountDiff + serviceFeeDiff;
+
+    const driverFeeDiffSubmit = driverFee - currentDriverFee;
+    const subtotalWithDriverDiffSubmit = basePriceWithDriver - currentBaseForService;
+
+    // Vérification de cohérence : sous-total (location + chauffeur) + frais de service
+    const calculatedSurplus = subtotalWithDriverDiffSubmit + serviceFeeDiff;
     const surplusDifference = Math.abs(calculatedSurplus - priceDifference);
     
     console.log('🔍 [VehicleModificationModal] ===== CALCUL SURPLUS (RÉDUCTION PRÉSERVÉE) =====');
@@ -447,6 +582,9 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
       totalBeforeDiscountDiff,
       discountDiff, // Positif = perte de réduction (on paie plus), Négatif = gain de réduction (on paie moins)
       basePriceAfterDiscountDiff,
+      driverFeeAmount: driverFee > 0 ? driverFee : undefined,
+      driverFeeDiff: driverFeeDiffSubmit,
+      subtotalWithDriverDiff: subtotalWithDriverDiffSubmit,
       serviceFeeHTDiff,
       serviceFeeVATDiff,
       serviceFeeDiff,
@@ -468,7 +606,8 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
 
     // Si le surplus est positif, afficher le modal de paiement
     if (priceDifference > 0) {
-      const surplusBasePrice = Math.round(priceDifference / 1.12);
+      const surplusTravelerMultiplier = 1 + (commissionRates.travelerFeePercent / 100) * 1.2;
+      const surplusBasePrice = Math.round(priceDifference / surplusTravelerMultiplier);
       const surplusHostCommissionData = surplusBasePrice > 0 ? calculateHostCommission(surplusBasePrice, 'vehicle') : { hostCommission: 0 };
       const surplusNetOwner = surplusBasePrice - surplusHostCommissionData.hostCommission;
       const requestPayload: Record<string, unknown> = {
@@ -602,8 +741,9 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Durée actuelle:</Text>
                 <Text style={styles.infoValue}>
-                  {booking.rental_days || 0} jour{(booking.rental_days || 0) > 1 ? 's' : ''}
-                  {booking.rental_hours && booking.rental_hours > 0 && ` et ${booking.rental_hours} heure${booking.rental_hours > 1 ? 's' : ''}`}
+                  {referenceDuration.rentalDays} jour{referenceDuration.rentalDays > 1 ? 's' : ''}
+                  {referenceDuration.remainingHours > 0 &&
+                    ` et ${referenceDuration.remainingHours} heure${referenceDuration.remainingHours > 1 ? 's' : ''}`}
                 </Text>
               </View>
               <View style={styles.infoRow}>
@@ -649,7 +789,19 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#999" />
               </TouchableOpacity>
-              {(startDateTime && endDateTime && rentalDays > 0 && (daysDiff !== 0 || hoursDiff !== 0)) && (
+              {availabilityChecking && (
+                <View style={styles.availabilityCheckingRow}>
+                  <ActivityIndicator size="small" color="#2563eb" />
+                  <Text style={styles.availabilityCheckingText}>Vérification du créneau…</Text>
+                </View>
+              )}
+              {availabilityError ? (
+                <View style={styles.availabilityErrorContainer}>
+                  <Ionicons name="alert-circle" size={20} color="#dc2626" />
+                  <Text style={styles.availabilityErrorText}>{availabilityError}</Text>
+                </View>
+              ) : null}
+              {showModificationSummary && (
                 <View style={styles.summaryBox}>
                   {/* Détail des modifications : dates, durée, prix avant / après */}
                   <View style={styles.modificationDetailSection}>
@@ -657,11 +809,11 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                     <View style={styles.modificationDetailRow}>
                       <Text style={styles.modificationDetailLabel}>Avant :</Text>
                       <Text style={styles.modificationDetailValue}>
-                        {booking.start_datetime && booking.end_datetime
+                        {bookingRefStartIso && bookingRefEndIso
                           ? (() => {
                               const tz = 'Africa/Abidjan';
-                              const start = new Date(booking.start_datetime);
-                              const end = new Date(booking.end_datetime);
+                              const start = new Date(bookingRefStartIso);
+                              const end = new Date(bookingRefEndIso);
                               const d1 = start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
                               const t1 = start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: tz });
                               const d2 = end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: tz });
@@ -704,12 +856,19 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                     const discountDiff = currentDiscountAmount - discountAmount;
                     const basePriceDiff = basePrice - currentPriceAfterDiscount;
                     const serviceFeeDiff = effectiveServiceFee - currentServiceFee;
-                    let totalDiff = totalPrice - originalTotalPrice;
-                    // Quand on réduit : jamais de surplus à afficher (réduction = pas de paiement supplémentaire)
+                    const serviceFeeHTDiffUi = serviceFeeHT - currentServiceFeeHT;
+                    const serviceFeeVATDiffUi = serviceFeeVAT - currentServiceFeeVAT;
+                    const driverFeeDiffUi = driverFee - currentDriverFee;
+                    const subtotalWithDriverDiffUi = basePriceWithDriver - currentBaseForService;
+                    const totalDiff = totalPrice - originalTotalPrice;
                     const isReduction = daysDiff < 0 || hoursDiff < 0;
-                    if (isReduction && totalDiff > 0) totalDiff = 0;
-                    // En cas de réduction : afficher uniquement la durée et le total (pas le détail prix/frais qui prête à confusion)
-                    const showDetailedBreakdown = !isReduction;
+                    const isExtensionDuration =
+                      !isReduction && (daysDiff > 0 || hoursDiff > 0);
+                    // Réduction avec remboursement : détail masqué (évite la confusion). Réduction avec surplus (perte de promo) : afficher le détail.
+                    const showDetailedBreakdown = !isReduction || totalDiff > 0;
+                    const showDriverFeeDetail = (driverFee > 0 || currentDriverFee > 0) && showDetailedBreakdown;
+                    /** Écart entre recalcul théorique du séjour actuel et montant facturé (affiche pour transparence si notable) */
+                    const invoiceVsModelDiff = originalTotalPrice - currentTotalPrice;
                     
                     return (
                       <>
@@ -727,6 +886,15 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                             )}
                           </Text>
                         </View>
+                        {!isReduction && isExtensionDuration && Math.abs(invoiceVsModelDiff) >= 1 && (
+                          <Text style={styles.reconciliationHint}>
+                            Le nouveau total part de votre montant payé ({formatPrice(originalTotalPrice)})
+                            {Math.abs(invoiceVsModelDiff) >= 5
+                              ? ` et non du recalcul automatique du même séjour (${formatPrice(currentTotalPrice)}), pour rester aligné avec votre facture (promo, arrondis).`
+                              : '.'}
+                            {' '}Les lignes ci-dessous décomposent uniquement le supplément lié à la modification.
+                          </Text>
+                        )}
                         {showDetailedBreakdown && (daysPriceDiff !== 0 || hoursPriceDiff !== 0) && (
                           <>
                             {daysPriceDiff !== 0 && (
@@ -779,7 +947,37 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                             </Text>
                           </View>
                         )}
-                        {showDetailedBreakdown && serviceFeeDiff !== 0 && (
+                        {showDriverFeeDetail && (
+                          <>
+                            <View style={styles.summaryRow}>
+                              <Text style={styles.summaryLabel}>Frais chauffeur (forfait)</Text>
+                              <Text style={styles.summaryValue} numberOfLines={2}>
+                                {driverFeeDiffUi !== 0 ? (
+                                  <>
+                                    {driverFeeDiffUi > 0 ? '+' : ''}{formatPrice(driverFeeDiffUi)}
+                                    {'\n'}
+                                    <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                                      Nouveau forfait : {formatPrice(driverFee)}
+                                    </Text>
+                                  </>
+                                ) : (
+                                  <>
+                                    {formatPrice(driverFee)}
+                                    {'\n'}
+                                    <Text style={{ fontSize: 12, color: '#6b7280' }}>(inchangé)</Text>
+                                  </>
+                                )}
+                              </Text>
+                            </View>
+                            <View style={styles.summaryRow}>
+                              <Text style={styles.summaryLabel}>Sous-total (location + chauffeur)</Text>
+                              <Text style={styles.summaryValue}>
+                                {subtotalWithDriverDiffUi > 0 ? '+' : ''}{formatPrice(subtotalWithDriverDiffUi)}
+                              </Text>
+                            </View>
+                          </>
+                        )}
+                        {showDetailedBreakdown && serviceFeeDiff !== 0 && !showDriverFeeDetail && (
                           <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Frais de service:</Text>
                             <Text style={styles.summaryValue}>
@@ -787,18 +985,64 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                             </Text>
                           </View>
                         )}
-                        <View style={[styles.summaryRow, styles.totalRow]}>
-                          <Text style={styles.totalLabel}>
-                            {totalDiff > 0 ? 'Surplus à payer:' : totalDiff < 0 ? 'Remboursement:' : 'Aucun changement'}
-                          </Text>
-                          <Text style={[styles.totalValue, totalDiff > 0 ? { color: '#e67e22' } : totalDiff < 0 ? { color: '#059669' } : { color: '#6b7280' }]}>
-                            {totalDiff > 0 
-                              ? `+${formatPrice(totalDiff)}`
-                              : totalDiff < 0
-                              ? formatPrice(isReduction && reductionRefundAmount !== null ? reductionRefundAmount : Math.abs(totalDiff))
-                              : formatPrice(0)}
-                          </Text>
-                        </View>
+                        {showDetailedBreakdown && serviceFeeDiff !== 0 && showDriverFeeDetail && (
+                          <>
+                            {serviceFeeHTDiffUi !== 0 && (
+                              <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Frais de service (HT)</Text>
+                                <Text style={styles.summaryValue}>
+                                  {serviceFeeHTDiffUi > 0 ? '+' : ''}{formatPrice(serviceFeeHTDiffUi)}
+                                </Text>
+                              </View>
+                            )}
+                            {serviceFeeVATDiffUi !== 0 && (
+                              <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>TVA (20 %)</Text>
+                                <Text style={styles.summaryValue}>
+                                  {serviceFeeVATDiffUi > 0 ? '+' : ''}{formatPrice(serviceFeeVATDiffUi)}
+                                </Text>
+                              </View>
+                            )}
+                            <View style={styles.summaryRow}>
+                              <Text style={styles.summaryLabel}>Total frais de service (TTC)</Text>
+                              <Text style={styles.summaryValue}>
+                                {serviceFeeDiff > 0 ? '+' : ''}{formatPrice(serviceFeeDiff)}
+                              </Text>
+                            </View>
+                          </>
+                        )}
+                        {totalDiff > 0 ? (
+                          <View style={styles.surplusSection}>
+                            <View style={styles.surplusRow}>
+                              <Text style={styles.surplusLabel}>Surplus à payer :</Text>
+                              <Text style={styles.surplusValue}>
+                                +{formatPrice(totalDiff)}
+                              </Text>
+                            </View>
+                            {isReduction ? (
+                              <Text style={styles.surplusNote}>
+                                En raccourcissant la location, le total est recalculé selon les tarifs et réductions
+                                applicables à cette durée. Vous n’êtes plus éligible à certaines réductions du séjour
+                                initial (par ex. séjour long) : la différence est à régler pour valider la modification.
+                              </Text>
+                            ) : isExtensionDuration ? (
+                              <Text style={styles.surplusNote}>
+                                Montant supplémentaire pour la durée demandée par rapport à votre réservation actuelle.
+                              </Text>
+                            ) : null}
+                          </View>
+                        ) : (
+                          <View style={[styles.summaryRow, styles.totalRow]}>
+                            <Text style={styles.totalLabel}>
+                              {totalDiff < 0 ? 'Remboursement:' : 'Aucun changement'}
+                            </Text>
+                            <Text style={[styles.totalValue, totalDiff < 0 ? { color: '#059669' } : { color: '#6b7280' }]}>
+                              {totalDiff < 0
+                                ? formatPrice(isReduction && reductionRefundAmount !== null ? reductionRefundAmount : Math.abs(totalDiff))
+                                : formatPrice(0)}
+                            </Text>
+                          </View>
+                        )}
                         {isReduction && totalDiff < 0 && (() => {
                           const policy = (vehicle as any)?.cancellation_policy ?? (booking as any).cancellation_policy ?? 'flexible';
                           return (
@@ -835,9 +1079,12 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
           {/* Footer */}
           <View style={styles.footer}>
             <TouchableOpacity
-              style={[styles.submitButton, (isSubmitting || loading) && styles.submitButtonDisabled]}
+              style={[
+                styles.submitButton,
+                (isSubmitting || loading || !!availabilityError || availabilityChecking) && styles.submitButtonDisabled,
+              ]}
               onPress={handleSubmit}
-              disabled={isSubmitting || loading}
+              disabled={isSubmitting || loading || !!availabilityError || availabilityChecking}
             >
               {isSubmitting || loading ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -864,7 +1111,7 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
           setPendingRequestPayload(null);
           setSurplusBreakdown(null);
         }}
-        surplusAmount={((daysDiff < 0 || hoursDiff < 0) ? 0 : (totalPrice > originalTotalPrice ? totalPrice - originalTotalPrice : 0))}
+        surplusAmount={Math.max(0, totalPrice - originalTotalPrice)}
         bookingId={booking.id}
         onPaymentComplete={handlePaymentComplete}
         modificationRequestPayload={pendingRequestPayload ?? undefined}
@@ -881,6 +1128,34 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
         startDateTime={startDateTime}
         endDateTime={endDateTime}
         onClose={() => setShowDateTimePicker(false)}
+        beforeConfirm={async (startISO, endISO) => {
+          if (!vehicle?.id) return true;
+          try {
+            const { data: isAvailable, error: rpcError } = await supabase.rpc('check_vehicle_hourly_availability', {
+              p_vehicle_id: vehicle.id,
+              p_start_datetime: startISO,
+              p_end_datetime: endISO,
+              p_exclude_booking_id: booking.id,
+            });
+            if (rpcError) {
+              console.error('[VehicleModificationModal] beforeConfirm disponibilité:', rpcError);
+              Alert.alert('Erreur', 'Erreur lors de la vérification de disponibilité');
+              return false;
+            }
+            if (!isAvailable) {
+              Alert.alert(
+                'Créneau indisponible',
+                'Ce créneau n\'est pas disponible pour ce véhicule. Choisissez d\'autres dates ou heures.'
+              );
+              return false;
+            }
+            return true;
+          } catch (e) {
+            console.error('[VehicleModificationModal] beforeConfirm:', e);
+            Alert.alert('Erreur', 'Erreur lors de la vérification de disponibilité');
+            return false;
+          }
+        }}
         onConfirm={(start, end) => {
           handleDateTimeChange(start, end);
         }}
@@ -1018,6 +1293,40 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
   },
+  surplusSection: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  surplusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  surplusLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  surplusValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ea580c',
+  },
+  surplusNote: {
+    fontSize: 11,
+    color: '#6b7280',
+    lineHeight: 16,
+  },
+  reconciliationHint: {
+    fontSize: 11,
+    color: '#4b5563',
+    lineHeight: 16,
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
   totalLabel: {
     fontSize: 16,
     fontWeight: '600',
@@ -1107,6 +1416,31 @@ const styles = StyleSheet.create({
   dateTimeButtonSubtext: {
     fontSize: 13,
     color: '#6b7280',
+  },
+  availabilityCheckingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  availabilityCheckingText: {
+    fontSize: 13,
+    color: '#2563eb',
+  },
+  availabilityErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#fee2e2',
+    borderRadius: 8,
+    gap: 8,
+  },
+  availabilityErrorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#dc2626',
+    fontWeight: '500',
   },
 });
 

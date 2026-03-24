@@ -7,6 +7,7 @@ import {
   ScrollView,
   Dimensions,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TRAVELER_COLORS } from '../constants/colors';
@@ -20,6 +21,11 @@ interface VehicleDateTimePickerModalProps {
   endDateTime: string | null;
   onClose: () => void;
   onConfirm: (startDateTime: string, endDateTime: string) => void;
+  /**
+   * Si défini, appelé avant onConfirm / fermeture. Retourner false pour garder le modal ouvert
+   * (ex. créneau indisponible). Peut être async.
+   */
+  beforeConfirm?: (startISO: string, endISO: string) => boolean | Promise<boolean>;
 }
 
 const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
@@ -28,6 +34,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   endDateTime,
   onClose,
   onConfirm,
+  beforeConfirm,
 }) => {
   /** Parse l'ISO en date d'affichage : les chiffres de l'ISO (ex. 11:30) = heure affichée (pas de conversion timezone). */
   const isoToDisplayDate = (iso: string): Date => {
@@ -56,6 +63,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   };
 
   const [activeTab, setActiveTab] = useState<'start' | 'end'>('start');
+  const [confirmValidating, setConfirmValidating] = useState(false);
   const [mode, setMode] = useState<'manual' | 'days'>('manual'); // 'manual' = sélection manuelle, 'days' = nombre de jours
   const [rentalDays, setRentalDays] = useState<string>('1');
   const [tempStartDate, setTempStartDate] = useState<Date>(() => {
@@ -267,15 +275,37 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
 
+  /**
+   * Durée affichée : alignée sur l’usage « du 1er au 4 juin = 4 jours » (jours calendaires inclus),
+   * pas sur floor(heures/24) qui donne 3 pour 72h entre mêmes heures.
+   */
   const calculateDuration = (): { days: number; hours: number } => {
     const diff = tempEndDate.getTime() - tempStartDate.getTime();
+    if (diff <= 0) return { days: 0, hours: 0 };
+
     const totalHours = Math.ceil(diff / (1000 * 60 * 60));
-    const days = Math.floor(totalHours / 24);
-    const hours = totalHours % 24;
-    return { days, hours };
+
+    if (totalHours < 24) {
+      return { days: 0, hours: totalHours };
+    }
+
+    const startDay = new Date(tempStartDate);
+    startDay.setHours(0, 0, 0, 0);
+    const endDay = new Date(tempEndDate);
+    endDay.setHours(0, 0, 0, 0);
+    const calendarDiffDays = Math.round(
+      (endDay.getTime() - startDay.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const displayDays = Math.max(1, calendarDiffDays + 1);
+
+    const fullDaysFromHours = Math.floor(totalHours / 24);
+    const hoursRemainder = totalHours - fullDaysFromHours * 24;
+
+    return { days: displayDays, hours: hoursRemainder };
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (confirmValidating) return;
     // S'assurer que les minutes sont alignées sur des créneaux 00/30.
     const finalStartDate = normalizeToMinuteSlot(new Date(tempStartDate));
     const finalEndDate = normalizeToMinuteSlot(new Date(tempEndDate));
@@ -336,17 +366,29 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       endHours: finalEndDate.getHours(),
       endMinutes: finalEndDate.getMinutes(),
     });
-    
+
+    if (beforeConfirm) {
+      setConfirmValidating(true);
+      try {
+        const ok = await beforeConfirm(startISO, endISO);
+        if (!ok) return;
+      } finally {
+        setConfirmValidating(false);
+      }
+    }
+
     onConfirm(startISO, endISO);
     onClose();
   };
 
   // Calculer automatiquement la date de fin si on est en mode "jours"
+  // N jours = N jours calendaires inclus (ex. 4 jours du 1er au 4 → fin = début + 3 jours, même heure)
   useEffect(() => {
     if (mode === 'days' && rentalDays) {
-      const days = parseInt(rentalDays) || 1;
+      const n = parseInt(rentalDays, 10) || 1;
       const calculatedEndDate = new Date(tempStartDate);
-      calculatedEndDate.setDate(calculatedEndDate.getDate() + days);
+      const extraCalendarDays = n <= 1 ? 1 : n - 1;
+      calculatedEndDate.setDate(calculatedEndDate.getDate() + extraCalendarDays);
       calculatedEndDate.setHours(tempStartDate.getHours(), tempStartDate.getMinutes(), 0, 0);
       setTempEndDate(calculatedEndDate);
     }
@@ -433,6 +475,20 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
           newEndDate: newEndDate.toISOString(),
           heures: newEndDate.getHours(),
         });
+      }
+      if (startDateTime && endDateTime) {
+        const ns = normalizeToMinuteSlot(isoToDisplayDate(startDateTime));
+        const ne = normalizeToMinuteSlot(isoToDisplayDate(endDateTime));
+        const diffMs = ne.getTime() - ns.getTime();
+        const th = Math.ceil(diffMs / (1000 * 60 * 60));
+        if (th >= 24) {
+          const sd = new Date(ns);
+          sd.setHours(0, 0, 0, 0);
+          const ed = new Date(ne);
+          ed.setHours(0, 0, 0, 0);
+          const calDiff = Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24));
+          setRentalDays(String(Math.max(1, calDiff + 1)));
+        }
       }
       hasInitializedRef.current = true;
     } else if (!visible) {
@@ -878,12 +934,17 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
           {/* Bouton de confirmation fixé en bas (toujours visible) */}
           <View style={styles.confirmButtonWrapper}>
             <TouchableOpacity
-              style={styles.confirmButton}
+              style={[styles.confirmButton, confirmValidating && styles.confirmButtonDisabled]}
               onPress={handleConfirm}
+              disabled={confirmValidating}
             >
-              <Text style={styles.confirmButtonText}>
-                Rechercher pour {durationText}
-              </Text>
+              {confirmValidating ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.confirmButtonText}>
+                  Rechercher pour {durationText}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -1169,6 +1230,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
+  },
+  confirmButtonDisabled: {
+    opacity: 0.75,
   },
   confirmButtonText: {
     color: '#fff',

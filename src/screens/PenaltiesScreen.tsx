@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { usePenalties } from '../hooks/usePenalties';
 import { useCommissions } from '../hooks/useCommissions';
@@ -23,14 +23,24 @@ import PenaltyPaymentModal from '../components/PenaltyPaymentModal';
 import CommissionPaymentModal from '../components/CommissionPaymentModal';
 import HostRefundPaymentModal from '../components/HostRefundPaymentModal';
 import { useCurrency } from '../hooks/useCurrency';
+import { RootStackParamList } from '../types';
 
 type TabType = 'penalties' | 'commissions';
 
 const PenaltiesScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<RootStackParamList, 'Penalties'>>();
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
-  const [activeTab, setActiveTab] = useState<TabType>('penalties');
+  const initialTab = route.params?.initialTab;
+  const [activeTab, setActiveTab] = useState<TabType>(
+    initialTab === 'commissions' || initialTab === 'penalties' ? initialTab : 'penalties'
+  );
+
+  useEffect(() => {
+    const t = route.params?.initialTab;
+    if (t === 'commissions' || t === 'penalties') setActiveTab(t);
+  }, [route.params?.initialTab]);
   const [selectedPenalty, setSelectedPenalty] = useState<any>(null);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);

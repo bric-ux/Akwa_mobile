@@ -33,6 +33,10 @@ import HostVehicleModificationRequestCard from '../components/HostVehicleModific
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import { useAuth } from '../services/AuthContext';
 import { useCurrency } from '../hooks/useCurrency';
+import {
+  fetchHostFinancialOverviewForBookings,
+  HostFinancialOverview,
+} from '../components/HostBookingFinancialAlerts';
 
 type HostVehicleBookingsRouteParams = {
   vehicleId?: string;
@@ -70,6 +74,10 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const [renterReviewModalVisible, setRenterReviewModalVisible] = useState(false);
   const [selectedBookingForRenterReview, setSelectedBookingForRenterReview] = useState<VehicleBooking | null>(null);
   const [canReviewRenter, setCanReviewRenter] = useState<{ [key: string]: boolean }>({});
+  const [financialOverview, setFinancialOverview] = useState<HostFinancialOverview>({
+    commissionDueByBookingId: {},
+    penaltiesByBookingId: {},
+  });
 
   const loadBookings = async () => {
     try {
@@ -86,6 +94,20 @@ const HostVehicleBookingsScreen: React.FC = () => {
         data = await getAllOwnerBookings();
       }
       setBookings(data);
+
+      if (user?.id && data.length > 0) {
+        const ov = await fetchHostFinancialOverviewForBookings(
+          user.id,
+          data.map((b) => b.id),
+          'vehicle'
+        );
+        setFinancialOverview(ov);
+      } else {
+        setFinancialOverview({
+          commissionDueByBookingId: {},
+          penaltiesByBookingId: {},
+        });
+      }
       
       // Charger les demandes de modification en attente
       if (user?.id) {
@@ -457,6 +479,24 @@ const HostVehicleBookingsScreen: React.FC = () => {
               Gain net : {formatAmountForBooking(netEarnings, item)}
             </Text>
           </View>
+
+          {((financialOverview.commissionDueByBookingId[item.id] ?? 0) > 0 ||
+            (financialOverview.penaltiesByBookingId[item.id]?.length ?? 0) > 0) && (
+            <View style={styles.overviewFinancialRow}>
+              {(financialOverview.commissionDueByBookingId[item.id] ?? 0) > 0 && (
+                <View style={styles.overviewChipDanger}>
+                  <Ionicons name="alert-circle" size={14} color="#991b1b" />
+                  <Text style={styles.overviewChipDangerText}>Commission à régler</Text>
+                </View>
+              )}
+              {(financialOverview.penaltiesByBookingId[item.id]?.length ?? 0) > 0 && (
+                <View style={styles.overviewChipWarn}>
+                  <Ionicons name="warning" size={14} color="#92400e" />
+                  <Text style={styles.overviewChipWarnText}>Pénalité</Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         {item.message_to_owner ? (
@@ -497,6 +537,31 @@ const HostVehicleBookingsScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.actionButtonSmall, styles.detailsButton]}
             onPress={() => {
+              const due = financialOverview.commissionDueByBookingId[item.id];
+              if (due != null && due > 0) {
+                Alert.alert(
+                  'Commission plateforme',
+                  'Confirmez avoir bien reçu le paiement du locataire avant de régler la commission Akwahome. Que souhaitez-vous faire ?',
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    {
+                      text: 'Voir détails réservation',
+                      onPress: () => {
+                        setSelectedBookingForDetails(item);
+                        setDetailsModalVisible(true);
+                      },
+                    },
+                    {
+                      text: 'Régler la commission',
+                      onPress: () =>
+                        navigation.navigate('Penalties' as never, {
+                          initialTab: 'commissions',
+                        } as never),
+                    },
+                  ]
+                );
+                return;
+              }
               setSelectedBookingForDetails(item);
               setDetailsModalVisible(true);
             }}
@@ -1024,6 +1089,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     flexShrink: 1,
+  },
+  overviewFinancialRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  overviewChipDanger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  overviewChipDangerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#991b1b',
+  },
+  overviewChipWarn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  overviewChipWarnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400e',
   },
   discountDetailText: {
     fontSize: 14,

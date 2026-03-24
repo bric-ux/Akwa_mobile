@@ -47,9 +47,10 @@ interface VehicleModificationSurplusPaymentModalProps {
     totalBeforeDiscountDiff?: number;
     discountDiff?: number;
     basePriceAfterDiscountDiff?: number;
+    driverFeeAmount?: number;
+    driverFeeDiff?: number;
+    subtotalWithDriverDiff?: number;
     serviceFeeDiff?: number;
-    serviceFeeHTDiff?: number;
-    serviceFeeVATDiff?: number;
   };
 }
 
@@ -803,6 +804,31 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
                     </Text>
                   </View>
                 )}
+
+                {priceBreakdown.driverFeeAmount !== undefined && priceBreakdown.driverFeeAmount > 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Frais chauffeur (forfait)</Text>
+                    <View style={{ alignItems: 'flex-end', flex: 1 }}>
+                      <Text style={styles.priceDetailValue}>{formatPrice(priceBreakdown.driverFeeAmount)}</Text>
+                      {priceBreakdown.driverFeeDiff !== undefined && priceBreakdown.driverFeeDiff !== 0 ? (
+                        <Text style={[styles.priceDetailValue, priceBreakdown.driverFeeDiff > 0 ? styles.increaseValue : styles.decreaseValue, { fontSize: 13, marginTop: 2 }]}>
+                          Δ {priceBreakdown.driverFeeDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.driverFeeDiff)}
+                        </Text>
+                      ) : (
+                        <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>inchangé</Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                {priceBreakdown.subtotalWithDriverDiff !== undefined && priceBreakdown.subtotalWithDriverDiff !== 0 && (
+                  <View style={styles.priceDetailRow}>
+                    <Text style={styles.priceDetailLabel}>Sous-total (location + chauffeur)</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.subtotalWithDriverDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
+                      {priceBreakdown.subtotalWithDriverDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.subtotalWithDriverDiff)}
+                    </Text>
+                  </View>
+                )}
                 
                 {priceBreakdown.basePriceBeforeDiscountDiff !== undefined && priceBreakdown.basePriceBeforeDiscountDiff !== 0 && (
                   <View style={styles.priceDetailRow}>
@@ -832,21 +858,12 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
                     </Text>
                   </View>
                 )}
-                
-                {priceBreakdown.serviceFeeHTDiff !== undefined && priceBreakdown.serviceFeeHTDiff !== 0 && (
+
+                {priceBreakdown.serviceFeeDiff !== undefined && priceBreakdown.serviceFeeDiff !== 0 && (
                   <View style={styles.priceDetailRow}>
-                    <Text style={styles.priceDetailLabel}>Différence frais de service (HT):</Text>
-                    <Text style={[styles.priceDetailValue, priceBreakdown.serviceFeeHTDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
-                      {priceBreakdown.serviceFeeHTDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.serviceFeeHTDiff)}
-                    </Text>
-                  </View>
-                )}
-                
-                {priceBreakdown.serviceFeeVATDiff !== undefined && priceBreakdown.serviceFeeVATDiff !== 0 && (
-                  <View style={styles.priceDetailRow}>
-                    <Text style={styles.priceDetailLabel}>Différence TVA (20%):</Text>
-                    <Text style={[styles.priceDetailValue, priceBreakdown.serviceFeeVATDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
-                      {priceBreakdown.serviceFeeVATDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.serviceFeeVATDiff)}
+                    <Text style={styles.priceDetailLabel}>Total frais de service (TTC)</Text>
+                    <Text style={[styles.priceDetailValue, priceBreakdown.serviceFeeDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
+                      {priceBreakdown.serviceFeeDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.serviceFeeDiff)}
                     </Text>
                   </View>
                 )}

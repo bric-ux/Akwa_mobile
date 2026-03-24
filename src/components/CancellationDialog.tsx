@@ -12,10 +12,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useBookingCancellation, CancellationInfo } from '../hooks/useBookingCancellation';
-import { getCancellationPolicyText } from '../utils/cancellationPolicy';
+import { getCancellationPolicyLabel, getCancellationPolicyText, hostHasReceivedGuestCashProperty } from '../utils/cancellationPolicy';
 import { useAuth } from '../services/AuthContext';
 import { formatPrice } from '../utils/priceCalculator';
 import { inferOriginalSubtotal } from '../utils/amountUtils';
+import { supabase } from '../services/supabase';
 
 interface CancellationDialogProps {
   visible: boolean;
@@ -27,6 +28,8 @@ interface CancellationDialogProps {
     total_price: number;
     status?: string;
     discount_amount?: number;
+    /** Permet d'appliquer la règle commission espèces/virement sur le remboursement affiché */
+    payment_method?: string | null;
     properties?: {
       title: string;
       price_per_night: number;
@@ -70,6 +73,12 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
   const [isConfirming, setIsConfirming] = useState(false);
   const [cancellationInfo, setCancellationInfo] = useState<CancellationInfo | null>(null);
   const [loadingInfo, setLoadingInfo] = useState(false);
+  /** Hors CB/Wave : commission plateforme déjà payée par l'hôte → déduite du remboursement voyageur */
+  const [cashCommissionMeta, setCashCommissionMeta] = useState<{
+    loaded: boolean;
+    paid: boolean;
+    amountDue: number;
+  }>({ loaded: false, paid: false, amountDue: 0 });
   const { cancelBooking, calculateCancellationInfo, loading } = useBookingCancellation();
   const { user } = useAuth();
 
@@ -84,7 +93,12 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
     const nights = Math.ceil(
       (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / (1000 * 60 * 60 * 24)
     ) || 1;
-    const subtotal = inferOriginalSubtotal(booking.total_price, nights, prop);
+    const subtotal = inferOriginalSubtotal(
+      booking.total_price,
+      nights,
+      prop,
+      booking.payment_method === 'card' || booking.payment_method === 'wave'
+    );
     return nights > 0 ? Math.round(subtotal / nights) : undefined;
   })();
 
@@ -94,11 +108,61 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
     }
   }, [visible, booking?.id, booking?.check_in_date, booking?.check_out_date, booking?.total_price, booking?.status, cancellationPolicy, pricePerNight, effectivePricePerNight]);
 
+  useEffect(() => {
+    const pm = booking?.payment_method;
+    const offPlatform = pm && pm !== 'card' && pm !== 'wave';
+    if (!visible || !booking?.id || !offPlatform || booking.status === 'pending') {
+      setCashCommissionMeta({ loaded: true, paid: false, amountDue: 0 });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('platform_commission_due')
+        .select('status, amount_due')
+        .eq('booking_id', booking.id)
+        .eq('booking_type', 'property')
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        setCashCommissionMeta({ loaded: true, paid: false, amountDue: 0 });
+        return;
+      }
+      setCashCommissionMeta({
+        loaded: true,
+        paid: data.status === 'paid',
+        amountDue: Math.round(Number(data.amount_due || 0)),
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, booking?.id, booking?.payment_method, booking?.status]);
+
   const loadCancellationInfo = async () => {
     if (!booking || !user) return;
     
     setLoadingInfo(true);
     try {
+      const { data: calcRow } = await supabase
+        .from('booking_calculation_details')
+        .select('base_price, price_after_discount, discount_amount, effective_cleaning_fee, effective_taxes, service_fee, total_price')
+        .eq('booking_id', booking.id)
+        .eq('booking_type', 'property')
+        .maybeSingle();
+
+      const propertyStoredCalc = calcRow
+        ? {
+            base_price: Number(calcRow.base_price),
+            price_after_discount: Number(calcRow.price_after_discount),
+            discount_amount: Number(calcRow.discount_amount || 0),
+            effective_cleaning_fee: Number(calcRow.effective_cleaning_fee || 0),
+            effective_taxes: Number(calcRow.effective_taxes || 0),
+            service_fee: Number(calcRow.service_fee),
+            total_price: Number(calcRow.total_price),
+          }
+        : null;
+
       const info = await calculateCancellationInfo(
         booking.id,
         booking.check_in_date,
@@ -108,7 +172,8 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
         cancellationPolicy,
         booking.status ?? 'confirmed',
         undefined,
-        effectivePricePerNight
+        effectivePricePerNight,
+        propertyStoredCalc
       );
       setCancellationInfo(info);
     } catch (error) {
@@ -242,8 +307,26 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
 
   const { refundPercentage, isInProgress, remainingNights, penaltyAmount, refundAmount, consumedNightsAmount = 0, cancellationFeeAmount = 0 } = cancellationInfo;
   const isPending = booking.status === 'pending';
-  const finalRefundAmount = refundAmount ?? 0;
-  const finalPenaltyAmount = penaltyAmount ?? Math.max(0, booking.total_price - finalRefundAmount);
+  const guestPaidPlatformUi =
+    booking.payment_method === 'card' || booking.payment_method === 'wave';
+  const hostAlreadyReceivedGuestCash =
+    !guestPaidPlatformUi &&
+    hostHasReceivedGuestCashProperty({
+      check_in_date: booking.check_in_date,
+      payment_method: booking.payment_method,
+    });
+  const commissionDeductUi =
+    !guestPaidPlatformUi &&
+    !isPending &&
+    cashCommissionMeta.loaded &&
+    cashCommissionMeta.paid
+      ? cashCommissionMeta.amountDue
+      : 0;
+  const finalRefundAmount = Math.max(0, (refundAmount ?? 0) - commissionDeductUi);
+  /** Avant arrivée : espèces/virement pas encore remis à l’hôte → aucun remboursement à traiter (0 FCFA). */
+  const displayRefundAmount =
+    !guestPaidPlatformUi && !isPending && !hostAlreadyReceivedGuestCash ? 0 : finalRefundAmount;
+  const finalPenaltyAmount = Math.max(0, booking.total_price - displayRefundAmount);
 
   return (
     <Modal
@@ -280,6 +363,23 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
                 </Text>
               </View>
             </View>
+
+            {cancellationInfo.calculationDetailLines && cancellationInfo.calculationDetailLines.length > 0 && (
+              <View style={styles.breakdownSection}>
+                <Text style={styles.breakdownTitle}>Composition du montant payé</Text>
+                <Text style={styles.breakdownSubtitle}>
+                  Montants alignés sur votre réservation actuelle (réduction, frais de ménage, etc.).
+                </Text>
+                <View style={styles.breakdownContent}>
+                  {cancellationInfo.calculationDetailLines.map((line, i) => (
+                    <View key={`calc-line-${i}`} style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>{line.label}</Text>
+                      <Text style={styles.breakdownValue}>{line.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Alerte de remboursement */}
             {isPending ? (
@@ -370,7 +470,7 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
               
               <View style={[styles.financialRow, styles.refundRow]}>
                 <Text style={styles.refundLabel}>Remboursement :</Text>
-                <Text style={styles.refundValue}>{formatPrice(finalRefundAmount)}</Text>
+                <Text style={styles.refundValue}>{formatPrice(displayRefundAmount)}</Text>
               </View>
             </View>
 
@@ -412,14 +512,46 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
               </View>
             )}
 
+            {cancellationInfo.refundTransparencyLines && cancellationInfo.refundTransparencyLines.length > 0 && (
+              <View style={styles.breakdownSection}>
+                <Text style={styles.breakdownTitle}>Comment le montant remboursé est obtenu</Text>
+                <Text style={styles.breakdownSubtitle}>
+                  Récapitulatif (voyageur). Si l’hôte a déjà été payé par la plateforme, il réglera sa part dans l’onglet Remboursements, au prorata de son net perçu.
+                </Text>
+                <View style={styles.breakdownContent}>
+                  {cancellationInfo.refundTransparencyLines.map((line, idx) => (
+                    <View style={styles.breakdownRow} key={`tl-${idx}`}>
+                      <Text style={styles.breakdownLabel}>{line.label}</Text>
+                      <Text style={[styles.breakdownValue, { flex: 1.2, textAlign: 'right' }]}>{line.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* Comment le remboursement va se passer - en rouge (seulement si remboursement > 0) */}
-            {finalRefundAmount > 0 && (
+            {displayRefundAmount > 0 && (
               <View style={[styles.alert, styles.alertRefundProcess]}>
                 <Ionicons name="information-circle" size={20} color="#c62828" />
                 <View style={styles.alertContent}>
                   <Text style={styles.alertRefundProcessTitle}>Comment le remboursement va se passer</Text>
                   <Text style={styles.alertRefundProcessText}>
-                    Le montant de {formatPrice(finalRefundAmount)} sera remboursé sur votre moyen de paiement initial sous 5 à 10 jours ouvrés.
+                    {guestPaidPlatformUi
+                      ? `Le montant de ${formatPrice(displayRefundAmount)} sera remboursé sur votre moyen de paiement initial sous maximum 72 heures.`
+                      : hostAlreadyReceivedGuestCash
+                        ? `Vous avez payé en espèces ou par virement : l'hôte doit vous rembourser directement ${formatPrice(displayRefundAmount)}. La plateforme ne traite pas ce remboursement.`
+                        : `Paiement prévu en espèces ou par virement à l'arrivée : avant le jour du check-in, l'argent n'a en principe pas encore été remis à l'hôte — aucun remboursement n'est dû tant que vous n'avez pas remis l'argent à l'hôte.`}
+                  </Text>
+                </View>
+              </View>
+            )}
+            {!guestPaidPlatformUi && !isPending && !hostAlreadyReceivedGuestCash && finalRefundAmount > 0 && (
+              <View style={[styles.alert, styles.alertInfo]}>
+                <Ionicons name="cash-outline" size={20} color="#1565c0" />
+                <View style={styles.alertContent}>
+                  <Text style={styles.alertTitle}>Espèces / virement à l’arrivée</Text>
+                  <Text style={styles.alertText}>
+                    Vous n’avez en principe pas encore remis l’argent à l’hôte. Aucun remboursement n’est à traiter de ce côté ; l’annulation est enregistrée sans flux d’espèces.
                   </Text>
                 </View>
               </View>
@@ -428,7 +560,10 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
             {/* Description de la politique - utilise la politique réelle de la propriété */}
             <View style={styles.policySection}>
               <Text style={styles.policyTitle}>Politique d'annulation</Text>
-              <Text style={styles.policyText}>{getCancellationPolicyText(cancellationPolicy ?? undefined, 'property')}</Text>
+              <Text style={styles.policyText}>
+                {getCancellationPolicyLabel(cancellationPolicy, 'property')}:{' '}
+                {getCancellationPolicyText(cancellationPolicy ?? undefined, 'property')}
+              </Text>
             </View>
 
             {/* Raison de l'annulation */}
@@ -688,6 +823,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 12,
+  },
+  breakdownSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: -6,
+    marginBottom: 10,
+    lineHeight: 17,
   },
   breakdownContent: {
     gap: 8,

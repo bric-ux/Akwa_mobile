@@ -4,6 +4,92 @@
  */
 export type ServiceType = 'property' | 'vehicle';
 
+/** Libellé court pour affichage « Modérée : … » */
+export const getCancellationPolicyLabel = (
+  policy?: string | null,
+  _serviceType: ServiceType = 'property'
+): string => {
+  switch (policy) {
+    case 'flexible':
+      return 'Flexible';
+    case 'moderate':
+      return 'Modérée';
+    case 'strict':
+      return 'Stricte';
+    case 'non_refundable':
+      return 'Non remboursable';
+    default:
+      return 'Politique d’annulation';
+  }
+};
+
+/**
+ * Espèces / virement (résidence) : le voyageur remet l'argent à l'hôte à l'arrivée (jour du check-in).
+ */
+export function hostHasReceivedGuestCashProperty(booking: {
+  check_in_date: string;
+  payment_method?: string | null;
+}): boolean {
+  const pm = booking.payment_method;
+  if (pm === 'card' || pm === 'wave') return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const ci = new Date(booking.check_in_date);
+  ci.setHours(0, 0, 0, 0);
+  return today.getTime() >= ci.getTime();
+}
+
+/**
+ * Espèces / virement (véhicule) : le locataire paie le propriétaire à la remise du véhicule (début de location).
+ */
+export function ownerHasReceivedRenterCashVehicle(booking: {
+  start_date: string;
+  start_datetime?: string | null;
+  payment_method?: string | null;
+}): boolean {
+  const pm = booking.payment_method;
+  if (pm === 'card' || pm === 'wave') return false;
+  const start = booking.start_datetime ? new Date(booking.start_datetime) : new Date(booking.start_date);
+  return !Number.isNaN(start.getTime()) && Date.now() >= start.getTime();
+}
+
+/**
+ * Réduction de séjour (modification) : remboursement théorique uniquement si l’hôte est réputé avoir
+ * reçu les fonds — aligné sur l’annulation (CB/Wave : 48 h après le check-in ; espèces : jour du check-in).
+ */
+export function hostReceivedFundsForModificationRefundProperty(booking: {
+  check_in_date: string;
+  payment_method?: string | null;
+}): boolean {
+  const pm = booking.payment_method;
+  if (pm === 'card' || pm === 'wave') {
+    const t =
+      new Date(booking.check_in_date).getTime() + 48 * 60 * 60 * 1000;
+    return Date.now() >= t;
+  }
+  return hostHasReceivedGuestCashProperty(booking);
+}
+
+/**
+ * Réduction de durée (modification véhicule) : idem pour le propriétaire (CB/Wave : 48 h après le début de location).
+ */
+export function ownerReceivedFundsForModificationRefundVehicle(booking: {
+  start_date: string;
+  start_datetime?: string | null;
+  payment_method?: string | null;
+}): boolean {
+  const pm = booking.payment_method;
+  if (pm === 'card' || pm === 'wave') {
+    const start = booking.start_datetime
+      ? new Date(booking.start_datetime)
+      : new Date(booking.start_date);
+    if (Number.isNaN(start.getTime())) return false;
+    const t = start.getTime() + 48 * 60 * 60 * 1000;
+    return Date.now() >= t;
+  }
+  return ownerHasReceivedRenterCashVehicle(booking);
+}
+
 export const getCancellationPolicyText = (
   policy?: string | null,
   serviceType: ServiceType = 'property'

@@ -16,6 +16,7 @@ import { supabase } from '../services/supabase';
 import HostCancellationDialog from './HostCancellationDialog';
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import HostModificationRequestCard from './HostModificationRequestCard';
+import HostBookingFinancialAlerts from './HostBookingFinancialAlerts';
 
 interface HostBookingDetailsModalProps {
   visible: boolean;
@@ -139,6 +140,11 @@ const HostBookingDetailsModal: React.FC<HostBookingDetailsModalProps> = ({
                 />
               </View>
             )}
+
+            <HostBookingFinancialAlerts
+              bookingId={booking.id}
+              bookingType="property"
+            />
 
             {/* Informations de base */}
             <View style={styles.section}>

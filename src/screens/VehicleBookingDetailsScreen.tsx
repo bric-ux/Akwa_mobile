@@ -21,6 +21,8 @@ import { formatPrice } from '../utils/priceCalculator';
 import { getCommissionRates } from '../lib/commissions';
 import VehicleModificationModal from '../components/VehicleModificationModal';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
+import { getCancellationPolicyLabel, getCancellationPolicyText } from '../utils/cancellationPolicy';
+import HostBookingFinancialAlerts from '../components/HostBookingFinancialAlerts';
 
 type VehicleBookingDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleBookingDetails'>;
 
@@ -316,6 +318,7 @@ const VehicleBookingDetailsScreen: React.FC = () => {
   }
 
   const isConfirmed = booking.status === 'confirmed' || booking.status === 'completed';
+  const isOwner = !!user && booking.vehicle?.owner_id === user.id;
   const commissionRates = getCommissionRates('vehicle', undefined, booking.payment_method === 'card');
   
   // Calculer le prix en tenant compte des heures
@@ -346,6 +349,26 @@ const VehicleBookingDetailsScreen: React.FC = () => {
         <View style={styles.statusContainer}>
           {getStatusBadge(getEffectiveStatus())}
         </View>
+
+        {isOwner && (
+          <HostBookingFinancialAlerts
+            bookingId={booking.id}
+            bookingType="vehicle"
+          />
+        )}
+
+        {booking.vehicle && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+            <Text style={styles.policyDetailText}>
+              <Text style={styles.policyDetailEmphasis}>
+                {getCancellationPolicyLabel(booking.vehicle.cancellation_policy, 'vehicle')}
+              </Text>
+              {' : '}
+              {getCancellationPolicyText(booking.vehicle.cancellation_policy, 'vehicle')}
+            </Text>
+          </View>
+        )}
 
         {/* Numéro de réservation (code court) */}
         <View style={[styles.section, { marginBottom: 0 }]}>
@@ -625,6 +648,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 16,
+  },
+  policyDetailText: {
+    fontSize: 14,
+    color: '#444',
+    lineHeight: 22,
+  },
+  policyDetailEmphasis: {
+    fontWeight: '700',
+    color: '#333',
   },
   infoRow: {
     flexDirection: 'row',

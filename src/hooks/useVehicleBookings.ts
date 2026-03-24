@@ -8,6 +8,7 @@ import { getCommissionRates } from '../lib/commissions';
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
 import { useCurrency } from './useCurrency';
 import { sendPushToUser } from '../services/pushNotificationService';
+import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
 
 export type VehiclePaymentMethod = 'card' | 'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'paypal' | 'cash';
 
@@ -193,53 +194,33 @@ export const useVehicleBookings = () => {
           throw new Error(`La location minimum est de ${vehicle.minimum_rental_hours || 1} heure(s)`);
         }
       } else {
-        // Validation pour location par jour
-        // Calculer la durée totale en heures entre start et end datetime
-        const diffTime = end.getTime() - start.getTime();
-        const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
-        
-        // Calculer les jours complets à partir des heures totales (plus précis)
-        const fullDaysFromHours = Math.floor(totalHours / 24);
-        
-        // Logique corrigée : utiliser les heures réelles comme base principale
-        // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
-        // Si totalHours < 24 : ne pas facturer de jour complet, seulement les heures (rentalDays = 0)
-        // Ne pas utiliser les jours calendaires qui peuvent donner des résultats incorrects
-        if (totalHours >= 24) {
-          rentalDays = fullDaysFromHours; // Utiliser directement les jours calculés à partir des heures
-        } else {
-          rentalDays = 0; // Pas de jour complet pour une location de moins de 24 heures
-        }
+        // Location par jour : aligné recherche / écran réservation (jours calendaires inclus + reste d’heures)
+        const durationParts = computeVehicleRentalDurationFromIso(startDateTime, endDateTime);
+        const totalHours = durationParts.totalHours;
 
-        // Validation : si totalHours < 24, on doit avoir hourly_rental_enabled
         if (totalHours < 24 && (!vehicle.hourly_rental_enabled || effectivePricePerHour == null)) {
           throw new Error('Les locations de moins de 24 heures nécessitent un tarif horaire');
         }
 
-        // Validation du minimum de jours (seulement si rentalDays > 0)
-        if (rentalDays > 0 && rentalDays < (vehicle.minimum_rental_days || 1)) {
-          throw new Error(`La location minimum est de ${vehicle.minimum_rental_days || 1} jour(s)`);
-        }
-        
-        // Calculer les heures restantes : durée totale - (jours complets × 24 heures)
-        // Utiliser fullDaysFromHours pour le calcul des heures, pas rentalDays
-        // Exemple: 177 heures totales = 7 jours complets (168h) + 9 heures restantes
-        const hoursInFullDays = fullDaysFromHours * 24;
-        const remainingHours = totalHours - hoursInFullDays;
-        
-        if (__DEV__) console.log(`⏱️ [useVehicleBookings] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}, rentalDays=${rentalDays}`);
-        
-        // Stocker les heures pour le calcul du prix
-        // Si totalHours < 24, toutes les heures sont facturées comme heures (pas de jour complet)
-        // Si totalHours >= 24, on facture les jours complets + les heures restantes
-        if (totalHours < 24 && vehicle.hourly_rental_enabled && effectivePricePerHour != null) {
-          rentalHours = totalHours; // Toutes les heures sont facturées comme heures, pas de jour complet
+        if (totalHours < 24) {
+          rentalDays = 0;
+          if (vehicle.hourly_rental_enabled && effectivePricePerHour != null) {
+            rentalHours = totalHours;
+          }
           if (__DEV__) console.log(`✅ [useVehicleBookings] Location < 24h: ${totalHours}h facturées comme heures`);
-        } else if (remainingHours > 0 && vehicle.hourly_rental_enabled && effectivePricePerHour != null) {
-          rentalHours = remainingHours; // Heures au-delà des jours complets
-          if (__DEV__) console.log(`✅ [useVehicleBookings] Heures restantes calculées: ${remainingHours}h`);
         } else {
-          if (__DEV__) console.log(`⚠️ [useVehicleBookings] Pas d'heures restantes: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle.hourly_rental_enabled}, price_per_hour=${vehicle.price_per_hour}`);
+          rentalDays = durationParts.rentalDays;
+          if (rentalDays > 0 && rentalDays < (vehicle.minimum_rental_days || 1)) {
+            throw new Error(`La location minimum est de ${vehicle.minimum_rental_days || 1} jour(s)`);
+          }
+          const remainingHours = durationParts.remainingHours;
+          if (__DEV__) console.log(`⏱️ [useVehicleBookings] Calcul: totalHours=${totalHours}, rentalDays=${rentalDays}, remainingHours=${remainingHours}`);
+          if (remainingHours > 0 && vehicle.hourly_rental_enabled && effectivePricePerHour != null) {
+            rentalHours = remainingHours;
+            if (__DEV__) console.log(`✅ [useVehicleBookings] Heures restantes: ${remainingHours}h`);
+          } else {
+            if (__DEV__) console.log(`⚠️ [useVehicleBookings] Pas d'heures restantes séparées (remainingHours=${remainingHours})`);
+          }
         }
       }
 
@@ -974,7 +955,7 @@ export const useVehicleBookings = () => {
           )
         `)
         .eq('renter_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('start_date', { ascending: true });
 
       if (queryError) {
         throw queryError;
@@ -1059,7 +1040,7 @@ export const useVehicleBookings = () => {
           )
         `)
         .eq('vehicle_id', vehicleId)
-        .order('created_at', { ascending: false });
+        .order('start_date', { ascending: true });
 
       if (queryError) {
         throw queryError;
@@ -1431,7 +1412,7 @@ export const useVehicleBookings = () => {
           )
         `)
         .in('vehicle_id', vehicleIds)
-        .order('created_at', { ascending: false });
+        .order('start_date', { ascending: true });
 
       if (queryError) {
         throw queryError;

@@ -23,6 +23,7 @@ import { getAmountInXOF } from '../utils/amountUtils';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
 import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import { calculateHostNetAmount } from '../lib/hostNetAmount';
+import { hostHasReceivedGuestCashProperty } from '../utils/cancellationPolicy';
 
 interface HostCancellationDialogProps {
   visible: boolean;
@@ -67,6 +68,8 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   const [checkingPenaltyStatus, setCheckingPenaltyStatus] = useState(false);
   /** Pour espèces/virement : true si l'hôte a déjà payé la commission plateforme, false sinon, null si pas encore chargé */
   const [commissionPaidForCashBooking, setCommissionPaidForCashBooking] = useState<boolean | null>(null);
+  /** Montant commission enregistré (affiché à l'hôte uniquement lors de l'annulation) */
+  const [cashCommissionAmountDue, setCashCommissionAmountDue] = useState(0);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const pendingCancellationReasonRef = useRef<string | null>(null);
   const verifyPenaltyPaymentNowRef = useRef<() => Promise<void>>(async () => {});
@@ -78,22 +81,26 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   useEffect(() => {
     if (!visible || !booking || booking.payment_method === 'card' || booking.payment_method === 'wave') {
       setCommissionPaidForCashBooking(null);
+      setCashCommissionAmountDue(0);
       return;
     }
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
         .from('platform_commission_due')
-        .select('status')
+        .select('status, amount_due')
         .eq('booking_id', booking.id)
         .eq('booking_type', 'property')
         .maybeSingle();
       if (cancelled) return;
       if (error || !data) {
         setCommissionPaidForCashBooking(false);
+        setCashCommissionAmountDue(0);
         return;
       }
-      setCommissionPaidForCashBooking(data.status === 'paid');
+      const paid = data.status === 'paid';
+      setCommissionPaidForCashBooking(paid);
+      setCashCommissionAmountDue(paid ? Math.round(Number(data.amount_due || 0)) : 0);
     })();
     return () => { cancelled = true; };
   }, [visible, booking?.id, booking?.payment_method]);
@@ -178,8 +185,26 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   const hostHasReceivedMoney = booking?.check_in_date
     ? new Date(booking.check_in_date).getTime() + 48 * 60 * 60 * 1000 <= Date.now()
     : false;
+  /** Espèces/virement : l'hôte ne touche l'argent qu'à l'arrivée du voyageur (jour du check-in). */
+  const hostReceivedGuestCash = booking?.check_in_date
+    ? hostHasReceivedGuestCashProperty({
+        check_in_date: booking.check_in_date,
+        payment_method: booking.payment_method,
+      })
+    : false;
+
+  /** Espèces/virement : avant le check-in, l’hôte n’a pas encore reçu l’argent → aucun remboursement voyageur à traiter. */
+  const refundToGuestAmount =
+    !guestPaidViaPlatform && booking?.status !== 'pending' && !hostReceivedGuestCash
+      ? 0
+      : computedRefundAmount;
+
   /** L'hôte doit payer le remboursement via Stripe : seulement si paiement plateforme ET hôte a déjà perçu (48h passées). Pour cash/virement : hôte rembourse le voyageur directement. */
-  const mustPayRefundViaStripe = guestPaidViaPlatform && hostHasReceivedMoney && (booking?.total_price ?? 0) > 0;
+  const mustPayRefundViaStripe =
+    guestPaidViaPlatform &&
+    hostHasReceivedMoney &&
+    refundToGuestAmount > 0 &&
+    (booking?.total_price ?? 0) > 0;
 
   /** Montant net perçu par l'hôte = base pour pénalité et remboursement. CB/Wave: host_net_amount. Espèces: si commission payée → host_net_amount, sinon total. */
   const hostNetAmount = (() => {
@@ -226,7 +251,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
     if (!booking || penaltyRatio <= 0 || hostNetAmount <= 0) return 0;
     const totalPriceDisplay = booking.total_price ?? 1;
     const applicableNet = isInProgress && totalNights > 0 && totalPriceDisplay > 0
-      ? (computedRefundAmount / totalPriceDisplay) * hostNetAmount
+      ? (refundToGuestAmount / totalPriceDisplay) * hostNetAmount
       : hostNetAmount;
     return Math.round(penaltyRatio * applicableNet);
   })();
@@ -234,7 +259,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   /** Montant à reverser = net perçu (au prorata si remboursement partiel). */
   const totalPriceDisplay = booking?.total_price ?? 1;
   const amountToReverse = totalPriceDisplay > 0
-    ? Math.round((computedRefundAmount / totalPriceDisplay) * hostNetAmount)
+    ? Math.round((refundToGuestAmount / totalPriceDisplay) * hostNetAmount)
     : 0;
 
   const guestName = booking?.guest_profile
@@ -404,7 +429,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
   const pc = (booking as any).payment_currency;
   const er = (booking as any).exchange_rate;
   const totalPriceXOF = getAmountInXOF(booking.total_price ?? 0, pc, er);
-  const computedRefundXOF = getAmountInXOF(computedRefundAmount, pc, er);
+  const computedRefundXOF = getAmountInXOF(refundToGuestAmount, pc, er);
   const amountToReverseXOF = getAmountInXOF(amountToReverse, pc, er);
   const penaltyAmountXOF = getAmountInXOF(penaltyAmount, pc, er);
 
@@ -421,7 +446,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
       ? `[Annulé par l'hôte] ${reasonLabel}: ${reason.trim()}`
       : `[Annulé par l'hôte] ${reasonLabel}`;
 
-    const refundAmount = computedRefundAmount ?? booking.total_price ?? 0;
+    const refundAmount = refundToGuestAmount ?? booking.total_price ?? 0;
     const effectiveHostRefund = amountToReverse;
     const mustPayRefund = mustPayRefundViaStripe && refundAmount > 0;
     /** Popup : on ne paie que la pénalité. Le remboursement se règle dans l'onglet Remboursements. */
@@ -616,6 +641,23 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
               )}
             </View>
 
+            {!guestPaidViaPlatform &&
+              booking?.status !== 'pending' &&
+              commissionPaidForCashBooking === true &&
+              cashCommissionAmountDue > 0 && (
+              <View
+                style={[
+                  styles.section,
+                  { backgroundColor: '#e3f2fd', borderWidth: 1, borderColor: '#90caf9' },
+                ]}
+              >
+                <Text style={styles.sectionTitle}>Commission déjà payée à AkwaHome</Text>
+                <Text style={styles.infoText}>
+                  Vous avez réglé {formatPrice(cashCommissionAmountDue)} de commission sur cette réservation (espèces ou virement). Les montants net perçu et remboursement voyageur affichés ci‑dessous en tiennent compte : ce n’est pas un montant supplémentaire à payer ici.
+                </Text>
+              </View>
+            )}
+
             {/* Détail du calcul (prorata net) */}
             {hostBreakdown && (
               <View style={styles.breakdownSection}>
@@ -650,7 +692,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                       </View>
                       <View style={styles.breakdownRow}>
                         <Text style={styles.breakdownLabel}>Remboursement voyageur</Text>
-                        <Text style={styles.breakdownValue}>{formatPrice(computedRefundAmount)}</Text>
+                        <Text style={styles.breakdownValue}>{formatPrice(refundToGuestAmount)}</Text>
                       </View>
                       <View style={styles.breakdownRow}>
                         <Text style={styles.breakdownLabel}>Total payé (réservation)</Text>
@@ -688,7 +730,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                     Vous devrez payer une pénalité de {formatPrice(penaltyAmountXOF)} à AkwaHome.
                   </Text>
                   <Text style={styles.penaltyNote}>
-                    {computedRefundAmount > 0
+                    {refundToGuestAmount > 0
                       ? `Le voyageur sera remboursé au prorata.${mustPayRefundViaStripe ? ` Le remboursement (${formatPrice(amountToReverseXOF)}) se règle dans l'onglet Remboursements.` : ''}`
                       : 'Aucun remboursement au voyageur (séjour entièrement consommé).'}
                   </Text>
@@ -701,14 +743,17 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                   <Text style={styles.noPenaltyTitle}>Annulation sans pénalité</Text>
                   <Text style={styles.penaltyAlertText}>{penaltyDescription}</Text>
                   <Text style={styles.penaltyNote}>
-                    {computedRefundAmount > 0 ? 'Le voyageur sera intégralement remboursé.' : 'Aucun remboursement au voyageur (séjour entièrement consommé).'}
+                    {refundToGuestAmount > 0 ? 'Le voyageur sera intégralement remboursé.' : 'Aucun remboursement au voyageur (séjour entièrement consommé).'}
                   </Text>
                 </View>
               </View>
             )}
 
-            {/* Détails financiers (uniquement quand l'hôte doit reverser) */}
-            {(mustPayRefundViaStripe || !guestPaidViaPlatform) && (booking?.total_price ?? 0) > 0 && (
+            {/* Détails financiers (remboursement ou pénalité) */}
+            {(penaltyAmount > 0 ||
+              mustPayRefundViaStripe ||
+              (!guestPaidViaPlatform && refundToGuestAmount > 0)) &&
+              (booking?.total_price ?? 0) > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Détails financiers</Text>
               <View style={styles.financialRow}>
@@ -758,17 +803,23 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
             </View>
             )}
 
-            {/* Comment le remboursement va se passer - uniquement quand l'hôte doit reverser (sinon AkwaHome rembourse, pas d'affichage montant) */}
-            {(mustPayRefundViaStripe || !guestPaidViaPlatform) && (booking?.total_price ?? 0) > 0 && (
+            {/* Comment le remboursement va se passer */}
+            {(mustPayRefundViaStripe ||
+              (!guestPaidViaPlatform && refundToGuestAmount > 0)) &&
+              (booking?.total_price ?? 0) > 0 && (
               <View style={[styles.refundProcessBox, { marginHorizontal: 16, marginBottom: 16 }]}>
                 <Text style={styles.refundProcessTitle}>Comment le remboursement va se passer</Text>
-                {computedRefundAmount <= 0 ? (
+                {refundToGuestAmount <= 0 ? (
                   <Text style={styles.refundProcessText}>
-                    Aucun remboursement au voyageur. Le séjour est entièrement consommé.
+                    {!guestPaidViaPlatform && !hostReceivedGuestCash
+                      ? 'Aucun remboursement à traiter : le voyageur n’a en principe pas encore remis l’argent à l’arrivée (espèces ou virement à l’arrivée).'
+                      : 'Aucun remboursement au voyageur. Le séjour est entièrement consommé.'}
                   </Text>
                 ) : !guestPaidViaPlatform ? (
                   <Text style={styles.refundProcessText}>
-                    Le voyageur a payé en espèces ou par virement. Vous devez le rembourser directement ({formatPrice(computedRefundXOF)}). La plateforme ne peut pas effectuer ce remboursement.
+                    {hostReceivedGuestCash
+                      ? `Le voyageur a payé en espèces ou par virement. Vous devez le rembourser directement (${formatPrice(computedRefundXOF)}). La plateforme ne peut pas effectuer ce remboursement.`
+                      : `Paiement prévu en espèces ou par virement à l'arrivée du voyageur : en général l'argent n'a pas encore été remis avant le jour du check-in. Organisez le remboursement avec le voyageur si un montant (${formatPrice(computedRefundXOF)}) est dû selon la politique.`}
                   </Text>
                 ) : (
                   <Text style={styles.refundProcessText}>
@@ -907,7 +958,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                     <View style={styles.paymentMethodOption}>
                       <Ionicons name="cash" size={20} color="#e67e22" />
                       <Text style={styles.paymentMethodText}>
-                        {computedRefundAmount > 0
+                        {refundToGuestAmount > 0
                           ? `Le voyageur a payé en espèces ou par virement. Vous devez le rembourser directement (${formatPrice(computedRefundXOF)}). La plateforme ne peut pas effectuer ce remboursement.`
                           : 'Aucun remboursement au voyageur. Le séjour est entièrement consommé.'}
                       </Text>
@@ -951,7 +1002,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                       </>
                     ) : (
                       <Text style={styles.paymentMethodNote}>
-                        {computedRefundAmount > 0 ? 'Aucune pénalité. Remboursez le voyageur directement.' : 'Aucune pénalité. Aucun remboursement au voyageur (séjour entièrement consommé).'}
+                        {refundToGuestAmount > 0 ? 'Aucune pénalité. Remboursez le voyageur directement.' : 'Aucune pénalité. Aucun remboursement au voyageur (séjour entièrement consommé).'}
                       </Text>
                     )}
                   </>
@@ -960,7 +1011,7 @@ const HostCancellationDialog: React.FC<HostCancellationDialogProps> = ({
                     <View style={styles.paymentMethodOption}>
                       <Ionicons name="checkmark-circle" size={20} color="#10b981" />
                       <Text style={styles.paymentMethodText}>
-                        {computedRefundAmount > 0 ? 'Le remboursement au voyageur sera effectué par AkwaHome. Aucun paiement de votre part pour le remboursement.' : 'Aucun remboursement au voyageur. Le séjour est entièrement consommé.'}
+                        {refundToGuestAmount > 0 ? 'Le remboursement au voyageur sera effectué par AkwaHome. Aucun paiement de votre part pour le remboursement.' : 'Aucun remboursement au voyageur. Le séjour est entièrement consommé.'}
                       </Text>
                     </View>
                     {penaltyAmount > 0 ? (

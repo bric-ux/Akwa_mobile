@@ -26,6 +26,10 @@ import BookingContactButton from '../components/BookingContactButton';
 import GuestReviewModal from '../components/GuestReviewModal';
 import GuestProfileModal from '../components/GuestProfileModal';
 import HostBookingDetailsModal from '../components/HostBookingDetailsModal';
+import {
+  fetchHostFinancialOverviewForBookings,
+  HostFinancialOverview,
+} from '../components/HostBookingFinancialAlerts';
 import { useGuestReviews } from '../hooks/useGuestReviews';
 import { useBookingModifications, BookingModificationRequest } from '../hooks/useBookingModifications';
 import HostModificationRequestCard from '../components/HostModificationRequestCard';
@@ -59,6 +63,10 @@ const HostBookingsScreen: React.FC = () => {
   const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<HostBooking | null>(null);
   const { getPendingRequestsForHost } = useBookingModifications();
   const [modificationRequests, setModificationRequests] = useState<BookingModificationRequest[]>([]);
+  const [financialOverview, setFinancialOverview] = useState<HostFinancialOverview>({
+    commissionDueByBookingId: {},
+    penaltiesByBookingId: {},
+  });
 
   const loadData = async () => {
     try {
@@ -74,6 +82,20 @@ const HostBookingsScreen: React.FC = () => {
       const hostBookings = await getHostBookings();
       console.log('📦 [HostBookingsScreen] Réservations chargées:', hostBookings.length);
       setBookings(hostBookings);
+
+      if (user && hostBookings.length > 0) {
+        const ov = await fetchHostFinancialOverviewForBookings(
+          user.id,
+          hostBookings.map((b) => b.id),
+          'property'
+        );
+        setFinancialOverview(ov);
+      } else {
+        setFinancialOverview({
+          commissionDueByBookingId: {},
+          penaltiesByBookingId: {},
+        });
+      }
       
       // Vérifier quelles réservations peuvent être évaluées
       const reviewChecks: Record<string, boolean> = {};
@@ -530,6 +552,24 @@ const HostBookingsScreen: React.FC = () => {
             Vous recevez : {formatAmountForBooking(getHostNetAmount(item), item)}
           </Text>
         </View>
+
+        {((financialOverview.commissionDueByBookingId[item.id] ?? 0) > 0 ||
+          (financialOverview.penaltiesByBookingId[item.id]?.length ?? 0) > 0) && (
+          <View style={styles.overviewFinancialRow}>
+            {(financialOverview.commissionDueByBookingId[item.id] ?? 0) > 0 && (
+              <View style={styles.overviewChipDanger}>
+                <Ionicons name="alert-circle" size={14} color="#991b1b" />
+                <Text style={styles.overviewChipDangerText}>Commission à régler</Text>
+              </View>
+            )}
+            {(financialOverview.penaltiesByBookingId[item.id]?.length ?? 0) > 0 && (
+              <View style={styles.overviewChipWarn}>
+                <Ionicons name="warning" size={14} color="#92400e" />
+                <Text style={styles.overviewChipWarnText}>Pénalité</Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       {item.message_to_host && (
@@ -568,6 +608,34 @@ const HostBookingsScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => {
+            const due = financialOverview.commissionDueByBookingId[item.id];
+            if (due != null && due > 0) {
+              Alert.alert(
+                'Commission plateforme',
+                'Confirmez avoir bien reçu le paiement du voyageur avant de régler la commission Akwahome. Que souhaitez-vous faire ?',
+                [
+                  {
+                    text: 'Annuler',
+                    style: 'cancel',
+                  },
+                  {
+                    text: 'Voir détails réservation',
+                    onPress: () => {
+                      setSelectedBookingForDetails(item);
+                      setBookingDetailsModalVisible(true);
+                    },
+                  },
+                  {
+                    text: 'Régler la commission',
+                    onPress: () =>
+                      navigation.navigate('Penalties' as never, {
+                        initialTab: 'commissions',
+                      } as never),
+                  },
+                ]
+              );
+              return;
+            }
             setSelectedBookingForDetails(item);
             setBookingDetailsModalVisible(true);
           }}
@@ -994,6 +1062,7 @@ const HostBookingsScreen: React.FC = () => {
             check_out_date: selectedBookingForCancellation.check_out_date,
             total_price: selectedBookingForCancellation.total_price,
             status: selectedBookingForCancellation.status,
+            payment_method: selectedBookingForCancellation.payment_method,
             property: {
               title: selectedBookingForCancellation.properties?.title || 'Propriété',
               price_per_night: selectedBookingForCancellation.properties?.price_per_night || 0,
@@ -1236,6 +1305,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginLeft: 8,
+  },
+  overviewFinancialRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  overviewChipDanger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  overviewChipDangerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#991b1b',
+  },
+  overviewChipWarn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  overviewChipWarnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400e',
   },
   messageContainer: {
     backgroundColor: '#f8f9fa',

@@ -36,6 +36,7 @@ import { getCommissionRates } from '../lib/commissions';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '../services/supabase';
+import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
 import { checkPaymentStatus } from '../services/cardPaymentService';
 import CardPaymentSuccessView from '../components/CardPaymentSuccessView';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -260,55 +261,27 @@ const VehicleBookingScreen: React.FC = () => {
   const isLicenseRequired = (withDriver && useDriver === false) || (!withDriver && requiresLicense);
 
   const calculateRentalDays = () => {
-    // Utiliser les heures réelles si disponibles, sinon utiliser les dates
+    // Avec heures : même règle que la recherche (VehicleDateTimePickerModal) — jours calendaires inclus, pas floor(heures/24)
     if (startDateTime && endDateTime) {
-      const start = new Date(startDateTime);
-      const end = new Date(endDateTime);
-      
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      const d = computeVehicleRentalDurationFromIso(startDateTime, endDateTime);
+      if (d.totalHours === 0) return 0;
+      if (d.totalHours < 24) {
+        if (!vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
+          return 1;
+        }
         return 0;
       }
-      
-      const diffTime = end.getTime() - start.getTime();
-      const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
-      
-      // Calculer les jours complets à partir des heures totales (plus précis)
-      const fullDaysFromHours = Math.floor(totalHours / 24);
-      
-      // Logique corrigée : utiliser les heures réelles comme base principale
-      // Si totalHours >= 24 : utiliser fullDaysFromHours (basé sur les heures réelles)
-      // Si totalHours < 24 : 
-      //   - Si le véhicule supporte la location par heure : rentalDays = 0 (facturer seulement les heures)
-      //   - Si le véhicule ne supporte pas la location par heure : rentalDays = 1 (minimum 1 jour)
-      if (totalHours >= 24) {
-        return fullDaysFromHours; // Utiliser directement les jours calculés à partir des heures
-      } else {
-        // Si le véhicule ne supporte pas la location par heure, facturer au minimum 1 jour
-        if (!vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
-          return 1; // Minimum 1 jour pour les véhicules sans location horaire
-        }
-        return 0; // Pas de jour complet pour une location de moins de 24 heures avec location horaire
-      }
+      return d.rentalDays;
     }
-    
-    // Fallback : utiliser les dates si les datetime ne sont pas disponibles
-    // Dans ce cas, on calcule une estimation basée sur les dates uniquement
+
+    // Fallback dates seules : jours calendaires inclus (aligné recherche « du 1er au 4 » = 4 jours)
     if (!startDate || !endDate) return 0;
-    
-    // Si les dates sont identiques, c'est au minimum 1 jour de location
-    if (startDate === endDate) {
-      return 1;
-    }
-    
-    // Si les dates sont différentes, calculer la différence en jours
-    // Sans les heures, on suppose une location d'une journée complète par jour calendaire
+    if (startDate === endDate) return 1;
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T00:00:00');
     const diffTime = end.getTime() - start.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    // Ne pas ajouter +1 : si startDate = 2026-02-01 et endDate = 2026-02-02, 
-    // la différence est de 1 jour, donc retourner 1 (pas 2)
-    return diffDays;
+    const calendarDiffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, calendarDiffDays + 1);
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
@@ -501,45 +474,26 @@ const VehicleBookingScreen: React.FC = () => {
       price_per_hour: vehicle?.price_per_hour,
       rentalDays
     });
-    
+
     if (!startDateTime || !endDateTime) {
       if (__DEV__) console.log(`⚠️ [VehicleBookingScreen] Pas de startDateTime ou endDateTime`);
       return 0;
     }
-    
-    const start = new Date(startDateTime);
-    const end = new Date(endDateTime);
-    
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      if (__DEV__) console.log(`⚠️ [VehicleBookingScreen] Dates invalides`);
-      return 0;
-    }
-    
-    const diffTime = end.getTime() - start.getTime();
-    const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
-    
-    // Calculer les jours complets directement à partir des heures totales
-    // Exemple: 260 heures = 10 jours complets (10 × 24 = 240h) + 20 heures restantes
-    const fullDaysFromHours = Math.floor(totalHours / 24);
-    const hoursInFullDays = fullDaysFromHours * 24;
-    const remainingHours = totalHours - hoursInFullDays;
-    
-    if (__DEV__) console.log(`🔍 [VehicleBookingScreen] Calcul heures: totalHours=${totalHours}, fullDaysFromHours=${fullDaysFromHours}, hoursInFullDays=${hoursInFullDays}, remainingHours=${remainingHours}`);
-    
-    // Si le véhicule ne supporte pas la location par heure, ne pas retourner d'heures restantes
-    // (elles seront facturées comme partie d'un jour minimum)
+
+    const d = computeVehicleRentalDurationFromIso(startDateTime, endDateTime);
+    if (d.totalHours === 0) return 0;
+
     if (!vehicle?.hourly_rental_enabled || !vehicle?.price_per_hour) {
       if (__DEV__) console.log(`⚠️ [VehicleBookingScreen] Véhicule ne supporte pas la location par heure - heures non facturées séparément`);
       return 0;
     }
-    
-    // Si totalHours < 24, toutes les heures sont "restantes" (pas de jour complet)
-    // Si totalHours >= 24, on retourne seulement les heures au-delà des jours complets
-    if (totalHours < 24) {
-      return totalHours; // Toutes les heures sont facturées comme heures, pas de jour complet
-    } else {
-      return remainingHours > 0 ? remainingHours : 0;
+
+    if (__DEV__) console.log(`🔍 [VehicleBookingScreen] Calcul heures (lib): totalHours=${d.totalHours}, remainingHours=${d.remainingHours}`);
+
+    if (d.totalHours < 24) {
+      return d.remainingHours;
     }
+    return d.remainingHours > 0 ? d.remainingHours : 0;
   };
   
   const remainingHours = calculateRemainingHours();

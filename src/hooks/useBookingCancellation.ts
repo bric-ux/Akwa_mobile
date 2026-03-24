@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Alert } from 'react-native';
+import { hostHasReceivedGuestCashProperty } from '../utils/cancellationPolicy';
 
 export interface CancellationBreakdown {
   totalNights: number;
@@ -11,6 +12,12 @@ export interface CancellationBreakdown {
   remainingNightsAmount: number;
   refundRatePercent: number;
   appliedRule: string;
+}
+
+/** Ligne pré-calculée issue de booking_calculation_details (réservation actuelle, y compris après modification). */
+export interface CancellationCalculationLine {
+  label: string;
+  value: string;
 }
 
 export interface CancellationInfo {
@@ -28,6 +35,42 @@ export interface CancellationInfo {
   refundAmount?: number;
   /** Détail transparent du calcul */
   breakdown?: CancellationBreakdown;
+  /** Détail fidèle au dernier calcul enregistré (réduction, ménage gratuit, etc.) */
+  calculationDetailLines?: CancellationCalculationLine[];
+  /** Étapes lisibles : comment le remboursement voyageur est dérivé du total payé et de la politique */
+  refundTransparencyLines?: { label: string; value: string }[];
+}
+
+function formatFCFA(n: number): string {
+  return `${Number(n || 0).toLocaleString('fr-FR')} FCFA`;
+}
+
+function buildPropertyCalculationLines(s: {
+  base_price: number;
+  price_after_discount: number;
+  discount_amount: number;
+  effective_cleaning_fee: number;
+  effective_taxes: number;
+  service_fee: number;
+  total_price: number;
+}): CancellationCalculationLine[] {
+  const lines: CancellationCalculationLine[] = [
+    { label: 'Sous-total nuitées (avant réduction)', value: formatFCFA(s.base_price) },
+  ];
+  if (Number(s.discount_amount) > 0) {
+    lines.push({ label: 'Réduction', value: `−${formatFCFA(s.discount_amount)}` });
+    lines.push({
+      label: 'Hébergement après réduction',
+      value: formatFCFA(s.price_after_discount),
+    });
+  }
+  lines.push(
+    { label: 'Frais de ménage', value: formatFCFA(s.effective_cleaning_fee || 0) },
+    { label: 'Taxe de séjour', value: formatFCFA(s.effective_taxes || 0) },
+    { label: 'Frais de service Akwahome (TTC)', value: formatFCFA(s.service_fee) },
+    { label: 'Total payé', value: formatFCFA(s.total_price) },
+  );
+  return lines;
 }
 
 export const useBookingCancellation = () => {
@@ -44,7 +87,17 @@ export const useBookingCancellation = () => {
     /** Pour véhicule : forcer le nombre de "nuits" (jours de location) au lieu de le déduire des dates */
     optionalTotalNights?: number,
     /** Montant réel payé par nuit (hébergement) - si fourni, utilisé à la place de pricePerNight pour cohérence avec réduction/modification */
-    effectivePricePerNightOverride?: number
+    effectivePricePerNightOverride?: number,
+    /** Détails enregistrés pour cette réservation (prioritaires après modification : réduction, ménage gratuit, etc.) */
+    propertyStoredCalc?: {
+      base_price: number;
+      price_after_discount: number;
+      discount_amount: number;
+      effective_cleaning_fee: number;
+      effective_taxes: number;
+      service_fee: number;
+      total_price: number;
+    } | null
   ): Promise<CancellationInfo | null> => {
     try {
       const policy = cancellationPolicy || 'flexible';
@@ -55,10 +108,6 @@ export const useBookingCancellation = () => {
       let remainingNights = 0;
       let remainingNightsAmount = 0;
       let totalNights = 0;
-
-      const pricePerNightUsed = (effectivePricePerNightOverride != null && effectivePricePerNightOverride > 0)
-        ? effectivePricePerNightOverride
-        : pricePerNight;
 
       const checkIn = new Date(checkInDate);
       const checkOut = checkOutDate ? new Date(checkOutDate) : null;
@@ -74,7 +123,19 @@ export const useBookingCancellation = () => {
       } else if (checkOut) {
         totalNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
       }
-      const baseAmount = totalNights * pricePerNightUsed;
+
+      let pricePerNightUsed = (effectivePricePerNightOverride != null && effectivePricePerNightOverride > 0)
+        ? effectivePricePerNightOverride
+        : pricePerNight;
+
+      if (propertyStoredCalc && totalNights > 0) {
+        pricePerNightUsed = Math.round(propertyStoredCalc.price_after_discount / totalNights);
+      }
+
+      let baseAmount = totalNights * pricePerNightUsed;
+      if (propertyStoredCalc) {
+        baseAmount = propertyStoredCalc.price_after_discount;
+      }
       // Résidence meublée : pas de prorata de taxes dans le calcul d'annulation
 
       // Vérifier si la réservation est en cours
@@ -83,7 +144,9 @@ export const useBookingCancellation = () => {
         // Nuitées écoulées = nuits complètement consommées (floor)
         const nightsElapsed = Math.max(0, Math.floor((today.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
         remainingNights = Math.max(0, totalNights - nightsElapsed);
-        remainingNightsAmount = remainingNights * pricePerNightUsed;
+        remainingNightsAmount = propertyStoredCalc && totalNights > 0
+          ? Math.round((remainingNights / totalNights) * propertyStoredCalc.price_after_discount)
+          : remainingNights * pricePerNightUsed;
         canCancel = true;
         // refundPercentage cohérent avec la politique : flexible=80, moderate=50, strict=0
         if (remainingNights > 0) {
@@ -100,7 +163,7 @@ export const useBookingCancellation = () => {
         canCancel = true;
         switch (policy) {
           case 'flexible':
-            refundPercentage = hoursUntilCheckIn >= 24 ? 100 : 50;
+            refundPercentage = hoursUntilCheckIn >= 24 ? 100 : 80;
             break;
           case 'moderate':
             refundPercentage = daysUntilCheckIn >= 5 ? 100 : 50;
@@ -113,7 +176,7 @@ export const useBookingCancellation = () => {
             refundPercentage = 0;
             break;
           default:
-            refundPercentage = hoursUntilCheckIn >= 24 ? 100 : 50;
+            refundPercentage = hoursUntilCheckIn >= 24 ? 100 : 80;
         }
       }
 
@@ -152,7 +215,9 @@ export const useBookingCancellation = () => {
         const daysUntilCheckIn = Math.ceil((checkIn.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         const hoursUntilCheckIn = (checkIn.getTime() - today.getTime()) / (1000 * 60 * 60);
         remainingNights = totalNights;
-        remainingNightsAmount = baseAmount;
+        remainingNightsAmount = propertyStoredCalc
+          ? propertyStoredCalc.price_after_discount
+          : baseAmount;
 
         switch (policy) {
           case 'flexible':
@@ -263,6 +328,88 @@ export const useBookingCancellation = () => {
         appliedRule,
       };
 
+      const calculationDetailLines = propertyStoredCalc
+        ? buildPropertyCalculationLines(propertyStoredCalc)
+        : undefined;
+
+      const refundTransparencyLines: { label: string; value: string }[] = [
+        { label: 'Total payé par le voyageur', value: formatFCFA(totalPrice) },
+      ];
+      if (
+        propertyStoredCalc &&
+        Number(propertyStoredCalc.discount_amount) > 0
+      ) {
+        refundTransparencyLines.push({
+          label: 'Hébergement (après réduction)',
+          value: formatFCFA(propertyStoredCalc.price_after_discount),
+        });
+      }
+      if (isPending) {
+        refundTransparencyLines.push(
+          { label: 'Situation', value: 'Réservation non confirmée' },
+          { label: 'Remboursement', value: `${formatFCFA(refundAmount)} (= total payé)` },
+        );
+      } else if (isInProgress) {
+        refundTransparencyLines.push(
+          {
+            label: 'Base pour les nuitées restantes',
+            value: formatFCFA(remainingNightsAmount),
+          },
+          { label: 'Règle', value: breakdown.appliedRule },
+          {
+            label: 'Remboursement voyageur',
+            value: `${formatFCFA(refundAmount)}${remainingNights > 0 && policy === 'flexible' ? ' (80% des nuitées restantes)' : remainingNights > 0 && policy === 'moderate' ? ' (50% des nuitées restantes)' : remainingNights > 0 && policy === 'strict' ? ' (politique stricte : 0%)' : ''}`,
+          },
+        );
+        if (penaltyAmount > 0) {
+          refundTransparencyLines.push({
+            label: 'Montant non remboursé au voyageur',
+            value: `${formatFCFA(penaltyAmount)} (= total payé − remboursement)`,
+          });
+        }
+      } else {
+        const daysTr = Math.ceil((checkIn.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        refundTransparencyLines.push(
+          {
+            label: 'Montant nuitées pris en compte pour la politique',
+            value: formatFCFA(remainingNightsAmount),
+          },
+          { label: 'Règle', value: breakdown.appliedRule },
+        );
+        if (policy === 'strict' && daysTr >= 7 && daysTr < 28 && refundAmount > 0) {
+          refundTransparencyLines.push({
+            label: 'Calcul (stricte 7–28 j.)',
+            value: `50% × ${formatFCFA(totalPrice)} = ${formatFCFA(refundAmount)}`,
+          });
+        } else if (
+          refundAmount > 0 &&
+          breakdown.refundRatePercent > 0 &&
+          breakdown.refundRatePercent < 100 &&
+          policy !== 'strict'
+        ) {
+          refundTransparencyLines.push({
+            label: `Calcul (${breakdown.refundRatePercent}% des nuitées concernées)`,
+            value: `${breakdown.refundRatePercent}% × ${formatFCFA(remainingNightsAmount)} ≈ ${formatFCFA(refundAmount)}`,
+          });
+        } else if (refundAmount > 0 && penaltyAmount === 0 && refundAmount >= totalPrice) {
+          refundTransparencyLines.push({
+            label: 'Remboursement',
+            value: `${formatFCFA(refundAmount)} (= total payé)`,
+          });
+        } else if (refundAmount > 0) {
+          refundTransparencyLines.push({
+            label: 'Remboursement voyageur',
+            value: formatFCFA(refundAmount),
+          });
+        }
+        if (penaltyAmount > 0) {
+          refundTransparencyLines.push({
+            label: 'Montant non remboursé au voyageur',
+            value: `${formatFCFA(penaltyAmount)} (= total payé − remboursement)`,
+          });
+        }
+      }
+
       return {
         canCancel,
         refundPercentage,
@@ -275,6 +422,8 @@ export const useBookingCancellation = () => {
         penaltyAmount,
         refundAmount,
         breakdown,
+        calculationDetailLines,
+        refundTransparencyLines,
       };
     } catch (error) {
       console.error('Error calculating cancellation info:', error);
@@ -298,6 +447,25 @@ export const useBookingCancellation = () => {
       setLoading(true);
 
       // Calculer les informations d'annulation
+      const { data: calcRow } = await supabase
+        .from('booking_calculation_details')
+        .select('base_price, price_after_discount, discount_amount, effective_cleaning_fee, effective_taxes, service_fee, total_price, host_net_amount')
+        .eq('booking_id', bookingId)
+        .eq('booking_type', 'property')
+        .maybeSingle();
+
+      const propertyStoredCalc = calcRow
+        ? {
+            base_price: Number(calcRow.base_price),
+            price_after_discount: Number(calcRow.price_after_discount),
+            discount_amount: Number(calcRow.discount_amount || 0),
+            effective_cleaning_fee: Number(calcRow.effective_cleaning_fee || 0),
+            effective_taxes: Number(calcRow.effective_taxes || 0),
+            service_fee: Number(calcRow.service_fee),
+            total_price: Number(calcRow.total_price),
+          }
+        : null;
+
       const cancellationInfo = await calculateCancellationInfo(
         bookingId,
         checkInDate,
@@ -307,7 +475,8 @@ export const useBookingCancellation = () => {
         cancellationPolicy,
         status,
         undefined,
-        effectivePricePerNightOverride
+        effectivePricePerNightOverride,
+        propertyStoredCalc
       );
 
       if (!cancellationInfo || !cancellationInfo.canCancel) {
@@ -318,7 +487,46 @@ export const useBookingCancellation = () => {
         return { success: false };
       }
 
-      const penaltyAmount = cancellationInfo.penaltyAmount || 0;
+      const { data: payRow } = await supabase
+        .from('bookings')
+        .select('payment_method, total_price')
+        .eq('id', bookingId)
+        .maybeSingle();
+
+      const bookingTotalForCancel = Math.max(0, Number(payRow?.total_price) || totalPrice);
+      let guestRefund = cancellationInfo.refundAmount ?? 0;
+      const pmPre = payRow?.payment_method;
+      const guestPaidPlatformPre = pmPre === 'card' || pmPre === 'wave';
+      if (
+        !guestPaidPlatformPre &&
+        pmPre &&
+        guestRefund > 0 &&
+        status !== 'pending'
+      ) {
+        const { data: commRow } = await supabase
+          .from('platform_commission_due')
+          .select('status, amount_due')
+          .eq('booking_id', bookingId)
+          .eq('booking_type', 'property')
+          .maybeSingle();
+        if (commRow?.status === 'paid') {
+          const commAmt = Math.round(Number(commRow.amount_due || 0));
+          guestRefund = Math.max(0, guestRefund - commAmt);
+        }
+      }
+      // Espèces / virement : l’argent est remis à l’hôte à l’arrivée — avant le check-in, aucun remboursement à traiter.
+      if (
+        !guestPaidPlatformPre &&
+        pmPre &&
+        status !== 'pending' &&
+        !hostHasReceivedGuestCashProperty({
+          check_in_date: checkInDate,
+          payment_method: pmPre,
+        })
+      ) {
+        guestRefund = 0;
+      }
+      const penaltyAmount = Math.max(0, bookingTotalForCancel - guestRefund);
 
       // Mettre à jour la réservation
       const { data, error } = await supabase
@@ -354,33 +562,59 @@ export const useBookingCancellation = () => {
       }
 
       // Si le voyageur a payé via CB/Wave et l'hôte a déjà perçu (48h après check-in),
-      // l'hôte doit rembourser AkwaHome (car c'est AkwaHome qui rembourse le voyageur)
-      const refundAmount = cancellationInfo.refundAmount || 0;
-      const totalPrice = data?.total_price ?? 1;
-      const hostNetAmount = data?.host_net_amount ?? data?.total_price ?? refundAmount;
-      /** L'hôte reverse le montant net qu'il a perçu (au prorata si remboursement partiel). */
-      const hostReimbursementAmount = refundAmount > 0 && totalPrice > 0
-        ? Math.round((refundAmount / totalPrice) * hostNetAmount)
-        : refundAmount;
+      // l'hôte doit reverser à AkwaHome au prorata de ce qu'il a réellement perçu (host_net),
+      // jamais plus que ce montant — ne pas utiliser total_price comme proxy du net hôte.
+      const refundAmount = guestRefund;
+      const guestTotalPaid = Math.max(0, Number(data?.total_price) || 0);
+      let hostNetResolved = Math.max(0, Number(data?.host_net_amount) || 0);
+      if (hostNetResolved <= 0 && calcRow?.host_net_amount != null && Number(calcRow.host_net_amount) > 0) {
+        hostNetResolved = Math.round(Number(calcRow.host_net_amount));
+      }
+      let hostReimbursementAmount = 0;
+      if (refundAmount > 0 && guestTotalPaid > 0 && hostNetResolved > 0) {
+        hostReimbursementAmount = Math.round((refundAmount / guestTotalPaid) * hostNetResolved);
+        hostReimbursementAmount = Math.min(hostNetResolved, Math.max(0, hostReimbursementAmount));
+      } else if (refundAmount > 0 && guestTotalPaid > 0 && hostNetResolved <= 0) {
+        console.warn(
+          '[cancelBooking] host_net_amount absent : impossible de créer host_refund_due sans montant net hôte fiable',
+          { bookingId },
+        );
+      }
       const guestPaidViaPlatform = data?.payment_method === 'card' || data?.payment_method === 'wave';
       const hostHasReceivedMoney = data?.check_in_date
         ? new Date(data.check_in_date).getTime() + 48 * 60 * 60 * 1000 <= Date.now()
         : false;
 
-      if (refundAmount > 0 && guestPaidViaPlatform && hostHasReceivedMoney && data?.properties?.host_id) {
+      if (
+        refundAmount > 0 &&
+        guestPaidViaPlatform &&
+        hostHasReceivedMoney &&
+        data?.properties?.host_id &&
+        hostReimbursementAmount > 0
+      ) {
         try {
-          await supabase.from('penalty_tracking').insert({
-            booking_id: bookingId,
-            host_id: data.properties.host_id,
-            guest_id: data.guest_id,
-            penalty_amount: hostReimbursementAmount,
-            penalty_type: 'guest_cancellation',
-            payment_method: null,
-            status: 'pending',
-            service_type: 'property',
-          });
+          const { data: existingDue } = await supabase
+            .from('host_refund_due')
+            .select('id')
+            .eq('booking_type', 'property')
+            .eq('booking_id', bookingId)
+            .eq('status', 'pending')
+            .maybeSingle();
+          if (!existingDue?.id) {
+            const { error: insertErr } = await supabase.from('host_refund_due').insert({
+              host_id: data.properties.host_id,
+              booking_type: 'property',
+              booking_id: bookingId,
+              amount_due: hostReimbursementAmount,
+              status: 'pending',
+              penalty_tracking_id: null,
+            });
+            if (insertErr) {
+              console.error('Erreur création host_refund_due (annulation voyageur):', insertErr);
+            }
+          }
         } catch (e) {
-          console.error('Erreur création penalty_tracking (remboursement hôte):', e);
+          console.error('Erreur création host_refund_due (annulation voyageur):', e);
         }
       }
 
@@ -388,14 +622,9 @@ export const useBookingCancellation = () => {
       const hostMustReimburseDirectly = refundAmount > 0 && !guestPaidViaPlatform;
       await sendCancellationEmails(data, penaltyAmount, refundAmount, hostMustReimburseDirectly);
 
-      Alert.alert(
-        'Réservation annulée',
-        penaltyAmount > 0 
-          ? `Nuit(s) consommée(s) + frais d'annulation : ${penaltyAmount.toLocaleString('fr-FR')} FCFA. Remboursement : ${refundAmount.toLocaleString('fr-FR')} FCFA.`
-          : 'Annulation gratuite. Remboursement intégral.'
-      );
+      Alert.alert('Réservation annulée');
 
-      return { success: true, data, penaltyAmount, refundAmount };
+      return { success: true, data, penaltyAmount, refundAmount: guestRefund };
 
     } catch (error) {
       console.error('Error in cancelBooking:', error);

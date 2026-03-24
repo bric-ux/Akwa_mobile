@@ -24,15 +24,20 @@ export const useVehicleReviews = () => {
   const [loading, setLoading] = useState(false);
   const { sendNewVehicleReview, sendVehicleReviewPublished, sendVehicleRenterReviewPublished } = useEmailService();
 
-  // Get reviews for a vehicle
-  const getVehicleReviews = async (vehicleId: string): Promise<VehicleReview[]> => {
+  // Get reviews for a vehicle (public : publiés uniquement ; propriétaire : tous pour pouvoir répondre)
+  const getVehicleReviews = async (
+    vehicleId: string,
+    options?: { includeUnpublished?: boolean }
+  ): Promise<VehicleReview[]> => {
     try {
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from('vehicle_reviews')
         .select('*')
-        .eq('vehicle_id', vehicleId)
-        .eq('is_published', true)
-        .order('created_at', { ascending: false });
+        .eq('vehicle_id', vehicleId);
+      if (!options?.includeUnpublished) {
+        q = q.eq('is_published', true);
+      }
+      const { data, error } = await q.order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching vehicle reviews:', error);

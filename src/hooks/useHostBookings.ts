@@ -137,7 +137,7 @@ export const useHostBookings = () => {
         `)
         .eq('properties.host_id', user.id)
         .eq('properties.is_active', true)
-        .order('created_at', { ascending: false });
+        .order('check_in_date', { ascending: true });
 
       if (bookingsError) {
         console.error('❌ [useHostBookings] Erreur lors du chargement des réservations:', bookingsError);

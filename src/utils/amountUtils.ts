@@ -5,13 +5,16 @@
 export function inferOriginalSubtotal(
   totalPrice: number,
   nights: number,
-  prop: { cleaning_fee?: number; taxes?: number; free_cleaning_min_days?: number | null }
+  prop: { cleaning_fee?: number; taxes?: number; free_cleaning_min_days?: number | null },
+  /** Aligné sur getCommissionRates(property) : 13 % si carte/Wave, 12 % sinon. */
+  isCardOrWavePayment?: boolean
 ): number {
   const total = Number(totalPrice);
   const isFreeCleaning = prop.free_cleaning_min_days != null && nights >= prop.free_cleaning_min_days;
   const cleaning = isFreeCleaning ? 0 : (prop.cleaning_fee || 0);
   const taxes = (prop.taxes || 0) * nights;
-  const serviceFeeRate = 0.12 * 1.2; // 12% HT + 20% TVA
+  const travelerPct = isCardOrWavePayment ? 13 : 12;
+  const serviceFeeRate = (travelerPct / 100) * 1.2;
   return Math.round((total - cleaning - taxes) / (1 + serviceFeeRate));
 }
 

@@ -982,7 +982,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
 
   const getTitle = () => {
     switch (type) {
-      case 'traveler': return 'Justificatif de réservation';
+      case 'traveler':
+        return serviceType === 'vehicle' ? 'Justificatif locataire' : 'Justificatif voyageur';
       case 'host': return 'Justificatif hôte';
       case 'admin': return 'Facture interne Akwahome';
     }

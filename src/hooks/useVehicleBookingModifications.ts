@@ -73,21 +73,37 @@ export const useVehicleBookingModifications = () => {
         throw new Error('Cette réservation ne peut plus être modifiée');
       }
 
-      // Vérifier la disponibilité des nouvelles dates
-      const { data: conflictingBookings, error: conflictError } = await supabase
-        .from('vehicle_bookings')
-        .select('id, start_date, end_date, status')
-        .eq('vehicle_id', booking.vehicle.id)
-        .in('status', ['pending', 'confirmed', 'completed'])
-        .neq('id', data.bookingId)
-        .or(`and(start_date.lte.${data.requestedEndDate},end_date.gte.${data.requestedStartDate})`);
+      // Même règle que l’app (VehicleBookingScreen / modal) : créneaux datetime + blocages host
+      if (data.requestedStartDateTime && data.requestedEndDateTime) {
+        const { data: isAvailable, error: availError } = await supabase.rpc('check_vehicle_hourly_availability', {
+          p_vehicle_id: booking.vehicle.id,
+          p_start_datetime: data.requestedStartDateTime,
+          p_end_datetime: data.requestedEndDateTime,
+          p_exclude_booking_id: data.bookingId,
+        });
+        if (availError) {
+          console.error('Erreur vérification disponibilité (RPC):', availError);
+          throw new Error('Impossible de vérifier la disponibilité du véhicule');
+        }
+        if (!isAvailable) {
+          throw new Error('Ces dates ne sont pas disponibles pour ce véhicule');
+        }
+      } else {
+        const { data: conflictingBookings, error: conflictError } = await supabase
+          .from('vehicle_bookings')
+          .select('id, start_date, end_date, status')
+          .eq('vehicle_id', booking.vehicle.id)
+          .in('status', ['pending', 'confirmed'])
+          .neq('id', data.bookingId)
+          .or(`and(start_date.lte.${data.requestedEndDate},end_date.gte.${data.requestedStartDate})`);
 
-      if (conflictError) {
-        console.error('Erreur vérification disponibilité:', conflictError);
-      }
+        if (conflictError) {
+          console.error('Erreur vérification disponibilité:', conflictError);
+        }
 
-      if (conflictingBookings && conflictingBookings.length > 0) {
-        throw new Error('Ces dates ne sont pas disponibles pour ce véhicule');
+        if (conflictingBookings && conflictingBookings.length > 0) {
+          throw new Error('Ces dates ne sont pas disponibles pour ce véhicule');
+        }
       }
 
       // Si la réservation est en attente (pending), mettre à jour directement

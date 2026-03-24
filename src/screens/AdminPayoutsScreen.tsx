@@ -23,6 +23,8 @@ interface PropertyPayout {
   id: string;
   booking_id: string;
   host_id: string;
+  /** Pénalités « pending » à déduire du versement hôte (FCFA) */
+  penalty_pending_total?: number;
   total_amount: number;
   commission_amount: number;
   host_amount: number;
@@ -72,6 +74,7 @@ interface VehiclePayout {
   id: string;
   booking_id: string;
   owner_id: string;
+  penalty_pending_total?: number;
   total_amount: number;
   commission_amount: number;
   owner_amount: number;
@@ -112,6 +115,12 @@ interface VehiclePayout {
 }
 
 type PayoutItem = (PropertyPayout & { type: 'property' }) | (VehiclePayout & { type: 'vehicle' });
+
+function getNetHostAmountAfterPenalty(p: PayoutItem): number {
+  const gross = p.type === 'property' ? p.host_amount : p.owner_amount;
+  const pen = p.penalty_pending_total ?? 0;
+  return Math.max(0, gross - pen);
+}
 
 const AdminPayoutsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -245,7 +254,7 @@ const AdminPayoutsScreen: React.FC = () => {
                 .single();
               
               // Récupérer les profils
-              const [guestRes, hostRes] = await Promise.all([
+              const [guestRes, hostRes, penaltyRes] = await Promise.all([
                 booking?.guest_id ? supabase
                   .from('profiles')
                   .select('user_id, first_name, last_name, email, phone')
@@ -256,10 +265,25 @@ const AdminPayoutsScreen: React.FC = () => {
                   .select('user_id, first_name, last_name, email, phone')
                   .eq('user_id', payout.host_id)
                   .maybeSingle(),
+                supabase
+                  .from('penalty_tracking')
+                  .select('penalty_amount, status')
+                  .eq('host_id', payout.host_id)
+                  .eq('booking_id', payout.booking_id)
+                  .is('vehicle_booking_id', null),
               ]);
+
+              const penaltyPendingTotal = (penaltyRes.data || [])
+                .filter((row: { status: string }) => row.status === 'pending')
+                .reduce(
+                  (s: number, row: { penalty_amount: number }) =>
+                    s + Number(row.penalty_amount || 0),
+                  0
+                );
               
               return {
                 ...payout,
+                penalty_pending_total: penaltyPendingTotal,
                 booking: booking ? {
                   ...booking,
                   guest_profile: guestRes.data,
@@ -349,7 +373,7 @@ const AdminPayoutsScreen: React.FC = () => {
             // Enrichir avec les profils (requêtes séparées)
             const enrichedVehiclePayouts = await Promise.all(
               vehiclePayouts.map(async (payout: any) => {
-                const [renterRes, ownerRes] = await Promise.all([
+                const [renterRes, ownerRes, penaltyRes] = await Promise.all([
                   supabase
                     .from('profiles')
                     .select('user_id, first_name, last_name, email, phone')
@@ -360,10 +384,24 @@ const AdminPayoutsScreen: React.FC = () => {
                     .select('user_id, first_name, last_name, email, phone')
                     .eq('user_id', payout.booking?.vehicles?.owner_id)
                     .maybeSingle(),
+                  supabase
+                    .from('penalty_tracking')
+                    .select('penalty_amount, status')
+                    .eq('host_id', payout.owner_id)
+                    .eq('vehicle_booking_id', payout.booking_id),
                 ]);
+
+                const penaltyPendingTotal = (penaltyRes.data || [])
+                  .filter((row: { status: string }) => row.status === 'pending')
+                  .reduce(
+                    (s: number, row: { penalty_amount: number }) =>
+                      s + Number(row.penalty_amount || 0),
+                    0
+                  );
 
                 return {
                   ...payout,
+                  penalty_pending_total: penaltyPendingTotal,
                   booking: {
                     ...payout.booking,
                     renter_profile: renterRes.data,
@@ -649,7 +687,7 @@ const AdminPayoutsScreen: React.FC = () => {
   const paidCount = payouts.filter(p => p.admin_payment_status === 'paid').length;
   const totalPendingAmount = payouts
     .filter(p => p.admin_payment_status === 'pending' && isEligibleForPayment(p))
-    .reduce((sum, p) => sum + (p.type === 'property' ? p.host_amount : p.owner_amount), 0);
+    .reduce((sum, p) => sum + getNetHostAmountAfterPenalty(p), 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -775,7 +813,9 @@ const AdminPayoutsScreen: React.FC = () => {
             const recipientName = payout.type === 'property'
               ? `${payout.booking.host_profile?.first_name || ''} ${payout.booking.host_profile?.last_name || ''}`.trim()
               : `${payout.booking.owner_profile?.first_name || ''} ${payout.booking.owner_profile?.last_name || ''}`.trim();
-            const amount = payout.type === 'property' ? payout.host_amount : payout.owner_amount;
+            const grossAmount = payout.type === 'property' ? payout.host_amount : payout.owner_amount;
+            const amount = getNetHostAmountAfterPenalty(payout);
+            const penaltyPart = payout.penalty_pending_total ?? 0;
 
             return (
               <TouchableOpacity
@@ -827,9 +867,17 @@ const AdminPayoutsScreen: React.FC = () => {
                   <View style={styles.detailRow}>
                     <Ionicons name="cash-outline" size={16} color="#666" />
                     <Text style={styles.detailText}>
-                      Montant à verser: <Text style={styles.amountText}>{formatPrice(amount)}</Text>
+                      Montant net à verser: <Text style={styles.amountText}>{formatPrice(amount)}</Text>
                     </Text>
                   </View>
+                  {penaltyPart > 0 && (
+                    <View style={styles.detailRow}>
+                      <Ionicons name="remove-circle-outline" size={16} color="#b45309" />
+                      <Text style={[styles.detailText, { color: '#92400e', fontSize: 13 }]}>
+                        Déduction pénalité (en attente) : −{formatPrice(penaltyPart)} · Brut : {formatPrice(grossAmount)}
+                      </Text>
+                    </View>
+                  )}
 
                   {payout.admin_payment_status === 'pending' && (
                     <View style={styles.detailRow}>
@@ -1215,12 +1263,28 @@ const AdminPayoutsScreen: React.FC = () => {
                         {formatPrice(selectedPayout.commission_amount)}
                       </Text>
                     </View>
+                    <View style={styles.revenueRow}>
+                      <Text style={styles.revenueLabel}>Montant brut (hôte / propriétaire)</Text>
+                      <Text style={styles.revenueAmount}>
+                        {formatPrice(selectedPayout.type === 'property' ? selectedPayout.host_amount : selectedPayout.owner_amount)}
+                      </Text>
+                    </View>
+                    {(selectedPayout.penalty_pending_total ?? 0) > 0 && (
+                      <View style={styles.revenueRow}>
+                        <Text style={[styles.revenueLabel, { color: '#b45309' }]}>
+                          Pénalité à déduire (statut « en attente »)
+                        </Text>
+                        <Text style={[styles.revenueAmount, { color: '#b45309' }]}>
+                          −{formatPrice(selectedPayout.penalty_pending_total ?? 0)}
+                        </Text>
+                      </View>
+                    )}
                     <View style={[styles.revenueRow, styles.revenueRowTotal]}>
                       <Text style={styles.revenueLabelTotal}>
                         Montant net à verser
                       </Text>
                       <Text style={styles.revenueAmountTotal}>
-                        {formatPrice(selectedPayout.type === 'property' ? selectedPayout.host_amount : selectedPayout.owner_amount)}
+                        {formatPrice(getNetHostAmountAfterPenalty(selectedPayout))}
                       </Text>
                     </View>
                     {/* Afficher aussi host_net_amount si disponible pour vérification */}

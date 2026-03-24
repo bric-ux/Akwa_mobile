@@ -24,6 +24,7 @@ import { createCheckoutSession, checkPaymentStatus } from '../services/cardPayme
 import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import { calculateHostCommission } from '../hooks/usePricing';
 import { getAmountInXOF } from '../utils/amountUtils';
+import { ownerHasReceivedRenterCashVehicle } from '../utils/cancellationPolicy';
 
 const BreakdownSection: React.FC<{
   title: string;
@@ -126,6 +127,13 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   const [checkingPenaltyStatus, setCheckingPenaltyStatus] = useState(false);
   /** Pour espèces/virement (propriétaire) : true si commission plateforme payée, false sinon, null si pas chargé */
   const [commissionPaidForCashBooking, setCommissionPaidForCashBooking] = useState<boolean | null>(null);
+  const [ownerCashCommissionAmount, setOwnerCashCommissionAmount] = useState(0);
+  /** Pour espèces/virement (locataire) : commission déjà payée par le propriétaire → déduite du remboursement affiché */
+  const [renterCashCommission, setRenterCashCommission] = useState<{
+    loaded: boolean;
+    paid: boolean;
+    amountDue: number;
+  }>({ loaded: false, paid: false, amountDue: 0 });
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const pendingCancellationReasonRef = useRef<string | null>(null);
   const verifyPenaltyPaymentNowRef = useRef<() => Promise<void>>(async () => {});
@@ -174,25 +182,60 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
     const isCash = paymentMethod !== 'card' && paymentMethod !== 'wave';
     if (!visible || !booking || !isOwner || !isCash) {
       setCommissionPaidForCashBooking(null);
+      setOwnerCashCommissionAmount(0);
       return;
     }
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
         .from('platform_commission_due')
-        .select('status')
+        .select('status, amount_due')
         .eq('booking_id', booking.id)
         .eq('booking_type', 'vehicle')
         .maybeSingle();
       if (cancelled) return;
       if (error || !data) {
         setCommissionPaidForCashBooking(false);
+        setOwnerCashCommissionAmount(0);
         return;
       }
-      setCommissionPaidForCashBooking(data.status === 'paid');
+      const paid = data.status === 'paid';
+      setCommissionPaidForCashBooking(paid);
+      setOwnerCashCommissionAmount(paid ? Math.round(Number(data.amount_due || 0)) : 0);
     })();
     return () => { cancelled = true; };
   }, [visible, booking?.id, isOwner, (booking as any)?.payment_method]);
+
+  useEffect(() => {
+    const paymentMethod = (booking as any)?.payment_method;
+    const isOffPlatform = paymentMethod && paymentMethod !== 'card' && paymentMethod !== 'wave';
+    if (!visible || !booking || isOwner || !isOffPlatform || booking.status === 'pending') {
+      setRenterCashCommission({ loaded: true, paid: false, amountDue: 0 });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('platform_commission_due')
+        .select('status, amount_due')
+        .eq('booking_id', booking.id)
+        .eq('booking_type', 'vehicle')
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        setRenterCashCommission({ loaded: true, paid: false, amountDue: 0 });
+        return;
+      }
+      setRenterCashCommission({
+        loaded: true,
+        paid: data.status === 'paid',
+        amountDue: Math.round(Number(data.amount_due || 0)),
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, booking?.id, isOwner, (booking as any)?.payment_method, booking?.status]);
 
   const cancellationPolicy = (booking?.vehicle as any)?.cancellation_policy ?? (booking as any)?.cancellation_policy ?? 'flexible';
   /** Le locataire a payé via la plateforme (CB, Wave) → l'argent est passé par AkwaHome. Sinon (cash, virement) → le propriétaire a reçu directement. */
@@ -200,6 +243,14 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
   /** Le propriétaire reçoit l'argent 48h après le début de la location (pour paiement CB/Wave). Si pas encore perçu, c'est AkwaHome qui rembourse. */
   const ownerHasReceivedMoney = booking?.start_date
     ? new Date(booking.start_date).getTime() + 48 * 60 * 60 * 1000 <= Date.now()
+    : false;
+  /** Espèces/virement : paiement au propriétaire à la remise du véhicule (début de location). */
+  const ownerReceivedCashAtHandover = booking?.start_date
+    ? ownerHasReceivedRenterCashVehicle({
+        start_date: booking.start_date,
+        start_datetime: booking.start_datetime,
+        payment_method: (booking as any)?.payment_method,
+      })
     : false;
 
   /** Montant net perçu par le propriétaire = base pour pénalité et remboursement. CB/Wave: host_net_amount. Espèces: si commission payée → host_net_amount, sinon total. */
@@ -239,8 +290,32 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         )
       : null;
 
-  const penalty = isOwner ? (ownerResult?.penalty ?? 0) : (guestCancellationInfo?.penaltyAmount ?? 0);
-  const refundAmount = isOwner ? (ownerResult?.refundAmount ?? 0) : (guestCancellationInfo?.refundAmount ?? 0);
+  const policyGuestRefund = guestCancellationInfo?.refundAmount ?? 0;
+  const renterCommissionDeduction =
+    !isOwner &&
+    renterCashCommission.loaded &&
+    renterCashCommission.paid &&
+    booking?.status !== 'pending'
+      ? renterCashCommission.amountDue
+      : 0;
+  const guestRefundAfterCommission = !isOwner
+    ? Math.max(0, policyGuestRefund - renterCommissionDeduction)
+    : 0;
+
+  /** Espèces/virement : pas de remise d’argent avant la remise du véhicule → aucun remboursement à traiter. */
+  const cashNoHandoverYet =
+    !renterPaidViaPlatform &&
+    booking?.status !== 'pending' &&
+    !ownerReceivedCashAtHandover;
+
+  const rawRefundToGuest = isOwner ? (ownerResult?.refundAmount ?? 0) : guestRefundAfterCommission;
+  const refundAmount = cashNoHandoverYet ? 0 : rawRefundToGuest;
+
+  const penalty = isOwner
+    ? (ownerResult?.penalty ?? 0)
+    : cashNoHandoverYet
+      ? 0
+      : Math.max(0, (booking?.total_price ?? 0) - guestRefundAfterCommission);
   /** Le propriétaire doit payer le remboursement : seulement si paiement plateforme ET propriétaire a déjà perçu (48h passées). */
   const mustPayRefundViaStripe = isOwner && renterPaidViaPlatform && ownerHasReceivedMoney && refundAmount > 0;
 
@@ -259,7 +334,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         : guestCancellationInfo
           ? (booking?.status === 'pending'
               ? 'Demande en attente. Aucun paiement effectué.'
-              : `Politique d'annulation : ${getPolicyLabel(cancellationPolicy)}. Montant à rembourser : ${formatPrice(guestCancellationInfo.refundAmount ?? 0)}.`)
+              : `Politique d'annulation : ${getPolicyLabel(cancellationPolicy)}. Montant à rembourser : ${formatPrice(refundAmount)}.`)
           : '';
 
   const canConfirmCancellation = isOwner || !guestCancellationInfo || guestCancellationInfo.canCancel;
@@ -658,6 +733,34 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         throw bookingFetchError;
       }
 
+      let penaltyToStore = penalty;
+      let guestRefundResolved = refundAmount;
+      if (!isOwner) {
+        const pm = (bookingData as { payment_method?: string | null }).payment_method;
+        const onPlatform = pm === 'card' || pm === 'wave';
+        if (!onPlatform && bookingData.status !== 'pending') {
+          const { data: cr } = await supabase
+            .from('platform_commission_due')
+            .select('status, amount_due')
+            .eq('booking_id', booking.id)
+            .eq('booking_type', 'vehicle')
+            .maybeSingle();
+          if (cr?.status === 'paid' && guestCancellationInfo) {
+            const policyRef = guestCancellationInfo.refundAmount ?? 0;
+            const ded = Math.round(Number(cr.amount_due || 0));
+            guestRefundResolved = Math.max(0, policyRef - ded);
+            penaltyToStore = Math.max(0, Number(bookingData.total_price ?? 0) - guestRefundResolved);
+          }
+        }
+      }
+
+      if (cashNoHandoverYet) {
+        guestRefundResolved = 0;
+        if (!isOwner) {
+          penaltyToStore = 0;
+        }
+      }
+
       // Mettre à jour le statut via Supabase directement
       const { error: updateError } = await supabase
         .from('vehicle_bookings')
@@ -666,7 +769,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
           cancelled_at: new Date().toISOString(),
           cancelled_by: user.id,
           cancellation_reason: `[Annulé par ${isOwner ? 'le propriétaire' : 'le locataire'}] ${fullReason}`,
-          cancellation_penalty: penalty,
+          cancellation_penalty: penaltyToStore,
         })
         .eq('id', booking.id);
 
@@ -688,33 +791,57 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
         }
       }
 
-      // Si le locataire a payé via CB/Wave et le propriétaire a déjà perçu (48h après début),
-      // le propriétaire doit rembourser AkwaHome (car c'est AkwaHome qui rembourse le locataire)
-      if (!isOwner && refundAmount > 0 && renterPaidViaPlatform && ownerHasReceivedMoney && bookingData?.vehicle?.owner_id) {
-        const vbTotalPrice = bookingData?.total_price ?? 1;
-        let vbHostNetAmount = (bookingData as any)?.host_net_amount;
-        if (vbHostNetAmount == null && vbTotalPrice > 0) {
-          const basePriceWithDriver = Math.round(vbTotalPrice / 1.12);
-          vbHostNetAmount = basePriceWithDriver - calculateHostCommission(basePriceWithDriver, 'vehicle').hostCommission;
+      // Locataire annule, paiement plateforme et propriétaire déjà versé : le propriétaire reverse à AkwaHome
+      // au prorata de host_net (jamais le total payé par le locataire comme proxy du net).
+      if (!isOwner && guestRefundResolved > 0 && renterPaidViaPlatform && ownerHasReceivedMoney && bookingData?.vehicle?.owner_id) {
+        const vbTotalPrice = Math.max(0, Number(bookingData?.total_price) || 0);
+        let vbHostNetAmount = Math.max(0, Number((bookingData as { host_net_amount?: number }).host_net_amount) || 0);
+        if (vbHostNetAmount <= 0) {
+          const { data: vCalc } = await supabase
+            .from('booking_calculation_details')
+            .select('host_net_amount')
+            .eq('booking_id', booking.id)
+            .eq('booking_type', 'vehicle')
+            .maybeSingle();
+          if (vCalc?.host_net_amount != null) vbHostNetAmount = Math.round(Number(vCalc.host_net_amount));
         }
-        vbHostNetAmount = vbHostNetAmount ?? refundAmount;
-        const ownerReimbursementAmount = vbTotalPrice > 0
-          ? Math.round((refundAmount / vbTotalPrice) * vbHostNetAmount)
-          : refundAmount;
-        try {
-          await supabase.from('penalty_tracking').insert({
-            booking_id: null,
-            vehicle_booking_id: booking.id,
-            host_id: bookingData.vehicle.owner_id,
-            guest_id: booking.renter_id,
-            penalty_amount: ownerReimbursementAmount,
-            penalty_type: 'guest_cancellation',
-            payment_method: null,
-            status: 'pending',
-            service_type: 'vehicle',
-          });
-        } catch (e) {
-          console.error('Erreur création penalty_tracking (remboursement propriétaire):', e);
+        if (vbHostNetAmount <= 0 && vbTotalPrice > 0) {
+          const basePriceWithDriver = Math.round(vbTotalPrice / 1.12);
+          vbHostNetAmount = Math.max(
+            0,
+            basePriceWithDriver - calculateHostCommission(basePriceWithDriver, 'vehicle').hostCommission,
+          );
+        }
+        let ownerReimbursementAmount = 0;
+        if (vbTotalPrice > 0 && vbHostNetAmount > 0) {
+          ownerReimbursementAmount = Math.round((guestRefundResolved / vbTotalPrice) * vbHostNetAmount);
+          ownerReimbursementAmount = Math.min(vbHostNetAmount, Math.max(0, ownerReimbursementAmount));
+        } else if (guestRefundResolved > 0) {
+          console.warn('[VehicleCancellation] host_net indisponible pour annulation locataire', { bookingId: booking.id });
+        }
+        if (ownerReimbursementAmount > 0) {
+          try {
+            const { data: existingDue } = await supabase
+              .from('host_refund_due')
+              .select('id')
+              .eq('booking_type', 'vehicle')
+              .eq('booking_id', booking.id)
+              .eq('status', 'pending')
+              .maybeSingle();
+            if (!existingDue?.id) {
+              const { error: dueErr } = await supabase.from('host_refund_due').insert({
+                host_id: bookingData.vehicle.owner_id,
+                booking_type: 'vehicle',
+                booking_id: booking.id,
+                amount_due: ownerReimbursementAmount,
+                status: 'pending',
+                penalty_tracking_id: null,
+              });
+              if (dueErr) console.error('Erreur création host_refund_due (annulation locataire):', dueErr);
+            }
+          } catch (e) {
+            console.error('Erreur création host_refund_due (annulation locataire):', e);
+          }
         }
       }
 
@@ -776,7 +903,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                   startDateTime,
                   endDateTime,
                   reason: fullReason,
-                  penaltyAmount: penalty,
+                  penaltyAmount: isOwner ? penalty : penaltyToStore,
                 },
               });
             }
@@ -793,8 +920,8 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                 startDateTime,
                 endDateTime,
                 reason: fullReason,
-                penaltyAmount: penalty,
-                refundAmount,
+                penaltyAmount: penaltyToStore,
+                refundAmount: guestRefundResolved,
               },
             });
           }
@@ -813,7 +940,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
             startDateTime,
             endDateTime,
             reason: fullReason,
-            penaltyAmount: penalty,
+            penaltyAmount: isOwner ? penalty : penaltyToStore,
             totalPrice: booking.total_price,
           },
         });
@@ -1030,6 +1157,25 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                   )}
                 </View>
 
+                {isOwner &&
+                  booking.status !== 'pending' &&
+                  !renterPaidViaPlatform &&
+                  commissionPaidForCashBooking === true &&
+                  ownerCashCommissionAmount > 0 && (
+                  <View
+                    style={[
+                      styles.infoCard,
+                      { backgroundColor: '#e3f2fd', borderWidth: 1, borderColor: '#90caf9' },
+                    ]}
+                  >
+                    <Text style={styles.infoTitle}>Commission déjà payée à AkwaHome</Text>
+                    <Text style={styles.infoText}>
+                      Vous avez réglé {formatPrice(ownerCashCommissionAmount)} de commission sur cette location (hors
+                      plateforme). Le montant net perçu et les remboursements affichés en tiennent compte.
+                    </Text>
+                  </View>
+                )}
+
                 {/* Détail du calcul */}
                 {!isOwner && guestCancellationInfo?.breakdown && (
                   <BreakdownSection
@@ -1148,16 +1294,24 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                         </Text>
                       ) : !renterPaidViaPlatform ? (
                         <Text style={styles.refundProcessText}>
-                          Le locataire a payé en espèces ou par virement. Vous devez le rembourser directement ({formatPrice(refundAmount)}). La plateforme ne peut pas effectuer ce remboursement.
+                          {ownerReceivedCashAtHandover
+                            ? `Le locataire a payé en espèces ou par virement. Vous devez le rembourser directement (${formatPrice(refundAmount)}). La plateforme ne peut pas effectuer ce remboursement.`
+                            : `Paiement prévu en espèces ou par virement à la remise du véhicule : avant le début de la location, l'argent n'a en principe pas encore été remis. Organisez le remboursement avec le locataire si un montant (${formatPrice(refundAmount)}) est dû selon la politique.`}
                         </Text>
                       ) : (
                         <Text style={styles.refundProcessText}>
                           Le remboursement au locataire sera effectué par AkwaHome. Aucun paiement de votre part.
                         </Text>
                       )
+                    ) : renterPaidViaPlatform ? (
+                      <Text style={styles.refundProcessText}>
+                        Le montant de {formatPrice(refundAmount)} sera remboursé sur votre moyen de paiement initial sous maximum 72 heures.
+                      </Text>
                     ) : (
                       <Text style={styles.refundProcessText}>
-                        Le montant de {formatPrice(refundAmount)} sera remboursé sur votre moyen de paiement initial sous 5 à 10 jours ouvrés.
+                        {ownerReceivedCashAtHandover
+                          ? `Vous avez payé en espèces ou par virement : le propriétaire doit vous rembourser directement (${formatPrice(refundAmount)}).`
+                          : `Paiement prévu en espèces ou par virement à la remise du véhicule : avant le début de la location, l'argent n'a en principe pas encore été remis au propriétaire. Convienez avec lui si un remboursement de ${formatPrice(refundAmount)} s'applique selon la politique.`}
                       </Text>
                     )}
                   </View>
@@ -1243,7 +1397,9 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
                         <View style={[styles.reasonOption, { opacity: 1 }]}>
                           <Ionicons name="cash" size={20} color="#e67e22" />
                           <Text style={styles.reasonLabel}>
-                            Le locataire a payé en espèces ou par virement. Vous devez le rembourser directement ({formatPrice(refundAmount)}). La plateforme ne peut pas effectuer ce remboursement.
+                            {ownerReceivedCashAtHandover
+                              ? `Le locataire a payé en espèces ou par virement. Vous devez le rembourser directement (${formatPrice(refundAmount)}). La plateforme ne peut pas effectuer ce remboursement.`
+                              : `Paiement prévu en espèces ou par virement à la remise du véhicule. Avant le début de la location, l'argent n'a en principe pas encore été remis. Organisez le remboursement avec le locataire si un montant (${formatPrice(refundAmount)}) est dû.`}
                           </Text>
                         </View>
                         {penalty > 0 ? (

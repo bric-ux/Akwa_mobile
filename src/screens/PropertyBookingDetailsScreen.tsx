@@ -20,6 +20,7 @@ import InvoiceDisplay from '../components/InvoiceDisplay';
 import BookingModificationModal from '../components/BookingModificationModal';
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import { useCurrency } from '../hooks/useCurrency';
+import { getCancellationPolicyLabel, getCancellationPolicyText } from '../utils/cancellationPolicy';
 
 type PropertyBookingDetailsRouteProp = RouteProp<RootStackParamList, 'PropertyBookingDetails'>;
 
@@ -266,6 +267,19 @@ const PropertyBookingDetailsScreen: React.FC = () => {
         <View style={styles.statusContainer}>
           {getStatusBadge(getEffectiveStatus())}
         </View>
+
+        {booking.properties && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Politique d'annulation</Text>
+            <Text style={styles.policyDetailText}>
+              <Text style={styles.policyDetailEmphasis}>
+                {getCancellationPolicyLabel(booking.properties.cancellation_policy, 'property')}
+              </Text>
+              {' : '}
+              {getCancellationPolicyText(booking.properties.cancellation_policy, 'property')}
+            </Text>
+          </View>
+        )}
 
         {/* Date de réservation */}
         {(booking as any).created_at && (
@@ -534,6 +548,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 16,
+  },
+  policyDetailText: {
+    fontSize: 14,
+    color: '#444',
+    lineHeight: 22,
+  },
+  policyDetailEmphasis: {
+    fontWeight: '700',
+    color: '#333',
   },
   infoRow: {
     flexDirection: 'row',

@@ -46,11 +46,11 @@ const VehicleReviews: React.FC<VehicleReviewsProps> = ({ vehicleId, ownerId }) =
 
   useEffect(() => {
     loadReviews();
-  }, [vehicleId]);
+  }, [vehicleId, isOwner]);
 
   const loadReviews = async () => {
     setLoading(true);
-    const data = await getVehicleReviews(vehicleId);
+    const data = await getVehicleReviews(vehicleId, { includeUnpublished: isOwner });
     setReviews(data);
 
     // Charger les réponses pour chaque avis

@@ -21,6 +21,7 @@ import VehicleCancellationModal from './VehicleCancellationModal';
 import VehicleModificationModal from './VehicleModificationModal';
 import HostVehicleModificationRequestCard from './HostVehicleModificationRequestCard';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
+import HostBookingFinancialAlerts from './HostBookingFinancialAlerts';
 
 interface VehicleBookingDetailsModalProps {
   visible: boolean;
@@ -357,6 +358,13 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                   }}
                 />
               </View>
+            )}
+
+            {isOwner && (
+              <HostBookingFinancialAlerts
+                bookingId={booking.id}
+                bookingType="vehicle"
+              />
             )}
 
             {/* Véhicule */}

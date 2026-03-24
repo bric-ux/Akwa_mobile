@@ -734,6 +734,7 @@ const MyBookingsScreen: React.FC = () => {
             check_out_date: selectedBookingForCancellation.check_out_date,
             total_price: selectedBookingForCancellation.total_price,
             status: selectedBookingForCancellation.status,
+            payment_method: selectedBookingForCancellation.payment_method,
             properties: {
               title: selectedBookingForCancellation.properties?.title || 'Propriété',
               price_per_night: selectedBookingForCancellation.properties?.price_per_night || 0,
