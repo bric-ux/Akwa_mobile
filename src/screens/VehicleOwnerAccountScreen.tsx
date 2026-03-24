@@ -18,6 +18,7 @@ import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { useLanguage } from '../contexts/LanguageContext';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
+import { APP_VERSION } from '../constants/appVersion';
 
 const VehicleOwnerAccountScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -304,7 +305,7 @@ const VehicleOwnerAccountScreen: React.FC = () => {
 
         {/* App Info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appVersion}>AkwaHome v1.0.0</Text>
+          <Text style={styles.appVersion}>AkwaHome v{APP_VERSION}</Text>
           <Text style={styles.appDescription}>
             Espace véhicules - Gérez vos véhicules et réservations
           </Text>

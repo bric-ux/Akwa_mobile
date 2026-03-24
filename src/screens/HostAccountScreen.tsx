@@ -20,6 +20,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicles } from '../hooks/useVehicles';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { APP_VERSION } from '../constants/appVersion';
 
 const HostAccountScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -334,7 +335,7 @@ const HostAccountScreen: React.FC = () => {
 
         {/* App Info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appVersion}>AkwaHome v1.0.0</Text>
+          <Text style={styles.appVersion}>AkwaHome v{APP_VERSION}</Text>
           <Text style={styles.appDescription}>
             Espace hôte - Gérez vos propriétés et réservations
           </Text>

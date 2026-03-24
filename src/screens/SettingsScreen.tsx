@@ -20,6 +20,7 @@ import { usePushNotifications } from '../hooks/usePushNotifications';
 import { clearProfileCache } from '../hooks/useUserProfile';
 import { supabase } from '../services/supabase';
 import { useLanguage, Language } from '../contexts/LanguageContext';
+import { APP_VERSION } from '../constants/appVersion';
 
 const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -440,7 +441,7 @@ const SettingsScreen: React.FC = () => {
         {/* Informations de l'app */}
         <View style={styles.appInfo}>
           <Text style={styles.appName}>AkwaHome Mobile</Text>
-          <Text style={styles.appVersion}>Version 1.0.0</Text>
+          <Text style={styles.appVersion}>Version {APP_VERSION}</Text>
         </View>
       </ScrollView>
 
