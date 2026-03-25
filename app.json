@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "AkwaHomeMobile",
+    "name": "AkwaHome",
     "slug": "AkwaHomeMobile",
     "scheme": "akwahomemobile",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
-      "buildNumber": "19",
+      "buildNumber": "20",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to take profile, property, and vehicle photos.",
         "NSPhotoLibraryUsageDescription": "This app accesses your photo library to select photos to upload.",
@@ -32,7 +32,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.jeanbrice270.AkwaHomeMobile",
-      "versionCode": 6
+      "versionCode": 7
     },
     "web": {
       "favicon": "./assets/favicon.png"
