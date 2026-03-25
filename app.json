@@ -16,11 +16,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
-      "buildNumber": "18",
+      "buildNumber": "19",
       "infoPlist": {
-        "NSCameraUsageDescription": "Cette application utilise la camera pour prendre des photos de profil, de proprietes et de vehicules.",
-        "NSPhotoLibraryUsageDescription": "Cette application accede a votre phototheque pour selectionner des photos a televerser.",
-        "NSMicrophoneUsageDescription": "Cette application utilise le microphone pour enregistrer des messages audio, si vous choisissez cette fonctionnalite.",
+        "NSCameraUsageDescription": "This app uses the camera to take profile, property, and vehicle photos.",
+        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to select photos to upload.",
+        "NSMicrophoneUsageDescription": "This app uses the microphone to record audio messages if you choose this feature.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
