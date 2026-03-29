@@ -37,9 +37,12 @@ const MyPropertiesScreen: React.FC = () => {
   const loadProperties = async () => {
     try {
       const userProperties = await getMyProperties();
-      // Filtrer pour ne garder que les propriétés actives
-      const activeProperties = userProperties.filter(p => p.is_active === true);
-      setProperties(activeProperties);
+      // Toutes les propriétés du compte (y compris masquées par l'hôte ou l'admin) pour pouvoir les gérer / réactiver
+      const sorted = [...userProperties].sort((a, b) => {
+        if (a.is_active === b.is_active) return 0;
+        return a.is_active ? -1 : 1;
+      });
+      setProperties(sorted);
     } catch (err) {
       console.error('Erreur lors du chargement des propriétés:', err);
     }

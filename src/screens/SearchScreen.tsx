@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -54,6 +55,7 @@ const SearchScreen: React.FC = () => {
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   const [isMapView, setIsMapView] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   
   const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
   const lastHandledCatalogVersionRef = useRef<number | null>(null);
@@ -147,6 +149,20 @@ const SearchScreen: React.FC = () => {
       }
     }, [rentalType, shortTermSearchQuery, filters, refreshProperties])
   );
+
+  const onRefresh = useCallback(async () => {
+    if (rentalType !== 'short_term') return;
+    setRefreshing(true);
+    try {
+      if (shortTermSearchQuery) {
+        await refreshProperties({ ...filters, city: shortTermSearchQuery });
+      } else {
+        await refreshProperties(filters);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [rentalType, shortTermSearchQuery, filters, refreshProperties]);
 
   useEffect(() => {
     if (rentalType === 'monthly') {
@@ -826,6 +842,13 @@ const SearchScreen: React.FC = () => {
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.propertiesList}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#e67e22"
+              />
+            }
             onScroll={handleScroll}
             scrollEventThrottle={16}
             ListHeaderComponent={
@@ -847,6 +870,13 @@ const SearchScreen: React.FC = () => {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.propertiesList}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#e67e22"
+            />
+          }
           onScroll={handleScroll}
           scrollEventThrottle={16}
           ListHeaderComponent={

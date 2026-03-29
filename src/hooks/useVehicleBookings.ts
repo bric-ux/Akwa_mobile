@@ -10,7 +10,7 @@ import { useCurrency } from './useCurrency';
 import { sendPushToUser } from '../services/pushNotificationService';
 import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
 
-export type VehiclePaymentMethod = 'card' | 'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'paypal' | 'cash';
+export type VehiclePaymentMethod = 'card' | 'wave' | 'cash';
 
 export interface VehicleBookingData {
   vehicleId: string;
@@ -310,10 +310,10 @@ export const useVehicleBookings = () => {
       const vehicleWithDriver = (vehicle as any).with_driver === true;
       const userWantsDriver = bookingData.useDriver === true; // Doit être explicitement true
       // Valeur depuis la DB (Number pour gérer string) ou override passé par l'écran (déjà calculé)
-      const driverFeeFromVehicle = Number((vehicle as any).driver_fee) || 0;
-      const driverFeeAmount = (bookingData.driverFee != null && bookingData.driverFee >= 0)
+      const driverFeeFromVehiclePerDay = Number((vehicle as any).driver_fee) || 0;
+      const driverFeePerDay = (bookingData.driverFee != null && bookingData.driverFee >= 0)
         ? bookingData.driverFee
-        : driverFeeFromVehicle;
+        : driverFeeFromVehiclePerDay;
       
       // Logs TOUJOURS affichés pour débogage
       console.log('🔍 [useVehicleBookings] Vérification chauffeur:', {
@@ -323,15 +323,16 @@ export const useVehicleBookings = () => {
         'bookingData.useDriver type': typeof bookingData.useDriver,
         'userWantsDriver (=== true)': userWantsDriver,
         'vehicle.driver_fee': (vehicle as any).driver_fee,
-        'driverFeeAmount': driverFeeAmount,
-        'toutes conditions remplies': vehicleWithDriver && userWantsDriver && driverFeeAmount > 0,
+        'driverFeePerDay': driverFeePerDay,
+        'toutes conditions remplies': vehicleWithDriver && userWantsDriver && driverFeePerDay > 0,
         'condition 1 (vehicleWithDriver)': vehicleWithDriver,
         'condition 2 (userWantsDriver)': userWantsDriver,
-        'condition 3 (driverFeeAmount > 0)': driverFeeAmount > 0
+        'condition 3 (driverFeePerDay > 0)': driverFeePerDay > 0
       });
       
-      const driverFee = (vehicleWithDriver && userWantsDriver && driverFeeAmount > 0) 
-        ? driverFeeAmount 
+      const driverDays = Math.max(1, rentalType === 'hourly' ? 1 : rentalDays);
+      const driverFee = (vehicleWithDriver && userWantsDriver && driverFeePerDay > 0)
+        ? (driverFeePerDay * driverDays)
         : 0;
       
       console.log('💰 [useVehicleBookings] Calcul driverFee:', {
@@ -341,8 +342,9 @@ export const useVehicleBookings = () => {
         'Pourquoi driverFee est 0?': {
           'vehicleWithDriver': vehicleWithDriver,
           'userWantsDriver': userWantsDriver,
-          'driverFeeAmount > 0': driverFeeAmount > 0,
-          'Toutes conditions': vehicleWithDriver && userWantsDriver && driverFeeAmount > 0
+          'driverFeePerDay > 0': driverFeePerDay > 0,
+          driverDays,
+          'Toutes conditions': vehicleWithDriver && userWantsDriver && driverFeePerDay > 0
         }
       });
       
@@ -1188,7 +1190,11 @@ export const useVehicleBookings = () => {
             basePriceWithDriver = Math.round((booking.total_price || 0) / 1.12);
             const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
             ownerNetRevenue = basePriceWithDriver - hostCommissionData.hostCommission;
-            driverFee = (booking.with_driver === true && vehicle?.with_driver && (vehicle as any).driver_fee) ? (vehicle as any).driver_fee : 0;
+            const driverFeePerDay = (booking.with_driver === true && vehicle?.with_driver && (vehicle as any).driver_fee)
+              ? Number((vehicle as any).driver_fee)
+              : 0;
+            const days = Math.max(1, Number(booking.rental_days || 0) || 0);
+            driverFee = driverFeePerDay > 0 ? driverFeePerDay * days : 0;
           }
 
           const emailData = {

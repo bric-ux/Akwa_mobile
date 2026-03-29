@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   FlatList,
   Alert,
   TouchableOpacity,
   ImageBackground,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -47,6 +47,7 @@ const HomeScreen: React.FC = () => {
   const [destinationsLoading, setDestinationsLoading] = useState(true);
   const destinationsFetchedRef = useRef(false);
   const lastHandledCatalogVersionRef = useRef<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -61,6 +62,15 @@ const HomeScreen: React.FC = () => {
       }
     }, [refreshProperties])
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshProperties(undefined);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshProperties]);
 
   useEffect(() => {
     if (destinationsFetchedRef.current) return;
@@ -268,6 +278,13 @@ const HomeScreen: React.FC = () => {
           contentContainerStyle={scrollContentStyle}
           ListHeaderComponent={listHeader}
           ListEmptyComponent={listEmptyComponent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#e67e22"
+            />
+          }
           removeClippedSubviews={false}
           maxToRenderPerBatch={8}
           windowSize={5}

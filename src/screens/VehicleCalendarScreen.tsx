@@ -113,7 +113,10 @@ const VehicleCalendarScreen: React.FC = () => {
   const isDateBooked = (date: Date): boolean => {
     const dateStr = formatDateToISO(date);
     return bookings.some(booking => {
-      return dateStr >= booking.start_date && dateStr <= booking.end_date;
+      const end = String(booking.end_date).split('T')[0];
+      const start = String(booking.start_date).split('T')[0];
+      // Jour de fin de réservation = restitution, disponible pour une nouvelle loc le même jour
+      return dateStr >= start && dateStr < end;
     });
   };
 

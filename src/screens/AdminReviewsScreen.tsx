@@ -27,13 +27,14 @@ const AdminReviewsScreen: React.FC = () => {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { t } = useLanguage();
-  const { getAllPendingReviews, approveReview, rejectReview, loading } = useAdminReviews();
+  const { getAllPendingReviews, getAllReviews, approveReview, rejectReview, deleteReview, loading, error: adminReviewError } = useAdminReviews();
   
   const [reviews, setReviews] = useState<Review[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [activeTab, setActiveTab] = useState<'pending' | 'all'>('pending');
   
   // Test d'avis
   const [showTestModal, setShowTestModal] = useState(false);
@@ -65,7 +66,7 @@ const AdminReviewsScreen: React.FC = () => {
     }
     
     setIsAdmin(true);
-    loadPendingReviews();
+    loadReviews(activeTab);
     loadProperties();
   };
   
@@ -81,14 +82,14 @@ const AdminReviewsScreen: React.FC = () => {
     }
   };
 
-  const loadPendingReviews = async () => {
-    const data = await getAllPendingReviews();
+  const loadReviews = async (tab: 'pending' | 'all' = activeTab) => {
+    const data = tab === 'pending' ? await getAllPendingReviews() : await getAllReviews();
     setReviews(data);
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadPendingReviews();
+    await loadReviews(activeTab);
     setRefreshing(false);
   };
 
@@ -109,7 +110,7 @@ const AdminReviewsScreen: React.FC = () => {
               );
               setAdminNotes('');
               setSelectedReview(null);
-              loadPendingReviews();
+              loadReviews(activeTab);
             } else {
               Alert.alert(
                 t('common.error'),
@@ -148,11 +149,11 @@ const AdminReviewsScreen: React.FC = () => {
               );
               setAdminNotes('');
               setSelectedReview(null);
-              loadPendingReviews();
+              loadReviews(activeTab);
             } else {
               Alert.alert(
                 t('common.error'),
-                t('review.rejectError') || 'Impossible de rejeter l\'avis'
+                adminReviewError || t('review.rejectError') || 'Impossible de rejeter l\'avis'
               );
             }
           },
@@ -267,7 +268,7 @@ const AdminReviewsScreen: React.FC = () => {
             setTestValueRating(5);
             setTestCommunicationRating(5);
             setTestComment('');
-            loadPendingReviews();
+            loadReviews(activeTab);
           }}]
         );
         return;
@@ -305,7 +306,7 @@ const AdminReviewsScreen: React.FC = () => {
           setTestValueRating(5);
           setTestCommunicationRating(5);
           setTestComment('');
-          loadPendingReviews();
+          loadReviews(activeTab);
         }}]
       );
     } catch (error: any) {
@@ -317,6 +318,34 @@ const AdminReviewsScreen: React.FC = () => {
     } finally {
       setCreatingTest(false);
     }
+  };
+
+  const handleDelete = async (review: Review) => {
+    Alert.alert(
+      'Supprimer l\'avis',
+      'Êtes-vous sûr de vouloir supprimer définitivement cet avis ? Cette action est irréversible.',
+      [
+        { text: t('common.cancel') || 'Annuler', style: 'cancel' },
+        {
+          text: t('common.delete') || 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await deleteReview(review.id);
+            if (result.success) {
+              Alert.alert('Succès', 'Avis supprimé avec succès');
+              setAdminNotes('');
+              setSelectedReview(null);
+              loadReviews(activeTab);
+            } else {
+              Alert.alert(
+                t('common.error') || 'Erreur',
+                adminReviewError || 'Impossible de supprimer l\'avis'
+              );
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderStars = (rating: number) => {
@@ -435,22 +464,35 @@ const AdminReviewsScreen: React.FC = () => {
               numberOfLines={3}
             />
             <View style={styles.actionButtons}>
+              {(review as any).approved === false && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.approveButton]}
+                    onPress={() => handleApprove(review)}
+                  >
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                    <Text style={styles.actionButtonText}>
+                      {t('review.approve') || 'Approuver'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.rejectButton]}
+                    onPress={() => handleReject(review)}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#fff" />
+                    <Text style={styles.actionButtonText}>
+                      {t('review.reject') || 'Rejeter'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
               <TouchableOpacity
-                style={[styles.actionButton, styles.approveButton]}
-                onPress={() => handleApprove(review)}
+                style={[styles.actionButton, styles.deleteButton]}
+                onPress={() => handleDelete(review)}
               >
-                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <Ionicons name="trash" size={20} color="#fff" />
                 <Text style={styles.actionButtonText}>
-                  {t('review.approve') || 'Approuver'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.rejectButton]}
-                onPress={() => handleReject(review)}
-              >
-                <Ionicons name="close-circle" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>
-                  {t('review.reject') || 'Rejeter'}
+                  {t('common.delete') || 'Supprimer'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -490,6 +532,31 @@ const AdminReviewsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.tabs}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'pending' && styles.tabActive]}
+          onPress={() => {
+            setActiveTab('pending');
+            setSelectedReview(null);
+            setAdminNotes('');
+            loadReviews('pending');
+          }}
+        >
+          <Text style={[styles.tabText, activeTab === 'pending' && styles.tabTextActive]}>En attente</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'all' && styles.tabActive]}
+          onPress={() => {
+            setActiveTab('all');
+            setSelectedReview(null);
+            setAdminNotes('');
+            loadReviews('all');
+          }}
+        >
+          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>Tous</Text>
+        </TouchableOpacity>
+      </View>
+
       {loading && !refreshing ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
@@ -501,10 +568,14 @@ const AdminReviewsScreen: React.FC = () => {
         <View style={styles.emptyContainer}>
           <Ionicons name="checkmark-circle-outline" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>
-            {t('admin.noPendingReviews') || 'Aucun avis en attente'}
+            {activeTab === 'pending'
+              ? (t('admin.noPendingReviews') || 'Aucun avis en attente')
+              : 'Aucun avis'}
           </Text>
           <Text style={styles.emptySubtitle}>
-            {t('admin.noPendingReviewsDesc') || 'Tous les avis ont été traités'}
+            {activeTab === 'pending'
+              ? (t('admin.noPendingReviewsDesc') || 'Tous les avis ont été traités')
+              : 'Aucun avis trouvé'}
           </Text>
         </View>
       ) : (
@@ -645,6 +716,33 @@ const AdminReviewsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  tabs: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  tabActive: {
+    borderColor: '#2E7D32',
+    backgroundColor: '#ecfdf5',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  tabTextActive: {
+    color: '#2E7D32',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
@@ -963,6 +1061,9 @@ const styles = StyleSheet.create({
   },
   rejectButton: {
     backgroundColor: '#e74c3c',
+  },
+  deleteButton: {
+    backgroundColor: '#6b7280',
   },
   actionButtonText: {
     fontSize: 16,

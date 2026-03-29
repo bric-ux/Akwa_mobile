@@ -136,7 +136,6 @@ export const useHostBookings = () => {
           )
         `)
         .eq('properties.host_id', user.id)
-        .eq('properties.is_active', true)
         .order('check_in_date', { ascending: true });
 
       if (bookingsError) {

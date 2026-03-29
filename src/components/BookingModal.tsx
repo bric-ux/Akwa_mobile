@@ -71,7 +71,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const [infants, setInfants] = useState(0);
   const [message, setMessage] = useState('');
   const [showCalendar, setShowCalendar] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'orange_money' | 'mtn_money' | 'moov_money' | 'wave' | 'paypal' | 'cash' | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'wave' | 'cash' | null>(null);
   const [paymentPlan, setPaymentPlan] = useState<'full' | 'split'>('full');
   const [effectivePrice, setEffectivePrice] = useState<number | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(false);
@@ -1469,34 +1469,10 @@ const BookingModal: React.FC<BookingModalProps> = ({
                       <Text style={styles.paymentMethodSelectorText}>Carte bancaire</Text>
                     </>
                   )}
-                  {selectedPaymentMethod === 'orange_money' && (
-                    <>
-                      <Ionicons name="phone-portrait" size={24} color="#f97316" />
-                      <Text style={styles.paymentMethodSelectorText}>Orange Money • Recommandé</Text>
-                    </>
-                  )}
-                  {selectedPaymentMethod === 'mtn_money' && (
-                    <>
-                      <Ionicons name="phone-portrait" size={24} color="#eab308" />
-                      <Text style={styles.paymentMethodSelectorText}>MTN Money • Recommandé</Text>
-                    </>
-                  )}
-                  {selectedPaymentMethod === 'moov_money' && (
-                    <>
-                      <Ionicons name="phone-portrait" size={24} color="#3b82f6" />
-                      <Text style={styles.paymentMethodSelectorText}>Moov Money • Recommandé</Text>
-                    </>
-                  )}
                   {selectedPaymentMethod === 'wave' && (
                     <>
                       <Ionicons name="phone-portrait" size={24} color="#8b5cf6" />
                       <Text style={styles.paymentMethodSelectorText}>Wave • Recommandé</Text>
-                    </>
-                  )}
-                  {selectedPaymentMethod === 'paypal' && (
-                    <>
-                      <Ionicons name="globe" size={24} color="#0070ba" />
-                      <Text style={styles.paymentMethodSelectorText}>PayPal • Recommandé</Text>
                     </>
                   )}
                   {selectedPaymentMethod === 'cash' && (
@@ -1531,17 +1507,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                       {property.auto_booking
                         ? 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre réservation sera confirmée automatiquement.'
                         : 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre demande de réservation sera envoyée au propriétaire.'}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {(selectedPaymentMethod === 'paypal' || selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
-                <View style={styles.paymentInfoContainer}>
-                  <View style={styles.securityInfo}>
-                    <Ionicons name="time-outline" size={20} color="#f59e0b" />
-                    <Text style={styles.securityText}>
-                      Ce moyen de paiement sera bientot disponible. {canPayByCard ? 'Utilisez Carte bancaire (Stripe), Wave ou Espèces pour continuer.' : 'Utilisez Wave ou Espèces pour continuer.'}
                     </Text>
                   </View>
                 </View>
@@ -1787,102 +1752,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                 </TouchableOpacity>
               )}
 
-              {/* Orange Money */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethod,
-                  selectedPaymentMethod === 'orange_money' && styles.paymentMethodSelected
-                ]}
-                onPress={() => {
-                  Alert.alert('Bientot disponible', 'Orange Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
-                }}
-              >
-                <View style={styles.paymentMethodContent}>
-                  <Ionicons name="phone-portrait" size={24} color="#f97316" />
-                  <View style={styles.paymentMethodInfo}>
-                    <View style={styles.paypalHeader}>
-                      <Text style={styles.paymentMethodTitle}>Orange Money</Text>
-                      <View style={styles.recommendedBadge}>
-                        <Ionicons name="star" size={10} color="#FFD700" />
-                        <Text style={styles.recommendedText}>Recommandé</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.paymentMethodDescription}>
-                      Paiement mobile Orange
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons 
-                  name={selectedPaymentMethod === 'orange_money' ? 'checkmark-circle' : 'ellipse-outline'} 
-                  size={20} 
-                  color={selectedPaymentMethod === 'orange_money' ? '#e67e22' : '#ccc'} 
-                />
-              </TouchableOpacity>
-
-              {/* MTN Money */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethod,
-                  selectedPaymentMethod === 'mtn_money' && styles.paymentMethodSelected
-                ]}
-                onPress={() => {
-                  Alert.alert('Bientot disponible', 'MTN Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
-                }}
-              >
-                <View style={styles.paymentMethodContent}>
-                  <Ionicons name="phone-portrait" size={24} color="#eab308" />
-                  <View style={styles.paymentMethodInfo}>
-                    <View style={styles.paypalHeader}>
-                      <Text style={styles.paymentMethodTitle}>MTN Money</Text>
-                      <View style={styles.recommendedBadge}>
-                        <Ionicons name="star" size={10} color="#FFD700" />
-                        <Text style={styles.recommendedText}>Recommandé</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.paymentMethodDescription}>
-                      Paiement mobile MTN
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons 
-                  name={selectedPaymentMethod === 'mtn_money' ? 'checkmark-circle' : 'ellipse-outline'} 
-                  size={20} 
-                  color={selectedPaymentMethod === 'mtn_money' ? '#e67e22' : '#ccc'} 
-                />
-              </TouchableOpacity>
-
-              {/* Moov Money */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethod,
-                  selectedPaymentMethod === 'moov_money' && styles.paymentMethodSelected
-                ]}
-                onPress={() => {
-                  Alert.alert('Bientot disponible', 'Moov Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
-                }}
-              >
-                <View style={styles.paymentMethodContent}>
-                  <Ionicons name="phone-portrait" size={24} color="#3b82f6" />
-                  <View style={styles.paymentMethodInfo}>
-                    <View style={styles.paypalHeader}>
-                      <Text style={styles.paymentMethodTitle}>Moov Money</Text>
-                      <View style={styles.recommendedBadge}>
-                        <Ionicons name="star" size={10} color="#FFD700" />
-                        <Text style={styles.recommendedText}>Recommandé</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.paymentMethodDescription}>
-                      Paiement mobile Moov
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons 
-                  name={selectedPaymentMethod === 'moov_money' ? 'checkmark-circle' : 'ellipse-outline'} 
-                  size={20} 
-                  color={selectedPaymentMethod === 'moov_money' ? '#e67e22' : '#ccc'} 
-                />
-              </TouchableOpacity>
-
               {/* Wave */}
               <TouchableOpacity
                 style={[
@@ -1928,41 +1797,6 @@ const BookingModal: React.FC<BookingModalProps> = ({
                   name={selectedPaymentMethod === 'wave' ? 'checkmark-circle' : 'ellipse-outline'} 
                   size={20} 
                   color={selectedPaymentMethod === 'wave' ? '#e67e22' : '#ccc'} 
-                />
-              </TouchableOpacity>
-
-              {/* PayPal */}
-              <TouchableOpacity
-                style={[
-                  styles.paymentMethod,
-                  selectedPaymentMethod === 'paypal' && styles.paymentMethodSelected
-                ]}
-                onPress={() => {
-                  Alert.alert('Bientot disponible', 'PayPal sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.');
-                }}
-              >
-                <View style={styles.paymentMethodContent}>
-                  <Ionicons name="globe" size={24} color="#0070ba" />
-                  <View style={styles.paymentMethodInfo}>
-                    <View style={styles.paypalHeader}>
-                      <Text style={styles.paymentMethodTitle}>PayPal</Text>
-                      <View style={styles.recommendedBadge}>
-                        <Ionicons name="star" size={10} color="#FFD700" />
-                        <Text style={styles.recommendedText}>Recommandé</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.paymentMethodDescription}>
-                      Paiement sécurisé via PayPal
-                    </Text>
-                    <Text style={styles.paypalNote}>
-                      💡 Sans frais d'envoi
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons 
-                  name={selectedPaymentMethod === 'paypal' ? 'checkmark-circle' : 'ellipse-outline'} 
-                  size={20} 
-                  color={selectedPaymentMethod === 'paypal' ? '#e67e22' : '#ccc'} 
                 />
               </TouchableOpacity>
 

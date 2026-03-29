@@ -72,11 +72,11 @@ const HostBookingsScreen: React.FC = () => {
     try {
       console.log('🔄 [HostBookingsScreen] Début du chargement des données...');
       
-      // Charger les propriétés actives de l'hôte (les masquées/supprimées ne s'affichent pas)
+      // Charger toutes les propriétés de l'hôte (y compris masquées),
+      // sinon l'hôte perd l'accès à ses réservations quand un admin masque la propriété.
       const properties = await getMyProperties();
-      const activeProperties = (properties || []).filter((p: any) => p.is_active !== false);
-      console.log('🏠 [HostBookingsScreen] Propriétés chargées:', activeProperties.length, '/', (properties || []).length);
-      setAllProperties(activeProperties);
+      console.log('🏠 [HostBookingsScreen] Propriétés chargées:', (properties || []).length);
+      setAllProperties(properties || []);
 
       // Charger les réservations
       const hostBookings = await getHostBookings();

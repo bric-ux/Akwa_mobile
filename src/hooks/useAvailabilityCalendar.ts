@@ -5,6 +5,8 @@ interface UnavailableDate {
   start_date: string;
   end_date: string;
   reason?: string;
+  /** Réservations logement : le jour de départ (check-out) est libre pour le prochain voyageur. Faux pour blocked_dates / iCal où fin de plage souvent inclusive. */
+  endExclusive?: boolean;
 }
 
 export const useAvailabilityCalendar = (
@@ -168,7 +170,8 @@ export const useAvailabilityCalendar = (
           unavailableMap.set(key, {
             start_date: checkIn,
             end_date: checkOut,
-            reason
+            reason,
+            endExclusive: true,
           });
         }
       });
@@ -199,7 +202,7 @@ export const useAvailabilityCalendar = (
 
       // IMPORTANT: Vérifier que toutes les dates entre start_date et end_date sont bien incluses
       // Normaliser toutes les dates pour s'assurer qu'elles sont au format YYYY-MM-DD
-      const normalizedUnavailableDates = allUnavailableDates.map(({ start_date, end_date, reason }) => {
+      const normalizedUnavailableDates = allUnavailableDates.map(({ start_date, end_date, reason, endExclusive }) => {
         const normalizeDateStr = (dateStr: string) => {
           if (!dateStr) return '';
           if (dateStr.includes('T')) {
@@ -211,7 +214,8 @@ export const useAvailabilityCalendar = (
         return {
           start_date: normalizeDateStr(start_date),
           end_date: normalizeDateStr(end_date),
-          reason
+          reason,
+          endExclusive,
         };
       });
 
@@ -252,20 +256,22 @@ export const useAvailabilityCalendar = (
     if (excludeBookingDates) {
       const normalizedExcludeStart = normalizeDateStr(excludeBookingDates.checkIn);
       const normalizedExcludeEnd = normalizeDateStr(excludeBookingDates.checkOut);
-      if (dateStr >= normalizedExcludeStart && dateStr <= normalizedExcludeEnd) {
+      // Même sémantique que les réservations : jour de check-out exclu (libre le jour du départ)
+      if (dateStr >= normalizedExcludeStart && dateStr < normalizedExcludeEnd) {
         console.log(`✅ [isDateUnavailable] Date ${dateStr} disponible (réservation actuelle): ${normalizedExcludeStart} - ${normalizedExcludeEnd}`);
         return false; // La date est disponible car elle fait partie de la réservation actuelle
       }
     }
     
-    const isUnavailable = unavailableDates.some(({ start_date, end_date }) => {
+    const isUnavailable = unavailableDates.some(({ start_date, end_date, endExclusive }) => {
       // Normaliser les dates de début et fin
       const normalizedStart = normalizeDateStr(start_date);
       const normalizedEnd = normalizeDateStr(end_date);
       
-      // Vérifier si la date est dans la période [start_date, end_date] (inclus)
-      // IMPORTANT: Utiliser >= et <= pour inclure les dates limites
-      const isInPeriod = dateStr >= normalizedStart && dateStr <= normalizedEnd;
+      const exclusive = endExclusive !== false;
+      const isInPeriod = exclusive
+        ? dateStr >= normalizedStart && dateStr < normalizedEnd
+        : dateStr >= normalizedStart && dateStr <= normalizedEnd;
       
       if (isInPeriod) {
         console.log(`🚫 [isDateUnavailable] Date ${dateStr} indisponible: période ${normalizedStart} - ${normalizedEnd}`);
@@ -301,21 +307,21 @@ export const useAvailabilityCalendar = (
     if (excludeBookingDates) {
       const normalizedExcludeStart = normalizeDateStr(excludeBookingDates.checkIn);
       const normalizedExcludeEnd = normalizeDateStr(excludeBookingDates.checkOut);
-      // Vérifier si la plage sélectionnée est entièrement contenue dans la réservation actuelle
+      // Plage demandée [check-in, check-out) doit rester dans la réservation courante (fin exclusive)
       if (startStr >= normalizedExcludeStart && endStr <= normalizedExcludeEnd) {
         console.log(`✅ [isDateRangeUnavailable] Plage ${startStr} - ${endStr} disponible (réservation actuelle): ${normalizedExcludeStart} - ${normalizedExcludeEnd}`);
         return false; // La plage est disponible car elle fait partie de la réservation actuelle
       }
     }
     
-    // Vérifier si la plage chevauche une période indisponible
-    // Deux plages se chevauchent si : start < existingEnd && end > existingStart
-    return unavailableDates.some(({ start_date, end_date }) => {
+    // Plage choisie = [startStr, endStr) (nuitées entre arrivée et départ). Chevauchement selon le type de période.
+    return unavailableDates.some(({ start_date, end_date, endExclusive }) => {
       const normalizedStart = normalizeDateStr(start_date);
       const normalizedEnd = normalizeDateStr(end_date);
-      
-      // Vérifier le chevauchement
-      const overlaps = startStr < normalizedEnd && endStr > normalizedStart;
+      const exclusive = endExclusive !== false;
+      const overlaps = exclusive
+        ? startStr < normalizedEnd && endStr > normalizedStart
+        : startStr <= normalizedEnd && endStr > normalizedStart;
       
       if (overlaps) {
         console.log(`🚫 [isDateRangeUnavailable] Plage ${startStr} - ${endStr} chevauche période ${normalizedStart} - ${normalizedEnd}`);

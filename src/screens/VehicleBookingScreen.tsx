@@ -72,7 +72,7 @@ const VehicleBookingScreen: React.FC = () => {
   const [showLicenseYearsPicker, setShowLicenseYearsPicker] = useState(false);
   const [useDriver, setUseDriver] = useState<boolean | null>(null);
   const [isOutOfTownRental, setIsOutOfTownRental] = useState<boolean>(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'paypal' | 'cash'>('card');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'wave' | 'cash'>('card');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const imageScrollViewRef = useRef<ScrollView>(null);
@@ -579,8 +579,9 @@ const VehicleBookingScreen: React.FC = () => {
     if (__DEV__) console.log(`⚠️ [VehicleBookingScreen] Pas de calcul heures: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle?.hourly_rental_enabled}, price_per_hour=${vehicle?.price_per_hour}`);
   }
   
-  // Ajouter le surplus chauffeur si le véhicule est proposé avec chauffeur et que le locataire choisit le chauffeur
-  const driverFee = (withDriver && useDriver === true && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
+  // Ajouter le surplus chauffeur (forfait PAR JOUR) si le véhicule est proposé avec chauffeur et que le locataire choisit le chauffeur
+  const driverFeePerDay = (withDriver && useDriver === true && vehicle?.driver_fee) ? Number(vehicle.driver_fee) : 0;
+  const driverFee = driverFeePerDay > 0 ? driverFeePerDay * Math.max(1, rentalDays) : 0;
   const basePriceWithDriver = basePrice + driverFee;
   
   // Frais de service véhicule : 11% si CB, 10% pour les autres (CB proposée seulement en XOF/EUR)
@@ -1504,10 +1505,6 @@ const VehicleBookingScreen: React.FC = () => {
             {[
               ...(canPayByCard ? [{ value: 'card' as const, label: 'Carte bancaire', icon: 'card' as const }] : []),
               { value: 'wave' as const, label: 'Wave', icon: 'wallet' as const },
-              { value: 'orange_money' as const, label: 'Orange Money', icon: 'phone-portrait' as const },
-              { value: 'mtn_money' as const, label: 'MTN Money', icon: 'phone-portrait' as const },
-              { value: 'moov_money' as const, label: 'Moov Money', icon: 'phone-portrait' as const },
-              { value: 'paypal' as const, label: 'PayPal', icon: 'logo-paypal' as const },
               { value: 'cash' as const, label: 'Espèces', icon: 'cash' as const },
             ].map((method) => (
               <TouchableOpacity
@@ -1591,15 +1588,6 @@ const VehicleBookingScreen: React.FC = () => {
                     ? 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre réservation sera confirmée automatiquement.'
                     : 'Vous serez redirigé vers l\'app Wave pour un paiement sécurisé. Après paiement validé, votre demande sera transmise au propriétaire.'}
                 </Text>
-              </View>
-            </View>
-          )}
-
-          {(selectedPaymentMethod === 'paypal' || selectedPaymentMethod === 'orange_money' || selectedPaymentMethod === 'mtn_money' || selectedPaymentMethod === 'moov_money') && (
-            <View style={styles.paymentInfoContainer}>
-              <View style={styles.securityInfo}>
-                <Ionicons name="time-outline" size={20} color="#f59e0b" />
-                <Text style={styles.securityText}>Ce moyen de paiement sera bientot disponible. {canPayByCard ? 'Utilisez Carte bancaire (Stripe), Wave ou Espèces.' : 'Utilisez Wave ou Espèces.'}</Text>
               </View>
             </View>
           )}

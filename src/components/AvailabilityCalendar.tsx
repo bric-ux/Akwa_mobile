@@ -140,8 +140,12 @@ const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
     const day = String(date.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
     
-    const unavailablePeriod = unavailableDates.find(({ start_date, end_date }) => {
-      return dateStr >= start_date && dateStr <= end_date;
+    const norm = (d: string) => (d?.includes('T') ? d.split('T')[0] : d);
+    const unavailablePeriod = unavailableDates.find(({ start_date, end_date, endExclusive }) => {
+      const s = norm(start_date);
+      const e = norm(end_date);
+      const exclusive = endExclusive !== false;
+      return exclusive ? dateStr >= s && dateStr < e : dateStr >= s && dateStr <= e;
     });
     
     return unavailablePeriod?.reason || 'Indisponible';

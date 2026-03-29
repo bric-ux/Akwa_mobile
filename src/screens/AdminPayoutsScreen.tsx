@@ -442,9 +442,6 @@ const AdminPayoutsScreen: React.FC = () => {
   const ADMIN_PAYMENT_METHODS = [
     { value: 'bank_transfer', label: 'Virement bancaire', icon: 'business' },
     { value: 'wave', label: 'Wave', icon: 'wallet' },
-    { value: 'orange_money', label: 'Orange Money', icon: 'phone-portrait' },
-    { value: 'mtn_money', label: 'MTN Money', icon: 'phone-portrait' },
-    { value: 'moov_money', label: 'Moov Money', icon: 'phone-portrait' },
     { value: 'cash', label: 'Espèces', icon: 'cash' },
     { value: 'other', label: 'Autre', icon: 'ellipsis-horizontal' },
   ] as const;
@@ -462,9 +459,6 @@ const AdminPayoutsScreen: React.FC = () => {
       case 'bank_transfer':
         return [info.bankReference, info.bankName].filter(Boolean).join(' | ');
       case 'wave':
-      case 'orange_money':
-      case 'mtn_money':
-      case 'moov_money':
         return [info.phoneNumber, info.transactionRef].filter(Boolean).join(' | ');
       case 'cash':
         return info.note || 'Paiement espèces';
@@ -484,9 +478,6 @@ const AdminPayoutsScreen: React.FC = () => {
         }
         break;
       case 'wave':
-      case 'orange_money':
-      case 'mtn_money':
-      case 'moov_money':
         if (!adminPaymentInfo.phoneNumber.trim()) {
           Alert.alert('Erreur', 'Veuillez renseigner le numéro auquel le paiement a été envoyé');
           return false;
@@ -1376,7 +1367,7 @@ const AdminPayoutsScreen: React.FC = () => {
                           />
                         </View>
                       )}
-                      {['wave', 'orange_money', 'mtn_money', 'moov_money'].includes(selectedAdminPaymentMethod) && (
+                      {selectedAdminPaymentMethod === 'wave' && (
                         <View style={styles.adminPaymentFormSection}>
                           <Text style={styles.adminPaymentFormLabel}>Numéro auquel le paiement a été envoyé *</Text>
                           <TextInput

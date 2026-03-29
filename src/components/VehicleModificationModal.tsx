@@ -240,7 +240,8 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
   const currentBasePrice = currentDaysPrice + currentHoursPrice;
   const currentDiscountAmount = booking.discount_amount || 0;
   const currentPriceAfterDiscount = currentBasePrice - currentDiscountAmount;
-  const currentDriverFee = (booking.with_driver && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
+  const currentDriverFeePerDay = (booking.with_driver && vehicle?.driver_fee) ? Number(vehicle.driver_fee) : 0;
+  const currentDriverFee = currentDriverFeePerDay > 0 ? currentDriverFeePerDay * Math.max(1, currentRentalDays) : 0;
   const currentBaseForService = currentPriceAfterDiscount + currentDriverFee;
   const vehicleUsesPlatformCardRate = booking.payment_method === 'card' || booking.payment_method === 'wave';
   const currentCommissionRates = getCommissionRates('vehicle', undefined, vehicleUsesPlatformCardRate);
@@ -330,7 +331,8 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
   const isReductionDuration = daysDiff < 0 || hoursDiff < 0;
 
   const commissionRates = getCommissionRates('vehicle', undefined, vehicleUsesPlatformCardRate);
-  const driverFee = (booking.with_driver && vehicle?.driver_fee) ? vehicle.driver_fee : 0;
+  const driverFeePerDay = (booking.with_driver && vehicle?.driver_fee) ? Number(vehicle.driver_fee) : 0;
+  const driverFee = driverFeePerDay > 0 ? driverFeePerDay * Math.max(1, rentalDays) : 0;
 
   let basePrice: number;
   let discountAmount: number;

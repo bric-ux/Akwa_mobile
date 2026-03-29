@@ -68,7 +68,14 @@ const HostPaymentInfoScreen: React.FC = () => {
     if (!isEditing) {
       setIsEditing(true);
     }
-    handleInputChange('preferred_payment_method', method);
+    setFormData((prev) => ({
+      ...prev,
+      preferred_payment_method: method,
+      ...(method === 'mobile_money' ? { mobile_money_provider: 'wave' as const } : {}),
+    }));
+    if (validationErrors.length > 0) {
+      setValidationErrors([]);
+    }
     setCurrentStep(2);
   };
 
@@ -146,7 +153,7 @@ const HostPaymentInfoScreen: React.FC = () => {
           <View style={styles.paymentMethodContent}>
             <Text style={styles.paymentMethodTitle}>Mobile Money</Text>
             <Text style={styles.paymentMethodDescription}>
-              Orange Money, MTN Money, Moov Money, Wave
+              Wave
             </Text>
           </View>
           <Ionicons 
@@ -156,35 +163,6 @@ const HostPaymentInfoScreen: React.FC = () => {
           />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.paymentMethodCard,
-            formData.preferred_payment_method === 'paypal' && styles.paymentMethodCardSelected
-          ]}
-          onPress={() => handlePaymentMethodSelect('paypal')}
-        >
-          <Ionicons name="globe" size={24} color="#e67e22" />
-          <View style={styles.paymentMethodContent}>
-            <View style={styles.paypalHeader}>
-              <Text style={styles.paymentMethodTitle}>PayPal</Text>
-              <View style={styles.recommendedBadge}>
-                <Ionicons name="star" size={12} color="#FFD700" />
-                <Text style={styles.recommendedText}>Recommandé</Text>
-              </View>
-            </View>
-            <Text style={styles.paymentMethodDescription}>
-              Transfert international via PayPal
-            </Text>
-            <Text style={styles.paypalNote}>
-              💡 Sans frais d'envoi - Méthode recommandée
-            </Text>
-          </View>
-          <Ionicons 
-            name={formData.preferred_payment_method === 'paypal' ? 'checkmark-circle' : 'ellipse-outline'} 
-            size={20} 
-            color={formData.preferred_payment_method === 'paypal' ? '#e67e22' : '#ccc'} 
-          />
-        </TouchableOpacity>
       </View>
 
       <TouchableOpacity
@@ -279,23 +257,20 @@ const HostPaymentInfoScreen: React.FC = () => {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Fournisseur *</Text>
             <View style={styles.providerButtons}>
-              {['orange_money', 'mtn_money', 'moov_money', 'wave'].map((provider) => (
-                <TouchableOpacity
-                  key={provider}
-                  style={[
-                    styles.providerButton,
-                    formData.mobile_money_provider === provider && styles.providerButtonSelected
-                  ]}
-                  onPress={() => handleInputChange('mobile_money_provider', provider)}
-                >
-                  <Text style={[
-                    styles.providerButtonText,
-                    formData.mobile_money_provider === provider && styles.providerButtonTextSelected
-                  ]}>
-                    {provider.replace('_', ' ').toUpperCase()}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              <TouchableOpacity
+                style={[
+                  styles.providerButton,
+                  formData.mobile_money_provider === 'wave' && styles.providerButtonSelected
+                ]}
+                onPress={() => handleInputChange('mobile_money_provider', 'wave')}
+              >
+                <Text style={[
+                  styles.providerButtonText,
+                  formData.mobile_money_provider === 'wave' && styles.providerButtonTextSelected
+                ]}>
+                  Wave
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -312,23 +287,6 @@ const HostPaymentInfoScreen: React.FC = () => {
         </View>
       )}
 
-      {formData.preferred_payment_method === 'paypal' && (
-        <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>PayPal</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email PayPal *</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.paypal_email || ''}
-              onChangeText={(value) => handleInputChange('paypal_email', value)}
-              placeholder="votre@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-        </View>
-      )}
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
@@ -448,13 +406,7 @@ const HostPaymentInfoScreen: React.FC = () => {
           </>
         )}
 
-        {paymentInfo?.preferred_payment_method === 'paypal' && (
-          <View style={styles.infoRow}>
-            <Ionicons name="mail-outline" size={18} color="#666" />
-            <Text style={styles.infoLabel}>Email PayPal</Text>
-            <Text style={styles.infoValue}>{paymentInfo.paypal_email || '-'}</Text>
-          </View>
-        )}
+        {/* PayPal retiré de l'application */}
       </View>
 
       {paymentInfo?.verification_notes && (

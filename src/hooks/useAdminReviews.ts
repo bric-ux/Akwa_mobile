@@ -43,6 +43,41 @@ export const useAdminReviews = () => {
     }
   };
 
+  const getAllReviews = async (): Promise<Review[]> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          profiles!reviewer_id(first_name, last_name),
+          properties(title, host_id),
+          bookings(check_in_date, check_out_date)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (error) {
+        setError('Erreur lors du chargement des avis');
+        return [];
+      }
+
+      return (data || []).map((review: any) => ({
+        ...review,
+        reviewer_name: review.profiles ?
+          `${review.profiles.first_name || ''} ${review.profiles.last_name || ''}`.trim() || 'Utilisateur'
+          : 'Utilisateur'
+      }));
+    } catch (err) {
+      setError('Erreur lors du chargement des avis');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const approveReview = async (reviewId: string, adminNotes?: string) => {
     if (!user) {
       setError('Vous devez être connecté');
@@ -85,13 +120,18 @@ export const useAdminReviews = () => {
     setError(null);
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('reviews')
         .delete()
-        .eq('id', reviewId);
+        .eq('id', reviewId)
+        .select('id');
 
       if (error) {
         setError('Erreur lors du rejet de l\'avis');
+        return { success: false };
+      }
+      if (!data?.length) {
+        setError('Suppression refusée ou aucune ligne supprimée (droits RLS ?)');
         return { success: false };
       }
 
@@ -104,12 +144,47 @@ export const useAdminReviews = () => {
     }
   };
 
+  const deleteReview = async (reviewId: string) => {
+    if (!user) {
+      setError('Vous devez être connecté');
+      return { success: false };
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .delete()
+        .eq('id', reviewId)
+        .select('id');
+
+      if (error) {
+        setError('Erreur lors de la suppression de l\'avis');
+        return { success: false };
+      }
+      if (!data?.length) {
+        setError('Suppression refusée ou aucune ligne supprimée (droits RLS ?)');
+        return { success: false };
+      }
+
+      return { success: true };
+    } catch (err) {
+      setError('Erreur lors de la suppression de l\'avis');
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
     getAllPendingReviews,
+    getAllReviews,
     approveReview,
-    rejectReview
+    rejectReview,
+    deleteReview,
   };
 };
 

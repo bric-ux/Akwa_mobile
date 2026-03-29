@@ -5,6 +5,8 @@ interface UnavailableDate {
   start_date: string;
   end_date: string;
   reason?: string;
+  /** Réservations : jour de fin de location exclu (retour le jour J = libre pour une nouvelle loc le même jour). */
+  endExclusive?: boolean;
 }
 
 export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
@@ -145,7 +147,8 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
           unavailableMap.set(key, {
             start_date: modStart,
             end_date: modEnd,
-            reason: 'Réservation (modification en attente)'
+            reason: 'Réservation (modification en attente)',
+            endExclusive: true,
           });
           console.log(`📅 [useVehicleAvailabilityCalendar] Ajout réservation avec modif en attente: ${modStart} - ${modEnd}`);
         } else {
@@ -155,7 +158,8 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
             start_date: bookingStart,
             end_date: bookingEnd,
             reason: booking.status === 'confirmed' ? 'Réservation confirmée' : 
-                    booking.status === 'pending' ? 'Réservation en attente' : 'Réservation en cours'
+                    booking.status === 'pending' ? 'Réservation en attente' : 'Réservation en cours',
+            endExclusive: true,
           });
           console.log(`📅 [useVehicleAvailabilityCalendar] Ajout réservation: ${bookingStart} - ${bookingEnd} (${booking.status})`);
         }
@@ -169,7 +173,8 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
         unavailableMap.set(key, {
           start_date: blockedStart,
           end_date: blockedEnd,
-          reason: blocked.reason || 'Bloqué manuellement'
+          reason: blocked.reason || 'Bloqué manuellement',
+          endExclusive: false,
         });
         console.log(`📅 [useVehicleAvailabilityCalendar] Ajout date bloquée: ${blockedStart} - ${blockedEnd}`);
       });
@@ -212,13 +217,14 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
       return dateStr.split('T')[0];
     };
     
-    const isUnavailable = unavailableDates.some(({ start_date, end_date }) => {
+    const isUnavailable = unavailableDates.some(({ start_date, end_date, endExclusive }) => {
       // Normaliser les dates de la période
       const periodStart = normalizeDate(start_date);
       const periodEnd = normalizeDate(end_date);
-      
-      // Vérifier si la date est dans la période [start_date, end_date] (inclus)
-      const isInPeriod = dateStr >= periodStart && dateStr <= periodEnd;
+      const exclusive = endExclusive !== false;
+      const isInPeriod = exclusive
+        ? dateStr >= periodStart && dateStr < periodEnd
+        : dateStr >= periodStart && dateStr <= periodEnd;
       
       if (isInPeriod) {
         console.log(`🚫 [isDateUnavailable] Date ${dateStr} indisponible: période ${periodStart} - ${periodEnd}`);
@@ -250,14 +256,13 @@ export const useVehicleAvailabilityCalendar = (vehicleId: string) => {
     const startStr = normalizeDate(startDate);
     const endStr = normalizeDate(endDate);
     
-    // Vérifier si la plage chevauche une période indisponible
-    // Deux plages se chevauchent si : start < existingEnd && end > existingStart
-    return unavailableDates.some(({ start_date, end_date }) => {
+    return unavailableDates.some(({ start_date, end_date, endExclusive }) => {
       const normalizedStart = normalizeDateStr(start_date);
       const normalizedEnd = normalizeDateStr(end_date);
-      
-      // Vérifier le chevauchement
-      const overlaps = startStr < normalizedEnd && endStr > normalizedStart;
+      const exclusive = endExclusive !== false;
+      const overlaps = exclusive
+        ? startStr < normalizedEnd && endStr > normalizedStart
+        : startStr <= normalizedEnd && endStr > normalizedStart;
       
       if (overlaps) {
         console.log(`🚫 [isDateRangeUnavailable] Plage ${startStr} - ${endStr} chevauche période ${normalizedStart} - ${normalizedEnd}`);

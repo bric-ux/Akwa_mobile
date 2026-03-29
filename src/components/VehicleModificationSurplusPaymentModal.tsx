@@ -70,7 +70,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
   const STRIPE_PENDING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
   const navigation = useNavigation();
   const { currency, rates, formatPriceForPayment, changeCurrency } = useCurrency();
-  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'orange_money' | 'mtn_money' | 'moov_money' | 'card' | 'paypal' | 'cash'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'wave' | 'card' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [pendingStripeReturn, setPendingStripeReturn] = useState(false);
@@ -297,10 +297,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
     if (paymentMethod === 'card' || paymentMethod === 'cash' || paymentMethod === 'wave') {
       return true;
     }
-    if (['orange_money', 'mtn_money', 'moov_money', 'paypal'].includes(paymentMethod)) {
-      Alert.alert('Bientot disponible', 'Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe), Wave ou Espèces.');
-      return false;
-    }
+    // Plus de PayPal dans l'app
     return true;
   };
 
@@ -436,11 +433,7 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
       const getPaymentProvider = (method: string): string => {
         switch (method) {
           case 'wave': return 'wave';
-          case 'orange_money': return 'orange_money';
-          case 'mtn_money': return 'mtn_money';
-          case 'moov_money': return 'moov_money';
           case 'card': return 'stripe';
-          case 'paypal': return 'paypal';
           case 'cash': return 'manual';
           default: return 'manual';
         }
@@ -680,46 +673,6 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
                 )}
               </TouchableOpacity>
 
-              {/* Orange Money */}
-              <TouchableOpacity
-                style={[styles.paymentMethod, paymentMethod === 'orange_money' && styles.paymentMethodSelected]}
-                onPress={() => Alert.alert('Bientot disponible', 'Orange Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
-              >
-                <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'orange_money' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'orange_money' && styles.paymentMethodTextSelected]}>Orange Money • Recommandé</Text>
-                {paymentMethod === 'orange_money' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
-              </TouchableOpacity>
-
-              {/* MTN Money */}
-              <TouchableOpacity
-                style={[styles.paymentMethod, paymentMethod === 'mtn_money' && styles.paymentMethodSelected]}
-                onPress={() => Alert.alert('Bientot disponible', 'MTN Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
-              >
-                <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'mtn_money' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'mtn_money' && styles.paymentMethodTextSelected]}>MTN Money • Recommandé</Text>
-                {paymentMethod === 'mtn_money' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
-              </TouchableOpacity>
-
-              {/* Moov Money */}
-              <TouchableOpacity
-                style={[styles.paymentMethod, paymentMethod === 'moov_money' && styles.paymentMethodSelected]}
-                onPress={() => Alert.alert('Bientot disponible', 'Moov Money sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
-              >
-                <Ionicons name="phone-portrait" size={24} color={paymentMethod === 'moov_money' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'moov_money' && styles.paymentMethodTextSelected]}>Moov Money • Recommandé</Text>
-                {paymentMethod === 'moov_money' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
-              </TouchableOpacity>
-
-              {/* PayPal */}
-              <TouchableOpacity
-                style={[styles.paymentMethod, paymentMethod === 'paypal' && styles.paymentMethodSelected]}
-                onPress={() => Alert.alert('Bientot disponible', 'PayPal sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.')}
-              >
-                <Ionicons name="logo-paypal" size={24} color={paymentMethod === 'paypal' ? '#e67e22' : '#6b7280'} />
-                <Text style={[styles.paymentMethodText, paymentMethod === 'paypal' && styles.paymentMethodTextSelected]}>PayPal • Recommandé</Text>
-                {paymentMethod === 'paypal' && <Ionicons name="checkmark-circle" size={20} color="#e67e22" />}
-              </TouchableOpacity>
-
               {/* Carte bancaire */}
               <TouchableOpacity
                 style={[
@@ -760,15 +713,6 @@ const VehicleModificationSurplusPaymentModal: React.FC<VehicleModificationSurplu
                 <Ionicons name="phone-portrait" size={24} color="#8b5cf6" />
                 <Text style={[styles.inputLabel, { flex: 1, marginBottom: 0 }]}>
                   Vous serez redirigé vers l'app Wave pour régler le surplus. Après paiement validé, votre demande de modification sera envoyée au propriétaire.
-                </Text>
-              </View>
-            )}
-
-            {(paymentMethod === 'orange_money' || paymentMethod === 'mtn_money' || paymentMethod === 'moov_money' || paymentMethod === 'paypal') && (
-              <View style={[styles.paymentFormSection, { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#f8f9fa', padding: 16, borderRadius: 8 }]}>
-                <Ionicons name="time-outline" size={24} color="#f59e0b" />
-                <Text style={[styles.inputLabel, { flex: 1, marginBottom: 0 }]}>
-                  Ce moyen de paiement sera bientot disponible. Utilisez Carte bancaire (Stripe) ou Espèces.
                 </Text>
               </View>
             )}

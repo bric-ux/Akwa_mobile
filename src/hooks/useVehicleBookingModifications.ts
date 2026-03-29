@@ -680,7 +680,8 @@ export const useVehicleBookingModifications = () => {
         const rentalHours = request.requested_rental_hours || 0;
         const daysPrice = dailyRate * request.requested_rental_days;
         const hoursPrice = rentalHours > 0 && hourlyRate > 0 ? rentalHours * hourlyRate : 0;
-        const driverFee = (bookingData.with_driver && vehicle.driver_fee) ? vehicle.driver_fee : 0;
+        const driverFeePerDay = (bookingData.with_driver && vehicle.driver_fee) ? Number(vehicle.driver_fee) : 0;
+        const driverFee = driverFeePerDay > 0 ? driverFeePerDay * Math.max(1, request.requested_rental_days || 0) : 0;
         
         // Calculer le prix avant réduction (jours + heures uniquement, SANS chauffeur)
         const totalBeforeDiscount = daysPrice + hoursPrice;
