@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { TRAVELER_COLORS, COMMON_COLORS } from '../constants/colors';
+import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 
 interface SearchMapViewProps {
   properties: Property[];
@@ -719,7 +720,7 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
                 {selectedProperty.description && (
                   <View style={styles.descriptionContainer}>
                     <Text style={styles.description} numberOfLines={3}>
-                      {selectedProperty.description}
+                      {sanitizePublicDescription(selectedProperty.description)}
                     </Text>
                   </View>
                 )}

@@ -77,6 +77,10 @@ export interface Property {
   service_fee?: number;
   taxes?: number;
   is_hidden?: boolean;
+  /** Annonce publiée (visible voyageur si true et non masquée admin) */
+  is_active?: boolean;
+  /** Mis par l’admin : l’hôte ne peut pas remettre is_active à true seul */
+  hidden_by_admin?: boolean;
   auto_booking?: boolean;
   minimum_nights?: number;
   discount_enabled?: boolean;
@@ -231,6 +235,7 @@ export type RootStackParamList = {
   HostBookings: undefined;
   HostReviews: undefined;
   Settings: undefined;
+  HelpAssistant: undefined;
   EditProfile: undefined;
   BecomeHost: undefined;
   MyHostApplications: undefined;

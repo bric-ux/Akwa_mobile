@@ -167,10 +167,20 @@ const AdminPropertiesScreen: React.FC = () => {
       <View style={styles.propertyStatus}>
         <View style={[
           styles.statusBadge,
-          { backgroundColor: property.is_active ? '#2E7D32' : '#e74c3c' }
+          {
+            backgroundColor: property.is_active
+              ? '#2E7D32'
+              : property.hidden_by_admin
+                ? '#b45309'
+                : '#e74c3c',
+          }
         ]}>
           <Text style={styles.statusText}>
-            {property.is_active ? 'Active' : 'Masquée'}
+            {property.is_active
+              ? 'Active'
+              : property.hidden_by_admin
+                ? 'Masquée (admin)'
+                : 'Masquée'}
           </Text>
         </View>
       </View>

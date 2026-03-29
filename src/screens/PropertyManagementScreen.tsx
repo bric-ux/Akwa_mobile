@@ -107,6 +107,14 @@ const PropertyManagementScreen: React.FC = () => {
   const handleToggleVisibility = async () => {
     if (!property) return;
 
+    if (!property.is_active && property.hidden_by_admin) {
+      Alert.alert(
+        'Masquage administratif',
+        'Cette annonce a été masquée par l’administration. Seul un administrateur peut la réactiver.'
+      );
+      return;
+    }
+
     const action = property.is_active ? 'masquer' : 'afficher';
     const newStatus = !property.is_active;
 
@@ -124,7 +132,10 @@ const PropertyManagementScreen: React.FC = () => {
                 Alert.alert('Succès', `Propriété ${action}ée avec succès`);
                 loadProperty(); // Recharger la propriété
               } else {
-                Alert.alert('Erreur', `Impossible de ${action} la propriété`);
+                Alert.alert(
+                  'Erreur',
+                  ('error' in result && result.error) ? result.error : `Impossible de ${action} la propriété`
+                );
               }
             } catch (err) {
               Alert.alert('Erreur', 'Une erreur est survenue');
@@ -222,6 +233,14 @@ const PropertyManagementScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {property.hidden_by_admin && !property.is_active ? (
+          <View style={styles.adminHideBanner}>
+            <Ionicons name="shield-outline" size={20} color="#92400e" />
+            <Text style={styles.adminHideBannerText}>
+              Annonce masquée par l&apos;administration. Vous ne pouvez pas la réactiver vous-même ; contactez le support si besoin.
+            </Text>
+          </View>
+        ) : null}
         {/* Section Photos */}
         <View style={[styles.section, styles.photosSection]}>
           {photos.length > 0 ? (
@@ -350,6 +369,25 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
     textAlign: 'center',
+  },
+  adminHideBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    padding: 12,
+    backgroundColor: '#fef3c7',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+  },
+  adminHideBannerText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#78350f',
+    lineHeight: 20,
   },
   saveButton: {
     backgroundColor: '#e67e22',

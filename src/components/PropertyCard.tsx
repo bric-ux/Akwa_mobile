@@ -14,6 +14,7 @@ import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import { useCurrency } from '../hooks/useCurrency';
 import { getPriceForDate } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
+import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 
 interface PropertyCardProps {
   property: Property;
@@ -225,7 +226,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
             {/* Description courte */}
             {property.description && (
               <Text style={styles.gridDescription} numberOfLines={2}>
-                {property.description}
+                {sanitizePublicDescription(property.description)}
               </Text>
             )}
             

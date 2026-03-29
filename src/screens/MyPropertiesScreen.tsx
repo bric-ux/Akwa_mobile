@@ -74,6 +74,14 @@ const MyPropertiesScreen: React.FC = () => {
   };
 
   const handleToggleVisibility = async (property: Property) => {
+    if (!property.is_active && property.hidden_by_admin) {
+      Alert.alert(
+        t('host.adminHiddenTitle'),
+        t('host.adminHiddenMessage')
+      );
+      return;
+    }
+
     const action = property.is_active ? t('host.hide') : t('host.show');
     const actionKey = property.is_active ? 'hide' : 'show';
     const newStatus = !property.is_active;
@@ -94,7 +102,10 @@ const MyPropertiesScreen: React.FC = () => {
                 Alert.alert(t('common.success'), property.is_active ? t('host.propertyHidden') : t('host.propertyShown'));
                 loadProperties(); // Recharger la liste
               } else {
-                Alert.alert(t('common.error'), property.is_active ? t('host.hidePropertyError') : t('host.showPropertyError'));
+                Alert.alert(
+                  t('common.error'),
+                  ('error' in result && result.error) ? result.error : (property.is_active ? t('host.hidePropertyError') : t('host.showPropertyError'))
+                );
               }
             } catch (err) {
               Alert.alert(t('common.error'), t('common.errorOccurred'));
@@ -196,10 +207,20 @@ const MyPropertiesScreen: React.FC = () => {
       <View style={styles.propertyStatus}>
         <View style={[
           styles.statusBadge,
-          { backgroundColor: property.is_active ? '#2E7D32' : '#e74c3c' }
+          {
+            backgroundColor: property.is_active
+              ? '#2E7D32'
+              : property.hidden_by_admin
+                ? '#b45309'
+                : '#e74c3c',
+          }
         ]}>
           <Text style={styles.statusText}>
-            {property.is_active ? t('host.active') : t('host.hidden')}
+            {property.is_active
+              ? t('host.active')
+              : property.hidden_by_admin
+                ? t('host.hiddenByAdmin')
+                : t('host.hidden')}
           </Text>
         </View>
       </View>

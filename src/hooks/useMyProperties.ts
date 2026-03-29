@@ -59,10 +59,14 @@ export const useMyProperties = () => {
     }
   };
 
-  const updateProperty = async (propertyId: string, updates: Partial<Property>) => {
+  const updateProperty = async (
+    propertyId: string,
+    updates: Partial<Property>
+  ): Promise<{ success: boolean; error?: string }> => {
     if (!user) {
-      setError('Vous devez être connecté');
-      return { success: false };
+      const msg = 'Vous devez être connecté';
+      setError(msg);
+      return { success: false, error: msg };
     }
 
     setLoading(true);
@@ -77,8 +81,12 @@ export const useMyProperties = () => {
 
       if (error) {
         console.error('Error updating property:', error);
-        setError('Erreur lors de la mise à jour de la propriété');
-        return { success: false };
+        const msg =
+          error.message?.includes('masquée par l') || error.message?.includes('administrateurs')
+            ? error.message
+            : 'Erreur lors de la mise à jour de la propriété';
+        setError(msg);
+        return { success: false, error: msg };
       }
 
       if (updates.is_active !== undefined || updates.is_hidden !== undefined) {
@@ -88,8 +96,9 @@ export const useMyProperties = () => {
       return { success: true };
     } catch (err) {
       console.error('Unexpected error:', err);
-      setError('Une erreur inattendue est survenue');
-      return { success: false };
+      const msg = 'Une erreur inattendue est survenue';
+      setError(msg);
+      return { success: false, error: msg };
     } finally {
       setLoading(false);
     }
@@ -99,9 +108,35 @@ export const useMyProperties = () => {
     return updateProperty(propertyId, { is_active: false });
   };
 
-  const showProperty = async (propertyId: string) => {
+  const showProperty = async (
+    propertyId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!user) {
+      const msg = 'Vous devez être connecté';
+      setError(msg);
+      return { success: false, error: msg };
+    }
+    const { data: row, error: fetchErr } = await supabase
+      .from('properties')
+      .select('hidden_by_admin')
+      .eq('id', propertyId)
+      .eq('host_id', user.id)
+      .maybeSingle();
+    if (fetchErr) {
+      console.error('showProperty:', fetchErr);
+      const msg = 'Impossible de vérifier le statut de la propriété';
+      setError(msg);
+      return { success: false, error: msg };
+    }
+    if (row?.hidden_by_admin) {
+      const msg =
+        'Cette annonce a été masquée par l’administration. Seul un administrateur peut la réactiver.';
+      setError(msg);
+      return { success: false, error: msg };
+    }
     return updateProperty(propertyId, { is_active: true });
   };
+
 
   const deleteProperty = async (propertyId: string) => {
     if (!user) {

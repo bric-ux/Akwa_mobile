@@ -25,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '../utils/navigation';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
+import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -430,7 +431,7 @@ const VehicleDetailsScreen: React.FC = () => {
           {vehicle.description ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Description</Text>
-              <Text style={styles.description}>{String(vehicle.description || '')}</Text>
+              <Text style={styles.description}>{sanitizePublicDescription(vehicle.description)}</Text>
             </View>
           ) : null}
 

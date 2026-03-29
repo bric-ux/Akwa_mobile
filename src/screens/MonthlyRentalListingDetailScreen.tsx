@@ -18,6 +18,7 @@ import { supabase } from '../services/supabase';
 import type { MonthlyRentalListing } from '../types';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
+import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 
 type RouteProps = RouteProp<RootStackParamList, 'MonthlyRentalListingDetail'>;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -141,7 +142,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
           {listing.description ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Description</Text>
-              <Text style={styles.description}>{listing.description}</Text>
+              <Text style={styles.description}>{sanitizePublicDescription(listing.description)}</Text>
             </View>
           ) : null}
           {listing.amenities && listing.amenities.length > 0 && (

@@ -33,6 +33,7 @@ import PropertyReviews from '../components/PropertyReviews';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { log, logError } from '../utils/logger';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
+import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   apartment: 'Appartement',
@@ -355,7 +356,7 @@ const PropertyDetailsScreen: React.FC = () => {
         {property.description && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('property.about')}</Text>
-            <Text style={styles.description}>{property.description}</Text>
+            <Text style={styles.description}>{sanitizePublicDescription(property.description)}</Text>
           </View>
         )}
 

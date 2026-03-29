@@ -322,6 +322,17 @@ const SettingsScreen: React.FC = () => {
           />
         </View>
 
+        {/* Aide */}
+        <Text style={styles.sectionTitle}>Aide</Text>
+        <View style={styles.section}>
+          <SettingItem
+            icon="chatbubble-ellipses-outline"
+            title="Assistant d'aide"
+            subtitle="Questions fréquentes et contact support"
+            onPress={() => (navigation as any).navigate('HelpAssistant')}
+          />
+        </View>
+
         {/* Section Compte */}
         <Text style={styles.sectionTitle}>{t('nav.myAccount')}</Text>
         <View style={styles.section}>

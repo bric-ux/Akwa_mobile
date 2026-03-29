@@ -26,6 +26,7 @@ import EditProfileScreen from '../screens/EditProfileScreen';
 import HostProfileScreen from '../screens/HostProfileScreen';
 import HostBookingsScreen from '../screens/HostBookingsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import HelpAssistantScreen from '../screens/HelpAssistantScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 import BecomeHostScreen from '../screens/BecomeHostScreen';
@@ -98,6 +99,7 @@ import MyVehicleRenterReviewsScreen from '../screens/MyVehicleRenterReviewsScree
 import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
 import StripeReturnHandler from '../components/StripeReturnHandler';
 import WaveReturnHandler from '../components/WaveReturnHandler';
+import FloatingHelpAssistant from '../components/FloatingHelpAssistant';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList } from '../types';
@@ -636,6 +638,14 @@ const AppNavigator = () => {
           options={{ 
             title: 'Paramètres',
             headerShown: false 
+          }}
+        />
+        <Stack.Screen
+          name="HelpAssistant"
+          component={HelpAssistantScreen}
+          options={{
+            title: 'Aide',
+            headerShown: false,
           }}
         />
         <Stack.Screen 
@@ -1179,6 +1189,7 @@ const AppNavigator = () => {
       </Stack.Navigator>
       <StripeReturnHandler navigationRef={navigationRef} />
       <WaveReturnHandler />
+      <FloatingHelpAssistant />
       </>
     </NavigationContainer>
   );

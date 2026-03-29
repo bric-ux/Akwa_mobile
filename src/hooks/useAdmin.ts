@@ -348,7 +348,11 @@ export const useAdmin = () => {
     try {
       const { error } = await supabase
         .from('properties')
-        .update({ is_active: isActive })
+        .update(
+          isActive
+            ? { is_active: true, hidden_by_admin: false }
+            : { is_active: false, hidden_by_admin: true }
+        )
         .eq('id', propertyId);
 
       if (error) {

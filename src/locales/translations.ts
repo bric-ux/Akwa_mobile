@@ -329,6 +329,10 @@ export const translations: Record<string, Record<string, string>> = {
     'host.loginRequiredDesc': 'Vous devez être connecté pour voir vos propriétés',
     'host.active': 'Active',
     'host.hidden': 'Masquée',
+    'host.hiddenByAdmin': 'Masquée (admin)',
+    'host.adminHiddenTitle': 'Masquage administratif',
+    'host.adminHiddenMessage':
+      'Cette annonce a été masquée par l’administration. Seul un administrateur peut la réactiver.',
     'host.verified': 'Hôte vérifié',
     'host.switchToTravelerConfirm': 'Voulez-vous retourner au mode voyageur ?',
     'host.addProperty': 'Ajouter une propriété',
@@ -988,6 +992,10 @@ export const translations: Record<string, Record<string, string>> = {
     'host.loginRequiredDesc': 'You must be logged in to see your properties',
     'host.active': 'Active',
     'host.hidden': 'Hidden',
+    'host.hiddenByAdmin': 'Hidden (admin)',
+    'host.adminHiddenTitle': 'Administrative hide',
+    'host.adminHiddenMessage':
+      'This listing was hidden by the administration. Only an administrator can reactivate it.',
     'host.verified': 'Verified Host',
     'host.switchToTravelerConfirm': 'Do you want to return to traveler mode?',
     'host.addProperty': 'Add Property',
