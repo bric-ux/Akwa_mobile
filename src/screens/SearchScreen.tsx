@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
+import { useRoute, RouteProp, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useProperties } from '../hooks/useProperties';
 import { usePropertySorting, SortOption } from '../hooks/usePropertySorting';
@@ -30,6 +30,7 @@ import SearchResultsView from '../components/SearchResultsView';
 import { supabase } from '../services/supabase';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
 
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 
@@ -54,7 +55,8 @@ const SearchScreen: React.FC = () => {
   const [isMapView, setIsMapView] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
-  const { properties, loading, error, fetchProperties } = useProperties();
+  const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
+  const lastHandledCatalogVersionRef = useRef<number | null>(null);
   const sortedProperties = usePropertySorting(properties, sortBy);
   const { listings: monthlyListings, loading: monthlyLoading, fetchListings: fetchMonthlyListings } = useApprovedMonthlyRentalListings();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
@@ -126,6 +128,25 @@ const SearchScreen: React.FC = () => {
       }
     }
   }, [shortTermSearchQuery, filters, rentalType]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (rentalType !== 'short_term') return;
+      const v = getPublicPropertyListVersion();
+      if (lastHandledCatalogVersionRef.current === null) {
+        lastHandledCatalogVersionRef.current = v;
+        return;
+      }
+      if (v > lastHandledCatalogVersionRef.current) {
+        lastHandledCatalogVersionRef.current = v;
+        if (shortTermSearchQuery) {
+          refreshProperties({ ...filters, city: shortTermSearchQuery });
+        } else {
+          refreshProperties(filters);
+        }
+      }
+    }, [rentalType, shortTermSearchQuery, filters, refreshProperties])
+  );
 
   useEffect(() => {
     if (rentalType === 'monthly') {

@@ -44,9 +44,8 @@ interface PenaltyPaymentModalProps {
 }
 
 const AKWAHOME_RIB = 'FR76 1759 8000 0100 0121 8085 961';
-const AKWAHOME_WAVE = '+225 07 79 57 13 48';
 
-type PenaltyPaymentMethod = 'bank_transfer' | 'wave' | 'deduct_from_next_booking' | 'card' | 'cash';
+type PenaltyPaymentMethod = 'bank_transfer' | 'wave' | 'deduct_from_next_booking' | 'card';
 
 const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
   visible,
@@ -172,7 +171,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
     };
   }, [pendingWaveCheckoutToken, penalty, verifyWavePaymentNow]);
 
-  const savePaymentMethodOnly = async (method: 'bank_transfer' | 'wave' | 'deduct_from_next_booking') => {
+  const savePaymentMethodOnly = async (method: 'bank_transfer' | 'deduct_from_next_booking') => {
     if (!penalty) return;
     setLoading(true);
     try {
@@ -182,8 +181,6 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
           payment_method: method,
           admin_notes: method === 'bank_transfer'
             ? 'Pénalité à régler par virement - RIB AkwaHome communiqué.'
-            : method === 'wave'
-            ? 'Pénalité à régler par Wave - Numéro AkwaHome communiqué.'
             : 'Pénalité à déduire de la prochaine paie.',
         })
         .eq('id', penalty.id);
@@ -197,9 +194,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
       } else {
         Alert.alert(
           'Coordonnées notées',
-          method === 'bank_transfer'
-            ? 'Effectuez le virement sur le RIB indiqué. AkwaHome validera le paiement après réception.'
-            : 'Effectuez le transfert Wave au numéro indiqué. AkwaHome validera le paiement après réception.',
+          'Effectuez le virement sur le RIB indiqué. AkwaHome validera le paiement après réception.',
           [{ text: 'OK', onPress: () => { onPaymentComplete(); onClose(); setPaymentMethod('card'); } }]
         );
       }
@@ -298,61 +293,6 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
       }
       return;
     }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('penalty_tracking')
-        .update({
-          payment_method: 'pay_directly',
-          status: 'paid_directly',
-          deducted_at: new Date().toISOString(),
-          admin_notes: 'Paiement en espèces déclaré par l\'hôte',
-        })
-        .eq('id', penalty.id);
-
-      if (error) throw error;
-
-      await supabase.functions.invoke('send-email', {
-        body: {
-          type: 'penalty_payment_received',
-          to: 'contact@akwahome.com',
-          data: {
-            penaltyId: penalty.id,
-            amount: penalty.penalty_amount,
-            paymentMethod: 'Especes',
-            phoneNumber: null,
-            propertyTitle: penalty.booking?.property?.title || 'N/A',
-            checkInDate: penalty.booking?.check_in_date,
-            penaltyType: penalty.penalty_type,
-          },
-        },
-      });
-
-      setPaymentSuccess(true);
-      setTimeout(() => {
-        Alert.alert(
-          'Paiement initié',
-          'Votre déclaration de paiement en espèces a été enregistrée.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                onPaymentComplete();
-                onClose();
-                setPaymentSuccess(false);
-                setPaymentMethod('card');
-              },
-            },
-          ]
-        );
-      }, 2000);
-    } catch (error: any) {
-      console.error('Erreur paiement:', error);
-      Alert.alert('Erreur', 'Impossible de traiter le paiement');
-    } finally {
-      setLoading(false);
-    }
   };
 
   if (!penalty) return null;
@@ -361,7 +301,7 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
     return (
       <Modal visible={visible} transparent animationType="fade">
         <View style={styles.overlay}>
-          <CardPaymentSuccessView subtitle="Votre déclaration de paiement en espèces a été enregistrée." />
+          <CardPaymentSuccessView subtitle="Votre paiement a bien été pris en compte." />
         </View>
       </Modal>
     );
@@ -455,18 +395,11 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                 </View>
                 <View style={styles.paymentMethodInfo}>
                   <Text style={styles.paymentMethodTitle}>Wave</Text>
-                  <Text style={styles.paymentMethodSubtitle}>Numéro AkwaHome</Text>
+                  <Text style={styles.paymentMethodSubtitle}>Paiement dans l'application Wave</Text>
                 </View>
                 <Ionicons name={paymentMethod === 'wave' ? 'radio-button-on' : 'radio-button-off'} size={24} color={paymentMethod === 'wave' ? '#e67e22' : '#ccc'} />
               </View>
             </TouchableOpacity>
-            {paymentMethod === 'wave' && (
-              <View style={styles.detailBox}>
-                <Text style={styles.detailLabel}>Numéro Wave AkwaHome</Text>
-                <Text style={styles.detailValue} selectable>{AKWAHOME_WAVE}</Text>
-                <Text style={styles.detailHint}>Envoyez {formatPriceForPayment(penalty.penalty_amount)} à ce numéro, puis confirmez votre choix ci-dessous.</Text>
-              </View>
-            )}
 
             <TouchableOpacity
               style={[styles.paymentMethodCard, paymentMethod === 'deduct_from_next_booking' && styles.paymentMethodCardActive]}
@@ -497,22 +430,6 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                   <Text style={styles.paymentMethodSubtitle}>Visa, Mastercard (Stripe)</Text>
                 </View>
                 <Ionicons name={paymentMethod === 'card' ? 'radio-button-on' : 'radio-button-off'} size={24} color={paymentMethod === 'card' ? '#e67e22' : '#ccc'} />
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.paymentMethodCard, paymentMethod === 'cash' && styles.paymentMethodCardActive]}
-              onPress={() => setPaymentMethod('cash')}
-            >
-              <View style={styles.paymentMethodContent}>
-                <View style={[styles.paymentIcon, { backgroundColor: '#6b7280' }]}>
-                  <Ionicons name="cash" size={24} color="#fff" />
-                </View>
-                <View style={styles.paymentMethodInfo}>
-                  <Text style={styles.paymentMethodTitle}>Espèces</Text>
-                  <Text style={styles.paymentMethodSubtitle}>Paiement hors application</Text>
-                </View>
-                <Ionicons name={paymentMethod === 'cash' ? 'radio-button-on' : 'radio-button-off'} size={24} color={paymentMethod === 'cash' ? '#e67e22' : '#ccc'} />
               </View>
             </TouchableOpacity>
 
@@ -572,8 +489,6 @@ const PenaltyPaymentModal: React.FC<PenaltyPaymentModalProps> = ({
                       : 'Confirmer mon choix'
                     : paymentMethod === 'deduct_from_next_booking'
                     ? 'Déduire de ma prochaine paie'
-                    : paymentMethod === 'cash'
-                    ? 'Déclarer le paiement'
                     : `Payer ${formatPriceForPayment(penalty.penalty_amount)}`}
                 </Text>
               )}

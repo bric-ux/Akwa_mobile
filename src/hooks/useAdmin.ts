@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
+import { bumpPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
 import { useAuth } from '../services/AuthContext';
 import { HostApplication } from './useHostApplications';
 import { Property } from './useProperties';
@@ -356,6 +357,7 @@ export const useAdmin = () => {
         return { success: false };
       }
 
+      bumpPublicPropertyListVersion();
       return { success: true };
     } catch (err) {
       console.error('Unexpected error:', err);
@@ -405,6 +407,7 @@ export const useAdmin = () => {
         return { success: false };
       }
 
+      bumpPublicPropertyListVersion();
       return { success: true };
     } catch (err) {
       console.error('Unexpected error:', err);

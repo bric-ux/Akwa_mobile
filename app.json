@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
-      "buildNumber": "20",
+      "buildNumber": "21",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to take profile, property, and vehicle photos.",
         "NSPhotoLibraryUsageDescription": "This app accesses your photo library to select photos to upload.",

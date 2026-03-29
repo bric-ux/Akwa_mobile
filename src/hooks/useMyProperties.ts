@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { Property } from './useProperties';
 import { useEmailService } from './useEmailService';
+import { bumpPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
 
 export const useMyProperties = () => {
   const [loading, setLoading] = useState(false);
@@ -78,6 +79,10 @@ export const useMyProperties = () => {
         console.error('Error updating property:', error);
         setError('Erreur lors de la mise à jour de la propriété');
         return { success: false };
+      }
+
+      if (updates.is_active !== undefined || updates.is_hidden !== undefined) {
+        bumpPublicPropertyListVersion();
       }
 
       return { success: true };
@@ -241,6 +246,7 @@ export const useMyProperties = () => {
       }
 
       console.log('✅ Propriété supprimée avec succès');
+      bumpPublicPropertyListVersion();
       return { success: true };
     } catch (err: any) {
       console.error('❌ Unexpected error:', err);

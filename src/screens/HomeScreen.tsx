@@ -10,7 +10,7 @@ import {
   ImageBackground,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../services/AuthContext';
 import { useProperties } from '../hooks/useProperties';
@@ -24,6 +24,7 @@ import { PopularDestinations } from '../components/PopularDestinations';
 import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
 import { useLanguage } from '../contexts/LanguageContext';
+import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
 
 // Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
 const CAROUSEL_IMAGES = [
@@ -39,19 +40,27 @@ const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { properties, loading, error, fetchProperties } = useProperties();
+  const { properties, loading, error, refreshProperties } = useProperties();
   const { cities, loading: citiesLoading, error: citiesError, getPopularDestinations } = useCities();
 
   const [popularDestinations, setPopularDestinations] = useState<any[]>([]);
   const [destinationsLoading, setDestinationsLoading] = useState(true);
-  const propertiesFetchedRef = useRef(false);
   const destinationsFetchedRef = useRef(false);
+  const lastHandledCatalogVersionRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (propertiesFetchedRef.current) return;
-    propertiesFetchedRef.current = true;
-    fetchProperties();
-  }, [fetchProperties]);
+  useFocusEffect(
+    useCallback(() => {
+      const v = getPublicPropertyListVersion();
+      if (lastHandledCatalogVersionRef.current === null) {
+        lastHandledCatalogVersionRef.current = v;
+        return;
+      }
+      if (v > lastHandledCatalogVersionRef.current) {
+        lastHandledCatalogVersionRef.current = v;
+        refreshProperties(undefined);
+      }
+    }, [refreshProperties])
+  );
 
   useEffect(() => {
     if (destinationsFetchedRef.current) return;
