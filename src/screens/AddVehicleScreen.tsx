@@ -1195,9 +1195,6 @@ const AddVehicleScreen: React.FC = () => {
             {formData.with_driver && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Surplus chauffeur (FCFA)</Text>
-                <Text style={styles.hintText}>
-                  Surplus à payer par le locataire pour le service de chauffeur
-                </Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Ex: 5000"
@@ -1205,6 +1202,11 @@ const AddVehicleScreen: React.FC = () => {
                   onChangeText={(value) => handleInputChange('driver_fee', value)}
                   keyboardType="numeric"
                 />
+                <Text style={styles.hintText}>
+                  {
+                    "Montant par jour de location. Pour les réservations à l'heure (ou les heures en plus des jours), ce surplus est appliqué au prorata (proportionnel à la durée, sur la base de 24 h = 1 jour)."
+                  }
+                </Text>
               </View>
             )}
 

@@ -37,6 +37,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '../services/supabase';
 import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
+import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
 import { checkPaymentStatus } from '../services/cardPaymentService';
 import CardPaymentSuccessView from '../components/CardPaymentSuccessView';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -579,9 +580,9 @@ const VehicleBookingScreen: React.FC = () => {
     if (__DEV__) console.log(`⚠️ [VehicleBookingScreen] Pas de calcul heures: remainingHours=${remainingHours}, hourly_rental_enabled=${vehicle?.hourly_rental_enabled}, price_per_hour=${vehicle?.price_per_hour}`);
   }
   
-  // Ajouter le surplus chauffeur (forfait PAR JOUR) si le véhicule est proposé avec chauffeur et que le locataire choisit le chauffeur
+  // Surplus chauffeur : montant par jour sur le véhicule ; les heures sont proratisées (× heures / 24)
   const driverFeePerDay = (withDriver && useDriver === true && vehicle?.driver_fee) ? Number(vehicle.driver_fee) : 0;
-  const driverFee = driverFeePerDay > 0 ? driverFeePerDay * Math.max(1, rentalDays) : 0;
+  const driverFee = driverFeePerDay > 0 ? computeVehicleDriverFee(driverFeePerDay, rentalDays, remainingHours) : 0;
   const basePriceWithDriver = basePrice + driverFee;
   
   // Frais de service véhicule : 11% si CB, 10% pour les autres (CB proposée seulement en XOF/EUR)

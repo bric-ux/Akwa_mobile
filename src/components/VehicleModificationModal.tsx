@@ -26,6 +26,7 @@ import {
   ownerReceivedFundsForModificationRefundVehicle,
 } from '../utils/cancellationPolicy';
 import { computeVehicleRentalDurationFromIso as computeVehicleRentalDurationBase } from '../lib/vehicleRentalDuration';
+import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
 
 /** YYYY-MM-DD du créneau ISO dans le fuseau des réservations (évite jour décalé avec toISOString().split UTC). */
 const BOOKING_DISPLAY_TZ = 'Africa/Abidjan';
@@ -332,7 +333,8 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
 
   const commissionRates = getCommissionRates('vehicle', undefined, vehicleUsesPlatformCardRate);
   const driverFeePerDay = (booking.with_driver && vehicle?.driver_fee) ? Number(vehicle.driver_fee) : 0;
-  const driverFee = driverFeePerDay > 0 ? driverFeePerDay * Math.max(1, rentalDays) : 0;
+  const driverFee =
+    driverFeePerDay > 0 ? computeVehicleDriverFee(driverFeePerDay, rentalDays, remainingHours) : 0;
 
   let basePrice: number;
   let discountAmount: number;

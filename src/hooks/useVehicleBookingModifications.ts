@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Alert } from 'react-native';
 import { calculateHostCommission } from './usePricing';
+import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
 
 export interface VehicleBookingModificationData {
   bookingId: string;
@@ -681,7 +682,10 @@ export const useVehicleBookingModifications = () => {
         const daysPrice = dailyRate * request.requested_rental_days;
         const hoursPrice = rentalHours > 0 && hourlyRate > 0 ? rentalHours * hourlyRate : 0;
         const driverFeePerDay = (bookingData.with_driver && vehicle.driver_fee) ? Number(vehicle.driver_fee) : 0;
-        const driverFee = driverFeePerDay > 0 ? driverFeePerDay * Math.max(1, request.requested_rental_days || 0) : 0;
+        const reqDays = request.requested_rental_days || 0;
+        const reqHours = request.requested_rental_hours || 0;
+        const driverFee =
+          driverFeePerDay > 0 ? computeVehicleDriverFee(driverFeePerDay, reqDays, reqHours) : 0;
         
         // Calculer le prix avant réduction (jours + heures uniquement, SANS chauffeur)
         const totalBeforeDiscount = daysPrice + hoursPrice;

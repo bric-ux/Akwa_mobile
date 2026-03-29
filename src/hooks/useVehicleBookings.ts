@@ -9,6 +9,7 @@ import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, cal
 import { useCurrency } from './useCurrency';
 import { sendPushToUser } from '../services/pushNotificationService';
 import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
+import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
 
 export type VehiclePaymentMethod = 'card' | 'wave' | 'cash';
 
@@ -330,9 +331,10 @@ export const useVehicleBookings = () => {
         'condition 3 (driverFeePerDay > 0)': driverFeePerDay > 0
       });
       
-      const driverDays = Math.max(1, rentalType === 'hourly' ? 1 : rentalDays);
+      const driverFeeDaysPart = rentalType === 'hourly' ? 0 : rentalDays;
+      const driverFeeHoursPart = rentalHours ?? 0;
       const driverFee = (vehicleWithDriver && userWantsDriver && driverFeePerDay > 0)
-        ? (driverFeePerDay * driverDays)
+        ? computeVehicleDriverFee(driverFeePerDay, driverFeeDaysPart, driverFeeHoursPart)
         : 0;
       
       console.log('💰 [useVehicleBookings] Calcul driverFee:', {
@@ -343,7 +345,8 @@ export const useVehicleBookings = () => {
           'vehicleWithDriver': vehicleWithDriver,
           'userWantsDriver': userWantsDriver,
           'driverFeePerDay > 0': driverFeePerDay > 0,
-          driverDays,
+          driverFeeDaysPart,
+          driverFeeHoursPart,
           'Toutes conditions': vehicleWithDriver && userWantsDriver && driverFeePerDay > 0
         }
       });
@@ -1193,8 +1196,9 @@ export const useVehicleBookings = () => {
             const driverFeePerDay = (booking.with_driver === true && vehicle?.with_driver && (vehicle as any).driver_fee)
               ? Number((vehicle as any).driver_fee)
               : 0;
-            const days = Math.max(1, Number(booking.rental_days || 0) || 0);
-            driverFee = driverFeePerDay > 0 ? driverFeePerDay * days : 0;
+            const days = Number(booking.rental_days || 0) || 0;
+            const hours = Number(booking.rental_hours || 0) || 0;
+            driverFee = driverFeePerDay > 0 ? computeVehicleDriverFee(driverFeePerDay, days, hours) : 0;
           }
 
           const emailData = {

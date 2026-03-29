@@ -306,7 +306,9 @@ const VehiclePricingScreen: React.FC = () => {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Surplus chauffeur (XOF)</Text>
               <Text style={styles.hint}>
-                Surplus à payer par le locataire pour le service de chauffeur
+                {
+                  "Montant par jour de location. Pour les réservations à l'heure (ou les heures en plus des jours), ce surplus est appliqué au prorata (proportionnel à la durée, sur la base de 24 h = 1 jour)."
+                }
               </Text>
               <TextInput
                 style={styles.input}
