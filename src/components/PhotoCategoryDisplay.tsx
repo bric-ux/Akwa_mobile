@@ -303,7 +303,6 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                       key="__view_more__"
                       style={[
                         styles.photoItem,
-                        styles.photoMoreTile,
                         (limitedPhotosGrid.length + 1) % 3 !== 0 && styles.photoItemWithMargin,
                       ]}
                       onPress={() => setShowAllPhotos(true)}
@@ -538,10 +537,15 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
 
             <ScrollView style={styles.fullGalleryGridContainer}>
               <View style={styles.fullGalleryGrid}>
-                {allPhotosFlat.map((photo, index) => (
+                {allPhotosFlat.map((photo, index) => {
+                  const isLastInRow = (index + 1) % 3 === 0;
+                  return (
                   <TouchableOpacity
                     key={photo.id}
-                    style={styles.fullGalleryGridItem}
+                    style={[
+                      styles.fullGalleryGridItem,
+                      !isLastInRow && styles.photoItemWithMargin,
+                    ]}
                     onPress={() => {
                       setShowAllPhotos(false);
                       openFullGallery(index);
@@ -558,7 +562,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                       </Text>
                     </View>
                   </TouchableOpacity>
-                ))}
+                  );
+                })}
               </View>
             </ScrollView>
           </SafeAreaView>
@@ -739,11 +744,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 9,
     fontWeight: '600',
-  },
-  photoMoreTile: {
-    borderWidth: 2,
-    borderColor: 'rgba(230, 126, 34, 0.85)',
-    borderStyle: 'dashed',
   },
   photoMoreBackground: {
     ...StyleSheet.absoluteFillObject,
@@ -955,7 +955,7 @@ const styles = StyleSheet.create({
   fullGalleryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   fullGalleryGridItem: {
     width: PHOTO_TILE_SIZE,

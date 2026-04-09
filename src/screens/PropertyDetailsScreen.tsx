@@ -316,11 +316,14 @@ const PropertyDetailsScreen: React.FC = () => {
           </Text>
         </View>
 
-        <View style={styles.ratingContainer}>
-          <Text style={styles.rating}>
-            ⭐ {property.rating?.toFixed(1)} ({property.review_count} avis)
-          </Text>
-        </View>
+        {(Number(property.review_count) || 0) > 0 && (
+          <View style={styles.ratingContainer}>
+            <Text style={styles.rating}>
+              ⭐ {(Number(property.rating) || 0).toFixed(1)} ({Number(property.review_count) || 0}{' '}
+              {t('property.reviews')})
+            </Text>
+          </View>
+        )}
 
         <View style={styles.priceContainer}>
           <View style={styles.priceRow}>

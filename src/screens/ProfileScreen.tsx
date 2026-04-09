@@ -314,12 +314,11 @@ const ProfileScreen: React.FC = () => {
     },
   };
 
-  // Élément pour mes véhicules (si l'utilisateur a des véhicules mais qu'on n'est pas dans l'espace véhicule)
-  const myVehiclesItem = {
-    id: 'myVehicles',
-    title: 'Mes véhicules',
-    icon: 'car-outline',
-    onPress: () => navigation.navigate('MyVehicles' as never),
+  const addVehicleItem = {
+    id: 'addVehicle',
+    title: t('vehicles.addVehicle'),
+    icon: 'add-circle-outline',
+    onPress: () => navigation.navigate('AddVehicle' as never),
   };
 
   // Éléments de menu communs
@@ -354,6 +353,8 @@ const ProfileScreen: React.FC = () => {
     // Ajouter "Devenir hôte" si pas encore hôte et pas de candidatures en cours
     menuItems.push(becomeHostItem);
   }
+
+  menuItems.push(addVehicleItem);
 
   // Ajouter "Espace Véhicules" si l'utilisateur a des véhicules (navigation complète)
   if (hasVehicles) {
