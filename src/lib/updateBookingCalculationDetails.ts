@@ -76,7 +76,8 @@ export async function updatePropertyBookingCalculationDetails(
     const priceAfterDiscount = basePrice - discountAmount;
     
     const currency = bookingData.payment_currency;
-    // Calculer les frais de service (14% si EUR pour propriété)
+    const propertyCommissionSnapshot = getCommissionRates('property', currency, false);
+    // Calculer les frais de service
     const fees = calculateFees(
       priceAfterDiscount,
       nights,
@@ -140,8 +141,8 @@ export async function updatePropertyBookingCalculationDetails(
         freeCleaningMinDays: propertyData.free_cleaning_min_days || null,
         status: status,
         commissionRates: {
-          travelerFeePercent: 12, // 13 si CB (contexte mise à jour : défaut 12)
-          hostFeePercent: 2
+          travelerFeePercent: propertyCommissionSnapshot.travelerFeePercent,
+          hostFeePercent: propertyCommissionSnapshot.hostFeePercent
         },
         calculatedAt: new Date().toISOString()
       },

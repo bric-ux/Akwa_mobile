@@ -327,8 +327,8 @@ const SettingsScreen: React.FC = () => {
         <View style={styles.section}>
           <SettingItem
             icon="chatbubble-ellipses-outline"
-            title="Assistant d'aide"
-            subtitle="Questions fréquentes et contact support"
+            title={t('settings.helpAssistant')}
+            subtitle={language === 'fr' ? 'Questions fréquentes et contact support' : 'FAQs and support contact'}
             onPress={() => (navigation as any).navigate('HelpAssistant')}
           />
         </View>

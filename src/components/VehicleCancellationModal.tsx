@@ -23,6 +23,7 @@ import { useCurrency } from '../hooks/useCurrency';
 import { createCheckoutSession, checkPaymentStatus } from '../services/cardPaymentService';
 import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import { calculateHostCommission } from '../hooks/usePricing';
+import { getTravelerServiceFeeTtcMultiplier } from '../lib/commissions';
 import { getAmountInXOF } from '../utils/amountUtils';
 import { ownerHasReceivedRenterCashVehicle } from '../utils/cancellationPolicy';
 
@@ -261,7 +262,8 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       if (stored != null) return stored;
       const tp = booking?.total_price ?? 0;
       if (tp <= 0) return 0;
-      const basePriceWithDriver = Math.round(tp / 1.12);
+      const vMult = getTravelerServiceFeeTtcMultiplier('vehicle');
+      const basePriceWithDriver = Math.round(tp / vMult);
       return basePriceWithDriver - calculateHostCommission(basePriceWithDriver, 'vehicle').hostCommission;
     }
     // Espèces/virement : si commission payée → host_net_amount (net)
@@ -270,7 +272,8 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
       if (stored != null && stored > 0) return stored;
       const tp = booking?.total_price ?? 0;
       if (tp <= 0) return 0;
-      const basePriceWithDriver = Math.round(tp / 1.12);
+      const vMultCash = getTravelerServiceFeeTtcMultiplier('vehicle');
+      const basePriceWithDriver = Math.round(tp / vMultCash);
       return basePriceWithDriver - calculateHostCommission(basePriceWithDriver, 'vehicle').hostCommission;
     }
     return booking?.total_price ?? 0;
@@ -806,7 +809,7 @@ const VehicleCancellationModal: React.FC<VehicleCancellationModalProps> = ({
           if (vCalc?.host_net_amount != null) vbHostNetAmount = Math.round(Number(vCalc.host_net_amount));
         }
         if (vbHostNetAmount <= 0 && vbTotalPrice > 0) {
-          const basePriceWithDriver = Math.round(vbTotalPrice / 1.12);
+          const basePriceWithDriver = Math.round(vbTotalPrice / getTravelerServiceFeeTtcMultiplier('vehicle'));
           vbHostNetAmount = Math.max(
             0,
             basePriceWithDriver - calculateHostCommission(basePriceWithDriver, 'vehicle').hostCommission,

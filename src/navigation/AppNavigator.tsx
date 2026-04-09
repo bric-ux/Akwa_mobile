@@ -99,7 +99,6 @@ import MyVehicleRenterReviewsScreen from '../screens/MyVehicleRenterReviewsScree
 import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
 import StripeReturnHandler from '../components/StripeReturnHandler';
 import WaveReturnHandler from '../components/WaveReturnHandler';
-import FloatingHelpAssistant from '../components/FloatingHelpAssistant';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList } from '../types';
@@ -1189,7 +1188,6 @@ const AppNavigator = () => {
       </Stack.Navigator>
       <StripeReturnHandler navigationRef={navigationRef} />
       <WaveReturnHandler />
-      <FloatingHelpAssistant />
       </>
     </NavigationContainer>
   );

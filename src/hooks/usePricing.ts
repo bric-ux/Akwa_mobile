@@ -113,7 +113,7 @@ export function calculateTotalPrice(
 
 /**
  * Calcule les frais supplémentaires en utilisant les vrais frais de la propriété
- * IMPORTANT: Le serviceFee est calculé comme 12% du prix APRÈS réduction (comme sur le site web)
+ * Frais de service : % voyageur/locataire (HT) sur prix APRÈS réduction + TVA 20 % sur ces frais (voir getCommissionRates).
  * TVA de 20% appliquée sur les frais de service
  */
 export function calculateFees(
@@ -142,7 +142,7 @@ export function calculateFees(
   const isFreeCleaningApplicable = propertyFees?.free_cleaning_min_days && nights >= propertyFees.free_cleaning_min_days;
   const cleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
   
-  // Frais de service : résidence 13% si CB / 12% sinon ; véhicule 11%
+  // Frais de service voyageur / locataire : taux depuis getCommissionRates (1 % HT actuellement)
   const commissionRates = getCommissionRates(serviceType, currency, isCardPayment);
   const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
   // TVA de 20% sur les frais de service

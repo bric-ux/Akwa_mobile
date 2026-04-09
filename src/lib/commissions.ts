@@ -1,16 +1,9 @@
 /**
  * Module de calcul des commissions AkwaHome
- * 
- * Règles de tarification:
- * 
- * Résidences meublées (Properties):
- * - 13% frais de service voyageur quand paiement par carte (CB), 12% sinon
- * - 2% prélevés sur le gain de l'hôte
  *
- * Location de véhicules:
- * - 11% frais de service quand paiement par carte (CB), 10% pour les autres
- * - 2% prélevés sur le gain du propriétaire
- * 
+ * Résidences meublées : 1 % frais de service voyageur (HT) + TVA 20 % sur ces frais ; 2 % hôte (HT) + TVA.
+ * Location de véhicules : 1 % frais locataire (HT) + TVA 20 % ; 2 % propriétaire (HT) + TVA.
+ *
  * ORDRE DE CALCUL:
  * 1. Prix de base × nombre de nuits/jours
  * 2. Application de la réduction (si applicable)
@@ -28,31 +21,37 @@ export interface CommissionRates {
 /** Devise optionnelle (XOF | EUR) */
 export type CurrencyCode = 'XOF' | 'EUR' | 'USD';
 
+/** TVA sur les frais de service / commission (HT), alignée produit. */
+export const SERVICE_FEE_VAT_RATE = 0.2;
+
 /**
- * Retourne les taux de commission selon le type de service et le moyen de paiement.
- * - Résidence meublée : 13% quand CB sélectionnée, 12% sinon
- * - Location de véhicule : 11% quand CB, 10% pour les autres
+ * Retourne les taux de commission selon le type de service.
+ * Frais voyageur / locataire : 1 % HT (CB ou autre : même taux).
  */
 export function getCommissionRates(
-  serviceType: ServiceType,
-  currency?: CurrencyCode,
-  isCardPayment?: boolean
+  _serviceType: ServiceType,
+  _currency?: CurrencyCode,
+  _isCardPayment?: boolean
 ): CommissionRates {
-  if (serviceType === 'property') {
-    const travelerPercent = isCardPayment ? 13 : 12;
-    return {
-      travelerFeePercent: travelerPercent,
-      hostFeePercent: 2,
-      totalAkwahomePercent: travelerPercent + 2
-    };
-  }
-  // Véhicule : 11% si CB, 10% sinon
-  const travelerPercent = isCardPayment ? 11 : 10;
+  const travelerPercent = 1;
   return {
     travelerFeePercent: travelerPercent,
     hostFeePercent: 2,
     totalAkwahomePercent: travelerPercent + 2
   };
+}
+
+/**
+ * Multiplicateur pour passer du prix « base » au total incluant frais de service voyageur TTC :
+ * total = base × (1 + (traveler% / 100) × (1 + TVA sur frais)).
+ */
+export function getTravelerServiceFeeTtcMultiplier(
+  serviceType: ServiceType,
+  currency?: CurrencyCode,
+  isCardPayment?: boolean
+): number {
+  const rates = getCommissionRates(serviceType, currency, isCardPayment);
+  return 1 + (rates.travelerFeePercent / 100) * (1 + SERVICE_FEE_VAT_RATE);
 }
 
 

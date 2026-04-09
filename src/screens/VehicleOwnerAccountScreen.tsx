@@ -146,6 +146,12 @@ const VehicleOwnerAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
+      id: 'helpAssistant',
+      title: t('settings.helpAssistant'),
+      icon: 'chatbubble-ellipses-outline',
+      onPress: () => navigation.navigate('HelpAssistant' as never),
+    },
+    {
       id: 'addVehicle',
       title: 'Ajouter un véhicule',
       icon: 'add-circle-outline',

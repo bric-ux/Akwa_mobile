@@ -4,7 +4,7 @@ import { createCheckoutSession } from '../services/cardPaymentService';
 import { createWaveCheckoutSession } from '../services/wavePaymentService';
 import { VehicleBooking, VehicleBookingStatus } from '../types';
 import { useIdentityVerification } from './useIdentityVerification';
-import { getCommissionRates } from '../lib/commissions';
+import { getCommissionRates, getTravelerServiceFeeTtcMultiplier } from '../lib/commissions';
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
 import { useCurrency } from './useCurrency';
 import { sendPushToUser } from '../services/pushNotificationService';
@@ -1190,7 +1190,7 @@ export const useVehicleBookings = () => {
           } else {
             // ⚠️ FALLBACK: Recalculer uniquement pour les anciennes réservations sans données stockées
             if (__DEV__) console.log('⚠️ [useVehicleBookings] Pas de données stockées, recalcul pour ancienne réservation');
-            basePriceWithDriver = Math.round((booking.total_price || 0) / 1.12);
+            basePriceWithDriver = Math.round((booking.total_price || 0) / getTravelerServiceFeeTtcMultiplier('vehicle'));
             const hostCommissionData = calculateHostCommission(basePriceWithDriver, 'vehicle');
             ownerNetRevenue = basePriceWithDriver - hostCommissionData.hostCommission;
             const driverFeePerDay = (booking.with_driver === true && vehicle?.with_driver && (vehicle as any).driver_fee)

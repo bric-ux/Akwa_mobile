@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import { calculateHostCommission } from '../hooks/usePricing';
+import { getTravelerServiceFeeTtcMultiplier } from '../lib/commissions';
 import { useCurrency } from '../contexts/CurrencyContext';
 
 interface VehicleModificationRequest {
@@ -74,7 +75,8 @@ const HostVehicleModificationRequestCard: React.FC<HostVehicleModificationReques
   // Calculer le gain net du propriétaire sur le surplus
   // Le surplus est la différence de prix total, mais le propriétaire reçoit seulement la base après commission
   // On doit calculer la base du surplus, puis soustraire la commission
-  const surplusBasePrice = surplusPaid > 0 ? Math.round(surplusPaid / 1.12) : 0; // Diviser par 1.12 pour obtenir la base (sans les 12% de frais de service)
+  const vehicleFeeMult = getTravelerServiceFeeTtcMultiplier('vehicle');
+  const surplusBasePrice = surplusPaid > 0 ? Math.round(surplusPaid / vehicleFeeMult) : 0; // Base hors frais de service locataire TTC
   const hostCommissionData = surplusBasePrice > 0 ? calculateHostCommission(surplusBasePrice, 'vehicle') : { hostCommission: 0, hostCommissionHT: 0, hostCommissionVAT: 0 };
   const ownerNetGainOnSurplus = surplusBasePrice - hostCommissionData.hostCommission;
 

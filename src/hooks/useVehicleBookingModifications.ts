@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { Alert } from 'react-native';
 import { calculateHostCommission } from './usePricing';
 import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
+import { getTravelerServiceFeeTtcMultiplier } from '../lib/commissions';
 
 export interface VehicleBookingModificationData {
   bookingId: string;
@@ -152,14 +153,13 @@ export const useVehicleBookingModifications = () => {
           const vehicleTitle = booking.vehicle.title || `${booking.vehicle.brand} ${booking.vehicle.model}`;
           const renterName = `${booking.renter?.first_name || ''} ${booking.renter?.last_name || ''}`.trim();
 
-          // Calculer les revenus nets pour l'email
-          // Pour l'ancien : basePrice = totalPrice / 1.12
-          const oldBasePrice = Math.round((booking.total_price || 0) / 1.12);
+          // Calculer les revenus nets pour l'email (total = base × multiplicateur frais service TTC)
+          const vehFeeMult = getTravelerServiceFeeTtcMultiplier('vehicle');
+          const oldBasePrice = Math.round((booking.total_price || 0) / vehFeeMult);
           const oldHostCommissionData = calculateHostCommission(oldBasePrice, 'vehicle');
           const oldOwnerNetRevenue = oldBasePrice - oldHostCommissionData.hostCommission;
           
-          // Pour le nouveau : basePrice = totalPrice / 1.12
-          const newBasePrice = Math.round((data.requestedTotalPrice || 0) / 1.12);
+          const newBasePrice = Math.round((data.requestedTotalPrice || 0) / vehFeeMult);
           const newHostCommissionData = calculateHostCommission(newBasePrice, 'vehicle');
           const newOwnerNetRevenue = newBasePrice - newHostCommissionData.hostCommission;
 
@@ -234,8 +234,8 @@ export const useVehicleBookingModifications = () => {
       const surplusAmount = requestedTotalPrice - originalTotalPrice; // Surplus payé par le locataire
       
       // ✅ Calculer le surplus net propriétaire (surplus - commission)
-      // Le surplus net = (surplus / 1.12) - commission sur (surplus / 1.12)
-      const surplusBasePrice = surplusAmount > 0 ? Math.round(surplusAmount / 1.12) : 0;
+      const surplusFeeMult = getTravelerServiceFeeTtcMultiplier('vehicle');
+      const surplusBasePrice = surplusAmount > 0 ? Math.round(surplusAmount / surplusFeeMult) : 0;
       const surplusHostCommissionData = surplusBasePrice > 0 ? calculateHostCommission(surplusBasePrice, 'vehicle') : { hostCommission: 0, hostCommissionHT: 0, hostCommissionVAT: 0 };
       const surplusNetOwner = surplusBasePrice - surplusHostCommissionData.hostCommission;
       
@@ -584,7 +584,8 @@ export const useVehicleBookingModifications = () => {
       
       // Calculer host_net_amount pour la modification (nouveau total)
       const totalWithServiceFee = request.requested_total_price;
-      const priceAfterDiscountWithDriver = Math.round(totalWithServiceFee / 1.12);
+      const approveFeeMult = getTravelerServiceFeeTtcMultiplier('vehicle');
+      const priceAfterDiscountWithDriver = Math.round(totalWithServiceFee / approveFeeMult);
       const hostCommissionData = calculateHostCommission(priceAfterDiscountWithDriver, 'vehicle');
       const newHostNetAmount = priceAfterDiscountWithDriver - hostCommissionData.hostCommission;
       
@@ -690,11 +691,9 @@ export const useVehicleBookingModifications = () => {
         // Calculer le prix avant réduction (jours + heures uniquement, SANS chauffeur)
         const totalBeforeDiscount = daysPrice + hoursPrice;
         
-        // Calculer le prix après réduction + chauffeur (sans service fee)
-        // totalWithServiceFee = priceAfterDiscountWithDriver * 1.12
-        // Donc: priceAfterDiscountWithDriver = totalWithServiceFee / 1.12
+        const emailFeeMult = getTravelerServiceFeeTtcMultiplier('vehicle');
         const totalWithServiceFee = request.requested_total_price; // Total payé par locataire
-        const priceAfterDiscountWithDriver = Math.round(totalWithServiceFee / 1.12); // Prix avant service fee (inclut chauffeur)
+        const priceAfterDiscountWithDriver = Math.round(totalWithServiceFee / emailFeeMult);
         
         // Calculer le prix après réduction (sans chauffeur)
         const priceAfterDiscount = priceAfterDiscountWithDriver - driverFee;

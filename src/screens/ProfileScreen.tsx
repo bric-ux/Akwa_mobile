@@ -324,6 +324,12 @@ const ProfileScreen: React.FC = () => {
   // Éléments de menu communs
   const commonMenuItems = [
     {
+      id: 'helpAssistant',
+      title: t('settings.helpAssistant'),
+      icon: 'chatbubble-ellipses-outline',
+      onPress: () => navigation.navigate('HelpAssistant' as never),
+    },
+    {
       id: 'conciergerie',
       title: 'Conciergerie',
       icon: 'sparkles-outline',

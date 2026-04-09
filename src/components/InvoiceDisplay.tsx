@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Modal, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getCommissionRates, type ServiceType } from '../lib/commissions';
+import { getCommissionRates, getTravelerServiceFeeTtcMultiplier, type ServiceType } from '../lib/commissions';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { calculateTotalPrice, calculateHostCommission, calculateVehiclePriceWithHours, type DiscountConfig } from '../hooks/usePricing';
 import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../lib/hostNetAmount';
@@ -445,8 +445,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       // Fallback pour les anciennes réservations où booking.with_driver n'était pas stocké ou est incorrect
       // Si le véhicule propose un chauffeur, essayer de déduire depuis total_price
       const priceAfterDiscountTemp = basePrice - (booking.discount_amount || 0);
-      const expectedTotalWithDriver = Math.round((priceAfterDiscountTemp + vehicleDriverFee) * 1.12);
-      const expectedTotalWithoutDriver = Math.round(priceAfterDiscountTemp * 1.12);
+      const vehTtcMult = getTravelerServiceFeeTtcMultiplier('vehicle');
+      const expectedTotalWithDriver = Math.round((priceAfterDiscountTemp + vehicleDriverFee) * vehTtcMult);
+      const expectedTotalWithoutDriver = Math.round(priceAfterDiscountTemp * vehTtcMult);
       const actualTotal = booking.total_price || 0;
       
       const diffWithDriver = Math.abs(actualTotal - expectedTotalWithDriver);

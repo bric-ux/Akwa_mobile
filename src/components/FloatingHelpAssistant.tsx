@@ -1,3 +1,7 @@
+/**
+ * Bouton flottant global (non monté par défaut : voir AppNavigator).
+ * Pour le réactiver : import + <FloatingHelpAssistant /> à côté des autres handlers racine.
+ */
 import React, { useState } from 'react';
 import {
   Modal,
