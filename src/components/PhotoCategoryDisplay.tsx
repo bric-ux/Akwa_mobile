@@ -17,6 +17,12 @@ import { supabase } from '../services/supabase';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
+/** Padding horizontal du bloc grille + espacement entre vignettes (même ligne) */
+const GRID_H_PADDING = 16;
+const PHOTO_GRID_GAP = 12;
+const PHOTO_TILE_SIZE =
+  (screenWidth - GRID_H_PADDING * 2 - PHOTO_GRID_GAP * 2) / 3;
+
 interface PhotoCategoryDisplayProps {
   photos: CategorizedPhoto[];
   propertyTitle: string;
@@ -292,21 +298,35 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                 </TouchableOpacity>
                   );
                 })}
+                {hasMorePhotosGrid && allPhotosFlat[MAX_PHOTOS_GRID] && (
+                    <TouchableOpacity
+                      key="__view_more__"
+                      style={[
+                        styles.photoItem,
+                        styles.photoMoreTile,
+                        (limitedPhotosGrid.length + 1) % 3 !== 0 && styles.photoItemWithMargin,
+                      ]}
+                      onPress={() => setShowAllPhotos(true)}
+                      activeOpacity={0.9}
+                    >
+                      <Image
+                        source={{ uri: allPhotosFlat[MAX_PHOTOS_GRID].url }}
+                        style={styles.photoMoreBackground}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.photoMoreOverlay} />
+                      <View style={styles.photoMoreContent} pointerEvents="none">
+                        <Ionicons name="images-outline" size={22} color="#fff" />
+                        <Text style={styles.photoMoreTileTitle}>Voir plus</Text>
+                        <Text style={styles.photoMoreTileCount}>
+                          {photos.length - MAX_PHOTOS_GRID === 1
+                            ? '1 photo'
+                            : `${photos.length - MAX_PHOTOS_GRID} photos`}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
               </View>
-            )}
-            
-            {/* Bouton "Voir plus" */}
-            {hasMorePhotosGrid && (
-              <TouchableOpacity
-                style={styles.viewMoreButton}
-                onPress={() => setShowAllPhotos(true)}
-              >
-                <Ionicons name="images-outline" size={20} color="#e67e22" />
-                <Text style={styles.viewMoreButtonText}>
-                  Voir plus ({photos.length - MAX_PHOTOS_GRID} autres photos)
-                </Text>
-                <Ionicons name="chevron-forward" size={20} color="#e67e22" />
-              </TouchableOpacity>
             )}
           </View>
         ) : viewMode === 'category' && selectedCategory ? (
@@ -720,24 +740,43 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '600',
   },
-  viewMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
+  photoMoreTile: {
     borderWidth: 2,
-    borderColor: '#e67e22',
+    borderColor: 'rgba(230, 126, 34, 0.85)',
     borderStyle: 'dashed',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 16,
-    gap: 8,
   },
-  viewMoreButtonText: {
-    fontSize: 16,
+  photoMoreBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  photoMoreOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  photoMoreContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  photoMoreTileTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+    marginTop: 6,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  photoMoreTileCount: {
+    fontSize: 11,
     fontWeight: '600',
-    color: '#e67e22',
+    color: 'rgba(255,255,255,0.95)',
+    marginTop: 2,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   categoryTabs: {
     maxHeight: 60,
@@ -810,17 +849,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   photoItem: {
-    // Calcul précis: largeur écran - padding gridContainer (16*2) - 2 espaces de 8px entre les 3 photos
-    // screenWidth - 32 (padding) - 16 (2 espaces de 8px) = screenWidth - 48
-    // Diviser par 3 pour obtenir la largeur de chaque photo
-    width: (screenWidth - 48) / 3,
-    height: (screenWidth - 48) / 3,
-    marginBottom: 12,
+    width: PHOTO_TILE_SIZE,
+    height: PHOTO_TILE_SIZE,
+    marginBottom: PHOTO_GRID_GAP + 4,
     borderRadius: 8,
     overflow: 'hidden',
   },
   photoItemWithMargin: {
-    marginRight: 8,
+    marginRight: PHOTO_GRID_GAP,
   },
   photoImage: {
     width: '100%',
@@ -922,8 +958,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   fullGalleryGridItem: {
-    width: (screenWidth - 48) / 3,
-    height: (screenWidth - 48) / 3,
+    width: PHOTO_TILE_SIZE,
+    height: PHOTO_TILE_SIZE,
     marginBottom: 8,
     borderRadius: 8,
     overflow: 'hidden',
