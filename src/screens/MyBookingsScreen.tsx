@@ -31,6 +31,7 @@ import { useBookingModifications } from '../hooks/useBookingModifications';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import ContactOwnerButton from '../components/ContactOwnerButton';
 import { useCurrency } from '../hooks/useCurrency';
+import GuestModePlaceholder from '../components/GuestModePlaceholder';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();

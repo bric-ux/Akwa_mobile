@@ -74,6 +74,9 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
     return formatPriceWithCurrency(price);
   };
 
+  const reviewCount = Number(property.review_count) || 0;
+  const hasReviews = reviewCount > 0;
+
   return (
     <TouchableOpacity
       style={[styles.container, variant === 'list' && styles.listContainer]}
@@ -145,9 +148,11 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
               📍 {property.location?.name || property.locations?.name || property.location}
             </Text>
             
-            <Text style={styles.cardRating}>
-              ⭐ {(property.rating || 0).toFixed(1)} ({property.review_count || 0} {t('property.reviews')})
-            </Text>
+            {hasReviews ? (
+              <Text style={styles.cardRating}>
+                ⭐ {(Number(property.rating) || 0).toFixed(1)} ({reviewCount} {t('property.reviews')})
+              </Text>
+            ) : null}
             
             {property.amenities && property.amenities.length > 0 && (
               <View style={styles.cardAmenities}>
@@ -243,9 +248,11 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
               </Text>
             </View>
             
-            <Text style={styles.rating}>
-              ⭐ {(property.rating || 0).toFixed(1)} ({property.review_count || 0} {t('property.reviews')})
-            </Text>
+            {hasReviews ? (
+              <Text style={styles.rating}>
+                ⭐ {(Number(property.rating) || 0).toFixed(1)} ({reviewCount} {t('property.reviews')})
+              </Text>
+            ) : null}
             
             {property.amenities && property.amenities.length > 0 && (
               <View style={styles.amenitiesContainer}>
