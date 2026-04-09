@@ -18,14 +18,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import { Video, ResizeMode } from 'expo-av';
 import { useProperties } from '../hooks/useProperties';
 import { Property, CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
 import { useAmenities } from '../hooks/useAmenities';
 import { useHostApplications } from '../hooks/useHostApplications';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+import MediaThumb from '../components/MediaThumb';
+import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
+import { isVideoUrl, normalizePropertyPhotoRows } from '../utils/media';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const MAX_EDIT_PROPERTY_VIDEOS = 5;
 
 type EditPropertyRouteParams = {
   propertyId: string;
@@ -155,9 +160,9 @@ const EditPropertyScreen: React.FC = () => {
         if (propertyData.photos && propertyData.photos.length > 0) {
           const loadedPhotos = propertyData.photos.map((photo: any) => ({
             ...photo,
-            is_main: photo.is_main || photo.isMain || false
+            is_main: photo.is_main || photo.isMain || false,
           }));
-          setPhotos(loadedPhotos);
+          setPhotos(normalizePropertyPhotoRows(loadedPhotos));
         }
 
         // Charger les équipements sélectionnés
@@ -284,14 +289,38 @@ const EditPropertyScreen: React.FC = () => {
         .delete()
         .eq('property_id', propertyId);
 
-      // Ajouter les nouvelles photos
+      // Ajouter les nouvelles photos (upload des fichiers locaux avant insert)
       if (photos.length > 0) {
-        const photosToInsert = photos.map((photo, index) => ({
+        const resolvedForInsert: Array<{
+          property_id: string;
+          url: string;
+          category: string;
+          display_order: number;
+          is_main: boolean;
+        }> = [];
+
+        for (let index = 0; index < photos.length; index++) {
+          const photo = photos[index];
+          let url = photo.url;
+          if (url.startsWith('file://') || url.startsWith('content://')) {
+            url = await uploadPropertyMediaToStorage(url);
+          }
+          const vid = isVideoUrl(url);
+          resolvedForInsert.push({
+            property_id: propertyId,
+            url,
+            category: vid ? 'autre' : photo.category,
+            display_order: index,
+            is_main: vid ? false : Boolean(photo.is_main || photo.isMain),
+          });
+        }
+
+        const photosToInsert = normalizePropertyPhotoRows(resolvedForInsert).map((row, index) => ({
           property_id: propertyId,
-          url: photo.url,
-          category: photo.category,
+          url: row.url,
+          category: row.category,
           display_order: index,
-          is_main: photo.is_main || photo.isMain || false,
+          is_main: row.is_main,
         }));
 
         const { error: photosError } = await supabase
@@ -302,8 +331,7 @@ const EditPropertyScreen: React.FC = () => {
           console.error('Erreur lors de la sauvegarde des photos:', photosError);
         }
 
-        // Mettre à jour l'array images dans properties
-        const imageUrls = photos.map(p => p.url);
+        const imageUrls = photosToInsert.map((p) => p.url);
         await supabase
           .from('properties')
           .update({ images: imageUrls })
@@ -358,18 +386,48 @@ const EditPropertyScreen: React.FC = () => {
         category: 'autre' as const,
         display_order: photos.length + index,
         created_at: new Date().toISOString(),
-        is_main: photos.length === 0 && index === 0, // Première photo est principale par défaut
+        is_main: photos.length === 0 && index === 0,
       }));
-      
-      setPhotos(prev => {
-        const updated = [...prev, ...newPhotos];
-        // S'assurer qu'il n'y a qu'une seule photo principale
-        const hasMain = updated.some(p => p.is_main);
-        if (!hasMain && updated.length > 0) {
-          updated[0].is_main = true;
-        }
-        return updated;
-      });
+
+      setPhotos((prev) => normalizePropertyPhotoRows([...prev, ...newPhotos]));
+    }
+  };
+
+  const pickVideo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission requise', 'Accès à la médiathèque nécessaire pour les vidéos.');
+      return;
+    }
+
+    const videoCount = photos.filter((p) => isVideoUrl(p.url)).length;
+    if (videoCount >= MAX_EDIT_PROPERTY_VIDEOS) {
+      Alert.alert('Limite', `Maximum ${MAX_EDIT_PROPERTY_VIDEOS} vidéos.`);
+      return;
+    }
+    if (photos.length >= 30) {
+      Alert.alert('Limite', 'Maximum 30 médias.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsMultipleSelection: true,
+      selectionLimit: Math.min(30 - photos.length, MAX_EDIT_PROPERTY_VIDEOS - videoCount),
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets?.length) {
+      const newPhotos = result.assets.map((asset, index) => ({
+        id: `temp-v-${Date.now()}-${index}`,
+        property_id: propertyId,
+        url: asset.uri,
+        category: 'autre' as const,
+        display_order: photos.length + index,
+        created_at: new Date().toISOString(),
+        is_main: false,
+      }));
+      setPhotos((prev) => normalizePropertyPhotoRows([...prev, ...newPhotos]));
     }
   };
 
@@ -390,8 +448,8 @@ const EditPropertyScreen: React.FC = () => {
             if ((removed?.is_main || removed?.isMain) && newPhotos.length > 0) {
               newPhotos[0].is_main = true;
             }
-            
-            setPhotos(newPhotos);
+
+            setPhotos(normalizePropertyPhotoRows(newPhotos));
           },
         },
       ]
@@ -399,11 +457,20 @@ const EditPropertyScreen: React.FC = () => {
   };
 
   const setMainPhoto = (index: number) => {
-    setPhotos(prev => prev.map((photo, i) => ({
-      ...photo,
-      is_main: i === index,
-      isMain: i === index,
-    })));
+    const p = photos[index];
+    if (p && isVideoUrl(p.url)) {
+      Alert.alert('Photo principale', 'La vignette doit être une image, pas une vidéo.');
+      return;
+    }
+    setPhotos((prev) =>
+      normalizePropertyPhotoRows(
+        prev.map((photo, i) => ({
+          ...photo,
+          is_main: i === index,
+          isMain: i === index,
+        }))
+      )
+    );
   };
 
   const openCategoryModal = (index: number) => {
@@ -431,17 +498,18 @@ const EditPropertyScreen: React.FC = () => {
     );
   };
 
-  const getCategoryLabel = (category: string) => {
+  const getCategoryLabel = (category: string, url?: string) => {
+    if (url && isVideoUrl(url)) return '🎬 Vidéo';
     const labels: Record<string, string> = {
-      'chambre': '🛏️ Chambre',
-      'salle_de_bain': '🚿 Salle de bain',
-      'cuisine': '🍳 Cuisine',
-      'jardin': '🌳 Jardin',
-      'salon': '🛋️ Salon',
-      'exterieur': '🏡 Extérieur',
-      'terrasse': '☀️ Terrasse',
-      'balcon': '🪴 Balcon',
-      'autre': '📷 Autre',
+      chambre: '🛏️ Chambre',
+      salle_de_bain: '🚿 Salle de bain',
+      cuisine: '🍳 Cuisine',
+      jardin: '🌳 Jardin',
+      salon: '🛋️ Salon',
+      exterieur: '🏡 Extérieur',
+      terrasse: '☀️ Terrasse',
+      balcon: '🪴 Balcon',
+      autre: '📷 Autre',
     };
     return labels[category] || '📷 Autre';
   };
@@ -471,7 +539,7 @@ const EditPropertyScreen: React.FC = () => {
 
   const renderPhotosSection = () => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Photos de la propriété</Text>
+      <Text style={styles.sectionTitle}>Photos et vidéos</Text>
       
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
         {photos.map((photo, index) => (
@@ -481,7 +549,7 @@ const EditPropertyScreen: React.FC = () => {
               activeOpacity={0.9}
               style={styles.photoTouchable}
             >
-              <Image source={{ uri: photo.url }} style={styles.photo} />
+              <MediaThumb uri={photo.url} style={styles.photo} isVideo={isVideoUrl(photo.url)} />
               {/* Indicateur que l'image est cliquable */}
               <View style={styles.imageClickIndicator}>
                 <Ionicons name="expand-outline" size={20} color="#fff" />
@@ -499,7 +567,7 @@ const EditPropertyScreen: React.FC = () => {
             </TouchableOpacity>
             
             {/* Badge photo principale */}
-            {photo.is_main && (
+            {photo.is_main && !isVideoUrl(photo.url) && (
               <View style={styles.mainPhotoBadge}>
                 <Ionicons name="star" size={14} color="#FFD700" />
                 <Text style={styles.mainPhotoBadgeText}>Principale</Text>
@@ -509,7 +577,7 @@ const EditPropertyScreen: React.FC = () => {
             {/* Boutons d'action en bas */}
             <View style={styles.photoActionsContainer}>
               {/* Bouton pour définir comme principale */}
-              {!photo.is_main && (
+              {!photo.is_main && !isVideoUrl(photo.url) && (
                 <TouchableOpacity
                   style={styles.setMainPhotoButton}
                   onPress={(e) => {
@@ -522,26 +590,41 @@ const EditPropertyScreen: React.FC = () => {
               )}
               
               {/* Bouton catégorie */}
-              <TouchableOpacity
-                style={styles.categoryButton}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  openCategoryModal(index);
-                }}
-              >
-                <Text style={styles.categoryText} numberOfLines={1}>
-                  {getCategoryLabel(photo.category)}
-                </Text>
-              </TouchableOpacity>
+              {!isVideoUrl(photo.url) && (
+                <TouchableOpacity
+                  style={styles.categoryButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    openCategoryModal(index);
+                  }}
+                >
+                  <Text style={styles.categoryText} numberOfLines={1}>
+                    {getCategoryLabel(photo.category, photo.url)}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {isVideoUrl(photo.url) && (
+                <View style={[styles.categoryButton, styles.categoryButtonVideo]}>
+                  <Text style={styles.categoryText} numberOfLines={1}>
+                    {getCategoryLabel(photo.category, photo.url)}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         ))}
         
         {photos.length < 30 && (
-          <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
-            <Ionicons name="add" size={40} color="#999" />
-            <Text style={styles.addPhotoButtonText}>Ajouter</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
+              <Ionicons name="add" size={40} color="#999" />
+              <Text style={styles.addPhotoButtonText}>Photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.addPhotoButton, styles.addVideoButtonEdit]} onPress={pickVideo}>
+              <Ionicons name="videocam-outline" size={32} color="#64748b" />
+              <Text style={styles.addPhotoButtonText}>Vidéo</Text>
+            </TouchableOpacity>
+          </>
         )}
       </ScrollView>
 
@@ -629,11 +712,21 @@ const EditPropertyScreen: React.FC = () => {
           >
             {photos.map((photo, index) => (
               <View key={photo.id || index} style={styles.galleryImageWrapper}>
-                <Image
-                  source={{ uri: photo.url }}
-                  style={styles.galleryImage}
-                  resizeMode="contain"
-                />
+                {isVideoUrl(photo.url) ? (
+                  <Video
+                    source={{ uri: photo.url }}
+                    style={styles.galleryImage}
+                    resizeMode={ResizeMode.CONTAIN}
+                    useNativeControls
+                    shouldPlay={false}
+                  />
+                ) : (
+                  <Image
+                    source={{ uri: photo.url }}
+                    style={styles.galleryImage}
+                    resizeMode="contain"
+                  />
+                )}
               </View>
             ))}
           </ScrollView>
@@ -1377,6 +1470,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  categoryButtonVideo: {
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+  },
   categoryText: {
     color: '#fff',
     fontSize: 10,
@@ -1426,6 +1522,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 8,
+  },
+  addVideoButtonEdit: {
+    borderColor: '#cbd5e1',
   },
   addPhotoButtonText: {
     color: '#999',

@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Switch,
@@ -23,6 +22,10 @@ import { VehicleType, TransmissionType, FuelType, Vehicle } from '../types';
 import CitySearchInputModal from '../components/CitySearchInputModal';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
+import MediaThumb from '../components/MediaThumb';
+import { isMediaRowVideo, normalizeHostMediaRows, isVideoUrl } from '../utils/media';
+
+const MAX_EDIT_VEHICLE_VIDEOS = 5;
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
   { value: 'car', label: 'Voiture' },
@@ -120,7 +123,9 @@ const EditVehicleScreen: React.FC = () => {
   });
 
   const [images, setImages] = useState<string[]>([]);
-  const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
+  const [selectedImages, setSelectedImages] = useState<
+    Array<{ uri: string; category: string; displayOrder: number; isMain?: boolean; isVideo?: boolean }>
+  >([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [customFeature, setCustomFeature] = useState('');
   const [customRule, setCustomRule] = useState('');
@@ -145,25 +150,29 @@ const EditVehicleScreen: React.FC = () => {
           .order('display_order', { ascending: true });
 
         if (photos && photos.length > 0) {
-          // Utiliser les photos avec leurs métadonnées
           const photosWithMetadata = photos.map((p: any) => ({
             uri: p.url,
             category: p.category || 'exterior',
             displayOrder: p.display_order || 0,
             isMain: p.is_main || false,
+            isVideo: p.category === 'video' || isVideoUrl(p.url),
           }));
-          setSelectedImages(photosWithMetadata);
+          setSelectedImages(normalizeHostMediaRows(photosWithMetadata));
           setImages(photos.map((p: any) => p.url));
         } else {
-          // Fallback sur images si pas de photos structurées
           const photoUrls = vehicleData.images || [];
           setImages(photoUrls);
-          setSelectedImages(photoUrls.map((url, index) => ({
-            uri: url,
-            category: 'exterior',
-            displayOrder: index,
-            isMain: index === 0,
-          })));
+          setSelectedImages(
+            normalizeHostMediaRows(
+              photoUrls.map((url, index) => ({
+                uri: url,
+                category: isVideoUrl(url) ? 'video' : 'exterior',
+                displayOrder: index,
+                isMain: index === 0,
+                isVideo: isVideoUrl(url),
+              }))
+            )
+          );
         }
 
         setFormData({
@@ -228,45 +237,84 @@ const EditVehicleScreen: React.FC = () => {
     });
 
     if (!result.canceled && result.assets) {
-      const newImages = result.assets.map(asset => asset.uri);
-      setImages(prev => [...prev, ...newImages]);
-      // Ajouter aussi aux selectedImages avec métadonnées
-      const newSelectedImages = newImages.map((url, index) => ({
-        uri: url,
-        category: 'exterior',
-        displayOrder: selectedImages.length + index,
-        isMain: selectedImages.length === 0 && index === 0, // Première photo devient principale si aucune n'existe
-      }));
-      setSelectedImages(prev => {
-        const updated = [...prev, ...newSelectedImages];
-        // S'assurer qu'il y a au moins une photo principale
-        const hasMain = updated.some(img => img.isMain);
-        if (!hasMain && updated.length > 0) {
-          updated[0].isMain = true;
-        }
-        return updated;
+      const newImages = result.assets.map((asset) => asset.uri);
+      setImages((prev) => [...prev, ...newImages]);
+      setSelectedImages((prev) => {
+        const newSelectedImages = newImages.map((url, index) => ({
+          uri: url,
+          category: 'exterior',
+          displayOrder: prev.length + index + 1,
+          isMain: prev.length === 0 && index === 0,
+          isVideo: false,
+        }));
+        return normalizeHostMediaRows([...prev, ...newSelectedImages]);
+      });
+    }
+  };
+
+  const pickVideo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission requise', 'Accès à la médiathèque nécessaire pour les vidéos.');
+      return;
+    }
+
+    const videoCount = selectedImages.filter((i) => isMediaRowVideo(i)).length;
+    if (videoCount >= MAX_EDIT_VEHICLE_VIDEOS) {
+      Alert.alert('Limite', `Maximum ${MAX_EDIT_VEHICLE_VIDEOS} vidéos.`);
+      return;
+    }
+
+    const remaining = 30 - selectedImages.length;
+    if (remaining <= 0) {
+      Alert.alert('Limite', 'Maximum 30 médias.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsMultipleSelection: true,
+      selectionLimit: Math.min(remaining, MAX_EDIT_VEHICLE_VIDEOS - videoCount),
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets?.length) {
+      const newUris = result.assets.map((a) => a.uri);
+      setImages((prev) => [...prev, ...newUris]);
+      setSelectedImages((prev) => {
+        const add = newUris.map((uri, i) => ({
+          uri,
+          category: 'video',
+          displayOrder: prev.length + i + 1,
+          isMain: false,
+          isVideo: true,
+        }));
+        return normalizeHostMediaRows([...prev, ...add]);
       });
     }
   };
 
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
-    setSelectedImages(prev => {
+    setSelectedImages((prev) => {
       const removed = prev[index];
       const updated = prev.filter((_, i) => i !== index);
-      // Si la photo supprimée était principale et qu'il reste des photos, marquer la première comme principale
       if (removed?.isMain && updated.length > 0) {
         updated[0].isMain = true;
       }
-      return updated;
+      return normalizeHostMediaRows(updated);
     });
   };
 
   const setMainImage = (index: number) => {
-    setSelectedImages(prev => prev.map((img, i) => ({
-      ...img,
-      isMain: i === index
-    })));
+    const row = selectedImages[index];
+    if (!row || isMediaRowVideo(row)) {
+      Alert.alert('Photo principale', 'Choisissez une image, pas une vidéo.');
+      return;
+    }
+    setSelectedImages((prev) =>
+      normalizeHostMediaRows(prev.map((img, i) => ({ ...img, isMain: i === index })))
+    );
   };
 
   const toggleFeature = (feature: string) => {
@@ -351,6 +399,11 @@ const EditVehicleScreen: React.FC = () => {
       }
     }
 
+    if (selectedImages.length > 0 && !selectedImages.some((img) => !isMediaRowVideo(img))) {
+      Alert.alert('Erreur', 'Ajoutez au moins une image pour la vignette du véhicule.');
+      return;
+    }
+
     const result = await updateVehicle(vehicleId, {
       title: formData.title.trim(),
       description: formData.description.trim() || null,
@@ -383,12 +436,16 @@ const EditVehicleScreen: React.FC = () => {
       cancellation_policy: formData.cancellation_policy || 'flexible',
       images: images,
       // Passer les informations sur les photos (isMain, category, displayOrder)
-      photos: selectedImages.map((img) => ({
-        uri: img.uri,
-        category: img.category,
-        displayOrder: img.displayOrder,
-        isMain: img.isMain || false,
-      })),
+      photos: selectedImages.map((img) => {
+        const vid = isMediaRowVideo(img);
+        return {
+          uri: img.uri,
+          category: vid ? 'video' : img.category,
+          displayOrder: img.displayOrder,
+          isMain: vid ? false : Boolean(img.isMain),
+          isVideo: vid,
+        };
+      }),
       features: formData.features,
       rules: formData.rules,
     });
@@ -914,17 +971,26 @@ const EditVehicleScreen: React.FC = () => {
 
           {/* Photos */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Photos</Text>
+            <Text style={styles.sectionTitle}>Photos et vidéos</Text>
             <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
               <Ionicons name="camera-outline" size={24} color="#2E7D32" />
               <Text style={styles.addPhotoText}>Ajouter des photos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.addPhotoButton, styles.addVideoButtonEditVehicle]} onPress={pickVideo}>
+              <Ionicons name="videocam-outline" size={24} color="#2563eb" />
+              <Text style={[styles.addPhotoText, styles.addVideoTextEditVehicle]}>Ajouter une vidéo</Text>
             </TouchableOpacity>
             {selectedImages.length > 0 && (
               <View style={styles.imagesContainer}>
                 {selectedImages.map((img, index) => (
                   <View key={index} style={styles.imageWrapper}>
-                    <Image source={{ uri: img.uri }} style={styles.image} />
-                    {img.isMain && (
+                    <MediaThumb
+                      uri={img.uri}
+                      isVideo={isMediaRowVideo(img)}
+                      style={styles.image}
+                      resizeMode="cover"
+                    />
+                    {img.isMain && !isMediaRowVideo(img) && (
                       <View style={styles.mainPhotoBadge}>
                         <Ionicons name="star" size={12} color="#fff" />
                         <Text style={styles.mainPhotoBadgeText}>Principale</Text>
@@ -936,7 +1002,7 @@ const EditVehicleScreen: React.FC = () => {
                     >
                       <Ionicons name="close-circle" size={24} color="#e74c3c" />
                     </TouchableOpacity>
-                    {!img.isMain && (
+                    {!img.isMain && !isMediaRowVideo(img) && (
                       <TouchableOpacity
                         style={styles.setMainButton}
                         onPress={() => setMainImage(index)}
@@ -1197,6 +1263,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2E7D32',
     fontWeight: '600',
+  },
+  addVideoButtonEditVehicle: {
+    marginTop: 10,
+    borderColor: '#2563eb',
+  },
+  addVideoTextEditVehicle: {
+    color: '#2563eb',
   },
   imagesContainer: {
     flexDirection: 'row',

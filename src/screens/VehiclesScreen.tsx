@@ -33,6 +33,8 @@ import { LocationResult, useLocationSearch } from '../hooks/useLocationSearch';
 import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import { VehicleDateTimeSelector } from '../components/VehicleDateTimeSelector';
+import MediaThumb from '../components/MediaThumb';
+import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
 import VehicleDateTimePickerModal from '../components/VehicleDateTimePickerModal';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { useAuth } from '../services/AuthContext';
@@ -1421,8 +1423,7 @@ const VehiclesScreen: React.FC = () => {
             decelerationRate="fast"
           >
             {filteredVehiclesForList.map((vehicle) => {
-              const vehicleImages = vehicle.images || vehicle.vehicle_photos?.map((p: any) => p.url) || [];
-              const mainImage = vehicleImages[0] || '';
+              const coverUri = getVehicleCoverUrl(vehicle);
               const vehicleTitle = vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''} ${vehicle.year || ''}`.trim();
               
               return (
@@ -1434,11 +1435,12 @@ const VehiclesScreen: React.FC = () => {
                 >
                   {/* Image */}
                   <View style={styles.vehicleHorizontalCardImageContainer}>
-                    {mainImage ? (
-                      <Image
-                        source={{ uri: mainImage }}
+                    {coverUri ? (
+                      <MediaThumb
+                        uri={coverUri}
                         style={styles.vehicleHorizontalCardImage}
                         resizeMode="cover"
+                        isVideo={isVideoUrl(coverUri)}
                       />
                     ) : (
                       <View style={[styles.vehicleHorizontalCardImage, styles.vehicleHorizontalCardImagePlaceholder]}>
@@ -1642,13 +1644,17 @@ const VehiclesScreen: React.FC = () => {
                     }}
                     activeOpacity={0.7}
                   >
-                    {item.images && item.images.length > 0 && (
-                      <Image
-                        source={{ uri: item.images[0] }}
-                        style={styles.alternativeVehicleImage}
-                        resizeMode="cover"
-                      />
-                    )}
+                    {(() => {
+                      const u = getVehicleCoverUrl(item);
+                      return u ? (
+                        <MediaThumb
+                          uri={u}
+                          style={styles.alternativeVehicleImage}
+                          resizeMode="cover"
+                          isVideo={isVideoUrl(u)}
+                        />
+                      ) : null;
+                    })()}
                     <View style={styles.alternativeVehicleContent}>
                       <Text style={styles.alternativeVehicleTitle} numberOfLines={1}>
                         {item.title || `${item.brand || ''} ${item.model || ''}`.trim()}

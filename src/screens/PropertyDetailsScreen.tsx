@@ -276,6 +276,7 @@ const PropertyDetailsScreen: React.FC = () => {
           <PhotoCategoryDisplay
             photos={property.photos}
             propertyTitle={property.title}
+            onBecomeHostPress={() => navigation.navigate('BecomeHost' as never)}
           />
         ) : (
           <PropertyImageCarousel

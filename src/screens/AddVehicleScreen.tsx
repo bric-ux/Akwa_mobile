@@ -27,6 +27,11 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import VehicleBrandAutocomplete from '../components/VehicleBrandAutocomplete';
+import MediaThumb from '../components/MediaThumb';
+import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
+import { isMediaRowVideo, normalizeHostMediaRows } from '../utils/media';
+
+const MAX_VEHICLE_VIDEOS = 5;
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
   { value: 'car', label: 'Voiture' },
@@ -167,7 +172,9 @@ const AddVehicleScreen: React.FC = () => {
     out_of_town_price_per_hour: '',
   });
 
-  const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
+  const [selectedImages, setSelectedImages] = useState<
+    Array<{ uri: string; category: string; displayOrder: number; isMain?: boolean; isVideo?: boolean }>
+  >([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [customFeature, setCustomFeature] = useState('');
   const [customRule, setCustomRule] = useState('');
@@ -182,53 +189,16 @@ const AddVehicleScreen: React.FC = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Fonction pour uploader une image vers Supabase Storage
-  const uploadImageToStorage = async (uri: string): Promise<string | null> => {
+  const uploadVehicleMedia = async (uri: string): Promise<string | null> => {
     if (uri.startsWith('http://') || uri.startsWith('https://')) {
-      console.log('Image déjà uploadée, skipping:', uri);
-      return uri; // Already a public URL
+      return uri;
     }
-
-    setUploadingImages(true);
     try {
-      const response = await fetch(uri);
-      const arrayBuffer = await response.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-
-      const fileExt = uri.split('.').pop() || 'jpg';
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `vehicle-images/${user?.id}/${fileName}`;
-
-      const contentType = fileExt === 'png' ? 'image/png' : 
-                         fileExt === 'gif' ? 'image/gif' : 
-                         'image/jpeg';
-
-      const { error: uploadError } = await supabase.storage
-        .from('property-images')
-        .upload(filePath, uint8Array, {
-          contentType: contentType,
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error('Error uploading image:', uploadError);
-        Alert.alert('Erreur d\'upload', `Impossible d'uploader l'image: ${uploadError.message}`);
-        return null;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('property-images')
-        .getPublicUrl(filePath);
-
-      console.log('Image uploaded successfully:', publicUrl);
-      return publicUrl;
+      return await uploadPropertyMediaToStorage(uri);
     } catch (error: any) {
-      console.error('Error in uploadImageToStorage:', error);
-      Alert.alert('Erreur d\'upload', `Une erreur est survenue lors de l'upload de l'image: ${error.message}`);
+      console.error('uploadVehicleMedia:', error);
+      Alert.alert('Erreur d\'upload', error?.message || 'Impossible d\'envoyer le fichier');
       return null;
-    } finally {
-      setUploadingImages(false);
     }
   };
 
@@ -241,7 +211,7 @@ const AddVehicleScreen: React.FC = () => {
 
     const remainingSlots = 30 - selectedImages.length;
     if (remainingSlots <= 0) {
-      Alert.alert('Limite atteinte', 'Vous pouvez ajouter jusqu\'à 30 photos maximum.');
+      Alert.alert('Limite atteinte', 'Vous pouvez ajouter jusqu\'à 30 médias maximum (photos + vidéos).');
       return;
     }
 
@@ -254,36 +224,36 @@ const AddVehicleScreen: React.FC = () => {
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setUploadingImages(true);
-      const uploadedUrls: { uri: string; category: string; displayOrder: number; isMain: boolean }[] = [];
+      const uploadedUrls: {
+        uri: string;
+        category: string;
+        displayOrder: number;
+        isMain: boolean;
+        isVideo?: boolean;
+      }[] = [];
       const suggestedCategory = 'exterior';
+      const indexBefore = selectedImages.length;
 
       for (const asset of result.assets) {
-        const publicUrl = await uploadImageToStorage(asset.uri);
+        const publicUrl = await uploadVehicleMedia(asset.uri);
         if (publicUrl) {
           uploadedUrls.push({
             uri: publicUrl,
             category: suggestedCategory,
-            displayOrder: selectedImages.length + uploadedUrls.length + 1,
-            isMain: selectedImages.length === 0 && uploadedUrls.length === 0 // First uploaded image is main if no others exist
+            displayOrder: indexBefore + uploadedUrls.length + 1,
+            isMain: indexBefore === 0 && uploadedUrls.length === 0,
+            isVideo: false,
           });
         }
       }
       setUploadingImages(false);
 
       if (uploadedUrls.length > 0) {
-        setSelectedImages(prev => {
-          const updated = [...prev, ...uploadedUrls];
-          // Ensure only one main photo
-          const hasMain = updated.some(img => img.isMain);
-          if (!hasMain && updated.length > 0) {
-            updated[0].isMain = true;
-          }
-          return updated;
-        });
+        setSelectedImages(prev => normalizeHostMediaRows([...prev, ...uploadedUrls]));
 
         if (uploadedUrls.length === 1) {
           setTimeout(() => {
-            openCategoryModal(selectedImages.length);
+            openCategoryModal(indexBefore);
           }, 500);
         } else {
           Alert.alert(
@@ -292,6 +262,67 @@ const AddVehicleScreen: React.FC = () => {
             [{ text: 'OK' }]
           );
         }
+      }
+    }
+  };
+
+  const pickVideo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission requise', 'Nous avons besoin de l\'accès à vos vidéos.');
+      return;
+    }
+
+    const videoCount = selectedImages.filter((i) => isMediaRowVideo(i)).length;
+    if (videoCount >= MAX_VEHICLE_VIDEOS) {
+      Alert.alert('Limite vidéos', `Maximum ${MAX_VEHICLE_VIDEOS} vidéos.`);
+      return;
+    }
+
+    const remainingSlots = 30 - selectedImages.length;
+    if (remainingSlots <= 0) {
+      Alert.alert('Limite atteinte', 'Vous pouvez ajouter jusqu\'à 30 médias maximum.');
+      return;
+    }
+
+    const maxPick = Math.min(remainingSlots, MAX_VEHICLE_VIDEOS - videoCount);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsMultipleSelection: true,
+      selectionLimit: maxPick,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets?.length) {
+      setUploadingImages(true);
+      const start = selectedImages.length;
+      const additions: Array<{
+        uri: string;
+        category: string;
+        displayOrder: number;
+        isMain: boolean;
+        isVideo: boolean;
+      }> = [];
+      for (let i = 0; i < result.assets.length; i++) {
+        const publicUrl = await uploadVehicleMedia(result.assets[i].uri);
+        if (publicUrl) {
+          additions.push({
+            uri: publicUrl,
+            category: 'video',
+            displayOrder: start + additions.length + 1,
+            isMain: false,
+            isVideo: true,
+          });
+        }
+      }
+      setUploadingImages(false);
+      if (additions.length > 0) {
+        setSelectedImages(prev => normalizeHostMediaRows([...prev, ...additions]));
+        Alert.alert(
+          'Vidéo(s) ajoutée(s)',
+          'La photo principale doit rester une image fixe.',
+          [{ text: 'OK' }]
+        );
       }
     }
   };
@@ -306,18 +337,24 @@ const AddVehicleScreen: React.FC = () => {
         updated[0].isMain = true;
       }
       
-      return updated.map((img, i) => ({
-        ...img,
-        displayOrder: i + 1
-      }));
+      return normalizeHostMediaRows(
+        updated.map((img, i) => ({
+          ...img,
+          displayOrder: i + 1,
+        }))
+      );
     });
   };
 
   const setMainImage = (index: number) => {
-    setSelectedImages(prev => prev.map((img, i) => ({
-      ...img,
-      isMain: i === index
-    })));
+    const row = selectedImages[index];
+    if (!row || isMediaRowVideo(row)) {
+      Alert.alert('Photo principale', 'Choisissez une image, pas une vidéo.');
+      return;
+    }
+    setSelectedImages(prev =>
+      normalizeHostMediaRows(prev.map((img, i) => ({ ...img, isMain: i === index })))
+    );
   };
 
   const openCategoryModal = (index: number) => {
@@ -338,6 +375,7 @@ const AddVehicleScreen: React.FC = () => {
   };
 
   const getCategoryLabel = (category: string) => {
+    if (category === 'video') return '🎬 Vidéo';
     const cat = VEHICLE_PHOTO_CATEGORIES.find(c => c.value === category);
     return cat ? `${cat.icon} ${cat.label}` : '📸 Autre';
   };
@@ -497,7 +535,11 @@ const AddVehicleScreen: React.FC = () => {
       }
     }
     if (selectedImages.length === 0) {
-      Alert.alert('Erreur', 'Veuillez ajouter au moins une photo');
+      Alert.alert('Erreur', 'Veuillez ajouter au moins une photo ou une vidéo');
+      return;
+    }
+    if (!selectedImages.some((img) => !isMediaRowVideo(img))) {
+      Alert.alert('Erreur', 'Ajoutez au moins une image pour la vignette du véhicule.');
       return;
     }
     if (!formData.has_insurance) {
@@ -562,12 +604,16 @@ const AddVehicleScreen: React.FC = () => {
       rules: formData.rules,
       images: selectedImages.map(img => img.uri),
       // Passer les informations sur les photos (isMain, category, displayOrder)
-      photos: selectedImages.map((img, index) => ({
-        uri: img.uri,
-        category: img.category,
-        displayOrder: img.displayOrder,
-        isMain: img.isMain || false,
-      })),
+      photos: selectedImages.map((img, index) => {
+        const vid = isMediaRowVideo(img);
+        return {
+          uri: img.uri,
+          category: vid ? 'video' : img.category,
+          displayOrder: img.displayOrder,
+          isMain: vid ? false : Boolean(img.isMain),
+          isVideo: vid,
+        };
+      }),
       has_insurance: formData.has_insurance,
       insurance_details: formData.insurance_details || undefined,
       insurance_expiration_date: formData.insurance_expiration_date && formData.insurance_expiration_date instanceof Date 
@@ -1357,7 +1403,10 @@ const AddVehicleScreen: React.FC = () => {
 
           {/* Photos */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Photos *</Text>
+            <Text style={styles.sectionTitle}>Photos et vidéos *</Text>
+            <Text style={styles.sectionSubtitle}>
+              Au moins une image pour la vignette ; jusqu&apos;à {MAX_VEHICLE_VIDEOS} vidéos.
+            </Text>
             <TouchableOpacity 
               style={styles.addPhotoButton} 
               onPress={pickImage}
@@ -1372,22 +1421,36 @@ const AddVehicleScreen: React.FC = () => {
                 </>
               )}
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.addPhotoButton, styles.addVideoButtonOutline]}
+              onPress={pickVideo}
+              disabled={uploadingImages}
+            >
+              <Ionicons name="videocam-outline" size={24} color="#2563eb" />
+              <Text style={[styles.addPhotoText, styles.addVideoButtonText]}>Ajouter une vidéo</Text>
+            </TouchableOpacity>
             {selectedImages.length > 0 && (
               <View style={styles.imagesContainer}>
                 {selectedImages.map((img, index) => (
                   <TouchableOpacity
                     key={index}
                     style={styles.imageWrapper}
-                    onPress={() => openCategoryModal(index)}
+                    onPress={() => !isMediaRowVideo(img) && openCategoryModal(index)}
+                    disabled={isMediaRowVideo(img)}
                   >
-                    <Image source={{ uri: img.uri }} style={styles.image} />
+                    <MediaThumb
+                      uri={img.uri}
+                      isVideo={isMediaRowVideo(img)}
+                      style={styles.image}
+                      resizeMode="cover"
+                    />
                     <TouchableOpacity
                       style={styles.removeImageButton}
                       onPress={() => removeImage(index)}
                     >
                       <Ionicons name="close-circle" size={24} color="#e74c3c" />
                     </TouchableOpacity>
-                    {img.isMain && (
+                    {img.isMain && !isMediaRowVideo(img) && (
                       <View style={styles.mainPhotoBadge}>
                         <Ionicons name="star" size={14} color="#FFD700" />
                         <Text style={styles.mainPhotoBadgeText}>Principale</Text>
@@ -1396,7 +1459,7 @@ const AddVehicleScreen: React.FC = () => {
                     <View style={styles.categoryBadge}>
                       <Text style={styles.categoryBadgeText}>{getCategoryLabel(img.category)}</Text>
                     </View>
-                    {!img.isMain && (
+                    {!img.isMain && !isMediaRowVideo(img) && (
                       <TouchableOpacity
                         style={styles.setMainButton}
                         onPress={() => setMainImage(index)}
@@ -1799,6 +1862,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2E7D32',
     fontWeight: '600',
+  },
+  addVideoButtonOutline: {
+    marginTop: 10,
+    borderColor: '#2563eb',
+  },
+  addVideoButtonText: {
+    color: '#2563eb',
   },
   imagesContainer: {
     flexDirection: 'row',

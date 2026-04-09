@@ -14,6 +14,9 @@ import {
   Image,
   Switch,
 } from 'react-native';
+import MediaThumb from '../components/MediaThumb';
+import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
+import { isMediaRowVideo, normalizeHostMediaRows } from '../utils/media';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -85,6 +88,8 @@ const PHOTO_CATEGORIES = [
   { value: 'piscine', label: 'Piscine', icon: '🏊', priority: 14 },
   { value: 'autre', label: 'Autres', icon: '📸', priority: 15 },
 ];
+
+const MAX_PROPERTY_VIDEOS = 5;
 
 const BecomeHostScreen: React.FC = ({ route }: any) => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
@@ -179,7 +184,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [identityUploadedInSession, setIdentityUploadedInSession] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
-  const [selectedImages, setSelectedImages] = useState<Array<{uri: string, category: string, displayOrder: number, isMain?: boolean}>>([]);
+  const [selectedImages, setSelectedImages] = useState<
+    Array<{ uri: string; category: string; displayOrder: number; isMain?: boolean; isVideo?: boolean }>
+  >([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedImageForCategory, setSelectedImageForCategory] = useState<number | null>(null);
 
@@ -354,7 +361,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
                 uri: photoUri,
                 category: photoCategory,
                 displayOrder: photoDisplayOrder,
-                isMain: photo.isMain || photo.is_main || (index === 0 && !photos.some((p: any) => p.isMain || p.is_main))
+                isMain: photo.isMain || photo.is_main || (index === 0 && !photos.some((p: any) => p.isMain || p.is_main)),
               };
               
               console.log(`📸 Photo ${index} formatée:`, formattedPhoto);
@@ -363,7 +370,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             
             console.log('📸 Final formatted photos:', formattedPhotos);
             console.log('📸 Catégories des photos:', formattedPhotos.map(p => p.category));
-            setSelectedImages(formattedPhotos);
+            setSelectedImages(normalizeHostMediaRows(formattedPhotos));
           }
         } catch (e) {
           console.error('❌ Error parsing categorized_photos:', e);
@@ -374,9 +381,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           uri: url,
           category: 'autre',
           displayOrder: index,
-          isMain: index === 0 // Première photo est principale par défaut
+          isMain: index === 0,
         }));
-        setSelectedImages(photos as any);
+        setSelectedImages(normalizeHostMediaRows(photos as any));
       }
       
       console.log('✅ Données chargées avec succès');
@@ -439,74 +446,13 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     return true;
   };
 
-  // Fonction pour uploader une image vers Supabase Storage (comme sur le site web)
-  const uploadImageToStorage = async (uri: string): Promise<string> => {
-    try {
-      // Si l'URI est déjà une URL publique (http/https), la retourner directement
-      // (cas des images déjà uploadées lors de l'édition d'une candidature)
-      if (uri.startsWith('http://') || uri.startsWith('https://')) {
-        console.log('✅ Image déjà uploadée, utilisation de l\'URL existante:', uri);
-        return uri;
-      }
-      
-      // Sinon, uploader l'image locale
-      console.log('📤 Upload de l\'image locale:', uri);
-      
-      // Récupérer l'extension du fichier
-      const fileExt = uri.split('.').pop() || 'jpg';
-      
-      // Générer un nom de fichier unique (même format que le site web)
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      
-      // Lire le fichier depuis l'URI locale
-      const response = await fetch(uri);
-      if (!response.ok) {
-        throw new Error(`Erreur HTTP: ${response.status}`);
-      }
-      
-      // Utiliser directement arrayBuffer() pour React Native (pas besoin de blob())
-      const arrayBuffer = await response.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      
-      // Déterminer le content type depuis l'extension
-      const contentType = fileExt === 'png' ? 'image/png' : 
-                         fileExt === 'gif' ? 'image/gif' : 
-                         'image/jpeg';
-      
-      // Upload vers Supabase Storage (même bucket que le site web)
-      const { error: uploadError } = await supabase.storage
-        .from('property-images')
-        .upload(fileName, uint8Array, {
-          contentType: contentType,
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) {
-        console.error('Erreur upload image:', uploadError);
-        throw uploadError;
-      }
-
-      // Récupérer l'URL publique (même méthode que le site web)
-      const { data: { publicUrl } } = supabase.storage
-        .from('property-images')
-        .getPublicUrl(fileName);
-
-      console.log('✅ Image uploadée avec succès:', publicUrl);
-      return publicUrl;
-    } catch (error) {
-      console.error('Erreur lors de l\'upload de l\'image:', error);
-      throw error;
-    }
-  };
-
   const pickImage = async () => {
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
 
     const remainingSlots = 30 - selectedImages.length;
     if (remainingSlots <= 0) {
-      Alert.alert('Limite atteinte', 'Vous pouvez ajouter jusqu\'à 30 photos maximum.');
+      Alert.alert('Limite atteinte', 'Vous pouvez ajouter jusqu\'à 30 médias maximum (photos + vidéos).');
       return;
     }
 
@@ -518,28 +464,33 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      // Afficher un indicateur de chargement
       Alert.alert('Upload en cours', `Upload de ${result.assets.length} photo(s)...`);
       
       const suggestedCategory = getSuggestedCategory();
-      const newImages: any[] = [];
+      const newImages: Array<{
+        uri: string;
+        category: string;
+        displayOrder: number;
+        isMain?: boolean;
+        isVideo?: boolean;
+      }> = [];
+      const indexBeforeAdd = selectedImages.length;
       
       try {
-        // Uploader chaque image vers Supabase Storage
         for (let i = 0; i < result.assets.length; i++) {
           const asset = result.assets[i];
           console.log(`📤 Upload de l'image ${i + 1}/${result.assets.length}...`);
           
           try {
-            // Uploader l'image et obtenir l'URL publique
-            const publicUrl = await uploadImageToStorage(asset.uri);
+            const publicUrl = await uploadPropertyMediaToStorage(asset.uri);
             console.log(`✅ Image ${i + 1} uploadée:`, publicUrl);
             
             newImages.push({
-              uri: publicUrl, // Utiliser l'URL publique au lieu de l'URI locale
+              uri: publicUrl,
               category: suggestedCategory,
-              displayOrder: selectedImages.length + i + 1,
-              isMain: selectedImages.length === 0 && i === 0 // Première photo est principale par défaut
+              displayOrder: indexBeforeAdd + i + 1,
+              isMain: indexBeforeAdd === 0 && i === 0,
+              isVideo: false,
             });
           } catch (error) {
             console.error(`❌ Erreur upload image ${i + 1}:`, error);
@@ -547,25 +498,15 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               'Erreur d\'upload',
               `Impossible d'uploader l'image ${i + 1}. Veuillez réessayer.`
             );
-            // Continuer avec les autres images même si une échoue
           }
         }
         
         if (newImages.length > 0) {
-          setSelectedImages(prev => {
-            const updated = [...prev, ...newImages];
-            // S'assurer qu'il n'y a qu'une seule photo principale
-            const hasMain = updated.some(img => img.isMain);
-            if (!hasMain && updated.length > 0) {
-              updated[0].isMain = true;
-            }
-            return updated;
-          });
+          setSelectedImages(prev => normalizeHostMediaRows([...prev, ...newImages]));
           
-          // Si une seule photo a été ajoutée, proposer la catégorisation
           if (newImages.length === 1) {
             setTimeout(() => {
-              openCategoryModal(selectedImages.length);
+              openCategoryModal(indexBeforeAdd);
             }, 500);
           } else {
             Alert.alert(
@@ -585,29 +526,98 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     }
   };
 
+  const pickVideo = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    const videoCount = selectedImages.filter((i) => isMediaRowVideo(i)).length;
+    if (videoCount >= MAX_PROPERTY_VIDEOS) {
+      Alert.alert('Limite vidéos', `Vous pouvez ajouter au maximum ${MAX_PROPERTY_VIDEOS} vidéos.`);
+      return;
+    }
+
+    const remainingSlots = 30 - selectedImages.length;
+    if (remainingSlots <= 0) {
+      Alert.alert('Limite atteinte', 'Vous pouvez ajouter jusqu\'à 30 médias maximum (photos + vidéos).');
+      return;
+    }
+
+    const maxPick = Math.min(remainingSlots, MAX_PROPERTY_VIDEOS - videoCount);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsMultipleSelection: true,
+      selectionLimit: maxPick,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets?.length) {
+      Alert.alert('Upload en cours', `Upload de ${result.assets.length} vidéo(s)...`);
+      const additions: Array<{
+        uri: string;
+        category: string;
+        displayOrder: number;
+        isMain?: boolean;
+        isVideo?: boolean;
+      }> = [];
+      const start = selectedImages.length;
+
+      for (let i = 0; i < result.assets.length; i++) {
+        const asset = result.assets[i];
+        try {
+          const publicUrl = await uploadPropertyMediaToStorage(asset.uri);
+          additions.push({
+            uri: publicUrl,
+            category: 'autre',
+            displayOrder: start + i + 1,
+            isMain: false,
+            isVideo: true,
+          });
+        } catch (error) {
+          console.error(`Erreur upload vidéo ${i + 1}:`, error);
+          Alert.alert('Erreur d\'upload', `Impossible d'uploader la vidéo ${i + 1}.`);
+        }
+      }
+
+      if (additions.length > 0) {
+        setSelectedImages(prev => normalizeHostMediaRows([...prev, ...additions]));
+        Alert.alert(
+          `${additions.length} vidéo(s) ajoutée(s)`,
+          'Les vidéos sont affichées avec vos photos ; la photo principale doit rester une image.',
+          [{ text: 'OK' }]
+        );
+      }
+    }
+  };
+
   const removeImage = (index: number) => {
     setSelectedImages(prev => {
       const removed = prev[index];
       const updated = prev.filter((_, i) => i !== index);
       
-      // Si la photo supprimée était principale et qu'il reste des photos, définir la première comme principale
       if (removed?.isMain && updated.length > 0) {
         updated[0].isMain = true;
       }
       
-      // Réorganiser les displayOrder
-      return updated.map((img, i) => ({
+      const reordered = updated.map((img, i) => ({
         ...img,
-        displayOrder: i + 1
+        displayOrder: i + 1,
       }));
+      return normalizeHostMediaRows(reordered);
     });
   };
 
   const setMainImage = (index: number) => {
-    setSelectedImages(prev => prev.map((img, i) => ({
-      ...img,
-      isMain: i === index
-    })));
+    const row = selectedImages[index];
+    if (!row || isMediaRowVideo(row)) {
+      Alert.alert(
+        'Photo principale',
+        'La vignette d’annonce doit être une image. Choisissez une photo, pas une vidéo.'
+      );
+      return;
+    }
+    setSelectedImages(prev =>
+      normalizeHostMediaRows(prev.map((img, i) => ({ ...img, isMain: i === index })))
+    );
   };
 
   const openCategoryModal = (index: number) => {
@@ -848,11 +858,18 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           }
         }
 
-        // Validation des photos
+        // Validation des photos / médias
         if (selectedImages.length === 0) {
           Alert.alert(
-            'Photos obligatoires',
-            'Vous devez ajouter au moins 1 photo de votre logement.'
+            'Médias obligatoires',
+            'Vous devez ajouter au moins 1 photo ou vidéo de votre logement.'
+          );
+          return false;
+        }
+        if (!selectedImages.some((img) => !isMediaRowVideo(img))) {
+          Alert.alert(
+            'Photo obligatoire',
+            'Ajoutez au moins une image pour la vignette. Les vidéos seules ne suffisent pas.'
           );
           return false;
         }
@@ -1130,12 +1147,15 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       phone: formData.hostPhone,
       // Format exact comme sur le site web
       images: selectedImages.map(img => img.uri), // URLs publiques
-      categorizedPhotos: selectedImages.map((img, index) => ({
-        url: img.uri, // URL publique
-        category: img.category || 'autre',
-        displayOrder: img.displayOrder ?? index,
-        isMain: img.isMain || false
-      })),
+      categorizedPhotos: selectedImages.map((img, index) => {
+        const vid = isMediaRowVideo(img);
+        return {
+          url: img.uri,
+          category: vid ? 'autre' : img.category || 'autre',
+          displayOrder: img.displayOrder ?? index,
+          isMain: vid ? false : Boolean(img.isMain),
+        };
+      }),
       amenities: selectedAmenities,
       customAmenities: customAmenities.trim() 
         ? customAmenities.split(',').map(a => a.trim()).filter(a => a.length > 0)
@@ -1782,17 +1802,18 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
 
       {/* Photos */}
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Photos de votre logement</Text>
+        <Text style={styles.label}>Photos et vidéos de votre logement</Text>
         <Text style={styles.subtitle}>
-          Ajoutez jusqu'à 30 photos pour présenter votre logement. Vous pouvez sélectionner plusieurs photos à la fois et définir une photo principale.
+          Jusqu&apos;à 30 médias (photos + vidéos, max. {MAX_PROPERTY_VIDEOS} vidéos). La photo principale doit être une image, pas une vidéo.
         </Text>
         
         {/* Grille des images */}
         <View style={styles.imageGrid}>
           {selectedImages.map((image, index) => (
             <View key={index} style={[styles.imageContainer, image.isMain && styles.mainImageContainer]}>
-              <Image
-                source={{ uri: image.uri }}
+              <MediaThumb
+                uri={image.uri}
+                isVideo={isMediaRowVideo(image)}
                 style={styles.selectedImage}
                 resizeMode="cover"
               />
@@ -1804,17 +1825,23 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               </TouchableOpacity>
               
               {/* Badge photo principale - en haut à gauche */}
-              {image.isMain && (
+              {image.isMain && !isMediaRowVideo(image) && (
                 <View style={styles.mainImageBadge}>
                   <Ionicons name="star" size={16} color="#FFD700" />
                   <Text style={styles.mainImageBadgeText}>Principale</Text>
+                </View>
+              )}
+              {isMediaRowVideo(image) && (
+                <View style={styles.videoTypeBadge}>
+                  <Ionicons name="videocam" size={12} color="#fff" />
+                  <Text style={styles.videoTypeBadgeText}>Vidéo</Text>
                 </View>
               )}
               
               {/* Boutons d'action en bas - côte à côte */}
               <View style={styles.imageActionsContainer}>
                 {/* Bouton pour définir comme principale */}
-                {!image.isMain && (
+                {!image.isMain && !isMediaRowVideo(image) && (
                   <TouchableOpacity
                     style={styles.setMainButtonSmall}
                     onPress={() => setMainImage(index)}
@@ -1837,11 +1864,18 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           ))}
           
           {selectedImages.length < 30 && (
-            <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
-              <Ionicons name="camera" size={24} color="#666" />
-              <Text style={styles.addImageText}>Ajouter des photos</Text>
-              <Text style={styles.addImageSubtext}>(Sélection multiple possible)</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
+                <Ionicons name="camera" size={24} color="#666" />
+                <Text style={styles.addImageText}>Ajouter des photos</Text>
+                <Text style={styles.addImageSubtext}>(Sélection multiple possible)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.addImageButton, styles.addVideoButton]} onPress={pickVideo}>
+                <Ionicons name="videocam-outline" size={24} color="#666" />
+                <Text style={styles.addImageText}>Ajouter une vidéo</Text>
+                <Text style={styles.addImageSubtext}>(max. {MAX_PROPERTY_VIDEOS} vidéos)</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
         
@@ -2614,8 +2648,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             {/* Aperçu de la photo */}
             {selectedImageForCategory !== null && (
               <View style={styles.photoPreview}>
-                <Image
-                  source={{ uri: selectedImages[selectedImageForCategory].uri }}
+                <MediaThumb
+                  uri={selectedImages[selectedImageForCategory].uri}
+                  isVideo={isMediaRowVideo(selectedImages[selectedImageForCategory])}
                   style={styles.previewImage}
                   resizeMode="cover"
                 />
@@ -3338,6 +3373,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 4,
   },
+  videoTypeBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 5,
+    gap: 4,
+  },
+  videoTypeBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
   imageActionsContainer: {
     position: 'absolute',
     bottom: 8,
@@ -3396,6 +3449,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
+    marginRight: 10,
+  },
+  addVideoButton: {
+    borderColor: '#94a3b8',
   },
   addImageText: {
     fontSize: 12,

@@ -11,9 +11,12 @@ import {
   SafeAreaView,
   Alert,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
+import MediaThumb from './MediaThumb';
+import { isVideoUrl } from '../utils/media';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -28,6 +31,8 @@ interface PhotoCategoryDisplayProps {
   propertyTitle: string;
   propertyId?: string;
   onPhotoUpdate?: () => void;
+  /** Affiché dans la modale « Voir plus » (grille complète), ex. vers Devenir hôte */
+  onBecomeHostPress?: () => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -66,7 +71,38 @@ const CATEGORY_COLORS: Record<string, string> = {
   autre: '#6b7280'
 };
 
-const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, propertyTitle, propertyId, onPhotoUpdate }) => {
+function LightboxMedia({ uri, style }: { uri: string; style: object }) {
+  const [videoFailed, setVideoFailed] = useState(false);
+  if (isVideoUrl(uri) && !videoFailed) {
+    return (
+      <Video
+        source={{ uri }}
+        style={style as any}
+        resizeMode={ResizeMode.CONTAIN}
+        useNativeControls
+        shouldPlay
+        isLooping={false}
+        onError={() => setVideoFailed(true)}
+      />
+    );
+  }
+  if (isVideoUrl(uri) && videoFailed) {
+    return (
+      <View style={[style as any, styles.videoErrorFallback]}>
+        <Ionicons name="videocam-outline" size={48} color="#fff" />
+      </View>
+    );
+  }
+  return <Image source={{ uri }} style={style as any} resizeMode="contain" />;
+}
+
+const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
+  photos,
+  propertyTitle,
+  propertyId,
+  onPhotoUpdate,
+  onBecomeHostPress,
+}) => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showLightbox, setShowLightbox] = useState(false);
@@ -229,6 +265,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
               <View style={styles.photoGrid}>
                 {limitedPhotosGrid.map((photo, index) => {
                   const isLastInRow = (index + 1) % 3 === 0;
+                  const vid = isVideoUrl(photo.url);
                   return (
                   <TouchableOpacity
                     key={photo.id}
@@ -242,19 +279,15 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                       openFullGallery(photoIndex >= 0 ? photoIndex : index);
                     }}
                   >
-                  <Image
-                    source={{ uri: photo.url }}
-                    style={styles.photoImage}
-                    resizeMode="cover"
-                  />
+                  <MediaThumb uri={photo.url} style={styles.photoImage} resizeMode="cover" />
                   {/* Badge catégorie */}
-                  <View style={[styles.categoryBadge, { backgroundColor: CATEGORY_COLORS[photo.category] }]}>
+                  <View style={[styles.categoryBadge, { backgroundColor: vid ? '#0f172a' : CATEGORY_COLORS[photo.category] }]}>
                     <Text style={styles.categoryBadgeText}>
-                      {CATEGORY_LABELS[photo.category]}
+                      {vid ? '🎬 Vidéo' : CATEGORY_LABELS[photo.category]}
                     </Text>
                   </View>
                   {/* Bouton pour définir comme principale */}
-                  {propertyId && !(photo.is_main || photo.isMain) && (
+                  {propertyId && !(photo.is_main || photo.isMain) && !vid && (
                     <TouchableOpacity
                       style={styles.setMainButton}
                       onPress={async (e) => {
@@ -308,8 +341,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                       onPress={() => setShowAllPhotos(true)}
                       activeOpacity={0.9}
                     >
-                      <Image
-                        source={{ uri: allPhotosFlat[MAX_PHOTOS_GRID].url }}
+                      <MediaThumb
+                        uri={allPhotosFlat[MAX_PHOTOS_GRID].url}
                         style={styles.photoMoreBackground}
                         resizeMode="cover"
                       />
@@ -341,13 +374,9 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                   style={styles.photoItem}
                   onPress={() => openLightbox(selectedCategory, index)}
                 >
-                  <Image
-                    source={{ uri: photo.url }}
-                    style={styles.photoImage}
-                    resizeMode="cover"
-                  />
+                  <MediaThumb uri={photo.url} style={styles.photoImage} resizeMode="cover" />
                   {/* Bouton pour définir comme principale */}
-                  {propertyId && !(photo.is_main || photo.isMain) && (
+                  {propertyId && !(photo.is_main || photo.isMain) && !isVideoUrl(photo.url) && (
                     <TouchableOpacity
                       style={styles.setMainButton}
                       onPress={async (e) => {
@@ -418,13 +447,9 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                       style={styles.categoryPhotoItem}
                       onPress={() => openLightbox(category, index)}
                     >
-                      <Image
-                        source={{ uri: photo.url }}
-                        style={styles.categoryPhotoImage}
-                    resizeMode="cover"
-                  />
+                      <MediaThumb uri={photo.url} style={styles.categoryPhotoImage} resizeMode="cover" />
                   {/* Bouton pour définir comme principale */}
-                  {propertyId && !(photo.is_main || photo.isMain) && (
+                  {propertyId && !(photo.is_main || photo.isMain) && !isVideoUrl(photo.url) && (
                         <TouchableOpacity
                           style={styles.setMainButton}
                           onPress={async (e) => {
@@ -494,10 +519,10 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
 
           <View style={styles.lightboxContent}>
             {selectedCategory && (
-              <Image
-                source={{ uri: photosByCategory[selectedCategory][currentPhotoIndex].url }}
+              <LightboxMedia
+                key={photosByCategory[selectedCategory][currentPhotoIndex]?.url}
+                uri={photosByCategory[selectedCategory][currentPhotoIndex].url}
                 style={styles.lightboxImage}
-                resizeMode="contain"
               />
             )}
           </View>
@@ -551,20 +576,37 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                       openFullGallery(index);
                     }}
                   >
-                    <Image
-                      source={{ uri: photo.url }}
-                      style={styles.fullGalleryGridImage}
-                      resizeMode="cover"
-                    />
-                    <View style={[styles.categoryBadgeSmall, { backgroundColor: CATEGORY_COLORS[photo.category] }]}>
+                    <MediaThumb uri={photo.url} style={styles.fullGalleryGridImage} resizeMode="cover" />
+                    <View style={[styles.categoryBadgeSmall, { backgroundColor: isVideoUrl(photo.url) ? '#0f172a' : CATEGORY_COLORS[photo.category] }]}>
                       <Text style={styles.categoryBadgeSmallText}>
-                        {CATEGORY_LABELS[photo.category]}
+                        {isVideoUrl(photo.url) ? '🎬 Vidéo' : CATEGORY_LABELS[photo.category]}
                       </Text>
                     </View>
                   </TouchableOpacity>
                   );
                 })}
               </View>
+              {onBecomeHostPress ? (
+                <TouchableOpacity
+                  style={styles.becomeHostBanner}
+                  onPress={() => {
+                    setShowAllPhotos(false);
+                    onBecomeHostPress();
+                  }}
+                  activeOpacity={0.88}
+                >
+                  <View style={styles.becomeHostBannerIcon}>
+                    <Ionicons name="home" size={24} color="#e67e22" />
+                  </View>
+                  <View style={styles.becomeHostBannerTextCol}>
+                    <Text style={styles.becomeHostBannerTitle}>Vous aussi, proposez votre résidence</Text>
+                    <Text style={styles.becomeHostBannerSubtitle}>
+                      Devenez hôte sur AkwaHome en quelques étapes.
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={22} color="#e67e22" />
+                </TouchableOpacity>
+              ) : null}
             </ScrollView>
           </SafeAreaView>
         </Modal>
@@ -592,10 +634,10 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
 
           <View style={styles.fullGalleryContent}>
             {allPhotosFlat.length > 0 && (
-              <Image
-                source={{ uri: allPhotosFlat[currentPhotoIndex].url }}
+              <LightboxMedia
+                key={allPhotosFlat[currentPhotoIndex].url}
+                uri={allPhotosFlat[currentPhotoIndex].url}
                 style={styles.fullGalleryImage}
-                resizeMode="contain"
               />
             )}
           </View>
@@ -631,11 +673,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
                     index === currentPhotoIndex && styles.thumbnailActive
                   ]}
                 >
-                  <Image
-                    source={{ uri: photo.url }}
-                    style={styles.thumbnailImage}
-                    resizeMode="cover"
-                  />
+                  <MediaThumb uri={photo.url} style={styles.thumbnailImage} resizeMode="cover" />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -647,6 +685,11 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({ photos, pro
 };
 
 const styles = StyleSheet.create({
+  videoErrorFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#111',
+  },
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -967,6 +1010,41 @@ const styles = StyleSheet.create({
   fullGalleryGridImage: {
     width: '100%',
     height: '100%',
+  },
+  becomeHostBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+    padding: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(230, 126, 34, 0.45)',
+    gap: 12,
+  },
+  becomeHostBannerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(230, 126, 34, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  becomeHostBannerTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  becomeHostBannerTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  becomeHostBannerSubtitle: {
+    color: 'rgba(255, 255, 255, 0.72)',
+    fontSize: 13,
+    lineHeight: 18,
   },
   // Full Gallery styles
   fullGalleryContainer: {

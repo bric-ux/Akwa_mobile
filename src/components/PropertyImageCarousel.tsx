@@ -9,6 +9,8 @@ import {
   Text,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import MediaThumb from './MediaThumb';
+import { isVideoUrl } from '../utils/media';
 
 const { width } = Dimensions.get('window');
 
@@ -96,10 +98,11 @@ const PropertyImageCarousel: React.FC<PropertyImageCarouselProps> = ({
             onPress={() => onImagePress?.(index)}
             activeOpacity={0.9}
           >
-            <Image
-              source={{ uri: image }}
+            <MediaThumb
+              uri={image}
               style={[styles.image, { height }]}
               resizeMode="cover"
+              isVideo={isVideoUrl(image)}
             />
           </TouchableOpacity>
         ))}

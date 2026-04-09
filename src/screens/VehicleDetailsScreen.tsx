@@ -26,6 +26,8 @@ import { safeGoBack } from '../utils/navigation';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
+import { Video, ResizeMode } from 'expo-av';
+import { getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -128,7 +130,7 @@ const VehicleDetailsScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Images avec overlay gradient */}
-        {vehicle.images && vehicle.images.length > 0 && (
+        {galleryUrls.length > 0 && (
           <View style={styles.imageContainer}>
             <ScrollView
               ref={scrollViewRef}
@@ -141,18 +143,29 @@ const VehicleDetailsScreen: React.FC = () => {
               }}
               style={styles.imageScrollView}
             >
-              {vehicle.images.map((imageUrl, index) => (
-                <Image
-                  key={index}
-                  source={{ uri: imageUrl }}
-                  style={styles.mainImage}
-                  resizeMode="cover"
-                />
+              {galleryUrls.map((imageUrl, index) => (
+                <View key={index} style={{ width, height: 280 }}>
+                  {isVideoUrl(imageUrl) ? (
+                    <Video
+                      source={{ uri: imageUrl }}
+                      style={styles.mainImage}
+                      resizeMode={ResizeMode.COVER}
+                      useNativeControls
+                      shouldPlay={false}
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: imageUrl }}
+                      style={styles.mainImage}
+                      resizeMode="cover"
+                    />
+                  )}
+                </View>
               ))}
             </ScrollView>
-            {vehicle.images.length > 1 && (
+            {galleryUrls.length > 1 && (
               <View style={styles.imageIndicators}>
-                {vehicle.images.map((_, index) => (
+                {galleryUrls.map((_, index) => (
                   <View
                     key={index}
                     style={[
@@ -163,11 +176,12 @@ const VehicleDetailsScreen: React.FC = () => {
                 ))}
               </View>
             )}
-            {/* Badge nombre de photos */}
-            {vehicle.images.length > 1 && (
+            {galleryUrls.length > 1 && (
               <View style={styles.photoCountBadge}>
                 <Ionicons name="images" size={14} color="#fff" />
-                <Text style={styles.photoCountText}>{String(currentImageIndex + 1)}/{String(vehicle.images.length)}</Text>
+                <Text style={styles.photoCountText}>
+                  {String(currentImageIndex + 1)}/{String(galleryUrls.length)}
+                </Text>
               </View>
             )}
           </View>

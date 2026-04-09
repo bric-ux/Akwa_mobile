@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { isVideoUrl } from '../utils/media';
+import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
 import { Vehicle, VehicleFilters } from '../types';
 
 export const useVehicles = () => {
@@ -749,30 +751,34 @@ export const useVehicles = () => {
           
           const photoPromises = vehicleData.images.map(async (imageUrl, index) => {
             try {
-              // Trouver les informations de la photo correspondante
               const photoInfo = photosInfo[index] || {};
-              const isMain = photoInfo.isMain || (index === 0 && !photosInfo.some((p: any) => p.isMain));
               const category = photoInfo.category || 'exterior';
+              const isVid =
+                photoInfo.isVideo === true ||
+                category === 'video' ||
+                isVideoUrl(imageUrl);
+              const isMain =
+                !isVid &&
+                (photoInfo.isMain || (index === 0 && !photosInfo.some((p: any) => p.isMain)));
               const displayOrder = photoInfo.displayOrder !== undefined ? photoInfo.displayOrder : index;
-              
-          // Si c'est une URI locale, on doit l'uploader
-          // MAIS normalement, les images devraient déjà être uploadées avant d'appeler addVehicle
-          // Si on reçoit encore une URI locale, c'est une erreur, on la saute
-          if (imageUrl.startsWith('file://') || imageUrl.startsWith('content://')) {
-            console.warn(`⚠️ [useVehicles] Image ${index + 1} a une URI locale (devrait être uploadée avant):`, imageUrl);
-            // Ne pas uploader ici pour éviter les blocages - les images devraient être uploadées avant
-            return null;
-          } else {
-            // URL déjà publique
-            console.log(`✅ [useVehicles] Image ${index + 1} déjà publique:`, imageUrl.substring(0, 50) + '...');
-            return {
-              vehicle_id: data.id,
-              url: imageUrl,
-              category: category,
-              is_main: isMain,
-              display_order: displayOrder,
-            };
-          }
+
+              if (imageUrl.startsWith('file://') || imageUrl.startsWith('content://')) {
+                const publicUrl = await uploadPropertyMediaToStorage(imageUrl);
+                return {
+                  vehicle_id: data.id,
+                  url: publicUrl,
+                  category: isVid ? 'video' : category,
+                  is_main: isMain,
+                  display_order: displayOrder,
+                };
+              }
+              return {
+                vehicle_id: data.id,
+                url: imageUrl,
+                category: isVid ? 'video' : category,
+                is_main: isMain,
+                display_order: displayOrder,
+              };
             } catch (photoError: any) {
               console.error(`❌ [useVehicles] Erreur pour photo ${index + 1}:`, photoError);
               return null;
@@ -794,8 +800,11 @@ export const useVehicles = () => {
                 }
               });
             } else if (mainPhotos.length === 0 && photos.length > 0) {
-              // Si aucune photo principale, marquer la première
-              photos[0].is_main = true;
+              const firstStill = photos.find(
+                (p: any) => !isVideoUrl(p.url) && String(p.category) !== 'video'
+              );
+              if (firstStill) firstStill.is_main = true;
+              else photos[0].is_main = true;
             }
             
             const { error: photosError } = await supabase
@@ -913,54 +922,39 @@ export const useVehicles = () => {
         
         // Uploader et ajouter les nouvelles photos
         const photoPromises = vehicleData.images.map(async (imageUri, index) => {
-          // Trouver les informations de la photo correspondante
           const photoInfo = photosInfo[index] || {};
-          const isMain = photoInfo.isMain || (index === 0 && !photosInfo.some((p: any) => p.isMain));
           const category = photoInfo.category || 'exterior';
+          const isVid =
+            photoInfo.isVideo === true ||
+            category === 'video' ||
+            isVideoUrl(imageUri);
+          const isMain =
+            !isVid &&
+            (photoInfo.isMain || (index === 0 && !photosInfo.some((p: any) => p.isMain)));
           const displayOrder = photoInfo.displayOrder !== undefined ? photoInfo.displayOrder : index;
-          
-          // Si c'est une URI locale, on doit l'uploader
+
           if (imageUri.startsWith('file://') || imageUri.startsWith('content://')) {
-            const fileName = `vehicle-${vehicleId}-${Date.now()}-${index}.jpg`;
-            const filePath = `${user.id}/vehicles/${fileName}`;
-            
-            const response = await fetch(imageUri);
-            const arrayBuffer = await response.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
-
-            const { error: uploadError } = await supabase.storage
-              .from('property-images')
-              .upload(filePath, uint8Array, {
-                contentType: 'image/jpeg',
-                upsert: true,
-              });
-
-            if (uploadError) {
-              console.error('Erreur upload image:', uploadError);
+            try {
+              const publicUrl = await uploadPropertyMediaToStorage(imageUri);
+              return {
+                vehicle_id: vehicleId,
+                url: publicUrl,
+                category: isVid ? 'video' : category,
+                is_main: isMain,
+                display_order: displayOrder,
+              };
+            } catch (e) {
+              console.error('Erreur upload média:', e);
               return null;
             }
-
-            const { data: { publicUrl } } = supabase.storage
-              .from('property-images')
-              .getPublicUrl(filePath);
-
-            return {
-              vehicle_id: vehicleId,
-              url: publicUrl,
-              category: category,
-              is_main: isMain,
-              display_order: displayOrder,
-            };
-          } else {
-            // URL déjà publique
-            return {
-              vehicle_id: vehicleId,
-              url: imageUri,
-              category: category,
-              is_main: isMain,
-              display_order: displayOrder,
-            };
           }
+          return {
+            vehicle_id: vehicleId,
+            url: imageUri,
+            category: isVid ? 'video' : category,
+            is_main: isMain,
+            display_order: displayOrder,
+          };
         });
 
         const photos = (await Promise.all(photoPromises)).filter(Boolean);
@@ -977,8 +971,11 @@ export const useVehicles = () => {
               }
             });
           } else if (mainPhotos.length === 0 && photos.length > 0) {
-            // Si aucune photo principale, marquer la première
-            photos[0].is_main = true;
+            const firstStill = photos.find(
+              (p: any) => !isVideoUrl(p.url) && String(p.category) !== 'video'
+            );
+            if (firstStill) firstStill.is_main = true;
+            else photos[0].is_main = true;
           }
           
           const { error: photosError } = await supabase

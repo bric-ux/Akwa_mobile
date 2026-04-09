@@ -25,6 +25,9 @@ import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from '../hooks/useEmailService';
+import { Video, ResizeMode } from 'expo-av';
+import MediaThumb from '../components/MediaThumb';
+import { getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -77,15 +80,18 @@ const VehicleManagementScreen: React.FC = () => {
 
   // Scroller vers l'image sélectionnée quand la galerie s'ouvre
   useEffect(() => {
-    if (showImageGallery && galleryScrollViewRef.current && vehicle?.images) {
-      setTimeout(() => {
-        galleryScrollViewRef.current?.scrollTo({
-          x: galleryStartIndex * SCREEN_WIDTH,
-          animated: false,
-        });
-      }, 100);
+    if (showImageGallery && galleryScrollViewRef.current && vehicle) {
+      const urls = getVehicleGalleryUrls(vehicle);
+      if (urls.length > 0) {
+        setTimeout(() => {
+          galleryScrollViewRef.current?.scrollTo({
+            x: galleryStartIndex * SCREEN_WIDTH,
+            animated: false,
+          });
+        }, 100);
+      }
     }
-  }, [showImageGallery, galleryStartIndex, vehicle?.images]);
+  }, [showImageGallery, galleryStartIndex, vehicle]);
 
   useEffect(() => {
     loadVehicle();
@@ -340,8 +346,10 @@ const VehicleManagementScreen: React.FC = () => {
   };
 
   const handlePrevImage = () => {
-    if (!vehicle?.images) return;
-    const newIndex = galleryStartIndex > 0 ? galleryStartIndex - 1 : vehicle.images.length - 1;
+    if (!vehicle) return;
+    const urls = getVehicleGalleryUrls(vehicle);
+    if (urls.length === 0) return;
+    const newIndex = galleryStartIndex > 0 ? galleryStartIndex - 1 : urls.length - 1;
     setGalleryStartIndex(newIndex);
     galleryScrollViewRef.current?.scrollTo({
       x: newIndex * SCREEN_WIDTH,
@@ -350,8 +358,10 @@ const VehicleManagementScreen: React.FC = () => {
   };
 
   const handleNextImage = () => {
-    if (!vehicle?.images) return;
-    const newIndex = galleryStartIndex < vehicle.images.length - 1 ? galleryStartIndex + 1 : 0;
+    if (!vehicle) return;
+    const urls = getVehicleGalleryUrls(vehicle);
+    if (urls.length === 0) return;
+    const newIndex = galleryStartIndex < urls.length - 1 ? galleryStartIndex + 1 : 0;
     setGalleryStartIndex(newIndex);
     galleryScrollViewRef.current?.scrollTo({
       x: newIndex * SCREEN_WIDTH,
@@ -397,6 +407,8 @@ const VehicleManagementScreen: React.FC = () => {
     );
   }
 
+  const galleryUrls = getVehicleGalleryUrls(vehicle);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -418,22 +430,27 @@ const VehicleManagementScreen: React.FC = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="images-outline" size={20} color="#1e293b" />
-            <Text style={styles.sectionTitle}>Photos du véhicule</Text>
+            <Text style={styles.sectionTitle}>Photos et vidéos</Text>
           </View>
-          {vehicle.images && vehicle.images.length > 0 ? (
+          {galleryUrls.length > 0 ? (
             <View style={styles.photosContainer}>
               <Text style={styles.photoCount}>
-                {vehicle.images.length} photo{vehicle.images.length > 1 ? 's' : ''}
+                {galleryUrls.length} média{galleryUrls.length > 1 ? 's' : ''}
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
-                {vehicle.images.map((url, index) => (
+                {galleryUrls.map((url, index) => (
                   <TouchableOpacity
                     key={index}
                     style={styles.photoItem}
                     onPress={() => handleImagePress(index)}
                     activeOpacity={0.9}
                   >
-                    <Image source={{ uri: url }} style={styles.photo} />
+                    <MediaThumb
+                      uri={url}
+                      style={styles.photo}
+                      resizeMode="cover"
+                      isVideo={isVideoUrl(url)}
+                    />
                     <View style={styles.imageClickIndicator}>
                       <Ionicons name="expand-outline" size={16} color="#fff" />
                     </View>
@@ -544,7 +561,7 @@ const VehicleManagementScreen: React.FC = () => {
           </View>
 
           <View style={styles.galleryImageContainer}>
-            {vehicle?.images && vehicle.images.length > 0 && (
+            {galleryUrls.length > 0 && (
               <>
                 <ScrollView
                   ref={galleryScrollViewRef}
@@ -558,18 +575,28 @@ const VehicleManagementScreen: React.FC = () => {
                   style={styles.galleryScrollView}
                   contentContainerStyle={styles.galleryScrollContent}
                 >
-                  {vehicle.images.map((url, index) => (
+                  {galleryUrls.map((url, index) => (
                     <View key={index} style={styles.galleryImageWrapper}>
-                      <Image
-                        source={{ uri: url }}
-                        style={styles.galleryImage}
-                        resizeMode="contain"
-                      />
+                      {isVideoUrl(url) ? (
+                        <Video
+                          source={{ uri: url }}
+                          style={styles.galleryImage}
+                          resizeMode={ResizeMode.CONTAIN}
+                          useNativeControls
+                          shouldPlay={false}
+                        />
+                      ) : (
+                        <Image
+                          source={{ uri: url }}
+                          style={styles.galleryImage}
+                          resizeMode="contain"
+                        />
+                      )}
                     </View>
                   ))}
                 </ScrollView>
 
-                {vehicle.images.length > 1 && (
+                {galleryUrls.length > 1 && (
                   <>
                     <TouchableOpacity
                       style={[styles.galleryNavButton, styles.galleryNavButtonLeft]}
@@ -589,11 +616,11 @@ const VehicleManagementScreen: React.FC = () => {
             )}
           </View>
 
-          {vehicle?.images && vehicle.images.length > 1 && (
+          {galleryUrls.length > 1 && (
             <View style={styles.galleryFooter}>
               <View style={styles.galleryCounter}>
                 <Text style={styles.galleryCounterText}>
-                  {galleryStartIndex + 1} / {vehicle.images.length}
+                  {galleryStartIndex + 1} / {galleryUrls.length}
                 </Text>
               </View>
             </View>

@@ -11,6 +11,7 @@ import {
   InteractionManager,
   Alert,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Vehicle } from '../types';
@@ -18,6 +19,8 @@ import { useCurrency } from '../hooks/useCurrency';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicleFavorites } from '../hooks/useVehicleFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
+import MediaThumb from './MediaThumb';
+import { getVehicleCoverUrl, getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -50,7 +53,9 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
     }
   };
 
-  const vehicleImages = vehicle.images || vehicle.vehicle_photos?.map((p: any) => p.url) || [];
+  const vehicleImages = getVehicleGalleryUrls(vehicle);
+  const coverUri =
+    getVehicleCoverUrl(vehicle) || vehicleImages[0] || 'https://via.placeholder.com/300x200';
   const hasMultipleImages = vehicleImages.length > 1;
 
   // Synchroniser l'état des favoris avec le cache quand le cache change ou quand le véhicule change
@@ -130,12 +135,11 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
             {variant === 'list' ? (
               // En mode liste, l'image n'est pas cliquable
               <View style={styles.imageTouchable}>
-                <Image
-                  source={{ 
-                    uri: vehicleImages[0] || 'https://via.placeholder.com/300x200' 
-                  }}
+                <MediaThumb
+                  uri={coverUri}
                   style={styles.cardImage}
                   resizeMode="cover"
+                  isVideo={isVideoUrl(coverUri)}
                 />
                 {hasMultipleImages && (
                   <View style={styles.imageCountBadge}>
@@ -151,12 +155,11 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
                 activeOpacity={0.9}
                 style={styles.imageTouchable}
               >
-                <Image
-                  source={{ 
-                    uri: vehicleImages[0] || 'https://via.placeholder.com/300x200' 
-                  }}
+                <MediaThumb
+                  uri={coverUri}
                   style={styles.cardImage}
                   resizeMode="cover"
+                  isVideo={isVideoUrl(coverUri)}
                 />
                 {hasMultipleImages && (
                   <View style={styles.imageCountBadge}>
@@ -291,11 +294,21 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
           >
             {vehicleImages.map((imageUrl, index) => (
               <View key={index} style={styles.galleryImageWrapper}>
-                <Image
-                  source={{ uri: imageUrl }}
-                  style={styles.galleryImage}
-                  resizeMode="contain"
-                />
+                {isVideoUrl(imageUrl) ? (
+                  <Video
+                    source={{ uri: imageUrl }}
+                    style={styles.galleryImage}
+                    resizeMode={ResizeMode.CONTAIN}
+                    useNativeControls
+                    shouldPlay={false}
+                  />
+                ) : (
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.galleryImage}
+                    resizeMode="contain"
+                  />
+                )}
               </View>
             ))}
           </ScrollView>

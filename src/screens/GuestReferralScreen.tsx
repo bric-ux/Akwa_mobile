@@ -105,7 +105,29 @@ const GuestReferralScreen: React.FC = () => {
               <Text style={styles.cardTitle}>Programme de Parrainage Voyageur</Text>
             </View>
             <Text style={styles.cardDescription}>
-              Parrainez des amis qui souhaitent devenir hôtes et gagnez un bon de réduction de 40% sur votre prochaine réservation pour chaque parrainage complété !
+              Parrainez des amis qui souhaitent devenir hôtes et gagnez un bon de réduction de 10 % sur une prochaine réservation pour chaque parrainage complété.
+            </Text>
+          </View>
+
+          <View style={styles.rulesCard}>
+            <View style={styles.rulesHeader}>
+              <Ionicons name="document-text-outline" size={22} color="#e67e22" />
+              <Text style={styles.rulesTitle}>Règles du programme</Text>
+            </View>
+            <Text style={styles.rulesItem}>
+              • Votre filleul doit s’inscrire sur AkwaHome et utiliser votre code lors de son parcours hôte (candidature / inscription).
+            </Text>
+            <Text style={styles.rulesItem}>
+              • Le parrainage est comptabilisé lorsque le statut passe à « Complété » (parcours validé selon les critères AkwaHome).
+            </Text>
+            <Text style={styles.rulesItem}>
+              • Pour chaque parrainage complété en tant que parrain voyageur, vous recevez un bon de 10 % de réduction utilisable sur une prochaine réservation (montant plafonné selon les conditions du bon affichées sur le bon).
+            </Text>
+            <Text style={styles.rulesItem}>
+              • Les bons ont une durée de validité ; un seul bon actif par réservation sauf mention contraire sur la plateforme.
+            </Text>
+            <Text style={styles.rulesItem}>
+              • AkwaHome peut adapter le programme ; les bons déjà émis restent soumis aux conditions indiquées sur chaque bon.
             </Text>
           </View>
 
@@ -516,6 +538,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
+  },
+  rulesCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#fdebd0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  rulesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  rulesTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginLeft: 10,
+  },
+  rulesItem: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 20,
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 18,

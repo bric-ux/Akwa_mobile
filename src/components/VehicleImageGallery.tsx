@@ -10,10 +10,53 @@ import {
   Dimensions,
   FlatList,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import MediaThumb from './MediaThumb';
+import { isVideoUrl } from '../utils/media';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+function GallerySlide({
+  url,
+  style,
+  contain,
+}: {
+  url: string;
+  style: object;
+  /** Mode galerie plein écran (contain) vs vignette (cover) */
+  contain?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  const vm = contain ? ResizeMode.CONTAIN : ResizeMode.COVER;
+  if (isVideoUrl(url) && !failed) {
+    return (
+      <Video
+        source={{ uri: url }}
+        style={style as any}
+        resizeMode={vm}
+        useNativeControls
+        shouldPlay={false}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  if (isVideoUrl(url) && failed) {
+    return (
+      <View style={[style as any, styles.videoFallback]}>
+        <Ionicons name="videocam-outline" size={48} color="#94a3b8" />
+      </View>
+    );
+  }
+  return (
+    <Image
+      source={{ uri: url }}
+      style={style as any}
+      resizeMode={contain ? 'contain' : 'cover'}
+    />
+  );
+}
 
 interface VehiclePhoto {
   id: string;
@@ -39,6 +82,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   trunk: 'Coffre',
   wheels: 'Roues',
   other: 'Autre',
+  video: 'Vidéo',
 };
 
 const VehicleImageGallery: React.FC<VehicleImageGalleryProps> = ({
@@ -101,17 +145,16 @@ const VehicleImageGallery: React.FC<VehicleImageGalleryProps> = ({
         onPress={() => setIsLightboxOpen(true)}
         activeOpacity={0.9}
       >
-        <Image
-          source={{ uri: mainPhoto?.url }}
-          style={styles.mainImage}
-          resizeMode="cover"
-        />
+        <GallerySlide url={mainPhoto?.url || ''} style={styles.mainImage} contain={false} />
         
         {/* Badge catégorie */}
-        {mainPhoto?.category && mainPhoto.category !== 'other' && (
+        {mainPhoto?.category &&
+          (mainPhoto.category !== 'other' || isVideoUrl(mainPhoto.url)) && (
           <View style={styles.categoryBadge}>
             <Text style={styles.categoryBadgeText}>
-              {CATEGORY_LABELS[mainPhoto.category] || mainPhoto.category}
+              {isVideoUrl(mainPhoto.url)
+                ? 'Vidéo'
+                : CATEGORY_LABELS[mainPhoto.category] || mainPhoto.category}
             </Text>
           </View>
         )}
@@ -218,11 +261,7 @@ const VehicleImageGallery: React.FC<VehicleImageGalleryProps> = ({
                 index === selectedIndex && styles.thumbnailActive,
               ]}
             >
-              <Image
-                source={{ uri: photo.url }}
-                style={styles.thumbnailImage}
-                resizeMode="cover"
-              />
+              <MediaThumb uri={photo.url} style={styles.thumbnailImage} resizeMode="cover" />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -249,11 +288,14 @@ const VehicleImageGallery: React.FC<VehicleImageGalleryProps> = ({
           </View>
 
           <View style={styles.lightboxImageContainer}>
-            <Image
-              source={{ uri: displayedPhotos[selectedIndex]?.url }}
-              style={styles.lightboxImage}
-              resizeMode="contain"
-            />
+            {displayedPhotos[selectedIndex]?.url ? (
+              <GallerySlide
+                key={displayedPhotos[selectedIndex].url}
+                url={displayedPhotos[selectedIndex].url}
+                style={styles.lightboxImage}
+                contain
+              />
+            ) : null}
 
             {displayedPhotos.length > 1 && (
               <>
@@ -296,11 +338,7 @@ const VehicleImageGallery: React.FC<VehicleImageGalleryProps> = ({
                       index === selectedIndex && styles.lightboxThumbnailActive,
                     ]}
                   >
-                    <Image
-                      source={{ uri: photo.url }}
-                      style={styles.lightboxThumbnailImage}
-                      resizeMode="cover"
-                    />
+                    <MediaThumb uri={photo.url} style={styles.lightboxThumbnailImage} resizeMode="cover" />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -315,6 +353,11 @@ const VehicleImageGallery: React.FC<VehicleImageGalleryProps> = ({
 const styles = StyleSheet.create({
   container: {
     gap: 16,
+  },
+  videoFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
   },
   emptyContainer: {
     height: 400,

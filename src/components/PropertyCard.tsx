@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   Alert,
+  ScrollView,
+  Dimensions,
+  LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
@@ -15,6 +17,11 @@ import { useCurrency } from '../hooks/useCurrency';
 import { getPriceForDate } from '../utils/priceCalculator';
 import { useLanguage } from '../contexts/LanguageContext';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
+import MediaThumb from './MediaThumb';
+import { getPropertyCoverUrl, getPropertyGalleryUrls, isVideoUrl } from '../utils/media';
+
+const CAROUSEL_HEIGHT = 200;
+const SCREEN_W = Dimensions.get('window').width;
 
 interface PropertyCardProps {
   property: Property;
@@ -29,7 +36,8 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
   const { t } = useLanguage();
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
-
+  const [slideWidth, setSlideWidth] = useState(SCREEN_W);
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   useEffect(() => {
     // Mettre à jour l'état local quand le cache global change
@@ -76,6 +84,50 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
 
   const reviewCount = Number(property.review_count) || 0;
   const hasReviews = reviewCount > 0;
+  const coverUri = getPropertyCoverUrl(property);
+  const galleryRaw = getPropertyGalleryUrls(property);
+  const galleryUrls = galleryRaw.length > 0 ? galleryRaw : [coverUri];
+
+  const onStripLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && Math.abs(w - slideWidth) > 0.5) {
+      setSlideWidth(w);
+    }
+  };
+
+  const renderImageCarousel = (height: number) => (
+    <View style={[styles.imageContainer, { height }]} onLayout={onStripLayout}>
+      {galleryUrls.length > 1 ? (
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled
+          decelerationRate="fast"
+          style={styles.imageScroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          {galleryUrls.map((uri, i) => (
+            <View key={`${uri}-${i}`} style={{ width: slideWidth, height }}>
+              <MediaThumb
+                uri={uri}
+                style={{ width: slideWidth, height }}
+                resizeMode="cover"
+                isVideo={isVideoUrl(uri)}
+              />
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        <MediaThumb
+          uri={galleryUrls[0]}
+          style={{ width: '100%', height }}
+          resizeMode="cover"
+          isVideo={isVideoUrl(galleryUrls[0])}
+        />
+      )}
+    </View>
+  );
 
   return (
     <TouchableOpacity
@@ -86,32 +138,10 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
       {variant === 'list' ? (
         <View style={styles.cardLayout}>
           {/* Image avec prix en overlay */}
-          <View style={styles.imageContainer}>
-            <Image
-              source={{ 
-                uri: (() => {
-                  // Priorité 1: Photo principale (is_main = true)
-                  if (property.photos && Array.isArray(property.photos)) {
-                    const mainPhoto = property.photos.find((p: any) => p.is_main || p.isMain);
-                    if (mainPhoto) return mainPhoto.url;
-                  }
-                  // Priorité 2: Première photo triée par display_order
-                  if (property.photos && Array.isArray(property.photos) && property.photos.length > 0) {
-                    const sortedPhotos = [...property.photos].sort((a: any, b: any) => 
-                      (a.display_order || a.displayOrder || 0) - (b.display_order || b.displayOrder || 0)
-                    );
-                    return sortedPhotos[0].url;
-                  }
-                  // Priorité 3: Première image de l'ancien système
-                  return property.images?.[0] || 'https://via.placeholder.com/300x200';
-                })()
-              }}
-              style={styles.cardImage}
-              resizeMode="cover"
-            />
-            
+          <View style={styles.imageArea}>
+            {renderImageCarousel(CAROUSEL_HEIGHT)}
             {/* Prix en overlay */}
-            <View style={styles.priceOverlay}>
+            <View style={styles.priceOverlay} pointerEvents="none">
               <View style={styles.priceOverlayContent}>
                 <Text style={styles.priceText}>
                   {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}/{t('common.perNight')}
@@ -172,29 +202,8 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
         </View>
       ) : (
         <>
-          <View style={styles.imageContainer}>
-            <Image
-              source={{
-                uri: (() => {
-                  // Priorité 1: Photo principale (is_main = true)
-                  if (property.photos && Array.isArray(property.photos)) {
-                    const mainPhoto = property.photos.find((p: any) => p.is_main || p.isMain);
-                    if (mainPhoto) return mainPhoto.url;
-                  }
-                  // Priorité 2: Première photo triée par display_order
-                  if (property.photos && Array.isArray(property.photos) && property.photos.length > 0) {
-                    const sortedPhotos = [...property.photos].sort((a: any, b: any) => 
-                      (a.display_order || a.displayOrder || 0) - (b.display_order || b.displayOrder || 0)
-                    );
-                    return sortedPhotos[0].url;
-                  }
-                  // Priorité 3: Première image de l'ancien système
-                  return property.images?.[0] || 'https://via.placeholder.com/300x200';
-                })()
-              }}
-              style={styles.image}
-              resizeMode="cover"
-            />
+          <View style={styles.imageArea}>
+            {renderImageCarousel(CAROUSEL_HEIGHT)}
             <TouchableOpacity
               style={styles.favoriteButton}
               onPress={handleFavoritePress}
@@ -277,6 +286,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
 
 const styles = StyleSheet.create({
   container: {
+    position: 'relative',
     backgroundColor: '#fff',
     borderRadius: 12,
     marginBottom: 15,
@@ -305,6 +315,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
+  imageArea: {
+    position: 'relative',
+    width: '100%',
+  },
+  imageContainer: {
+    width: '100%',
+    overflow: 'hidden',
+    backgroundColor: '#f1f5f9',
+  },
+  imageScroll: {
+    width: '100%',
+  },
   cardImage: {
     width: '100%',
     height: 200,
@@ -313,6 +335,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
+    zIndex: 3,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -377,6 +400,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
+    zIndex: 4,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     borderRadius: 20,
     width: 36,
@@ -404,6 +428,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
+    zIndex: 3,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     paddingHorizontal: 10,
     paddingVertical: 6,

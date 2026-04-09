@@ -424,7 +424,7 @@ export interface VehiclePhoto {
   id: string;
   vehicle_id: string;
   url: string;
-  category: 'exterior' | 'interior' | 'engine' | 'documents' | 'other';
+  category: 'exterior' | 'interior' | 'engine' | 'documents' | 'other' | 'video';
   is_main: boolean;
   display_order: number;
   created_at: string;
