@@ -47,11 +47,14 @@ export const useUserProfile = () => {
     };
   }, []);
 
-  const loadProfile = useCallback(async () => {
+  const loadProfile = useCallback(async (options?: { background?: boolean }) => {
+    const background = options?.background === true;
     try {
-      setLoading(true);
-      setError(null);
-      
+      if (!background) {
+        setLoading(true);
+        setError(null);
+      }
+
       // Vérifier d'abord si une session existe
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
@@ -122,12 +125,15 @@ export const useUserProfile = () => {
       console.error('Erreur lors du chargement du profil:', err);
       setError(err.message || 'Impossible de charger le profil');
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   }, []);
 
+  /** Rafraîchit le profil. Si un cache existe déjà, met à jour en arrière-plan (évite l’écran de chargement infini au changement d’onglet). */
   const refreshProfile = useCallback(async () => {
-    await loadProfile();
+    await loadProfile({ background: globalProfileCache != null });
   }, [loadProfile]);
 
   // Fonction pour mettre à jour le profil depuis l'extérieur

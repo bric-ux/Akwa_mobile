@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute, CommonActions } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useUserProfile, clearProfileCache } from '../hooks/useUserProfile';
 import { useAuth } from '../services/AuthContext';
@@ -30,7 +30,7 @@ import BottomNavigationBar from '../components/BottomNavigationBar';
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { user, signOut } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   
   // Détecter si on est dans le TabNavigator (ProfileTab) ou dans le Stack (Profile)
   const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab' || route.name === 'MonthlyRentalProfileTab';
@@ -423,21 +423,49 @@ const ProfileScreen: React.FC = () => {
   // Utiliser la liste construite dynamiquement
   const finalMenuItems = menuItems;
 
+  const goToAuthScreen = () => {
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: 'Auth' as never }],
+      }),
+    );
+  };
 
-  // Rediriger vers l'authentification si l'utilisateur n'est pas connecté ou s'il y a une erreur d'authentification
-  useEffect(() => {
-    if (!user || error?.includes('Session expirée') || error?.includes('Auth session missing')) {
-      navigation.navigate('Auth');
-    }
-  }, [user, error, navigation]);
-
-  // Si l'utilisateur n'est pas connecté ou s'il y a une erreur d'authentification, afficher un indicateur de chargement
-  if (!user || error?.includes('Session expirée') || error?.includes('Auth session missing')) {
+  if (authLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>{t('auth.redirecting')}</Text>
+          <Text style={styles.loadingText}>{t('profile.loading')}</Text>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Invité ou session expirée : pas de « redirection » automatique (souvent bloquée depuis l’onglet) — écran explicite + reset stack
+  const sessionExpired =
+    !!error &&
+    (error.includes('Session expirée') || error.includes('Auth session missing'));
+
+  if (!user || sessionExpired) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={[styles.centerContainer, styles.guestContent]}>
+          <Ionicons name="person-circle-outline" size={80} color="#bbb" />
+          <Text style={styles.guestTitle}>{t('profile.guestTitle')}</Text>
+          <Text style={styles.guestSubtitle}>
+            {sessionExpired
+              ? t('profile.sessionExpiredGuest')
+              : t('profile.guestSubtitle')}
+          </Text>
+          <TouchableOpacity style={styles.guestPrimaryButton} onPress={goToAuthScreen}>
+            <Text style={styles.guestPrimaryButtonText}>{t('auth.signIn')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.guestSecondaryButton} onPress={goToAuthScreen}>
+            <Text style={styles.guestSecondaryButtonText}>{t('auth.signUp')}</Text>
+          </TouchableOpacity>
+        </View>
+        {!isInTabNavigator && <BottomNavigationBar activeScreen="compte" />}
       </SafeAreaView>
     );
   }
@@ -731,6 +759,48 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#666',
+  },
+  guestContent: {
+    paddingHorizontal: 28,
+    justifyContent: 'center',
+  },
+  guestTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  guestSubtitle: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 22,
+  },
+  guestPrimaryButton: {
+    marginTop: 28,
+    backgroundColor: TRAVELER_COLORS.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    minWidth: 220,
+    alignItems: 'center',
+  },
+  guestPrimaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  guestSecondaryButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  guestSecondaryButtonText: {
+    color: TRAVELER_COLORS.primary,
+    fontSize: 16,
+    fontWeight: '600',
   },
   scrollContainer: {
     flexGrow: 1,

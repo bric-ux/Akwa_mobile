@@ -541,27 +541,27 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="Home" 
           component={TabNavigator}
-          options={{ headerShown: false }}
+          options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen 
           name="HostSpace" 
           component={HostTabNavigator}
-          options={{ headerShown: false }}
+          options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen 
           name="VehicleOwnerSpace" 
           component={VehicleOwnerTabNavigator}
-          options={{ headerShown: false }}
+          options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen 
           name="VehicleSpace" 
           component={VehicleTabNavigator}
-          options={{ headerShown: false }}
+          options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen 
           name="MonthlyRentalOwnerSpace" 
           component={MonthlyRentalOwnerTabNavigator}
-          options={{ headerShown: false }}
+          options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen 
           name="Auth" 

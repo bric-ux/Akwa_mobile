@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import { User } from '../types';
 import { log, logError, logWarn } from '../utils/logger';
@@ -6,6 +6,8 @@ import { log, logError, logWarn } from '../utils/logger';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  /** Re-lit la session stockée et réaligne `user` (utile après un geste natif / état transitoire). */
+  recoverSession: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, userData: any) => Promise<void>;
   signOut: () => Promise<void>;
@@ -60,7 +62,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             user_metadata: session.user.user_metadata,
           });
         } else {
-          setUser(null);
+          // Ne pas vider user sur tout événement avec session null (ex. transitions internes),
+          // sinon l’onglet Profil affiche « Redirection… » puis reste bloqué si la navigation échoue.
+          const shouldClearUser =
+            event === 'SIGNED_OUT' ||
+            event === 'USER_DELETED' ||
+            (event === 'INITIAL_SESSION' && !session);
+          if (shouldClearUser) {
+            setUser(null);
+          }
         }
         setLoading(false);
       }
@@ -119,6 +129,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const recoverSession = useCallback(async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        logError('recoverSession getSession:', error);
+        return;
+      }
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          user_metadata: session.user.user_metadata,
+        });
+      }
+    } catch (e) {
+      logError('recoverSession:', e);
+    }
+  }, []);
+
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -141,6 +170,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value = {
     user,
     loading,
+    recoverSession,
     signIn,
     signUp,
     signOut,

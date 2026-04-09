@@ -23,6 +23,7 @@ import ConversationList from '../components/ConversationList';
 import MessageBubble from '../components/MessageBubble';
 import { useLanguage } from '../contexts/LanguageContext';
 import BottomNavigationBar from '../components/BottomNavigationBar';
+import GuestModePlaceholder from '../components/GuestModePlaceholder';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -327,24 +328,14 @@ const MessagingScreen: React.FC = () => {
     return fullName || 'Invité';
   };
 
-  // Si l'utilisateur n'est pas connecté, afficher le bouton de connexion
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContainer}>
-          <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>{t('auth.loginRequired')}</Text>
-          <Text style={styles.emptySubtitle}>
-            {t('messages.loginRequiredDesc')}
-          </Text>
-          <TouchableOpacity
-            style={styles.exploreButton}
-            onPress={() => navigation.navigate('Auth')}
-          >
-            <Text style={styles.exploreButtonText}>{t('auth.login')}</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <GuestModePlaceholder
+        icon="chatbubbles-outline"
+        subtitleKey="guest.messagesSubtitle"
+        isInTabNavigator={isInTabNavigator}
+        bottomNavScreen="messages"
+      />
     );
   }
 

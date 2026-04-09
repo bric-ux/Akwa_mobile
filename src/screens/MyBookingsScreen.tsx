@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { useBookings, Booking } from '../hooks/useBookings';
 import { useVehicleBookings } from '../hooks/useVehicleBookings';
 import { VehicleBooking } from '../types';
@@ -34,7 +34,9 @@ import { useCurrency } from '../hooks/useCurrency';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const { user } = useAuth();
+  const isInTabNavigator = route.name === 'BookingsTab';
   const { currency, rates } = useCurrency();
   const { getUserBookings, cancelBooking, loading: propertiesLoading, error } = useBookings();
   const { getMyBookings: getVehicleBookings, loading: vehiclesLoading } = useVehicleBookings();
@@ -619,21 +621,12 @@ const MyBookingsScreen: React.FC = () => {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContainer}>
-          <Ionicons name="person-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>Connexion requise</Text>
-          <Text style={styles.emptySubtitle}>
-            Vous devez être connecté pour voir vos réservations
-          </Text>
-          <TouchableOpacity
-            style={styles.exploreButton}
-            onPress={() => navigation.navigate('Auth')}
-          >
-            <Text style={styles.exploreButtonText}>Se connecter</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <GuestModePlaceholder
+        icon="calendar-outline"
+        subtitleKey="guest.bookingsSubtitle"
+        isInTabNavigator={isInTabNavigator}
+        bottomNavScreen="explorer"
+      />
     );
   }
 

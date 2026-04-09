@@ -18,6 +18,7 @@ import { useAuth } from '../services/AuthContext';
 import PropertyCard from '../components/PropertyCard';
 import VehicleCard from '../components/VehicleCard';
 import BottomNavigationBar from '../components/BottomNavigationBar';
+import GuestModePlaceholder from '../components/GuestModePlaceholder';
 
 const FavoritesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -133,22 +134,12 @@ const FavoritesScreen: React.FC = () => {
 
   if (!user) {
     return (
-      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-        <View style={styles.centerContainer}>
-          <Ionicons name="heart-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyTitle}>Connexion requise</Text>
-          <Text style={styles.emptySubtitle}>
-            Vous devez être connecté pour voir vos favoris
-          </Text>
-          <TouchableOpacity
-            style={styles.exploreButton}
-            onPress={() => navigation.navigate('Auth')}
-          >
-            <Text style={styles.exploreButtonText}>Se connecter</Text>
-          </TouchableOpacity>
-        </View>
-        {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
-      </SafeAreaView>
+      <GuestModePlaceholder
+        icon="heart-outline"
+        subtitleKey="guest.favoritesSubtitle"
+        isInTabNavigator={isInTabNavigator}
+        bottomNavScreen="favoris"
+      />
     );
   }
 
