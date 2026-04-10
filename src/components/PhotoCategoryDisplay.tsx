@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -31,8 +31,6 @@ interface PhotoCategoryDisplayProps {
   propertyTitle: string;
   propertyId?: string;
   onPhotoUpdate?: () => void;
-  /** Affiché dans la modale « Voir plus » (grille complète), ex. vers Devenir hôte */
-  onBecomeHostPress?: () => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -101,7 +99,6 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   propertyTitle,
   propertyId,
   onPhotoUpdate,
-  onBecomeHostPress,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
@@ -109,6 +106,11 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   const [showFullGallery, setShowFullGallery] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'category'>('grid');
   const [showAllPhotos, setShowAllPhotos] = useState(false);
+
+  const lightboxScrollRef = useRef<ScrollView>(null);
+  const fullGalleryScrollRef = useRef<ScrollView>(null);
+  const lightboxOpenIndexRef = useRef(0);
+  const fullGalleryOpenIndexRef = useRef(0);
   
   // Limiter l'affichage initial à 3 photos en vue grille
   const MAX_PHOTOS_GRID = 3;
@@ -137,15 +139,33 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   const hasMorePhotosGrid = photos.length > MAX_PHOTOS_GRID;
 
   const openLightbox = (category: string, index: number) => {
+    lightboxOpenIndexRef.current = index;
     setSelectedCategory(category);
     setCurrentPhotoIndex(index);
     setShowLightbox(true);
   };
   
   const openFullGallery = (startIndex: number = 0) => {
+    fullGalleryOpenIndexRef.current = startIndex;
     setCurrentPhotoIndex(startIndex);
     setShowFullGallery(true);
   };
+
+  useEffect(() => {
+    if (!showLightbox || !selectedCategory) return;
+    const idx = lightboxOpenIndexRef.current;
+    requestAnimationFrame(() => {
+      lightboxScrollRef.current?.scrollTo({ x: idx * screenWidth, animated: false });
+    });
+  }, [showLightbox, selectedCategory]);
+
+  useEffect(() => {
+    if (!showFullGallery) return;
+    const idx = fullGalleryOpenIndexRef.current;
+    requestAnimationFrame(() => {
+      fullGalleryScrollRef.current?.scrollTo({ x: idx * screenWidth, animated: false });
+    });
+  }, [showFullGallery]);
   
   const closeFullGallery = () => {
     setShowFullGallery(false);
@@ -153,11 +173,27 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   };
   
   const nextPhotoInGallery = () => {
-    setCurrentPhotoIndex((prev) => (prev + 1) % allPhotosFlat.length);
+    const len = allPhotosFlat.length;
+    if (len === 0) return;
+    setCurrentPhotoIndex((prev) => {
+      const next = (prev + 1) % len;
+      requestAnimationFrame(() => {
+        fullGalleryScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+      });
+      return next;
+    });
   };
   
   const prevPhotoInGallery = () => {
-    setCurrentPhotoIndex((prev) => prev === 0 ? allPhotosFlat.length - 1 : prev - 1);
+    const len = allPhotosFlat.length;
+    if (len === 0) return;
+    setCurrentPhotoIndex((prev) => {
+      const next = prev === 0 ? len - 1 : prev - 1;
+      requestAnimationFrame(() => {
+        fullGalleryScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+      });
+      return next;
+    });
   };
 
   const closeLightbox = () => {
@@ -169,13 +205,27 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   const nextPhoto = () => {
     if (!selectedCategory) return;
     const categoryPhotos = photosByCategory[selectedCategory];
-    setCurrentPhotoIndex((prev) => (prev + 1) % categoryPhotos.length);
+    const len = categoryPhotos.length;
+    setCurrentPhotoIndex((prev) => {
+      const next = (prev + 1) % len;
+      requestAnimationFrame(() => {
+        lightboxScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+      });
+      return next;
+    });
   };
 
   const prevPhoto = () => {
     if (!selectedCategory) return;
     const categoryPhotos = photosByCategory[selectedCategory];
-    setCurrentPhotoIndex((prev) => prev === 0 ? categoryPhotos.length - 1 : prev - 1);
+    const len = categoryPhotos.length;
+    setCurrentPhotoIndex((prev) => {
+      const next = prev === 0 ? len - 1 : prev - 1;
+      requestAnimationFrame(() => {
+        lightboxScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+      });
+      return next;
+    });
   };
 
   if (photos.length === 0) {
@@ -518,13 +568,34 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
           </View>
 
           <View style={styles.lightboxContent}>
-            {selectedCategory && (
-              <LightboxMedia
-                key={photosByCategory[selectedCategory][currentPhotoIndex]?.url}
-                uri={photosByCategory[selectedCategory][currentPhotoIndex].url}
-                style={styles.lightboxImage}
-              />
-            )}
+            {selectedCategory && photosByCategory[selectedCategory]?.length > 0 ? (
+              <ScrollView
+                ref={lightboxScrollRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                decelerationRate="fast"
+                keyboardShouldPersistTaps="handled"
+                onMomentumScrollEnd={(e) => {
+                  const w = e.nativeEvent.layoutMeasurement.width;
+                  if (w <= 0) return;
+                  const idx = Math.round(e.nativeEvent.contentOffset.x / w);
+                  const max = photosByCategory[selectedCategory].length - 1;
+                  setCurrentPhotoIndex(Math.min(Math.max(0, idx), max));
+                }}
+                style={styles.lightboxPager}
+              >
+                {photosByCategory[selectedCategory].map((photo, idx) => (
+                  <View
+                    key={photo.id || `lb-${idx}`}
+                    style={[styles.lightboxPage, { width: screenWidth }]}
+                  >
+                    <LightboxMedia uri={photo.url} style={styles.lightboxImage} />
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
           </View>
 
           <View style={styles.lightboxFooter}>
@@ -586,27 +657,6 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                   );
                 })}
               </View>
-              {onBecomeHostPress ? (
-                <TouchableOpacity
-                  style={styles.becomeHostBanner}
-                  onPress={() => {
-                    setShowAllPhotos(false);
-                    onBecomeHostPress();
-                  }}
-                  activeOpacity={0.88}
-                >
-                  <View style={styles.becomeHostBannerIcon}>
-                    <Ionicons name="home" size={24} color="#e67e22" />
-                  </View>
-                  <View style={styles.becomeHostBannerTextCol}>
-                    <Text style={styles.becomeHostBannerTitle}>Vous aussi, proposez votre résidence</Text>
-                    <Text style={styles.becomeHostBannerSubtitle}>
-                      Devenez hôte sur AkwaHome en quelques étapes.
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={22} color="#e67e22" />
-                </TouchableOpacity>
-              ) : null}
             </ScrollView>
           </SafeAreaView>
         </Modal>
@@ -633,13 +683,34 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
           </View>
 
           <View style={styles.fullGalleryContent}>
-            {allPhotosFlat.length > 0 && (
-              <LightboxMedia
-                key={allPhotosFlat[currentPhotoIndex].url}
-                uri={allPhotosFlat[currentPhotoIndex].url}
-                style={styles.fullGalleryImage}
-              />
-            )}
+            {allPhotosFlat.length > 0 ? (
+              <ScrollView
+                ref={fullGalleryScrollRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                decelerationRate="fast"
+                keyboardShouldPersistTaps="handled"
+                onMomentumScrollEnd={(e) => {
+                  const w = e.nativeEvent.layoutMeasurement.width;
+                  if (w <= 0) return;
+                  const idx = Math.round(e.nativeEvent.contentOffset.x / w);
+                  const max = allPhotosFlat.length - 1;
+                  setCurrentPhotoIndex(Math.min(Math.max(0, idx), max));
+                }}
+                style={styles.fullGalleryPager}
+              >
+                {allPhotosFlat.map((photo, idx) => (
+                  <View
+                    key={photo.id || `fg-${idx}`}
+                    style={[styles.lightboxPage, { width: screenWidth }]}
+                  >
+                    <LightboxMedia uri={photo.url} style={styles.fullGalleryImage} />
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
           </View>
 
           <View style={styles.fullGalleryFooter}>
@@ -667,7 +738,15 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
               {allPhotosFlat.map((photo, index) => (
                 <TouchableOpacity
                   key={photo.id || index}
-                  onPress={() => setCurrentPhotoIndex(index)}
+                  onPress={() => {
+                    setCurrentPhotoIndex(index);
+                    requestAnimationFrame(() => {
+                      fullGalleryScrollRef.current?.scrollTo({
+                        x: index * screenWidth,
+                        animated: true,
+                      });
+                    });
+                  }}
                   style={[
                     styles.thumbnail,
                     index === currentPhotoIndex && styles.thumbnailActive
@@ -944,6 +1023,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  lightboxPager: {
+    flex: 1,
+  },
+  lightboxPage: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: screenHeight * 0.62,
+  },
   lightboxImage: {
     width: screenWidth,
     height: screenHeight * 0.6,
@@ -1011,41 +1098,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  becomeHostBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 24,
-    padding: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(230, 126, 34, 0.45)',
-    gap: 12,
-  },
-  becomeHostBannerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(230, 126, 34, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  becomeHostBannerTextCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  becomeHostBannerTitle: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  becomeHostBannerSubtitle: {
-    color: 'rgba(255, 255, 255, 0.72)',
-    fontSize: 13,
-    lineHeight: 18,
-  },
   // Full Gallery styles
   fullGalleryContainer: {
     flex: 1,
@@ -1067,6 +1119,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  fullGalleryPager: {
+    flex: 1,
   },
   fullGalleryImage: {
     width: screenWidth,
