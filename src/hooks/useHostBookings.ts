@@ -38,6 +38,7 @@ export interface HostBooking {
       url: string;
       category: string;
       display_order: number;
+      is_main?: boolean;
     }>;
     locations?: {
       id: string;
@@ -131,7 +132,8 @@ export const useHostBookings = () => {
               id,
               url,
               category,
-              display_order
+              display_order,
+              is_main
             )
           )
         `)

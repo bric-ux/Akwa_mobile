@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -17,6 +16,8 @@ import { useBookingModifications } from '../hooks/useBookingModifications';
 import { getCommissionRates } from '../lib/commissions';
 import { calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
 import { useCurrency } from '../hooks/useCurrency';
+import MediaThumb from './MediaThumb';
+import { getPropertyCoverUrl, isVideoUrl } from '../utils/media';
 
 interface BookingCardProps {
   booking: Booking;
@@ -300,28 +301,12 @@ const BookingCard: React.FC<BookingCardProps> = ({
   const discountAmount = calculateDiscountAmount;
   const originalTotal = booking.properties ? (booking.properties.price_per_night || 0) * nights : booking.total_price || 0;
 
-  // Fonction pour obtenir l'URL de l'image de la propriété
-  // Priorité: property_photos (triées par display_order) > images > placeholder
-  const getPropertyImageUrl = (): string => {
-    const property = booking.properties;
-    if (!property) return 'https://via.placeholder.com/300x200';
-
-    // Priorité 1: property_photos (photos catégorisées)
-    if (property.property_photos && property.property_photos.length > 0) {
-      const sortedPhotos = [...property.property_photos].sort((a, b) => 
-        (a.display_order || 0) - (b.display_order || 0)
-      );
-      return sortedPhotos[0].url;
-    }
-
-    // Priorité 2: images array
-    if (property.images && Array.isArray(property.images) && property.images.length > 0) {
-      return property.images[0];
-    }
-
-    // Fallback: placeholder
-    return 'https://via.placeholder.com/300x200';
-  };
+  const propertyCoverUri = booking.properties
+    ? getPropertyCoverUrl({
+        photos: (booking.properties as any).photos ?? booking.properties.property_photos,
+        images: booking.properties.images,
+      })
+    : 'https://via.placeholder.com/300x200';
 
   const handleViewDetails = () => {
     (navigation as any).navigate('PropertyBookingDetails', { bookingId: booking.id });
@@ -335,11 +320,11 @@ const BookingCard: React.FC<BookingCardProps> = ({
     >
       <View style={styles.bookingHeader}>
         <View style={styles.propertyInfo}>
-          <Image
-            source={{ 
-              uri: getPropertyImageUrl()
-            }}
+          <MediaThumb
+            uri={propertyCoverUri}
             style={styles.propertyImage}
+            resizeMode="cover"
+            isVideo={isVideoUrl(propertyCoverUri)}
           />
           <View style={styles.propertyDetails}>
             <View style={styles.titleRow}>

@@ -20,8 +20,9 @@ import { VehicleBooking } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { calculateHostCommission } from '../hooks/usePricing';
-import { Image } from 'react-native';
-import { ScrollView } from 'react-native';
+import { Image, ScrollView } from 'react-native';
+import MediaThumb from '../components/MediaThumb';
+import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
 import { safeGoBack } from '../utils/navigation';
 import VehicleBookingDetailsModal from '../components/VehicleBookingDetailsModal';
 import SimpleMessageModal from '../components/SimpleMessageModal';
@@ -398,17 +399,6 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const vehiclesWithBookings = getVehiclesWithBookings();
   const selectedVehicle = vehiclesWithBookings.find(v => v.vehicle?.id === selectedVehicleId);
 
-  const getVehicleMainImageUrl = (vehicle: any): string => {
-    if (!vehicle) return 'https://via.placeholder.com/150';
-    if (vehicle.images && Array.isArray(vehicle.images) && vehicle.images.length > 0) {
-      return vehicle.images[0];
-    }
-    if (vehicle.vehicle_photos && Array.isArray(vehicle.vehicle_photos) && vehicle.vehicle_photos.length > 0) {
-      return vehicle.vehicle_photos[0].url;
-    }
-    return 'https://via.placeholder.com/150';
-  };
-
   const renderBooking = ({ item }: { item: VehicleBooking }) => {
     const inProgress = isBookingInProgress(item);
     const completed = isBookingCompleted(item);
@@ -706,7 +696,9 @@ const HostVehicleBookingsScreen: React.FC = () => {
             <FlatList
               data={vehiclesWithBookings}
               keyExtractor={(item) => item.vehicle.id}
-              renderItem={({ item }) => (
+              renderItem={({ item }) => {
+                const listCoverUri = getVehicleCoverUrl(item.vehicle);
+                return (
                 <TouchableOpacity
                   style={[
                     styles.vehicleCard,
@@ -714,11 +706,18 @@ const HostVehicleBookingsScreen: React.FC = () => {
                   ]}
                   onPress={() => setSelectedVehicleId(item.vehicle.id)}
                 >
-                  <Image
-                    source={{ uri: getVehicleMainImageUrl(item.vehicle) }}
-                    style={styles.vehicleCardImage}
-                    resizeMode="cover"
-                  />
+                  {listCoverUri ? (
+                    <MediaThumb
+                      uri={listCoverUri}
+                      style={styles.vehicleCardImage}
+                      resizeMode="cover"
+                      isVideo={isVideoUrl(listCoverUri)}
+                    />
+                  ) : (
+                    <View style={[styles.vehicleCardImage, styles.vehicleCardImagePlaceholder]}>
+                      <Ionicons name="car-outline" size={32} color="#9ca3af" />
+                    </View>
+                  )}
                   <View style={styles.vehicleCardContent}>
                     <View style={styles.vehicleCardHeader}>
                       <Text style={styles.vehicleCardTitle} numberOfLines={2}>
@@ -761,7 +760,8 @@ const HostVehicleBookingsScreen: React.FC = () => {
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#ccc" />
                 </TouchableOpacity>
-              )}
+                );
+              }}
               contentContainerStyle={styles.listContainer}
               refreshControl={
                 <RefreshControl
@@ -791,13 +791,22 @@ const HostVehicleBookingsScreen: React.FC = () => {
           </View>
 
           {/* Informations du véhicule */}
-          {selectedVehicle && (
+          {selectedVehicle && (() => {
+            const headerCoverUri = getVehicleCoverUrl(selectedVehicle.vehicle);
+            return (
             <View style={styles.selectedVehicleInfo}>
-              <Image
-                source={{ uri: getVehicleMainImageUrl(selectedVehicle.vehicle) }}
-                style={styles.selectedVehicleImage}
-                resizeMode="cover"
-              />
+              {headerCoverUri ? (
+                <MediaThumb
+                  uri={headerCoverUri}
+                  style={styles.selectedVehicleImage}
+                  resizeMode="cover"
+                  isVideo={isVideoUrl(headerCoverUri)}
+                />
+              ) : (
+                <View style={[styles.selectedVehicleImage, styles.vehicleCardImagePlaceholder]}>
+                  <Ionicons name="car-outline" size={36} color="#9ca3af" />
+                </View>
+              )}
               <View style={styles.selectedVehicleDetails}>
                 <Text style={styles.selectedVehicleTitle}>
                   {selectedVehicle.vehicle.brand} {selectedVehicle.vehicle.model}
@@ -807,7 +816,8 @@ const HostVehicleBookingsScreen: React.FC = () => {
                 </Text>
               </View>
             </View>
-          )}
+            );
+          })()}
 
           {/* Filtres */}
           <View style={styles.filters}>
@@ -1274,6 +1284,10 @@ const styles = StyleSheet.create({
     height: 80,
     backgroundColor: '#f0f0f0',
     borderRadius: 12,
+  },
+  vehicleCardImagePlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   vehicleCardContent: {
     flex: 1,

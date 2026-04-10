@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   Alert,
   RefreshControl,
   ActivityIndicator,
@@ -36,6 +35,8 @@ import HostModificationRequestCard from '../components/HostModificationRequestCa
 import { getCommissionRates } from '../lib/commissions';
 import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../lib/hostNetAmount';
 import { useCurrency } from '../hooks/useCurrency';
+import MediaThumb from '../components/MediaThumb';
+import { getPropertyCoverUrl, isVideoUrl } from '../utils/media';
 
 const HostBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -379,25 +380,15 @@ const HostBookingsScreen: React.FC = () => {
   const selectedPropertyBookings = getSelectedPropertyBookings();
   const selectedProperty = propertiesWithBookings.find(p => p.property?.id === selectedPropertyId);
 
-  // Fonction pour obtenir l'URL de la photo principale d'une propriété
-  const getPropertyMainImageUrl = (property: any): string => {
-    if (!property) return 'https://via.placeholder.com/150';
-
-    // Priorité 1: property_photos (photos catégorisées) triées par display_order
-    if (property.property_photos && Array.isArray(property.property_photos) && property.property_photos.length > 0) {
-      const sortedPhotos = [...property.property_photos].sort((a, b) => 
-        (a.display_order || 0) - (b.display_order || 0)
-      );
-      return sortedPhotos[0].url;
+  const getHostPropertyCoverUri = (property: any): string => {
+    if (!property) {
+      return getPropertyCoverUrl({ photos: undefined, images: undefined });
     }
-
-    // Priorité 2: images array
-    if (property.images && Array.isArray(property.images) && property.images.length > 0) {
-      return property.images[0];
-    }
-
-    // Fallback: placeholder
-    return 'https://via.placeholder.com/150';
+    const rawPhotos = property.photos ?? property.property_photos;
+    return getPropertyCoverUrl({
+      photos: rawPhotos,
+      images: property.images,
+    });
   };
 
   // ✅ Utiliser DIRECTEMENT host_net_amount stocké, sinon recalculer (fallback uniquement pour anciennes réservations)
@@ -499,14 +490,17 @@ const HostBookingsScreen: React.FC = () => {
     return `${Math.round(amountXof).toLocaleString('fr-FR')} FCFA`;
   };
 
-  const renderBookingCard = ({ item }: { item: HostBooking }) => (
+  const renderBookingCard = ({ item }: { item: HostBooking }) => {
+    const bookingCoverUri = getHostPropertyCoverUri(item.properties);
+    return (
     <View style={styles.bookingCard}>
       <View style={styles.bookingHeader}>
         <View style={styles.propertyInfo}>
-          <Image
-            source={{ uri: getPropertyMainImageUrl(item.properties) }}
+          <MediaThumb
+            uri={bookingCoverUri}
             style={styles.propertyImage}
             resizeMode="cover"
+            isVideo={isVideoUrl(bookingCoverUri)}
           />
           <View style={styles.propertyDetails}>
             <View style={styles.propertyTitleRow}>
@@ -770,8 +764,8 @@ const HostBookingsScreen: React.FC = () => {
         </View>
       )}
     </View>
-  );
-
+    );
+  };
 
   // Si l'utilisateur n'est pas connecté, afficher le bouton de connexion
   if (!user) {
@@ -845,7 +839,9 @@ const HostBookingsScreen: React.FC = () => {
             <FlatList
               data={propertiesWithBookings}
               keyExtractor={(item, index) => item.property?.id ? `${item.property.id}-${index}` : `property-${index}`}
-              renderItem={({ item }) => (
+              renderItem={({ item }) => {
+                const listCoverUri = getHostPropertyCoverUri(item.property);
+                return (
                 <TouchableOpacity
                   style={[
                     styles.propertyCard,
@@ -854,13 +850,11 @@ const HostBookingsScreen: React.FC = () => {
                   onPress={() => setSelectedPropertyId(item.property?.id || null)}
                 >
                   <View style={styles.propertyCardImageContainer}>
-                    <Image
-                      source={{ uri: getPropertyMainImageUrl(item.property) }}
+                    <MediaThumb
+                      uri={listCoverUri}
                       style={styles.propertyCardImage}
                       resizeMode="cover"
-                      onError={(error) => {
-                        console.error('Erreur chargement image propriété:', error.nativeEvent.error);
-                      }}
+                      isVideo={isVideoUrl(listCoverUri)}
                     />
                   </View>
                   <View style={styles.propertyCardContent}>
@@ -911,7 +905,8 @@ const HostBookingsScreen: React.FC = () => {
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#ccc" style={styles.chevronIcon} />
                 </TouchableOpacity>
-              )}
+                );
+              }}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
@@ -942,16 +937,16 @@ const HostBookingsScreen: React.FC = () => {
           </View>
 
           {/* Informations de la propriété */}
-          {selectedProperty && (
+          {selectedProperty && (() => {
+            const headerCoverUri = getHostPropertyCoverUri(selectedProperty.property);
+            return (
             <View style={styles.selectedPropertyInfo}>
               <View style={styles.selectedPropertyImageContainer}>
-                <Image
-                  source={{ uri: getPropertyMainImageUrl(selectedProperty.property) }}
+                <MediaThumb
+                  uri={headerCoverUri}
                   style={styles.selectedPropertyImage}
                   resizeMode="cover"
-                  onError={(error) => {
-                    console.error('Erreur chargement image propriété sélectionnée:', error.nativeEvent.error);
-                  }}
+                  isVideo={isVideoUrl(headerCoverUri)}
                 />
               </View>
               <View style={styles.selectedPropertyDetails}>
@@ -963,7 +958,8 @@ const HostBookingsScreen: React.FC = () => {
                 </Text>
               </View>
             </View>
-          )}
+            );
+          })()}
 
           {/* Filtres */}
           <View style={styles.filtersContainer}>

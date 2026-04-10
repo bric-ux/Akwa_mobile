@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   Alert,
   RefreshControl,
   ActivityIndicator,
@@ -32,6 +31,8 @@ import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifi
 import ContactOwnerButton from '../components/ContactOwnerButton';
 import { useCurrency } from '../hooks/useCurrency';
 import GuestModePlaceholder from '../components/GuestModePlaceholder';
+import MediaThumb from '../components/MediaThumb';
+import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -372,8 +373,7 @@ const MyBookingsScreen: React.FC = () => {
 
   const renderVehicleBookingItem = ({ item: booking }: { item: VehicleBooking }) => {
     const vehicle = booking.vehicle;
-    const vehicleImages = vehicle?.images || vehicle?.vehicle_photos?.map((p: any) => p.url) || [];
-    const vehicleImage = vehicleImages[0];
+    const vehicleCoverUri = vehicle ? getVehicleCoverUrl(vehicle) : '';
     const status = getVehicleBookingStatus(booking);
     const statusLabel = status === 'pending' && (booking as any).payment_method === 'card'
       ? 'En attente d\'acceptation'
@@ -428,8 +428,13 @@ const MyBookingsScreen: React.FC = () => {
       >
         <View style={styles.vehicleBookingHeader}>
           <View style={styles.vehicleInfo}>
-            {vehicleImage ? (
-              <Image source={{ uri: vehicleImage }} style={styles.vehicleImage} resizeMode="cover" />
+            {vehicleCoverUri ? (
+              <MediaThumb
+                uri={vehicleCoverUri}
+                style={styles.vehicleImage}
+                resizeMode="cover"
+                isVideo={isVideoUrl(vehicleCoverUri)}
+              />
             ) : (
               <View style={[styles.vehicleImage, styles.vehicleImagePlaceholder]}>
                 <Ionicons name="car-outline" size={32} color="#ccc" />

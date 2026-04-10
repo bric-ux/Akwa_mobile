@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   Alert,
   RefreshControl,
   ActivityIndicator,
@@ -32,6 +31,8 @@ import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifi
 import { useBookingModifications } from '../hooks/useBookingModifications';
 import { getCommissionRates } from '../lib/commissions';
 import ContactOwnerButton from '../components/ContactOwnerButton';
+import MediaThumb from '../components/MediaThumb';
+import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
 
 const MyVehicleBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -285,7 +286,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
     const status = getBookingStatus(booking);
     const statusColor = getStatusColor(status);
     const vehicle = booking.vehicle;
-    const vehicleImage = vehicle?.images?.[0] || vehicle?.vehicle_photos?.[0]?.url || null;
+    const vehicleCoverUri = vehicle ? getVehicleCoverUrl(vehicle) : '';
     const rentalDays = booking.rental_days || 1;
     const rentalHours = booking.rental_hours || 0;
     
@@ -305,11 +306,12 @@ const MyVehicleBookingsScreen: React.FC = () => {
       >
         <View style={styles.bookingHeader}>
           <View style={styles.vehicleInfo}>
-            {vehicleImage ? (
-              <Image
-                source={{ uri: vehicleImage }}
+            {vehicleCoverUri ? (
+              <MediaThumb
+                uri={vehicleCoverUri}
                 style={styles.vehicleImage}
                 resizeMode="cover"
+                isVideo={isVideoUrl(vehicleCoverUri)}
               />
             ) : (
               <View style={[styles.vehicleImage, styles.vehicleImagePlaceholder]}>

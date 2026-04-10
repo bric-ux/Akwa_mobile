@@ -22,6 +22,8 @@ import VehicleModificationModal from './VehicleModificationModal';
 import HostVehicleModificationRequestCard from './HostVehicleModificationRequestCard';
 import { useVehicleBookingModifications } from '../hooks/useVehicleBookingModifications';
 import HostBookingFinancialAlerts from './HostBookingFinancialAlerts';
+import MediaThumb from './MediaThumb';
+import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
 
 interface VehicleBookingDetailsModalProps {
   visible: boolean;
@@ -205,6 +207,7 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
 
   const effectiveStatus = getEffectiveStatus();
   const vehicle = booking.vehicle;
+  const vehicleCoverUri = vehicle ? getVehicleCoverUrl(vehicle) : '';
   const renter = booking.renter;
   const owner = vehicle?.owner;
 
@@ -374,13 +377,14 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
                 <Text style={styles.cardTitle}>Véhicule</Text>
               </View>
               <View style={styles.vehicleInfo}>
-                {vehicle?.images?.[0] && (
-                  <Image
-                    source={{ uri: vehicle.images[0] }}
+                {vehicleCoverUri ? (
+                  <MediaThumb
+                    uri={vehicleCoverUri}
                     style={styles.vehicleImage}
                     resizeMode="cover"
+                    isVideo={isVideoUrl(vehicleCoverUri)}
                   />
-                )}
+                ) : null}
                 <View style={styles.vehicleDetails}>
                   <Text style={styles.vehicleName}>
                     {vehicle?.brand} {vehicle?.model}
