@@ -222,6 +222,26 @@ const HomeScreen: React.FC = () => {
         onImagePress={() => {}}
       />
 
+      <TouchableOpacity
+        style={styles.hostCtaCard}
+        onPress={() => navigation.navigate('BecomeHost' as never)}
+        activeOpacity={0.88}
+      >
+        <View style={styles.hostCtaIconWrap}>
+          <Ionicons name="home" size={28} color="#e67e22" />
+        </View>
+        <View style={styles.hostCtaTextWrap}>
+          <Text style={styles.hostCtaTitle}>Vous avez une résidence ?</Text>
+          <Text style={styles.hostCtaSubtitle}>
+            Inscrivez-la sur AkwaHome et accueillez des voyageurs.
+          </Text>
+          <View style={styles.hostCtaButton}>
+            <Text style={styles.hostCtaButtonText}>Ajouter une résidence</Text>
+            <Ionicons name="arrow-forward" size={18} color="#fff" />
+          </View>
+        </View>
+      </TouchableOpacity>
+
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Nos propriétés disponibles</Text>
@@ -231,7 +251,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </View>
     </>
-  ), [properties.length, popularDestinations, destinationsLoading, handleSearchPress, handleDestinationPress]);
+  ), [properties.length, popularDestinations, destinationsLoading, handleSearchPress, handleDestinationPress, navigation]);
   const scrollContentStyle = useMemo(() => styles.scrollContent, []);
 
   const keyExtractor = useCallback((item: Property) => item.id, []);
@@ -385,6 +405,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6c757d',
     fontWeight: '500',
+  },
+  hostCtaCard: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 8,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e8e8e8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    alignItems: 'center',
+    gap: 14,
+  },
+  hostCtaIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#fff8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hostCtaTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  hostCtaTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  hostCtaSubtitle: {
+    fontSize: 13,
+    color: '#6c757d',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  hostCtaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 22,
+    gap: 6,
+  },
+  hostCtaButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   emptyContainer: {
     padding: 40,
