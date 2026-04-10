@@ -97,6 +97,7 @@ const VehicleDetailsScreen: React.FC = () => {
   }
 
   const isOwner = user?.id === vehicle.owner_id;
+  const galleryUrls = getVehicleGalleryUrls(vehicle);
 
   return (
     <View style={styles.safeArea}>

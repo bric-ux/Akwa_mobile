@@ -218,7 +218,7 @@ export type RootStackParamList = {
   HostSpace: { screen?: keyof HostTabParamList } | undefined; // Navigation hôte avec onglets
   VehicleOwnerSpace: { screen?: keyof VehicleOwnerTabParamList } | undefined; // Navigation propriétaire de véhicule avec onglets
   MonthlyRentalOwnerSpace: { screen?: keyof MonthlyRentalTabParamList } | undefined; // Mode logement longue durée (gérer annonces + candidatures)
-  Auth: undefined;
+  Auth: { returnTo?: string; returnParams?: Record<string, unknown> };
   EmailVerification: { email: string; firstName: string };
   Search: { destination?: string; initialRentalType?: 'short_term' | 'monthly' | 'all' };
   PropertyDetails: { 

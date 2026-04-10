@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   Alert,
   RefreshControl,
   ActivityIndicator,
@@ -24,6 +23,8 @@ import { Vehicle } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
+import MediaThumb from '../components/MediaThumb';
+import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -141,7 +142,7 @@ const MyVehiclesScreen: React.FC = () => {
   };
 
   const renderVehicle = ({ item }: { item: Vehicle }) => {
-    const mainImage = item.images?.[0] || item.photos?.[0]?.url;
+    const coverUri = getVehicleCoverUrl(item);
     const statusColor = getStatusColor(item);
     const statusText = getStatusText(item);
     const vehicleImages = item.images || item.photos?.map((p: any) => p.url) || [];
@@ -165,11 +166,16 @@ const MyVehiclesScreen: React.FC = () => {
             style={styles.imageContainer}
             onPress={(e) => handleImagePress(e, item)}
             activeOpacity={0.9}
-            disabled={!mainImage}
+            disabled={!coverUri}
           >
-            {mainImage ? (
+            {coverUri ? (
               <>
-                <Image source={{ uri: mainImage }} style={styles.vehicleImage} />
+                <MediaThumb
+                  uri={coverUri}
+                  style={styles.vehicleImage}
+                  resizeMode="cover"
+                  isVideo={isVideoUrl(coverUri)}
+                />
                 {hasMultipleImages && (
                   <View style={styles.imageCountBadge}>
                     <Ionicons name="images-outline" size={12} color="#fff" />
@@ -344,10 +350,11 @@ const MyVehiclesScreen: React.FC = () => {
             >
               {selectedVehicleImages.map((imageUrl, index) => (
                 <View key={index} style={styles.galleryImageWrapper}>
-                  <Image
-                    source={{ uri: imageUrl }}
+                  <MediaThumb
+                    uri={imageUrl}
                     style={styles.galleryImage}
                     resizeMode="contain"
+                    isVideo={isVideoUrl(imageUrl)}
                   />
                 </View>
               ))}

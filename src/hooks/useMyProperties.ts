@@ -37,7 +37,8 @@ export const useMyProperties = () => {
             id,
             url,
             category,
-            display_order
+            display_order,
+            is_main
           )
         `)
         .eq('host_id', user.id)

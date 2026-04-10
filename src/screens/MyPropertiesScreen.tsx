@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   Alert,
   RefreshControl,
   ActivityIndicator,
@@ -20,6 +19,8 @@ import { Property } from '../hooks/useProperties';
 import { useHostApplications } from '../hooks/useHostApplications';
 import { HostApplication } from '../hooks/useHostApplications';
 import { useLanguage } from '../contexts/LanguageContext';
+import MediaThumb from '../components/MediaThumb';
+import { getPropertyCoverUrl, isVideoUrl } from '../utils/media';
 
 type TabType = 'applications' | 'properties';
 
@@ -159,36 +160,28 @@ const MyPropertiesScreen: React.FC = () => {
     return `${Math.round(price).toLocaleString('fr-FR')} CFA`;
   };
 
-  // Fonction pour obtenir l'URL de la photo principale
-  const getMainImageUrl = (property: Property): string => {
-    // Priorité 1: property_photos (photos catégorisées) triées par display_order
-    if (property.property_photos && Array.isArray(property.property_photos) && property.property_photos.length > 0) {
-      const sortedPhotos = [...property.property_photos].sort((a, b) => 
-        (a.display_order || 0) - (b.display_order || 0)
-      );
-      return sortedPhotos[0].url;
-    }
-
-    // Priorité 2: images array
-    if (property.images && Array.isArray(property.images) && property.images.length > 0) {
-      return property.images[0];
-    }
-
-    // Fallback: placeholder
-    return 'https://via.placeholder.com/150';
+  const getHostPropertyCoverUri = (property: Property): string => {
+    const rawPhotos = (property as any).photos ?? property.property_photos;
+    return getPropertyCoverUrl({
+      photos: rawPhotos,
+      images: property.images,
+    });
   };
 
-  const renderPropertyItem = ({ item: property }: { item: Property }) => (
+  const renderPropertyItem = ({ item: property }: { item: Property }) => {
+    const coverUri = getHostPropertyCoverUri(property);
+    return (
     <TouchableOpacity
       style={styles.propertyCard}
       onPress={() => handleViewProperty(property.id)}
       activeOpacity={0.7}
     >
       <View style={styles.propertyInfo}>
-        <Image
-          source={{ uri: getMainImageUrl(property) }}
+        <MediaThumb
+          uri={coverUri}
           style={styles.propertyImage}
           resizeMode="cover"
+          isVideo={isVideoUrl(coverUri)}
         />
         <View style={styles.propertyDetails}>
           <Text style={styles.propertyTitle} numberOfLines={1}>{property.title}</Text>
@@ -225,20 +218,22 @@ const MyPropertiesScreen: React.FC = () => {
         </View>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
-  // Fonction pour obtenir l'URL de l'image principale d'une candidature
-  const getApplicationMainImageUrl = (application: HostApplication): string => {
-    if (application.categorized_photos && Array.isArray(application.categorized_photos) && application.categorized_photos.length > 0) {
-      const sortedPhotos = [...application.categorized_photos].sort((a, b) => 
-        (a.displayOrder || 0) - (b.displayOrder || 0)
-      );
-      return sortedPhotos[0].url;
+  const getApplicationCoverUri = (application: HostApplication): string => {
+    const cats = application.categorized_photos;
+    if (cats && Array.isArray(cats) && cats.length > 0) {
+      return getPropertyCoverUrl({
+        photos: cats.map((p: any) => ({
+          url: p.url,
+          is_main: p.is_main ?? p.isMain,
+          display_order: p.display_order ?? p.displayOrder ?? 0,
+        })),
+        images: application.images,
+      });
     }
-    if (application.images && Array.isArray(application.images) && application.images.length > 0) {
-      return application.images[0];
-    }
-    return 'https://via.placeholder.com/150';
+    return getPropertyCoverUrl({ photos: undefined, images: application.images });
   };
 
   const getStatusColor = (status: string) => {
@@ -260,7 +255,9 @@ const MyPropertiesScreen: React.FC = () => {
     }
   };
 
-  const renderApplication = (application: HostApplication) => (
+  const renderApplication = (application: HostApplication) => {
+    const appCoverUri = getApplicationCoverUri(application);
+    return (
     <TouchableOpacity 
       key={application.id} 
       style={styles.applicationCard}
@@ -268,10 +265,11 @@ const MyPropertiesScreen: React.FC = () => {
         navigation.navigate('ApplicationDetails' as never, { applicationId: application.id } as never);
       }}
     >
-      <Image
-        source={{ uri: getApplicationMainImageUrl(application) }}
+      <MediaThumb
+        uri={appCoverUri}
         style={styles.applicationImage}
         resizeMode="cover"
+        isVideo={isVideoUrl(appCoverUri)}
       />
       <View style={styles.applicationDetails}>
         <Text style={styles.applicationTitle} numberOfLines={1}>
@@ -287,7 +285,8 @@ const MyPropertiesScreen: React.FC = () => {
         </View>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>

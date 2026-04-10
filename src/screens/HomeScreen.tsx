@@ -114,6 +114,14 @@ const HomeScreen: React.FC = () => {
     (navigation as any).navigate('Search', { destination: destination.name });
   }, [navigation]);
 
+  const handleBecomeHostFabPress = useCallback(() => {
+    if (user) {
+      navigation.navigate('BecomeHost' as never);
+    } else {
+      navigation.navigate('Auth', { returnTo: 'BecomeHost' });
+    }
+  }, [navigation, user]);
+
   const renderPropertyCard = useCallback(({ item }: { item: Property }) => (
     <PropertyCard property={item} onPress={handlePropertyPress} variant="list" />
   ), [handlePropertyPress]);
@@ -314,7 +322,7 @@ const HomeScreen: React.FC = () => {
         >
           <TouchableOpacity
             style={hostFabCompact ? styles.hostFabCompact : styles.hostFab}
-            onPress={() => navigation.navigate('BecomeHost' as never)}
+            onPress={handleBecomeHostFabPress}
             activeOpacity={0.88}
           >
             {hostFabCompact ? (

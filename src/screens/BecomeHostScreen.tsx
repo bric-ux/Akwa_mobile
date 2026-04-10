@@ -20,7 +20,7 @@ import { isMediaRowVideo, normalizeHostMediaRows } from '../utils/media';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { useAuth } from '../services/AuthContext';
@@ -31,6 +31,7 @@ import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import { useReferrals } from '../hooks/useReferrals';
 import { useLanguage } from '../contexts/LanguageContext';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
@@ -102,6 +103,15 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       console.log('🔴 [BecomeHostScreen] Écran BecomeHost démonté');
     };
   }, []);
+  const navigateToProfileIdentity = () => {
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: 'Home',
+        params: { screen: 'ProfileTab' },
+      })
+    );
+  };
+
   const { submitApplication, getAmenities, getApplicationById, updateApplication, loading } = useHostApplications();
   const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();
   const { hasUploadedIdentity, verificationStatus, checkIdentityStatus } = useIdentityVerification();
@@ -116,10 +126,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [referrerName, setReferrerName] = useState<string>('');
   const [isReferred, setIsReferred] = useState(false);
   const [isAlreadyHost, setIsAlreadyHost] = useState(false);
-  /** Type d'annonce : résidence meublée (court séjour) ou location mensuelle (longue durée) */
-  const [listingType, setListingType] = useState<'short_term' | 'monthly' | null>(null);
-  /** Après le choix du type, afficher le formulaire par étapes */
-  const [listingTypeConfirmed, setListingTypeConfirmed] = useState(false);
+  /** Type d'annonce : pour l’instant seule la résidence meublée (court séjour) — pas d’écran de choix */
+  const [listingType, setListingType] = useState<'short_term' | 'monthly' | null>('short_term');
+  const [listingTypeConfirmed, setListingTypeConfirmed] = useState(true);
   
   const [formData, setFormData] = useState({
     // Informations sur le logement
@@ -975,10 +984,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           { text: 'Annuler', style: 'cancel' },
           { 
             text: 'Vérifier mon identité', 
-            onPress: () => {
-              // Retourner à l'accueil pour permettre la navigation vers le profil
-              navigation.goBack();
-            }
+            onPress: navigateToProfileIdentity,
           }
         ]
       );
@@ -2476,55 +2482,25 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           </Text>
         </View>
 
-        {/* Alerte de vérification d'identité */}
-        {(!hasUploadedIdentity && !identityUploadedInSession) || (hasUploadedIdentity && verificationStatus === 'pending') || (hasUploadedIdentity && verificationStatus === 'rejected') ? (
-          <View style={styles.identityAlert}>
-            <Ionicons 
-              name={
-                verificationStatus === 'pending' ? 'time-outline' :
-                verificationStatus === 'rejected' ? 'close-circle-outline' : 
-                'shield-checkmark-outline'
-              } 
-              size={24} 
-              color={
-                verificationStatus === 'pending' ? '#f59e0b' :
-                verificationStatus === 'rejected' ? '#ef4444' : 
-                '#f59e0b'
-              } 
+        {/* Vérification d'identité : même composant que Mon compte + upload possible sans quitter l'écran */}
+        {((!hasUploadedIdentity && !identityUploadedInSession) ||
+          (hasUploadedIdentity && verificationStatus === 'pending') ||
+          (hasUploadedIdentity && verificationStatus === 'rejected')) && (
+          <View style={styles.identityInFormWrap}>
+            <IdentityVerificationAlert
+              onVerificationComplete={() => {
+                checkIdentityStatus(true);
+              }}
             />
-            <View style={styles.identityAlertContent}>
-              <Text style={styles.identityAlertTitle}>
-                {verificationStatus === 'pending' ? 'Vérification en cours' :
-                 verificationStatus === 'rejected' ? 'Document refusé' : 
-                 'Vérification d\'identité requise'}
+            {verificationStatus === 'pending' ? (
+              <Text style={styles.identityInFormHint}>
+                Vous pouvez soumettre votre candidature : la validation finale sera faite par notre équipe.
               </Text>
-              <Text style={styles.identityAlertMessage}>
-                {verificationStatus === 'pending' ? 'Votre identité est en cours de vérification. Vous pouvez soumettre votre candidature maintenant, la vérification sera complétée par notre équipe avant l\'approbation.' :
-                 verificationStatus === 'rejected' ? 'Votre document a été refusé. Veuillez envoyer un nouveau document valide.' :
-                 'Vous devez vérifier votre identité avant de pouvoir devenir hôte.'}
-              </Text>
-              {verificationStatus !== 'pending' && (
-                <TouchableOpacity 
-                  style={styles.identityAlertButton}
-                  onPress={() => {
-                    if (navigation.canGoBack()) {
-                      navigation.goBack();
-                    } else {
-                      navigation.navigate('ProfileTab' as never);
-                    }
-                  }}
-                >
-                  <Text style={styles.identityAlertButtonText}>
-                    {verificationStatus === 'rejected' ? 'Envoyer un nouveau document' :
-                     'Vérifier mon identité'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            ) : null}
           </View>
-        ) : null}
+        )}
 
-        {/* Choix du type d'annonce ou formulaire par étapes */}
+        {/* Choix du type d'annonce (désactivé tant que seule la résidence meublée est proposée) */}
         {(!listingType || !listingTypeConfirmed) ? (
           renderListingTypeChoice()
         ) : (
@@ -2818,44 +2794,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  identityAlert: {
-    flexDirection: 'row',
-    backgroundColor: '#fef3c7',
-    borderColor: '#f59e0b',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    margin: 20,
-    marginTop: 10,
-    alignItems: 'flex-start',
+  identityInFormWrap: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
   },
-  identityAlertContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  identityAlertTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400e',
-    marginBottom: 4,
-  },
-  identityAlertMessage: {
-    fontSize: 14,
-    color: '#92400e',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  identityAlertButton: {
-    backgroundColor: '#f59e0b',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  identityAlertButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+  identityInFormHint: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 8,
+    lineHeight: 18,
   },
   stepIndicator: {
     flexDirection: 'row',
