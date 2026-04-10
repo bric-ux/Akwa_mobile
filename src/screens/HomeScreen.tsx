@@ -51,6 +51,15 @@ const HomeScreen: React.FC = () => {
   const destinationsFetchedRef = useRef(false);
   const lastHandledCatalogVersionRef = useRef<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [hostFabCompact, setHostFabCompact] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setHostFabCompact(false);
+      const timer = setTimeout(() => setHostFabCompact(true), 10000);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -304,18 +313,24 @@ const HomeScreen: React.FC = () => {
           ]}
         >
           <TouchableOpacity
-            style={styles.hostFab}
+            style={hostFabCompact ? styles.hostFabCompact : styles.hostFab}
             onPress={() => navigation.navigate('BecomeHost' as never)}
             activeOpacity={0.88}
           >
-            <View style={styles.hostFabIconCircle}>
-              <Ionicons name="add" size={22} color="#fff" />
-            </View>
-            <View style={styles.hostFabTextCol}>
-              <Text style={styles.hostFabTitle}>Ajouter une résidence</Text>
-              <Text style={styles.hostFabHint}>Devenir hôte</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+            {hostFabCompact ? (
+              <Ionicons name="add" size={28} color="#fff" />
+            ) : (
+              <>
+                <View style={styles.hostFabIconCircle}>
+                  <Ionicons name="add" size={22} color="#fff" />
+                </View>
+                <View style={styles.hostFabTextCol}>
+                  <Text style={styles.hostFabTitle}>Ajouter une résidence</Text>
+                  <Text style={styles.hostFabHint}>Devenir hôte</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -462,6 +477,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
     marginTop: 1,
+  },
+  hostFabCompact: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#e67e22',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 10,
   },
   emptyContainer: {
     padding: 40,
