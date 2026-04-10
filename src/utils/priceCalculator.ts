@@ -25,22 +25,30 @@ export const getPriceForDate = async (
     }
 
     // Vérifier s'il y a un prix dynamique pour cette date
+    // .limit(1) requis : .maybeSingle() renvoie une erreur si >1 ligne (périodes qui se chevauchent)
     const { data, error } = await supabase
       .from('property_dynamic_pricing')
       .select('price_per_night')
       .eq('property_id', propertyId)
-      .lte('start_date', dateStr)  // start_date <= date
-      .gte('end_date', dateStr)     // end_date >= date
+      .lte('start_date', dateStr) // start_date <= date
+      .gte('end_date', dateStr) // end_date >= date
+      .order('start_date', { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     if (error) {
-      console.error('Error fetching dynamic price:', error);
+      if (__DEV__) {
+        console.warn(
+          '[getPriceForDate] dynamic pricing:',
+          error.message || (error as { code?: string }).code || String(error)
+        );
+      }
       return basePrice;
     }
 
     return data?.price_per_night || basePrice;
   } catch (error) {
-    console.error('Error in getPriceForDate:', error);
+    if (__DEV__) console.warn('[getPriceForDate]', error);
     return basePrice;
   }
 };
@@ -90,7 +98,12 @@ export const getAveragePriceForPeriod = async (
       .or(`and(start_date.lte.${endDateStr},end_date.gte.${startDateStr})`);
 
     if (error) {
-      console.error('Error fetching dynamic prices:', error);
+      if (__DEV__) {
+        console.warn(
+          '[getAveragePriceForPeriod]',
+          error.message || (error as { code?: string }).code || String(error)
+        );
+      }
       return basePrice;
     }
 
@@ -126,7 +139,7 @@ export const getAveragePriceForPeriod = async (
 
     return totalDays > 0 ? Math.round(totalPrice / totalDays) : basePrice;
   } catch (error) {
-    console.error('Error in getAveragePriceForPeriod:', error);
+    if (__DEV__) console.warn('[getAveragePriceForPeriod]', error);
     return basePrice;
   }
 };
@@ -145,13 +158,18 @@ export const getDynamicPrices = async (propertyId: string) => {
       .order('start_date', { ascending: true });
 
     if (error) {
-      console.error('Error fetching dynamic prices:', error);
+      if (__DEV__) {
+        console.warn(
+          '[getDynamicPrices]',
+          error.message || (error as { code?: string }).code || String(error)
+        );
+      }
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error('Error in getDynamicPrices:', error);
+    if (__DEV__) console.warn('[getDynamicPrices]', error);
     return [];
   }
 };

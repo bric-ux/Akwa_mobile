@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../services/AuthContext';
 import { useProperties } from '../hooks/useProperties';
 import { useCities } from '../hooks/useCities';
@@ -36,8 +36,11 @@ const CAROUSEL_IMAGES = [
   { id: '6', source: require('../../assets/images/plages-assinie.jpg'), title: 'Côte d\'Assinie', description: 'Plages paradisiaques et villages de pêcheurs traditionnels' },
 ];
 
+const HOST_FAB_EXTRA_SCROLL_PADDING = 72;
+
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { t } = useLanguage();
   const { properties, loading, error, refreshProperties } = useProperties();
@@ -222,26 +225,6 @@ const HomeScreen: React.FC = () => {
         onImagePress={() => {}}
       />
 
-      <TouchableOpacity
-        style={styles.hostCtaCard}
-        onPress={() => navigation.navigate('BecomeHost' as never)}
-        activeOpacity={0.88}
-      >
-        <View style={styles.hostCtaIconWrap}>
-          <Ionicons name="home" size={28} color="#e67e22" />
-        </View>
-        <View style={styles.hostCtaTextWrap}>
-          <Text style={styles.hostCtaTitle}>Vous avez une résidence ?</Text>
-          <Text style={styles.hostCtaSubtitle}>
-            Inscrivez-la sur AkwaHome et accueillez des voyageurs.
-          </Text>
-          <View style={styles.hostCtaButton}>
-            <Text style={styles.hostCtaButtonText}>Ajouter une résidence</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
-          </View>
-        </View>
-      </TouchableOpacity>
-
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Nos propriétés disponibles</Text>
@@ -252,7 +235,10 @@ const HomeScreen: React.FC = () => {
       </View>
     </>
   ), [properties.length, popularDestinations, destinationsLoading, handleSearchPress, handleDestinationPress, navigation]);
-  const scrollContentStyle = useMemo(() => styles.scrollContent, []);
+  const scrollContentStyle = useMemo(
+    () => [styles.scrollContent, { paddingBottom: 20 + HOST_FAB_EXTRA_SCROLL_PADDING }],
+    []
+  );
 
   const keyExtractor = useCallback((item: Property) => item.id, []);
   const emptyMessageShort = t('property.noProperties');
@@ -310,6 +296,28 @@ const HomeScreen: React.FC = () => {
           windowSize={5}
           initialNumToRender={4}
         />
+
+        <View
+          style={[
+            styles.hostFabContainer,
+            { bottom: Math.max(insets.bottom, 6) + 10 },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.hostFab}
+            onPress={() => navigation.navigate('BecomeHost' as never)}
+            activeOpacity={0.88}
+          >
+            <View style={styles.hostFabIconCircle}>
+              <Ionicons name="add" size={22} color="#fff" />
+            </View>
+            <View style={styles.hostFabTextCol}>
+              <Text style={styles.hostFabTitle}>Ajouter une résidence</Text>
+              <Text style={styles.hostFabHint}>Devenir hôte</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -406,61 +414,54 @@ const styles = StyleSheet.create({
     color: '#6c757d',
     fontWeight: '500',
   },
-  hostCtaCard: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 8,
-    padding: 16,
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#e8e8e8',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-    alignItems: 'center',
-    gap: 14,
+  hostFabContainer: {
+    position: 'absolute',
+    right: 12,
+    left: 12,
+    zIndex: 20,
+    alignItems: 'flex-end',
+    pointerEvents: 'box-none',
   },
-  hostCtaIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#fff8f0',
+  hostFab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingRight: 10,
+    gap: 10,
+    backgroundColor: '#fff',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  hostFabIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e67e22',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hostCtaTextWrap: {
-    flex: 1,
+  hostFabTextCol: {
+    flexShrink: 1,
     minWidth: 0,
+    paddingRight: 4,
   },
-  hostCtaTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2c3e50',
-    marginBottom: 4,
-  },
-  hostCtaSubtitle: {
-    fontSize: 13,
-    color: '#6c757d',
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  hostCtaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#e67e22',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 22,
-    gap: 6,
-  },
-  hostCtaButtonText: {
-    color: '#fff',
+  hostFabTitle: {
     fontSize: 14,
     fontWeight: '700',
+    color: '#0f172a',
+  },
+  hostFabHint: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 1,
   },
   emptyContainer: {
     padding: 40,
