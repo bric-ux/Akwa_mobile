@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,8 @@ import { Property } from '../hooks/useProperties';
 import PhotoCategoryDisplay from '../components/PhotoCategoryDisplay';
 import { CategorizedPhoto } from '../types';
 import { useMyProperties } from '../hooks/useMyProperties';
+import { useLanguage } from '../contexts/LanguageContext';
+import { getPropertyPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 
 type PropertyManagementRouteProp = RouteProp<RootStackParamList, 'PropertyManagement'>;
 
@@ -31,6 +33,7 @@ const PropertyManagementScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<PropertyManagementRouteProp>();
   const { propertyId } = route.params;
+  const { t } = useLanguage();
 
   const { hideProperty, showProperty, deleteProperty } = useMyProperties();
   const [property, setProperty] = useState<Property | null>(null);
@@ -198,6 +201,15 @@ const PropertyManagementScreen: React.FC = () => {
     navigation.navigate('PropertyReviews', { propertyId } as never);
   };
 
+  const handleShareProperty = useCallback(() => {
+    if (!property) return;
+    shareListingLink({
+      url: getPropertyPublicWebUrl(property.id),
+      title: property.title || 'AkwaHome',
+      introLine: t('listing.sharePropertyLine'),
+    });
+  }, [property, t]);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -229,7 +241,14 @@ const PropertyManagementScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{property.title}</Text>
-        <View style={styles.placeholder} />
+        <TouchableOpacity
+          onPress={handleShareProperty}
+          style={styles.headerShareButton}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.share')}
+        >
+          <Ionicons name="share-outline" size={22} color="#2E7D32" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -362,6 +381,13 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 80,
+  },
+  headerShareButton: {
+    width: 80,
+    paddingVertical: 8,
+    paddingLeft: 8,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,

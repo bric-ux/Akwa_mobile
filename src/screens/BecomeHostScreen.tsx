@@ -129,7 +129,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   /** Type d'annonce : pour l’instant seule la résidence meublée (court séjour) — pas d’écran de choix */
   const [listingType, setListingType] = useState<'short_term' | 'monthly' | null>('short_term');
   const [listingTypeConfirmed, setListingTypeConfirmed] = useState(true);
-  
+  /** Empêche les doubles envois (loading du hook ne couvre pas fetchPaymentInfo + validations avant insert). */
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInFlightRef = useRef(false);
+
   const [formData, setFormData] = useState({
     // Informations sur le logement
     propertyType: '',
@@ -997,6 +1000,12 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       console.log('ℹ️ Identité en cours de vérification - soumission autorisée');
     }
 
+    if (submitInFlightRef.current || loading) {
+      return;
+    }
+    submitInFlightRef.current = true;
+    setIsSubmitting(true);
+    try {
     // Recharger les informations de paiement avant la validation
     // (au cas où elles n'auraient pas été rechargées automatiquement)
     console.log('🔄 Rechargement des informations de paiement avant validation...');
@@ -1435,6 +1444,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           }
         ]
       );
+    }
+    } finally {
+      submitInFlightRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -2529,11 +2542,11 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  style={[styles.nextButton, loading && styles.nextButtonDisabled]}
+                  style={[styles.nextButton, (loading || isSubmitting) && styles.nextButtonDisabled]}
                   onPress={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || isSubmitting}
                 >
-                  {loading ? (
+                  {loading || isSubmitting ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text style={styles.nextButtonText}>Soumettre</Text>

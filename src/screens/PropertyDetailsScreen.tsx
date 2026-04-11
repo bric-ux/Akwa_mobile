@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -34,6 +34,7 @@ import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { log, logError } from '../utils/logger';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
+import { getPropertyPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   apartment: 'Appartement',
@@ -225,6 +226,15 @@ const PropertyDetailsScreen: React.FC = () => {
     });
   };
 
+  const handleShareProperty = useCallback(() => {
+    if (!property) return;
+    shareListingLink({
+      url: getPropertyPublicWebUrl(property.id),
+      title: property.title || 'AkwaHome',
+      introLine: t('listing.sharePropertyLine'),
+    });
+  }, [property, t]);
+
   const handleBookNow = () => {
     log('📅 PropertyDetailsScreen - handleBookNow appelé avec dates:', {
       checkIn,
@@ -292,17 +302,29 @@ const PropertyDetailsScreen: React.FC = () => {
       <View style={styles.content}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>{property.title}</Text>
-          <TouchableOpacity
-            style={styles.favoriteButton}
-            onPress={handleFavoritePress}
-            disabled={favoriteLoading}
-          >
-            <Ionicons
-              name={isFavorited ? 'heart' : 'heart-outline'}
-              size={24}
-              color={isFavorited ? '#e74c3c' : '#666'}
-            />
-          </TouchableOpacity>
+          <View style={styles.titleActions}>
+            <TouchableOpacity
+              style={styles.iconHeaderButton}
+              onPress={handleShareProperty}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.share')}
+            >
+              <Ionicons name="share-outline" size={22} color="#475569" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconHeaderButton}
+              onPress={handleFavoritePress}
+              disabled={favoriteLoading}
+              accessibilityRole="button"
+              accessibilityLabel={t('favorites.title')}
+            >
+              <Ionicons
+                name={isFavorited ? 'heart' : 'heart-outline'}
+                size={24}
+                color={isFavorited ? '#e74c3c' : '#666'}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
         
         <View style={styles.locationContainer}>
@@ -735,11 +757,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
   },
-  favoriteButton: {
+  titleActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    gap: 4,
+  },
+  iconHeaderButton: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: '#f8f9fa',
-    marginLeft: 10,
   },
   locationContainer: {
     marginBottom: 10,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { HostApplication } from '../hooks/useHostApplications';
 import { useLanguage } from '../contexts/LanguageContext';
 import MediaThumb from '../components/MediaThumb';
 import { getPropertyCoverUrl, isVideoUrl } from '../utils/media';
+import { getPropertyPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 
 type TabType = 'applications' | 'properties';
 
@@ -155,6 +156,16 @@ const MyPropertiesScreen: React.FC = () => {
     navigation.navigate('PropertyManagement', { propertyId } as never);
   };
 
+  const handleSharePropertyLink = useCallback(
+    (property: Property) => {
+      shareListingLink({
+        url: getPropertyPublicWebUrl(property.id),
+        title: property.title || 'AkwaHome',
+        introLine: t('listing.sharePropertyLine'),
+      });
+    },
+    [t]
+  );
 
   const formatPrice = (price: number) => {
     return `${Math.round(price).toLocaleString('fr-FR')} CFA`;
@@ -198,6 +209,15 @@ const MyPropertiesScreen: React.FC = () => {
       </View>
 
       <View style={styles.propertyStatus}>
+        <TouchableOpacity
+          style={styles.shareRowButton}
+          onPress={() => handleSharePropertyLink(property)}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.share')}
+        >
+          <Ionicons name="share-outline" size={22} color="#2E7D32" />
+        </TouchableOpacity>
         <View style={[
           styles.statusBadge,
           {
@@ -523,8 +543,13 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
   },
   propertyStatus: {
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: 10,
+  },
+  shareRowButton: {
+    padding: 4,
   },
   statusBadge: {
     paddingHorizontal: 12,

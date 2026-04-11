@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import { Video, ResizeMode } from 'expo-av';
 import { getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
+import { getVehiclePublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -53,6 +54,19 @@ const VehicleDetailsScreen: React.FC = () => {
       refreshCurrency();
     }, [refreshCurrency])
   );
+
+  const handleShareVehicle = useCallback(() => {
+    if (!vehicle) return;
+    const title =
+      (vehicle.title && String(vehicle.title)) ||
+      [vehicle.brand, vehicle.model].filter(Boolean).join(' ') ||
+      'AkwaHome';
+    shareListingLink({
+      url: getVehiclePublicWebUrl(vehicle.id),
+      title,
+      introLine: t('listing.shareVehicleLine'),
+    });
+  }, [vehicle, t]);
 
   useEffect(() => {
     const loadVehicle = async () => {
@@ -128,7 +142,16 @@ const VehicleDetailsScreen: React.FC = () => {
               })()}
             </Text>
           </View>
-          <View style={styles.headerPlaceholder} />
+          <TouchableOpacity
+            style={styles.headerShareButton}
+            onPress={handleShareVehicle}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.share')}
+          >
+            <View style={styles.backButtonCircle}>
+              <Ionicons name="share-outline" size={20} color="#1a1a1a" />
+            </View>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
@@ -603,8 +626,8 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     letterSpacing: -0.3,
   },
-  headerPlaceholder: {
-    width: 40,
+  headerShareButton: {
+    zIndex: 10,
   },
   container: {
     flex: 1,

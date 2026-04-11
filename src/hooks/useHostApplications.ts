@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
@@ -97,12 +97,18 @@ export const useHostApplications = () => {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const { sendHostApplicationSubmitted, sendHostApplicationReceived } = useEmailService();
+  /** Évite deux insert/update concurrents (double tap ou appels rapprochés). */
+  const hostApplicationMutationLockRef = useRef(false);
 
   const submitApplication = async (applicationData: HostApplicationData) => {
     if (!user) {
       setError('Vous devez être connecté pour soumettre une candidature');
       return { success: false };
     }
+    if (hostApplicationMutationLockRef.current) {
+      return { success: false, error: 'Une soumission est déjà en cours.' };
+    }
+    hostApplicationMutationLockRef.current = true;
 
     setLoading(true);
     setError(null);
@@ -313,6 +319,10 @@ export const useHostApplications = () => {
       setError('Vous devez être connecté pour modifier une candidature');
       return { success: false };
     }
+    if (hostApplicationMutationLockRef.current) {
+      return { success: false, error: 'Une soumission est déjà en cours.' };
+    }
+    hostApplicationMutationLockRef.current = true;
 
     setLoading(true);
     setError(null);
@@ -407,6 +417,7 @@ export const useHostApplications = () => {
       return { success: false };
     } finally {
       setLoading(false);
+      hostApplicationMutationLockRef.current = false;
     }
   };
 

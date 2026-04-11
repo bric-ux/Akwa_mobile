@@ -82,6 +82,7 @@ export const translations: Record<string, Record<string, string>> = {
     'common.refresh': 'Actualiser',
     'common.noData': 'Aucune donnée disponible',
     'common.noResults': 'Aucun résultat',
+    'common.share': 'Partager',
     'common.perNight': 'par nuit',
     'common.priceOnRequest': 'Prix sur demande',
     'common.more': 'autres',
@@ -243,6 +244,8 @@ export const translations: Record<string, Record<string, string>> = {
     'property.yourHost': 'Votre hôte',
     'property.hostOnAkwaHome': 'Hôte sur AkwaHome',
     'property.bookNow': 'Réserver maintenant',
+    'listing.sharePropertyLine': 'Découvrez ce logement sur AkwaHome.',
+    'listing.shareVehicleLine': 'Découvrez ce véhicule sur AkwaHome.',
     
     // Booking
     'booking.title': 'Réservation',
@@ -752,6 +755,7 @@ export const translations: Record<string, Record<string, string>> = {
     'common.refresh': 'Refresh',
     'common.noData': 'No data available',
     'common.noResults': 'No results',
+    'common.share': 'Share',
     'common.perNight': 'per night',
     'common.priceOnRequest': 'Price on request',
     'common.more': 'more',
@@ -913,6 +917,8 @@ export const translations: Record<string, Record<string, string>> = {
     'property.yourHost': 'Your Host',
     'property.hostOnAkwaHome': 'Host on AkwaHome',
     'property.bookNow': 'Book Now',
+    'listing.sharePropertyLine': 'Discover this listing on AkwaHome.',
+    'listing.shareVehicleLine': 'Discover this vehicle on AkwaHome.',
     
     // Booking
     'booking.title': 'Booking',
