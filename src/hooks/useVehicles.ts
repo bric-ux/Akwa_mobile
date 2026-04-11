@@ -1023,6 +1023,30 @@ export const useVehicles = () => {
         throw new Error('Vous n\'êtes pas autorisé à supprimer ce véhicule');
       }
 
+      // Pénalités d'annulation encore à régler pour des locations de ce véhicule
+      const { data: vehicleBookingsRows } = await supabase
+        .from('vehicle_bookings')
+        .select('id')
+        .eq('vehicle_id', vehicleId);
+
+      const vehicleBookingIds = (vehicleBookingsRows || []).map((b) => b.id);
+      if (vehicleBookingIds.length > 0) {
+        const { data: pendingPenalties, error: penaltiesError } = await supabase
+          .from('penalty_tracking')
+          .select('id')
+          .eq('host_id', user.id)
+          .eq('status', 'pending')
+          .in('vehicle_booking_id', vehicleBookingIds);
+
+        if (penaltiesError) {
+          console.error('Erreur vérification pénalités:', penaltiesError);
+        } else if (pendingPenalties && pendingPenalties.length > 0) {
+          throw new Error(
+            'Impossible de supprimer ce véhicule : vous avez des pénalités d\'annulation en attente de règlement pour des locations liées à ce véhicule. Réglez-les d\'abord (section Pénalités ou depuis le détail des réservations concernées).'
+          );
+        }
+      }
+
       // Vérifier s'il y a des réservations actives
       const { data: activeBookings } = await supabase
         .from('vehicle_bookings')

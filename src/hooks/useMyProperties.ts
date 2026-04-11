@@ -176,6 +176,31 @@ export const useMyProperties = () => {
         return { success: false, error: errorMsg };
       }
 
+      // Pénalités d'annulation encore à régler pour des réservations de ce logement
+      const { data: bookingsForProperty } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('property_id', propertyId);
+
+      const bookingIds = (bookingsForProperty || []).map((b) => b.id);
+      if (bookingIds.length > 0) {
+        const { data: pendingPenalties, error: penaltiesError } = await supabase
+          .from('penalty_tracking')
+          .select('id')
+          .eq('host_id', user.id)
+          .eq('status', 'pending')
+          .in('booking_id', bookingIds);
+
+        if (penaltiesError) {
+          console.error('❌ Error checking penalties:', penaltiesError);
+        } else if (pendingPenalties && pendingPenalties.length > 0) {
+          const errorMsg =
+            'Impossible de supprimer cette résidence : vous avez des pénalités d\'annulation en attente de règlement pour des réservations liées à ce logement. Réglez-les d\'abord (section Pénalités ou depuis le détail des réservations concernées).';
+          setError(errorMsg);
+          return { success: false, error: errorMsg };
+        }
+      }
+
       // Vérifier s'il y a des réservations en attente (pending) et les annuler automatiquement
       const { data: pendingBookings, error: bookingsError } = await supabase
         .from('bookings')
