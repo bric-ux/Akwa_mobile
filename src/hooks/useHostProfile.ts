@@ -32,26 +32,11 @@ export const useHostProfile = () => {
   const getHostProfile = useCallback(async (hostId: string) => {
     setLoading(true);
     setError(null);
-    
+    setHostProfile(null);
+
     try {
       console.log('🔄 [useHostProfile] Chargement du profil pour hostId:', hostId);
-      console.log('🔄 [useHostProfile] Type de hostId:', typeof hostId);
-      console.log('🔄 [useHostProfile] Longueur de hostId:', hostId?.length);
-      
-      // D'abord, vérifions si des profils existent dans la table profiles
-      const { data: allProfiles, error: allProfilesError } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .limit(5);
-      console.log('🔍 [useHostProfile] Tous les profils (échantillon):', allProfiles);
-      
-      // Vérifions aussi dans host_public_info
-      const { data: allHostInfo, error: allHostInfoError } = await supabase
-        .from('host_public_info')
-        .select('user_id, first_name, last_name')
-        .limit(5);
-      console.log('🔍 [useHostProfile] Tous les host_public_info (échantillon):', allHostInfo);
-      
+
       // Cherchons d'abord dans host_public_info (table principale pour les hôtes)
       const { data, error } = await supabase
         .from('host_public_info')
@@ -97,22 +82,7 @@ export const useHostProfile = () => {
       }
 
       console.log('✅ [useHostProfile] Profil chargé:', data);
-      
-      // Récupérer les propriétés de l'hôte séparément
-      console.log('🔍 [useHostProfile] Récupération des propriétés pour hostId:', hostId);
-      
-      // D'abord, vérifier la structure de la table properties
-      const { data: propertiesStructure, error: structureError } = await supabase
-        .from('properties')
-        .select('*')
-        .limit(1);
-      
-      if (structureError) {
-        console.error('❌ [useHostProfile] Erreur structure properties:', structureError);
-      } else {
-        console.log('🔍 [useHostProfile] Colonnes properties disponibles:', Object.keys(propertiesStructure[0] || {}));
-      }
-      
+
       const { data: properties, error: propertiesError } = await supabase
         .from('properties')
         .select('id, title, rating, review_count, host_id')

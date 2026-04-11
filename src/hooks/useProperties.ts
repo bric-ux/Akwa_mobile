@@ -847,30 +847,23 @@ export const useProperties = () => {
         review_count: data.review_count
       });
 
-      // Calculer dynamiquement rating et review_count depuis les avis approuvés
-      // pour garantir que les valeurs sont toujours à jour
-      const calculatedRating = await calculateRatingFromReviews(data.id);
-      console.log('📊 Rating calculé depuis les avis:', calculatedRating);
-      
-      // Utiliser les valeurs calculées (ou celles de la DB si elles sont plus récentes)
-      const finalRating = calculatedRating.rating || data.rating || 0;
-      const finalReviewCount = calculatedRating.review_count || data.review_count || 0;
-
-      // Traiter les photos catégorisées
+      // Traiter les photos (sans attendre le rating — en parallèle avec équipements)
       const categorizedPhotos = data.property_photos || [];
       const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
-      
-      // Créer un tableau d'images pour la compatibilité avec l'ancien système
       const imageUrls = sortedPhotos.map((photo: any) => photo.url);
-      
-      // Si pas de photos catégorisées, utiliser l'ancien système
       const fallbackImages = data.images || [];
       const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
 
-      // Transformer les données avec les équipements
-      console.log('🔄 [getPropertyById] Avant mapAmenities - amenities:', data.amenities);
-      const mappedAmenities = await mapAmenities(data.amenities);
-      console.log('✅ [getPropertyById] Après mapAmenities - mappedAmenities:', mappedAmenities);
+      // Rating + équipements en parallèle (moins de latence à l’ouverture fiche propriété)
+      const [calculatedRating, mappedAmenities] = await Promise.all([
+        calculateRatingFromReviews(data.id),
+        mapAmenities(data.amenities),
+      ]);
+      console.log('📊 Rating calculé depuis les avis:', calculatedRating);
+      console.log('🔄 [getPropertyById] Après mapAmenities:', mappedAmenities?.length ?? 0, 'équipements');
+
+      const finalRating = calculatedRating.rating || data.rating || 0;
+      const finalReviewCount = calculatedRating.review_count || data.review_count || 0;
       const customAmenitiesList = data.custom_amenities && Array.isArray(data.custom_amenities)
         ? data.custom_amenities.map((name: string) => ({
             id: `custom-${name}`,

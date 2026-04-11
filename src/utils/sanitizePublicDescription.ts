@@ -1,8 +1,11 @@
 /**
- * Masque les numéros / liens de contact dans les descriptions affichées aux voyageurs :
+ * Masque les numéros / emails / liens de contact dans les descriptions affichées aux voyageurs :
  * remplacement par des x + rappel d’utiliser la messagerie plateforme.
  */
 export const PUBLIC_DESCRIPTION_PHONE_REPLACEMENT =
+  'xxxxxxx (utilisez la messagerie akwahome)';
+
+export const PUBLIC_DESCRIPTION_EMAIL_REPLACEMENT =
   'xxxxxxx (utilisez la messagerie akwahome)';
 
 /**
@@ -14,6 +17,7 @@ export function sanitizePublicDescription(text: string | null | undefined): stri
   if (!s.trim()) return s;
 
   const R = PUBLIC_DESCRIPTION_PHONE_REPLACEMENT;
+  const RE = PUBLIC_DESCRIPTION_EMAIL_REPLACEMENT;
 
   // Liens WhatsApp / messagerie externe
   s = s.replace(/https?:\/\/(wa\.me|api\.whatsapp\.com)[^\s]*/gi, R);
@@ -21,6 +25,15 @@ export function sanitizePublicDescription(text: string | null | undefined): stri
 
   // Liens téléphone
   s = s.replace(/tel:[+\d\s().-]+/gi, R);
+
+  // Liens email (mailto:)
+  s = s.replace(/mailto:[^\s>]+/gi, RE);
+
+  // Adresses email courantes (évite d’afficher contact direct dans l’annonce)
+  s = s.replace(
+    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+\b/g,
+    RE
+  );
 
   // Côte d'Ivoire +225 / 00225 (10 chiffres nationaux souvent groupés par 2)
   s = s.replace(
@@ -40,9 +53,11 @@ export function sanitizePublicDescription(text: string | null | undefined): stri
   // 00 … (format international sans +)
   s = s.replace(/\b00\d{1,3}[\s.]?(?:\d[\s.]?){8,14}\d\b/g, R);
 
-  // Évite répétitions du message si plusieurs numéros d’affilée
+  // Évite répétitions du message si plusieurs numéros / emails d’affilée
   const esc = R.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escE = RE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   s = s.replace(new RegExp(`(?:${esc})(?:\\s*[,.;]?\\s*${esc})+`, 'g'), R);
+  s = s.replace(new RegExp(`(?:${escE})(?:\\s*[,.;]?\\s*${escE})+`, 'g'), RE);
 
   return s;
 }

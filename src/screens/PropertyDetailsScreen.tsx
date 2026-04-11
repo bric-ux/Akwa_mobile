@@ -63,7 +63,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const { user } = useAuth();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { requireAuthForFavorites } = useAuthRedirect();
-  const { hostProfile, getHostProfile } = useHostProfile();
+  const { hostProfile, getHostProfile, loading: hostProfileLoading } = useHostProfile();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
@@ -145,14 +145,13 @@ const PropertyDetailsScreen: React.FC = () => {
         });
         
         setProperty(propertyData);
-        
-        // Charger le profil de l'hôte
-        if (propertyData && propertyData.host_id) {
-          log('🔄 Chargement du profil de l\'hôte:', propertyData.host_id);
-          await getHostProfile(propertyData.host_id);
+
+        // Profil hôte en arrière-plan : n’alourdit pas l’affichage du corps de la fiche
+        if (propertyData?.host_id) {
+          log('🔄 Chargement du profil de l\'hôte (async):', propertyData.host_id);
+          void getHostProfile(propertyData.host_id);
         }
 
-        
         // Vérifier si la propriété est en favoris
         if (user && propertyData) {
           const favorited = isFavoriteSync(propertyData.id);
@@ -433,7 +432,7 @@ const PropertyDetailsScreen: React.FC = () => {
                   </View>
                   <View style={styles.rulesCardContent}>
                     <Text style={styles.rulesText}>
-                      {property.house_rules}
+                      {sanitizePublicDescription(property.house_rules)}
                     </Text>
                   </View>
                 </View>
@@ -489,7 +488,16 @@ const PropertyDetailsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Section Hôte */}
+        {/* Section Hôte (chargement async du profil) */}
+        {property && property.host_id && hostProfileLoading && !hostProfile ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t('property.yourHost')}</Text>
+            <View style={styles.hostLoadingRow}>
+              <ActivityIndicator size="small" color="#e67e22" />
+              <Text style={styles.hostLoadingText}>Chargement…</Text>
+            </View>
+          </View>
+        ) : null}
         {property && property.host_id && hostProfile && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t('property.yourHost')}</Text>
@@ -543,7 +551,7 @@ const PropertyDetailsScreen: React.FC = () => {
                   
                   {hostProfile?.bio && (
                     <Text style={styles.hostBio} numberOfLines={2}>
-                      {hostProfile.bio}
+                      {sanitizePublicDescription(hostProfile.bio)}
                     </Text>
                   )}
                 </View>
@@ -957,6 +965,16 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
     fontWeight: '600',
     marginBottom: 4,
+  },
+  hostLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+  },
+  hostLoadingText: {
+    fontSize: 14,
+    color: '#64748b',
   },
   hostBio: {
     fontSize: 14,
