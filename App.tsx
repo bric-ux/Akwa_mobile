@@ -10,7 +10,8 @@ import AppNavigator from './src/navigation/AppNavigator';
 import CurrencyDefaultFromCountry from './src/components/CurrencyDefaultFromCountry';
 
 const queryClient = new QueryClient();
-const SPLASH_MIN_DURATION_MS = 1700;
+/** Délai minimum d’affichage du splash (évite un flash à peine visible). Réduit pour accélérer l’accès à l’app. */
+const SPLASH_MIN_DURATION_MS = 400;
 
 export default function App() {
   return (

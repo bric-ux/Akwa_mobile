@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Image, StyleSheet, StyleProp, ViewStyle, ImageStyle } from 'react-native';
+import React, { useState, memo } from 'react';
+import { View, StyleSheet, StyleProp, ViewStyle, ImageStyle } from 'react-native';
+import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { isVideoUrl } from '../utils/media';
@@ -10,12 +11,27 @@ type MediaThumbProps = {
   resizeMode?: 'cover' | 'contain';
   /** Si défini, évite de redétecter depuis l’URL */
   isVideo?: boolean;
+  /**
+   * `low` pour les listes (Explorer, recherche) : moins de bande passante concurrente.
+   * `high` pour la fiche détail / première image.
+   */
+  priority?: 'low' | 'normal' | 'high';
+  /** Stabilise le recyclage des vues (listes) — ex. `${propertyId}-${index}` */
+  recyclingKey?: string;
 };
 
 /**
  * Vignette image ou courte preview vidéo (muet, pas de lecture auto prolongée).
+ * Images distantes : expo-image (cache disque + mémoire, meilleures perfs que Image RN).
  */
-const MediaThumb: React.FC<MediaThumbProps> = ({ uri, style, resizeMode = 'cover', isVideo: isVideoProp }) => {
+const MediaThumbInner: React.FC<MediaThumbProps> = ({
+  uri,
+  style,
+  resizeMode = 'cover',
+  isVideo: isVideoProp,
+  priority = 'normal',
+  recyclingKey,
+}) => {
   const [videoError, setVideoError] = useState(false);
   const video = isVideoProp ?? isVideoUrl(uri);
 
@@ -55,7 +71,17 @@ const MediaThumb: React.FC<MediaThumbProps> = ({ uri, style, resizeMode = 'cover
     );
   }
 
-  return <Image source={{ uri }} style={style as ImageStyle} resizeMode={resizeMode} />;
+  return (
+    <Image
+      source={uri}
+      style={style as ImageStyle}
+      contentFit={resizeMode === 'cover' ? 'cover' : 'contain'}
+      cachePolicy="memory-disk"
+      priority={priority}
+      recyclingKey={recyclingKey ?? uri}
+      transition={120}
+    />
+  );
 };
 
 const styles = StyleSheet.create({
@@ -76,4 +102,5 @@ const styles = StyleSheet.create({
   },
 });
 
+const MediaThumb = memo(MediaThumbInner);
 export default MediaThumb;

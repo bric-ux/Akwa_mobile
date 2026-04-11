@@ -32,6 +32,8 @@ export interface Property {
     parent_id?: string;
   } | undefined;
   price_per_night: number;
+  /** Prix nuit résolu (tarif dynamique si période active), rempli côté liste Explore/Recherche — évite N requêtes par carte */
+  dynamic_price_today?: number;
   images: string[]; // Gardé pour compatibilité avec l'ancien système
   photos?: CategorizedPhoto[]; // Nouveau système de photos catégorisées
   rating?: number;

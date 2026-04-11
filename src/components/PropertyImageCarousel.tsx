@@ -1,13 +1,13 @@
 import React, { useState, useRef } from 'react';
 import {
   View,
-  Image,
   StyleSheet,
   ScrollView,
   Dimensions,
   TouchableOpacity,
   Text,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import MediaThumb from './MediaThumb';
 import { isVideoUrl } from '../utils/media';
@@ -55,9 +55,11 @@ const PropertyImageCarousel: React.FC<PropertyImageCarouselProps> = ({
     return (
       <View style={[styles.container, { height }]}>
         <Image
-          source={{ uri: 'https://via.placeholder.com/300x200' }}
+          source="https://via.placeholder.com/300x200"
           style={[styles.image, { height }]}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          priority="low"
         />
       </View>
     );
@@ -71,9 +73,13 @@ const PropertyImageCarousel: React.FC<PropertyImageCarouselProps> = ({
           activeOpacity={0.9}
         >
           <Image
-            source={{ uri: images[0] }}
+            source={images[0]}
             style={[styles.image, { height }]}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            priority="high"
+            recyclingKey={`detail-hero-${images[0]}`}
+            transition={150}
           />
         </TouchableOpacity>
       </View>
@@ -103,6 +109,8 @@ const PropertyImageCarousel: React.FC<PropertyImageCarouselProps> = ({
               style={[styles.image, { height }]}
               resizeMode="cover"
               isVideo={isVideoUrl(image)}
+              priority={index === 0 ? 'high' : 'low'}
+              recyclingKey={`detail-carousel-${index}-${image}`}
             />
           </TouchableOpacity>
         ))}

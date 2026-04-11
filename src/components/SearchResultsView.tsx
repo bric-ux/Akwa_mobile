@@ -10,6 +10,7 @@ import {
   Dimensions,
   Image,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,7 +18,7 @@ import { Property } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { TRAVELER_COLORS, COMMON_COLORS } from '../constants/colors';
 import PropertyCard from './PropertyCard';
-import { getPriceForDate, getAveragePriceForPeriod } from '../utils/priceCalculator';
+import { getPriceForDate, getAveragePriceForPeriod, getPricesForDateBatch } from '../utils/priceCalculator';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.5; // Carte prend 50% de l'écran
@@ -66,29 +67,32 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
     }
   }, [properties.length]);
 
-  // Charger les prix dynamiques pour toutes les propriétés
+  // Prix dynamiques pour la carte / liste : une requête groupée par paquets (pas N appels séquentiels)
   useEffect(() => {
     const loadPrices = async () => {
-      const pricesMap = new Map<string, number>();
-      const today = new Date();
-      
-      for (const property of properties) {
-        try {
-          const price = await getPriceForDate(property.id, today, property.price_per_night || 0);
-          pricesMap.set(property.id, price);
-        } catch (error) {
-          console.error(`Error loading price for property ${property.id}:`, error);
-          pricesMap.set(property.id, property.price_per_night || 0);
-        }
+      if (properties.length === 0) {
+        setPropertyPrices(new Map());
+        return;
       }
-      
-      setPropertyPrices(pricesMap);
+      const refDate = checkIn ? new Date(checkIn) : new Date();
+      const baseMap = new Map(properties.map((p) => [p.id, p.price_per_night || 0]));
+      try {
+        const pricesMap = await getPricesForDateBatch(
+          properties.map((p) => p.id),
+          refDate,
+          baseMap
+        );
+        setPropertyPrices(pricesMap);
+      } catch (error) {
+        console.error('[SearchResultsView] batch prices:', error);
+        const fallback = new Map<string, number>();
+        properties.forEach((p) => fallback.set(p.id, p.price_per_night || 0));
+        setPropertyPrices(fallback);
+      }
     };
 
-    if (properties.length > 0) {
-      loadPrices();
-    }
-  }, [properties]);
+    loadPrices();
+  }, [properties, checkIn]);
 
   // Charger le prix pour la propriété sélectionnée (avec dates si disponibles)
   useEffect(() => {
@@ -727,8 +731,11 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
 
   const flatListRef = useRef<FlatList>(null);
 
-  const renderPropertyCard = ({ item }: { item: Property }) => (
-    <PropertyCard property={item} onPress={onPropertyPress || (() => {})} variant="list" />
+  const renderPropertyCard = useCallback(
+    ({ item }: { item: Property }) => (
+      <PropertyCard property={item} onPress={onPropertyPress || (() => {})} variant="list" />
+    ),
+    [onPropertyPress]
   );
 
   const bottomSheetStyle = {
@@ -896,6 +903,11 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
               contentContainerStyle={styles.propertiesList}
               style={styles.flatList}
               nestedScrollEnabled={true}
+              removeClippedSubviews={Platform.OS === 'android'}
+              maxToRenderPerBatch={8}
+              windowSize={5}
+              initialNumToRender={6}
+              updateCellsBatchingPeriod={50}
               onScrollToIndexFailed={(info) => {
                 // Handle scroll to index failure
                 setTimeout(() => {

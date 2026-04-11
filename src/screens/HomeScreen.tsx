@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ImageBackground,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -308,10 +309,11 @@ const HomeScreen: React.FC = () => {
               tintColor="#e67e22"
             />
           }
-          removeClippedSubviews={false}
-          maxToRenderPerBatch={8}
-          windowSize={5}
-          initialNumToRender={4}
+          removeClippedSubviews={Platform.OS === 'android'}
+          maxToRenderPerBatch={6}
+          windowSize={9}
+          initialNumToRender={5}
+          updateCellsBatchingPeriod={50}
         />
 
         <View

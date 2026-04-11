@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -350,30 +351,48 @@ const SearchScreen: React.FC = () => {
     navigation.navigate('MonthlyRentalListingDetail' as never, { listingId: listing.id });
   };
 
-  const handlePropertyPress = (property: Property) => {
-    // Toujours passer les dates actuelles (même si undefined) ET les dates du context
-    // PropertyDetailsScreen utilisera les dates de la route en priorité, sinon celles du context
-    const datesToPass = {
-      checkIn: checkIn || searchDates.checkIn,
-      checkOut: checkOut || searchDates.checkOut,
-      adults: adults || searchDates.adults || 1,
-      children: children || searchDates.children || 0,
-      babies: babies || searchDates.babies || 0,
-    };
-    
-    console.log('📅 SearchScreen - handlePropertyPress avec dates:', {
-      localCheckIn: checkIn,
-      localCheckOut: checkOut,
-      contextCheckIn: searchDates.checkIn,
-      contextCheckOut: searchDates.checkOut,
-      datesToPass,
-    });
-    
-    navigation.navigate('PropertyDetails', { 
-      propertyId: property.id,
-      ...datesToPass,
-    });
-  };
+  const handlePropertyPress = useCallback(
+    (property: Property) => {
+      const datesToPass = {
+        checkIn: checkIn || searchDates.checkIn,
+        checkOut: checkOut || searchDates.checkOut,
+        adults: adults || searchDates.adults || 1,
+        children: children || searchDates.children || 0,
+        babies: babies || searchDates.babies || 0,
+      };
+
+      if (__DEV__) {
+        console.log('📅 SearchScreen - handlePropertyPress avec dates:', {
+          localCheckIn: checkIn,
+          localCheckOut: checkOut,
+          contextCheckIn: searchDates.checkIn,
+          contextCheckOut: searchDates.checkOut,
+          datesToPass,
+        });
+      }
+
+      navigation.navigate('PropertyDetails', {
+        propertyId: property.id,
+        ...datesToPass,
+      });
+    },
+    [navigation, checkIn, checkOut, adults, children, babies, searchDates]
+  );
+
+  const renderPropertyCard = useCallback(
+    ({ item }: { item: Property }) => (
+      <PropertyCard property={item} onPress={handlePropertyPress} variant="list" />
+    ),
+    [handlePropertyPress]
+  );
+
+  const propertyFlatListPerf = {
+    removeClippedSubviews: Platform.OS === 'android',
+    maxToRenderPerBatch: 8,
+    windowSize: 5,
+    initialNumToRender: 6,
+    updateCellsBatchingPeriod: 50,
+  } as const;
 
   const handleFilterChange = (newFilters: SearchFilters) => {
     setFilters(newFilters);
@@ -563,14 +582,6 @@ const SearchScreen: React.FC = () => {
     if (total === 1) return '1 voyageur';
     return `${total} voyageurs`;
   };
-
-  const renderPropertyCard = ({ item }: { item: Property }) => (
-    <PropertyCard 
-      property={item} 
-      onPress={handlePropertyPress} 
-      variant="list"
-    />
-  );
 
   const hasPropertyResults = rentalType !== 'monthly' && sortedProperties.length > 0 && !loading && !error;
   const hasMonthlyResults = rentalType === 'monthly' && monthlyListings.length > 0 && !monthlyLoading;
@@ -784,6 +795,7 @@ const SearchScreen: React.FC = () => {
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.propertiesList}
+            {...propertyFlatListPerf}
             ListHeaderComponent={
               <SearchResultsHeader
                 resultsCount={monthlyListings.length}
@@ -842,6 +854,7 @@ const SearchScreen: React.FC = () => {
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.propertiesList}
+            {...propertyFlatListPerf}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -870,6 +883,7 @@ const SearchScreen: React.FC = () => {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.propertiesList}
+          {...propertyFlatListPerf}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

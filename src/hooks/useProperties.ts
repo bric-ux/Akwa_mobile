@@ -1,9 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Property, SearchFilters, Amenity } from '../types';
+
+/** Date de référence pour le prix affiché en liste : arrivée recherchée ou aujourd’hui */
+function getRefDateStrForListPricing(filters?: SearchFilters): string {
+  if (filters?.checkIn) {
+    const ci = filters.checkIn as string | Date;
+    if (typeof ci === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ci)) return ci;
+    const d = new Date(ci);
+    if (Number.isNaN(d.getTime())) {
+      const t = new Date();
+      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    }
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+}
 import { getAmenityIcon } from '../utils/amenityIcons';
 import { calculateDistance, isWithinRadius } from '../utils/distance';
 import { log, logError, logWarn } from '../utils/logger';
+import { getPricesForDateBatch } from '../utils/priceCalculator';
 
 // Fonction helper pour calculer rating et review_count depuis les avis approuvés
 const calculateRatingFromReviews = async (propertyId: string): Promise<{ rating: number; review_count: number }> => {
@@ -746,10 +766,24 @@ export const useProperties = () => {
 
       console.log('🎯 Propriétés transformées:', transformedProperties.length);
 
-      setProperties(transformedProperties);
-      
+      const refDate = getRefDateStrForListPricing(filters);
+      const baseMap = new Map(
+        transformedProperties.map((p: Property) => [p.id, p.price_per_night || 0])
+      );
+      const priceMap = await getPricesForDateBatch(
+        transformedProperties.map((p: Property) => p.id),
+        refDate,
+        baseMap
+      );
+      const withDynamic: Property[] = transformedProperties.map((p: Property) => ({
+        ...p,
+        dynamic_price_today: priceMap.get(p.id) ?? p.price_per_night,
+      }));
+
+      setProperties(withDynamic);
+
       // Mettre en cache les résultats
-      setCache(prev => new Map(prev).set(cacheKey, transformedProperties));
+      setCache(prev => new Map(prev).set(cacheKey, withDynamic));
       
     } catch (err) {
       console.error('Erreur lors du chargement des propriétés:', err);
@@ -1238,14 +1272,28 @@ export const useProperties = () => {
         })
       );
 
+      const refDate = getRefDateStrForListPricing(filters);
+      const baseMapRefresh = new Map(
+        transformedData.map((p: Property) => [p.id, p.price_per_night || 0])
+      );
+      const priceMapRefresh = await getPricesForDateBatch(
+        transformedData.map((p: Property) => p.id),
+        refDate,
+        baseMapRefresh
+      );
+      const withDynamicRefresh: Property[] = transformedData.map((p: Property) => ({
+        ...p,
+        dynamic_price_today: priceMapRefresh.get(p.id) ?? p.price_per_night,
+      }));
+
       // Mettre à jour le cache avec les nouvelles données
       setCache(prevCache => {
         const newCache = new Map(prevCache);
-        newCache.set(cacheKey, transformedData);
+        newCache.set(cacheKey, withDynamicRefresh);
         return newCache;
       });
 
-      setProperties(transformedData);
+      setProperties(withDynamicRefresh);
     } catch (err) {
       console.error('❌ Erreur lors du rafraîchissement:', err);
       setError(err instanceof Error ? err.message : 'Erreur inconnue');

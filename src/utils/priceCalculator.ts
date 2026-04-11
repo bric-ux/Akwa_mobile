@@ -1,5 +1,77 @@
 import { supabase } from '../services/supabase';
 
+/** Date locale → YYYY-MM-DD (aligné sur getPriceForDate). */
+function toYyyyMmDd(date: string | Date): string {
+  if (typeof date === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return toYyyyMmDd(new Date());
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const BATCH_CHUNK_SIZE = 80;
+
+/**
+ * Résout le prix affichable (dynamique si période couvrant la date, sinon prix de base) pour plusieurs propriétés en peu de requêtes.
+ * Même règle que getPriceForDate : parmi les périodes qui couvrent la date, on prend celle avec start_date la plus ancienne.
+ */
+export const getPricesForDateBatch = async (
+  propertyIds: string[],
+  date: string | Date,
+  basePriceByPropertyId: Map<string, number>
+): Promise<Map<string, number>> => {
+  const dateStr = toYyyyMmDd(date);
+  const uniqueIds = [...new Set(propertyIds)];
+  const out = new Map<string, number>();
+  for (const id of uniqueIds) {
+    out.set(id, basePriceByPropertyId.get(id) ?? 0);
+  }
+  if (uniqueIds.length === 0) return out;
+
+  for (let i = 0; i < uniqueIds.length; i += BATCH_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + BATCH_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from('property_dynamic_pricing')
+      .select('property_id, price_per_night, start_date')
+      .in('property_id', chunk)
+      .lte('start_date', dateStr)
+      .gte('end_date', dateStr);
+
+    if (error) {
+      if (__DEV__) {
+        console.warn('[getPricesForDateBatch]', error.message || error.code || String(error));
+      }
+      continue;
+    }
+
+    const rows = [...(data || [])].sort((a: { property_id: string; start_date: string }, b) => {
+      if (a.property_id !== b.property_id) return String(a.property_id).localeCompare(String(b.property_id));
+      return String(a.start_date).localeCompare(String(b.start_date));
+    });
+
+    const seenInChunk = new Set<string>();
+    for (const row of rows) {
+      const pid = String(row.property_id);
+      if (seenInChunk.has(pid)) continue;
+      seenInChunk.add(pid);
+      const dyn = Number(row.price_per_night);
+      if (!Number.isNaN(dyn) && dyn > 0) {
+        out.set(pid, dyn);
+      }
+    }
+  }
+
+  return out;
+};
+
 /**
  * Calcule le prix d'une propriété pour une date donnée en tenant compte des prix dynamiques
  * @param propertyId - ID de la propriété

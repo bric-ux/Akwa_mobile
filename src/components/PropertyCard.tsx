@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   View,
   Text,
@@ -29,7 +29,7 @@ interface PropertyCardProps {
   variant?: 'grid' | 'list';
 }
 
-const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant = 'grid' }) => {
+const PropertyCardInner: React.FC<PropertyCardProps> = ({ property, onPress, variant = 'grid' }) => {
   const { requireAuthForFavorites } = useAuthRedirect();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { formatPrice: formatPriceWithCurrency, currency } = useCurrency();
@@ -37,15 +37,18 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [slideWidth, setSlideWidth] = useState(SCREEN_W);
-  const [carouselIndex, setCarouselIndex] = useState(0);
 
   useEffect(() => {
     // Mettre à jour l'état local quand le cache global change
     setIsFavorited(isFavoriteSync(property.id));
   }, [property.id, isFavoriteSync, currency]);
 
-  // Charger le prix pour aujourd'hui
+  // Prix dynamique : en liste, fourni par le parent (requête groupée). En grille, chargement unitaire.
   useEffect(() => {
+    if (variant === 'list') {
+      setDisplayPrice(null);
+      return;
+    }
     const loadTodayPrice = async () => {
       try {
         const today = new Date();
@@ -58,7 +61,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
     };
 
     loadTodayPrice();
-  }, [property.id, property.price_per_night]);
+  }, [property.id, property.price_per_night, variant]);
 
   const handleFavoritePress = async (e: any) => {
     e.stopPropagation();
@@ -95,6 +98,34 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
     }
   };
 
+  /** Liste : `dynamic_price_today` (batch). Grille : `displayPrice` async ou base. */
+  const effectiveNightPrice =
+    variant === 'list' && property.dynamic_price_today != null
+      ? property.dynamic_price_today
+      : displayPrice !== null
+        ? displayPrice
+        : property.price_per_night;
+
+  /**
+   * Liste (Explorer, recherche) : une seule image — pas de ScrollView horizontal dans la ligne,
+   * sinon le défilement vertical du FlatList se bloque / saccade.
+   */
+  const renderListCoverImage = (height: number) => {
+    const uri = coverUri || galleryUrls[0];
+    return (
+      <View style={[styles.imageContainer, { height }]}>
+        <MediaThumb
+          uri={uri}
+          style={{ width: '100%', height }}
+          resizeMode="cover"
+          isVideo={isVideoUrl(uri)}
+          priority="low"
+          recyclingKey={`${property.id}-list-cover`}
+        />
+      </View>
+    );
+  };
+
   const renderImageCarousel = (height: number) => (
     <View style={[styles.imageContainer, { height }]} onLayout={onStripLayout}>
       {galleryUrls.length > 1 ? (
@@ -114,6 +145,8 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
                 style={{ width: slideWidth, height }}
                 resizeMode="cover"
                 isVideo={isVideoUrl(uri)}
+                priority={i === 0 ? 'high' : 'normal'}
+                recyclingKey={`${property.id}-g-${i}`}
               />
             </View>
           ))}
@@ -124,6 +157,8 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
           style={{ width: '100%', height }}
           resizeMode="cover"
           isVideo={isVideoUrl(galleryUrls[0])}
+          priority="high"
+          recyclingKey={`${property.id}-cover`}
         />
       )}
     </View>
@@ -139,12 +174,12 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
         <View style={styles.cardLayout}>
           {/* Image avec prix en overlay */}
           <View style={styles.imageArea}>
-            {renderImageCarousel(CAROUSEL_HEIGHT)}
+            {renderListCoverImage(CAROUSEL_HEIGHT)}
             {/* Prix en overlay */}
             <View style={styles.priceOverlay} pointerEvents="none">
               <View style={styles.priceOverlayContent}>
                 <Text style={styles.priceText}>
-                  {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}/{t('common.perNight')}
+                  {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
                 </Text>
               </View>
               {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
@@ -219,7 +254,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onPress, variant 
           
           <View style={styles.priceContainer}>
             <Text style={styles.price}>
-              {formatPrice(displayPrice !== null ? displayPrice : property.price_per_night)}/{t('common.perNight')}
+              {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
             </Text>
             {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
               <Text style={styles.discountBadgeOverlay}>
@@ -555,4 +590,5 @@ const styles = StyleSheet.create({
   },
 });
 
+const PropertyCard = memo(PropertyCardInner);
 export default PropertyCard;

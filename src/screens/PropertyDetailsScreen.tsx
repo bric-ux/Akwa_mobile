@@ -4,12 +4,12 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   Alert,
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
@@ -505,8 +505,12 @@ const PropertyDetailsScreen: React.FC = () => {
                 <View style={styles.hostAvatarContainer}>
                   {hostProfile?.avatar_url ? (
                     <Image
-                      source={{ uri: hostProfile.avatar_url }}
+                      source={hostProfile.avatar_url}
                       style={styles.hostAvatar}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      priority="low"
+                      transition={120}
                     />
                   ) : (
                     <View style={styles.hostAvatarPlaceholder}>
