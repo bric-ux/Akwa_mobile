@@ -56,7 +56,19 @@ const BookingCard: React.FC<BookingCardProps> = ({
   }, [booking.id]);
 
   const handleContactHost = async () => {
-    if (!user || !booking.properties?.host_id || !booking.properties?.id) {
+    if (!user) {
+      Alert.alert(
+        'Connexion requise',
+        'Vous devez être connecté pour contacter l\'hôte.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Se connecter', onPress: () => (navigation as any).navigate('Auth') },
+        ]
+      );
+      return;
+    }
+
+    if (!booking.properties?.host_id || !booking.properties?.id) {
       Alert.alert('Erreur', 'Impossible de contacter l\'hôte. Informations manquantes.');
       return;
     }

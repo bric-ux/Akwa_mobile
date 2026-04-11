@@ -469,6 +469,14 @@ const AdminDashboardScreen: React.FC = () => {
           />
 
           <QuickAction
+            title="Payer parrainage"
+            description="Campagne 1 000 FCFA — marquer les virements Wave"
+            icon="gift-outline"
+            onPress={() => navigation.navigate('AdminReferralPayouts' as never)}
+            color="#8b5cf6"
+          />
+
+          <QuickAction
             title="Remboursements"
             description="Suivre et gérer les remboursements"
             icon="refresh-outline"

@@ -195,7 +195,7 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
     <TouchableOpacity
       style={getButtonStyle()}
       onPress={handleContactHost}
-      disabled={loading || !user || user.id === property.host_id}
+      disabled={loading || (!!user && user.id === property.host_id)}
       activeOpacity={0.7}
     >
       {loading ? (

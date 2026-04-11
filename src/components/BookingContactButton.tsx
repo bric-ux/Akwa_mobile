@@ -178,7 +178,7 @@ const BookingContactButton: React.FC<BookingContactButtonProps> = ({
     <TouchableOpacity
       style={getButtonStyle()}
       onPress={handleContact}
-      disabled={loading || !user || user.id === otherParticipantId}
+      disabled={loading || (!!user && user.id === otherParticipantId)}
       activeOpacity={0.7}
     >
       {loading ? (

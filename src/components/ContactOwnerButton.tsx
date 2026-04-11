@@ -198,7 +198,7 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
     <TouchableOpacity
       style={getButtonStyle()}
       onPress={handleContactOwner}
-      disabled={loading || !user || user.id === vehicle.owner_id}
+      disabled={loading || (!!user && user.id === vehicle.owner_id)}
       activeOpacity={0.8}
     >
       {loading ? (

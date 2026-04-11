@@ -15,7 +15,7 @@ interface Referral {
   referred_email: string;
   referred_user_id: string | null;
   referral_code: string;
-  status: 'pending' | 'registered' | 'first_property' | 'completed';
+  status: 'pending' | 'registered' | 'application_submitted' | 'first_property' | 'completed';
   reward_amount: number;
   referrer_type: 'host' | 'guest';
   completed_at: string | null;
@@ -23,12 +23,33 @@ interface Referral {
   updated_at: string;
   cash_reward_paid?: boolean;
   cash_reward_amount?: number;
+  /** Campagne actuelle 1000 FCFA (candidature approuvée) — exclut l’ancien système du plafond 30 */
+  approval_campaign_reward?: boolean | null;
+  referral_payout_paid_at?: string | null;
+  referral_payout_marked_by?: string | null;
   // Informations du filleul (ajoutées lors de la récupération)
   referred_user?: {
     first_name: string | null;
     last_name: string | null;
   };
 }
+
+/** Campagne parrainage : 1000 FCFA à l’approbation candidature, max 30 filleuls rémunérés */
+export const REFERRAL_CAMPAIGN_UNIT_FCFA = 1000;
+export const REFERRAL_CAMPAIGN_MAX_SLOTS = 30;
+
+export type ReferralCampaignStats = {
+  maxSlots: number;
+  unitFcfa: number;
+  /** Parrainages campagne avec récompense 1000 (ou 0 si plafond) */
+  slotsUsed: number;
+  slotsRemaining: number;
+  /** Somme des montants campagne non encore marqués payés par l’admin */
+  pendingFcfa: number;
+  pendingLines: number;
+  /** Total crédité campagne (tous statuts payés ou non) */
+  totalCreditedCampaignFcfa: number;
+};
 
 interface DiscountVoucher {
   id: string;
@@ -469,14 +490,46 @@ export const useReferrals = () => {
   // Statistiques pour les hôtes
   // Inclure seulement les parrainages où referrer_type est explicitement 'host'
   const hostReferrals = referrals.filter(r => r.referrer_type === 'host');
-  
+
+  const computeCampaignStats = (list: Referral[]): ReferralCampaignStats => {
+    const campaign = list.filter(r => r.approval_campaign_reward === true);
+    const slotsUsed = campaign.filter(r => (r.reward_amount || 0) >= REFERRAL_CAMPAIGN_UNIT_FCFA).length;
+    const unpaid = campaign.filter(
+      r =>
+        (r.cash_reward_amount || 0) > 0 &&
+        (r.cash_reward_paid === false || r.cash_reward_paid === null || r.cash_reward_paid === undefined)
+    );
+    const pendingFcfa = unpaid.reduce((s, r) => s + (r.cash_reward_amount || 0), 0);
+    const totalCreditedCampaignFcfa = campaign.reduce((s, r) => s + (r.reward_amount || 0), 0);
+    return {
+      maxSlots: REFERRAL_CAMPAIGN_MAX_SLOTS,
+      unitFcfa: REFERRAL_CAMPAIGN_UNIT_FCFA,
+      slotsUsed,
+      slotsRemaining: Math.max(0, REFERRAL_CAMPAIGN_MAX_SLOTS - slotsUsed),
+      pendingFcfa,
+      pendingLines: unpaid.length,
+      totalCreditedCampaignFcfa,
+    };
+  };
+
+  const hostCampaign = computeCampaignStats(hostReferrals);
+  const allCampaign = computeCampaignStats(referrals);
+
   const hostStats = {
     total: hostReferrals.length,
     pending: hostReferrals.filter(r => r.status === 'pending').length,
     registered: hostReferrals.filter(r => r.status === 'registered').length,
     completed: hostReferrals.filter(r => r.status === 'completed').length,
+    /** Somme historique (tous systèmes) */
     totalRewards: hostReferrals.reduce((sum, r) => sum + (r.reward_amount || 0), 0),
-    pendingPayment: hostReferrals.filter(r => r.status === 'completed' && !r.cash_reward_paid).length,
+    pendingPayment: hostReferrals.filter(
+      r =>
+        r.status === 'completed' &&
+        r.approval_campaign_reward === true &&
+        (r.cash_reward_amount || 0) > 0 &&
+        !r.cash_reward_paid
+    ).length,
+    campaign: hostCampaign,
   };
 
   // Statistiques pour les voyageurs
@@ -505,6 +558,8 @@ export const useReferrals = () => {
     activeVouchers: activeVouchers.length,
     usedVouchers: usedVouchers.length,
     totalSavings: usedVouchers.reduce((sum, v) => sum + (v.discount_amount || 0), 0),
+    /** Campagne cash (tous types de parrain) */
+    campaign: allCampaign,
   };
 
   // Log pour debug
@@ -535,6 +590,8 @@ export const useReferrals = () => {
     verifyReferralCode,
     hostStats,
     guestStats,
+    /** Stats campagne 1000 FCFA (tous parrainages de l’utilisateur) */
+    referralCampaign: allCampaign,
   };
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { useReferrals } from '../hooks/useReferrals';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useReferrals, REFERRAL_CAMPAIGN_MAX_SLOTS, REFERRAL_CAMPAIGN_UNIT_FCFA } from '../hooks/useReferrals';
+import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import * as Clipboard from 'expo-clipboard';
 
 const GuestReferralScreen: React.FC = () => {
@@ -28,8 +29,41 @@ const GuestReferralScreen: React.FC = () => {
     isLoadingReferrals,
     referrals,
   } = useReferrals();
+  const { fetchPaymentInfo } = useHostPaymentInfo();
 
   const [isCreating, setIsCreating] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPaymentInfo();
+    }, [fetchPaymentInfo])
+  );
+
+  const handleWithdrawPress = async () => {
+    const info = await fetchPaymentInfo();
+    const waveOk =
+      info?.preferred_payment_method === 'mobile_money' &&
+      info?.mobile_money_provider === 'wave' &&
+      !!(info?.mobile_money_number || '').trim();
+    if (!waveOk) {
+      Alert.alert(
+        'Numéro Wave requis',
+        'Pour recevoir vos récompenses par Wave, renseignez votre numéro Wave dans les informations de paiement.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Informations de paiement',
+            onPress: () => (navigation as any).navigate('HostPaymentInfo'),
+          },
+        ]
+      );
+      return;
+    }
+    Alert.alert(
+      'Versement Wave',
+      "Les montants dus sont versés par l'équipe AkwaHome sur votre numéro Wave après validation."
+    );
+  };
 
   const handleCreateCode = async () => {
     setIsCreating(true);
@@ -105,7 +139,7 @@ const GuestReferralScreen: React.FC = () => {
               <Text style={styles.cardTitle}>Programme de Parrainage Voyageur</Text>
             </View>
             <Text style={styles.cardDescription}>
-              Parrainez des amis qui souhaitent devenir hôtes et gagnez un bon de réduction de 10 % sur une prochaine réservation pour chaque parrainage complété.
+              {`Gagnez ${REFERRAL_CAMPAIGN_UNIT_FCFA.toLocaleString('fr-FR')} FCFA par filleul lorsque sa candidature hôte est approuvée (plafond ${REFERRAL_CAMPAIGN_MAX_SLOTS} filleuls rémunérés pour la campagne actuelle). Les anciens bons de réduction éventuels restent soumis à leurs conditions.`}
             </Text>
           </View>
 
@@ -115,19 +149,16 @@ const GuestReferralScreen: React.FC = () => {
               <Text style={styles.rulesTitle}>Règles du programme</Text>
             </View>
             <Text style={styles.rulesItem}>
-              • Votre filleul doit s’inscrire sur AkwaHome et utiliser votre code lors de son parcours hôte (candidature / inscription).
+              • Votre filleul s’inscrit avec votre code et dépose sa candidature hôte.
             </Text>
             <Text style={styles.rulesItem}>
-              • Le parrainage est comptabilisé lorsque le statut passe à « Complété » (parcours validé selon les critères AkwaHome).
+              • Lorsque la candidature est approuvée, vous êtes crédité de 1 000 FCFA (campagne actuelle), dans la limite de 30 filleuls rémunérés (les récompenses de l’ancien système ne comptent pas dans ce plafond).
             </Text>
             <Text style={styles.rulesItem}>
-              • Pour chaque parrainage complété en tant que parrain voyageur, vous recevez un bon de 10 % de réduction utilisable sur une prochaine réservation (montant plafonné selon les conditions du bon affichées sur le bon).
+              • Renseignez votre numéro Wave dans « Informations de paiement » pour le versement.
             </Text>
             <Text style={styles.rulesItem}>
-              • Les bons ont une durée de validité ; un seul bon actif par réservation sauf mention contraire sur la plateforme.
-            </Text>
-            <Text style={styles.rulesItem}>
-              • AkwaHome peut adapter le programme ; les bons déjà émis restent soumis aux conditions indiquées sur chaque bon.
+              • D’éventuels bons déjà émis avant la campagne cash restent valables selon leur échéance.
             </Text>
           </View>
 
@@ -199,6 +230,34 @@ const GuestReferralScreen: React.FC = () => {
             </>
           )}
         </View>
+
+        {/* Campagne cash + retrait */}
+        {guestStats?.campaign && guestStats.campaign.pendingFcfa > 0 ? (
+          <View style={[styles.section, { marginBottom: 8 }]}>
+            <View style={[styles.card, { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#bbf7d0' }]}>
+              <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Récompense campagne (Wave)</Text>
+              <Text style={[styles.cardDescription, { marginBottom: 12 }]}>
+                {`${guestStats.campaign.pendingFcfa.toLocaleString('fr-FR')} FCFA en attente de versement — ${guestStats.campaign.slotsUsed}/${REFERRAL_CAMPAIGN_MAX_SLOTS} filleuls rémunérés.`}
+              </Text>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#15803d',
+                  paddingVertical: 14,
+                  borderRadius: 10,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+                onPress={handleWithdrawPress}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="wallet-outline" size={22} color="#fff" />
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Retirer (vérifier Wave)</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
 
         {/* Statistiques */}
         <View style={styles.section}>
@@ -286,12 +345,11 @@ const GuestReferralScreen: React.FC = () => {
                   if (lastName) return lastName;
                   return null;
                 })();
-                const displayName = fullName || ref.referred_email || 'Utilisateur';
-                
                 // Traduire le statut
                 const statusLabels: { [key: string]: string } = {
                   'pending': 'En attente',
                   'registered': 'Inscrit',
+                  'application_submitted': 'Candidature déposée',
                   'first_property': 'Première propriété',
                   'completed': 'Complété',
                 };
@@ -302,6 +360,7 @@ const GuestReferralScreen: React.FC = () => {
                   switch (status) {
                     case 'completed': return '#4caf50';
                     case 'first_property': return '#2196f3';
+                    case 'application_submitted': return '#6366f1';
                     case 'registered': return '#ff9800';
                     case 'pending': return '#9e9e9e';
                     default: return '#9e9e9e';
@@ -450,7 +509,7 @@ const GuestReferralScreen: React.FC = () => {
                         {voucher.discount_percentage}% de réduction
                       </Text>
                       <Text style={styles.voucherAmount}>
-                        Jusqu'à {formatPrice(voucher.discount_amount || 0)}
+                        Jusqu&apos;à {formatPrice(voucher.discount_amount || 0)}
                       </Text>
                     </View>
                     <View style={[
@@ -465,7 +524,7 @@ const GuestReferralScreen: React.FC = () => {
                   </View>
                   {voucher.valid_until ? (
                     <Text style={styles.voucherDate}>
-                      Valide jusqu'au {new Date(voucher.valid_until).toLocaleDateString('fr-FR')}
+                      Valide jusqu&apos;au {new Date(voucher.valid_until).toLocaleDateString('fr-FR')}
                     </Text>
                   ) : null}
                 </View>

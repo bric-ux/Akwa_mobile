@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { useReferrals } from '../hooks/useReferrals';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useReferrals, REFERRAL_CAMPAIGN_MAX_SLOTS, REFERRAL_CAMPAIGN_UNIT_FCFA } from '../hooks/useReferrals';
+import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import * as Clipboard from 'expo-clipboard';
 
 const HostReferralScreen: React.FC = () => {
@@ -26,6 +27,40 @@ const HostReferralScreen: React.FC = () => {
     isLoadingReferrals,
     hostStats,
   } = useReferrals();
+
+  const { fetchPaymentInfo } = useHostPaymentInfo();
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPaymentInfo();
+    }, [fetchPaymentInfo])
+  );
+
+  const handleWithdrawPress = async () => {
+    const info = await fetchPaymentInfo();
+    const waveOk =
+      info?.preferred_payment_method === 'mobile_money' &&
+      info?.mobile_money_provider === 'wave' &&
+      !!(info?.mobile_money_number || '').trim();
+    if (!waveOk) {
+      Alert.alert(
+        'Numéro Wave requis',
+        'Pour recevoir vos récompenses par Wave, renseignez votre numéro Wave dans les informations de paiement.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Informations de paiement',
+            onPress: () => (navigation as any).navigate('HostPaymentInfo'),
+          },
+        ]
+      );
+      return;
+    }
+    Alert.alert(
+      'Versement Wave',
+      "Les montants dus sont versés par l'équipe AkwaHome sur votre numéro Wave après validation. Assurez-vous que vos coordonnées sont à jour."
+    );
+  };
 
   const [isCreating, setIsCreating] = useState(false);
 
@@ -54,7 +89,7 @@ const HostReferralScreen: React.FC = () => {
     const message = `Rejoignez Akwa Home en tant qu'hôte avec mon code de parrainage: ${referralCode.referral_code}`;
 
     try {
-      const result = await Share.share({
+      await Share.share({
         message: message,
         title: 'Code de parrainage AkwaHome',
       });
@@ -86,7 +121,12 @@ const HostReferralScreen: React.FC = () => {
     });
   };
 
-  const getStatusInfo = (status: string) => {
+  const getStatusInfo = (referral: {
+    status: string;
+    approval_campaign_reward?: boolean | null;
+    reward_amount?: number | null;
+  }) => {
+    const status = referral.status;
     switch (status) {
       case 'pending':
         return {
@@ -96,22 +136,37 @@ const HostReferralScreen: React.FC = () => {
         };
       case 'registered':
         return {
-          label: 'Candidature envoyée',
+          label: 'Inscrit avec votre code',
           color: '#3498db',
+          icon: 'person-add-outline',
+        };
+      case 'application_submitted':
+        return {
+          label: 'Candidature déposée',
+          color: '#6366f1',
           icon: 'document-text-outline',
         };
       case 'first_property':
         return {
-          label: 'Candidature acceptée',
+          label: 'Première propriété',
           color: '#10b981',
-          icon: 'checkmark-circle-outline',
+          icon: 'home-outline',
         };
-      case 'completed':
+      case 'completed': {
+        const isCampaign = referral.approval_campaign_reward === true;
+        const amt = referral.reward_amount || 0;
+        const label =
+          isCampaign && amt >= REFERRAL_CAMPAIGN_UNIT_FCFA
+            ? `Validé — ${REFERRAL_CAMPAIGN_UNIT_FCFA.toLocaleString('fr-FR')} FCFA`
+            : isCampaign && amt === 0
+              ? 'Validé — plafond 30 atteint'
+              : `Complété${amt > 0 ? ` — ${amt.toLocaleString('fr-FR')} FCFA` : ''}`;
         return {
-          label: 'Complété - 5000 XOF',
+          label,
           color: '#2E7D32',
           icon: 'trophy-outline',
         };
+      }
       default:
         return {
           label: status ? String(status) : 'Inconnu',
@@ -154,7 +209,7 @@ const HostReferralScreen: React.FC = () => {
             <Ionicons name="gift-outline" size={48} color="#2E7D32" />
             <Text style={styles.cardTitle}>Système de Parrainage</Text>
             <Text style={styles.cardDescription}>
-              Créez votre code de parrainage pour inviter d'autres hôtes
+              Créez votre code de parrainage pour inviter d&apos;autres hôtes
             </Text>
             <TouchableOpacity
               style={styles.createButton}
@@ -193,33 +248,42 @@ const HostReferralScreen: React.FC = () => {
         <View style={styles.rewardCard}>
           <View style={styles.rewardHeader}>
             <Ionicons name="sparkles" size={24} color="#2E7D32" />
-            <Text style={styles.rewardTitle}>Programme de Récompense</Text>
+            <Text style={styles.rewardTitle}>Programme de récompense</Text>
           </View>
           <Text style={styles.rewardDescription}>
-            Recevez 5000 XOF pour chaque hôte parrainé qui reçoit sa première réservation
+            {`${REFERRAL_CAMPAIGN_UNIT_FCFA.toLocaleString('fr-FR')} FCFA par filleul lorsque sa candidature hôte est approuvée par AkwaHome. Maximum ${REFERRAL_CAMPAIGN_MAX_SLOTS} filleuls rémunérés dans cette campagne (l’ancien système ne compte pas dans ce plafond).`}
           </Text>
-          
+
           <View style={styles.rewardStats}>
             <View style={styles.rewardStatItem}>
-              <Text style={styles.rewardStatValue}>{hostStats.totalRewards} XOF</Text>
-              <Text style={styles.rewardStatLabel}>Récompenses gagnées</Text>
+              <Text style={styles.rewardStatValue}>
+                {hostStats.campaign.slotsUsed}/{REFERRAL_CAMPAIGN_MAX_SLOTS}
+              </Text>
+              <Text style={styles.rewardStatLabel}>Filleuls rémunérés (campagne)</Text>
             </View>
             <View style={styles.rewardStatItem}>
               <Text style={[styles.rewardStatValue, { color: '#f59e0b' }]}>
-                {hostStats.pendingPayment}
+                {hostStats.campaign.pendingFcfa.toLocaleString('fr-FR')} FCFA
               </Text>
-              <Text style={styles.rewardStatLabel}>En attente de paiement</Text>
+              <Text style={styles.rewardStatLabel}>À recevoir (Wave)</Text>
             </View>
           </View>
+
+          {hostStats.campaign.pendingFcfa > 0 ? (
+            <TouchableOpacity style={styles.withdrawButton} onPress={handleWithdrawPress} activeOpacity={0.85}>
+              <Ionicons name="wallet-outline" size={22} color="#fff" />
+              <Text style={styles.withdrawButtonText}>Retirer (vérifier Wave)</Text>
+            </TouchableOpacity>
+          ) : null}
 
           <View style={styles.howItWorks}>
             <Ionicons name="information-circle" size={20} color="#3498db" />
             <View style={styles.howItWorksContent}>
               <Text style={styles.howItWorksTitle}>Comment ça marche ?</Text>
-              <Text style={styles.howItWorksText}>• Parrainez un nouvel hôte avec votre code</Text>
-              <Text style={styles.howItWorksText}>• L'hôte s'inscrit et soumet sa candidature</Text>
-              <Text style={styles.howItWorksText}>• Une fois sa candidature acceptée</Text>
-              <Text style={styles.howItWorksText}>• Dès qu'il reçoit sa première réservation confirmée, vous recevez 5000 XOF</Text>
+              <Text style={styles.howItWorksText}>• Partagez votre code à un futur hôte</Text>
+              <Text style={styles.howItWorksText}>• Il s’inscrit avec votre code et dépose sa candidature</Text>
+              <Text style={styles.howItWorksText}>• Dès que la candidature est approuvée, vous êtes crédité de 1 000 FCFA (dans la limite de 30)</Text>
+              <Text style={styles.howItWorksText}>• Renseignez votre numéro Wave dans « Informations de paiement » pour le versement</Text>
             </View>
           </View>
         </View>
@@ -268,10 +332,12 @@ const HostReferralScreen: React.FC = () => {
             <Text style={styles.statValue}>{hostStats.completed}</Text>
             <Text style={styles.statLabel}>Complétés</Text>
           </View>
-          <View style={styles.statCard}>
+            <View style={styles.statCard}>
             <Ionicons name="trophy-outline" size={24} color="#e67e22" />
-            <Text style={styles.statValue}>{hostStats.totalRewards} XOF</Text>
-            <Text style={styles.statLabel}>Récompenses</Text>
+            <Text style={styles.statValue}>
+              {hostStats.campaign.totalCreditedCampaignFcfa.toLocaleString('fr-FR')} FCFA
+            </Text>
+            <Text style={styles.statLabel}>Campagne actuelle</Text>
           </View>
         </View>
 
@@ -289,7 +355,7 @@ const HostReferralScreen: React.FC = () => {
           ) : (
             <View style={styles.referralsList}>
               {hostReferrals.map((referral) => {
-                const statusInfo = getStatusInfo(referral.status);
+                const statusInfo = getStatusInfo(referral);
                 return (
                   <View key={referral.id} style={styles.referralItem}>
                     <View style={styles.referralHeader}>
@@ -615,6 +681,21 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     color: '#999',
+  },
+  withdrawButton: {
+    backgroundColor: '#1b5e20',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  withdrawButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
 

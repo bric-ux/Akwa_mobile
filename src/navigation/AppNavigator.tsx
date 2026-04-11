@@ -89,6 +89,7 @@ import AdminRefundsScreen from '../screens/AdminRefundsScreen';
 import AdminBookingManagementScreen from '../screens/AdminBookingManagementScreen';
 import AdminRevenueScreen from '../screens/AdminRevenueScreen';
 import AdminPayoutsScreen from '../screens/AdminPayoutsScreen';
+import AdminReferralPayoutsScreen from '../screens/AdminReferralPayoutsScreen';
 import AdminBookingCalculationTestScreen from '../screens/AdminBookingCalculationTestScreen';
 import AdminCommissionPaymentTestScreen from '../screens/AdminCommissionPaymentTestScreen';
 import AdminWaveTestScreen from '../screens/AdminWaveTestScreen';
@@ -931,6 +932,14 @@ const AppNavigator = () => {
               component={AdminPayoutsScreen}
               options={{
                 title: 'Paiements hôtes/propriétaires',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminReferralPayouts"
+              component={AdminReferralPayoutsScreen}
+              options={{
+                title: 'Payer parrainage',
                 headerShown: false
               }}
             />

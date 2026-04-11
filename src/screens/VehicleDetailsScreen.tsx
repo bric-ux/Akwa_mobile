@@ -73,7 +73,14 @@ const VehicleDetailsScreen: React.FC = () => {
 
   const handleBookVehicle = () => {
     if (!user) {
-      Alert.alert('Connexion requise', 'Vous devez être connecté pour réserver un véhicule');
+      Alert.alert(
+        'Connexion requise',
+        'Vous devez être connecté pour réserver un véhicule.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Se connecter', onPress: () => navigation.navigate('Auth' as never) },
+        ]
+      );
       return;
     }
     navigation.navigate('VehicleBooking' as never, { vehicleId: vehicle.id } as never);

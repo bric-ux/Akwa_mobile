@@ -297,6 +297,7 @@ export type RootStackParamList = {
   HostVehicleBookings: { vehicleId?: string };
   Penalties: { initialTab?: 'penalties' | 'commissions' } | undefined;
   DeclareDispute: undefined;
+  AdminReferralPayouts: undefined;
 };
 
 export type TabParamList = {
