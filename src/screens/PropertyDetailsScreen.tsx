@@ -301,7 +301,9 @@ const PropertyDetailsScreen: React.FC = () => {
       {/* Informations principales */}
       <View style={styles.content}>
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>{property.title}</Text>
+          <View style={styles.titleTextWrap}>
+            <Text style={styles.title}>{property.title}</Text>
+          </View>
           <View style={styles.titleActions}>
             <TouchableOpacity
               style={styles.iconHeaderButton}
@@ -744,23 +746,30 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
   },
+  titleTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
+    paddingBottom: 2,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 10,
-    flex: 1,
+    flexShrink: 1,
   },
   titleContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 10,
   },
   titleActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 8,
+    flexShrink: 0,
+    marginLeft: 4,
     gap: 4,
   },
   iconHeaderButton: {

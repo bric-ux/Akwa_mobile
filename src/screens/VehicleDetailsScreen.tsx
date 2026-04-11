@@ -617,6 +617,7 @@ const styles = StyleSheet.create({
   },
   headerTitleContainer: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
     marginHorizontal: 8,
   },
@@ -625,6 +626,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0f172a',
     letterSpacing: -0.3,
+    textAlign: 'center',
   },
   headerShareButton: {
     zIndex: 10,
