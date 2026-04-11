@@ -18,9 +18,9 @@
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
       "buildNumber": "24",
       "infoPlist": {
-        "NSCameraUsageDescription": "This app uses the camera to take profile, property, and vehicle photos.",
-        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to select photos to upload.",
-        "NSMicrophoneUsageDescription": "This app uses the microphone to record audio messages if you choose this feature.",
+        "NSCameraUsageDescription": "AkwaHome uses the camera so you can take photos or videos—for example to update your profile picture or add images to your property and vehicle listings.",
+        "NSPhotoLibraryUsageDescription": "AkwaHome needs access to your photo library so you can update your profile picture and choose photos or videos for your listings. Only what you select is used.",
+        "NSMicrophoneUsageDescription": "AkwaHome uses the microphone when you record video with sound or send a voice message. Audio is only captured while you record.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
