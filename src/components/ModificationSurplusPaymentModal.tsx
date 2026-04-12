@@ -728,18 +728,9 @@ const ModificationSurplusPaymentModal: React.FC<ModificationSurplusPaymentModalP
                 
                 {priceBreakdown.serviceFeeHTDiff !== undefined && priceBreakdown.serviceFeeHTDiff !== 0 && (
                   <View style={styles.priceDetailRow}>
-                    <Text style={styles.priceDetailLabel}>Différence frais de service (HT):</Text>
+                    <Text style={styles.priceDetailLabel}>Différence frais de service:</Text>
                     <Text style={[styles.priceDetailValue, priceBreakdown.serviceFeeHTDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
                       {priceBreakdown.serviceFeeHTDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.serviceFeeHTDiff)}
-                    </Text>
-                  </View>
-                )}
-                
-                {priceBreakdown.serviceFeeVATDiff !== undefined && priceBreakdown.serviceFeeVATDiff !== 0 && (
-                  <View style={styles.priceDetailRow}>
-                    <Text style={styles.priceDetailLabel}>Différence TVA (20%):</Text>
-                    <Text style={[styles.priceDetailValue, priceBreakdown.serviceFeeVATDiff > 0 ? styles.increaseValue : styles.decreaseValue]}>
-                      {priceBreakdown.serviceFeeVATDiff > 0 ? '+' : ''}{formatPrice(priceBreakdown.serviceFeeVATDiff)}
                     </Text>
                   </View>
                 )}

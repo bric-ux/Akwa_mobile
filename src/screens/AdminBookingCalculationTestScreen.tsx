@@ -160,9 +160,7 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
     }
 
     stepByStep.push(`5️⃣ Taxe de séjour: ${params.taxesPerNight} × ${params.nights} = ${result.effectiveTaxes} FCFA`);
-    stepByStep.push(`6️⃣ Commission HT (2%): ${result.priceAfterDiscount} × 2% = ${result.hostCommissionHT} FCFA`);
-    stepByStep.push(`7️⃣ Commission TVA (20%): ${result.hostCommissionHT} × 20% = ${result.hostCommissionVAT} FCFA`);
-    stepByStep.push(`8️⃣ Commission TTC: ${result.hostCommissionHT} + ${result.hostCommissionVAT} = ${result.hostCommission} FCFA`);
+    stepByStep.push(`6️⃣ Commission Akwahome (${getCommissionRates('property').hostFeePercent}%): ${result.priceAfterDiscount} × ${getCommissionRates('property').hostFeePercent}% = ${result.hostCommissionHT} FCFA (pas de TVA)`);
     stepByStep.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     stepByStep.push(`✅ MONTANT NET HÔTE: ${result.priceAfterDiscount} + ${result.effectiveCleaningFee} + ${result.effectiveTaxes} - ${result.hostCommission} = ${result.hostNetAmount} FCFA`);
 
@@ -239,22 +237,17 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
       stepByStep.push(`6️⃣ Pas de surplus chauffeur`);
     }
 
-    // Calculer les frais de service (10% HT + 20% TVA = 12% TTC)
     const fees = calculateFees(priceAfterDiscountWithDriver, rentalDays, 'vehicle');
     const totalPrice = priceAfterDiscountWithDriver + fees.serviceFee;
+    const vRates = getCommissionRates('vehicle');
 
-    stepByStep.push(`8️⃣ Frais de service HT (10%): ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} × 10% = ${fees.serviceFeeHT.toLocaleString('fr-FR')} FCFA`);
-    stepByStep.push(`9️⃣ Frais de service TVA (20%): ${fees.serviceFeeHT.toLocaleString('fr-FR')} × 20% = ${fees.serviceFeeVAT.toLocaleString('fr-FR')} FCFA`);
-    stepByStep.push(`🔟 Frais de service TTC: ${fees.serviceFeeHT.toLocaleString('fr-FR')} + ${fees.serviceFeeVAT.toLocaleString('fr-FR')} = ${fees.serviceFee.toLocaleString('fr-FR')} FCFA`);
-    stepByStep.push(`1️⃣1️⃣ Total payé par locataire: ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} + ${fees.serviceFee.toLocaleString('fr-FR')} = ${totalPrice.toLocaleString('fr-FR')} FCFA`);
+    stepByStep.push(`8️⃣ Frais de service locataire (${vRates.travelerFeePercent}%): ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} × ${vRates.travelerFeePercent}% = ${fees.serviceFee.toLocaleString('fr-FR')} FCFA (pas de TVA)`);
+    stepByStep.push(`9️⃣ Total payé par locataire: ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} + ${fees.serviceFee.toLocaleString('fr-FR')} = ${totalPrice.toLocaleString('fr-FR')} FCFA`);
 
-    // Calculer la commission propriétaire (2% HT + 20% TVA = 2.4% TTC)
     const hostCommissionData = calculateHostCommission(priceAfterDiscountWithDriver, 'vehicle');
     const ownerNetAmount = priceAfterDiscountWithDriver - hostCommissionData.hostCommission + securityDeposit;
 
-    stepByStep.push(`1️⃣2️⃣ Commission HT (2%): ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} × 2% = ${hostCommissionData.hostCommissionHT.toLocaleString('fr-FR')} FCFA`);
-    stepByStep.push(`1️⃣3️⃣ Commission TVA (20%): ${hostCommissionData.hostCommissionHT.toLocaleString('fr-FR')} × 20% = ${hostCommissionData.hostCommissionVAT.toLocaleString('fr-FR')} FCFA`);
-    stepByStep.push(`1️⃣4️⃣ Commission TTC: ${hostCommissionData.hostCommissionHT.toLocaleString('fr-FR')} + ${hostCommissionData.hostCommissionVAT.toLocaleString('fr-FR')} = ${hostCommissionData.hostCommission.toLocaleString('fr-FR')} FCFA`);
+    stepByStep.push(`🔟 Commission Akwahome (${vRates.hostFeePercent}%): ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} × ${vRates.hostFeePercent}% = ${hostCommissionData.hostCommission.toLocaleString('fr-FR')} FCFA (pas de TVA)`);
     stepByStep.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     stepByStep.push(`✅ MONTANT NET PROPRIÉTAIRE: ${priceAfterDiscountWithDriver.toLocaleString('fr-FR')} - ${hostCommissionData.hostCommission.toLocaleString('fr-FR')} + ${securityDeposit.toLocaleString('fr-FR')} (caution) = ${ownerNetAmount.toLocaleString('fr-FR')} FCFA`);
 
@@ -518,15 +511,7 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
           </View>
           <View style={styles.separator} />
           <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Commission HT (2%):</Text>
-            <Text style={styles.resultValue}>{propertyResult.hostCommissionHT.toLocaleString('fr-FR')} FCFA</Text>
-          </View>
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Commission TVA (20%):</Text>
-            <Text style={styles.resultValue}>{propertyResult.hostCommissionVAT.toLocaleString('fr-FR')} FCFA</Text>
-          </View>
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Commission TTC:</Text>
+            <Text style={styles.resultLabel}>Commission Akwahome ({getCommissionRates('property').hostFeePercent}%):</Text>
             <Text style={[styles.resultValue, { color: '#ef4444' }]}>{propertyResult.hostCommission.toLocaleString('fr-FR')} FCFA</Text>
           </View>
           <View style={styles.separator} />
@@ -832,7 +817,7 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
             <Text style={styles.resultValue}>{vehicleResult.priceAfterDiscountWithDriver.toLocaleString('fr-FR')} FCFA</Text>
           </View>
           <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Frais de service (12% TTC):</Text>
+            <Text style={styles.resultLabel}>Frais de service ({getCommissionRates('vehicle').travelerFeePercent}%):</Text>
             <Text style={styles.resultValue}>{vehicleResult.serviceFee.toLocaleString('fr-FR')} FCFA</Text>
           </View>
           <View style={styles.resultRow}>
@@ -847,15 +832,7 @@ const AdminBookingCalculationTestScreen: React.FC = () => {
           )}
           <View style={styles.separator} />
           <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Commission HT (2%):</Text>
-            <Text style={styles.resultValue}>{vehicleResult.ownerCommissionHT.toLocaleString('fr-FR')} FCFA</Text>
-          </View>
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Commission TVA (20%):</Text>
-            <Text style={styles.resultValue}>{vehicleResult.ownerCommissionVAT.toLocaleString('fr-FR')} FCFA</Text>
-          </View>
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Commission TTC:</Text>
+            <Text style={styles.resultLabel}>Commission Akwahome ({getCommissionRates('vehicle').hostFeePercent}%):</Text>
             <Text style={[styles.resultValue, { color: '#ef4444' }]}>{vehicleResult.ownerCommission.toLocaleString('fr-FR')} FCFA</Text>
           </View>
           <View style={styles.separator} />

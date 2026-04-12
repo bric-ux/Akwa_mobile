@@ -17,6 +17,7 @@ import { useReferrals, REFERRAL_CAMPAIGN_MAX_SLOTS, REFERRAL_CAMPAIGN_UNIT_FCFA 
 import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import * as Clipboard from 'expo-clipboard';
 import { getFilleulStatusInfo } from '../utils/referralFilleulStatus';
+import { maskEmailForDisplay } from '../utils/maskContactDisplay';
 
 const HostReferralScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -309,7 +310,7 @@ const HostReferralScreen: React.FC = () => {
                   <View key={referral.id} style={styles.referralItem}>
                     <View style={styles.referralHeader}>
                       <View style={styles.referralInfo}>
-                        <Text style={styles.referralEmail}>{referral.referred_email}</Text>
+                        <Text style={styles.referralEmail}>{maskEmailForDisplay(referral.referred_email)}</Text>
                         <Text style={styles.referralDate}>
                           Parrainé le {new Date(referral.created_at).toLocaleDateString('fr-FR', {
                             day: 'numeric',

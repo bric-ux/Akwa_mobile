@@ -17,6 +17,7 @@ import { useReferrals, REFERRAL_CAMPAIGN_MAX_SLOTS, REFERRAL_CAMPAIGN_UNIT_FCFA 
 import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import * as Clipboard from 'expo-clipboard';
 import { getFilleulStatusInfo } from '../utils/referralFilleulStatus';
+import { maskEmailForDisplay } from '../utils/maskContactDisplay';
 
 const GuestReferralScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -375,12 +376,14 @@ const GuestReferralScreen: React.FC = () => {
                           <>
                             <Text style={styles.referralName}>{fullName}</Text>
                             {ref.referred_email && ref.referred_email.trim() ? (
-                              <Text style={styles.referralEmail}>{ref.referred_email}</Text>
+                              <Text style={styles.referralEmail}>{maskEmailForDisplay(ref.referred_email)}</Text>
                             ) : null}
                           </>
                         ) : (
                           <>
-                            <Text style={styles.referralName}>{ref.referred_email || 'Utilisateur'}</Text>
+                            <Text style={styles.referralName}>
+                              {ref.referred_email ? maskEmailForDisplay(ref.referred_email) : 'Utilisateur'}
+                            </Text>
                             {ref.referred_user_id ? (
                               <Text style={[styles.referralEmail, { fontStyle: 'italic', color: '#999' }]}>
                                 Profil en cours de création...
@@ -409,7 +412,7 @@ const GuestReferralScreen: React.FC = () => {
                     <View style={styles.referralDetails}>
                       <View style={styles.referralDetailRow}>
                         <Ionicons name="mail-outline" size={14} color="#999" />
-                        <Text style={styles.referralDetailText}>{ref.referred_email}</Text>
+                        <Text style={styles.referralDetailText}>{maskEmailForDisplay(ref.referred_email)}</Text>
                       </View>
                       <View style={styles.referralDetailRow}>
                         <Ionicons 

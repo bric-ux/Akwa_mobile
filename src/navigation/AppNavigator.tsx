@@ -9,6 +9,7 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { PushNotificationBootstrap } from '../components/PushNotificationBootstrap';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -528,6 +529,7 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer ref={navigationRef}>
+      <PushNotificationBootstrap />
       <AdminNotificationsProvider>
       <Stack.Navigator
         initialRouteName="Home"

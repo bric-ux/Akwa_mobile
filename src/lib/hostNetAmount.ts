@@ -11,9 +11,7 @@
  * - priceAfterDiscount = basePrice - discountAmount
  * - effectiveCleaningFee = cleaningFee (ou 0 si free_cleaning_min_days applicable)
  * - effectiveTaxes = taxesPerNight * nights
- * - hostCommission = hostCommissionHT + hostCommissionVAT (TTC)
- *   - hostCommissionHT = priceAfterDiscount * 0.02
- *   - hostCommissionVAT = hostCommissionHT * 0.20
+ * - hostCommission = hostCommissionHT (pas de TVA)
  */
 
 import { getCommissionRates, type CurrencyCode } from './commissions';
@@ -107,11 +105,10 @@ export function calculateHostNetAmount(params: HostNetAmountParams): HostNetAmou
   // 4. Calculer la taxe de séjour (uniquement pour les propriétés)
   const effectiveTaxes = serviceType === 'property' ? taxesPerNight * nights : 0;
 
-  // 5. Calculer la commission hôte AVEC TVA (taux selon devise si EUR)
   const commissionRates = getCommissionRates(serviceType, currency);
   const hostCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
-  const hostCommissionVAT = Math.round(hostCommissionHT * 0.20);
-  const hostCommission = hostCommissionHT + hostCommissionVAT; // TTC
+  const hostCommissionVAT = 0;
+  const hostCommission = hostCommissionHT;
 
   // 6. Calculer le montant net que l'hôte reçoit
   // Formule : prix après réduction + frais de ménage + taxe de séjour - commission

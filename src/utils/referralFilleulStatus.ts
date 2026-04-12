@@ -75,7 +75,7 @@ export function getFilleulStatusInfo(referral: {
 
       if (isCampaign && amt >= CAMPAIGN_UNIT_FCFA) {
         return {
-          label: paid ? 'Récompense versée' : 'Candidature approuvée — récompense à venir',
+          label: paid ? 'Récompense versée' : 'Récompense à venir',
           detail: paid
             ? `Campagne ${CAMPAIGN_UNIT_FCFA.toLocaleString('fr-FR')} FCFA créditée (selon règles en vigueur).`
             : `Candidature approuvée : ${CAMPAIGN_UNIT_FCFA.toLocaleString('fr-FR')} FCFA prévus après validation du versement.`,

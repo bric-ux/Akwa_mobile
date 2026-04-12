@@ -113,8 +113,7 @@ export function calculateTotalPrice(
 
 /**
  * Calcule les frais supplémentaires en utilisant les vrais frais de la propriété
- * Frais de service : % voyageur/locataire (HT) sur prix APRÈS réduction + TVA 20 % sur ces frais (voir getCommissionRates).
- * TVA de 20% appliquée sur les frais de service
+ * Frais de service : % voyageur/locataire sur prix APRÈS réduction (voir getCommissionRates). Pas de TVA.
  */
 export function calculateFees(
   priceAfterDiscount: number, // Prix APRÈS application des réductions
@@ -145,9 +144,8 @@ export function calculateFees(
   // Frais de service voyageur / locataire : taux depuis getCommissionRates (1 % HT actuellement)
   const commissionRates = getCommissionRates(serviceType, currency, isCardPayment);
   const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
-  // TVA de 20% sur les frais de service
-  const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
-  const serviceFee = serviceFeeHT + serviceFeeVAT;
+  const serviceFeeVAT = 0;
+  const serviceFee = serviceFeeHT;
   
   // Taxes (taxe de séjour par nuit, donc multiplier par le nombre de nuits)
   const taxesPerNight = propertyFees?.taxes || 0;
@@ -166,7 +164,7 @@ export function calculateFees(
 }
 
 /**
- * Calcule la commission hôte/propriétaire avec TVA de 20%
+ * Calcule la commission hôte / propriétaire (pas de TVA).
  */
 export function calculateHostCommission(
   priceAfterDiscount: number,
@@ -179,9 +177,8 @@ export function calculateHostCommission(
 } {
   const commissionRates = getCommissionRates(serviceType, currency);
   const hostCommissionHT = Math.round(priceAfterDiscount * (commissionRates.hostFeePercent / 100));
-  // TVA de 20% sur la commission hôte
-  const hostCommissionVAT = Math.round(hostCommissionHT * 0.20);
-  const hostCommission = hostCommissionHT + hostCommissionVAT;
+  const hostCommissionVAT = 0;
+  const hostCommission = hostCommissionHT;
   
   return {
     hostCommission,

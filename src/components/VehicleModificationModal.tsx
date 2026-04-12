@@ -247,8 +247,8 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
   const vehicleUsesPlatformCardRate = booking.payment_method === 'card' || booking.payment_method === 'wave';
   const currentCommissionRates = getCommissionRates('vehicle', undefined, vehicleUsesPlatformCardRate);
   const currentServiceFeeHT = Math.round(currentBaseForService * (currentCommissionRates.travelerFeePercent / 100));
-  const currentServiceFeeVAT = Math.round(currentServiceFeeHT * 0.20);
-  const currentServiceFee = currentServiceFeeHT + currentServiceFeeVAT;
+  const currentServiceFeeVAT = 0;
+  const currentServiceFee = currentServiceFeeHT;
   const currentTotalPrice = currentBaseForService + currentServiceFee;
   // Total réel payé (inclut chauffeur, frais) - pour affichage Avant et calcul surplus
   const originalTotalPrice = booking.total_price ?? currentTotalPrice;
@@ -380,8 +380,8 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
     basePrice = vp.basePrice;
     basePriceWithDriver = basePrice + driverFee;
     serviceFeeHT = Math.round(basePriceWithDriver * (commissionRates.travelerFeePercent / 100));
-    serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
-    effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
+    serviceFeeVAT = 0;
+    effectiveServiceFee = serviceFeeHT;
     totalPrice = basePriceWithDriver + effectiveServiceFee;
   } else {
     basePrice = Math.max(0, currentPriceAfterDiscount + priceDelta);
@@ -391,8 +391,8 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
     totalBeforeDiscount = daysPrice + hoursPrice;
     basePriceWithDriver = basePrice + driverFee;
     serviceFeeHT = Math.round(basePriceWithDriver * (commissionRates.travelerFeePercent / 100));
-    serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
-    effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
+    serviceFeeVAT = 0;
+    effectiveServiceFee = serviceFeeHT;
     const modelTotalExtension = basePriceWithDriver + effectiveServiceFee;
     // Ancrer sur le montant réellement payé : le « recalcul » de l’ancien séjour (currentTotalPrice) peut
     // différer de la facture (promo, arrondis). Sans ça, le surplus ≠ somme des lignes du détail.
@@ -993,22 +993,14 @@ const VehicleModificationModalContent: React.FC<VehicleModificationModalProps & 
                           <>
                             {serviceFeeHTDiffUi !== 0 && (
                               <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>Frais de service (HT)</Text>
+                                <Text style={styles.summaryLabel}>Frais de service</Text>
                                 <Text style={styles.summaryValue}>
                                   {serviceFeeHTDiffUi > 0 ? '+' : ''}{formatPrice(serviceFeeHTDiffUi)}
                                 </Text>
                               </View>
                             )}
-                            {serviceFeeVATDiffUi !== 0 && (
-                              <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>TVA (20 %)</Text>
-                                <Text style={styles.summaryValue}>
-                                  {serviceFeeVATDiffUi > 0 ? '+' : ''}{formatPrice(serviceFeeVATDiffUi)}
-                                </Text>
-                              </View>
-                            )}
                             <View style={styles.summaryRow}>
-                              <Text style={styles.summaryLabel}>Total frais de service (TTC)</Text>
+                              <Text style={styles.summaryLabel}>Total frais de service</Text>
                               <Text style={styles.summaryValue}>
                                 {serviceFeeDiff > 0 ? '+' : ''}{formatPrice(serviceFeeDiff)}
                               </Text>

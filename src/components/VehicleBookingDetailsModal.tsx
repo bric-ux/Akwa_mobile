@@ -234,12 +234,6 @@ const VehicleBookingDetailsModal: React.FC<VehicleBookingDetailsModalProps> = ({
   const priceAfterDiscount = calculationDetails?.price_after_discount ?? 0;
   const driverFee = calculationDetails?.driver_fee ?? 0;
   const priceAfterDiscountWithDriver = calculationDetails?.base_price_with_driver ?? 0;
-  const renterServiceFee = calculationDetails?.service_fee ?? 0;
-  const renterServiceFeeHT = calculationDetails?.service_fee_ht ?? 0;
-  const renterServiceFeeVAT = calculationDetails?.service_fee_vat ?? 0;
-  const ownerCommission = calculationDetails?.host_commission ?? 0;
-  const ownerCommissionHT = calculationDetails?.host_commission_ht ?? 0;
-  const ownerCommissionVAT = calculationDetails?.host_commission_vat ?? 0;
   const ownerNetAmount = calculationDetails?.host_net_amount ?? booking.host_net_amount ?? 0;
   const totalPrice = calculationDetails?.total_price ?? booking.total_price ?? 0;
   

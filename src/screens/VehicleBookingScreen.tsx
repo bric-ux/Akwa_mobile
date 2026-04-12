@@ -585,7 +585,7 @@ const VehicleBookingScreen: React.FC = () => {
   const driverFee = driverFeePerDay > 0 ? computeVehicleDriverFee(driverFeePerDay, rentalDays, remainingHours) : 0;
   const basePriceWithDriver = basePrice + driverFee;
   
-  // Frais de service locataire : taux depuis getCommissionRates (1 % HT + TVA sur frais)
+  // Frais de service locataire : taux depuis getCommissionRates (sans TVA)
   const isCardPayment = (currency === 'EUR' || currency === 'XOF') && selectedPaymentMethod === 'card';
   const fees = calculateFees(basePriceWithDriver, rentalDays, 'vehicle', undefined, currency, isCardPayment);
   const totalPrice = basePriceWithDriver + fees.serviceFee;

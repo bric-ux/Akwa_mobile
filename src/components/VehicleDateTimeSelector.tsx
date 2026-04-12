@@ -730,11 +730,10 @@ export const VehicleDateTimeSelector: React.FC<VehicleDateTimeSelectorProps> = (
       basePrice -= discountAmount;
     }
     
-    // Frais de service locataire (HT + TVA sur frais, voir getCommissionRates)
+    // Frais de service locataire (voir getCommissionRates, sans TVA)
     const commissionRates = getCommissionRates('vehicle');
     const serviceFeeHT = Math.round(basePrice * (commissionRates.travelerFeePercent / 100));
-    const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
-    const totalPrice = basePrice + serviceFeeHT + serviceFeeVAT;
+    const totalPrice = basePrice + serviceFeeHT;
     
     return totalPrice;
   };

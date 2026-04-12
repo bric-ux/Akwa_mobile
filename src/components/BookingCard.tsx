@@ -271,8 +271,7 @@ const BookingCard: React.FC<BookingCardProps> = ({
     const priceAfterDiscount = basePrice - discountAmount;
     const commissionRates = getCommissionRates('property');
     const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
-    const serviceFeeVAT = Math.round(serviceFeeHT * 0.20);
-    const effectiveServiceFee = serviceFeeHT + serviceFeeVAT;
+    const effectiveServiceFee = serviceFeeHT;
     const baseCleaningFee = booking.properties.cleaning_fee || 0;
     const isFreeCleaningApplicable = booking.properties.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days;
     const cleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
