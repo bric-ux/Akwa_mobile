@@ -22,7 +22,6 @@ const MAX_AGE_LAST_RESPONSE_MS = 600_000;
 export function PushNotificationNavigationHandler({ navigationRef }: Props) {
   const { user } = useAuth();
   const handledIds = useRef(new Set<string>());
-  const coldStartDone = useRef(false);
 
   const tryHandle = useCallback(
     (response: Notifications.NotificationResponse, options?: { allowStale?: boolean }) => {
