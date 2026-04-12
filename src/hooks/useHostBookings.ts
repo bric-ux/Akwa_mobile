@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
 import { sendPushToUser } from '../services/pushNotificationService';
+import { PUSH_TYPE_PROPERTY_BOOKING } from '../services/pushNavigation';
 import { calculateHostNetAmount } from '../lib/hostNetAmount';
 
 export interface HostBooking {
@@ -545,7 +546,8 @@ export const useHostBookings = () => {
           sendPushToUser(
             bookingData.guest_id,
             'Réservation confirmée',
-            `Votre réservation pour "${bookingData.properties.title}" a été confirmée par l'hôte.`
+            `Votre réservation pour "${bookingData.properties.title}" a été confirmée par l'hôte.`,
+            { type: PUSH_TYPE_PROPERTY_BOOKING, bookingId: bookingData.id }
           ).catch(() => {});
 
           console.log('✅ [useHostBookings] Confirmation envoyée aux voyageurs et hôtes');
@@ -578,7 +580,8 @@ export const useHostBookings = () => {
           sendPushToUser(
             bookingData.guest_id,
             'Réservation annulée',
-            `L'hôte a annulé votre réservation pour "${bookingData.properties.title}".`
+            `L'hôte a annulé votre réservation pour "${bookingData.properties.title}".`,
+            { type: PUSH_TYPE_PROPERTY_BOOKING, bookingId: bookingData.id }
           ).catch(() => {});
 
           console.log('✅ [useHostBookings] Emails d\'annulation envoyés');

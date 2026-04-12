@@ -8,6 +8,7 @@ import { getCommissionRates, getTravelerServiceFeeTtcMultiplier } from '../lib/c
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
 import { useCurrency } from './useCurrency';
 import { sendPushToUser } from '../services/pushNotificationService';
+import { PUSH_TYPE_VEHICLE_BOOKING } from '../services/pushNavigation';
 import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
 import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
 
@@ -784,7 +785,8 @@ export const useVehicleBookings = () => {
             sendPushToUser(
               vehicleInfo.owner_id,
               'Nouvelle réservation véhicule',
-              `${renterName} a réservé "${vehicleTitle}" du ${bookingData.startDate} au ${bookingData.endDate}.`
+              `${renterName} a réservé "${vehicleTitle}" du ${bookingData.startDate} au ${bookingData.endDate}.`,
+              { type: PUSH_TYPE_VEHICLE_BOOKING, bookingId: booking.id }
             ).catch(() => {});
           } else if (isCardPayment) {
             if (__DEV__) console.log('✅ [useVehicleBookings] Paiement carte - emails envoyés après confirmation Stripe');
@@ -878,7 +880,8 @@ export const useVehicleBookings = () => {
             sendPushToUser(
               vehicleInfo.owner_id,
               'Nouvelle demande de réservation véhicule',
-              `${renterName} souhaite réserver "${vehicleTitle}" du ${bookingData.startDate} au ${bookingData.endDate}.`
+              `${renterName} souhaite réserver "${vehicleTitle}" du ${bookingData.startDate} au ${bookingData.endDate}.`,
+              { type: PUSH_TYPE_VEHICLE_BOOKING, bookingId: booking.id }
             ).catch(() => {});
           }
 
@@ -1272,7 +1275,8 @@ export const useVehicleBookings = () => {
           sendPushToUser(
             booking.renter_id,
             'Réservation véhicule confirmée',
-            `Votre réservation pour "${vehicleTitle}" a été confirmée par le propriétaire.`
+            `Votre réservation pour "${vehicleTitle}" a été confirmée par le propriétaire.`,
+            { type: PUSH_TYPE_VEHICLE_BOOKING, bookingId: booking.id }
           ).catch(() => {});
         } catch (emailError) {
           console.error('❌ [useVehicleBookings] Erreur envoi email:', emailError);
@@ -1284,7 +1288,8 @@ export const useVehicleBookings = () => {
         sendPushToUser(
           booking.renter_id,
           'Réservation véhicule annulée',
-          `Le propriétaire a annulé votre réservation pour "${vehicleTitle}".`
+          `Le propriétaire a annulé votre réservation pour "${vehicleTitle}".`,
+          { type: PUSH_TYPE_VEHICLE_BOOKING, bookingId: booking.id }
         ).catch(() => {});
       }
 
@@ -1338,7 +1343,8 @@ export const useVehicleBookings = () => {
         sendPushToUser(
           ownerId,
           'Réservation véhicule annulée',
-          `Le locataire a annulé sa réservation pour "${vehicleTitle}".`
+          `Le locataire a annulé sa réservation pour "${vehicleTitle}".`,
+          { type: PUSH_TYPE_VEHICLE_BOOKING, bookingId: bookingId }
         ).catch(() => {});
       }
 

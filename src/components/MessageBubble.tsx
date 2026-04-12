@@ -24,10 +24,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('fr-FR', { 
-      hour: '2-digit', 
+    // Fuseau de l'appareil (pas Abidjan/UTC figé) : l’instant ISO de la BDD est correct, l’affichage suit la position locale
+    return date.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
       minute: '2-digit',
-      timeZone: 'Africa/Abidjan'
     });
   };
 

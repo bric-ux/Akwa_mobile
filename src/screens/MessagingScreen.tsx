@@ -54,7 +54,8 @@ const MessagingScreen: React.FC = () => {
     sendMessage,
     markMessagesAsRead,
     setupRealtimeSubscription,
-    clearUnreadForConversation
+    clearUnreadForConversation,
+    clearMessages
   } = useMessaging();
 
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -68,6 +69,8 @@ const MessagingScreen: React.FC = () => {
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const hasOpenedConversationRef = useRef<string | null>(null);
+  /** Réinitialisé au retour liste pour forcer loadMessages à la réouverture (évite fil vide / obsolète) */
+  const lastLoadedConversationId = useRef<string | null>(null);
 
   // Charger les conversations au montage
   useEffect(() => {
@@ -163,11 +166,13 @@ const MessagingScreen: React.FC = () => {
         // Quand l'écran perd le focus (on quitte), réinitialiser si on était dans une conversation ouverte depuis une propriété
         if (openedFromParam) {
           setOpenedFromParam(false);
+          lastLoadedConversationId.current = null;
+          clearMessages();
           setSelectedConversation(null);
           setShowConversations(true);
         }
       };
-    }, [openedFromParam])
+    }, [openedFromParam, clearMessages])
   );
 
   // Configuration du temps réel
@@ -179,8 +184,7 @@ const MessagingScreen: React.FC = () => {
     }
   }, [user, setupRealtimeSubscription]);
 
-  // Charger les messages quand une conversation est sélectionnée (une seule fois)
-  const lastLoadedConversationId = useRef<string | null>(null);
+  // Charger les messages quand une conversation est sélectionnée
   useEffect(() => {
     if (selectedConversation && user && selectedConversation.id) {
       const conversationId = selectedConversation.id;
@@ -295,6 +299,10 @@ const MessagingScreen: React.FC = () => {
     // Toujours retourner à la liste locale des conversations
     // Si on est dans l'onglet MessagingTab, on reste dans l'onglet
     console.log('🔙 [MessagingScreen] Retour à la liste des conversations');
+    // Permet de rouvrir la même conversation (ex. 2e tap sur une notif avec le même conversationId)
+    hasOpenedConversationRef.current = null;
+    lastLoadedConversationId.current = null;
+    clearMessages();
     setSelectedConversation(null);
     setShowConversations(true);
     setOpenedFromParam(false); // Réinitialiser le flag

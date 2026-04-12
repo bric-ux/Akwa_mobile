@@ -10,6 +10,7 @@ import { supabase } from '../services/supabase';
 import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { PushNotificationBootstrap } from '../components/PushNotificationBootstrap';
+import { PushNotificationNavigationHandler } from '../components/PushNotificationNavigationHandler';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -422,7 +423,7 @@ const MonthlyRentalOwnerTabNavigator = () => {
 
 // Main Stack Navigator
 const AppNavigator = () => {
-  const navigationRef = useNavigationContainerRef();
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const { user, loading: authLoading } = useAuth();
   const hasCheckedMode = React.useRef(false);
 
@@ -530,6 +531,7 @@ const AppNavigator = () => {
   return (
     <NavigationContainer ref={navigationRef}>
       <PushNotificationBootstrap />
+      <PushNotificationNavigationHandler navigationRef={navigationRef} />
       <AdminNotificationsProvider>
       <Stack.Navigator
         initialRouteName="Home"

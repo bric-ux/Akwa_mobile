@@ -42,21 +42,19 @@ const ConversationList: React.FC<ConversationListProps> = ({
       const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
       
       if (diffInHours < 24) {
-        return date.toLocaleTimeString('fr-FR', { 
-          hour: '2-digit', 
+        return date.toLocaleTimeString('fr-FR', {
+          hour: '2-digit',
           minute: '2-digit',
-          timeZone: 'Africa/Abidjan'
         }) || '';
-      } else if (diffInHours < 168) { // 7 jours
-        return date.toLocaleDateString('fr-FR', { 
+      } else if (diffInHours < 168) {
+        // 7 jours
+        return date.toLocaleDateString('fr-FR', {
           weekday: 'short',
-          timeZone: 'Africa/Abidjan'
         }) || '';
       } else {
-        return date.toLocaleDateString('fr-FR', { 
-          day: '2-digit', 
+        return date.toLocaleDateString('fr-FR', {
+          day: '2-digit',
           month: '2-digit',
-          timeZone: 'Africa/Abidjan'
         }) || '';
       }
     } catch (error) {

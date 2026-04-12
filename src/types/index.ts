@@ -282,7 +282,7 @@ export type RootStackParamList = {
   VehicleBookingDetails: { bookingId: string };
   Favorites: undefined;
   Profile: undefined;
-  Messaging: undefined;
+  Messaging: { conversationId?: string; propertyId?: string; vehicleId?: string } | undefined;
   MessagingDebug: undefined;
   Conciergerie: undefined;
   Vehicles: undefined;

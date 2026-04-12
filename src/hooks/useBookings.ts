@@ -4,6 +4,7 @@ import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
 import { useIdentityVerification } from './useIdentityVerification';
 import { sendPushToUser } from '../services/pushNotificationService';
+import { PUSH_TYPE_PROPERTY_BOOKING } from '../services/pushNavigation';
 
 export interface BookingData {
   propertyId: string;
@@ -708,7 +709,8 @@ export const useBookings = () => {
             sendPushToUser(
               propertyInfo.host_id,
               'Nouvelle réservation confirmée',
-              `${guestName} a réservé "${propertyInfo.title}" du ${bookingData.checkInDate} au ${bookingData.checkOutDate}.`
+              `${guestName} a réservé "${propertyInfo.title}" du ${bookingData.checkInDate} au ${bookingData.checkOutDate}.`,
+              { type: PUSH_TYPE_PROPERTY_BOOKING, bookingId: booking.id }
             ).catch(() => {});
           } else if (initialStatus === 'pending') {
             // Réservation en attente - envoyer les emails de demande (comme sur le site web)
@@ -750,7 +752,8 @@ export const useBookings = () => {
             sendPushToUser(
               propertyInfo.host_id,
               'Nouvelle demande de réservation',
-              `${guestName} souhaite réserver "${propertyInfo.title}" du ${bookingData.checkInDate} au ${bookingData.checkOutDate}.`
+              `${guestName} souhaite réserver "${propertyInfo.title}" du ${bookingData.checkInDate} au ${bookingData.checkOutDate}.`,
+              { type: PUSH_TYPE_PROPERTY_BOOKING, bookingId: booking.id }
             ).catch(() => {});
 
             // Délai pour éviter le rate limit
@@ -1078,7 +1081,8 @@ export const useBookings = () => {
       sendPushToUser(
         fullBooking.properties.host_id,
         'Réservation annulée',
-        `Le voyageur a annulé sa réservation pour "${fullBooking.properties.title}".`
+        `Le voyageur a annulé sa réservation pour "${fullBooking.properties.title}".`,
+        { type: PUSH_TYPE_PROPERTY_BOOKING, bookingId: bookingId }
       ).catch(() => {});
 
       // Envoyer les emails explicites aux deux parties

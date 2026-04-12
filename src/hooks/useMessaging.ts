@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { Conversation, Message } from '../types';
 import { useEmailService } from './useEmailService';
 import { sendPushToUser } from '../services/pushNotificationService';
+import { PUSH_TYPE_MESSAGE } from '../services/pushNavigation';
 import { log, logError, logWarn } from '../utils/logger';
 
 export const useMessaging = () => {
@@ -367,7 +368,13 @@ export const useMessaging = () => {
           const recipientUserId = isHost ? conversationData.guest_id : conversationData.host_id;
           const senderName = senderProfile?.first_name ? `${senderProfile.first_name} ${senderProfile.last_name || ''}`.trim() : 'Quelqu\'un';
           const body = `${senderName} : ${message.trim().slice(0, 80)}${message.trim().length > 80 ? '...' : ''}`;
-          sendPushToUser(recipientUserId, 'Nouveau message', body).catch(() => {});
+          const conv = conversationData as Conversation;
+          sendPushToUser(recipientUserId, 'Nouveau message', body, {
+            type: PUSH_TYPE_MESSAGE,
+            conversationId,
+            ...(conv.property_id ? { propertyId: conv.property_id } : {}),
+            ...(conv.vehicle_id ? { vehicleId: conv.vehicle_id } : {}),
+          }).catch(() => {});
         }
       } catch (emailError) {
         console.error('❌ [useMessaging] Erreur envoi email notification:', emailError);
@@ -560,12 +567,26 @@ export const useMessaging = () => {
           const isRelevantMessage = await checkIfMessageIsRelevant(newMessage, userId);
           if (!isRelevantMessage) return;
           
-          // Ajouter le message à la liste locale
+          // Ajouter le message à la liste locale uniquement si on affiche déjà cette conversation
+          // (évite de mélanger deux fils ; au retour liste les messages sont vidés puis rechargés)
           setMessages(prev => {
-            // Éviter les doublons
             const exists = prev.some(msg => msg.id === newMessage.id);
             if (exists) return prev;
-            return [...prev, newMessage];
+            if (
+              prev.length > 0 &&
+              prev.some((m) => m.conversation_id !== newMessage.conversation_id)
+            ) {
+              return prev;
+            }
+            const sp = (newMessage as Message & { sender_profile?: { first_name?: string; last_name?: string } })
+              .sender_profile;
+            const fromProfile =
+              sp && `${sp.first_name ?? ''} ${sp.last_name ?? ''}`.trim();
+            const enriched: Message = {
+              ...newMessage,
+              sender_name: newMessage.sender_name || fromProfile || 'Utilisateur',
+            };
+            return [...prev, enriched];
           });
           
           // Mettre à jour la conversation dans la liste
@@ -625,6 +646,10 @@ export const useMessaging = () => {
     }
   };
 
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
   return {
     conversations,
     messages,
@@ -637,6 +662,7 @@ export const useMessaging = () => {
     createOrGetConversation,
     markMessagesAsRead,
     setupRealtimeSubscription,
-    clearUnreadForConversation
+    clearUnreadForConversation,
+    clearMessages
   };
 };
