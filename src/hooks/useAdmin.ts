@@ -713,9 +713,30 @@ export const useAdmin = () => {
     }
   };
 
+  /** RLS : admin uniquement, statuts pending | reviewing (voir migration admin_delete_host_application). */
+  const deleteHostApplication = async (
+    applicationId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Non connecté' };
+    setError(null);
+    try {
+      const { error: err } = await supabase.from('host_applications').delete().eq('id', applicationId);
+      if (err) {
+        setError(err.message);
+        return { success: false, error: err.message };
+      }
+      return { success: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erreur';
+      setError(msg);
+      return { success: false, error: msg };
+    }
+  };
+
   return {
     getAllHostApplications,
     updateApplicationStatus,
+    deleteHostApplication,
     getAllProperties,
     updatePropertyStatus,
     deleteProperty,

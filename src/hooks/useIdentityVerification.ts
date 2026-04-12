@@ -235,12 +235,10 @@ export const useIdentityVerification = () => {
           console.log('✅ Email de confirmation envoyé à l\'utilisateur');
         }
 
-        // Email de notification aux administrateurs
-        const { data: adminUsers, error: adminError } = await supabase
-          .from('profiles')
-          .select('email, first_name')
-          .eq('role', 'admin')
-          .not('email', 'is', null);
+        // Email de notification aux administrateurs (user_roles ; RLS bloque profiles.role)
+        const { data: adminUsers, error: adminError } = await supabase.rpc(
+          'get_admin_notification_emails'
+        );
 
         if (!adminError && adminUsers && adminUsers.length > 0) {
           console.log(`📧 Envoi notification à ${adminUsers.length} admin(s)...`);

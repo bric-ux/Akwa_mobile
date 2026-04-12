@@ -125,7 +125,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [referralCodeError, setReferralCodeError] = useState<string>('');
   const [referrerName, setReferrerName] = useState<string>('');
   const [isReferred, setIsReferred] = useState(false);
-  const [isAlreadyHost, setIsAlreadyHost] = useState(false);
   /** Type d'annonce : pour l’instant seule la résidence meublée (court séjour) — pas d’écran de choix */
   const [listingType, setListingType] = useState<'short_term' | 'monthly' | null>('short_term');
   const [listingTypeConfirmed, setListingTypeConfirmed] = useState(true);
@@ -408,30 +407,45 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   };
 
   const loadUserProfile = async () => {
-    if (user) {
-      const metadata = user.user_metadata;
-      setFormData(prev => ({
-        ...prev,
-        hostEmail: user.email || '',
-        hostFullName: metadata?.first_name && metadata?.last_name 
-          ? `${metadata.first_name} ${metadata.last_name}` 
-          : '',
-      }));
+    if (!user) return;
 
-      // Vérifier si l'utilisateur est déjà hôte
-      try {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('is_host')
-          .eq('user_id', user.id)
-          .single();
+    const metadata = user.user_metadata;
+    setFormData(prev => ({
+      ...prev,
+      hostEmail: user.email || '',
+      hostFullName: metadata?.first_name && metadata?.last_name
+        ? `${metadata.first_name} ${metadata.last_name}`
+        : '',
+    }));
 
-        if (!error && profile) {
-          setIsAlreadyHost(profile.is_host || false);
-        }
-      } catch (error) {
-        console.error('Error checking host status:', error);
+    // Nouvelle candidature : si le profil a déjà un code (1re propriété ou ancien flux),
+    // pré-remplir pour que referralCodeSubmitted parte avec l’insert (2e propriété, etc.).
+    const editId = route?.params?.editApplicationId;
+    if (editId) return;
+
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('referral_code_used')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const saved = profile?.referral_code_used?.trim();
+      if (!saved) return;
+
+      const code = saved.toUpperCase();
+      setEnteredReferralCode(code);
+      setIsReferred(true);
+      const result = await verifyReferralCode(code);
+      if (result.valid) {
+        setReferrerName(result.referrerName || '');
+        setReferralCodeError('');
+      } else {
+        setReferralCodeError(result.error || 'Code invalide');
+        setReferrerName('');
       }
+    } catch (e) {
+      console.error('Erreur chargement referral_code_used profil:', e);
     }
   };
 
@@ -469,7 +483,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       allowsMultipleSelection: true,
       selectionLimit: remainingSlots,
       quality: 0.8,
@@ -556,7 +570,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
 
     const maxPick = Math.min(remainingSlots, MAX_PROPERTY_VIDEOS - videoCount);
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      mediaTypes: 'videos',
       allowsMultipleSelection: true,
       selectionLimit: maxPick,
       quality: 1,
@@ -1093,15 +1107,27 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       console.log('ℹ️ Informations de paiement', paymentPending ? 'en cours d\'étude' : 'vérifiées', ', autorisation de la soumission');
     }
 
-    // Validation du code de parrainage si activé (seulement pour les nouveaux hôtes)
-    if (!isEditMode && isReferred && enteredReferralCode) {
-      if (referralCodeError || !referrerName) {
+    // Re-valider au submit (nom résolu pour referral_code_submitted ; évite course avec loadUserProfile)
+    let resolvedReferrerNameForPayload = referrerName;
+    if (!isEditMode && isReferred) {
+      if (!enteredReferralCode?.trim()) {
         Alert.alert(
-          "Code de parrainage invalide",
-          "Veuillez vérifier le code de parrainage ou désactiver l'option.",
+          'Code de parrainage requis',
+          'Entrez un code ou désactivez « J\'ai un code de parrainage ».',
         );
         return;
       }
+      const reCheck = await verifyReferralCode(enteredReferralCode.trim());
+      if (!reCheck.valid) {
+        Alert.alert(
+          'Code de parrainage invalide',
+          reCheck.error || 'Veuillez vérifier le code ou désactiver l\'option.',
+        );
+        return;
+      }
+      resolvedReferrerNameForPayload = reCheck.referrerName || 'Utilisateur';
+      setReferrerName(resolvedReferrerNameForPayload);
+      setReferralCodeError('');
     }
 
     // Validation finale de toutes les étapes
@@ -1196,10 +1222,16 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       cleaningFee: parseInt(formData.cleaningFee) || 0,
       taxes: parseInt(formData.taxes) || 0,
       freeCleaningMinDays: formData.freeCleaningMinDays ? parseInt(formData.freeCleaningMinDays) || undefined : undefined,
+      ...(!isEditMode &&
+        isReferred &&
+        enteredReferralCode &&
+        resolvedReferrerNameForPayload && {
+          referralCodeSubmitted: enteredReferralCode.toUpperCase(),
+        }),
     };
 
-    // Enregistrer le code de parrainage dans le profil si fourni (seulement pour les nouveaux hôtes)
-    if (!isEditMode && isReferred && enteredReferralCode && referrerName && !referralCodeError) {
+    // Enregistrer le code de parrainage dans le profil si fourni
+    if (!isEditMode && isReferred && enteredReferralCode && resolvedReferrerNameForPayload) {
       try {
         const { error: profileError } = await supabase
           .from('profiles')
@@ -1231,10 +1263,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             .eq('user_id', user?.id)
             .single();
           
-          const { data: adminUsers } = await supabase
-            .from('profiles')
-            .select('email')
-            .eq('role', 'admin');
+          const { data: adminUsers } = await supabase.rpc('get_admin_notification_emails');
 
           if (adminUsers && adminUsers.length > 0) {
             for (const admin of adminUsers) {
@@ -1301,11 +1330,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             formData.location
           );
 
-          // Email de notification aux admins
-          const { data: adminUsers, error: adminError } = await supabase
-            .from('profiles')
-            .select('email, first_name')
-            .eq('role', 'admin');
+          const { data: adminUsers, error: adminError } = await supabase.rpc(
+            'get_admin_notification_emails'
+          );
 
           if (adminError) {
             console.error('❌ Erreur lors de la récupération des admins:', adminError);
@@ -2332,8 +2359,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         />
       </View>
 
-      {/* Section Parrainage - Masquée si l'utilisateur est déjà hôte */}
-      {!isEditMode && !isAlreadyHost && (
+      {/* Section Parrainage (y compris hôte ajoutant une nouvelle candidature) */}
+      {!isEditMode && (
         <View style={styles.inputGroup}>
           <View style={styles.referralSection}>
             <TouchableOpacity

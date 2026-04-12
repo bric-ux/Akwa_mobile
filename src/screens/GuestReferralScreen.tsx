@@ -16,6 +16,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useReferrals, REFERRAL_CAMPAIGN_MAX_SLOTS, REFERRAL_CAMPAIGN_UNIT_FCFA } from '../hooks/useReferrals';
 import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import * as Clipboard from 'expo-clipboard';
+import { getFilleulStatusInfo } from '../utils/referralFilleulStatus';
 
 const GuestReferralScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -152,7 +153,7 @@ const GuestReferralScreen: React.FC = () => {
               • Votre filleul s’inscrit avec votre code et dépose sa candidature hôte.
             </Text>
             <Text style={styles.rulesItem}>
-              • Lorsque la candidature est approuvée, vous êtes crédité de 1 000 FCFA (campagne actuelle), dans la limite de 30 filleuls rémunérés (les récompenses de l’ancien système ne comptent pas dans ce plafond).
+              • Lorsque la candidature est approuvée, vous êtes crédité de 1 000 FCFA (campagne actuelle), dans la limite de 30 filleuls rémunérés.
             </Text>
             <Text style={styles.rulesItem}>
               • Renseignez votre numéro Wave dans « Informations de paiement » pour le versement.
@@ -316,7 +317,7 @@ const GuestReferralScreen: React.FC = () => {
                     </Text>
                   </View>
                   <Text style={[styles.cardDescription, { fontSize: 12 }]}>
-                    {`Vous avez ${guestStats.hostReferrals} parrainage${guestStats.hostReferrals !== 1 ? 's' : ''} en tant qu'hôte. En tant qu'hôte, vous recevez des récompenses en cash. En tant que voyageur, vous recevez des bons de réduction.`}
+                    {`Vous avez ${guestStats.hostReferrals} parrainage${guestStats.hostReferrals !== 1 ? 's' : ''} enregistré${guestStats.hostReferrals !== 1 ? 's' : ''} comme parrain « hôte » : la campagne actuelle rémunère en cash (Wave) à l’approbation de la candidature. La section « Mes bons de réduction » ci‑dessous ne concerne que d’éventuels avoirs déjà émis dans l’ancien système, pas la campagne cash.`}
                   </Text>
                 </View>
               ) : null}
@@ -326,7 +327,10 @@ const GuestReferralScreen: React.FC = () => {
 
         {/* Liste des parrainages */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mes filleuls</Text>
+          <Text style={styles.sectionTitle}>Mes filleuls — où ils en sont</Text>
+          <Text style={styles.sectionSubtitle}>
+            Statut de chaque personne dans le parcours : inscription, candidature, validation, récompense.
+          </Text>
           {isLoadingReferrals ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#e67e22" />
@@ -335,6 +339,7 @@ const GuestReferralScreen: React.FC = () => {
             <View style={styles.referralsList}>
               {referrals.map((ref) => {
                 const isGuest = !ref.referrer_type || ref.referrer_type === 'guest';
+                const st = getFilleulStatusInfo(ref);
                 const firstName = ref.referred_user?.first_name || null;
                 const lastName = ref.referred_user?.last_name || null;
                 const fullName = (() => {
@@ -345,27 +350,6 @@ const GuestReferralScreen: React.FC = () => {
                   if (lastName) return lastName;
                   return null;
                 })();
-                // Traduire le statut
-                const statusLabels: { [key: string]: string } = {
-                  'pending': 'En attente',
-                  'registered': 'Inscrit',
-                  'application_submitted': 'Candidature déposée',
-                  'first_property': 'Première propriété',
-                  'completed': 'Complété',
-                };
-                const statusLabel = statusLabels[ref.status] || (ref.status ? String(ref.status) : 'Inconnu');
-                
-                // Couleur selon le statut
-                const getStatusColor = (status: string) => {
-                  switch (status) {
-                    case 'completed': return '#4caf50';
-                    case 'first_property': return '#2196f3';
-                    case 'application_submitted': return '#6366f1';
-                    case 'registered': return '#ff9800';
-                    case 'pending': return '#9e9e9e';
-                    default: return '#9e9e9e';
-                  }
-                };
                 
                 return (
                   <View 
@@ -374,7 +358,7 @@ const GuestReferralScreen: React.FC = () => {
                       styles.referralCard,
                       {
                         borderLeftWidth: 4,
-                        borderLeftColor: getStatusColor(ref.status),
+                        borderLeftColor: st.color,
                       }
                     ]}
                   >
@@ -404,19 +388,24 @@ const GuestReferralScreen: React.FC = () => {
                             ) : null}
                           </>
                         )}
+                        <Text style={styles.filleulStepHint}>
+                          Étape {st.step}/{st.totalSteps} — {st.label}
+                        </Text>
                       </View>
                       <View style={[
                         styles.referralStatusBadge,
-                        { backgroundColor: `${getStatusColor(ref.status)}20` }
+                        { backgroundColor: `${st.color}20` }
                       ]}>
+                        <Ionicons name={st.icon as any} size={14} color={st.color} style={{ marginRight: 4 }} />
                         <Text style={[
                           styles.referralStatusText,
-                          { color: getStatusColor(ref.status) }
-                        ]}>
-                          {statusLabel}
+                          { color: st.color, flexShrink: 1 }
+                        ]} numberOfLines={3}>
+                          {st.label}
                         </Text>
                       </View>
                     </View>
+                    <Text style={styles.filleulStatusDetail}>{st.detail}</Text>
                     <View style={styles.referralDetails}>
                       <View style={styles.referralDetailRow}>
                         <Ionicons name="mail-outline" size={14} color="#999" />

@@ -16,6 +16,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useReferrals, REFERRAL_CAMPAIGN_MAX_SLOTS, REFERRAL_CAMPAIGN_UNIT_FCFA } from '../hooks/useReferrals';
 import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import * as Clipboard from 'expo-clipboard';
+import { getFilleulStatusInfo } from '../utils/referralFilleulStatus';
 
 const HostReferralScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -121,61 +122,6 @@ const HostReferralScreen: React.FC = () => {
     });
   };
 
-  const getStatusInfo = (referral: {
-    status: string;
-    approval_campaign_reward?: boolean | null;
-    reward_amount?: number | null;
-  }) => {
-    const status = referral.status;
-    switch (status) {
-      case 'pending':
-        return {
-          label: 'En attente',
-          color: '#f59e0b',
-          icon: 'time-outline',
-        };
-      case 'registered':
-        return {
-          label: 'Inscrit avec votre code',
-          color: '#3498db',
-          icon: 'person-add-outline',
-        };
-      case 'application_submitted':
-        return {
-          label: 'Candidature déposée',
-          color: '#6366f1',
-          icon: 'document-text-outline',
-        };
-      case 'first_property':
-        return {
-          label: 'Première propriété',
-          color: '#10b981',
-          icon: 'home-outline',
-        };
-      case 'completed': {
-        const isCampaign = referral.approval_campaign_reward === true;
-        const amt = referral.reward_amount || 0;
-        const label =
-          isCampaign && amt >= REFERRAL_CAMPAIGN_UNIT_FCFA
-            ? `Validé — ${REFERRAL_CAMPAIGN_UNIT_FCFA.toLocaleString('fr-FR')} FCFA`
-            : isCampaign && amt === 0
-              ? 'Validé — plafond 30 atteint'
-              : `Complété${amt > 0 ? ` — ${amt.toLocaleString('fr-FR')} FCFA` : ''}`;
-        return {
-          label,
-          color: '#2E7D32',
-          icon: 'trophy-outline',
-        };
-      }
-      default:
-        return {
-          label: status ? String(status) : 'Inconnu',
-          color: '#666',
-          icon: 'help-circle-outline',
-        };
-    }
-  };
-
   if (isLoadingCode) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -231,7 +177,7 @@ const HostReferralScreen: React.FC = () => {
     );
   }
 
-  const hostReferrals = (referrals && Array.isArray(referrals)) ? referrals.filter(r => r.referrer_type === 'host') : [];
+  const hostReferralsList = referrals && Array.isArray(referrals) ? referrals : [];
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -251,7 +197,7 @@ const HostReferralScreen: React.FC = () => {
             <Text style={styles.rewardTitle}>Programme de récompense</Text>
           </View>
           <Text style={styles.rewardDescription}>
-            {`${REFERRAL_CAMPAIGN_UNIT_FCFA.toLocaleString('fr-FR')} FCFA par filleul lorsque sa candidature hôte est approuvée par AkwaHome. Maximum ${REFERRAL_CAMPAIGN_MAX_SLOTS} filleuls rémunérés dans cette campagne (l’ancien système ne compte pas dans ce plafond).`}
+            {`${REFERRAL_CAMPAIGN_UNIT_FCFA.toLocaleString('fr-FR')} FCFA par filleul lorsque sa candidature hôte est approuvée par AkwaHome. Maximum ${REFERRAL_CAMPAIGN_MAX_SLOTS} filleuls rémunérés dans cette campagne.`}
           </Text>
 
           <View style={styles.rewardStats}>
@@ -343,10 +289,13 @@ const HostReferralScreen: React.FC = () => {
 
         {/* Liste des parrainages */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Mes Parrainages</Text>
+          <Text style={styles.cardTitle}>Mes filleuls — où ils en sont</Text>
+          <Text style={styles.cardSubtitle}>
+            Chaque ligne indique l’étape du parcours : inscription → candidature → validation → récompense le cas échéant.
+          </Text>
           {isLoadingReferrals ? (
             <ActivityIndicator size="large" color="#2E7D32" style={styles.loader} />
-          ) : (!hostReferrals || hostReferrals.length === 0) ? (
+          ) : hostReferralsList.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={48} color="#ccc" />
               <Text style={styles.emptyText}>Aucun parrainage pour le moment</Text>
@@ -354,8 +303,8 @@ const HostReferralScreen: React.FC = () => {
             </View>
           ) : (
             <View style={styles.referralsList}>
-              {hostReferrals.map((referral) => {
-                const statusInfo = getStatusInfo(referral);
+              {hostReferralsList.map((referral) => {
+                const st = getFilleulStatusInfo(referral);
                 return (
                   <View key={referral.id} style={styles.referralItem}>
                     <View style={styles.referralHeader}>
@@ -368,14 +317,18 @@ const HostReferralScreen: React.FC = () => {
                             year: 'numeric'
                           })}
                         </Text>
+                        <Text style={styles.stepHint}>
+                          Étape {st.step}/{st.totalSteps}
+                        </Text>
                       </View>
-                      <View style={[styles.statusBadge, { backgroundColor: `${statusInfo.color}20` }]}>
-                        <Ionicons name={statusInfo.icon as any} size={16} color={statusInfo.color} />
-                        <Text style={[styles.statusText, { color: statusInfo.color }]}>
-                          {statusInfo.label}
+                      <View style={[styles.statusBadge, { backgroundColor: `${st.color}20` }]}>
+                        <Ionicons name={st.icon as any} size={16} color={st.color} />
+                        <Text style={[styles.statusText, { color: st.color }]} numberOfLines={3}>
+                          {st.label}
                         </Text>
                       </View>
                     </View>
+                    <Text style={styles.statusDetail}>{st.detail}</Text>
                     {referral.reward_amount > 0 && referral.status === 'completed' && (
                       <View style={styles.rewardBadge}>
                         <Text style={styles.rewardBadgeText}>+{referral.reward_amount} XOF</Text>
@@ -444,7 +397,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    marginBottom: 14,
+    lineHeight: 18,
     textAlign: 'center',
   },
   cardDescription: {
@@ -641,12 +601,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
   },
+  stepHint: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  statusDetail: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 19,
+    marginTop: 8,
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
+    maxWidth: '48%',
+    flexShrink: 0,
     gap: 5,
   },
   statusText: {

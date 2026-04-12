@@ -1,8 +1,11 @@
 import React from 'react';
-import { View, Text, ImageBackground, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
+
+const HERO_SOURCE = require('../../assets/images/hero-cote-ivoire.jpg');
 
 interface HeroSectionProps {
   onSearchPress?: () => void;
@@ -11,45 +14,47 @@ interface HeroSectionProps {
 export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
   return (
     <View style={styles.container}>
-      <ImageBackground
-        source={require('../../assets/images/hero-cote-ivoire.jpg')}
+      <Image
+        source={HERO_SOURCE}
         style={styles.backgroundImage}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay}>
-          <View style={styles.content}>
-            <Text style={styles.title}>
-              Trouvez votre
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        priority="high"
+        transition={200}
+      />
+      <View style={styles.overlay}>
+        <View style={styles.content}>
+          <Text style={styles.title}>
+            Trouvez votre
+          </Text>
+          <Text style={styles.titleGradient}>
+            séjour parfait
+          </Text>
+          <Text style={styles.subtitle}>
+            Découvrez des logements uniques en Côte d'Ivoire
+          </Text>
+          <Text style={styles.tagline}>
+            Ici c'est chez vous !
+          </Text>
+          
+          <TouchableOpacity 
+            style={styles.searchButton}
+            onPress={onSearchPress}
+          >
+            <Ionicons name="search" size={20} color="#fff" />
+            <Text style={styles.searchButtonText}>
+              Rechercher un hébergement
             </Text>
-            <Text style={styles.titleGradient}>
-              séjour parfait
-            </Text>
-            <Text style={styles.subtitle}>
-              Découvrez des logements uniques en Côte d'Ivoire
-            </Text>
-            <Text style={styles.tagline}>
-              Ici c'est chez vous !
-            </Text>
-            
-            <TouchableOpacity 
-              style={styles.searchButton}
-              onPress={onSearchPress}
-            >
-              <Ionicons name="search" size={20} color="#fff" />
-              <Text style={styles.searchButtonText}>
-                Rechercher un hébergement
-              </Text>
-            </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         </View>
-      </ImageBackground>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    height: height * 0.4, // Augmenté pour plus d'impact
+    height: height * 0.4,
     marginTop: 0,
     paddingTop: 0,
     marginBottom: 0,
@@ -58,14 +63,16 @@ const styles = StyleSheet.create({
     paddingLeft: 0,
     marginRight: 0,
     paddingRight: 0,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#1e293b',
   },
   backgroundImage: {
-    flex: 1,
-    width: '100%',
+    ...StyleSheet.absoluteFillObject,
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)', // Overlay plus léger comme sur le site
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -86,7 +93,7 @@ const styles = StyleSheet.create({
   titleGradient: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#F97316', // orange-primary pour l'effet gradient
+    color: '#F97316',
     textAlign: 'center',
     marginBottom: 16,
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
@@ -95,7 +102,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.9)', // white/90
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
     marginBottom: 8,
     lineHeight: 24,
@@ -105,7 +112,7 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 16,
-    color: '#F97316', // orange-primary
+    color: '#F97316',
     textAlign: 'center',
     marginBottom: 32,
     fontWeight: '600',
@@ -116,7 +123,7 @@ const styles = StyleSheet.create({
   searchButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#22C55E', // green-primary comme sur le site
+    backgroundColor: '#22C55E',
     paddingHorizontal: 24,
     paddingVertical: 16,
     borderRadius: 25,

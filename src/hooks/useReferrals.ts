@@ -23,7 +23,7 @@ interface Referral {
   updated_at: string;
   cash_reward_paid?: boolean;
   cash_reward_amount?: number;
-  /** Campagne actuelle 1000 FCFA (candidature approuvée) — exclut l’ancien système du plafond 30 */
+  /** Récompense campagne actuelle (1000 FCFA à l’approbation) — utilisé pour le décompte du plafond 30 */
   approval_campaign_reward?: boolean | null;
   referral_payout_paid_at?: string | null;
   referral_payout_marked_by?: string | null;
@@ -65,6 +65,13 @@ interface DiscountVoucher {
   used_at: string | null;
 }
 
+/** Debug parrainage : uniquement en __DEV__ (évite le spam Metro en prod) */
+const devLog = (...args: unknown[]) => {
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    console.log(...args);
+  }
+};
+
 export const useReferrals = () => {
   const { user } = useAuth();
   const [referralCode, setReferralCode] = useState<ReferralCode | null>(null);
@@ -95,7 +102,7 @@ export const useReferrals = () => {
           throw error;
         }
         
-        console.log('✅ [useReferrals] Code de parrainage récupéré:', data);
+        devLog('✅ [useReferrals] Code de parrainage récupéré:', data);
         setReferralCode(data);
       } catch (error) {
         console.error('❌ [useReferrals] Erreur lors de la récupération du code de parrainage:', error);
@@ -119,7 +126,7 @@ export const useReferrals = () => {
       try {
         setIsLoadingReferrals(true);
         
-        console.log('🔍 [useReferrals] Début de la récupération des parrainages pour user:', user.id);
+        devLog('🔍 [useReferrals] Début de la récupération des parrainages pour user:', user.id);
         
         // Récupérer tous les parrainages (hôtes et voyageurs)
         const { data, error } = await supabase
@@ -154,7 +161,7 @@ export const useReferrals = () => {
         
         // Récupérer les profiles par user_id
         if (referredUserIds.length > 0) {
-          console.log('🔍 [useReferrals] Récupération des profiles par user_id:', {
+          devLog('🔍 [useReferrals] Récupération des profiles par user_id:', {
             count: referredUserIds.length,
             ids: referredUserIds,
           });
@@ -191,7 +198,7 @@ export const useReferrals = () => {
         
         // Récupérer les profiles par email (pour les parrainages où referred_user_id est null)
         if (referredEmails.length > 0) {
-          console.log('🔍 [useReferrals] Récupération des profiles par email:', {
+          devLog('🔍 [useReferrals] Récupération des profiles par email:', {
             count: referredEmails.length,
             emails: referredEmails,
           });
@@ -214,7 +221,7 @@ export const useReferrals = () => {
           const profilesByEmailResults = await Promise.all(profilesByEmailPromises);
           const validProfilesByEmail = profilesByEmailResults.filter(p => p !== null);
           
-          console.log('✅ [useReferrals] Profiles récupérés par email:', {
+          devLog('✅ [useReferrals] Profiles récupérés par email:', {
             count: validProfilesByEmail.length,
             profiles: validProfilesByEmail,
           });
@@ -231,7 +238,7 @@ export const useReferrals = () => {
           }, {});
         }
         
-        console.log('✅ [useReferrals] Profiles maps créés:', {
+        devLog('✅ [useReferrals] Profiles maps créés:', {
           byUserId: profilesMap,
           byEmail: profilesMapByEmail,
         });
@@ -246,7 +253,7 @@ export const useReferrals = () => {
             userInfo = profilesMapByEmail[r.referred_email.toLowerCase()];
           }
           
-          console.log(`🔍 [useReferrals] Parrainage ${r.id}:`, {
+          devLog(`🔍 [useReferrals] Parrainage ${r.id}:`, {
             referred_user_id: r.referred_user_id,
             referred_email: r.referred_email,
             userInfo: userInfo,
@@ -260,7 +267,7 @@ export const useReferrals = () => {
           };
         });
         
-        console.log('✅ [useReferrals] Parrainages récupérés:', {
+        devLog('✅ [useReferrals] Parrainages récupérés:', {
           userId: user.id,
           count: referralsWithUserInfo.length,
           data: referralsWithUserInfo.map((r: any) => ({
@@ -327,7 +334,7 @@ export const useReferrals = () => {
           throw error;
         }
         
-        console.log('✅ [useReferrals] Vouchers récupérés:', {
+        devLog('✅ [useReferrals] Vouchers récupérés:', {
           count: data?.length || 0,
           data: data,
         });
@@ -377,56 +384,32 @@ export const useReferrals = () => {
   // Vérifier un code de parrainage
   const verifyReferralCode = async (code: string) => {
     try {
-      // D'abord, récupérer le code de parrainage
-      const { data: referralCodeData, error: referralError } = await supabase
-        .from('user_referral_codes')
-        .select('*')
-        .eq('referral_code', code.toUpperCase())
-        .maybeSingle();
+      const normalized = code.trim().toUpperCase();
+      if (!normalized) {
+        return { valid: false, error: 'Code de parrainage invalide' };
+      }
+
+      // RPC SECURITY DEFINER : la table user_referral_codes n’est lisible par RLS que pour sa propre ligne ;
+      // un SELECT direct sur le code d’un autre utilisateur renvoie toujours vide → « invalide » à tort.
+      const { data: validationRows, error: referralError } = await supabase.rpc(
+        'validate_referral_code',
+        { p_code: normalized }
+      );
 
       if (referralError) {
         console.error('Error verifying referral code:', referralError);
         throw referralError;
       }
-      
-      if (!referralCodeData) {
+
+      const validation = validationRows?.[0];
+      if (!validation?.is_valid || !validation.referrer_user_id) {
         return { valid: false, error: 'Code de parrainage invalide' };
       }
 
-      // Vérifier que ce n'est pas l'utilisateur lui-même
-      if (user && referralCodeData.user_id === user.id) {
+      const referrerUserId = validation.referrer_user_id as string;
+
+      if (user && referrerUserId === user.id) {
         return { valid: false, error: 'Vous ne pouvez pas vous auto-parrainer' };
-      }
-
-      // Vérifier que l'utilisateur qui entre le code n'est pas déjà hôte
-      if (user) {
-        const { data: currentUserProfile, error: currentUserError } = await supabase
-          .from('profiles')
-          .select('is_host')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (currentUserError) {
-          console.error('Error checking current user host status:', currentUserError);
-        }
-
-        // Vérifier aussi si l'utilisateur a des propriétés
-        const { data: userProperties, error: userPropertiesError } = await supabase
-          .from('properties')
-          .select('id')
-          .eq('host_id', user.id)
-          .limit(1);
-
-        if (userPropertiesError) {
-          console.error('Error checking user properties:', userPropertiesError);
-        }
-
-        const userHasProperties = userProperties && userProperties.length > 0;
-        const userIsHost = currentUserProfile?.is_host || userHasProperties;
-
-        if (userIsHost) {
-          return { valid: false, error: 'Vous êtes déjà hôte. Le parrainage n\'est disponible que pour devenir hôte pour la première fois.' };
-        }
       }
 
       // Récupérer le profil du parrain
@@ -435,7 +418,7 @@ export const useReferrals = () => {
       try {
         // Essayer d'abord via la fonction RPC get_public_profile_info
         const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_public_profile_info', { profile_user_id: referralCodeData.user_id });
+          .rpc('get_public_profile_info', { profile_user_id: referrerUserId });
         
         if (!rpcError && rpcData && rpcData.length > 0) {
           parrainProfile = {
@@ -447,7 +430,7 @@ export const useReferrals = () => {
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('first_name, last_name')
-            .eq('user_id', referralCodeData.user_id)
+            .eq('user_id', referrerUserId)
             .maybeSingle();
           
           if (!profileError && profileData) {
@@ -464,14 +447,14 @@ export const useReferrals = () => {
         // Ne pas faire échouer la validation si on ne peut pas récupérer le profil
       }
 
-      console.log('🔍 Vérification code parrainage:', {
-        code: code.toUpperCase(),
-        parrainUserId: referralCodeData.user_id,
+      devLog('🔍 Vérification code parrainage:', {
+        code: normalized,
+        parrainUserId: referrerUserId,
         parrainName: parrainProfile ? `${parrainProfile.first_name} ${parrainProfile.last_name}` : 'Inconnu',
         currentUserId: user?.id
       });
 
-      console.log('✅ Code valide: le parrain peut être un hôte ou un voyageur');
+      devLog('✅ Code valide: le parrain peut être un hôte ou un voyageur');
 
       const referrerName = parrainProfile 
         ? `${parrainProfile.first_name || ''} ${parrainProfile.last_name || ''}`.trim() || 'Utilisateur'
@@ -487,9 +470,10 @@ export const useReferrals = () => {
     }
   };
 
-  // Statistiques pour les hôtes
-  // Inclure seulement les parrainages où referrer_type est explicitement 'host'
-  const hostReferrals = referrals.filter(r => r.referrer_type === 'host');
+  // Statistiques espace hôte : tous les filleuls (referrer_id = user).
+  // referrer_type peut être 'guest' si le parrain n'avait pas encore de ligne dans properties au moment du lien
+  // alors qu'il est déjà hôte (is_host) — les anciennes UIs filtraient referrer_type === 'host' et masquaient tout.
+  const hostReferrals = referrals;
 
   const computeCampaignStats = (list: Referral[]): ReferralCampaignStats => {
     const campaign = list.filter(r => r.approval_campaign_reward === true);
@@ -512,8 +496,7 @@ export const useReferrals = () => {
     };
   };
 
-  const hostCampaign = computeCampaignStats(hostReferrals);
-  const allCampaign = computeCampaignStats(referrals);
+  const campaignStats = computeCampaignStats(referrals);
 
   const hostStats = {
     total: hostReferrals.length,
@@ -529,7 +512,7 @@ export const useReferrals = () => {
         (r.cash_reward_amount || 0) > 0 &&
         !r.cash_reward_paid
     ).length,
-    campaign: hostCampaign,
+    campaign: campaignStats,
   };
 
   // Statistiques pour les voyageurs
@@ -559,25 +542,8 @@ export const useReferrals = () => {
     usedVouchers: usedVouchers.length,
     totalSavings: usedVouchers.reduce((sum, v) => sum + (v.discount_amount || 0), 0),
     /** Campagne cash (tous types de parrain) */
-    campaign: allCampaign,
+    campaign: campaignStats,
   };
-
-  // Log pour debug
-  console.log('🔍 [useReferrals] Données récupérées:', {
-    referralsCount: referrals.length,
-    referralsWithTypes: referrals.map(r => ({
-      id: r.id,
-      referrer_type: r.referrer_type,
-      status: r.status,
-      referred_email: r.referred_email,
-    })),
-    guestReferralsCount: guestReferrals.length,
-    hostReferralsCount: hostReferrals.length,
-    vouchersCount: vouchers.length,
-    activeVouchersCount: activeVouchers.length,
-    guestStats,
-    hostStats,
-  });
 
   return {
     referralCode,
@@ -591,7 +557,7 @@ export const useReferrals = () => {
     hostStats,
     guestStats,
     /** Stats campagne 1000 FCFA (tous parrainages de l’utilisateur) */
-    referralCampaign: allCampaign,
+    referralCampaign: campaignStats,
   };
 };
 

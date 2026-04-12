@@ -6,10 +6,11 @@ import {
   FlatList,
   Alert,
   TouchableOpacity,
-  ImageBackground,
   RefreshControl,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -135,12 +136,15 @@ const HomeScreen: React.FC = () => {
 
       {/* Section Promotionnelle Location de véhicules */}
       <View style={styles.vehiclesPromoSection}>
-        <ImageBackground
-          source={require('../../assets/images/vehicles-suv.jpg')}
-          style={styles.vehiclesPromoBackground}
-          imageStyle={styles.vehiclesPromoImageStyle}
-          resizeMode="cover"
-        >
+        <View style={styles.vehiclesPromoBackground}>
+          <Image
+            source={require('../../assets/images/vehicles-suv.jpg')}
+            style={styles.vehiclesPromoBgImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            priority="high"
+            transition={200}
+          />
           <View style={styles.vehiclesPromoOverlay}>
             <View style={styles.vehiclesPromoContent}>
               <View style={styles.vehiclesPromoLeft}>
@@ -186,7 +190,7 @@ const HomeScreen: React.FC = () => {
               </View>
             </View>
           </View>
-        </ImageBackground>
+        </View>
       </View>
 
       {/* Section Promotionnelle Conciergerie */}
@@ -260,24 +264,28 @@ const HomeScreen: React.FC = () => {
 
   const keyExtractor = useCallback((item: Property) => item.id, []);
   const emptyMessageShort = t('property.noProperties');
-  const listEmptyComponent = useMemo(() => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyTitle}>{emptyMessageShort}</Text>
-      <Text style={styles.emptySubtitle}>{t('property.noPropertiesDesc')}</Text>
-      <Text style={styles.emptySubtitle}>{t('property.noPropertiesSubtext')}</Text>
-    </View>
-  ), [emptyMessageShort, t]);
-
-  const showError = error;
-  const waitingForData = loading && properties.length === 0;
-
-  if (waitingForData) {
+  const listLoadingEmpty = loading && properties.length === 0;
+  const listEmptyComponent = useMemo(() => {
+    if (listLoadingEmpty) {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color="#e67e22" />
+          <Text style={[styles.emptySubtitle, { marginTop: 16 }]}>
+            Chargement des annonces…
+          </Text>
+        </View>
+      );
+    }
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.loadingText}>Chargement...</Text>
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyTitle}>{emptyMessageShort}</Text>
+        <Text style={styles.emptySubtitle}>{t('property.noPropertiesDesc')}</Text>
+        <Text style={styles.emptySubtitle}>{t('property.noPropertiesSubtext')}</Text>
       </View>
     );
-  }
+  }, [emptyMessageShort, t, listLoadingEmpty]);
+
+  const showError = error;
 
   if (showError) {
     return (
@@ -550,8 +558,12 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 220,
     borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#1e293b',
   },
-  vehiclesPromoImageStyle: {
+  vehiclesPromoBgImage: {
+    ...StyleSheet.absoluteFillObject,
     borderRadius: 16,
   },
   vehiclesPromoOverlay: {

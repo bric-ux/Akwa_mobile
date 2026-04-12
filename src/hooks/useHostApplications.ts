@@ -44,6 +44,8 @@ export interface HostApplicationData {
   checkOutTime?: string | null;
   houseRules?: string | null;
   customAmenities?: string[];
+  /** Code parrain pour cette candidature (nouvelle propriété) */
+  referralCodeSubmitted?: string | null;
 }
 
 export interface HostApplication {
@@ -196,6 +198,9 @@ export const useHostApplications = () => {
           check_out_time: applicationData.checkOutTime || null,
           house_rules: applicationData.houseRules || null,
           custom_amenities: applicationData.customAmenities || null,
+          ...(applicationData.referralCodeSubmitted
+            ? { referral_code_submitted: applicationData.referralCodeSubmitted }
+            : {}),
         })
         .select()
         .single();
@@ -227,13 +232,8 @@ export const useHostApplications = () => {
           applicationData.location
         );
 
-        // Email de notification aux administrateurs
-        // Récupérer les emails des administrateurs
-        const { data: admins } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('role', 'admin')
-          .eq('is_active', true);
+        // Email de notification aux administrateurs (user_roles ; RLS bloque profiles.role)
+        const { data: admins } = await supabase.rpc('get_admin_notification_emails');
 
         if (admins && admins.length > 0) {
           // Envoyer à tous les administrateurs

@@ -8,13 +8,14 @@ import {
   Alert,
   RefreshControl,
   Platform,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useHostApplications, HostApplication } from '../hooks/useHostApplications';
+import MediaThumb from '../components/MediaThumb';
+import { isMediaRowVideo, isVideoUrl } from '../utils/media';
 
 const MyHostApplicationsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -130,13 +131,13 @@ const MyHostApplicationsScreen: React.FC = () => {
     });
   };
 
-  // Fonction pour obtenir l'URL de la photo principale d'une candidature
-  const getApplicationMainImageUrl = (application: HostApplication): string => {
-    // Priorité 1: categorized_photos (photos catégorisées) triées par display_order
+  /** Vignette liste : URL + détection vidéo (Image ne rend pas les .mp4 etc.) */
+  const getApplicationThumbMeta = (
+    application: HostApplication
+  ): { uri: string; isVideo: boolean } => {
+    const placeholder = 'https://via.placeholder.com/150';
     if (application.categorized_photos) {
-      let photos = [];
-      
-      // Parser les photos catégorisées si c'est une string
+      let photos: any[] = [];
       if (typeof application.categorized_photos === 'string') {
         try {
           photos = JSON.parse(application.categorized_photos);
@@ -146,23 +147,21 @@ const MyHostApplicationsScreen: React.FC = () => {
       } else if (Array.isArray(application.categorized_photos)) {
         photos = application.categorized_photos;
       }
-      
       if (photos.length > 0) {
-        // Trier par display_order et prendre la première
-        const sortedPhotos = [...photos].sort((a, b) => 
-          (a.displayOrder || a.display_order || 0) - (b.displayOrder || b.display_order || 0)
+        const sortedPhotos = [...photos].sort(
+          (a, b) =>
+            (a.displayOrder || a.display_order || 0) - (b.displayOrder || b.display_order || 0)
         );
-        return sortedPhotos[0].url || sortedPhotos[0].uri || '';
+        const first = sortedPhotos[0];
+        const uri = first.url || first.uri || placeholder;
+        return { uri, isVideo: isMediaRowVideo(first) };
       }
     }
-
-    // Priorité 2: images array
     if (application.images && Array.isArray(application.images) && application.images.length > 0) {
-      return application.images[0];
+      const uri = application.images[0];
+      return { uri, isVideo: isVideoUrl(uri) };
     }
-
-    // Fallback: placeholder
-    return 'https://via.placeholder.com/150';
+    return { uri: placeholder, isVideo: false };
   };
 
   const renderApplication = (application: HostApplication) => (
@@ -178,11 +177,18 @@ const MyHostApplicationsScreen: React.FC = () => {
     >
       <View style={styles.applicationHeader}>
         <View style={styles.propertyInfo}>
-          <Image
-            source={{ uri: getApplicationMainImageUrl(application) }}
-            style={styles.propertyImage}
-            resizeMode="cover"
-          />
+          {(() => {
+            const { uri, isVideo } = getApplicationThumbMeta(application);
+            return (
+              <MediaThumb
+                uri={uri}
+                style={styles.propertyImage}
+                resizeMode="cover"
+                isVideo={isVideo}
+                recyclingKey={`list-${application.id}`}
+              />
+            );
+          })()}
           <View style={styles.propertyDetails}>
             <Text style={styles.propertyTitle} numberOfLines={1}>
               {application.title}

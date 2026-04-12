@@ -83,7 +83,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       allowsMultipleSelection: true,
       selectionLimit: limit,
       quality: 0.8,

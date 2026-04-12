@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -15,6 +14,8 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useHostApplications, HostApplication } from '../hooks/useHostApplications';
 import { getAmenityIcon } from '../utils/amenityIcons';
 import { useAmenities } from '../hooks/useAmenities';
+import MediaThumb from '../components/MediaThumb';
+import { isMediaRowVideo, isVideoUrl } from '../utils/media';
 
 const ApplicationDetailsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -335,10 +336,10 @@ const ApplicationDetailsScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Photos */}
+        {/* Photos et vidéos (Image RN ne lit pas les URLs vidéo) */}
         {application.categorized_photos && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📸 Photos</Text>
+            <Text style={styles.sectionTitle}>📸 Photos et vidéos</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
               {(() => {
                 try {
@@ -346,20 +347,53 @@ const ApplicationDetailsScreen: React.FC = () => {
                     ? JSON.parse(application.categorized_photos)
                     : application.categorized_photos;
                   
-                  return photos.map((photo: any, index: number) => (
-                    <View key={index} style={styles.photoContainer}>
-                      <Image
-                        source={{ uri: photo.url || photo.uri }}
-                        style={styles.photo}
-                        resizeMode="cover"
-                      />
-                      <Text style={styles.photoCategory}>{photo.category || 'Autre'}</Text>
-                    </View>
-                  ));
+                  return photos.map((photo: any, index: number) => {
+                    const uri = photo.url || photo.uri;
+                    if (!uri) return null;
+                    const vid = isMediaRowVideo(photo);
+                    return (
+                      <View key={index} style={styles.photoContainer}>
+                        <MediaThumb
+                          uri={uri}
+                          style={styles.photo}
+                          resizeMode="cover"
+                          isVideo={vid}
+                          recyclingKey={`app-${application.id}-m-${index}`}
+                        />
+                        <Text style={styles.photoCategory}>
+                          {vid ? '🎬 Vidéo' : photo.category || 'Autre'}
+                        </Text>
+                      </View>
+                    );
+                  });
                 } catch (e) {
                   return null;
                 }
               })()}
+            </ScrollView>
+          </View>
+        )}
+
+        {!application.categorized_photos && application.images && application.images.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📸 Photos et vidéos</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
+              {application.images.map((uri, index) => {
+                if (!uri) return null;
+                const vid = isVideoUrl(uri);
+                return (
+                  <View key={index} style={styles.photoContainer}>
+                    <MediaThumb
+                      uri={uri}
+                      style={styles.photo}
+                      resizeMode="cover"
+                      isVideo={vid}
+                      recyclingKey={`app-${application.id}-img-${index}`}
+                    />
+                    <Text style={styles.photoCategory}>{vid ? '🎬 Vidéo' : 'Média'}</Text>
+                  </View>
+                );
+              })}
             </ScrollView>
           </View>
         )}

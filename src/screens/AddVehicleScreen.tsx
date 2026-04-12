@@ -216,7 +216,7 @@ const AddVehicleScreen: React.FC = () => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       allowsMultipleSelection: true,
       selectionLimit: remainingSlots,
       quality: 0.8,
@@ -287,7 +287,7 @@ const AddVehicleScreen: React.FC = () => {
 
     const maxPick = Math.min(remainingSlots, MAX_VEHICLE_VIDEOS - videoCount);
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      mediaTypes: 'videos',
       allowsMultipleSelection: true,
       selectionLimit: maxPick,
       quality: 1,

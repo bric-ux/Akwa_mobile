@@ -231,7 +231,7 @@ const EditVehicleScreen: React.FC = () => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       allowsMultipleSelection: true,
       quality: 0.8,
     });
@@ -272,7 +272,7 @@ const EditVehicleScreen: React.FC = () => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      mediaTypes: 'videos',
       allowsMultipleSelection: true,
       selectionLimit: Math.min(remaining, MAX_EDIT_VEHICLE_VIDEOS - videoCount),
       quality: 1,

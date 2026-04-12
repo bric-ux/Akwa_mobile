@@ -100,6 +100,7 @@ import MyVehicleRenterReviewsScreen from '../screens/MyVehicleRenterReviewsScree
 import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
 import StripeReturnHandler from '../components/StripeReturnHandler';
 import WaveReturnHandler from '../components/WaveReturnHandler';
+import { AdminNotificationsProvider } from '../contexts/AdminNotificationsContext';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList } from '../types';
@@ -527,7 +528,7 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      <>
+      <AdminNotificationsProvider>
       <Stack.Navigator
         initialRouteName="Home"
         screenOptions={{
@@ -1197,7 +1198,7 @@ const AppNavigator = () => {
       </Stack.Navigator>
       <StripeReturnHandler navigationRef={navigationRef} />
       <WaveReturnHandler />
-      </>
+      </AdminNotificationsProvider>
     </NavigationContainer>
   );
 };

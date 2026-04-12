@@ -2,12 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   ScrollView,
   Dimensions,
   TouchableOpacity,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
@@ -89,7 +89,10 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
               <Image
                 source={image.source}
                 style={styles.image}
-                resizeMode="cover"
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                priority="high"
+                transition={200}
               />
               
               <View style={styles.overlay}>
@@ -156,6 +159,7 @@ const styles = StyleSheet.create({
     width: width,
     height: 250,
     position: 'relative',
+    backgroundColor: '#1e293b',
   },
   image: {
     width: '100%',

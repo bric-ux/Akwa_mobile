@@ -32,7 +32,7 @@ const AdminApplicationsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const { getAllHostApplications, updateApplicationStatus, loading } = useAdmin();
+  const { getAllHostApplications, updateApplicationStatus, deleteHostApplication, loading } = useAdmin();
   const { amenities } = useAmenities();
   
   // Fonction pour obtenir le nom de l'équipement à partir de son ID
@@ -54,6 +54,48 @@ const AdminApplicationsScreen: React.FC = () => {
   const [showPhotos, setShowPhotos] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [photoCategories, setPhotoCategories] = useState<{[key: number]: string}>({});
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
+
+  const handleAdminDeleteApplication = async (application: HostApplication) => {
+    if (application.status !== 'pending' && application.status !== 'reviewing') {
+      Alert.alert(
+        'Action impossible',
+        'Seules les candidatures en attente ou en révision peuvent être supprimées.'
+      );
+      return;
+    }
+    Alert.alert(
+      'Supprimer la candidature',
+      `Supprimer définitivement « ${application.title} » ? Cette action est irréversible.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleteInProgress(true);
+            const result = await deleteHostApplication(application.id);
+            setDeleteInProgress(false);
+            if (result.success) {
+              Alert.alert('Succès', 'La candidature a été supprimée.');
+              setShowDetails(false);
+              setSelectedApp(null);
+              setAdminNotes('');
+              setRevisionMessage('');
+              setPhotoCategories({});
+              setFieldsToRevise({});
+              loadApplications();
+            } else {
+              Alert.alert(
+                'Erreur',
+                result.error || 'Impossible de supprimer la candidature.'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const loadApplications = async () => {
     try {
@@ -1608,6 +1650,20 @@ const styles = StyleSheet.create({
   },
   rejectButton: {
     backgroundColor: '#ffeaea',
+  },
+  deleteApplicationButton: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    marginTop: 4,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  deleteApplicationButtonText: {
+    fontSize: 14,
+    color: '#b91c1c',
+    marginLeft: 6,
+    fontWeight: '600',
   },
   amenitiesList: {
     flexDirection: 'row',
