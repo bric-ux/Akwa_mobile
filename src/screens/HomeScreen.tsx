@@ -45,7 +45,7 @@ const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { properties, loading, error, refreshProperties } = useProperties();
+  const { properties, loading, error, refreshProperties } = useProperties({ source: 'home' });
   const { cities, loading: citiesLoading, error: citiesError, getPopularDestinations } = useCities();
 
   const [popularDestinations, setPopularDestinations] = useState<any[]>([]);
@@ -156,7 +156,7 @@ const HomeScreen: React.FC = () => {
               Location de véhicules
             </Text>
             <Text style={styles.vehiclesPromoSubtitle}>
-              Explorez la Côte d'Ivoire à votre rythme
+              Explorez la Côte d&apos;Ivoire à votre rythme
             </Text>
             <Text style={styles.vehiclesPromoDescription}>
               Trouvez le véhicule parfait pour votre voyage. Des voitures, SUV, motos et plus encore disponibles à la location.

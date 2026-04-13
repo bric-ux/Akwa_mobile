@@ -116,7 +116,10 @@ const calculateRatingsFromReviewsBatch = async (propertyIds: string[]): Promise<
   }
 };
 
-export const useProperties = () => {
+type UsePropertiesOptions = { source?: 'home' | 'search' };
+
+export const useProperties = (options?: UsePropertiesOptions) => {
+  const source: 'home' | 'search' = options?.source ?? 'search';
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -296,7 +299,8 @@ export const useProperties = () => {
 
   useEffect(() => {
     fetchProperties();
-  }, []); // Garder un tableau vide pour le chargement initial
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source]); // recharger si le contexte change
 
   const fetchProperties = useCallback(async (filters?: SearchFilters) => {
     try {
@@ -304,7 +308,7 @@ export const useProperties = () => {
       setError(null);
 
       // Créer une clé de cache basée sur les filtres
-      const cacheKey = JSON.stringify(filters || {});
+      const cacheKey = JSON.stringify({ source, filters: filters || {} });
       
       // Vérifier le cache d'abord
       if (cache.has(cacheKey)) {
@@ -425,6 +429,11 @@ export const useProperties = () => {
         `)
         .eq('is_active', true)
         .eq('is_hidden', false);
+
+      // Accueil (Explorer/Home) : masquer uniquement certaines annonces sur la home
+      if (source === 'home') {
+        query = query.eq('hide_from_home', false);
+      }
 
       // Appliquer le filtre location_id si présent
       if (locationIds && locationIds.length > 0) {

@@ -372,6 +372,39 @@ export const useAdmin = () => {
     }
   };
 
+  /** Masquer/afficher uniquement sur l'accueil (Home/Explorer), sans impacter la recherche. */
+  const updatePropertyHomeVisibility = async (propertyId: string, showOnHome: boolean) => {
+    if (!user) {
+      setError('Vous devez être connecté');
+      return { success: false };
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error } = await supabase
+        .from('properties')
+        .update({ hide_from_home: !showOnHome })
+        .eq('id', propertyId);
+
+      if (error) {
+        console.error('Error updating property home visibility:', error);
+        setError('Erreur lors de la mise à jour de la propriété');
+        return { success: false };
+      }
+
+      bumpPublicPropertyListVersion();
+      return { success: true };
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      setError('Une erreur inattendue est survenue');
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deleteProperty = async (propertyId: string) => {
     if (!user) {
       setError('Vous devez être connecté');
@@ -739,6 +772,7 @@ export const useAdmin = () => {
     deleteHostApplication,
     getAllProperties,
     updatePropertyStatus,
+    updatePropertyHomeVisibility,
     deleteProperty,
     getAllUsers,
     updateUserRole,

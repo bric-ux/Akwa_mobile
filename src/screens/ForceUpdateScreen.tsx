@@ -16,6 +16,7 @@ export default function ForceUpdateScreen({
   androidUrl,
 }: Props) {
   const url = Platform.OS === 'ios' ? iosUrl : androidUrl;
+  const isEn = (title || '').toLowerCase().includes('update') || (message || '').toLowerCase().includes('please');
 
   return (
     <View style={styles.container}>
@@ -29,11 +30,11 @@ export default function ForceUpdateScreen({
           onPress={() => url && Linking.openURL(url)}
           activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>Mettre à jour</Text>
+          <Text style={styles.buttonText}>{isEn ? 'Update' : 'Mettre à jour'}</Text>
         </TouchableOpacity>
         {!url ? (
           <Text style={styles.smallNote}>
-            Lien de mise à jour indisponible. Contacte le support.
+            {isEn ? 'Update link unavailable. Please contact support.' : 'Lien de mise à jour indisponible. Contacte le support.'}
           </Text>
         ) : null}
       </View>

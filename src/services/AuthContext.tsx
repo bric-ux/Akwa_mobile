@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Application from 'expo-application';
+import * as Localization from 'expo-localization';
 import { supabase } from './supabase';
 import { User } from '../types';
 import { log, logError, logWarn } from '../utils/logger';
@@ -56,16 +57,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           const { data: cfg, error: cfgErr } = await supabase
             .from('app_min_versions')
-            .select('min_ios_build, min_android_build, force_update, title, message, ios_store_url, android_store_url')
+            .select('min_ios_build, min_android_build, force_update, title, message, title_en, message_en, ios_store_url, android_store_url')
             .eq('id', 1)
             .maybeSingle();
 
           if (!cfgErr && cfg?.force_update) {
             const minBuild = Platform.OS === 'ios' ? Number(cfg.min_ios_build ?? NaN) : Number(cfg.min_android_build ?? NaN);
             if (Number.isFinite(minBuild) && Number.isFinite(build) && build < minBuild) {
+              const locale = (Localization.getLocales?.()?.[0]?.languageTag || 'fr').toLowerCase();
+              const preferEn = locale.startsWith('en');
               setUpdateRequired(true);
-              setUpdateTitle(cfg.title ?? 'Mise à jour requise');
-              setUpdateMessage(cfg.message ?? 'Veuillez mettre à jour l’application pour continuer.');
+              setUpdateTitle(
+                (preferEn ? cfg.title_en : cfg.title) ??
+                  cfg.title ??
+                  cfg.title_en ??
+                  (preferEn ? 'Update required' : 'Mise à jour requise')
+              );
+              setUpdateMessage(
+                (preferEn ? cfg.message_en : cfg.message) ??
+                  cfg.message ??
+                  cfg.message_en ??
+                  (preferEn ? 'Please update the app to continue.' : 'Veuillez mettre à jour l’application pour continuer.')
+              );
               setUpdateIosUrl(cfg.ios_store_url ?? undefined);
               setUpdateAndroidUrl(cfg.android_store_url ?? undefined);
               setUser(null);

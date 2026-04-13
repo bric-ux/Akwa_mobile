@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,7 @@ const AdminPropertiesScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const { getAllProperties, updatePropertyStatus, deleteProperty, loading } = useAdmin();
+  const { getAllProperties, updatePropertyStatus, updatePropertyHomeVisibility, deleteProperty, loading } = useAdmin();
   
   const [properties, setProperties] = useState<AdminProperty[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -73,6 +73,35 @@ const AdminPropertiesScreen: React.FC = () => {
                 Alert.alert('Erreur', `Impossible de ${action} la propriété`);
               }
             } catch (err) {
+              Alert.alert('Erreur', 'Une erreur est survenue');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleToggleHome = async (property: AdminProperty) => {
+    const showOnHome = Boolean(property.hide_from_home) ? true : false;
+    const action = showOnHome ? 'afficher sur l’accueil' : 'retirer de l’accueil';
+
+    Alert.alert(
+      'Visibilité Accueil',
+      `Voulez-vous ${action} "${property.title}" ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: async () => {
+            try {
+              const result = await updatePropertyHomeVisibility(property.id, showOnHome);
+              if (result.success) {
+                Alert.alert('Succès', showOnHome ? 'Propriété visible sur l’accueil' : 'Propriété retirée de l’accueil');
+                loadProperties();
+              } else {
+                Alert.alert('Erreur', 'Impossible de mettre à jour la visibilité accueil');
+              }
+            } catch {
               Alert.alert('Erreur', 'Une erreur est survenue');
             }
           },
@@ -169,10 +198,10 @@ const AdminPropertiesScreen: React.FC = () => {
           styles.statusBadge,
           {
             backgroundColor: property.is_active
-              ? '#2E7D32'
-              : property.hidden_by_admin
-                ? '#b45309'
-                : '#e74c3c',
+                ? '#2E7D32'
+                : property.hidden_by_admin
+                  ? '#b45309'
+                  : '#e74c3c',
           }
         ]}>
           <Text style={styles.statusText}>
@@ -209,6 +238,20 @@ const AdminPropertiesScreen: React.FC = () => {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => handleToggleHome(property)}
+        >
+          <Ionicons
+            name={property.hide_from_home ? 'home-outline' : 'home'}
+            size={16}
+            color="#0f766e"
+          />
+          <Text style={styles.actionButtonText}>
+            {property.hide_from_home ? 'Mettre sur accueil' : 'Retirer accueil'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.actionButton, styles.deleteButton]}
           onPress={() => handleDeleteProperty(property)}
         >
@@ -241,7 +284,7 @@ const AdminPropertiesScreen: React.FC = () => {
           <Ionicons name="person-circle-outline" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>Non connecté</Text>
           <Text style={styles.emptySubtitle}>
-            Veuillez vous connecter pour accéder à l'administration.
+            Veuillez vous connecter pour accéder à l&apos;administration.
           </Text>
           <TouchableOpacity
             style={styles.loginButton}
@@ -262,7 +305,7 @@ const AdminPropertiesScreen: React.FC = () => {
           <Ionicons name="shield-outline" size={64} color="#e74c3c" />
           <Text style={styles.emptyTitle}>Accès refusé</Text>
           <Text style={styles.emptySubtitle}>
-            Vous n'avez pas les permissions nécessaires pour accéder à l'administration.
+            Vous n&apos;avez pas les permissions nécessaires pour accéder à l&apos;administration.
           </Text>
           <TouchableOpacity
             style={styles.loginButton}

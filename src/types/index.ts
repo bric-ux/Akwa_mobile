@@ -79,6 +79,8 @@ export interface Property {
   service_fee?: number;
   taxes?: number;
   is_hidden?: boolean;
+  /** Masquer uniquement sur l’accueil (Explorer/Home), sans impacter la recherche. */
+  hide_from_home?: boolean;
   /** Annonce publiée (visible voyageur si true et non masquée admin) */
   is_active?: boolean;
   /** Mis par l’admin : l’hôte ne peut pas remettre is_active à true seul */
