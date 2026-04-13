@@ -1021,7 +1021,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       setError(null);
 
       // Créer une clé de cache basée sur les filtres
-      const cacheKey = JSON.stringify(filters || {});
+      const cacheKey = JSON.stringify({ source, filters: filters || {} });
       
       // Supprimer l'entrée du cache pour forcer une nouvelle requête
       setCache(prevCache => {
@@ -1142,6 +1142,11 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         `)
         .eq('is_active', true)
         .eq('is_hidden', false);
+
+      // Accueil (Explorer/Home) : masquer uniquement certaines annonces sur la home
+      if (source === 'home') {
+        query = query.eq('hide_from_home', false);
+      }
 
       // Appliquer le filtre location_id si présent
       if (locationIds && locationIds.length > 0) {
