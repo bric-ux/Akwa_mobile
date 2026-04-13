@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
-      "buildNumber": "27",
+      "buildNumber": "28",
       "infoPlist": {
         "NSCameraUsageDescription": "AkwaHome uses the camera so you can take photos or videos—for example to update your profile picture or add images to your property and vehicle listings.",
         "NSPhotoLibraryUsageDescription": "AkwaHome needs access to your photo library so you can update your profile picture and choose photos or videos for your listings. Only what you select is used.",

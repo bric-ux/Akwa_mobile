@@ -1,4 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import * as Application from 'expo-application';
 import { supabase } from './supabase';
 import { User } from '../types';
 import { log, logError, logWarn } from '../utils/logger';
@@ -6,6 +8,11 @@ import { log, logError, logWarn } from '../utils/logger';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  updateRequired: boolean;
+  updateTitle?: string;
+  updateMessage?: string;
+  updateIosUrl?: string;
+  updateAndroidUrl?: string;
   /** Re-lit la session stockée et réaligne `user` (utile après un geste natif / état transitoire). */
   recoverSession: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -30,11 +37,46 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updateRequired, setUpdateRequired] = useState(false);
+  const [updateTitle, setUpdateTitle] = useState<string | undefined>(undefined);
+  const [updateMessage, setUpdateMessage] = useState<string | undefined>(undefined);
+  const [updateIosUrl, setUpdateIosUrl] = useState<string | undefined>(undefined);
+  const [updateAndroidUrl, setUpdateAndroidUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     // Vérifier l'état d'authentification au démarrage
     const checkAuth = async () => {
       try {
+        // 1) Check MAJ obligatoire (avant login / session restore)
+        try {
+          const build =
+            Platform.OS === 'ios'
+              ? Number(Application.nativeBuildVersion ?? NaN)
+              : Number(Application.nativeBuildVersion ?? NaN);
+
+          const { data: cfg, error: cfgErr } = await supabase
+            .from('app_min_versions')
+            .select('min_ios_build, min_android_build, force_update, title, message, ios_store_url, android_store_url')
+            .eq('id', 1)
+            .maybeSingle();
+
+          if (!cfgErr && cfg?.force_update) {
+            const minBuild = Platform.OS === 'ios' ? Number(cfg.min_ios_build ?? NaN) : Number(cfg.min_android_build ?? NaN);
+            if (Number.isFinite(minBuild) && Number.isFinite(build) && build < minBuild) {
+              setUpdateRequired(true);
+              setUpdateTitle(cfg.title ?? 'Mise à jour requise');
+              setUpdateMessage(cfg.message ?? 'Veuillez mettre à jour l’application pour continuer.');
+              setUpdateIosUrl(cfg.ios_store_url ?? undefined);
+              setUpdateAndroidUrl(cfg.android_store_url ?? undefined);
+              setUser(null);
+              return;
+            }
+          }
+        } catch (e) {
+          // En cas d’erreur réseau/config, ne pas bloquer (on garde le comportement actuel)
+          logWarn('[Auth] Update check failed:', e);
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           setUser({
@@ -170,6 +212,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value = {
     user,
     loading,
+    updateRequired,
+    updateTitle,
+    updateMessage,
+    updateIosUrl,
+    updateAndroidUrl,
     recoverSession,
     signIn,
     signUp,

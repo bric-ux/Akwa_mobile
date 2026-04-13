@@ -8,6 +8,7 @@ import { LanguageProvider } from './src/contexts/LanguageContext';
 import { SearchDatesProvider } from './src/contexts/SearchDatesContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import CurrencyDefaultFromCountry from './src/components/CurrencyDefaultFromCountry';
+import ForceUpdateScreen from './src/screens/ForceUpdateScreen';
 
 const queryClient = new QueryClient();
 /** Délai minimum d’affichage du splash (évite un flash à peine visible). Réduit pour accélérer l’accès à l’app. */
@@ -34,7 +35,7 @@ export default function App() {
 }
 
 const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { loading } = useAuth();
+  const { loading, updateRequired, updateTitle, updateMessage, updateIosUrl, updateAndroidUrl } = useAuth();
   const [minSplashElapsed, setMinSplashElapsed] = useState(false);
 
   useEffect(() => {
@@ -53,6 +54,16 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         />
         <ActivityIndicator size="large" color="#e67e22" style={styles.splashSpinner} />
       </View>
+    );
+  }
+  if (updateRequired) {
+    return (
+      <ForceUpdateScreen
+        title={updateTitle}
+        message={updateMessage}
+        iosUrl={updateIosUrl}
+        androidUrl={updateAndroidUrl}
+      />
     );
   }
   return (
