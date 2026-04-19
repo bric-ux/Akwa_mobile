@@ -191,8 +191,7 @@ const ModeTransitionScreen: React.FC = () => {
               index: 0,
               routes: [{ name: 'MonthlyRentalOwnerSpace' }],
             });
-          } else if (targetPath === 'BecomeHost') {
-            // Si la destination est BecomeHost, naviguer directement sans reset
+          } else if (targetPath === 'HostAddPropertyChoice' || targetPath === 'BecomeHost') {
             navigation.navigate('BecomeHost' as never);
           } else {
             navigation.reset({

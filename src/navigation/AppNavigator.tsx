@@ -32,6 +32,7 @@ import HelpAssistantScreen from '../screens/HelpAssistantScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 import BecomeHostScreen from '../screens/BecomeHostScreen';
+import HostOnboardingAssistantScreen from '../screens/HostOnboardingAssistantScreen';
 import MyHostApplicationsScreen from '../screens/MyHostApplicationsScreen';
 import ApplicationDetailsScreen from '../screens/ApplicationDetailsScreen';
 import MyPropertiesScreen from '../screens/MyPropertiesScreen';
@@ -667,6 +668,14 @@ const AppNavigator = () => {
               options={{ 
                 title: 'Devenir hôte',
                 headerShown: false 
+              }}
+            />
+            <Stack.Screen
+              name="HostOnboardingAssistant"
+              component={HostOnboardingAssistantScreen}
+              options={{
+                title: 'Assistant annonce',
+                headerShown: false,
               }}
             />
             <Stack.Screen 

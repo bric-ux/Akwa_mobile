@@ -244,6 +244,8 @@ export type RootStackParamList = {
   HelpAssistant: undefined;
   EditProfile: undefined;
   BecomeHost: undefined;
+  /** Assistant IA (questions / réponses) — réservé usage futur */
+  HostOnboardingAssistant: undefined;
   MyHostApplications: undefined;
   ApplicationDetails: { applicationId: string };
   MyProperties: undefined;

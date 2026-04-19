@@ -322,7 +322,7 @@ const MyPropertiesScreen: React.FC = () => {
       {activeTab === 'applications' && (
         <TouchableOpacity
           style={styles.becomeHostButton}
-          onPress={() => navigation.navigate('BecomeHost')}
+          onPress={() => navigation.navigate('BecomeHost' as never)}
         >
           <Text style={styles.becomeHostButtonText}>{t('host.createApplication')}</Text>
         </TouchableOpacity>

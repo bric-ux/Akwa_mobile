@@ -13,6 +13,7 @@ import {
   Platform,
   Image,
   Switch,
+  Dimensions,
 } from 'react-native';
 import MediaThumb from '../components/MediaThumb';
 import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
@@ -35,15 +36,8 @@ import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
-
-const PROPERTY_TYPES = [
-  { value: 'apartment', label: 'Appartement' },
-  { value: 'house', label: 'Maison' },
-  { value: 'villa', label: 'Villa' },
-  { value: 'studio', label: 'Studio' },
-  { value: 'guesthouse', label: 'Maison d\'hôtes' },
-  { value: 'eco_lodge', label: 'Éco-lodge' },
-];
+import { PROPERTY_TYPES } from '../constants/hostListingForm';
+import { consumeHostAssistantDraft } from '../lib/hostOnboardingAssistant';
 
 const CANCELLATION_POLICIES = [
   { 
@@ -199,8 +193,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   >([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedImageForCategory, setSelectedImageForCategory] = useState<number | null>(null);
-  /** Tous les champs optionnels (logement, guide hôte, équipements & règles) dans un seul panneau */
-  const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false);
+  const [showAmenitiesModal, setShowAmenitiesModal] = useState(false);
+  /** Options avancées affichées dans une popup */
+  const [showAdvancedOptionsModal, setShowAdvancedOptionsModal] = useState(false);
 
   // Références pour la navigation entre champs
   const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
@@ -231,6 +226,52 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         });
       }
     }, [user])
+  );
+
+  /** Brouillon renvoyé par l’assistant IA (Edge host-onboarding-assistant) */
+  useFocusEffect(
+    React.useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        if (isEditMode || !listingTypeConfirmed || !listingType) return;
+        const draft = await consumeHostAssistantDraft();
+        if (cancelled || !draft) return;
+        const allowedTypes = PROPERTY_TYPES.map((p) => p.value);
+        setFormData((prev) => {
+          const pt =
+            draft.propertyType && allowedTypes.includes(draft.propertyType)
+              ? draft.propertyType
+              : prev.propertyType;
+          return {
+            ...prev,
+            propertyType: pt,
+            location: draft.location?.trim() ? draft.location.trim() : prev.location,
+            guests: draft.guests?.trim() ? draft.guests.trim() : prev.guests,
+            bedrooms: draft.bedrooms?.trim() ? draft.bedrooms.trim() : prev.bedrooms,
+            bathrooms: draft.bathrooms?.trim() ? draft.bathrooms.trim() : prev.bathrooms,
+            title: draft.title?.trim() ? draft.title.trim() : prev.title,
+            description: draft.description?.trim() ? draft.description.trim() : prev.description,
+            price: draft.price?.trim() ? draft.price.trim() : prev.price,
+            addressDetails: draft.addressDetails?.trim()
+              ? draft.addressDetails.trim()
+              : prev.addressDetails,
+          };
+        });
+        if (draft.locationPlace?.id && draft.locationPlace?.name) {
+          setSelectedLocation({
+            id: draft.locationPlace.id,
+            name: draft.locationPlace.name,
+            type: draft.locationPlace.type,
+            region: draft.locationPlace.region,
+            commune: draft.locationPlace.commune,
+            city_id: draft.locationPlace.city_id,
+          });
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [isEditMode, listingTypeConfirmed, listingType])
   );
   
   // Fonction pour vérifier si un champ doit être affiché en mode révision
@@ -1764,6 +1805,46 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         </>
       )}
 
+      {/* Équipements (après le prix / loyer) */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Équipements</Text>
+        <Text style={styles.helpText}>
+          Ouvrez la fenêtre pour cocher les équipements proposés (même liste qu’en catalogue).
+        </Text>
+        <TouchableOpacity
+          style={styles.selectButton}
+          onPress={() => setShowAmenitiesModal(true)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.selectButtonText} numberOfLines={1}>
+            {selectedAmenities.length === 0
+              ? 'Sélectionner les équipements…'
+              : `${selectedAmenities.length} équipement${selectedAmenities.length > 1 ? 's' : ''} sélectionné${selectedAmenities.length > 1 ? 's' : ''}`}
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="#666" />
+        </TouchableOpacity>
+        {selectedAmenities.length > 0 ? (
+          <Text style={styles.amenitiesSummary} numberOfLines={4}>
+            {selectedAmenities.join(' · ')}
+          </Text>
+        ) : null}
+        <View style={styles.customAmenitiesSection}>
+          <Text style={styles.label}>Autres équipements (non listés ci-dessus)</Text>
+          <Text style={styles.hint}>
+            Ajoutez des équipements supplémentaires qui ne figurent pas dans la liste (séparés par des virgules)
+          </Text>
+          <TextInput
+            style={styles.textArea}
+            value={customAmenities}
+            onChangeText={setCustomAmenities}
+            placeholder="Exemple: Lave-vaisselle, Sèche-linge, Barbecue, etc."
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+        </View>
+      </View>
+
       {/* Photos */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Photos et vidéos de votre logement</Text>
@@ -1909,120 +1990,117 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     </View>
   );
 
+  const renderAdvancedOptionsModalInner = () => (
+    <>
+      <Text style={styles.advancedSubsectionTitle}>Logement</Text>
+      {listingType === 'monthly' && (
+        <>
+          <View style={[styles.inputGroup, styles.switchRow]}>
+            <Text style={styles.label}>Le bien est-il meublé ?</Text>
+            <Switch
+              value={formData.isFurnished}
+              onValueChange={(value) => handleInputChange('isFurnished', value)}
+              trackColor={{ false: '#e5e7eb', true: '#007bff' }}
+              thumbColor="#fff"
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Caution (FCFA)</Text>
+            <TextInput
+              ref={(ref) => { inputRefs.current['securityDeposit'] = ref; }}
+              style={getInputStyle('securityDeposit')}
+              value={formData.securityDeposit}
+              onChangeText={(value) => handleInputChange('securityDeposit', value)}
+              placeholder="Optionnel"
+              keyboardType="numeric"
+              placeholderTextColor="#999"
+              returnKeyType="next"
+              onSubmitEditing={() => handleInputSubmit('securityDeposit')}
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Durée minimale (mois)</Text>
+            <TextInput
+              ref={(ref) => { inputRefs.current['minimumDurationMonths'] = ref; }}
+              style={getInputStyle('minimumDurationMonths')}
+              value={formData.minimumDurationMonths}
+              onChangeText={(value) => handleInputChange('minimumDurationMonths', value)}
+              placeholder="1"
+              keyboardType="numeric"
+              placeholderTextColor="#999"
+              returnKeyType="next"
+              onSubmitEditing={() => handleInputSubmit('minimumDurationMonths')}
+            />
+          </View>
+          <View style={[styles.inputGroup, styles.switchRow]}>
+            <Text style={styles.label}>Charges comprises dans le loyer</Text>
+            <Switch
+              value={formData.chargesIncluded}
+              onValueChange={(value) => handleInputChange('chargesIncluded', value)}
+              trackColor={{ false: '#e5e7eb', true: '#007bff' }}
+              thumbColor="#fff"
+            />
+          </View>
+        </>
+      )}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Indications complémentaires sur l&apos;adresse</Text>
+        <TextInput
+          ref={(ref) => { inputRefs.current['addressDetails'] = ref; }}
+          style={[getInputStyle('addressDetails'), styles.textArea]}
+          value={formData.addressDetails}
+          onChangeText={(value) => handleInputChange('addressDetails', value)}
+          placeholder="Étage, digicode, points de repère, instructions d'accès..."
+          multiline
+          numberOfLines={3}
+          placeholderTextColor="#999"
+          returnKeyType="next"
+          onSubmitEditing={() => handleInputSubmit('addressDetails')}
+        />
+        <Text style={styles.helpText}>
+          Aidez les voyageurs à trouver facilement votre logement
+        </Text>
+      </View>
+
+      <Text style={styles.advancedSubsectionTitle}>Guide d&apos;accueil</Text>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Guide de l&apos;hôte</Text>
+        <TextInput
+          ref={(ref) => { inputRefs.current['hostGuide'] = ref; }}
+          style={[styles.input, styles.textArea]}
+          value={formData.hostGuide}
+          onChangeText={(value) => handleInputChange('hostGuide', value)}
+          placeholder="Conseils pour les voyageurs, recommandations locales..."
+          multiline
+          numberOfLines={3}
+          placeholderTextColor="#999"
+          returnKeyType="next"
+          onSubmitEditing={() => handleInputSubmit('hostGuide')}
+        />
+        <Text style={styles.helpText}>
+          Partagez vos conseils et recommandations pour aider les voyageurs
+        </Text>
+      </View>
+
+      {renderAdvancedAmenitiesAndRulesForm()}
+    </>
+  );
+
   const renderUnifiedAdvancedOptions = () => (
     <View style={styles.stepContent}>
       <TouchableOpacity
         style={styles.advancedSectionHeader}
-        onPress={() => setAdvancedOptionsOpen(!advancedOptionsOpen)}
+        onPress={() => setShowAdvancedOptionsModal(true)}
         activeOpacity={0.7}
       >
-        <Ionicons
-          name={advancedOptionsOpen ? 'chevron-up' : 'chevron-down'}
-          size={22}
-          color="#475569"
-        />
+        <Ionicons name="chevron-forward" size={22} color="#475569" />
         <View style={styles.advancedSectionHeaderText}>
           <Text style={styles.advancedSectionTitle}>Options avancées</Text>
           <Text style={styles.advancedSectionHint}>
-            Adresse détaillée, location mensuelle (caution, charges…), guide d&apos;accueil, équipements, réductions, horaires et règles.
+            Touchez pour ouvrir une fenêtre : adresse, guide, réductions, horaires et règles.
           </Text>
         </View>
       </TouchableOpacity>
-      {advancedOptionsOpen && (
-        <>
-          <Text style={styles.advancedSubsectionTitle}>Logement</Text>
-          {listingType === 'monthly' && (
-            <>
-              <View style={[styles.inputGroup, styles.switchRow]}>
-                <Text style={styles.label}>Le bien est-il meublé ?</Text>
-                <Switch
-                  value={formData.isFurnished}
-                  onValueChange={(value) => handleInputChange('isFurnished', value)}
-                  trackColor={{ false: '#e5e7eb', true: '#007bff' }}
-                  thumbColor="#fff"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Caution (FCFA)</Text>
-                <TextInput
-                  ref={(ref) => { inputRefs.current['securityDeposit'] = ref; }}
-                  style={getInputStyle('securityDeposit')}
-                  value={formData.securityDeposit}
-                  onChangeText={(value) => handleInputChange('securityDeposit', value)}
-                  placeholder="Optionnel"
-                  keyboardType="numeric"
-                  placeholderTextColor="#999"
-                  returnKeyType="next"
-                  onSubmitEditing={() => handleInputSubmit('securityDeposit')}
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Durée minimale (mois)</Text>
-                <TextInput
-                  ref={(ref) => { inputRefs.current['minimumDurationMonths'] = ref; }}
-                  style={getInputStyle('minimumDurationMonths')}
-                  value={formData.minimumDurationMonths}
-                  onChangeText={(value) => handleInputChange('minimumDurationMonths', value)}
-                  placeholder="1"
-                  keyboardType="numeric"
-                  placeholderTextColor="#999"
-                  returnKeyType="next"
-                  onSubmitEditing={() => handleInputSubmit('minimumDurationMonths')}
-                />
-              </View>
-              <View style={[styles.inputGroup, styles.switchRow]}>
-                <Text style={styles.label}>Charges comprises dans le loyer</Text>
-                <Switch
-                  value={formData.chargesIncluded}
-                  onValueChange={(value) => handleInputChange('chargesIncluded', value)}
-                  trackColor={{ false: '#e5e7eb', true: '#007bff' }}
-                  thumbColor="#fff"
-                />
-              </View>
-            </>
-          )}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Indications complémentaires sur l&apos;adresse</Text>
-            <TextInput
-              ref={(ref) => { inputRefs.current['addressDetails'] = ref; }}
-              style={[getInputStyle('addressDetails'), styles.textArea]}
-              value={formData.addressDetails}
-              onChangeText={(value) => handleInputChange('addressDetails', value)}
-              placeholder="Étage, digicode, points de repère, instructions d'accès..."
-              multiline
-              numberOfLines={3}
-              placeholderTextColor="#999"
-              returnKeyType="next"
-              onSubmitEditing={() => handleInputSubmit('addressDetails')}
-            />
-            <Text style={styles.helpText}>
-              Aidez les voyageurs à trouver facilement votre logement
-            </Text>
-          </View>
-
-          <Text style={styles.advancedSubsectionTitle}>Guide d&apos;accueil</Text>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Guide de l&apos;hôte</Text>
-            <TextInput
-              ref={(ref) => { inputRefs.current['hostGuide'] = ref; }}
-              style={[styles.input, styles.textArea]}
-              value={formData.hostGuide}
-              onChangeText={(value) => handleInputChange('hostGuide', value)}
-              placeholder="Conseils pour les voyageurs, recommandations locales..."
-              multiline
-              numberOfLines={3}
-              placeholderTextColor="#999"
-              returnKeyType="next"
-              onSubmitEditing={() => handleInputSubmit('hostGuide')}
-            />
-            <Text style={styles.helpText}>
-              Partagez vos conseils et recommandations pour aider les voyageurs
-            </Text>
-          </View>
-
-          {renderAdvancedAmenitiesAndRulesForm()}
-        </>
-      )}
     </View>
   );
 
@@ -2068,48 +2146,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
 
   const renderAdvancedAmenitiesAndRulesForm = () => (
     <View style={styles.advancedListingPanel}>
-      <Text style={styles.stepTitle}>Équipements et règles</Text>
-      
-      {/* Équipements */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Équipements disponibles</Text>
-        <View style={styles.amenitiesGrid}>
-          {availableAmenities.map((amenity) => (
-            <TouchableOpacity
-              key={amenity.id}
-              style={[
-                styles.amenityItem,
-                selectedAmenities.includes(amenity.name) && styles.amenityItemSelected
-              ]}
-              onPress={() => toggleAmenity(amenity.name)}
-            >
-              <Text style={[
-                styles.amenityText,
-                selectedAmenities.includes(amenity.name) && styles.amenityTextSelected
-              ]}>
-                {amenity.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        
-        {/* Champ pour les équipements personnalisés */}
-        <View style={styles.customAmenitiesSection}>
-          <Text style={styles.label}>Autres équipements (non listés ci-dessus)</Text>
-          <Text style={styles.hint}>
-            Ajoutez des équipements supplémentaires qui ne figurent pas dans la liste (séparés par des virgules)
-          </Text>
-          <TextInput
-            style={styles.textArea}
-            value={customAmenities}
-            onChangeText={setCustomAmenities}
-            placeholder="Exemple: Lave-vaisselle, Sèche-linge, Barbecue, etc."
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
-        </View>
-      </View>
+      <Text style={styles.stepTitle}>Réductions, horaires et règles</Text>
 
       {/* Section Réductions */}
       <View style={styles.inputGroup}>
@@ -2384,7 +2421,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Finalisation</Text>
       <Text style={styles.stepIntro}>
-        Politique d&apos;annulation, paiement et conditions. Les options détaillées (équipements, réductions, etc.) sont regroupées plus haut dans « Options avancées ».
+        Politique d&apos;annulation, paiement et conditions. Les réductions et règles sont dans « Options avancées » (fenêtre) ; les équipements se choisissent après le prix.
       </Text>
 
       <View style={styles.inputGroup}>
@@ -2609,6 +2646,86 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           </View>
         </View>
       )}
+
+      {showAmenitiesModal ? (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.amenitiesModalContent]}>
+            <View style={styles.amenitiesModalHeader}>
+              <Text style={styles.amenitiesModalTitle}>Sélectionner les équipements</Text>
+              <TouchableOpacity
+                onPress={() => setShowAmenitiesModal(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={26} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.amenitiesModalSub}>
+              Touchez une ligne pour cocher ou décocher, puis « Terminer ».
+            </Text>
+            <ScrollView style={styles.amenitiesModalList} keyboardShouldPersistTaps="handled">
+              {availableAmenities.map((amenity) => {
+                const on = selectedAmenities.includes(amenity.name);
+                return (
+                  <TouchableOpacity
+                    key={amenity.id}
+                    style={styles.modalAmenityRow}
+                    onPress={() => toggleAmenity(amenity.name)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.modalAmenityRowText}>{amenity.name}</Text>
+                    <Ionicons
+                      name={on ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={24}
+                      color={on ? '#e67e22' : '#cbd5e1'}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.modalDoneButton}
+              onPress={() => setShowAmenitiesModal(false)}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.modalDoneButtonText}>Terminer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
+      {showAdvancedOptionsModal ? (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.advancedOptionsModalContent]}>
+            <View style={styles.amenitiesModalHeader}>
+              <Text style={styles.amenitiesModalTitle}>Options avancées</Text>
+              <TouchableOpacity
+                onPress={() => setShowAdvancedOptionsModal(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={26} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.amenitiesModalSub}>
+              Modifiez les champs ci-dessous puis touchez « Terminer » pour revenir au formulaire.
+            </Text>
+            <ScrollView
+              style={[styles.advancedOptionsModalScroll, { maxHeight: Dimensions.get('window').height * 0.7 }]}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+            >
+              {renderAdvancedOptionsModalInner()}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.modalDoneButton}
+              onPress={() => setShowAdvancedOptionsModal(false)}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.modalDoneButtonText}>Terminer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       {/* Modal politique d'annulation */}
       {showCancellationModal && (
@@ -2877,7 +2994,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    gap: 10,
   },
   advancedSectionHeaderText: {
     flex: 1,
@@ -2958,6 +3074,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   selectButtonText: {
+    flex: 1,
     fontSize: 16,
     color: '#1f2937',
   },
@@ -2965,30 +3082,80 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  amenitiesGrid: {
+  amenitiesSummary: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 10,
+    lineHeight: 19,
+  },
+  amenitiesModalContent: {
+    width: '88%',
+    maxHeight: '78%',
+    paddingTop: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  amenitiesModalHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  amenityItem: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 8,
+    paddingHorizontal: 4,
   },
-  amenityItemSelected: {
+  amenitiesModalTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1f2937',
+    paddingRight: 8,
+  },
+  amenitiesModalSub: {
+    fontSize: 13,
+    color: '#64748b',
+    marginBottom: 10,
+    lineHeight: 18,
+    paddingHorizontal: 4,
+  },
+  amenitiesModalList: {
+    maxHeight: 360,
+    marginBottom: 10,
+  },
+  modalAmenityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalAmenityRowText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1f2937',
+    paddingRight: 12,
+  },
+  modalDoneButton: {
     backgroundColor: '#e67e22',
-    borderColor: '#e67e22',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 4,
   },
-  amenityText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  amenityTextSelected: {
+  modalDoneButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  advancedOptionsModalContent: {
+    width: '92%',
+    maxHeight: '92%',
+    paddingTop: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  advancedOptionsModalScroll: {
+    marginBottom: 8,
   },
   customAmenitiesSection: {
     marginTop: 20,
