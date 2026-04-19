@@ -190,7 +190,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [availableAmenities, setAvailableAmenities] = useState<Amenity[]>([]);
   const [customAmenities, setCustomAmenities] = useState<string>('');
-  const [currentStep, setCurrentStep] = useState(1);
   const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
   const [identityUploadedInSession, setIdentityUploadedInSession] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
@@ -200,6 +199,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   >([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedImageForCategory, setSelectedImageForCategory] = useState<number | null>(null);
+  /** Champs non obligatoires masqués par défaut (logement, hôte, équipements / règles) */
+  const [advancedPropertyOpen, setAdvancedPropertyOpen] = useState(false);
+  const [advancedHostOpen, setAdvancedHostOpen] = useState(false);
+  const [advancedListingOpen, setAdvancedListingOpen] = useState(false);
 
   // Références pour la navigation entre champs
   const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
@@ -966,11 +969,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         return true;
         
       case 3:
-        // Étape 3: Équipements et règles (pas de champs obligatoires)
-        return true;
-        
-      case 4:
-        // Étape 4: Conditions
+        // Étape 3: Finalisation (conditions + paiement) ; équipements / règles = optionnel
         if (!formData.agreeTerms) {
           Alert.alert(
             'Conditions non acceptées',
@@ -978,10 +977,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           );
           return false;
         }
-        return true;
-        
-      case 5:
-        // Étape 5: Informations de paiement
         if (!hasPaymentInfo() || !isPaymentInfoComplete()) {
           Alert.alert(
             'Informations de paiement requises',
@@ -990,23 +985,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           return false;
         }
         return true;
-        
+
       default:
         return true;
-    }
-  };
-
-  const nextStep = () => {
-    if (validateStep(currentStep)) {
-      if (currentStep < 5) {
-        setCurrentStep(currentStep + 1);
-      }
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
     }
   };
 
@@ -1156,11 +1137,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       setReferralCodeError('');
     }
 
-    // Validation finale de toutes les étapes
-    for (let step = 1; step <= 5; step++) {
+    // Validation de tout le formulaire (une seule page)
+    for (let step = 1; step <= 3; step++) {
       if (!validateStep(step)) {
-        // Si une étape n'est pas valide, retourner à cette étape
-        setCurrentStep(step);
         return;
       }
     }
@@ -1559,27 +1538,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     </View>
   );
 
-  const renderStepIndicator = () => (
-    <View style={styles.stepIndicator}>
-      {[1, 2, 3, 4, 5].map((step) => (
-        <View key={step} style={styles.stepContainer}>
-          <View style={[
-            styles.stepCircle,
-            currentStep >= step && styles.stepCircleActive
-          ]}>
-            <Text style={[
-              styles.stepText,
-              currentStep >= step && styles.stepTextActive
-            ]}>
-              {step}
-            </Text>
-          </View>
-          {step < 5 && <View style={styles.stepLine} />}
-        </View>
-      ))}
-    </View>
-  );
-
   const renderStep1 = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Informations sur le logement</Text>
@@ -1733,15 +1691,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               />
             </View>
           </View>
-          <View style={[styles.inputGroup, styles.switchRow]}>
-            <Text style={styles.label}>Le bien est-il meublé ?</Text>
-            <Switch
-              value={formData.isFurnished}
-              onValueChange={(value) => handleInputChange('isFurnished', value)}
-              trackColor={{ false: '#e5e7eb', true: '#007bff' }}
-              thumbColor="#fff"
-            />
-          </View>
         </>
       )}
 
@@ -1814,63 +1763,99 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               onSubmitEditing={() => handleInputSubmit('monthlyRentPrice')}
             />
           </View>
+        </>
+      )}
+
+      <TouchableOpacity
+        style={styles.advancedSectionHeader}
+        onPress={() => setAdvancedPropertyOpen(!advancedPropertyOpen)}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={advancedPropertyOpen ? 'chevron-up' : 'chevron-down'}
+          size={22}
+          color="#475569"
+        />
+        <View style={styles.advancedSectionHeaderText}>
+          <Text style={styles.advancedSectionTitle}>Options avancées</Text>
+          <Text style={styles.advancedSectionHint}>
+            Adresse détaillée
+            {listingType === 'monthly' ? ', meublé, caution, durée minimale, charges…' : '…'}
+          </Text>
+        </View>
+      </TouchableOpacity>
+      {advancedPropertyOpen && (
+        <>
+          {listingType === 'monthly' && (
+            <>
+              <View style={[styles.inputGroup, styles.switchRow]}>
+                <Text style={styles.label}>Le bien est-il meublé ?</Text>
+                <Switch
+                  value={formData.isFurnished}
+                  onValueChange={(value) => handleInputChange('isFurnished', value)}
+                  trackColor={{ false: '#e5e7eb', true: '#007bff' }}
+                  thumbColor="#fff"
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Caution (FCFA)</Text>
+                <TextInput
+                  ref={(ref) => { inputRefs.current['securityDeposit'] = ref; }}
+                  style={getInputStyle('securityDeposit')}
+                  value={formData.securityDeposit}
+                  onChangeText={(value) => handleInputChange('securityDeposit', value)}
+                  placeholder="Optionnel"
+                  keyboardType="numeric"
+                  placeholderTextColor="#999"
+                  returnKeyType="next"
+                  onSubmitEditing={() => handleInputSubmit('securityDeposit')}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Durée minimale (mois)</Text>
+                <TextInput
+                  ref={(ref) => { inputRefs.current['minimumDurationMonths'] = ref; }}
+                  style={getInputStyle('minimumDurationMonths')}
+                  value={formData.minimumDurationMonths}
+                  onChangeText={(value) => handleInputChange('minimumDurationMonths', value)}
+                  placeholder="1"
+                  keyboardType="numeric"
+                  placeholderTextColor="#999"
+                  returnKeyType="next"
+                  onSubmitEditing={() => handleInputSubmit('minimumDurationMonths')}
+                />
+              </View>
+              <View style={[styles.inputGroup, styles.switchRow]}>
+                <Text style={styles.label}>Charges comprises dans le loyer</Text>
+                <Switch
+                  value={formData.chargesIncluded}
+                  onValueChange={(value) => handleInputChange('chargesIncluded', value)}
+                  trackColor={{ false: '#e5e7eb', true: '#007bff' }}
+                  thumbColor="#fff"
+                />
+              </View>
+            </>
+          )}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Caution (FCFA)</Text>
+            <Text style={styles.label}>Indications complémentaires sur l&apos;adresse</Text>
             <TextInput
-              ref={(ref) => { inputRefs.current['securityDeposit'] = ref; }}
-              style={getInputStyle('securityDeposit')}
-              value={formData.securityDeposit}
-              onChangeText={(value) => handleInputChange('securityDeposit', value)}
-              placeholder="Optionnel"
-              keyboardType="numeric"
+              ref={(ref) => { inputRefs.current['addressDetails'] = ref; }}
+              style={[getInputStyle('addressDetails'), styles.textArea]}
+              value={formData.addressDetails}
+              onChangeText={(value) => handleInputChange('addressDetails', value)}
+              placeholder="Étage, digicode, points de repère, instructions d'accès..."
+              multiline
+              numberOfLines={3}
               placeholderTextColor="#999"
               returnKeyType="next"
-              onSubmitEditing={() => handleInputSubmit('securityDeposit')}
+              onSubmitEditing={() => handleInputSubmit('addressDetails')}
             />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Durée minimale (mois)</Text>
-            <TextInput
-              ref={(ref) => { inputRefs.current['minimumDurationMonths'] = ref; }}
-              style={getInputStyle('minimumDurationMonths')}
-              value={formData.minimumDurationMonths}
-              onChangeText={(value) => handleInputChange('minimumDurationMonths', value)}
-              placeholder="1"
-              keyboardType="numeric"
-              placeholderTextColor="#999"
-              returnKeyType="next"
-              onSubmitEditing={() => handleInputSubmit('minimumDurationMonths')}
-            />
-          </View>
-          <View style={[styles.inputGroup, styles.switchRow]}>
-            <Text style={styles.label}>Charges comprises dans le loyer</Text>
-            <Switch
-              value={formData.chargesIncluded}
-              onValueChange={(value) => handleInputChange('chargesIncluded', value)}
-              trackColor={{ false: '#e5e7eb', true: '#007bff' }}
-              thumbColor="#fff"
-            />
+            <Text style={styles.helpText}>
+              Aidez les voyageurs à trouver facilement votre logement
+            </Text>
           </View>
         </>
       )}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Indications complémentaires sur l'adresse</Text>
-        <TextInput
-          ref={(ref) => { inputRefs.current['addressDetails'] = ref; }}
-          style={[getInputStyle('addressDetails'), styles.textArea]}
-          value={formData.addressDetails}
-          onChangeText={(value) => handleInputChange('addressDetails', value)}
-          placeholder="Étage, digicode, points de repère, instructions d'accès..."
-          multiline
-          numberOfLines={3}
-          placeholderTextColor="#999"
-          returnKeyType="next"
-          onSubmitEditing={() => handleInputSubmit('addressDetails')}
-        />
-        <Text style={styles.helpText}>
-          Aidez les voyageurs à trouver facilement votre logement
-        </Text>
-      </View>
 
       {/* Photos */}
       <View style={styles.inputGroup}>
@@ -2015,30 +2000,86 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         />
       </View>
 
-      {/* Guide de l'hôte */}
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Guide de l'hôte</Text>
-        <TextInput
-          ref={(ref) => { inputRefs.current['hostGuide'] = ref; }}
-          style={[styles.input, styles.textArea]}
-          value={formData.hostGuide}
-          onChangeText={(value) => handleInputChange('hostGuide', value)}
-          placeholder="Conseils pour les voyageurs, recommandations locales..."
-          multiline
-          numberOfLines={3}
-          placeholderTextColor="#999"
-          returnKeyType="next"
-          onSubmitEditing={() => handleInputSubmit('hostGuide')}
+      <TouchableOpacity
+        style={styles.advancedSectionHeader}
+        onPress={() => setAdvancedHostOpen(!advancedHostOpen)}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={advancedHostOpen ? 'chevron-up' : 'chevron-down'}
+          size={22}
+          color="#475569"
         />
-        <Text style={styles.helpText}>
-          Partagez vos conseils et recommandations pour aider les voyageurs
-        </Text>
-      </View>
+        <View style={styles.advancedSectionHeaderText}>
+          <Text style={styles.advancedSectionTitle}>Options avancées</Text>
+          <Text style={styles.advancedSectionHint}>Guide de l&apos;hôte, conseils aux voyageurs…</Text>
+        </View>
+      </TouchableOpacity>
+      {advancedHostOpen && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Guide de l&apos;hôte</Text>
+          <TextInput
+            ref={(ref) => { inputRefs.current['hostGuide'] = ref; }}
+            style={[styles.input, styles.textArea]}
+            value={formData.hostGuide}
+            onChangeText={(value) => handleInputChange('hostGuide', value)}
+            placeholder="Conseils pour les voyageurs, recommandations locales..."
+            multiline
+            numberOfLines={3}
+            placeholderTextColor="#999"
+            returnKeyType="next"
+            onSubmitEditing={() => handleInputSubmit('hostGuide')}
+          />
+          <Text style={styles.helpText}>
+            Partagez vos conseils et recommandations pour aider les voyageurs
+          </Text>
+        </View>
+      )}
     </View>
   );
 
-  const renderStep3 = () => (
-    <View style={styles.stepContent}>
+  const renderPaymentSection = () => (
+    <View style={styles.paymentInfoContainer}>
+      <Ionicons name="card" size={48} color="#e67e22" />
+      <Text style={styles.paymentInfoTitle}>Configuration du paiement</Text>
+      <Text style={styles.paymentInfoDescription}>
+        Pour recevoir vos revenus, vous devez configurer vos informations de paiement.
+      </Text>
+
+      {hasPaymentInfo() ? (
+        <View style={styles.paymentStatusContainer}>
+          <Ionicons
+            name={isPaymentInfoComplete() ? 'checkmark-circle' : 'alert-circle'}
+            size={24}
+            color={isPaymentInfoComplete() ? '#10b981' : '#f59e0b'}
+          />
+          <Text style={styles.paymentStatusText}>
+            {isPaymentInfoComplete()
+              ? 'Informations de paiement configurées'
+              : 'Informations de paiement incomplètes'}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.paymentStatusContainer}>
+          <Ionicons name="add-circle" size={24} color="#e67e22" />
+          <Text style={styles.paymentStatusText}>Aucune information de paiement configurée</Text>
+        </View>
+      )}
+
+      <TouchableOpacity
+        style={styles.configurePaymentButton}
+        onPress={() => navigation.navigate('HostPaymentInfo')}
+      >
+        <Ionicons name="settings" size={20} color="#fff" />
+        <Text style={styles.configurePaymentButtonText}>
+          {hasPaymentInfo() ? 'Modifier le paiement' : 'Configurer le paiement'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderAdvancedAmenitiesAndRulesForm = () => (
+    <View style={styles.advancedListingPanel}>
       <Text style={styles.stepTitle}>Équipements et règles</Text>
       
       {/* Équipements */}
@@ -2351,14 +2392,16 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     </View>
   );
 
-  const renderStep4 = () => (
+  const renderStep3 = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>Conditions et soumission</Text>
-      
-      {/* Politique d'annulation */}
+      <Text style={styles.stepTitle}>Finalisation</Text>
+      <Text style={styles.stepIntro}>
+        Politique d&apos;annulation, paiement et conditions. Les équipements et règles détaillées restent optionnels.
+      </Text>
+
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Politique d'annulation</Text>
-        <TouchableOpacity 
+        <Text style={styles.label}>Politique d&apos;annulation</Text>
+        <TouchableOpacity
           style={styles.selectButton}
           onPress={() => setShowCancellationModal(true)}
         >
@@ -2369,7 +2412,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         </TouchableOpacity>
       </View>
 
-      {/* Nuits minimum */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Nuits minimum</Text>
         <TextInput
@@ -2385,7 +2427,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         />
       </View>
 
-      {/* Section Parrainage (y compris hôte ajoutant une nouvelle candidature) */}
       {!isEditMode && (
         <View style={styles.inputGroup}>
           <View style={styles.referralSection}>
@@ -2403,7 +2444,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
               <View style={[styles.switch, isReferred && styles.switchActive]}>
                 <View style={[styles.switchThumb, isReferred && styles.switchThumbActive]} />
               </View>
-              <Text style={styles.switchLabel}>J'ai un code de parrainage</Text>
+              <Text style={styles.switchLabel}>J&apos;ai un code de parrainage</Text>
             </TouchableOpacity>
 
             {isReferred && (
@@ -2451,9 +2492,32 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         </View>
       )}
 
-      {/* Conditions d'utilisation */}
       <View style={styles.inputGroup}>
-        <TouchableOpacity 
+        <Text style={styles.label}>Informations de paiement *</Text>
+        {renderPaymentSection()}
+      </View>
+
+      <TouchableOpacity
+        style={styles.advancedSectionHeader}
+        onPress={() => setAdvancedListingOpen(!advancedListingOpen)}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={advancedListingOpen ? 'chevron-up' : 'chevron-down'}
+          size={22}
+          color="#475569"
+        />
+        <View style={styles.advancedSectionHeaderText}>
+          <Text style={styles.advancedSectionTitle}>Options avancées</Text>
+          <Text style={styles.advancedSectionHint}>
+            Équipements, réductions, horaires, règles intérieures, frais de ménage…
+          </Text>
+        </View>
+      </TouchableOpacity>
+      {advancedListingOpen ? renderAdvancedAmenitiesAndRulesForm() : null}
+
+      <View style={styles.inputGroup}>
+        <TouchableOpacity
           style={styles.checkboxContainer}
           onPress={() => handleInputChange('agreeTerms', !formData.agreeTerms)}
         >
@@ -2464,54 +2528,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             {formData.agreeTerms && <Ionicons name="checkmark" size={16} color="#fff" />}
           </View>
           <Text style={styles.checkboxText}>
-            J'accepte les conditions d'utilisation et la politique de confidentialité *
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderStep5 = () => (
-    <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>Informations de paiement</Text>
-      
-      <View style={styles.paymentInfoContainer}>
-        <Ionicons name="card" size={48} color="#e67e22" />
-        <Text style={styles.paymentInfoTitle}>Configuration du paiement</Text>
-        <Text style={styles.paymentInfoDescription}>
-          Pour recevoir vos revenus, vous devez configurer vos informations de paiement.
-        </Text>
-        
-        {hasPaymentInfo() ? (
-          <View style={styles.paymentStatusContainer}>
-            <Ionicons 
-              name={isPaymentInfoComplete() ? 'checkmark-circle' : 'alert-circle'} 
-              size={24} 
-              color={isPaymentInfoComplete() ? '#10b981' : '#f59e0b'} 
-            />
-            <Text style={styles.paymentStatusText}>
-              {isPaymentInfoComplete() 
-                ? 'Informations de paiement configurées' 
-                : 'Informations de paiement incomplètes'
-              }
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.paymentStatusContainer}>
-            <Ionicons name="add-circle" size={24} color="#e67e22" />
-            <Text style={styles.paymentStatusText}>
-              Aucune information de paiement configurée
-            </Text>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={styles.configurePaymentButton}
-          onPress={() => navigation.navigate('HostPaymentInfo')}
-        >
-          <Ionicons name="settings" size={20} color="#fff" />
-          <Text style={styles.configurePaymentButtonText}>
-            {hasPaymentInfo() ? 'Modifier le paiement' : 'Configurer le paiement'}
+            J&apos;accepte les conditions d&apos;utilisation et la politique de confidentialité *
           </Text>
         </TouchableOpacity>
       </View>
@@ -2571,41 +2588,28 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           renderListingTypeChoice()
         ) : (
           <>
-            {/* Indicateur d'étapes */}
-            {renderStepIndicator()}
+            {renderStep1()}
+            <View style={styles.formSectionSeparator} />
+            {renderStep2()}
+            <View style={styles.formSectionSeparator} />
+            {renderStep3()}
 
-            {/* Contenu des étapes */}
-            {currentStep === 1 && renderStep1()}
-            {currentStep === 2 && renderStep2()}
-            {currentStep === 3 && renderStep3()}
-            {currentStep === 4 && renderStep4()}
-            {currentStep === 5 && renderStep5()}
-
-            {/* Boutons de navigation */}
             <View style={styles.navigationButtons}>
-              {currentStep > 1 && (
-                <TouchableOpacity style={styles.prevButton} onPress={prevStep}>
-                  <Text style={styles.prevButtonText}>Précédent</Text>
-                </TouchableOpacity>
-              )}
-
-              {currentStep < 4 ? (
-                <TouchableOpacity style={styles.nextButton} onPress={nextStep}>
-                  <Text style={styles.nextButtonText}>Suivant</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.nextButton, (loading || isSubmitting) && styles.nextButtonDisabled]}
-                  onPress={handleSubmit}
-                  disabled={loading || isSubmitting}
-                >
-                  {loading || isSubmitting ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.nextButtonText}>Soumettre</Text>
-                  )}
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={[
+                  styles.nextButton,
+                  styles.submitButtonFullWidth,
+                  (loading || isSubmitting) && styles.nextButtonDisabled,
+                ]}
+                onPress={handleSubmit}
+                disabled={loading || isSubmitting}
+              >
+                {loading || isSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.nextButtonText}>Soumettre la candidature</Text>
+                )}
+              </TouchableOpacity>
             </View>
           </>
         )}
@@ -2871,43 +2875,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 18,
   },
-  stepIndicator: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  stepContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  stepCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  formSectionSeparator: {
+    height: 1,
     backgroundColor: '#e5e7eb',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  stepCircleActive: {
-    backgroundColor: '#e67e22',
-  },
-  stepText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#9ca3af',
-  },
-  stepTextActive: {
-    color: '#fff',
-  },
-  stepLine: {
-    width: 40,
-    height: 2,
-    backgroundColor: '#e5e7eb',
-    marginHorizontal: 8,
+    marginHorizontal: 12,
   },
   stepContent: {
     padding: 20,
@@ -2917,6 +2888,42 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1f2937',
     marginBottom: 20,
+  },
+  stepIntro: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: -12,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  advancedSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 10,
+  },
+  advancedSectionHeaderText: {
+    flex: 1,
+  },
+  advancedSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  advancedSectionHint: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  advancedListingPanel: {
+    marginBottom: 16,
+    paddingBottom: 8,
   },
   inputGroup: {
     marginBottom: 20,
@@ -3118,11 +3125,18 @@ const styles = StyleSheet.create({
   },
   navigationButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     padding: 20,
+    paddingBottom: 28,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
+  },
+  submitButtonFullWidth: {
+    flex: 1,
+    marginLeft: 0,
+    marginRight: 0,
+    maxWidth: '100%',
   },
   prevButton: {
     flex: 1,
