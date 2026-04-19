@@ -28,6 +28,7 @@ import CitySearchInputModal from '../components/CitySearchInputModal';
 import MediaThumb from '../components/MediaThumb';
 import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
 import { isVideoUrl, normalizePropertyPhotoRows } from '../utils/media';
+import { normalizeVirtualTourUrl } from '../utils/virtualTourUrl';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAX_EDIT_PROPERTY_VIDEOS = 5;
@@ -77,6 +78,7 @@ const EditPropertyScreen: React.FC = () => {
     minimum_duration_months: '',
     charges_included: false,
     cancellation_policy: 'flexible' as 'flexible' | 'moderate' | 'strict' | 'non_refundable',
+    virtual_tour_url: '',
   });
 
   const propertyTypes = [
@@ -154,6 +156,7 @@ const EditPropertyScreen: React.FC = () => {
           minimum_duration_months: propertyData.minimum_duration_months?.toString() || '',
           charges_included: propertyData.charges_included || false,
           cancellation_policy: (propertyData as any).cancellation_policy || 'flexible',
+          virtual_tour_url: (propertyData as any).virtual_tour_url || '',
         });
 
         // Charger les photos
@@ -238,6 +241,16 @@ const EditPropertyScreen: React.FC = () => {
         Alert.alert('Erreur', 'Le prix par nuit doit être un nombre valide');
         return;
       }
+
+      const normalizedTour = normalizeVirtualTourUrl(formData.virtual_tour_url);
+      if (formData.virtual_tour_url.trim() && !normalizedTour) {
+        Alert.alert(
+          'URL invalide',
+          'La visite virtuelle doit être une adresse HTTPS complète (ex. lien Matterport ou Kuula).'
+        );
+        return;
+      }
+
       // Préparer les données pour la mise à jour
       const updateData: any = {
         title: formData.title.trim(),
@@ -261,6 +274,7 @@ const EditPropertyScreen: React.FC = () => {
         discount_min_nights: formData.discount_min_nights ? Number(formData.discount_min_nights) : null,
         discount_percentage: formData.discount_percentage ? Number(formData.discount_percentage) : null,
         cancellation_policy: formData.cancellation_policy || 'flexible',
+        virtual_tour_url: normalizedTour,
         updated_at: new Date().toISOString(),
       };
       
@@ -913,6 +927,16 @@ const EditPropertyScreen: React.FC = () => {
             'default',
             true
           )}
+
+          {renderInputField(
+            'Visite virtuelle (optionnel)',
+            'virtual_tour_url',
+            formData.virtual_tour_url,
+            'https://… (Matterport, Kuula, etc.)'
+          )}
+          <Text style={styles.helpText}>
+            Collez le lien public en HTTPS. Les voyageurs pourront ouvrir la visite depuis la fiche annonce.
+          </Text>
           
           {renderSelectField(
             'Type de propriété',

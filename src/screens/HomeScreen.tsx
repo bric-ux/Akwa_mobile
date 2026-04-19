@@ -250,13 +250,10 @@ const HomeScreen: React.FC = () => {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Nos propriétés disponibles</Text>
-          <Text style={styles.propertyCount}>
-            {properties.length} propriété{properties.length > 1 ? 's' : ''} trouvée{properties.length > 1 ? 's' : ''}
-          </Text>
         </View>
       </View>
     </>
-  ), [properties.length, popularDestinations, destinationsLoading, handleSearchPress, handleDestinationPress, navigation]);
+  ), [popularDestinations, destinationsLoading, handleSearchPress, handleDestinationPress, navigation]);
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingBottom: 20 + HOST_FAB_EXTRA_SCROLL_PADDING }],
     []
@@ -441,11 +438,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 5,
-  },
-  propertyCount: {
-    fontSize: 14,
-    color: '#6c757d',
-    fontWeight: '500',
   },
   hostFabContainer: {
     position: 'absolute',

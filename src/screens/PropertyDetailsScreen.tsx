@@ -8,6 +8,8 @@ import {
   Alert,
   Dimensions,
   ActivityIndicator,
+  Modal,
+  Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +37,8 @@ import { log, logError } from '../utils/logger';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import { getPropertyPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
+import { WebView } from 'react-native-webview';
+import { normalizeVirtualTourUrl } from '../utils/virtualTourUrl';
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   apartment: 'Appartement',
@@ -72,6 +76,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
+  const [virtualTourOpen, setVirtualTourOpen] = useState(false);
   
   // Utiliser les dates de la route si disponibles, sinon utiliser les dates du context
   // Utiliser useMemo pour recalculer quand les valeurs changent
@@ -377,6 +382,20 @@ const PropertyDetailsScreen: React.FC = () => {
             </View>
           ) : null}
         </View>
+
+        {normalizeVirtualTourUrl(property.virtual_tour_url ?? null) ? (
+          <TouchableOpacity
+            style={styles.virtualTourButton}
+            onPress={() => setVirtualTourOpen(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Visite virtuelle"
+          >
+            <Ionicons name="scan-circle-outline" size={24} color="#fff" />
+            <Text style={styles.virtualTourButtonText}>Visite virtuelle 360°</Text>
+            <Ionicons name="chevron-forward" size={22} color="#fff" />
+          </TouchableOpacity>
+        ) : null}
 
         {/* Description */}
         {property.description && (
@@ -684,6 +703,38 @@ const PropertyDetailsScreen: React.FC = () => {
           }}
         />
       )}
+
+      <Modal
+        visible={virtualTourOpen}
+        animationType="slide"
+        onRequestClose={() => setVirtualTourOpen(false)}
+      >
+        <SafeAreaView style={styles.virtualTourModalRoot} edges={['top', 'bottom']}>
+          <View style={styles.virtualTourHeader}>
+            <TouchableOpacity onPress={() => setVirtualTourOpen(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Text style={styles.virtualTourHeaderAction}>Fermer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                const u = normalizeVirtualTourUrl(property.virtual_tour_url ?? null);
+                if (u) Linking.openURL(u);
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Text style={styles.virtualTourHeaderAction}>Ouvrir dans le navigateur</Text>
+            </TouchableOpacity>
+          </View>
+          {normalizeVirtualTourUrl(property.virtual_tour_url ?? null) ? (
+            <WebView
+              source={{ uri: normalizeVirtualTourUrl(property.virtual_tour_url ?? null)! }}
+              style={styles.virtualTourWebView}
+              startInLoadingState
+              allowsInlineMediaPlayback
+              mediaPlaybackRequiresUserAction={false}
+            />
+          ) : null}
+        </SafeAreaView>
+      </Modal>
       
     </SafeAreaView>
   );
@@ -820,6 +871,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6c757d',
     marginLeft: 5,
+  },
+  virtualTourButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#2E7D32',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  virtualTourButtonText: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  virtualTourModalRoot: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  virtualTourHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e9ecef',
+  },
+  virtualTourHeaderAction: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2E7D32',
+  },
+  virtualTourWebView: {
+    flex: 1,
   },
   section: {
     marginBottom: 25,

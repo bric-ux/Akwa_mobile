@@ -23,6 +23,8 @@ export interface Property {
   id: string;
   title: string;
   description: string | null;
+  /** URL HTTPS (Matterport, Kuula, etc.) affichée comme visite virtuelle sur la fiche. */
+  virtual_tour_url?: string | null;
   location: string | {
     id: string;
     name: string;
