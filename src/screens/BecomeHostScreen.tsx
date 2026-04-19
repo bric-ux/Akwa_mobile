@@ -215,7 +215,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       setIsEditMode(true);
       loadApplicationData(editId);
     }
-  }, [route?.params]);
+  }, [route?.params, user?.id]);
 
   // Recharger les informations de paiement quand l'écran devient actif
   // (utile quand l'utilisateur revient de l'écran de configuration du paiement)
@@ -410,25 +410,51 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     if (!user) return;
 
     const metadata = user.user_metadata;
+    const editId = route?.params?.editApplicationId;
+    const phoneFromMeta =
+      typeof metadata?.phone === 'string' ? metadata.phone.trim() : '';
+
     setFormData(prev => ({
       ...prev,
       hostEmail: user.email || '',
       hostFullName: metadata?.first_name && metadata?.last_name
         ? `${metadata.first_name} ${metadata.last_name}`
         : '',
+      // Nouvelle candidature : pré-remplir le téléphone (profil / métadonnées) pour ne pas le redemander à chaque ouverture
+      ...(!editId && phoneFromMeta ? { hostPhone: phoneFromMeta } : {}),
     }));
 
     // Nouvelle candidature : si le profil a déjà un code (1re propriété ou ancien flux),
     // pré-remplir pour que referralCodeSubmitted parte avec l’insert (2e propriété, etc.).
-    const editId = route?.params?.editApplicationId;
     if (editId) return;
 
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('referral_code_used')
+        .select('referral_code_used, phone')
         .eq('user_id', user.id)
         .maybeSingle();
+
+      const profilePhone =
+        profile?.phone != null && String(profile.phone).trim() !== ''
+          ? String(profile.phone).trim()
+          : '';
+
+      // Téléphone : priorité au profil BDD, puis métadonnées — ne pas écraser une saisie autre que le défaut meta
+      setFormData(prev => {
+        const resolved = (profilePhone || phoneFromMeta || '').trim();
+        if (!resolved) return prev;
+        const current = String(prev.hostPhone || '').trim();
+        if (!current) return { ...prev, hostPhone: resolved };
+        if (
+          profilePhone &&
+          current === phoneFromMeta &&
+          profilePhone.trim() !== current
+        ) {
+          return { ...prev, hostPhone: profilePhone.trim() };
+        }
+        return prev;
+      });
 
       const saved = profile?.referral_code_used?.trim();
       if (!saved) return;

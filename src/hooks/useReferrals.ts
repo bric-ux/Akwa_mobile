@@ -72,6 +72,14 @@ const devLog = (...args: unknown[]) => {
   }
 };
 
+/** PostgREST peut renvoyer une ligne unique comme objet au lieu d’un tableau */
+function asRpcRows<T extends Record<string, unknown>>(data: unknown): T[] {
+  if (data == null) return [];
+  if (Array.isArray(data)) return data as T[];
+  if (typeof data === 'object') return [data as T];
+  return [];
+}
+
 export const useReferrals = () => {
   const { user } = useAuth();
   const [referralCode, setReferralCode] = useState<ReferralCode | null>(null);
@@ -412,34 +420,62 @@ export const useReferrals = () => {
         return { valid: false, error: 'Vous ne pouvez pas vous auto-parrainer' };
       }
 
-      // Récupérer le profil du parrain
+      // Récupérer le profil du parrain (RPC SECURITY DEFINER si déployé ; sinon host_public_info / profiles selon RLS)
       let parrainProfile: { first_name: string | null; last_name: string | null } | null = null;
-      
+
       try {
-        // Essayer d'abord via la fonction RPC get_public_profile_info
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_public_profile_info', { profile_user_id: referrerUserId });
-        
-        if (!rpcError && rpcData && rpcData.length > 0) {
-          parrainProfile = {
-            first_name: rpcData[0].first_name,
-            last_name: rpcData[0].last_name
-          };
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_profile_info', {
+          profile_user_id: referrerUserId,
+        });
+
+        if (rpcError) {
+          console.error('Error fetching referrer profile (RPC):', rpcError);
         } else {
-          // Fallback : essayer directement depuis profiles (avec la nouvelle politique)
+          const rows = asRpcRows<{ first_name: string | null; last_name: string | null }>(rpcData);
+          const row0 = rows[0];
+          if (row0 && (row0.first_name != null || row0.last_name != null)) {
+            parrainProfile = {
+              first_name: row0.first_name,
+              last_name: row0.last_name,
+            };
+          }
+        }
+
+        if (!parrainProfile) {
+          const { data: hostPub, error: hostPubError } = await supabase
+            .from('host_public_info')
+            .select('first_name, last_name')
+            .eq('user_id', referrerUserId)
+            .maybeSingle();
+
+          if (hostPubError) {
+            console.error('Error fetching referrer profile (host_public_info):', hostPubError);
+          } else if (hostPub && (hostPub.first_name != null || hostPub.last_name != null)) {
+            parrainProfile = {
+              first_name: hostPub.first_name,
+              last_name: hostPub.last_name,
+            };
+          }
+        }
+
+        if (!parrainProfile) {
           const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('first_name, last_name')
             .eq('user_id', referrerUserId)
             .maybeSingle();
-          
-          if (!profileError && profileData) {
+
+          if (profileError) {
+            console.error('Error fetching referrer profile (profiles):', profileError);
+          } else if (profileData) {
             parrainProfile = {
               first_name: profileData.first_name,
-              last_name: profileData.last_name
+              last_name: profileData.last_name,
             };
           } else {
-            console.error('Error fetching referrer profile:', profileError || rpcError);
+            devLog(
+              'Referrer display name unavailable: no RPC row, no host_public_info, profiles not visible (RLS).'
+            );
           }
         }
       } catch (error) {
