@@ -199,10 +199,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   >([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedImageForCategory, setSelectedImageForCategory] = useState<number | null>(null);
-  /** Champs non obligatoires masqués par défaut (logement, hôte, équipements / règles) */
-  const [advancedPropertyOpen, setAdvancedPropertyOpen] = useState(false);
-  const [advancedHostOpen, setAdvancedHostOpen] = useState(false);
-  const [advancedListingOpen, setAdvancedListingOpen] = useState(false);
+  /** Tous les champs optionnels (logement, guide hôte, équipements & règles) dans un seul panneau */
+  const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false);
 
   // Références pour la navigation entre champs
   const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
@@ -1766,97 +1764,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         </>
       )}
 
-      <TouchableOpacity
-        style={styles.advancedSectionHeader}
-        onPress={() => setAdvancedPropertyOpen(!advancedPropertyOpen)}
-        activeOpacity={0.7}
-      >
-        <Ionicons
-          name={advancedPropertyOpen ? 'chevron-up' : 'chevron-down'}
-          size={22}
-          color="#475569"
-        />
-        <View style={styles.advancedSectionHeaderText}>
-          <Text style={styles.advancedSectionTitle}>Options avancées</Text>
-          <Text style={styles.advancedSectionHint}>
-            Adresse détaillée
-            {listingType === 'monthly' ? ', meublé, caution, durée minimale, charges…' : '…'}
-          </Text>
-        </View>
-      </TouchableOpacity>
-      {advancedPropertyOpen && (
-        <>
-          {listingType === 'monthly' && (
-            <>
-              <View style={[styles.inputGroup, styles.switchRow]}>
-                <Text style={styles.label}>Le bien est-il meublé ?</Text>
-                <Switch
-                  value={formData.isFurnished}
-                  onValueChange={(value) => handleInputChange('isFurnished', value)}
-                  trackColor={{ false: '#e5e7eb', true: '#007bff' }}
-                  thumbColor="#fff"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Caution (FCFA)</Text>
-                <TextInput
-                  ref={(ref) => { inputRefs.current['securityDeposit'] = ref; }}
-                  style={getInputStyle('securityDeposit')}
-                  value={formData.securityDeposit}
-                  onChangeText={(value) => handleInputChange('securityDeposit', value)}
-                  placeholder="Optionnel"
-                  keyboardType="numeric"
-                  placeholderTextColor="#999"
-                  returnKeyType="next"
-                  onSubmitEditing={() => handleInputSubmit('securityDeposit')}
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Durée minimale (mois)</Text>
-                <TextInput
-                  ref={(ref) => { inputRefs.current['minimumDurationMonths'] = ref; }}
-                  style={getInputStyle('minimumDurationMonths')}
-                  value={formData.minimumDurationMonths}
-                  onChangeText={(value) => handleInputChange('minimumDurationMonths', value)}
-                  placeholder="1"
-                  keyboardType="numeric"
-                  placeholderTextColor="#999"
-                  returnKeyType="next"
-                  onSubmitEditing={() => handleInputSubmit('minimumDurationMonths')}
-                />
-              </View>
-              <View style={[styles.inputGroup, styles.switchRow]}>
-                <Text style={styles.label}>Charges comprises dans le loyer</Text>
-                <Switch
-                  value={formData.chargesIncluded}
-                  onValueChange={(value) => handleInputChange('chargesIncluded', value)}
-                  trackColor={{ false: '#e5e7eb', true: '#007bff' }}
-                  thumbColor="#fff"
-                />
-              </View>
-            </>
-          )}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Indications complémentaires sur l&apos;adresse</Text>
-            <TextInput
-              ref={(ref) => { inputRefs.current['addressDetails'] = ref; }}
-              style={[getInputStyle('addressDetails'), styles.textArea]}
-              value={formData.addressDetails}
-              onChangeText={(value) => handleInputChange('addressDetails', value)}
-              placeholder="Étage, digicode, points de repère, instructions d'accès..."
-              multiline
-              numberOfLines={3}
-              placeholderTextColor="#999"
-              returnKeyType="next"
-              onSubmitEditing={() => handleInputSubmit('addressDetails')}
-            />
-            <Text style={styles.helpText}>
-              Aidez les voyageurs à trouver facilement votre logement
-            </Text>
-          </View>
-        </>
-      )}
-
       {/* Photos */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Photos et vidéos de votre logement</Text>
@@ -1999,41 +1906,122 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           onSubmitEditing={() => handleInputSubmit('hostPhone')}
         />
       </View>
+    </View>
+  );
 
+  const renderUnifiedAdvancedOptions = () => (
+    <View style={styles.stepContent}>
       <TouchableOpacity
         style={styles.advancedSectionHeader}
-        onPress={() => setAdvancedHostOpen(!advancedHostOpen)}
+        onPress={() => setAdvancedOptionsOpen(!advancedOptionsOpen)}
         activeOpacity={0.7}
       >
         <Ionicons
-          name={advancedHostOpen ? 'chevron-up' : 'chevron-down'}
+          name={advancedOptionsOpen ? 'chevron-up' : 'chevron-down'}
           size={22}
           color="#475569"
         />
         <View style={styles.advancedSectionHeaderText}>
           <Text style={styles.advancedSectionTitle}>Options avancées</Text>
-          <Text style={styles.advancedSectionHint}>Guide de l&apos;hôte, conseils aux voyageurs…</Text>
-        </View>
-      </TouchableOpacity>
-      {advancedHostOpen && (
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Guide de l&apos;hôte</Text>
-          <TextInput
-            ref={(ref) => { inputRefs.current['hostGuide'] = ref; }}
-            style={[styles.input, styles.textArea]}
-            value={formData.hostGuide}
-            onChangeText={(value) => handleInputChange('hostGuide', value)}
-            placeholder="Conseils pour les voyageurs, recommandations locales..."
-            multiline
-            numberOfLines={3}
-            placeholderTextColor="#999"
-            returnKeyType="next"
-            onSubmitEditing={() => handleInputSubmit('hostGuide')}
-          />
-          <Text style={styles.helpText}>
-            Partagez vos conseils et recommandations pour aider les voyageurs
+          <Text style={styles.advancedSectionHint}>
+            Adresse détaillée, location mensuelle (caution, charges…), guide d&apos;accueil, équipements, réductions, horaires et règles.
           </Text>
         </View>
+      </TouchableOpacity>
+      {advancedOptionsOpen && (
+        <>
+          <Text style={styles.advancedSubsectionTitle}>Logement</Text>
+          {listingType === 'monthly' && (
+            <>
+              <View style={[styles.inputGroup, styles.switchRow]}>
+                <Text style={styles.label}>Le bien est-il meublé ?</Text>
+                <Switch
+                  value={formData.isFurnished}
+                  onValueChange={(value) => handleInputChange('isFurnished', value)}
+                  trackColor={{ false: '#e5e7eb', true: '#007bff' }}
+                  thumbColor="#fff"
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Caution (FCFA)</Text>
+                <TextInput
+                  ref={(ref) => { inputRefs.current['securityDeposit'] = ref; }}
+                  style={getInputStyle('securityDeposit')}
+                  value={formData.securityDeposit}
+                  onChangeText={(value) => handleInputChange('securityDeposit', value)}
+                  placeholder="Optionnel"
+                  keyboardType="numeric"
+                  placeholderTextColor="#999"
+                  returnKeyType="next"
+                  onSubmitEditing={() => handleInputSubmit('securityDeposit')}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Durée minimale (mois)</Text>
+                <TextInput
+                  ref={(ref) => { inputRefs.current['minimumDurationMonths'] = ref; }}
+                  style={getInputStyle('minimumDurationMonths')}
+                  value={formData.minimumDurationMonths}
+                  onChangeText={(value) => handleInputChange('minimumDurationMonths', value)}
+                  placeholder="1"
+                  keyboardType="numeric"
+                  placeholderTextColor="#999"
+                  returnKeyType="next"
+                  onSubmitEditing={() => handleInputSubmit('minimumDurationMonths')}
+                />
+              </View>
+              <View style={[styles.inputGroup, styles.switchRow]}>
+                <Text style={styles.label}>Charges comprises dans le loyer</Text>
+                <Switch
+                  value={formData.chargesIncluded}
+                  onValueChange={(value) => handleInputChange('chargesIncluded', value)}
+                  trackColor={{ false: '#e5e7eb', true: '#007bff' }}
+                  thumbColor="#fff"
+                />
+              </View>
+            </>
+          )}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Indications complémentaires sur l&apos;adresse</Text>
+            <TextInput
+              ref={(ref) => { inputRefs.current['addressDetails'] = ref; }}
+              style={[getInputStyle('addressDetails'), styles.textArea]}
+              value={formData.addressDetails}
+              onChangeText={(value) => handleInputChange('addressDetails', value)}
+              placeholder="Étage, digicode, points de repère, instructions d'accès..."
+              multiline
+              numberOfLines={3}
+              placeholderTextColor="#999"
+              returnKeyType="next"
+              onSubmitEditing={() => handleInputSubmit('addressDetails')}
+            />
+            <Text style={styles.helpText}>
+              Aidez les voyageurs à trouver facilement votre logement
+            </Text>
+          </View>
+
+          <Text style={styles.advancedSubsectionTitle}>Guide d&apos;accueil</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Guide de l&apos;hôte</Text>
+            <TextInput
+              ref={(ref) => { inputRefs.current['hostGuide'] = ref; }}
+              style={[styles.input, styles.textArea]}
+              value={formData.hostGuide}
+              onChangeText={(value) => handleInputChange('hostGuide', value)}
+              placeholder="Conseils pour les voyageurs, recommandations locales..."
+              multiline
+              numberOfLines={3}
+              placeholderTextColor="#999"
+              returnKeyType="next"
+              onSubmitEditing={() => handleInputSubmit('hostGuide')}
+            />
+            <Text style={styles.helpText}>
+              Partagez vos conseils et recommandations pour aider les voyageurs
+            </Text>
+          </View>
+
+          {renderAdvancedAmenitiesAndRulesForm()}
+        </>
       )}
     </View>
   );
@@ -2396,7 +2384,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Finalisation</Text>
       <Text style={styles.stepIntro}>
-        Politique d&apos;annulation, paiement et conditions. Les équipements et règles détaillées restent optionnels.
+        Politique d&apos;annulation, paiement et conditions. Les options détaillées (équipements, réductions, etc.) sont regroupées plus haut dans « Options avancées ».
       </Text>
 
       <View style={styles.inputGroup}>
@@ -2497,25 +2485,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         {renderPaymentSection()}
       </View>
 
-      <TouchableOpacity
-        style={styles.advancedSectionHeader}
-        onPress={() => setAdvancedListingOpen(!advancedListingOpen)}
-        activeOpacity={0.7}
-      >
-        <Ionicons
-          name={advancedListingOpen ? 'chevron-up' : 'chevron-down'}
-          size={22}
-          color="#475569"
-        />
-        <View style={styles.advancedSectionHeaderText}>
-          <Text style={styles.advancedSectionTitle}>Options avancées</Text>
-          <Text style={styles.advancedSectionHint}>
-            Équipements, réductions, horaires, règles intérieures, frais de ménage…
-          </Text>
-        </View>
-      </TouchableOpacity>
-      {advancedListingOpen ? renderAdvancedAmenitiesAndRulesForm() : null}
-
       <View style={styles.inputGroup}>
         <TouchableOpacity
           style={styles.checkboxContainer}
@@ -2591,6 +2560,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             {renderStep1()}
             <View style={styles.formSectionSeparator} />
             {renderStep2()}
+            <View style={styles.formSectionSeparator} />
+            {renderUnifiedAdvancedOptions()}
             <View style={styles.formSectionSeparator} />
             {renderStep3()}
 
@@ -2920,6 +2891,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748b',
     marginTop: 2,
+  },
+  advancedSubsectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
   advancedListingPanel: {
     marginBottom: 16,
