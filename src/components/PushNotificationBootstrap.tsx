@@ -7,14 +7,10 @@ import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 
 /**
- * iOS / Android 13+ : l’app n’apparaît souvent pas dans Réglages → Notifications tant que
- * le système n’a jamais reçu de demande d’autorisation. Avant, seul le switch Paramètres
- * de l’app appelait requestPermissions — les utilisateurs qui ne l’ouvraient jamais n’étaient
- * pas enregistrés côté OS.
- *
- * Au premier état « undetermined » après connexion, on déclenche une demande unique
- * (comportement OS) ; si l’utilisateur accepte, on enregistre le token Expo comme dans
- * usePushNotifications.enablePush.
+ * iOS / Android 13+ : enregistre ou met à jour le token Expo push après connexion.
+ * - Premier lancement : si permission « undetermined », demande puis enregistrement.
+ * - Déjà « granted » : enregistrement quand même (mise à jour App Store / nouveau binaire :
+ *   l’ancien token en base peut ne plus être valide ; avant on ignorait ce cas).
  */
 export function PushNotificationBootstrap() {
   const { user } = useAuth();
@@ -36,28 +32,37 @@ export function PushNotificationBootstrap() {
 
           const { status: before } = await Notifications.getPermissionsAsync();
           if (cancelled) return;
-          if (before === 'denied' || before === 'granted') return;
+          if (before === 'denied') return;
+
+          const persistExpoPushToken = async () => {
+            const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+            const token = tokenData.data;
+            if (!token || cancelled) return;
+            const { error } = await supabase
+              .from('profiles')
+              .update({
+                expo_push_token: token,
+                push_notifications_enabled: true,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('user_id', user.id);
+            if (error) {
+              console.warn('[PushNotificationBootstrap] Sauvegarde token:', error.message);
+            }
+          };
+
+          // Déjà autorisé (ex. après passage TestFlight → App Store) : il faut quand même
+          // rafraîchir le token — un nouveau binaire peut invalider l’ancien enregistré en base.
+          if (before === 'granted') {
+            await persistExpoPushToken();
+            return;
+          }
 
           const { status: after } = await Notifications.requestPermissionsAsync();
           if (cancelled) return;
           if (after !== 'granted') return;
 
-          const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-          const token = tokenData.data;
-          if (!token || cancelled) return;
-
-          const { error } = await supabase
-            .from('profiles')
-            .update({
-              expo_push_token: token,
-              push_notifications_enabled: true,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('user_id', user.id);
-
-          if (error) {
-            console.warn('[PushNotificationBootstrap] Sauvegarde token:', error.message);
-          }
+          await persistExpoPushToken();
         } catch (e) {
           console.warn('[PushNotificationBootstrap]', e);
         }
