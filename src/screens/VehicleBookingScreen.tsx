@@ -262,7 +262,7 @@ const VehicleBookingScreen: React.FC = () => {
   const isLicenseRequired = (withDriver && useDriver === false) || (!withDriver && requiresLicense);
 
   const calculateRentalDays = () => {
-    // Avec heures : même règle que la recherche (VehicleDateTimePickerModal) — jours calendaires inclus, pas floor(heures/24)
+    // Même règle que computeVehicleRentalDurationFromIso / modal recherche
     if (startDateTime && endDateTime) {
       const d = computeVehicleRentalDurationFromIso(startDateTime, endDateTime);
       if (d.totalHours === 0) return 0;
@@ -275,13 +275,20 @@ const VehicleBookingScreen: React.FC = () => {
       return d.rentalDays;
     }
 
-    // Fallback dates seules : jours calendaires inclus (aligné recherche « du 1er au 4 » = 4 jours)
+    // Fallback dates seules (minuit local)
     if (!startDate || !endDate) return 0;
     if (startDate === endDate) return 1;
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T00:00:00');
     const diffTime = end.getTime() - start.getTime();
-    const calendarDiffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    const totalHours = Math.ceil(diffTime / (1000 * 60 * 60));
+    if (totalHours < 24) return 1;
+    const sd = new Date(start);
+    sd.setHours(0, 0, 0, 0);
+    const ed = new Date(end);
+    ed.setHours(0, 0, 0, 0);
+    const calendarDiffDays = Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24));
+    if (calendarDiffDays === 1 && totalHours <= 24) return 1;
     return Math.max(1, calendarDiffDays + 1);
   };
 

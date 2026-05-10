@@ -173,7 +173,11 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.container, variant === 'list' && styles.listContainer]}
+      style={[
+        styles.container,
+        variant === 'list' &&
+          (horizontalShelf ? styles.listContainerShelf : styles.listContainer),
+      ]}
       onPress={handlePropertyPress}
       activeOpacity={0.8}
     >

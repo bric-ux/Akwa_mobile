@@ -12,8 +12,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TRAVELER_COLORS } from '../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+/** Même encodage ISO que handleConfirm (mur horaire affiché → UTC stockée). */
+function displayDateToVehicleBookingIso(d: Date): string {
+  return new Date(
+    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), 0, 0)
+  ).toISOString();
+}
 
 interface VehicleDateTimePickerModalProps {
   visible: boolean;
@@ -276,32 +284,29 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   };
 
   /**
-   * Durée affichée : alignée sur l’usage « du 1er au 4 juin = 4 jours » (jours calendaires inclus),
-   * pas sur floor(heures/24) qui donne 3 pour 72h entre mêmes heures.
+   * Alignée sur computeVehicleRentalDurationFromIso (inclusif long séjour + correction 24 h).
+   * Mode « nombre de jours » : libellé du bouton = valeur saisie.
    */
   const calculateDuration = (): { days: number; hours: number } => {
     const diff = tempEndDate.getTime() - tempStartDate.getTime();
     if (diff <= 0) return { days: 0, hours: 0 };
 
-    const totalHours = Math.ceil(diff / (1000 * 60 * 60));
+    const startISO = displayDateToVehicleBookingIso(tempStartDate);
+    const endISO = displayDateToVehicleBookingIso(tempEndDate);
+    const d = computeVehicleRentalDurationFromIso(startISO, endISO);
 
-    if (totalHours < 24) {
-      return { days: 0, hours: totalHours };
+    if (d.totalHours < 24) {
+      return { days: 0, hours: d.remainingHours };
     }
 
-    const startDay = new Date(tempStartDate);
-    startDay.setHours(0, 0, 0, 0);
-    const endDay = new Date(tempEndDate);
-    endDay.setHours(0, 0, 0, 0);
-    const calendarDiffDays = Math.round(
-      (endDay.getTime() - startDay.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    const displayDays = Math.max(1, calendarDiffDays + 1);
+    if (mode === 'days' && rentalDays) {
+      const n = parseInt(rentalDays, 10);
+      if (!Number.isNaN(n) && n >= 1) {
+        return { days: n, hours: d.remainingHours };
+      }
+    }
 
-    const fullDaysFromHours = Math.floor(totalHours / 24);
-    const hoursRemainder = totalHours - fullDaysFromHours * 24;
-
-    return { days: displayDays, hours: hoursRemainder };
+    return { days: d.rentalDays, hours: d.remainingHours };
   };
 
   const handleConfirm = async () => {
@@ -479,15 +484,12 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       if (startDateTime && endDateTime) {
         const ns = normalizeToMinuteSlot(isoToDisplayDate(startDateTime));
         const ne = normalizeToMinuteSlot(isoToDisplayDate(endDateTime));
-        const diffMs = ne.getTime() - ns.getTime();
-        const th = Math.ceil(diffMs / (1000 * 60 * 60));
-        if (th >= 24) {
-          const sd = new Date(ns);
-          sd.setHours(0, 0, 0, 0);
-          const ed = new Date(ne);
-          ed.setHours(0, 0, 0, 0);
-          const calDiff = Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24));
-          setRentalDays(String(Math.max(1, calDiff + 1)));
+        const parts = computeVehicleRentalDurationFromIso(
+          displayDateToVehicleBookingIso(ns),
+          displayDateToVehicleBookingIso(ne)
+        );
+        if (parts.totalHours >= 24 && parts.rentalDays >= 1) {
+          setRentalDays(String(parts.rentalDays));
         }
       }
       hasInitializedRef.current = true;
