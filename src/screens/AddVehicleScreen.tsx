@@ -185,6 +185,17 @@ const AddVehicleScreen: React.FC = () => {
   const [tempInsuranceDate, setTempInsuranceDate] = useState<Date | null>(null);
   const [showLicenseYearsPicker, setShowLicenseYearsPicker] = useState(false);
 
+  const TOTAL_VEHICLE_STEPS = 6;
+  const VEHICLE_STEP_LABELS = [
+    'Annonce',
+    'Technique & lieu',
+    'Tarifs',
+    'Assurance',
+    'Options & promos',
+    'Photos & fin',
+  ] as const;
+  const [guidedStep, setGuidedStep] = useState(0);
+
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -474,6 +485,89 @@ const AddVehicleScreen: React.FC = () => {
     loadUserProfile();
   }, [user]);
 
+  const validateGuidedStep = (step: number): string | null => {
+    switch (step) {
+      case 0:
+        if (!formData.title.trim()) return 'Veuillez saisir un titre';
+        if (!formData.vehicle_type) return 'Veuillez sélectionner un type de véhicule';
+        if (!formData.brand.trim()) return 'Veuillez saisir la marque';
+        if (!formData.model.trim()) return 'Veuillez saisir le modèle';
+        if (
+          !formData.year ||
+          parseInt(formData.year, 10) < 1900 ||
+          parseInt(formData.year, 10) > new Date().getFullYear() + 1
+        ) {
+          return 'Veuillez saisir une année valide';
+        }
+        return null;
+      case 1:
+        if (!formData.seats || parseInt(formData.seats, 10) < 1) return 'Nombre de places invalide';
+        if (!formData.location_name) return 'Veuillez sélectionner une localisation';
+        return null;
+      case 2:
+        if (!formData.price_per_day || parseFloat(formData.price_per_day) <= 0) {
+          if (
+            !formData.hourly_rental_enabled ||
+            !formData.price_per_hour ||
+            parseFloat(formData.price_per_hour) <= 0
+          ) {
+            return 'Indiquez un prix par jour, ou activez la location à l’heure avec un prix horaire';
+          }
+        }
+        if (formData.hourly_rental_enabled) {
+          if (!formData.price_per_hour || parseFloat(formData.price_per_hour) <= 0) {
+            return 'Veuillez saisir un prix par heure valide';
+          }
+          if (!formData.minimum_rental_hours || parseInt(formData.minimum_rental_hours, 10) < 1) {
+            return 'La durée minimum par heure doit être d’au moins 1 heure';
+          }
+        }
+        if (formData.allow_out_of_town) {
+          if (!formData.out_of_town_price_per_day || parseInt(formData.out_of_town_price_per_day, 10) <= 0) {
+            return 'Prix par jour hors ville obligatoire';
+          }
+          if (!formData.out_of_town_price_per_hour || parseInt(formData.out_of_town_price_per_hour, 10) <= 0) {
+            return 'Prix par heure hors ville obligatoire';
+          }
+        }
+        return null;
+      case 3:
+        if (!formData.has_insurance) {
+          return 'Assurance obligatoire : cochez « Véhicule assuré » et renseignez les informations';
+        }
+        if (!formData.insurance_expiration_date) return 'Veuillez renseigner la date d’expiration de l’assurance';
+        if (formData.insurance_expiration_date < new Date()) {
+          return 'La date d’expiration de l’assurance ne peut pas être dans le passé';
+        }
+        return null;
+      case 4:
+        return null;
+      case 5:
+        if (selectedImages.length === 0) return 'Ajoutez au moins une photo ou une vidéo';
+        if (!selectedImages.some((img) => !isMediaRowVideo(img))) {
+          return 'Ajoutez au moins une image pour la vignette du véhicule';
+        }
+        return null;
+      default:
+        return null;
+    }
+  };
+
+  const goNextStep = () => {
+    const err = validateGuidedStep(guidedStep);
+    if (err) {
+      Alert.alert('Étape incomplète', err);
+      return;
+    }
+    Keyboard.dismiss();
+    setGuidedStep((s) => Math.min(TOTAL_VEHICLE_STEPS - 1, s + 1));
+  };
+
+  const goPrevStep = () => {
+    Keyboard.dismiss();
+    setGuidedStep((s) => Math.max(0, s - 1));
+  };
+
   const handleSubmit = async () => {
     if (!user) {
       Alert.alert('Connexion requise', 'Vous devez être connecté pour soumettre une candidature.');
@@ -694,8 +788,32 @@ const AddVehicleScreen: React.FC = () => {
           <View style={{ width: 24 }} />
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Informations de base */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContentGuided}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.guidedProgressCard}>
+            <Text style={styles.guidedProgressMeta}>
+              Étape {guidedStep + 1} sur {TOTAL_VEHICLE_STEPS}
+            </Text>
+            <Text style={styles.guidedProgressTitle}>{VEHICLE_STEP_LABELS[guidedStep]}</Text>
+            <View style={styles.stepDotsRow}>
+              {VEHICLE_STEP_LABELS.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.stepDot,
+                    i === guidedStep && styles.stepDotActive,
+                    i < guidedStep && styles.stepDotDone,
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+
+          {guidedStep === 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informations de base</Text>
             
@@ -773,8 +891,10 @@ const AddVehicleScreen: React.FC = () => {
               onChangeText={(value) => handleInputChange('plate_number', value)}
             />
           </View>
+          )}
 
-          {/* Caractéristiques */}
+          {guidedStep === 1 && (
+          <>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Caractéristiques</Text>
             
@@ -857,8 +977,11 @@ const AddVehicleScreen: React.FC = () => {
               <Ionicons name="chevron-forward" size={20} color="#666" />
             </TouchableOpacity>
           </View>
+          </>
+          )}
 
-          {/* Tarification */}
+          {guidedStep === 2 && (
+          <>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Tarification</Text>
             
@@ -1049,7 +1172,10 @@ const AddVehicleScreen: React.FC = () => {
             )}
           </View>
 
-          {/* Assurance */}
+          </>
+          )}
+
+          {guidedStep === 3 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Assurance *</Text>
             
@@ -1127,94 +1253,11 @@ const AddVehicleScreen: React.FC = () => {
                 />
               </View>
             )}
-
-        {/* Modal de sélection de date d'assurance */}
-        <Modal
-          visible={showInsuranceDatePicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowInsuranceDatePicker(false)}
-        >
-          <View style={styles.dateModalOverlay}>
-            <View style={styles.dateModalContent}>
-              <View style={styles.dateModalHeader}>
-                <Text style={styles.dateModalTitle}>Date d'expiration de l'assurance</Text>
-                <TouchableOpacity
-                  onPress={() => setShowInsuranceDatePicker(false)}
-                  style={styles.dateModalCloseButton}
-                >
-                  <Ionicons name="close" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.datePickerContainer}>
-                <Text style={styles.datePickerHint}>
-                  Sélectionnez la date d'expiration de votre assurance
-                </Text>
-                {tempInsuranceDate && (
-                  <View style={styles.selectedDatePreview}>
-                    <Ionicons name="calendar" size={20} color="#2E7D32" />
-                    <Text style={styles.selectedDateText}>
-                      {formatDateFrench(tempInsuranceDate)}
-                    </Text>
-                  </View>
-                )}
-                <DateTimePicker
-                  value={tempInsuranceDate || formData.insurance_expiration_date || new Date()}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  minimumDate={new Date()}
-                  onChange={(event, selectedDate) => {
-                    if (Platform.OS === 'android') {
-                      setShowInsuranceDatePicker(false);
-                      if (selectedDate) {
-                        setFormData(prev => ({
-                          ...prev,
-                          insurance_expiration_date: selectedDate,
-                        }));
-                      }
-                    } else if (Platform.OS === 'ios' && selectedDate) {
-                      // Sur iOS, on met à jour la date temporaire
-                      setTempInsuranceDate(selectedDate);
-                    }
-                  }}
-                  style={styles.datePicker}
-                />
-              </View>
-
-              {Platform.OS === 'ios' && (
-                <View style={styles.dateModalFooter}>
-                  <TouchableOpacity
-                    style={styles.dateModalCancelButton}
-                    onPress={() => {
-                      setTempInsuranceDate(null);
-                      setShowInsuranceDatePicker(false);
-                    }}
-                  >
-                    <Text style={styles.dateModalCancelText}>Annuler</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.dateModalConfirmButton}
-                    onPress={() => {
-                      if (tempInsuranceDate) {
-                        setFormData(prev => ({
-                          ...prev,
-                          insurance_expiration_date: tempInsuranceDate,
-                        }));
-                      }
-                      setTempInsuranceDate(null);
-                      setShowInsuranceDatePicker(false);
-                    }}
-                  >
-                    <Text style={styles.dateModalConfirmText}>Confirmer</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
           </View>
-        </Modal>
-          </View>
+          )}
 
+          {guidedStep === 4 && (
+          <>
           {/* Options et exigences */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Options et exigences</Text>
@@ -1401,6 +1444,11 @@ const AddVehicleScreen: React.FC = () => {
             </View>
           </View>
 
+          </>
+          )}
+
+          {guidedStep === 5 && (
+          <>
           {/* Photos */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Photos et vidéos *</Text>
@@ -1594,21 +1642,130 @@ const AddVehicleScreen: React.FC = () => {
             ))}
           </View>
 
-          <TouchableOpacity
-            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.submitButtonText}>Publier le véhicule</Text>
-                <Ionicons name="checkmark-circle" size={24} color="#fff" />
-              </>
-            )}
-          </TouchableOpacity>
+          <Text style={styles.finalStepHint}>
+            Vérifiez vos informations puis appuyez sur « Publier » ci-dessous.
+          </Text>
+          </>
+          )}
         </ScrollView>
+
+        <View style={styles.guidedFooter}>
+          <TouchableOpacity
+            style={[styles.guidedNavBtn, styles.guidedNavBtnOutline, guidedStep === 0 && styles.guidedNavBtnDisabled]}
+            onPress={goPrevStep}
+            disabled={guidedStep === 0}
+          >
+            <Text style={[styles.guidedNavBtnOutlineText, guidedStep === 0 && styles.guidedNavBtnTextDisabled]}>
+              Précédent
+            </Text>
+          </TouchableOpacity>
+          {guidedStep < TOTAL_VEHICLE_STEPS - 1 ? (
+            <TouchableOpacity style={[styles.guidedNavBtn, styles.guidedNavBtnPrimary]} onPress={goNextStep}>
+              <Text style={styles.guidedNavBtnPrimaryText}>Suivant</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.guidedNavBtn, styles.guidedNavBtnPrimary, isSubmitting && styles.guidedNavBtnDisabled]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.guidedNavBtnPrimaryText}>Publier</Text>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Modal assurance (hors ScrollView pour éviter les soucis de montage entre étapes) */}
+        <Modal
+          visible={showInsuranceDatePicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowInsuranceDatePicker(false)}
+        >
+          <View style={styles.dateModalOverlay}>
+            <View style={styles.dateModalContent}>
+              <View style={styles.dateModalHeader}>
+                <Text style={styles.dateModalTitle}>Date d&apos;expiration de l&apos;assurance</Text>
+                <TouchableOpacity
+                  onPress={() => setShowInsuranceDatePicker(false)}
+                  style={styles.dateModalCloseButton}
+                >
+                  <Ionicons name="close" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.datePickerContainer}>
+                <Text style={styles.datePickerHint}>
+                  Sélectionnez la date d&apos;expiration de votre assurance
+                </Text>
+                {tempInsuranceDate && (
+                  <View style={styles.selectedDatePreview}>
+                    <Ionicons name="calendar" size={20} color="#2E7D32" />
+                    <Text style={styles.selectedDateText}>
+                      {formatDateFrench(tempInsuranceDate)}
+                    </Text>
+                  </View>
+                )}
+                <DateTimePicker
+                  value={tempInsuranceDate || formData.insurance_expiration_date || new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  minimumDate={new Date()}
+                  onChange={(event, selectedDate) => {
+                    if (Platform.OS === 'android') {
+                      setShowInsuranceDatePicker(false);
+                      if (selectedDate) {
+                        setFormData(prev => ({
+                          ...prev,
+                          insurance_expiration_date: selectedDate,
+                        }));
+                      }
+                    } else if (Platform.OS === 'ios' && selectedDate) {
+                      setTempInsuranceDate(selectedDate);
+                    }
+                  }}
+                  style={styles.datePicker}
+                />
+              </View>
+
+              {Platform.OS === 'ios' && (
+                <View style={styles.dateModalFooter}>
+                  <TouchableOpacity
+                    style={styles.dateModalCancelButton}
+                    onPress={() => {
+                      setTempInsuranceDate(null);
+                      setShowInsuranceDatePicker(false);
+                    }}
+                  >
+                    <Text style={styles.dateModalCancelText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.dateModalConfirmButton}
+                    onPress={() => {
+                      if (tempInsuranceDate) {
+                        setFormData(prev => ({
+                          ...prev,
+                          insurance_expiration_date: tempInsuranceDate,
+                        }));
+                      }
+                      setTempInsuranceDate(null);
+                      setShowInsuranceDatePicker(false);
+                    }}
+                  >
+                    <Text style={styles.dateModalConfirmText}>Confirmer</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
 
         <CitySearchInputModal
           visible={showLocationModal}
@@ -1736,6 +1893,105 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContentGuided: {
+    paddingBottom: 8,
+  },
+  guidedProgressCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  guidedProgressMeta: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2E7D32',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  guidedProgressTitle: {
+    marginTop: 6,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  stepDotsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  stepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#e2e8f0',
+  },
+  stepDotActive: {
+    backgroundColor: '#2E7D32',
+    width: 22,
+  },
+  stepDotDone: {
+    backgroundColor: '#86efac',
+  },
+  guidedFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: Platform.OS === 'ios' ? 22 : 14,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  guidedNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    flex: 1,
+  },
+  guidedNavBtnOutline: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+  },
+  guidedNavBtnOutlineText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  guidedNavBtnPrimary: {
+    backgroundColor: '#2E7D32',
+  },
+  guidedNavBtnPrimaryText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  guidedNavBtnDisabled: {
+    opacity: 0.45,
+  },
+  guidedNavBtnTextDisabled: {
+    color: '#94a3b8',
+  },
+  finalStepHint: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 20,
+    fontSize: 13,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   section: {
     backgroundColor: '#fff',
