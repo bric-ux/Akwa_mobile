@@ -12,6 +12,7 @@ import {
   Dimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,10 +28,19 @@ import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
 import TeddyExploreFab from '../components/TeddyExploreFab';
 import { useLanguage } from '../contexts/LanguageContext';
+import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
+
 const SCREEN_W = Dimensions.get('window').width;
-/** Titres explore + première carte : même retrait gauche ; carte suivante visible */
-const EXPLORE_GUTTER = 14;
+/** Titres explore + première carte : alignés sur le carrousel « trésors CI » ; carte suivante visible */
+const EXPLORE_GUTTER = HOME_EXPLORE_HORIZONTAL_GUTTER;
 const NEXT_CARD_PEEK = 46;
+
+const KEYBOX_WHATSAPP_URL =
+  'https://wa.me/33667672022?text=' +
+  encodeURIComponent(
+    "Bonjour, je suis propriétaire d'une résidence meublée et je souhaite des informations sur l'installation de boîtes à clés AkwaHome.",
+  );
+
 const EXPLORE_CARD_WIDTH = Math.max(
   244,
   Math.round(SCREEN_W - EXPLORE_GUTTER - NEXT_CARD_PEEK),
@@ -100,6 +110,10 @@ const HomeScreen: React.FC = () => {
     },
     [navigation],
   );
+
+  const openKeyboxWhatsApp = useCallback(() => {
+    Linking.openURL(KEYBOX_WHATSAPP_URL).catch(() => {});
+  }, []);
 
   const renderExploreSection = useCallback(
     ({ item }: { item: ExploreCitySection }) => {
@@ -267,6 +281,58 @@ const HomeScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Boîtes à clés — propriétaires (aligné site Index.tsx) */}
+        <View style={styles.keyboxSection}>
+          <View style={styles.keyboxCard}>
+            <View style={styles.keyboxVisualWrap}>
+              <View style={styles.keyboxMainImgWrap}>
+                <Image
+                  source={require('../../assets/images/keybox-wall.png')}
+                  style={styles.keyboxMainImg}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
+              </View>
+              <View style={styles.keyboxInsetWrap}>
+                <View style={styles.keyboxInsetImgWrap}>
+                  <Image
+                    source={require('../../assets/images/keybox-open.png')}
+                    style={styles.keyboxInsetImg}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                  />
+                </View>
+                <View style={styles.keyboxInsetBadge}>
+                  <Ionicons name="key" size={14} color="#fff" />
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.keyboxKicker}>Propriétaires</Text>
+            <Text style={styles.keyboxTitle}>
+              Résidences meublées :{' '}
+              <Text style={styles.keyboxTitleAccent}>simplifiez votre quotidien</Text>
+            </Text>
+            <Text style={styles.keyboxBody}>
+              Installation de <Text style={styles.keyboxBodyStrong}>boîtes à clés</Text> pour faciliter
+              arrivées et départs, sans surcharger votre planning.
+            </Text>
+            <Text style={styles.keyboxHint}>Arrivée autonome · Moins de trajets · Discret et sécurisé</Text>
+
+            <TouchableOpacity
+              style={styles.keyboxWaBtn}
+              onPress={openKeyboxWhatsApp}
+              activeOpacity={0.85}
+              accessibilityRole="link"
+              accessibilityLabel="Écrire sur WhatsApp pour les boîtes à clés"
+            >
+              <Ionicons name="logo-whatsapp" size={22} color="#fff" />
+              <Text style={styles.keyboxWaBtnText}>Écrire sur WhatsApp</Text>
+            </TouchableOpacity>
+            <Text style={styles.keyboxWaFoot}>Réponse sous 24h · sans engagement</Text>
+          </View>
+        </View>
+
         <View style={styles.conciergeriePromoSection}>
           <TouchableOpacity
             style={styles.conciergeriePromoCard}
@@ -309,7 +375,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </>
     ),
-    [navigation],
+    [navigation, openKeyboxWhatsApp],
   );
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingBottom: 20 + TEDDY_FAB_SCROLL_PADDING }],
@@ -693,6 +759,142 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
+  },
+  keyboxSection: {
+    marginHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  keyboxCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: 16,
+    overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  keyboxVisualWrap: {
+    position: 'relative',
+    width: '100%',
+    maxWidth: 240,
+    alignSelf: 'center',
+    marginBottom: 16,
+    paddingBottom: 36,
+  },
+  keyboxMainImgWrap: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e7e5e4',
+    backgroundColor: '#f8fafc',
+  },
+  keyboxMainImg: {
+    width: '100%',
+    height: 152,
+  },
+  keyboxInsetWrap: {
+    position: 'absolute',
+    bottom: 6,
+    right: -4,
+    width: '56%',
+    maxWidth: 132,
+  },
+  keyboxInsetImgWrap: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(46, 125, 50, 0.35)',
+    backgroundColor: '#fff',
+  },
+  keyboxInsetImg: {
+    width: '100%',
+    height: 88,
+  },
+  keyboxInsetBadge: {
+    position: 'absolute',
+    left: -8,
+    top: -8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#2E7D32',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  keyboxKicker: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    color: '#2E7D32',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  keyboxTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  keyboxTitleAccent: {
+    color: '#2E7D32',
+    fontWeight: '700',
+  },
+  keyboxBody: {
+    fontSize: 14,
+    color: '#64748b',
+    lineHeight: 21,
+    textAlign: 'center',
+  },
+  keyboxBodyStrong: {
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  keyboxHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+  },
+  keyboxWaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#25D366',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    marginTop: 14,
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  keyboxWaBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  keyboxWaFoot: {
+    marginTop: 10,
+    fontSize: 11,
+    color: '#94a3b8',
+    textAlign: 'center',
   },
   conciergeriePromoSection: {
     marginHorizontal: 20,

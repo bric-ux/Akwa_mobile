@@ -9,10 +9,10 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
 
 const SCREEN_W = Dimensions.get('window').width;
-/** Même retrait latéral que la promo véhicules (HomeScreen) et les titres de section à 20px */
-const CAROUSEL_SIDE_MARGIN = 20;
+const CAROUSEL_SIDE_MARGIN = HOME_EXPLORE_HORIZONTAL_GUTTER;
 const SLIDE_WIDTH = SCREEN_W - CAROUSEL_SIDE_MARGIN * 2;
 
 interface CarouselImage {
