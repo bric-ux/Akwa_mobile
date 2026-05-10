@@ -1,32 +1,38 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  Alert,
   TouchableOpacity,
   RefreshControl,
   Platform,
   ActivityIndicator,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../services/AuthContext';
-import { useProperties } from '../hooks/useProperties';
-import { useCities } from '../hooks/useCities';
+import { useExploreCityHome, ExploreCitySection } from '../hooks/useExploreCityHome';
 import { Property } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import { Header } from '../components/Header';
 import { HeroSection } from '../components/HeroSection';
 import { InfoBanner } from '../components/InfoBanner';
-import { PopularDestinations } from '../components/PopularDestinations';
 import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
 import { useLanguage } from '../contexts/LanguageContext';
-import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
+const SCREEN_W = Dimensions.get('window').width;
+/** Titres explore + première carte : même retrait gauche ; carte suivante visible */
+const EXPLORE_GUTTER = 14;
+const NEXT_CARD_PEEK = 46;
+const EXPLORE_CARD_WIDTH = Math.max(
+  244,
+  Math.round(SCREEN_W - EXPLORE_GUTTER - NEXT_CARD_PEEK),
+);
 
 // Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
 const CAROUSEL_IMAGES = [
@@ -45,13 +51,13 @@ const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { t } = useLanguage();
-  const { properties, loading, error, refreshProperties } = useProperties({ source: 'home' });
-  const { cities, loading: citiesLoading, error: citiesError, getPopularDestinations } = useCities();
+  const {
+    layoutSections: exploreSections,
+    loading: exploreLoading,
+    error: exploreError,
+    refreshExploreCityHome,
+  } = useExploreCityHome();
 
-  const [popularDestinations, setPopularDestinations] = useState<any[]>([]);
-  const [destinationsLoading, setDestinationsLoading] = useState(true);
-  const destinationsFetchedRef = useRef(false);
-  const lastHandledCatalogVersionRef = useRef<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [hostFabCompact, setHostFabCompact] = useState(false);
 
@@ -63,46 +69,14 @@ const HomeScreen: React.FC = () => {
     }, [])
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      const v = getPublicPropertyListVersion();
-      if (lastHandledCatalogVersionRef.current === null) {
-        lastHandledCatalogVersionRef.current = v;
-        return;
-      }
-      if (v > lastHandledCatalogVersionRef.current) {
-        lastHandledCatalogVersionRef.current = v;
-        refreshProperties(undefined);
-      }
-    }, [refreshProperties])
-  );
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refreshProperties(undefined);
+      await refreshExploreCityHome();
     } finally {
       setRefreshing(false);
     }
-  }, [refreshProperties]);
-
-  useEffect(() => {
-    if (destinationsFetchedRef.current) return;
-    destinationsFetchedRef.current = true;
-
-    const loadPopularDestinations = async () => {
-      try {
-        setDestinationsLoading(true);
-        const destinations = await getPopularDestinations(8);
-        setPopularDestinations(destinations);
-      } catch (err) {
-        if (__DEV__) console.error('[HomeScreen] Erreur destinations:', err);
-      } finally {
-        setDestinationsLoading(false);
-      }
-    };
-    loadPopularDestinations();
-  }, [getPopularDestinations]);
+  }, [refreshExploreCityHome]);
 
   const handlePropertyPress = useCallback((property: Property) => {
     navigation.navigate('PropertyDetails', { propertyId: property.id });
@@ -110,10 +84,6 @@ const HomeScreen: React.FC = () => {
 
   const handleSearchPress = useCallback(() => {
     (navigation as any).navigate('Search');
-  }, [navigation]);
-
-  const handleDestinationPress = useCallback((destination: any) => {
-    (navigation as any).navigate('Search', { destination: destination.name });
   }, [navigation]);
 
   const handleBecomeHostFabPress = useCallback(() => {
@@ -124,9 +94,98 @@ const HomeScreen: React.FC = () => {
     }
   }, [navigation, user]);
 
-  const renderPropertyCard = useCallback(({ item }: { item: Property }) => (
-    <PropertyCard property={item} onPress={handlePropertyPress} variant="list" />
-  ), [handlePropertyPress]);
+  const navigateSearchCity = useCallback(
+    (cityName: string) => {
+      (navigation as any).navigate('Search', { destination: cityName });
+    },
+    [navigation],
+  );
+
+  const renderExploreSection = useCallback(
+    ({ item }: { item: ExploreCitySection }) => {
+      if (item.kind === 'large') {
+        const g = item.group;
+        const count = g.totalCount;
+        const subtitle = `${count} logement${count > 1 ? 's' : ''} disponible${count > 1 ? 's' : ''}`;
+        return (
+          <View style={styles.exploreSection}>
+            <View style={styles.exploreSectionHeader}>
+              <View style={styles.exploreSectionTitles}>
+                <Text style={styles.exploreCityTitle}>{g.cityName}</Text>
+                <Text style={styles.exploreCitySubtitle}>{subtitle}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.exploreVoirTout}
+                onPress={() => navigateSearchCity(g.cityName)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.exploreVoirToutText}>Voir tout</Text>
+                <Ionicons name="chevron-forward" size={16} color="#475569" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.exploreRowContent}
+            >
+              {g.properties.map((p) => (
+                <View key={p.id} style={[styles.exploreCardWrap, { width: EXPLORE_CARD_WIDTH }]}>
+                  <PropertyCard
+                    property={p}
+                    onPress={handlePropertyPress}
+                    variant="list"
+                    horizontalShelf
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        );
+      }
+
+      const chunk = item.groups;
+      const clusterTotal = chunk.reduce((sum, cg) => sum + cg.totalCount, 0);
+      const title = chunk.map((cg) => cg.cityName).join(' & ');
+      const subtitle = `${clusterTotal} logement${clusterTotal > 1 ? 's' : ''} disponible${clusterTotal > 1 ? 's' : ''}`;
+      const flat = chunk.flatMap((cg) => cg.properties);
+
+      return (
+        <View style={styles.exploreSection}>
+          <View style={styles.exploreSectionHeader}>
+            <View style={styles.exploreSectionTitles}>
+              <Text style={styles.exploreCityTitle}>{title}</Text>
+              <Text style={styles.exploreCitySubtitle}>{subtitle}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.exploreVoirTout}
+              onPress={() => (navigation as any).navigate('Search')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.exploreVoirToutText}>Voir plus</Text>
+              <Ionicons name="chevron-forward" size={16} color="#475569" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.exploreRowContent}
+          >
+            {flat.map((p) => (
+              <View key={p.id} style={[styles.exploreCardWrap, { width: EXPLORE_CARD_WIDTH }]}>
+                <PropertyCard
+                  property={p}
+                  onPress={handlePropertyPress}
+                  variant="list"
+                  horizontalShelf
+                />
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      );
+    },
+    [handlePropertyPress, navigateSearchCity, navigation],
+  );
 
   const listHeader = useMemo(() => (
     <>
@@ -134,134 +193,136 @@ const HomeScreen: React.FC = () => {
 
       <WeatherDateTimeWidget />
 
-      {/* Section Promotionnelle Location de véhicules */}
-      <View style={styles.vehiclesPromoSection}>
-        <View style={styles.vehiclesPromoBackground}>
-          <Image
-            source={require('../../assets/images/vehicles-suv.jpg')}
-            style={styles.vehiclesPromoBgImage}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            priority="high"
-            transition={200}
-          />
-          <View style={styles.vehiclesPromoOverlay}>
-            <View style={styles.vehiclesPromoContent}>
-              <View style={styles.vehiclesPromoLeft}>
-            <View style={styles.vehiclesPromoBadge}>
-              <Ionicons name="flash" size={16} color="#FFD700" />
-              <Text style={styles.vehiclesPromoBadgeText}>NOUVEAU</Text>
-            </View>
-            <Text style={styles.vehiclesPromoTitle}>
-              Location de véhicules
-            </Text>
-            <Text style={styles.vehiclesPromoSubtitle}>
-              Explorez la Côte d&apos;Ivoire à votre rythme
-            </Text>
-            <Text style={styles.vehiclesPromoDescription}>
-              Trouvez le véhicule parfait pour votre voyage. Des voitures, SUV, motos et plus encore disponibles à la location.
-            </Text>
-            <TouchableOpacity
-              style={styles.vehiclesPromoButton}
-              onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
-            >
-              <Text style={styles.vehiclesPromoButtonText}>Découvrir les véhicules</Text>
-              <Ionicons name="arrow-forward" size={18} color="#fff" />
-            </TouchableOpacity>
-              </View>
-              <View style={styles.vehiclesPromoRight}>
-            <View style={styles.vehiclesPromoIconContainer}>
-              <Ionicons name="car-sport" size={64} color="#2E7D32" />
-            </View>
-            <View style={styles.vehiclesPromoFeatures}>
-              <View style={styles.vehiclesPromoFeature}>
-                <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                <Text style={styles.vehiclesPromoFeatureText}>Large choix</Text>
-              </View>
-              <View style={styles.vehiclesPromoFeature}>
-                <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                <Text style={styles.vehiclesPromoFeatureText}>Prix compétitifs</Text>
-              </View>
-              <View style={styles.vehiclesPromoFeature}>
-                <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                <Text style={styles.vehiclesPromoFeatureText}>Réservation facile</Text>
-              </View>
-              </View>
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      {/* Section Promotionnelle Conciergerie */}
-      <View style={styles.conciergeriePromoSection}>
-        <TouchableOpacity
-          style={styles.conciergeriePromoCard}
-          onPress={() => navigation.navigate('Conciergerie' as never)}
-          activeOpacity={0.9}
-        >
-          {/* Effets d'arrière-plan */}
-          <View style={styles.conciergeriePromoBackground}>
-            <View style={styles.conciergeriePromoGradient} />
-            <View style={styles.conciergeriePromoCircle1} />
-            <View style={styles.conciergeriePromoCircle2} />
-          </View>
-          
-          {/* Contenu */}
-          <View style={styles.conciergeriePromoContent}>
-            <View style={styles.conciergeriePromoLeft}>
-              <View style={styles.conciergeriePromoIconContainer}>
-                <Ionicons name="sparkles" size={32} color="#FFFFFF" />
-              </View>
-              <View style={styles.conciergeriePromoTextContainer}>
-                <View style={styles.conciergeriePromoBadgeRow}>
-                  <View style={styles.conciergeriePromoBadge}>
-                    <Text style={styles.conciergeriePromoBadgeText}>✨ NOUVEAUTÉ</Text>
-                  </View>
-                </View>
-                <Text style={styles.conciergeriePromoTitle}>
-                  Service de Conciergerie AkwaHome
-                </Text>
-                <Text style={styles.conciergeriePromoDescription}>
-                  Maximisez vos revenus de <Text style={styles.conciergeriePromoHighlight}>+65%</Text> sans effort • Support <Text style={styles.conciergeriePromoHighlight}>24h/7j</Text> • Satisfaction <Text style={styles.conciergeriePromoHighlight}>98%</Text>
-                </Text>
-              </View>
-            </View>
-            <View style={styles.conciergeriePromoRight}>
-              <View style={styles.conciergeriePromoArrowContainer}>
-                <Ionicons name="arrow-forward" size={24} color="#e67e22" />
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      <PopularDestinations
-        destinations={popularDestinations}
-        onDestinationPress={handleDestinationPress}
-        loading={destinationsLoading}
-      />
-
       <ImageCarousel
         images={CAROUSEL_IMAGES}
         onImagePress={() => {}}
       />
 
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Nos propriétés disponibles</Text>
+        <View style={styles.exploreIntroHeader}>
+          <Text style={styles.sectionTitle}>Explorez par ville</Text>
         </View>
       </View>
     </>
-  ), [popularDestinations, destinationsLoading, handleSearchPress, handleDestinationPress, navigation]);
+  ), [handleSearchPress]);
+
+  const listFooter = useMemo(
+    () => (
+      <>
+        {/* Location de véhicules — après les résidences par ville */}
+        <View style={styles.vehiclesPromoSection}>
+          <View style={styles.vehiclesPromoBackground}>
+            <Image
+              source={require('../../assets/images/vehicles-suv.jpg')}
+              style={styles.vehiclesPromoBgImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              priority="high"
+              transition={200}
+            />
+            <View style={styles.vehiclesPromoOverlay}>
+              <View style={styles.vehiclesPromoContent}>
+                <View style={styles.vehiclesPromoLeft}>
+                  <View style={styles.vehiclesPromoBadge}>
+                    <Ionicons name="flash" size={16} color="#FFD700" />
+                    <Text style={styles.vehiclesPromoBadgeText}>NOUVEAU</Text>
+                  </View>
+                  <Text style={styles.vehiclesPromoTitle}>Location de véhicules</Text>
+                  <Text style={styles.vehiclesPromoSubtitle}>
+                    Explorez la Côte d&apos;Ivoire à votre rythme
+                  </Text>
+                  <Text style={styles.vehiclesPromoDescription}>
+                    Trouvez le véhicule parfait pour votre voyage. Des voitures, SUV, motos et plus
+                    encore disponibles à la location.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.vehiclesPromoButton}
+                    onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
+                  >
+                    <Text style={styles.vehiclesPromoButtonText}>Découvrir les véhicules</Text>
+                    <Ionicons name="arrow-forward" size={18} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.vehiclesPromoRight}>
+                  <View style={styles.vehiclesPromoIconContainer}>
+                    <Ionicons name="car-sport" size={64} color="#2E7D32" />
+                  </View>
+                  <View style={styles.vehiclesPromoFeatures}>
+                    <View style={styles.vehiclesPromoFeature}>
+                      <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
+                      <Text style={styles.vehiclesPromoFeatureText}>Large choix</Text>
+                    </View>
+                    <View style={styles.vehiclesPromoFeature}>
+                      <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
+                      <Text style={styles.vehiclesPromoFeatureText}>Prix compétitifs</Text>
+                    </View>
+                    <View style={styles.vehiclesPromoFeature}>
+                      <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
+                      <Text style={styles.vehiclesPromoFeatureText}>Réservation facile</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.conciergeriePromoSection}>
+          <TouchableOpacity
+            style={styles.conciergeriePromoCard}
+            onPress={() => navigation.navigate('Conciergerie' as never)}
+            activeOpacity={0.9}
+          >
+            <View style={styles.conciergeriePromoBackground}>
+              <View style={styles.conciergeriePromoGradient} />
+              <View style={styles.conciergeriePromoCircle1} />
+              <View style={styles.conciergeriePromoCircle2} />
+            </View>
+
+            <View style={styles.conciergeriePromoContent}>
+              <View style={styles.conciergeriePromoLeft}>
+                <View style={styles.conciergeriePromoIconContainer}>
+                  <Ionicons name="sparkles" size={32} color="#FFFFFF" />
+                </View>
+                <View style={styles.conciergeriePromoTextContainer}>
+                  <View style={styles.conciergeriePromoBadgeRow}>
+                    <View style={styles.conciergeriePromoBadge}>
+                      <Text style={styles.conciergeriePromoBadgeText}>✨ NOUVEAUTÉ</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.conciergeriePromoTitle}>Service de Conciergerie AkwaHome</Text>
+                  <Text style={styles.conciergeriePromoDescription}>
+                    Maximisez vos revenus de <Text style={styles.conciergeriePromoHighlight}>+65%</Text>{' '}
+                    sans effort • Support{' '}
+                    <Text style={styles.conciergeriePromoHighlight}>24h/7j</Text> • Satisfaction{' '}
+                    <Text style={styles.conciergeriePromoHighlight}>98%</Text>
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.conciergeriePromoRight}>
+                <View style={styles.conciergeriePromoArrowContainer}>
+                  <Ionicons name="arrow-forward" size={24} color="#e67e22" />
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </>
+    ),
+    [navigation],
+  );
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingBottom: 20 + HOST_FAB_EXTRA_SCROLL_PADDING }],
     []
   );
 
-  const keyExtractor = useCallback((item: Property) => item.id, []);
+  const exploreKeyExtractor = useCallback((item: ExploreCitySection) => {
+    if (item.kind === 'large') return `city-${item.group.citySlug}`;
+    const slugs = [...item.groups.map((g) => g.citySlug)].sort().join('-');
+    return `pair-${slugs}`;
+  }, []);
   const emptyMessageShort = t('property.noProperties');
-  const listLoadingEmpty = loading && properties.length === 0;
+  const listLoadingEmpty = exploreLoading && exploreSections.length === 0;
   const listEmptyComponent = useMemo(() => {
     if (listLoadingEmpty) {
       return (
@@ -282,7 +343,7 @@ const HomeScreen: React.FC = () => {
     );
   }, [emptyMessageShort, t, listLoadingEmpty]);
 
-  const showError = error;
+  const showError = exploreError;
 
   if (showError) {
     return (
@@ -300,12 +361,13 @@ const HomeScreen: React.FC = () => {
         
         <FlatList
           style={styles.content}
-          data={properties}
-          renderItem={renderPropertyCard}
-          keyExtractor={keyExtractor}
+          data={exploreSections}
+          renderItem={renderExploreSection}
+          keyExtractor={exploreKeyExtractor}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={scrollContentStyle}
           ListHeaderComponent={listHeader}
+          ListFooterComponent={listFooter}
           ListEmptyComponent={listEmptyComponent}
           refreshControl={
             <RefreshControl
@@ -438,6 +500,54 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 5,
+  },
+  exploreSection: {
+    marginBottom: 14,
+  },
+  exploreIntroHeader: {
+    paddingHorizontal: EXPLORE_GUTTER,
+    marginBottom: 15,
+  },
+  exploreSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: EXPLORE_GUTTER,
+    marginBottom: 10,
+    gap: 10,
+  },
+  exploreSectionTitles: {
+    flex: 1,
+    minWidth: 0,
+  },
+  exploreCityTitle: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  exploreCitySubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#64748b',
+  },
+  exploreVoirTout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    flexShrink: 0,
+  },
+  exploreVoirToutText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  exploreRowContent: {
+    paddingLeft: EXPLORE_GUTTER,
+    paddingRight: NEXT_CARD_PEEK,
+    paddingBottom: 4,
+  },
+  exploreCardWrap: {
+    marginRight: 10,
   },
   hostFabContainer: {
     position: 'absolute',

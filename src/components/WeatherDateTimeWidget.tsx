@@ -147,7 +147,7 @@ const WeatherDateTimeWidget: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 15,
+    paddingHorizontal: 20,
     paddingVertical: 8,
   },
   widget: {

@@ -27,9 +27,16 @@ interface PropertyCardProps {
   property: Property;
   onPress: (property: Property) => void;
   variant?: 'grid' | 'list';
+  /** Liste dans un carrousel horizontal (sans grandes marges gauche/droite). */
+  horizontalShelf?: boolean;
 }
 
-const PropertyCardInner: React.FC<PropertyCardProps> = ({ property, onPress, variant = 'grid' }) => {
+const PropertyCardInner: React.FC<PropertyCardProps> = ({
+  property,
+  onPress,
+  variant = 'grid',
+  horizontalShelf = false,
+}) => {
   const { requireAuthForFavorites } = useAuthRedirect();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
   const { formatPrice: formatPriceWithCurrency, currency } = useCurrency();
@@ -343,6 +350,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
+  },
+  listContainerShelf: {
+    marginHorizontal: 0,
+    marginBottom: 0,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   // Nouveaux styles pour le design en cartes
   cardLayout: {

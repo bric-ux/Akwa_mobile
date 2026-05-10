@@ -10,7 +10,10 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
-const { width } = Dimensions.get('window');
+const SCREEN_W = Dimensions.get('window').width;
+/** Même retrait latéral que la promo véhicules (HomeScreen) et les titres de section à 20px */
+const CAROUSEL_SIDE_MARGIN = 20;
+const SLIDE_WIDTH = SCREEN_W - CAROUSEL_SIDE_MARGIN * 2;
 
 interface CarouselImage {
   id: string;
@@ -33,13 +36,13 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
 
   const handleScroll = (event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(contentOffsetX / width);
+    const index = Math.round(contentOffsetX / SLIDE_WIDTH);
     setCurrentIndex(index);
   };
 
   const goToSlide = (index: number) => {
     scrollViewRef.current?.scrollTo({
-      x: index * width,
+      x: index * SLIDE_WIDTH,
       animated: true,
     });
   };
@@ -67,7 +70,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Trésors de la Côte d'Ivoire</Text>
+      <Text style={styles.sectionTitle}>Explorez les trésors de la Côte d&apos;Ivoire</Text>
       
       <View style={styles.carouselContainer}>
         <ScrollView
@@ -141,22 +144,25 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
 const styles = StyleSheet.create({
   container: {
     marginVertical: 20,
+    marginHorizontal: CAROUSEL_SIDE_MARGIN,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     marginBottom: 15,
   },
   carouselContainer: {
     position: 'relative',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   scrollView: {
     height: 250,
   },
   slide: {
-    width: width,
+    width: SLIDE_WIDTH,
     height: 250,
     position: 'relative',
     backgroundColor: '#1e293b',
