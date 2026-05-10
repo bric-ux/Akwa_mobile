@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Image,
   Switch,
   Dimensions,
 } from 'react-native';
@@ -38,6 +37,7 @@ import { Amenity } from '../types';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { PROPERTY_TYPES } from '../constants/hostListingForm';
 import { consumeHostAssistantDraft } from '../lib/hostOnboardingAssistant';
+import BecomeHostGuidedFlow from './becomeHost/BecomeHostGuidedFlow';
 
 const CANCELLATION_POLICIES = [
   { 
@@ -115,6 +115,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [fieldsToRevise, setFieldsToRevise] = useState<Record<string, boolean>>({});
+  const [revisionMessage, setRevisionMessage] = useState('');
+  const [guidedStep, setGuidedStep] = useState(1);
   const [enteredReferralCode, setEnteredReferralCode] = useState<string>('');
   const [referralCodeError, setReferralCodeError] = useState<string>('');
   const [referrerName, setReferrerName] = useState<string>('');
@@ -384,6 +386,11 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       } else {
         setFieldsToRevise({});
       }
+      setRevisionMessage(
+        typeof (application as { revision_message?: string }).revision_message === 'string'
+          ? (application as { revision_message: string }).revision_message
+          : '',
+      );
       
       // Charger les photos
       console.log('📸 Données brutes categorized_photos:', JSON.stringify(application.categorized_photos, null, 2));
@@ -547,6 +554,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     if (aiGenerating || !canGenerateAiTitleDescription) return;
     setAiGenerating(true);
     try {
+      const startTs = Date.now();
       const context = [
         `Type: ${formData.propertyType || 'non précisé'}`,
         `Localisation: ${formData.location || 'non précisée'}`,
@@ -587,13 +595,19 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         .replace(/^je propose[,:\s-]*/i, '')
         .trim();
 
+      const draftTitle = String((data?.draft_patch as { title?: string })?.title || '').trim();
+
+      const elapsed = Date.now() - startTs;
+      const remaining = Math.max(0, 10000 - elapsed);
+      if (remaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+      }
+
       setAiTitleSuggestions(titles);
       if (aiDescription) {
         setAiDraftDescription(aiDescription);
         handleInputChange('description', aiDescription);
       }
-
-      const draftTitle = String((data?.draft_patch as { title?: string })?.title || '').trim();
       if (titles.length === 0 && draftTitle) {
         handleInputChange('title', draftTitle);
       }
@@ -1601,6 +1615,108 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     }
   };
 
+  const onReferralCodeInputChange = useCallback(
+    async (code: string) => {
+      const upperCode = code.toUpperCase();
+      setEnteredReferralCode(upperCode);
+      setReferralCodeError('');
+      setReferrerName('');
+      if (upperCode.length >= 6) {
+        const result = await verifyReferralCode(upperCode);
+        if (result.valid) {
+          setReferrerName(result.referrerName || '');
+        } else {
+          setReferralCodeError(result.error || 'Code invalide');
+        }
+      }
+    },
+    [verifyReferralCode],
+  );
+
+  const setReferredFlag = useCallback((v: boolean) => {
+    setIsReferred(v);
+    if (!v) {
+      setEnteredReferralCode('');
+      setReferralCodeError('');
+      setReferrerName('');
+    }
+  }, []);
+
+  /** Bloc photos / vidéos réutilisé à l’étape 8 du parcours guidé (comme le site web). */
+  const renderPhotosSectionOnly = () => (
+    <View style={styles.inputGroup}>
+      <Text style={styles.subtitle}>
+        Jusqu&apos;à 30 médias (photos + vidéos, max. {MAX_PROPERTY_VIDEOS} vidéos). La photo principale doit être une image, pas une vidéo.
+      </Text>
+      <View style={styles.imageGrid}>
+        {selectedImages.map((image, index) => (
+          <View key={index} style={[styles.imageContainer, image.isMain && styles.mainImageContainer]}>
+            <MediaThumb
+              uri={image.uri}
+              isVideo={isMediaRowVideo(image)}
+              style={styles.selectedImage}
+              resizeMode="cover"
+            />
+            <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(index)}>
+              <Ionicons name="close-circle" size={20} color="#ff4444" />
+            </TouchableOpacity>
+            {image.isMain && !isMediaRowVideo(image) && (
+              <View style={styles.mainImageBadge}>
+                <Ionicons name="star" size={16} color="#FFD700" />
+                <Text style={styles.mainImageBadgeText}>Principale</Text>
+              </View>
+            )}
+            {isMediaRowVideo(image) && (
+              <View style={styles.videoTypeBadge}>
+                <Ionicons name="videocam" size={12} color="#fff" />
+                <Text style={styles.videoTypeBadgeText}>Vidéo</Text>
+              </View>
+            )}
+            <View style={styles.imageActionsContainer}>
+              {!image.isMain && !isMediaRowVideo(image) && (
+                <TouchableOpacity style={styles.setMainButtonSmall} onPress={() => setMainImage(index)}>
+                  <Ionicons name="star-outline" size={14} color="#fff" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.categoryButtonSmall, image.isMain && styles.categoryButtonSmallWithMain]}
+                onPress={() => openCategoryModal(index)}
+              >
+                <Text style={styles.categoryIconSmall}>{getCategoryIcon(image.category)}</Text>
+                <Text style={styles.categoryLabelSmall} numberOfLines={1}>
+                  {getCategoryLabel(image.category)}
+                </Text>
+                <Ionicons name="pencil" size={10} color="#fff" style={styles.editIconSmall} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+        {selectedImages.length < 30 && (
+          <>
+            <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
+              <Ionicons name="camera" size={24} color="#666" />
+              <Text style={styles.addImageText}>Ajouter des photos</Text>
+              <Text style={styles.addImageSubtext}>(Sélection multiple possible)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.addImageButton, styles.addVideoButton]} onPress={pickVideo}>
+              <Ionicons name="videocam-outline" size={24} color="#666" />
+              <Text style={styles.addImageText}>Ajouter une vidéo</Text>
+              <Text style={styles.addImageSubtext}>(max. {MAX_PROPERTY_VIDEOS} vidéos)</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+      {selectedImages.length > 0 && (
+        <View style={styles.categoryInstructions}>
+          <Ionicons name="information-circle" size={16} color="#007bff" />
+          <Text style={styles.categoryInstructionsText}>
+            Appuyez sur la catégorie d&apos;une photo pour la modifier. Définissez la photo principale sur une image.
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
   /** Écran de choix du type d'annonce : résidence meublée (court séjour) ou location mensuelle (longue durée) */
   const renderListingTypeChoice = () => (
     <View style={styles.listingTypeContainer}>
@@ -1810,92 +1926,6 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             </View>
           </View>
         </>
-      )}
-
-      {/* Teddy IA — titres & description (comme BecomeHostPageComplete côté web) */}
-      {listingType === 'short_term' &&
-        (!isEditMode || shouldShowField('title') || shouldShowField('description')) && (
-        <View style={styles.teddyAiCard}>
-          <View style={styles.teddyAiCardHeader}>
-            <Image
-              source={require('../../assets/teddy.png')}
-              style={styles.teddyAiAvatar}
-            />
-            <View style={styles.teddyAiHeaderText}>
-              <Text style={styles.teddyAiTitle}>Teddy IA</Text>
-              <Text style={styles.teddyAiSubtitle}>
-                Génération basée sur le type, la localisation et la capacité déjà indiqués.
-              </Text>
-            </View>
-          </View>
-          {!canGenerateAiTitleDescription ? (
-            <Text style={styles.teddyAiHint}>
-              Renseignez le type de logement, la localisation, voyageurs, chambres et salles de bain pour activer la proposition automatique.
-            </Text>
-          ) : (
-            <>
-              {aiTitleSuggestions.length === 0 && !aiDraftDescription ? (
-                <TouchableOpacity
-                  style={[styles.teddyAiButton, aiGenerating && styles.teddyAiButtonDisabled]}
-                  onPress={generateAiTitleAndDescription}
-                  disabled={aiGenerating}
-                  activeOpacity={0.85}
-                >
-                  {aiGenerating ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.teddyAiButtonText}>Proposer 3 titres + description</Text>
-                  )}
-                </TouchableOpacity>
-              ) : null}
-
-              {(aiTitleSuggestions.length > 0 || aiDraftDescription) ? (
-                <View style={styles.teddyAiResults}>
-                  <View style={styles.teddyAiResultsBanner}>
-                    <Image
-                      source={require('../../assets/teddy.png')}
-                      style={styles.teddyAiAvatarSmall}
-                    />
-                    <Text style={styles.teddyAiResultsLabel}>Voici ce que Teddy IA te propose.</Text>
-                  </View>
-                  {aiTitleSuggestions.length > 0 ? (
-                    <View style={styles.teddyTitleChips}>
-                      <Text style={styles.teddyChipsLabel}>Titres (tap pour appliquer)</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        {aiTitleSuggestions.map((title, idx) => (
-                          <TouchableOpacity
-                            key={`ai-title-${idx}`}
-                            style={styles.teddyTitleChip}
-                            onPress={() => handleInputChange('title', title)}
-                            activeOpacity={0.85}
-                          >
-                            <Text style={styles.teddyTitleChipText} numberOfLines={2}>
-                              {title}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  ) : null}
-                  {aiDraftDescription ? (
-                    <Text style={styles.teddyDescAppliedHint}>
-                      La description a été insérée dans le champ ci-dessous ; vous pouvez la modifier.
-                    </Text>
-                  ) : null}
-                  <TouchableOpacity
-                    style={styles.teddyRegenerate}
-                    onPress={generateAiTitleAndDescription}
-                    disabled={aiGenerating}
-                  >
-                    <Text style={styles.teddyRegenerateText}>
-                      {aiGenerating ? 'Génération…' : 'Régénérer'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-            </>
-          )}
-        </View>
       )}
 
       {/* Titre */}
@@ -2724,39 +2754,86 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           </TouchableOpacity>
         </View>
         
-        {/* En-tête */}
-        <View style={styles.header}>
-          <Text style={styles.title}>
-            {isEditMode ? 'Modifier votre candidature' : 'Devenir hôte'}
-          </Text>
-          <Text style={styles.subtitle}>
-            {isEditMode 
-              ? 'Modifiez les informations de votre candidature ci-dessous'
-              : 'Partagez votre logement et générez des revenus supplémentaires'}
-          </Text>
-        </View>
-
-        {/* Vérification d'identité : même composant que Mon compte + upload possible sans quitter l'écran */}
-        {((!hasUploadedIdentity && !identityUploadedInSession) ||
-          (hasUploadedIdentity && verificationStatus === 'pending') ||
-          (hasUploadedIdentity && verificationStatus === 'rejected')) && (
-          <View style={styles.identityInFormWrap}>
-            <IdentityVerificationAlert
-              onVerificationComplete={() => {
-                checkIdentityStatus(true);
-              }}
-            />
-            {verificationStatus === 'pending' ? (
-              <Text style={styles.identityInFormHint}>
-                Vous pouvez soumettre votre candidature : la validation finale sera faite par notre équipe.
-              </Text>
-            ) : null}
+        {/* En-tête : masqué pendant le parcours guidé (hero + carte dans BecomeHostGuidedFlow) */}
+        {!(listingType === 'short_term' && listingTypeConfirmed) && (
+          <View style={styles.header}>
+            <Text style={styles.title}>
+              {isEditMode ? 'Modifier votre candidature' : 'Devenir hôte'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {isEditMode
+                ? 'Modifiez les informations de votre candidature ci-dessous'
+                : 'Partagez votre logement et générez des revenus supplémentaires'}
+            </Text>
           </View>
         )}
 
+        {/* Identité : hors parcours guidé uniquement (court séjour = étape 8 comme sur le site) */}
+        {!(listingType === 'short_term' && listingTypeConfirmed) &&
+          ((!hasUploadedIdentity && !identityUploadedInSession) ||
+            (hasUploadedIdentity && verificationStatus === 'pending') ||
+            (hasUploadedIdentity && verificationStatus === 'rejected')) && (
+            <View style={styles.identityInFormWrap}>
+              <IdentityVerificationAlert
+                onVerificationComplete={() => {
+                  checkIdentityStatus(true);
+                }}
+              />
+              {verificationStatus === 'pending' ? (
+                <Text style={styles.identityInFormHint}>
+                  Vous pouvez soumettre votre candidature : la validation finale sera faite par notre équipe.
+                </Text>
+              ) : null}
+            </View>
+          )}
+
         {/* Choix du type d'annonce (désactivé tant que seule la résidence meublée est proposée) */}
-        {(!listingType || !listingTypeConfirmed) ? (
+        {!listingType || !listingTypeConfirmed ? (
           renderListingTypeChoice()
+        ) : listingType === 'short_term' ? (
+          <BecomeHostGuidedFlow
+            guidedStep={guidedStep}
+            setGuidedStep={setGuidedStep}
+            isEditMode={isEditMode}
+            fieldsToRevise={fieldsToRevise}
+            revisionMessage={revisionMessage}
+            formData={formData}
+            handleInputChange={handleInputChange}
+            handleLocationSelect={handleLocationSelect}
+            shouldShowField={shouldShowField}
+            aiTitleSuggestions={aiTitleSuggestions}
+            aiDraftDescription={aiDraftDescription}
+            aiGenerating={aiGenerating}
+            generateAiTitleAndDescription={generateAiTitleAndDescription}
+            isReferred={isReferred}
+            setIsReferred={setReferredFlag}
+            enteredReferralCode={enteredReferralCode}
+            referralCodeError={referralCodeError}
+            referrerName={referrerName}
+            onReferralCodeInputChange={onReferralCodeInputChange}
+            availableAmenities={availableAmenities}
+            selectedAmenities={selectedAmenities}
+            toggleAmenity={toggleAmenity}
+            customAmenities={customAmenities}
+            setCustomAmenities={setCustomAmenities}
+            hasUploadedIdentity={hasUploadedIdentity}
+            identityUploadedInSession={identityUploadedInSession}
+            onIdentityComplete={() => {
+              checkIdentityStatus(true);
+              setIdentityUploadedInSession(true);
+            }}
+            verificationStatus={verificationStatus}
+            photosSection={renderPhotosSectionOnly()}
+            paymentSection={renderPaymentSection()}
+            onOpenCancellationModal={() => setShowCancellationModal(true)}
+            cancellationLabel={
+              CANCELLATION_POLICIES.find((p) => p.value === formData.cancellationPolicy)?.label ||
+              'Politique d\'annulation'
+            }
+            onSubmit={handleSubmit}
+            loading={loading}
+            isSubmitting={isSubmitting}
+          />
         ) : (
           <>
             {renderStep1()}
@@ -3186,130 +3263,6 @@ const styles = StyleSheet.create({
   advancedListingPanel: {
     marginBottom: 16,
     paddingBottom: 8,
-  },
-  teddyAiCard: {
-    marginHorizontal: 4,
-    marginBottom: 20,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
-    backgroundColor: '#ecfdf5',
-  },
-  teddyAiCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  teddyAiAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#6ee7b7',
-  },
-  teddyAiAvatarSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
-  },
-  teddyAiHeaderText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  teddyAiTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#065f46',
-  },
-  teddyAiSubtitle: {
-    fontSize: 12,
-    color: '#047857',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  teddyAiHint: {
-    fontSize: 13,
-    color: '#047857',
-    lineHeight: 18,
-  },
-  teddyAiButton: {
-    backgroundColor: '#059669',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  teddyAiButtonDisabled: {
-    opacity: 0.65,
-  },
-  teddyAiButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  teddyAiResults: {
-    marginTop: 4,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
-    backgroundColor: '#fff',
-  },
-  teddyAiResultsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  teddyAiResultsLabel: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#065f46',
-  },
-  teddyChipsLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748b',
-    marginBottom: 8,
-  },
-  teddyTitleChips: {
-    marginBottom: 10,
-  },
-  teddyTitleChip: {
-    maxWidth: 220,
-    marginRight: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1fae5',
-    backgroundColor: '#f0fdf4',
-  },
-  teddyTitleChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#14532d',
-  },
-  teddyDescAppliedHint: {
-    fontSize: 12,
-    color: '#64748b',
-    marginBottom: 10,
-    lineHeight: 17,
-  },
-  teddyRegenerate: {
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-  },
-  teddyRegenerateText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#059669',
   },
   inputGroup: {
     marginBottom: 20,
