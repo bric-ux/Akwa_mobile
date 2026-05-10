@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,13 @@ import {
   ActivityIndicator,
   ScrollView,
   Dimensions,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../services/AuthContext';
 import { useExploreCityHome, ExploreCitySection } from '../hooks/useExploreCityHome';
 import { Property } from '../types';
 import PropertyCard from '../components/PropertyCard';
@@ -24,6 +25,7 @@ import { HeroSection } from '../components/HeroSection';
 import { InfoBanner } from '../components/InfoBanner';
 import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
+import TeddyExploreFab from '../components/TeddyExploreFab';
 import { useLanguage } from '../contexts/LanguageContext';
 const SCREEN_W = Dimensions.get('window').width;
 /** Titres explore + première carte : même retrait gauche ; carte suivante visible */
@@ -44,12 +46,12 @@ const CAROUSEL_IMAGES = [
   { id: '6', source: require('../../assets/images/plages-assinie.jpg'), title: 'Côte d\'Assinie', description: 'Plages paradisiaques et villages de pêcheurs traditionnels' },
 ];
 
-const HOST_FAB_EXTRA_SCROLL_PADDING = 72;
+/** Espace sous la liste pour le FAB Teddy (remplace l’ancien bouton +) */
+const TEDDY_FAB_SCROLL_PADDING = 72;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
   const { t } = useLanguage();
   const {
     layoutSections: exploreSections,
@@ -59,15 +61,21 @@ const HomeScreen: React.FC = () => {
   } = useExploreCityHome();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [hostFabCompact, setHostFabCompact] = useState(false);
+  const lastScrollY = useRef(0);
+  const [teddyFabVisibleFromScroll, setTeddyFabVisibleFromScroll] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      setHostFabCompact(false);
-      const timer = setTimeout(() => setHostFabCompact(true), 10000);
-      return () => clearTimeout(timer);
-    }, [])
-  );
+  const onExploreScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const prev = lastScrollY.current;
+    if (y < 120) {
+      setTeddyFabVisibleFromScroll(true);
+    } else if (y > prev + 8) {
+      setTeddyFabVisibleFromScroll(false);
+    } else if (y < prev - 8) {
+      setTeddyFabVisibleFromScroll(true);
+    }
+    lastScrollY.current = y;
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -85,14 +93,6 @@ const HomeScreen: React.FC = () => {
   const handleSearchPress = useCallback(() => {
     (navigation as any).navigate('Search');
   }, [navigation]);
-
-  const handleBecomeHostFabPress = useCallback(() => {
-    if (user) {
-      navigation.navigate('BecomeHost' as never);
-    } else {
-      navigation.navigate('Auth', { returnTo: 'BecomeHost' });
-    }
-  }, [navigation, user]);
 
   const navigateSearchCity = useCallback(
     (cityName: string) => {
@@ -312,7 +312,7 @@ const HomeScreen: React.FC = () => {
     [navigation],
   );
   const scrollContentStyle = useMemo(
-    () => [styles.scrollContent, { paddingBottom: 20 + HOST_FAB_EXTRA_SCROLL_PADDING }],
+    () => [styles.scrollContent, { paddingBottom: 20 + TEDDY_FAB_SCROLL_PADDING }],
     []
   );
 
@@ -376,6 +376,8 @@ const HomeScreen: React.FC = () => {
               tintColor="#e67e22"
             />
           }
+          onScroll={onExploreScroll}
+          scrollEventThrottle={16}
           removeClippedSubviews={Platform.OS === 'android'}
           maxToRenderPerBatch={6}
           windowSize={9}
@@ -383,33 +385,10 @@ const HomeScreen: React.FC = () => {
           updateCellsBatchingPeriod={50}
         />
 
-        <View
-          style={[
-            styles.hostFabContainer,
-            { bottom: Math.max(insets.bottom, 6) + 10 },
-          ]}
-        >
-          <TouchableOpacity
-            style={hostFabCompact ? styles.hostFabCompact : styles.hostFab}
-            onPress={handleBecomeHostFabPress}
-            activeOpacity={0.88}
-          >
-            {hostFabCompact ? (
-              <Ionicons name="add" size={28} color="#fff" />
-            ) : (
-              <>
-                <View style={styles.hostFabIconCircle}>
-                  <Ionicons name="add" size={22} color="#fff" />
-                </View>
-                <View style={styles.hostFabTextCol}>
-                  <Text style={styles.hostFabTitle}>Ajouter une résidence</Text>
-                  <Text style={styles.hostFabHint}>Devenir hôte</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+        <TeddyExploreFab
+          bottomOffset={Math.max(insets.bottom, 6) + 10}
+          fabVisibleFromScroll={teddyFabVisibleFromScroll}
+        />
       </View>
     </SafeAreaView>
   );
@@ -548,70 +527,6 @@ const styles = StyleSheet.create({
   },
   exploreCardWrap: {
     marginRight: 10,
-  },
-  hostFabContainer: {
-    position: 'absolute',
-    right: 12,
-    left: 12,
-    zIndex: 20,
-    alignItems: 'flex-end',
-    pointerEvents: 'box-none',
-  },
-  hostFab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    maxWidth: '100%',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    paddingRight: 10,
-    gap: 10,
-    backgroundColor: '#fff',
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 10,
-  },
-  hostFabIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#e67e22',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hostFabTextCol: {
-    flexShrink: 1,
-    minWidth: 0,
-    paddingRight: 4,
-  },
-  hostFabTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  hostFabHint: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 1,
-  },
-  hostFabCompact: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#e67e22',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 10,
   },
   emptyContainer: {
     padding: 40,

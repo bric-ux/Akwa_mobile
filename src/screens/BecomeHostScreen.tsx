@@ -197,6 +197,11 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   /** Options avancées affichées dans une popup */
   const [showAdvancedOptionsModal, setShowAdvancedOptionsModal] = useState(false);
 
+  /** Teddy IA — titres + description (aligné site web / Edge host-onboarding-assistant) */
+  const [aiTitleSuggestions, setAiTitleSuggestions] = useState<string[]>([]);
+  const [aiDraftDescription, setAiDraftDescription] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
+
   // Références pour la navigation entre champs
   const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
 
@@ -528,6 +533,80 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         ? prev.filter(name => name !== amenityName)
         : [...prev, amenityName]
     );
+  };
+
+  const canGenerateAiTitleDescription =
+    listingType === 'short_term' &&
+    Boolean(formData.propertyType?.trim()) &&
+    Boolean(formData.location?.trim()) &&
+    Boolean(formData.guests?.trim()) &&
+    Boolean(formData.bedrooms?.trim()) &&
+    Boolean(formData.bathrooms?.trim());
+
+  const generateAiTitleAndDescription = async () => {
+    if (aiGenerating || !canGenerateAiTitleDescription) return;
+    setAiGenerating(true);
+    try {
+      const context = [
+        `Type: ${formData.propertyType || 'non précisé'}`,
+        `Localisation: ${formData.location || 'non précisée'}`,
+        `Voyageurs: ${formData.guests || 'non précisé'}`,
+        `Chambres: ${formData.bedrooms || 'non précisé'}`,
+        `Salles de bain: ${formData.bathrooms || 'non précisé'}`,
+        `Prix/nuit: ${formData.price || 'non précisé'} CFA`,
+      ].join(' | ');
+
+      const { data, error } = await supabase.functions.invoke<{
+        title_suggestions?: unknown;
+        draft_patch?: Record<string, unknown>;
+        reply?: string;
+        error?: string;
+      }>('host-onboarding-assistant', {
+        body: {
+          messages: [
+            {
+              role: 'user',
+              content:
+                `Voici les infos déjà saisies: ${context}. Propose exactement 3 titres accrocheurs adaptés et une description complète en français, professionnelle et orientée conversion. Dans la description, n'ajoute aucune formule d'introduction (pas de "Pour la description", pas de "Je propose"). Donne directement le texte final prêt à publier.`,
+            },
+          ],
+        },
+      });
+
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || 'Erreur IA');
+      }
+
+      const titles = Array.isArray(data?.title_suggestions)
+        ? data!.title_suggestions!.map((t) => String(t).trim()).filter(Boolean).slice(0, 3)
+        : [];
+      const rawDescription = String((data?.draft_patch as { description?: string })?.description || '').trim();
+      const aiDescription = rawDescription
+        .replace(/^pour la description[,:\s-]*/i, '')
+        .replace(/^je vous propose[,:\s-]*/i, '')
+        .replace(/^je propose[,:\s-]*/i, '')
+        .trim();
+
+      setAiTitleSuggestions(titles);
+      if (aiDescription) {
+        setAiDraftDescription(aiDescription);
+        handleInputChange('description', aiDescription);
+      }
+
+      const draftTitle = String((data?.draft_patch as { title?: string })?.title || '').trim();
+      if (titles.length === 0 && draftTitle) {
+        handleInputChange('title', draftTitle);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Réessayez dans un instant.';
+      const noCredit = /insufficient_quota|quota|billing|credit|429/i.test(msg);
+      Alert.alert(
+        'Génération IA impossible',
+        noCredit ? 'Teddy IA est indisponible pour le moment.' : msg,
+      );
+    } finally {
+      setAiGenerating(false);
+    }
   };
 
   // Fonctions pour gérer les images
@@ -1731,6 +1810,92 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             </View>
           </View>
         </>
+      )}
+
+      {/* Teddy IA — titres & description (comme BecomeHostPageComplete côté web) */}
+      {listingType === 'short_term' &&
+        (!isEditMode || shouldShowField('title') || shouldShowField('description')) && (
+        <View style={styles.teddyAiCard}>
+          <View style={styles.teddyAiCardHeader}>
+            <Image
+              source={require('../../assets/teddy.png')}
+              style={styles.teddyAiAvatar}
+            />
+            <View style={styles.teddyAiHeaderText}>
+              <Text style={styles.teddyAiTitle}>Teddy IA</Text>
+              <Text style={styles.teddyAiSubtitle}>
+                Génération basée sur le type, la localisation et la capacité déjà indiqués.
+              </Text>
+            </View>
+          </View>
+          {!canGenerateAiTitleDescription ? (
+            <Text style={styles.teddyAiHint}>
+              Renseignez le type de logement, la localisation, voyageurs, chambres et salles de bain pour activer la proposition automatique.
+            </Text>
+          ) : (
+            <>
+              {aiTitleSuggestions.length === 0 && !aiDraftDescription ? (
+                <TouchableOpacity
+                  style={[styles.teddyAiButton, aiGenerating && styles.teddyAiButtonDisabled]}
+                  onPress={generateAiTitleAndDescription}
+                  disabled={aiGenerating}
+                  activeOpacity={0.85}
+                >
+                  {aiGenerating ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.teddyAiButtonText}>Proposer 3 titres + description</Text>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+
+              {(aiTitleSuggestions.length > 0 || aiDraftDescription) ? (
+                <View style={styles.teddyAiResults}>
+                  <View style={styles.teddyAiResultsBanner}>
+                    <Image
+                      source={require('../../assets/teddy.png')}
+                      style={styles.teddyAiAvatarSmall}
+                    />
+                    <Text style={styles.teddyAiResultsLabel}>Voici ce que Teddy IA te propose.</Text>
+                  </View>
+                  {aiTitleSuggestions.length > 0 ? (
+                    <View style={styles.teddyTitleChips}>
+                      <Text style={styles.teddyChipsLabel}>Titres (tap pour appliquer)</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        {aiTitleSuggestions.map((title, idx) => (
+                          <TouchableOpacity
+                            key={`ai-title-${idx}`}
+                            style={styles.teddyTitleChip}
+                            onPress={() => handleInputChange('title', title)}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.teddyTitleChipText} numberOfLines={2}>
+                              {title}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
+                  {aiDraftDescription ? (
+                    <Text style={styles.teddyDescAppliedHint}>
+                      La description a été insérée dans le champ ci-dessous ; vous pouvez la modifier.
+                    </Text>
+                  ) : null}
+                  <TouchableOpacity
+                    style={styles.teddyRegenerate}
+                    onPress={generateAiTitleAndDescription}
+                    disabled={aiGenerating}
+                  >
+                    <Text style={styles.teddyRegenerateText}>
+                      {aiGenerating ? 'Génération…' : 'Régénérer'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </>
+          )}
+        </View>
       )}
 
       {/* Titre */}
@@ -3021,6 +3186,130 @@ const styles = StyleSheet.create({
   advancedListingPanel: {
     marginBottom: 16,
     paddingBottom: 8,
+  },
+  teddyAiCard: {
+    marginHorizontal: 4,
+    marginBottom: 20,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+    backgroundColor: '#ecfdf5',
+  },
+  teddyAiCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  teddyAiAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#6ee7b7',
+  },
+  teddyAiAvatarSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+  },
+  teddyAiHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  teddyAiTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#065f46',
+  },
+  teddyAiSubtitle: {
+    fontSize: 12,
+    color: '#047857',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  teddyAiHint: {
+    fontSize: 13,
+    color: '#047857',
+    lineHeight: 18,
+  },
+  teddyAiButton: {
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  teddyAiButtonDisabled: {
+    opacity: 0.65,
+  },
+  teddyAiButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  teddyAiResults: {
+    marginTop: 4,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+    backgroundColor: '#fff',
+  },
+  teddyAiResultsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  teddyAiResultsLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#065f46',
+  },
+  teddyChipsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  teddyTitleChips: {
+    marginBottom: 10,
+  },
+  teddyTitleChip: {
+    maxWidth: 220,
+    marginRight: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d1fae5',
+    backgroundColor: '#f0fdf4',
+  },
+  teddyTitleChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#14532d',
+  },
+  teddyDescAppliedHint: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 10,
+    lineHeight: 17,
+  },
+  teddyRegenerate: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  teddyRegenerateText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#059669',
   },
   inputGroup: {
     marginBottom: 20,
