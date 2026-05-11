@@ -71,18 +71,45 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function LightboxMedia({ uri, style, active = false }: { uri: string; style: object; active?: boolean }) {
   const [videoFailed, setVideoFailed] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<Video | null>(null);
+
+  useEffect(() => {
+    if (!active) {
+      setIsPlaying(false);
+      videoRef.current?.pauseAsync().catch(() => {});
+    }
+  }, [active]);
+
+  useEffect(() => {
+    return () => {
+      videoRef.current?.stopAsync().catch(() => {});
+    };
+  }, []);
+
   if (isVideoUrl(uri) && !videoFailed) {
     return (
-      <Video
-        source={{ uri }}
-        style={style as any}
-        resizeMode={ResizeMode.CONTAIN}
-        useNativeControls
-        shouldPlay={false}
-        isMuted={!active}
-        isLooping={false}
-        onError={() => setVideoFailed(true)}
-      />
+      <View style={style as any}>
+        <Video
+          ref={videoRef}
+          source={{ uri }}
+          style={StyleSheet.absoluteFill}
+          resizeMode={ResizeMode.CONTAIN}
+          useNativeControls
+          shouldPlay={false}
+          isMuted={!active}
+          isLooping={false}
+          onPlaybackStatusUpdate={(status: any) => {
+            setIsPlaying(!!status?.isPlaying);
+          }}
+          onError={() => setVideoFailed(true)}
+        />
+        {!isPlaying && (
+          <View style={styles.videoPlayOverlay} pointerEvents="none">
+            <Ionicons name="play-circle" size={64} color="rgba(255,255,255,0.92)" />
+          </View>
+        )}
+      </View>
     );
   }
   if (isVideoUrl(uri) && videoFailed) {
@@ -815,6 +842,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#111',
+  },
+  videoPlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.14)',
   },
   container: {
     flex: 1,
