@@ -16,6 +16,12 @@ import {
   PER_CITY_LIMIT,
 } from '../utils/exploreCityLayout';
 
+const EXPLORE_HOME_CACHE_TTL_MS = 2 * 60 * 1000;
+let exploreHomeCache: {
+  sections: ExploreCitySection[];
+  at: number;
+} | null = null;
+
 function getRefDateStrForListPricing(filters?: SearchFilters): string {
   if (filters?.checkIn) {
     const ci = filters.checkIn as string | Date;
@@ -219,15 +225,105 @@ async function transformRowsToProperties(rows: any[]): Promise<Property[]> {
 
 export type ExploreCitySection = LayoutSection<Property>;
 
+function mapAmenitiesFast(
+  lookup: Map<string, { id: string; name: string; icon: string }>,
+  amenityIdsOrNames: string[] | null,
+): { id: string; name: string; icon: string }[] {
+  if (!amenityIdsOrNames || !Array.isArray(amenityIdsOrNames) || amenityIdsOrNames.length === 0) {
+    return [];
+  }
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return amenityIdsOrNames
+    .map((idOrName) => {
+      if (uuidRegex.test(idOrName)) {
+        return lookup.get(idOrName) ?? null;
+      }
+      const cachedByName = lookup.get(idOrName.toLowerCase());
+      if (cachedByName) return cachedByName;
+      const trimmed = idOrName.trim();
+      if (!trimmed) return null;
+      return { id: `name-${trimmed}`, name: trimmed, icon: getAmenityIcon(trimmed) };
+    })
+    .filter(Boolean) as { id: string; name: string; icon: string }[];
+}
+
+async function transformRowsToPropertiesLight(rows: any[]): Promise<Property[]> {
+  if (rows.length === 0) return [];
+  const lookup = await loadAmenitiesLookup();
+  return rows.map((property) => {
+    const mappedAmenities = mapAmenitiesFast(lookup, property.amenities);
+    const customAmenitiesList =
+      property.custom_amenities && Array.isArray(property.custom_amenities)
+        ? property.custom_amenities.map((name: string) => ({
+            id: `custom-${name}`,
+            name: name.trim(),
+            icon: '➕',
+          }))
+        : [];
+    const allAmenities = [...mappedAmenities, ...customAmenitiesList];
+
+    const categorizedPhotos = property.property_photos || [];
+    const sortedPhotos = categorizedPhotos.sort(
+      (a: any, b: any) => (a.display_order || 0) - (b.display_order || 0),
+    );
+    const imageUrls = sortedPhotos.map((photo: any) => photo.url);
+    const fallbackImages = property.images || [];
+    const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+
+    const location = (property as any).locations;
+    const latitude = location?.latitude || property.latitude;
+    const longitude = location?.longitude || property.longitude;
+
+    return {
+      ...property,
+      images: finalImages,
+      photos: sortedPhotos,
+      price_per_night: property.price_per_night || 0,
+      dynamic_price_today: property.price_per_night || 0,
+      rating: Math.round((property.rating || 0) * 100) / 100,
+      review_count: property.review_count || 0,
+      amenities: allAmenities,
+      custom_amenities: property.custom_amenities || [],
+      house_rules: property.house_rules || '',
+      check_in_time: property.check_in_time || null,
+      check_out_time: property.check_out_time || null,
+      address_details: property.address_details || '',
+      host_guide: property.host_guide || '',
+      discount_enabled: property.discount_enabled || false,
+      discount_min_nights: property.discount_min_nights || null,
+      discount_percentage: property.discount_percentage || null,
+      long_stay_discount_enabled: property.long_stay_discount_enabled || false,
+      long_stay_discount_min_nights: property.long_stay_discount_min_nights || null,
+      long_stay_discount_percentage: property.long_stay_discount_percentage || null,
+      location: location
+        ? {
+            id: location.id,
+            name: location.name,
+            type: location.type,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            parent_id: location.parent_id,
+          }
+        : undefined,
+      latitude,
+      longitude,
+      locations: location,
+    } as Property;
+  });
+}
+
 export function useExploreCityHome() {
   const [layoutSections, setLayoutSections] = useState<ExploreCitySection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const lastHandledCatalogVersionRef = useRef<number | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { background?: boolean }) => {
+    const background = opts?.background === true;
     try {
-      setLoading(true);
+      if (!background) {
+        setLoading(true);
+      }
       setError(null);
 
       const { data: countsData, error: countsError } = await supabase
@@ -317,9 +413,21 @@ export function useExploreCityHome() {
         }
       }
       const uniqueRows = Array.from(byId.values());
+      const lightList = await transformRowsToPropertiesLight(uniqueRows);
+      const lightById = new Map(lightList.map((p) => [p.id, p]));
+      const lightGroups: CityGroup<Property>[] = rawGroups.map((g) => ({
+        ...g,
+        properties: g.properties
+          .map((raw) => lightById.get(raw.id))
+          .filter(Boolean) as Property[],
+      }));
+      const lightSections = buildLayoutSections(lightGroups);
+      setLayoutSections(lightSections);
+      exploreHomeCache = { sections: lightSections, at: Date.now() };
+
+      // Enrichissement différé (prix dynamiques + ratings batch) sans bloquer l'affichage initial.
       const enrichedList = await transformRowsToProperties(uniqueRows);
       const enrichedById = new Map(enrichedList.map((p) => [p.id, p]));
-
       const enrichedGroups: CityGroup<Property>[] = rawGroups.map((g) => ({
         ...g,
         properties: g.properties
@@ -327,17 +435,32 @@ export function useExploreCityHome() {
           .filter(Boolean) as Property[],
       }));
 
-      setLayoutSections(buildLayoutSections(enrichedGroups));
+      const enrichedSections = buildLayoutSections(enrichedGroups);
+      setLayoutSections(enrichedSections);
+      exploreHomeCache = { sections: enrichedSections, at: Date.now() };
     } catch (e) {
       logError('[useExploreCityHome] load', e);
       setError('Erreur lors du chargement des annonces');
-      setLayoutSections([]);
+      if (!background) {
+        setLayoutSections([]);
+      }
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
+    const now = Date.now();
+    const hasWarmCache =
+      !!exploreHomeCache && now - exploreHomeCache.at < EXPLORE_HOME_CACHE_TTL_MS;
+    if (hasWarmCache && exploreHomeCache) {
+      setLayoutSections(exploreHomeCache.sections);
+      setLoading(false);
+      load({ background: true });
+      return;
+    }
     load();
   }, [load]);
 
@@ -350,7 +473,7 @@ export function useExploreCityHome() {
       }
       if (v > lastHandledCatalogVersionRef.current) {
         lastHandledCatalogVersionRef.current = v;
-        load();
+        load({ background: true });
       }
     }, [load]),
   );
