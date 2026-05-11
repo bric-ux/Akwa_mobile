@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Dimensions,
+  useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Linking,
@@ -62,6 +63,8 @@ const TEDDY_FAB_SCROLL_PADDING = 72;
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const vehiclesPromoNarrow = windowWidth < 400;
   const { t } = useLanguage();
   const {
     layoutSections: exploreSections,
@@ -225,43 +228,86 @@ const HomeScreen: React.FC = () => {
       <>
         {/* Location de véhicules — après les résidences par ville */}
         <View style={styles.vehiclesPromoSection}>
-          <View style={styles.vehiclesPromoBackground}>
+          <View
+            style={[
+              styles.vehiclesPromoBackground,
+              vehiclesPromoNarrow && styles.vehiclesPromoBackgroundNarrow,
+            ]}
+          >
             <Image
               source={require('../../assets/images/vehicles-suv.jpg')}
               style={styles.vehiclesPromoBgImage}
-              contentFit="cover"
+              contentFit={vehiclesPromoNarrow ? 'contain' : 'cover'}
               cachePolicy="memory-disk"
               priority="high"
               transition={200}
             />
-            <View style={styles.vehiclesPromoOverlay}>
-              <View style={styles.vehiclesPromoContent}>
-                <View style={styles.vehiclesPromoLeft}>
+            <View
+              style={[
+                styles.vehiclesPromoOverlay,
+                vehiclesPromoNarrow && styles.vehiclesPromoOverlayNarrow,
+              ]}
+            >
+              <View
+                style={[
+                  styles.vehiclesPromoContent,
+                  vehiclesPromoNarrow && styles.vehiclesPromoContentNarrow,
+                ]}
+              >
+                <View style={[styles.vehiclesPromoLeft, vehiclesPromoNarrow && styles.vehiclesPromoLeftNarrow]}>
                   <View style={styles.vehiclesPromoBadge}>
                     <Ionicons name="flash" size={16} color="#FFD700" />
                     <Text style={styles.vehiclesPromoBadgeText}>NOUVEAU</Text>
                   </View>
-                  <Text style={styles.vehiclesPromoTitle}>Location de véhicules</Text>
-                  <Text style={styles.vehiclesPromoSubtitle}>
+                  {vehiclesPromoNarrow ? (
+                    <View>
+                      <Text style={[styles.vehiclesPromoTitle, styles.vehiclesPromoTitleNarrow]}>
+                        Location de
+                      </Text>
+                      <Text style={[styles.vehiclesPromoTitle, styles.vehiclesPromoTitleSecondLine]}>
+                        véhicules
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.vehiclesPromoTitle}>Location de véhicules</Text>
+                  )}
+                  <Text
+                    style={[
+                      styles.vehiclesPromoSubtitle,
+                      vehiclesPromoNarrow && styles.vehiclesPromoSubtitleNarrow,
+                    ]}
+                  >
                     Explorez la Côte d&apos;Ivoire à votre rythme
                   </Text>
-                  <Text style={styles.vehiclesPromoDescription}>
+                  <Text
+                    style={[
+                      styles.vehiclesPromoDescription,
+                      vehiclesPromoNarrow && styles.vehiclesPromoDescriptionNarrow,
+                    ]}
+                  >
                     Trouvez le véhicule parfait pour votre voyage. Des voitures, SUV, motos et plus
                     encore disponibles à la location.
                   </Text>
                   <TouchableOpacity
-                    style={styles.vehiclesPromoButton}
+                    style={[styles.vehiclesPromoButton, vehiclesPromoNarrow && styles.vehiclesPromoButtonNarrow]}
                     onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
                   >
                     <Text style={styles.vehiclesPromoButtonText}>Découvrir les véhicules</Text>
                     <Ionicons name="arrow-forward" size={18} color="#fff" />
                   </TouchableOpacity>
                 </View>
-                <View style={styles.vehiclesPromoRight}>
-                  <View style={styles.vehiclesPromoIconContainer}>
-                    <Ionicons name="car-sport" size={64} color="#2E7D32" />
+                <View style={[styles.vehiclesPromoRight, vehiclesPromoNarrow && styles.vehiclesPromoRightNarrow]}>
+                  <View
+                    style={[
+                      styles.vehiclesPromoIconContainer,
+                      vehiclesPromoNarrow && styles.vehiclesPromoIconContainerNarrow,
+                    ]}
+                  >
+                    <Ionicons name="car-sport" size={vehiclesPromoNarrow ? 40 : 64} color="#2E7D32" />
                   </View>
-                  <View style={styles.vehiclesPromoFeatures}>
+                  <View
+                    style={[styles.vehiclesPromoFeatures, vehiclesPromoNarrow && styles.vehiclesPromoFeaturesNarrow]}
+                  >
                     <View style={styles.vehiclesPromoFeature}>
                       <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
                       <Text style={styles.vehiclesPromoFeatureText}>Large choix</Text>
@@ -287,7 +333,7 @@ const HomeScreen: React.FC = () => {
             <View style={styles.keyboxVisualWrap}>
               <View style={styles.keyboxMainImgWrap}>
                 <Image
-                  source={require('../../assets/images/keybox-wall.png')}
+                  source={require('../../assets/images/keybox-wall.jpg')}
                   style={styles.keyboxMainImg}
                   contentFit="cover"
                   cachePolicy="memory-disk"
@@ -296,7 +342,7 @@ const HomeScreen: React.FC = () => {
               <View style={styles.keyboxInsetWrap}>
                 <View style={styles.keyboxInsetImgWrap}>
                   <Image
-                    source={require('../../assets/images/keybox-open.png')}
+                    source={require('../../assets/images/keybox-open.jpg')}
                     style={styles.keyboxInsetImg}
                     contentFit="cover"
                     cachePolicy="memory-disk"
@@ -375,7 +421,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </>
     ),
-    [navigation, openKeyboxWhatsApp],
+    [navigation, openKeyboxWhatsApp, vehiclesPromoNarrow],
   );
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingBottom: 20 + TEDDY_FAB_SCROLL_PADDING }],
@@ -645,6 +691,10 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: '#1e293b',
   },
+  /** Plus de hauteur + image en « contain » : moins de recadrage agressif sur petits écrans. */
+  vehiclesPromoBackgroundNarrow: {
+    minHeight: 260,
+  },
   vehiclesPromoBgImage: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 16,
@@ -655,12 +705,50 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     minHeight: 220,
   },
+  vehiclesPromoOverlayNarrow: {
+    minHeight: 260,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
   vehiclesPromoContent: {
     flexDirection: 'row',
+  },
+  vehiclesPromoContentNarrow: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   vehiclesPromoLeft: {
     flex: 1,
     paddingRight: 12,
+  },
+  vehiclesPromoLeftNarrow: {
+    paddingRight: 0,
+    width: '100%',
+  },
+  vehiclesPromoTitleNarrow: {
+    fontSize: 22,
+    marginBottom: 0,
+    lineHeight: 26,
+  },
+  vehiclesPromoTitleSecondLine: {
+    fontSize: 22,
+    marginBottom: 8,
+    lineHeight: 26,
+  },
+  vehiclesPromoSubtitleNarrow: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  vehiclesPromoDescriptionNarrow: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  vehiclesPromoButtonNarrow: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
   },
   vehiclesPromoBadge: {
     flexDirection: 'row',
@@ -735,6 +823,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingLeft: 12,
   },
+  vehiclesPromoRightNarrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 0,
+    paddingTop: 12,
+    marginTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.25)',
+    width: '100%',
+  },
   vehiclesPromoIconContainer: {
     width: 100,
     height: 100,
@@ -744,8 +843,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
+  vehiclesPromoIconContainerNarrow: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginBottom: 0,
+    marginRight: 8,
+  },
   vehiclesPromoFeatures: {
     gap: 8,
+  },
+  vehiclesPromoFeaturesNarrow: {
+    flex: 1,
+    minWidth: 0,
   },
   vehiclesPromoFeature: {
     flexDirection: 'row',

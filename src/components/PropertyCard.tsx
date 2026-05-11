@@ -182,7 +182,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
       activeOpacity={0.8}
     >
       {variant === 'list' ? (
-        <View style={styles.cardLayout}>
+        <View style={[styles.cardLayout, horizontalShelf && styles.cardLayoutShelf]}>
           {/* Image avec prix en overlay */}
           <View style={styles.imageArea}>
             {renderListCoverImage(CAROUSEL_HEIGHT)}
@@ -215,7 +215,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
           </View>
           
           {/* Contenu de la carte */}
-          <View style={styles.cardContent}>
+          <View style={[styles.cardContent, horizontalShelf && styles.cardContentShelf]}>
             <Text style={styles.cardTitle} numberOfLines={1}>
               {property.title}
             </Text>
@@ -224,26 +224,32 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               📍 {property.location?.name || property.locations?.name || property.location}
             </Text>
             
-            {hasReviews ? (
-              <Text style={styles.cardRating}>
-                ⭐ {(Number(property.rating) || 0).toFixed(1)} ({reviewCount} {t('property.reviews')})
-              </Text>
-            ) : null}
+            <View style={[styles.cardRatingSlot, horizontalShelf && styles.cardRatingSlotShelf]}>
+              {hasReviews ? (
+                <Text style={[styles.cardRating, horizontalShelf && styles.cardRatingInShelf]}>
+                  ⭐ {(Number(property.rating) || 0).toFixed(1)} ({reviewCount} {t('property.reviews')})
+                </Text>
+              ) : horizontalShelf ? (
+                <Text style={styles.cardRatingPlaceholder}> </Text>
+              ) : null}
+            </View>
             
-            {property.amenities && property.amenities.length > 0 && (
-              <View style={styles.cardAmenities}>
+            {property.amenities && property.amenities.length > 0 ? (
+              <View style={[styles.cardAmenities, horizontalShelf && styles.cardAmenitiesShelf]}>
                 {property.amenities.slice(0, 3).map((amenity, index) => (
-                  <Text key={index} style={styles.amenityTag}>
+                  <Text key={index} style={[styles.amenityTag, horizontalShelf && styles.amenityTagShelf]} numberOfLines={1}>
                     {amenity.name}
                   </Text>
                 ))}
                 {property.amenities.length > 3 && (
-                  <Text style={styles.moreAmenities}>
+                  <Text style={styles.moreAmenities} numberOfLines={1}>
                     +{property.amenities.length - 3} {t('common.more')}
                   </Text>
                 )}
               </View>
-            )}
+            ) : horizontalShelf ? (
+              <View style={styles.cardAmenitiesShelfPlaceholder} />
+            ) : null}
           </View>
         </View>
       ) : (
@@ -367,6 +373,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
+  /** Carrousel Explore : hauteur de carte homogène (image fixe + zone texte réservée). */
+  cardLayoutShelf: {
+    flex: 1,
+    minHeight: CAROUSEL_HEIGHT + 132,
+  },
   imageArea: {
     position: 'relative',
     width: '100%',
@@ -417,6 +428,11 @@ const styles = StyleSheet.create({
   cardContent: {
     padding: 16,
   },
+  cardContentShelf: {
+    flexGrow: 1,
+    justifyContent: 'flex-start',
+    minHeight: 124,
+  },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -428,15 +444,38 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 6,
   },
+  cardRatingSlot: {},
+  cardRatingSlotShelf: {
+    minHeight: 22,
+    marginBottom: 8,
+    justifyContent: 'center',
+  },
   cardRating: {
     fontSize: 14,
     color: '#666',
     marginBottom: 12,
   },
+  cardRatingInShelf: {
+    marginBottom: 0,
+  },
+  cardRatingPlaceholder: {
+    fontSize: 14,
+    color: 'transparent',
+  },
   cardAmenities: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+  },
+  /** Une seule ligne : plus de hauteur variable entre cartes. */
+  cardAmenitiesShelf: {
+    flexWrap: 'nowrap',
+    maxHeight: 30,
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  cardAmenitiesShelfPlaceholder: {
+    height: 30,
   },
   amenityTag: {
     fontSize: 12,
@@ -447,6 +486,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#c8e6c9',
+  },
+  amenityTagShelf: {
+    flexShrink: 1,
+    maxWidth: '38%',
   },
   favoriteButton: {
     position: 'absolute',
