@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   ScrollView,
+  PixelRatio,
+  Platform,
+  LayoutChangeEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +21,11 @@ interface HeroSectionProps {
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
   const { height } = useWindowDimensions();
+  const fontScale = PixelRatio.getFontScale();
+  const heroScrollRef = useRef<ScrollView>(null);
+  const scrollViewportH = useRef(0);
+  const scrollContentH = useRef(0);
+
   /** Petits écrans : plus de hauteur hero + typo réduite pour éviter le bouton coupé par overflow. */
   const compact = height < 700;
   const veryCompact = height < 600;
@@ -30,20 +38,47 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
     return Math.max(raw, 220);
   }, [height, compact, veryCompact]);
 
-  const dynamic = useMemo(
-    () => ({
+  const dynamic = useMemo(() => {
+    const baseTaglineMb = veryCompact ? 12 : compact ? 18 : 32;
+    const taglineMarginBottom =
+      fontScale > 1.12 ? Math.max(8, Math.round(baseTaglineMb / Math.min(fontScale, 1.45))) : baseTaglineMb;
+    return {
       titleSize: veryCompact ? 24 : compact ? 28 : 32,
       titleMarginBottom: veryCompact ? 8 : compact ? 12 : 16,
       subtitleSize: veryCompact ? 14 : compact ? 16 : 18,
       subtitleLineHeight: veryCompact ? 20 : compact ? 22 : 24,
       taglineSize: veryCompact ? 13 : compact ? 15 : 16,
-      taglineMarginBottom: veryCompact ? 12 : compact ? 18 : 32,
+      taglineMarginBottom,
       searchPadV: veryCompact ? 12 : compact ? 14 : 16,
       searchPadH: veryCompact ? 16 : compact ? 20 : 24,
       searchTextSize: veryCompact ? 14 : compact ? 15 : 16,
       iconSize: veryCompact ? 18 : 20,
-    }),
-    [compact, veryCompact],
+    };
+  }, [compact, veryCompact, fontScale]);
+
+  const scrollCtaIntoView = useCallback(() => {
+    const vh = scrollViewportH.current;
+    const ch = scrollContentH.current;
+    if (vh <= 0 || ch <= 0 || ch <= vh + 2) return;
+    requestAnimationFrame(() => {
+      heroScrollRef.current?.scrollToEnd({ animated: false });
+    });
+  }, []);
+
+  const onHeroScrollLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      scrollViewportH.current = e.nativeEvent.layout.height;
+      scrollCtaIntoView();
+    },
+    [scrollCtaIntoView],
+  );
+
+  const onHeroContentSizeChange = useCallback(
+    (_w: number, h: number) => {
+      scrollContentH.current = h;
+      scrollCtaIntoView();
+    },
+    [scrollCtaIntoView],
   );
 
   return (
@@ -59,13 +94,21 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
         />
       </View>
       <ScrollView
+        ref={heroScrollRef}
         style={styles.scrollFill}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={false}
         keyboardShouldPersistTaps="handled"
+        onLayout={onHeroScrollLayout}
+        onContentSizeChange={onHeroContentSizeChange}
       >
-        <View style={styles.overlay}>
+        <View
+          style={[
+            styles.overlay,
+            Platform.OS === 'android' && styles.overlayAndroid,
+          ]}
+        >
           <View style={styles.content}>
             <Text style={[styles.title, { fontSize: dynamic.titleSize }]}>Trouvez votre</Text>
             <Text
@@ -133,6 +176,8 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     position: 'relative',
     backgroundColor: '#1e293b',
+    /** Évite tout débordement ; sur Android l’élévation du bouton ne doit pas « flotter » au-dessus du bloc suivant. */
+    overflow: 'hidden',
   },
   imageClip: {
     ...StyleSheet.absoluteFillObject,
@@ -155,6 +200,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
     paddingBottom: 16,
+  },
+  /** Marge bas un peu plus généreuse sur Android (police système / barre de nav). */
+  overlayAndroid: {
+    paddingBottom: 22,
   },
   content: {
     alignItems: 'center',
@@ -202,14 +251,19 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     maxWidth: '100%',
     gap: 6,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    /** iOS : ombre ; Android : pas d’elevation (sinon le bouton se superpose au header suivant, ex. widget météo). */
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4.65,
+      },
+      android: {
+        elevation: 0,
+      },
+      default: {},
+    }),
   },
   searchButtonText: {
     color: '#fff',

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
@@ -47,8 +48,36 @@ const VehicleDetailsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showHostProfile, setShowHostProfile] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const galleryListRef = useRef<FlatList<string>>(null);
   const galleryUrls = vehicle ? getVehicleGalleryUrls(vehicle) : [];
+
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [vehicleId]);
+
+  const goToGalleryIndex = useCallback(
+    (index: number) => {
+      if (galleryUrls.length === 0) return;
+      const clamped = Math.max(0, Math.min(index, galleryUrls.length - 1));
+      setCurrentImageIndex(clamped);
+      galleryListRef.current?.scrollToOffset({ offset: clamped * width, animated: true });
+    },
+    [galleryUrls.length, width]
+  );
+
+  const handleGalleryPrev = useCallback(() => {
+    const len = galleryUrls.length;
+    if (len <= 1) return;
+    const newIndex = currentImageIndex > 0 ? currentImageIndex - 1 : len - 1;
+    goToGalleryIndex(newIndex);
+  }, [galleryUrls.length, currentImageIndex, goToGalleryIndex]);
+
+  const handleGalleryNext = useCallback(() => {
+    const len = galleryUrls.length;
+    if (len <= 1) return;
+    const newIndex = currentImageIndex < len - 1 ? currentImageIndex + 1 : 0;
+    goToGalleryIndex(newIndex);
+  }, [galleryUrls.length, currentImageIndex, goToGalleryIndex]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -167,23 +196,31 @@ const VehicleDetailsScreen: React.FC = () => {
         style={styles.container} 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
       >
-        {/* Images avec overlay gradient */}
+        {/* Images avec overlay gradient — FlatList + nestedScrollEnabled : défilement horizontal fiable sur Android */}
         {galleryUrls.length > 0 && (
           <View style={styles.imageContainer}>
-            <ScrollView
-              ref={scrollViewRef}
+            <FlatList
+              ref={galleryListRef}
+              data={galleryUrls}
               horizontal
               pagingEnabled
+              nestedScrollEnabled
               showsHorizontalScrollIndicator={false}
+              keyExtractor={(_, index) => `vehicle-gallery-${index}`}
+              getItemLayout={(_, index) => ({
+                length: width,
+                offset: width * index,
+                index,
+              })}
               onMomentumScrollEnd={(event) => {
                 const index = Math.round(event.nativeEvent.contentOffset.x / width);
                 setCurrentImageIndex(index);
               }}
               style={styles.imageScrollView}
-            >
-              {galleryUrls.map((imageUrl, index) => (
-                <View key={index} style={{ width, height: 280 }}>
+              renderItem={({ item: imageUrl, index }) => (
+                <View style={{ width, height: 280 }}>
                   {isVideoUrl(imageUrl) ? (
                     <Video
                       source={{ uri: imageUrl }}
@@ -203,8 +240,32 @@ const VehicleDetailsScreen: React.FC = () => {
                     />
                   )}
                 </View>
-              ))}
-            </ScrollView>
+              )}
+            />
+            {galleryUrls.length > 1 && (
+              <>
+                <TouchableOpacity
+                  style={[styles.galleryNavButton, styles.galleryNavButtonLeft]}
+                  onPress={handleGalleryPrev}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Photo précédente"
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 20 }}
+                >
+                  <Ionicons name="chevron-back" size={28} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.galleryNavButton, styles.galleryNavButtonRight]}
+                  onPress={handleGalleryNext}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Photo suivante"
+                  hitSlop={{ top: 12, bottom: 12, left: 20, right: 8 }}
+                >
+                  <Ionicons name="chevron-forward" size={28} color="#fff" />
+                </TouchableOpacity>
+              </>
+            )}
             {galleryUrls.length > 1 && (
               <View style={styles.imageIndicators}>
                 {galleryUrls.map((_, index) => (
@@ -657,6 +718,25 @@ const styles = StyleSheet.create({
   imageScrollView: {
     width: width,
     height: 280,
+  },
+  galleryNavButton: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 6,
+    elevation: 6,
+  },
+  galleryNavButtonLeft: {
+    left: 10,
+  },
+  galleryNavButtonRight: {
+    right: 10,
   },
   mainImage: {
     width: width,

@@ -1170,6 +1170,7 @@ const VehicleBookingScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           ref={mainScrollViewRef}
+          nestedScrollEnabled
         >
         {/* Véhicule */}
         <View style={styles.vehicleCard}>
@@ -1179,6 +1180,7 @@ const VehicleBookingScreen: React.FC = () => {
                 ref={imageScrollViewRef}
                 horizontal
                 pagingEnabled
+                nestedScrollEnabled
                 showsHorizontalScrollIndicator={false}
                 onMomentumScrollEnd={(event) => {
                   const index = Math.round(event.nativeEvent.contentOffset.x / 100);

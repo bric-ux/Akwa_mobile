@@ -284,6 +284,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
             ref={galleryScrollViewRef}
             horizontal
             pagingEnabled
+            nestedScrollEnabled
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={(event) => {
               const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);

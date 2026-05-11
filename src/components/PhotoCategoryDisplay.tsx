@@ -4,11 +4,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   Dimensions,
   Modal,
   SafeAreaView,
   Alert,
+  Platform,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
@@ -125,8 +127,9 @@ function LightboxMedia({ uri, style, active = false }: { uri: string; style: obj
       style={style as any}
       contentFit="contain"
       cachePolicy="memory-disk"
-      priority={active ? 'high' : 'normal'}
-      transition={120}
+      priority={active ? 'high' : 'low'}
+      transition={0}
+      allowDownscaling
     />
   );
 }
@@ -144,8 +147,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   const [viewMode, setViewMode] = useState<'grid' | 'category'>('grid');
   const [showAllPhotos, setShowAllPhotos] = useState(false);
 
-  const lightboxScrollRef = useRef<ScrollView>(null);
-  const fullGalleryScrollRef = useRef<ScrollView>(null);
+  const lightboxScrollRef = useRef<FlatList<CategorizedPhoto>>(null);
+  const fullGalleryScrollRef = useRef<FlatList<CategorizedPhoto>>(null);
   const lightboxOpenIndexRef = useRef(0);
   const fullGalleryOpenIndexRef = useRef(0);
   
@@ -189,7 +192,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   useEffect(() => {
     // Pré-charger un petit lot initial pour éviter le lag au premier clic lightbox.
     const warmupUrls = allPhotosFlat
-      .slice(0, 8)
+      .slice(0, 20)
       .map((p) => p.url)
       .filter((u) => !!u && !isVideoUrl(u));
     if (warmupUrls.length > 0) {
@@ -216,18 +219,32 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   useEffect(() => {
     if (!showLightbox || !selectedCategory) return;
     const idx = lightboxOpenIndexRef.current;
+    const len = photosByCategory[selectedCategory]?.length ?? 0;
+    if (len === 0) return;
+    const safe = Math.min(Math.max(0, idx), len - 1);
     requestAnimationFrame(() => {
-      lightboxScrollRef.current?.scrollTo({ x: idx * screenWidth, animated: false });
+      try {
+        lightboxScrollRef.current?.scrollToIndex({ index: safe, animated: false });
+      } catch {
+        lightboxScrollRef.current?.scrollToOffset({ offset: safe * screenWidth, animated: false });
+      }
     });
-  }, [showLightbox, selectedCategory]);
+  }, [showLightbox, selectedCategory, photosByCategory]);
 
   useEffect(() => {
     if (!showFullGallery) return;
     const idx = fullGalleryOpenIndexRef.current;
+    const len = allPhotosFlat.length;
+    if (len === 0) return;
+    const safe = Math.min(Math.max(0, idx), len - 1);
     requestAnimationFrame(() => {
-      fullGalleryScrollRef.current?.scrollTo({ x: idx * screenWidth, animated: false });
+      try {
+        fullGalleryScrollRef.current?.scrollToIndex({ index: safe, animated: false });
+      } catch {
+        fullGalleryScrollRef.current?.scrollToOffset({ offset: safe * screenWidth, animated: false });
+      }
     });
-  }, [showFullGallery]);
+  }, [showFullGallery, allPhotosFlat.length]);
   
   const closeFullGallery = () => {
     setShowFullGallery(false);
@@ -241,7 +258,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
       const next = (prev + 1) % len;
       prefetchMediaAround(allPhotosFlat, next, 3);
       requestAnimationFrame(() => {
-        fullGalleryScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+        fullGalleryScrollRef.current?.scrollToIndex({ index: next, animated: true });
       });
       return next;
     });
@@ -254,7 +271,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
       const next = prev === 0 ? len - 1 : prev - 1;
       prefetchMediaAround(allPhotosFlat, next, 3);
       requestAnimationFrame(() => {
-        fullGalleryScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+        fullGalleryScrollRef.current?.scrollToIndex({ index: next, animated: true });
       });
       return next;
     });
@@ -274,7 +291,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
       const next = (prev + 1) % len;
       prefetchMediaAround(categoryPhotos, next, 3);
       requestAnimationFrame(() => {
-        lightboxScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+        lightboxScrollRef.current?.scrollToIndex({ index: next, animated: true });
       });
       return next;
     });
@@ -288,7 +305,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
       const next = prev === 0 ? len - 1 : prev - 1;
       prefetchMediaAround(categoryPhotos, next, 3);
       requestAnimationFrame(() => {
-        lightboxScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+        lightboxScrollRef.current?.scrollToIndex({ index: next, animated: true });
       });
       return next;
     });
@@ -619,7 +636,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
       <Modal
         visible={showLightbox}
         transparent={true}
-        animationType="fade"
+        animationType="none"
         onRequestClose={closeLightbox}
       >
         <SafeAreaView style={styles.lightboxContainer}>
@@ -635,14 +652,25 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
 
           <View style={styles.lightboxContent}>
             {selectedCategory && photosByCategory[selectedCategory]?.length > 0 ? (
-              <ScrollView
+              <FlatList
                 ref={lightboxScrollRef}
+                data={photosByCategory[selectedCategory]}
                 horizontal
                 pagingEnabled
-                showsHorizontalScrollIndicator={false}
                 nestedScrollEnabled
+                showsHorizontalScrollIndicator={false}
                 decelerationRate="fast"
                 keyboardShouldPersistTaps="handled"
+                keyExtractor={(item, idx) => item.id || `lb-${idx}`}
+                getItemLayout={(_, index) => ({
+                  length: screenWidth,
+                  offset: screenWidth * index,
+                  index,
+                })}
+                initialNumToRender={2}
+                maxToRenderPerBatch={3}
+                windowSize={5}
+                removeClippedSubviews={Platform.OS === 'android'}
                 onMomentumScrollEnd={(e) => {
                   const w = e.nativeEvent.layoutMeasurement.width;
                   if (w <= 0) return;
@@ -650,21 +678,25 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                   const max = photosByCategory[selectedCategory].length - 1;
                   setCurrentPhotoIndex(Math.min(Math.max(0, idx), max));
                 }}
+                onScrollToIndexFailed={({ index }) => {
+                  requestAnimationFrame(() => {
+                    lightboxScrollRef.current?.scrollToOffset({
+                      offset: index * screenWidth,
+                      animated: false,
+                    });
+                  });
+                }}
                 style={styles.lightboxPager}
-              >
-                {photosByCategory[selectedCategory].map((photo, idx) => (
-                  <View
-                    key={photo.id || `lb-${idx}`}
-                    style={[styles.lightboxPage, { width: screenWidth }]}
-                  >
+                renderItem={({ item, index: idx }) => (
+                  <View style={[styles.lightboxPage, { width: screenWidth }]}>
                     <LightboxMedia
-                      uri={photo.url}
+                      uri={item.url}
                       style={styles.lightboxImage}
                       active={idx === currentPhotoIndex}
                     />
                   </View>
-                ))}
-              </ScrollView>
+                )}
+              />
             ) : null}
           </View>
 
@@ -736,7 +768,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
       <Modal
         visible={showFullGallery}
         transparent={true}
-        animationType="fade"
+        animationType="none"
         onRequestClose={closeFullGallery}
       >
         <SafeAreaView style={styles.fullGalleryContainer}>
@@ -754,14 +786,25 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
 
           <View style={styles.fullGalleryContent}>
             {allPhotosFlat.length > 0 ? (
-              <ScrollView
+              <FlatList
                 ref={fullGalleryScrollRef}
+                data={allPhotosFlat}
                 horizontal
                 pagingEnabled
-                showsHorizontalScrollIndicator={false}
                 nestedScrollEnabled
+                showsHorizontalScrollIndicator={false}
                 decelerationRate="fast"
                 keyboardShouldPersistTaps="handled"
+                keyExtractor={(item, idx) => item.id || `fg-${idx}`}
+                getItemLayout={(_, index) => ({
+                  length: screenWidth,
+                  offset: screenWidth * index,
+                  index,
+                })}
+                initialNumToRender={2}
+                maxToRenderPerBatch={3}
+                windowSize={5}
+                removeClippedSubviews={Platform.OS === 'android'}
                 onMomentumScrollEnd={(e) => {
                   const w = e.nativeEvent.layoutMeasurement.width;
                   if (w <= 0) return;
@@ -769,21 +812,25 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                   const max = allPhotosFlat.length - 1;
                   setCurrentPhotoIndex(Math.min(Math.max(0, idx), max));
                 }}
+                onScrollToIndexFailed={({ index }) => {
+                  requestAnimationFrame(() => {
+                    fullGalleryScrollRef.current?.scrollToOffset({
+                      offset: index * screenWidth,
+                      animated: false,
+                    });
+                  });
+                }}
                 style={styles.fullGalleryPager}
-              >
-                {allPhotosFlat.map((photo, idx) => (
-                  <View
-                    key={photo.id || `fg-${idx}`}
-                    style={[styles.lightboxPage, { width: screenWidth }]}
-                  >
+                renderItem={({ item, index: idx }) => (
+                  <View style={[styles.lightboxPage, { width: screenWidth }]}>
                     <LightboxMedia
-                      uri={photo.url}
+                      uri={item.url}
                       style={styles.fullGalleryImage}
                       active={idx === currentPhotoIndex}
                     />
                   </View>
-                ))}
-              </ScrollView>
+                )}
+              />
             ) : null}
           </View>
 
@@ -815,8 +862,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                   onPress={() => {
                     setCurrentPhotoIndex(index);
                     requestAnimationFrame(() => {
-                      fullGalleryScrollRef.current?.scrollTo({
-                        x: index * screenWidth,
+                      fullGalleryScrollRef.current?.scrollToIndex({
+                        index,
                         animated: true,
                       });
                     });

@@ -2,13 +2,13 @@ import React, { useState, useEffect, memo } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   ScrollView,
   Dimensions,
   LayoutChangeEvent,
 } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
 import { useFavorites } from '../hooks/useFavorites';

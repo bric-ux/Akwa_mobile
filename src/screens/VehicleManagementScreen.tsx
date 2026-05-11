@@ -425,7 +425,7 @@ const VehicleManagementScreen: React.FC = () => {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} nestedScrollEnabled>
         {/* Section Photos */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -437,7 +437,7 @@ const VehicleManagementScreen: React.FC = () => {
               <Text style={styles.photoCount}>
                 {galleryUrls.length} média{galleryUrls.length > 1 ? 's' : ''}
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
+              <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
                 {galleryUrls.map((url, index) => (
                   <TouchableOpacity
                     key={index}
@@ -567,6 +567,7 @@ const VehicleManagementScreen: React.FC = () => {
                   ref={galleryScrollViewRef}
                   horizontal
                   pagingEnabled
+                  nestedScrollEnabled
                   showsHorizontalScrollIndicator={false}
                   onMomentumScrollEnd={(event) => {
                     const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);

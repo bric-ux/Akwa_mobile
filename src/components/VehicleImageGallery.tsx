@@ -196,6 +196,7 @@ const VehicleImageGallery: React.FC<VehicleImageGalleryProps> = ({
       {categories.length > 1 && (
         <ScrollView
           horizontal
+          nestedScrollEnabled
           showsHorizontalScrollIndicator={false}
           style={styles.categoryFilters}
           contentContainerStyle={styles.categoryFiltersContent}
@@ -248,6 +249,7 @@ const VehicleImageGallery: React.FC<VehicleImageGalleryProps> = ({
       {displayedPhotos.length > 1 && (
         <ScrollView
           horizontal
+          nestedScrollEnabled
           showsHorizontalScrollIndicator={false}
           style={styles.thumbnails}
           contentContainerStyle={styles.thumbnailsContent}

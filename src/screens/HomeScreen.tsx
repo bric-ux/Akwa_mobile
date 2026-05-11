@@ -160,6 +160,8 @@ const HomeScreen: React.FC = () => {
             </View>
             <ScrollView
               horizontal
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.exploreRowContent}
             >
@@ -202,6 +204,8 @@ const HomeScreen: React.FC = () => {
           </View>
           <ScrollView
             horizontal
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.exploreRowContent}
           >
@@ -501,6 +505,7 @@ const HomeScreen: React.FC = () => {
           renderItem={renderExploreSection}
           keyExtractor={exploreKeyExtractor}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={scrollContentStyle}
           ListHeaderComponent={listHeader}
           ListFooterComponent={listFooter}
