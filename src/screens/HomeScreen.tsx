@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Linking,
+  InteractionManager,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -77,6 +78,16 @@ const HomeScreen: React.FC = () => {
   const lastScrollY = useRef(0);
   const [teddyFabVisibleFromScroll, setTeddyFabVisibleFromScroll] = useState(true);
   const teddyFabVisibleRef = useRef(true);
+  const [showDeferredHeaderContent, setShowDeferredHeaderContent] = useState(false);
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      setShowDeferredHeaderContent(true);
+    });
+    return () => {
+      task.cancel();
+    };
+  }, []);
 
   const setFabVisibleIfNeeded = useCallback((next: boolean) => {
     if (teddyFabVisibleRef.current === next) return;
@@ -215,12 +226,17 @@ const HomeScreen: React.FC = () => {
     <>
       <HeroSection onSearchPress={handleSearchPress} />
 
-      <WeatherDateTimeWidget />
-
-      <ImageCarousel
-        images={CAROUSEL_IMAGES}
-        onImagePress={() => {}}
-      />
+      {showDeferredHeaderContent ? (
+        <>
+          <WeatherDateTimeWidget />
+          <ImageCarousel
+            images={CAROUSEL_IMAGES}
+            onImagePress={() => {}}
+          />
+        </>
+      ) : (
+        <View style={styles.headerDeferredPlaceholder} />
+      )}
 
       <View style={styles.section}>
         <View style={styles.exploreIntroHeader}>
@@ -228,7 +244,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </View>
     </>
-  ), [handleSearchPress]);
+  ), [handleSearchPress, showDeferredHeaderContent]);
 
   const listFooter = useMemo(
     () => (
@@ -445,11 +461,12 @@ const HomeScreen: React.FC = () => {
   const listEmptyComponent = useMemo(() => {
     if (listLoadingEmpty) {
       return (
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color="#e67e22" />
-          <Text style={[styles.emptySubtitle, { marginTop: 16 }]}>
-            Chargement des annonces…
-          </Text>
+        <View style={styles.warmupContainer}>
+          <View style={styles.warmupRow}>
+            <View style={styles.warmupCard} />
+            <View style={styles.warmupCard} />
+            <View style={styles.warmupCard} />
+          </View>
         </View>
       );
     }
@@ -552,6 +569,25 @@ const styles = StyleSheet.create({
     paddingRight: 0,
     marginLeft: 0,
     marginRight: 0,
+  },
+  headerDeferredPlaceholder: {
+    height: 16,
+  },
+  warmupContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  warmupRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  warmupCard: {
+    height: 216,
+    flex: 1,
+    minWidth: 170,
+    borderRadius: 14,
+    backgroundColor: '#eef2f7',
   },
   rentalTypePills: {
     flexDirection: 'row',

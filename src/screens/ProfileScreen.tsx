@@ -477,7 +477,7 @@ const ProfileScreen: React.FC = () => {
     );
   }
 
-  if (loading) {
+  if (loading && !profile) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>

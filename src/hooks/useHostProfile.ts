@@ -24,15 +24,25 @@ export interface HostProfile {
   total_properties?: number;
 }
 
+const HOST_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+const hostProfileCache = new Map<string, { profile: HostProfile; at: number }>();
+
 export const useHostProfile = () => {
   const [hostProfile, setHostProfile] = useState<HostProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const getHostProfile = useCallback(async (hostId: string) => {
+    const cached = hostProfileCache.get(hostId);
+    if (cached && Date.now() - cached.at < HOST_PROFILE_CACHE_TTL_MS) {
+      setHostProfile(cached.profile);
+      setLoading(false);
+      setError(null);
+      return cached.profile;
+    }
+
     setLoading(true);
     setError(null);
-    setHostProfile(null);
 
     try {
       console.log('🔄 [useHostProfile] Chargement du profil pour hostId:', hostId);
@@ -71,10 +81,12 @@ export const useHostProfile = () => {
               created_at: new Date().toISOString(),
             };
             setHostProfile(defaultProfile);
+            hostProfileCache.set(hostId, { profile: defaultProfile, at: Date.now() });
             return defaultProfile;
           } else {
             console.log('✅ [useHostProfile] Profil trouvé dans profiles:', profileData);
             setHostProfile(profileData);
+            hostProfileCache.set(hostId, { profile: profileData, at: Date.now() });
             return profileData;
           }
         }
@@ -146,6 +158,7 @@ export const useHostProfile = () => {
       });
 
       setHostProfile(enrichedProfile);
+      hostProfileCache.set(hostId, { profile: enrichedProfile, at: Date.now() });
       return enrichedProfile;
     } catch (err) {
       console.error('❌ [useHostProfile] Erreur lors du chargement du profil hôte:', err);

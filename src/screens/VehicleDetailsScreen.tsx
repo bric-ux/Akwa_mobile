@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
   Dimensions,
   LinearGradient,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
@@ -48,6 +48,7 @@ const VehicleDetailsScreen: React.FC = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showHostProfile, setShowHostProfile] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const galleryUrls = vehicle ? getVehicleGalleryUrls(vehicle) : [];
 
   useFocusEffect(
     React.useCallback(() => {
@@ -100,6 +101,14 @@ const VehicleDetailsScreen: React.FC = () => {
     navigation.navigate('VehicleBooking' as never, { vehicleId: vehicle.id } as never);
   };
 
+  useEffect(() => {
+    if (!galleryUrls || galleryUrls.length === 0) return;
+    const firstImages = galleryUrls.filter((u) => !isVideoUrl(u)).slice(0, 6);
+    if (firstImages.length > 0) {
+      void ExpoImage.prefetch(firstImages, 'memory-disk');
+    }
+  }, [galleryUrls]);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -118,7 +127,6 @@ const VehicleDetailsScreen: React.FC = () => {
   }
 
   const isOwner = user?.id === vehicle.owner_id;
-  const galleryUrls = getVehicleGalleryUrls(vehicle);
 
   return (
     <View style={styles.safeArea}>
@@ -185,10 +193,13 @@ const VehicleDetailsScreen: React.FC = () => {
                       shouldPlay={false}
                     />
                   ) : (
-                    <Image
-                      source={{ uri: imageUrl }}
+                    <ExpoImage
+                      source={imageUrl}
                       style={styles.mainImage}
-                      resizeMode="cover"
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      priority={index === 0 ? 'high' : 'normal'}
+                      transition={120}
                     />
                   )}
                 </View>
@@ -641,7 +652,7 @@ const styles = StyleSheet.create({
     width: width,
     height: 280,
     position: 'relative',
-    backgroundColor: '#000',
+    backgroundColor: '#f1f5f9',
   },
   imageScrollView: {
     width: width,
