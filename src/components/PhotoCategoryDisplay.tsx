@@ -1,16 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Dimensions,
   Modal,
   SafeAreaView,
   Alert,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { CategorizedPhoto } from '../types';
@@ -92,7 +92,16 @@ function LightboxMedia({ uri, style, active = false }: { uri: string; style: obj
       </View>
     );
   }
-  return <Image source={{ uri }} style={style as any} resizeMode="contain" />;
+  return (
+    <ExpoImage
+      source={uri}
+      style={style as any}
+      contentFit="contain"
+      cachePolicy="memory-disk"
+      priority={active ? 'high' : 'normal'}
+      transition={120}
+    />
+  );
 }
 
 const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
@@ -116,31 +125,55 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   // Limiter l'affichage initial à 3 photos en vue grille
   const MAX_PHOTOS_GRID = 3;
 
-  // Grouper les photos par catégorie
-  const photosByCategory = photos.reduce((acc, photo) => {
-    if (!acc[photo.category]) {
-      acc[photo.category] = [];
+  const prefetchMediaAround = useCallback((items: { url: string }[], centerIndex: number, radius = 2) => {
+    const start = Math.max(0, centerIndex - radius);
+    const end = Math.min(items.length - 1, centerIndex + radius);
+    const urls = items
+      .slice(start, end + 1)
+      .map((item) => item.url)
+      .filter((u) => !!u && !isVideoUrl(u));
+    if (urls.length > 0) {
+      void ExpoImage.prefetch(urls, 'memory-disk');
     }
-    acc[photo.category].push(photo);
-    return acc;
-  }, {} as Record<string, CategorizedPhoto[]>);
+  }, []);
 
-  // Trier les photos dans chaque catégorie par displayOrder
-  Object.keys(photosByCategory).forEach(category => {
-    photosByCategory[category].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-  });
+  const allPhotosFlat = useMemo(
+    () => [...photos].sort((a, b) => (a.display_order || 0) - (b.display_order || 0)),
+    [photos]
+  );
 
-  const categories = Object.keys(photosByCategory).sort();
-  
-  // Toutes les photos triées par display_order pour la vue grille
-  const allPhotosFlat = photos.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+  const photosByCategory = useMemo(() => {
+    const grouped = allPhotosFlat.reduce((acc, photo) => {
+      if (!acc[photo.category]) {
+        acc[photo.category] = [];
+      }
+      acc[photo.category].push(photo);
+      return acc;
+    }, {} as Record<string, CategorizedPhoto[]>);
+    return grouped;
+  }, [allPhotosFlat]);
+
+  const categories = useMemo(() => Object.keys(photosByCategory).sort(), [photosByCategory]);
   
   // Photos limitées pour la vue grille (7 premières)
   const limitedPhotosGrid = allPhotosFlat.slice(0, MAX_PHOTOS_GRID);
   const hasMorePhotosGrid = photos.length > MAX_PHOTOS_GRID;
 
+  useEffect(() => {
+    // Pré-charger un petit lot initial pour éviter le lag au premier clic lightbox.
+    const warmupUrls = allPhotosFlat
+      .slice(0, 8)
+      .map((p) => p.url)
+      .filter((u) => !!u && !isVideoUrl(u));
+    if (warmupUrls.length > 0) {
+      void ExpoImage.prefetch(warmupUrls, 'memory-disk');
+    }
+  }, [allPhotosFlat]);
+
   const openLightbox = (category: string, index: number) => {
     lightboxOpenIndexRef.current = index;
+    const categoryPhotos = photosByCategory[category] || [];
+    prefetchMediaAround(categoryPhotos, index, 3);
     setSelectedCategory(category);
     setCurrentPhotoIndex(index);
     setShowLightbox(true);
@@ -148,6 +181,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   
   const openFullGallery = (startIndex: number = 0) => {
     fullGalleryOpenIndexRef.current = startIndex;
+    prefetchMediaAround(allPhotosFlat, startIndex, 4);
     setCurrentPhotoIndex(startIndex);
     setShowFullGallery(true);
   };
@@ -178,6 +212,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
     if (len === 0) return;
     setCurrentPhotoIndex((prev) => {
       const next = (prev + 1) % len;
+      prefetchMediaAround(allPhotosFlat, next, 3);
       requestAnimationFrame(() => {
         fullGalleryScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
       });
@@ -190,6 +225,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
     if (len === 0) return;
     setCurrentPhotoIndex((prev) => {
       const next = prev === 0 ? len - 1 : prev - 1;
+      prefetchMediaAround(allPhotosFlat, next, 3);
       requestAnimationFrame(() => {
         fullGalleryScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
       });
@@ -209,6 +245,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
     const len = categoryPhotos.length;
     setCurrentPhotoIndex((prev) => {
       const next = (prev + 1) % len;
+      prefetchMediaAround(categoryPhotos, next, 3);
       requestAnimationFrame(() => {
         lightboxScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
       });
@@ -222,6 +259,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
     const len = categoryPhotos.length;
     setCurrentPhotoIndex((prev) => {
       const next = prev === 0 ? len - 1 : prev - 1;
+      prefetchMediaAround(categoryPhotos, next, 3);
       requestAnimationFrame(() => {
         lightboxScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
       });

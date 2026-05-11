@@ -207,6 +207,18 @@ const PropertyDetailsScreen: React.FC = () => {
     loadTodayPrice();
   }, [property]); // Supprimer les autres dépendances pour éviter la boucle
 
+  useEffect(() => {
+    if (!property) return;
+    const photoUrls = (property.photos || []).map((p) => p.url).filter(Boolean);
+    const imageUrls = (property.images || []).filter(Boolean);
+    const warmupUrls = Array.from(new Set([...photoUrls, ...imageUrls]))
+      .filter((u) => !/\.(mp4|mov|m4v|avi|webm)(\?|$)/i.test(u))
+      .slice(0, 12);
+    if (warmupUrls.length > 0) {
+      void Image.prefetch(warmupUrls, 'memory-disk');
+    }
+  }, [property]);
+
 
   // useEffect séparé pour gérer les favoris
   useEffect(() => {
