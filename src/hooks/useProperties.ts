@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { Property, SearchFilters, Amenity } from '../types';
 
@@ -24,6 +24,77 @@ import { getAmenityIcon } from '../utils/amenityIcons';
 import { calculateDistance, isWithinRadius } from '../utils/distance';
 import { log, logError, logWarn } from '../utils/logger';
 import { getPricesForDateBatch } from '../utils/priceCalculator';
+
+const AMENITY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Lookup synchrone pour la liste recherche (évite N awaits dans Promise.all). */
+function mapAmenitiesFromCache(
+  amenityIdsOrNames: string[] | null | undefined,
+  cache: Map<string, { id: string; name: string; icon: string }>
+): { id: string; name: string; icon: string }[] {
+  if (!amenityIdsOrNames?.length) return [];
+  return amenityIdsOrNames
+    .map((idOrName) => {
+      if (AMENITY_UUID_RE.test(idOrName)) {
+        return cache.get(idOrName) ?? null;
+      }
+      const byName = cache.get(idOrName.toLowerCase());
+      if (byName) return byName;
+      const amenity = Array.from(cache.values()).find((a) => a.name.toLowerCase() === idOrName.toLowerCase());
+      if (amenity) return amenity;
+      const trimmed = idOrName.trim();
+      if (trimmed) {
+        return { id: `name-${trimmed}`, name: trimmed, icon: getAmenityIcon(trimmed) };
+      }
+      return null;
+    })
+    .filter(Boolean) as { id: string; name: string; icon: string }[];
+}
+
+/** Colonnes allégées pour liste / recherche (la fiche charge le détail via getPropertyById). */
+const PROPERTY_SEARCH_LIST_SELECT = `
+  id,
+  title,
+  description,
+  host_id,
+  created_at,
+  updated_at,
+  location_id,
+  latitude,
+  longitude,
+  price_per_night,
+  max_guests,
+  bedrooms,
+  bathrooms,
+  property_type,
+  amenities,
+  custom_amenities,
+  rating,
+  review_count,
+  discount_enabled,
+  discount_min_nights,
+  discount_percentage,
+  long_stay_discount_enabled,
+  long_stay_discount_min_nights,
+  long_stay_discount_percentage,
+  images,
+  locations:location_id (
+    id,
+    name,
+    type,
+    latitude,
+    longitude,
+    parent_id
+  ),
+  property_photos (
+    id,
+    url,
+    category,
+    display_order,
+    is_main,
+    created_at
+  )
+`.trim();
 
 // Fonction helper pour calculer rating et review_count depuis les avis approuvés
 const calculateRatingFromReviews = async (propertyId: string): Promise<{ rating: number; review_count: number }> => {
@@ -129,6 +200,10 @@ export const useProperties = (options?: UsePropertiesOptions) => {
 
   // Cache pour les équipements (éviter de les charger à chaque fois)
   const [amenitiesCache, setAmenitiesCache] = useState<Map<string, { id: string; name: string; icon: string }>>(new Map());
+  const amenitiesCacheRef = useRef<Map<string, { id: string; name: string; icon: string }>>(new Map());
+  useEffect(() => {
+    amenitiesCacheRef.current = amenitiesCache;
+  }, [amenitiesCache]);
 
   // Charger le cache des équipements une seule fois
   useEffect(() => {
@@ -297,11 +372,6 @@ export const useProperties = (options?: UsePropertiesOptions) => {
     }
   }, [amenitiesCache]);
 
-  useEffect(() => {
-    fetchProperties();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]); // recharger si le contexte change
-
   const fetchProperties = useCallback(async (filters?: SearchFilters) => {
     try {
       setLoading(true);
@@ -405,10 +475,10 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         }
       }
 
-      // Query properties avec nouvelle structure locations
-      let query = supabase
-        .from('properties')
-        .select(`
+      // Liste recherche : colonnes minimales (payload réduit). La fiche détail recharge tout.
+      const propertiesSelect =
+        source === 'home'
+          ? `
           *,
           locations:location_id (
             id,
@@ -426,9 +496,10 @@ export const useProperties = (options?: UsePropertiesOptions) => {
             is_main,
             created_at
           )
-        `)
-        .eq('is_active', true)
-        .eq('is_hidden', false);
+        `
+          : PROPERTY_SEARCH_LIST_SELECT;
+
+      let query = supabase.from('properties').select(propertiesSelect).eq('is_active', true).eq('is_hidden', false);
 
       // Accueil (Explorer/Home) : masquer uniquement certaines annonces sur la home
       if (source === 'home') {
@@ -473,21 +544,22 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         query = query.contains('amenities', ['Climatisation']);
       }
       
-      // Optimisation : limiter les résultats et trier par pertinence
+      // Limite DB : le filtrage dates / rayon réduit encore côté client
       const { data, error } = await query
         .order('price_per_night', { ascending: true })
-        .limit(100); // Augmenter la limite pour permettre le filtrage côté client
+        .limit(100);
 
       if (error) {
         throw error;
       }
 
-      // Log pour déboguer les propriétés retournées
-      console.log('🔍 Propriétés retournées par la requête:', data?.length || 0);
-      if (data && data.length > 0) {
-        data.forEach((prop, index) => {
-          console.log(`   ${index + 1}. ${prop.title} - Active: ${prop.is_active}, Masquée: ${prop.is_hidden}`);
-        });
+      if (__DEV__) {
+        console.log('🔍 Propriétés retournées par la requête:', data?.length || 0);
+        if (data && data.length > 0) {
+          data.forEach((prop, index) => {
+            console.log(`   ${index + 1}. ${prop.title} - Active: ${prop.is_active}, Masquée: ${prop.is_hidden}`);
+          });
+        }
       }
 
       // Filtrer par équipements si spécifié (filtrage côté client pour "ET" logique)
@@ -500,7 +572,9 @@ export const useProperties = (options?: UsePropertiesOptions) => {
             propertyAmenities.includes(selectedAmenity)
           );
         });
-        console.log(`🔍 Filtrage par équipements: ${data?.length || 0} → ${filteredData.length} propriétés`);
+        if (__DEV__) {
+          console.log(`🔍 Filtrage par équipements: ${data?.length || 0} → ${filteredData.length} propriétés`);
+        }
       }
 
       // Filtrer et calculer les distances si recherche par rayon
@@ -537,29 +611,27 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           .filter((p): p is NonNullable<typeof p> => p !== null)
           .sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity)); // Trier par distance croissante
         
-        console.log(`📍 Filtrage par rayon ${filters.radiusKm}km: ${filteredData.length} → ${propertiesWithDistance.length} propriétés`);
+        if (__DEV__) {
+          console.log(`📍 Filtrage par rayon ${filters.radiusKm}km: ${filteredData.length} → ${propertiesWithDistance.length} propriétés`);
+        }
       }
       
       filteredData = propertiesWithDistance;
 
-      // Filtrer par disponibilité si des dates sont spécifiées
+      // Filtrer par disponibilité si des dates sont spécifiées (2 requêtes batch au lieu de 2N)
       if (filters?.checkIn && filters?.checkOut && filteredData.length > 0) {
-        console.log(`📅 Filtrage par disponibilité: ${filters.checkIn} - ${filters.checkOut}`);
+        if (__DEV__) console.log(`📅 Filtrage par disponibilité: ${filters.checkIn} - ${filters.checkOut}`);
         
-        // Normaliser les dates au format YYYY-MM-DD (sans décalage de fuseau horaire)
         const normalizeDate = (date: string | Date | null | undefined): string => {
           if (!date) return '';
           if (typeof date === 'string') {
-            // Si c'est déjà au format YYYY-MM-DD, le retourner tel quel
             if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
-            // Sinon, parser la date et utiliser les composants locaux pour éviter le décalage UTC
             const dateObj = new Date(date);
             const year = dateObj.getFullYear();
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
             const day = String(dateObj.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
           }
-          // Si c'est un objet Date, utiliser les composants locaux
           const year = date.getFullYear();
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const day = String(date.getDate()).padStart(2, '0');
@@ -569,211 +641,183 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         const normalizedCheckIn = normalizeDate(filters.checkIn);
         const normalizedCheckOut = normalizeDate(filters.checkOut);
         
-        console.log(`📅 Dates normalisées: ${normalizedCheckIn} - ${normalizedCheckOut}`);
+        if (__DEV__) console.log(`📅 Dates normalisées: ${normalizedCheckIn} - ${normalizedCheckOut}`);
         
-        const availableProperties = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         
-        for (const property of filteredData) {
-          try {
-            // Récupérer les réservations qui bloquent les dates (seulement confirmed pour la recherche)
-            // Les réservations pending ne bloquent pas les dates dans la recherche (comme sur le site web)
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-            
-            const { data: bookings, error: bookingsError } = await supabase
-              .from('bookings')
-              .select('check_in_date, check_out_date, status')
-              .eq('property_id', property.id)
-              .eq('status', 'confirmed') // Seulement les réservations confirmées bloquent les dates
-              .gte('check_out_date', todayStr);
-            
+        const ids = filteredData.map((p) => p.id);
+        const chunkSize = 120;
+        type UnavailRange = { start_date: string; end_date: string };
+        const rangesByProperty = new Map<string, UnavailRange[]>();
+        let bookingsBatchOk = true;
+
+        const pushRanges = (propertyId: string, ranges: UnavailRange[]) => {
+          if (ranges.length === 0) return;
+          const existing = rangesByProperty.get(propertyId) || [];
+          existing.push(...ranges);
+          rangesByProperty.set(propertyId, existing);
+        };
+
+        try {
+          for (let i = 0; i < ids.length; i += chunkSize) {
+            const chunk = ids.slice(i, i + chunkSize);
+
+            const [{ data: bookingsChunk, error: bookingsError }, { data: blockedChunk, error: blockedError }] =
+              await Promise.all([
+                supabase
+                  .from('bookings')
+                  .select('property_id, check_in_date, check_out_date')
+                  .in('property_id', chunk)
+                  .eq('status', 'confirmed')
+                  .gte('check_out_date', todayStr),
+                supabase
+                  .from('blocked_dates')
+                  .select('property_id, start_date, end_date')
+                  .in('property_id', chunk),
+              ]);
+
             if (bookingsError) {
-              console.error(`❌ Erreur lors de la vérification des réservations pour ${property.id}:`, bookingsError);
-              // En cas d'erreur, inclure la propriété pour ne pas la masquer par erreur
-              availableProperties.push(property);
-              continue;
+              logError('❌ Batch réservations (disponibilité recherche):', bookingsError);
+              bookingsBatchOk = false;
+            } else {
+              (bookingsChunk || []).forEach((b: { property_id: string; check_in_date: string; check_out_date: string }) => {
+                pushRanges(b.property_id, [{ start_date: b.check_in_date, end_date: b.check_out_date }]);
+              });
             }
-            
-            // Récupérer les dates bloquées manuellement
-            const { data: blockedDates, error: blockedError } = await supabase
-              .from('blocked_dates')
-              .select('start_date, end_date, reason')
-              .eq('property_id', property.id);
-            
+
             if (blockedError) {
-              console.error(`❌ Erreur lors de la vérification des dates bloquées pour ${property.id}:`, blockedError);
+              logError('❌ Batch blocked_dates (disponibilité recherche):', blockedError);
+            } else {
+              (blockedChunk || []).forEach((bd: { property_id: string; start_date: string; end_date: string }) => {
+                pushRanges(bd.property_id, [{ start_date: bd.start_date, end_date: bd.end_date }]);
+              });
             }
-            
-            // Combiner toutes les périodes indisponibles
-            const unavailableDates = [
-              ...(bookings || []).map(booking => ({
-                start_date: booking.check_in_date,
-                end_date: booking.check_out_date,
-                reason: 'Réservé'
-              })),
-              ...(blockedDates || []).map(blocked => ({
-                start_date: blocked.start_date,
-                end_date: blocked.end_date,
-                reason: blocked.reason || 'Bloqué manuellement'
-              }))
-            ];
-            
-            // Vérifier si les dates demandées chevauchent une période indisponible
-            // Formule standard de chevauchement: checkIn < end_date ET checkOut > start_date
-            const hasConflict = unavailableDates.some(({ start_date, end_date }) => {
-              const normalizedStart = normalizeDate(start_date);
-              const normalizedEnd = normalizeDate(end_date);
-              
-              // Deux plages se chevauchent si: checkIn < end_date ET checkOut > start_date
-              const hasOverlap = normalizedCheckIn < normalizedEnd && normalizedCheckOut > normalizedStart;
-              
-              if (hasOverlap) {
-                console.log(`🚫 Propriété ${property.id} (${property.title}) indisponible:`, {
-                  requested: { checkIn: normalizedCheckIn, checkOut: normalizedCheckOut },
-                  blocked: { start_date: normalizedStart, end_date: normalizedEnd }
-                });
-              }
-              
-              return hasOverlap;
-            });
-            
-            if (!hasConflict) {
-              availableProperties.push(property);
-            }
-          } catch (error) {
-            console.error(`❌ Erreur lors de la vérification de disponibilité pour ${property.id}:`, error);
-            // En cas d'erreur, inclure la propriété pour ne pas la masquer par erreur
-            availableProperties.push(property);
           }
+        } catch (batchErr) {
+          logError('❌ Erreur batch disponibilité, on conserve toutes les propriétés:', batchErr);
+          bookingsBatchOk = false;
         }
+
+        const availableProperties = bookingsBatchOk
+          ? filteredData.filter((property) => {
+              const unavailableDates = rangesByProperty.get(property.id) || [];
+              return !unavailableDates.some(({ start_date, end_date }) => {
+                const normalizedStart = normalizeDate(start_date);
+                const normalizedEnd = normalizeDate(end_date);
+                return normalizedCheckIn < normalizedEnd && normalizedCheckOut > normalizedStart;
+              });
+            })
+          : [...filteredData];
         
-        console.log(`📅 Filtrage par disponibilité: ${filteredData.length} → ${availableProperties.length} propriétés disponibles`);
+        if (__DEV__) {
+          console.log(`📅 Filtrage par disponibilité: ${filteredData.length} → ${availableProperties.length} propriétés disponibles`);
+        }
         filteredData = availableProperties;
       }
 
-      // Optimisation: Calculer tous les ratings en une seule requête batch
-      const propertyIds = (filteredData || []).map(p => p.id);
+      let amenityLookup = amenitiesCacheRef.current;
+      if (amenityLookup.size === 0) {
+        const { data: amenitiesRows, error: amenitiesLookupErr } = await supabase
+          .from('property_amenities')
+          .select('id, name');
+        if (!amenitiesLookupErr && amenitiesRows && amenitiesRows.length > 0) {
+          amenityLookup = new Map<string, { id: string; name: string; icon: string }>();
+          amenitiesRows.forEach((amenity) => {
+            amenityLookup.set(amenity.id, {
+              id: amenity.id,
+              name: amenity.name,
+              icon: getAmenityIcon(amenity.name),
+            });
+            amenityLookup.set(amenity.name.toLowerCase(), {
+              id: amenity.id,
+              name: amenity.name,
+              icon: getAmenityIcon(amenity.name),
+            });
+          });
+          amenitiesCacheRef.current = amenityLookup;
+          setAmenitiesCache(amenityLookup);
+        }
+      }
+
+      const propertyIds = (filteredData || []).map((p) => p.id);
       const ratingsMap = await calculateRatingsFromReviewsBatch(propertyIds);
 
-      // Transformer les données avec les équipements
-      const transformedProperties = await Promise.all(
-        (filteredData || []).map(async (property) => {
-          const mappedAmenities = await mapAmenities(property.amenities);
-          console.log(`🏠 ${property.title} - Équipements:`, property.amenities, '→ Mappés:', mappedAmenities);
-          
-          // Ajouter les équipements personnalisés s'ils existent
-          const customAmenitiesList = property.custom_amenities && Array.isArray(property.custom_amenities) 
+      const transformedProperties = (filteredData || []).map((property) => {
+        const mappedAmenities = mapAmenitiesFromCache(property.amenities, amenityLookup);
+
+        const customAmenitiesList =
+          property.custom_amenities && Array.isArray(property.custom_amenities)
             ? property.custom_amenities.map((name: string) => ({
                 id: `custom-${name}`,
                 name: name.trim(),
-                icon: '➕'
+                icon: '➕',
               }))
             : [];
-          
-          const allAmenities = [...mappedAmenities, ...customAmenitiesList];
-          console.log(`💰 ${property.title} - Réductions:`, {
-            discount_enabled: property.discount_enabled,
-            discount_min_nights: property.discount_min_nights,
-            discount_percentage: property.discount_percentage,
-            long_stay_discount_enabled: property.long_stay_discount_enabled,
-            long_stay_discount_min_nights: property.long_stay_discount_min_nights,
-            long_stay_discount_percentage: property.long_stay_discount_percentage
+
+        const allAmenities = [...mappedAmenities, ...customAmenitiesList];
+
+        const calculatedRating = ratingsMap.get(property.id) || { rating: 0, review_count: 0 };
+        const finalRating = calculatedRating.rating || property.rating || 0;
+        const finalReviewCount = calculatedRating.review_count || property.review_count || 0;
+
+        const categorizedPhotos = property.property_photos || [];
+        const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
+        const imageUrls = sortedPhotos.map((photo: any) => photo.url);
+        const fallbackImages = property.images || [];
+        const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+
+        if (__DEV__ && property.title?.toLowerCase().includes('haut standing')) {
+          console.log('🏠 useProperties - Transformation des données:', {
+            title: property.title,
+            categorizedPhotosLength: categorizedPhotos.length,
+            finalImagesLength: finalImages.length,
           });
-          
-          // Récupérer le rating calculé depuis le batch (ou utiliser celui de la DB)
-          const calculatedRating = ratingsMap.get(property.id) || { rating: 0, review_count: 0 };
-          
-          // Utiliser les valeurs calculées (ou celles de la DB si elles sont plus récentes)
-          const finalRating = calculatedRating.rating || property.rating || 0;
-          const finalReviewCount = calculatedRating.review_count || property.review_count || 0;
+        }
 
+        const location = (property as any).locations;
+        const latitude = location?.latitude || property.latitude;
+        const longitude = location?.longitude || property.longitude;
 
-          // Traiter les photos catégorisées
-          const categorizedPhotos = property.property_photos || [];
-          const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
-          
-          // Créer un tableau d'images pour la compatibilité avec l'ancien système
-          const imageUrls = sortedPhotos.map((photo: any) => photo.url);
-          
-          // Si pas de photos catégorisées, utiliser l'ancien système
-          const fallbackImages = property.images || [];
-          const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+        return {
+          ...property,
+          images: finalImages,
+          photos: sortedPhotos,
+          price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000,
+          rating: Math.round(finalRating * 100) / 100,
+          review_count: finalReviewCount,
+          amenities: allAmenities,
+          custom_amenities: property.custom_amenities || [],
+          house_rules: (property as any).house_rules || '',
+          check_in_time: (property as any).check_in_time || null,
+          check_out_time: (property as any).check_out_time || null,
+          address_details: (property as any).address_details || '',
+          host_guide: (property as any).host_guide || '',
+          discount_enabled: property.discount_enabled || false,
+          discount_min_nights: property.discount_min_nights || null,
+          discount_percentage: property.discount_percentage || null,
+          long_stay_discount_enabled: property.long_stay_discount_enabled || false,
+          long_stay_discount_min_nights: property.long_stay_discount_min_nights || null,
+          long_stay_discount_percentage: property.long_stay_discount_percentage || null,
+          location: location
+            ? {
+                id: location.id,
+                name: location.name,
+                type: location.type,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                parent_id: location.parent_id,
+              }
+            : undefined,
+          latitude,
+          longitude,
+          locations: location,
+          distance: (property as any).distance,
+        };
+      });
 
-          // Debug pour la propriété "haut standing"
-          if (property.title && property.title.toLowerCase().includes('haut standing')) {
-            console.log('🏠 useProperties - Transformation des données:', {
-              title: property.title,
-              categorizedPhotosRaw: categorizedPhotos,
-              categorizedPhotosLength: categorizedPhotos.length,
-              sortedPhotos: sortedPhotos,
-              sortedPhotosLength: sortedPhotos.length,
-              imageUrls: imageUrls,
-              imageUrlsLength: imageUrls.length,
-              fallbackImages: fallbackImages,
-              fallbackImagesLength: fallbackImages.length,
-              finalImages: finalImages,
-              finalImagesLength: finalImages.length
-            });
-          }
-
-          // Extraire les coordonnées de location
-          const location = (property as any).locations;
-          const latitude = location?.latitude || property.latitude;
-          const longitude = location?.longitude || property.longitude;
-
-          const transformedProperty = {
-            ...property,
-            images: finalImages, // Pour compatibilité avec l'ancien système
-            photos: sortedPhotos, // Nouveau système de photos catégorisées
-            price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000, // Prix entre 10k et 60k FCFA
-            rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
-            review_count: finalReviewCount, // Nombre d'avis final
-            amenities: allAmenities,
-            custom_amenities: property.custom_amenities || [],
-            // Inclure les champs de règles et horaires
-            house_rules: property.house_rules || '',
-            check_in_time: property.check_in_time || null,
-            check_out_time: property.check_out_time || null,
-            address_details: property.address_details || '',
-            host_guide: property.host_guide || '',
-            // Inclure les réductions (courte durée et long séjour)
-            discount_enabled: property.discount_enabled || false,
-            discount_min_nights: property.discount_min_nights || null,
-            discount_percentage: property.discount_percentage || null,
-            long_stay_discount_enabled: property.long_stay_discount_enabled || false,
-            long_stay_discount_min_nights: property.long_stay_discount_min_nights || null,
-            long_stay_discount_percentage: property.long_stay_discount_percentage || null,
-            // Extraire et mapper location
-            location: location ? {
-              id: location.id,
-              name: location.name,
-              type: location.type,
-              latitude: location.latitude,
-              longitude: location.longitude,
-              parent_id: location.parent_id
-            } : undefined,
-            // Extraire les coordonnées directement sur la propriété pour compatibilité
-            latitude: latitude,
-            longitude: longitude,
-            // Garder locations pour compatibilité
-            locations: location,
-            // Distance calculée si recherche par rayon
-            distance: (property as any).distance
-          };
-
-          // Log pour déboguer les images
-          console.log(`🏠 ${property.title} - Images transformées:`, {
-            imageCount: finalImages.length,
-            firstImage: finalImages[0],
-            hasPhotos: categorizedPhotos.length > 0
-          });
-
-          return transformedProperty;
-        })
-      );
-
-      console.log('🎯 Propriétés transformées:', transformedProperties.length);
+      if (__DEV__) console.log('🎯 Propriétés transformées:', transformedProperties.length);
 
       const refDate = getRefDateStrForListPricing(filters);
       const baseMap = new Map(
@@ -784,7 +828,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         refDate,
         baseMap
       );
-      const withDynamic: Property[] = transformedProperties.map((p: Property) => ({
+      const withDynamic: Property[] = (transformedProperties as Property[]).map((p: Property) => ({
         ...p,
         dynamic_price_today: priceMap.get(p.id) ?? p.price_per_night,
       }));
@@ -800,7 +844,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
     } finally {
       setLoading(false);
     }
-  }, [mapAmenities]); // Supprimer cache des dépendances pour éviter la boucle
+  }, [source]);
 
   const getPropertyById = useCallback(async (id: string) => {
     try {

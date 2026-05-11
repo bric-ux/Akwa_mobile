@@ -9,30 +9,39 @@ export const usePropertySorting = (properties: Property[], sortBy: SortOption | 
 
     const sorted = [...properties];
     
-    // Debug: afficher les données de tri
-    console.log('🔍 Tri des propriétés:', {
-      sortBy,
-      count: sorted.length,
-      sample: sorted.slice(0, 2).map(p => ({
-        title: p.title,
-        price: p.price_per_night,
-        rating: p.rating,
-        review_count: p.review_count,
-        created_at: p.created_at
-      }))
-    });
+    if (__DEV__) {
+      console.log('🔍 Tri des propriétés:', {
+        sortBy,
+        count: sorted.length,
+        sample: sorted.slice(0, 2).map((p) => ({
+          title: p.title,
+          price: p.price_per_night,
+          rating: p.rating,
+          review_count: p.review_count,
+          created_at: p.created_at,
+        })),
+      });
+    }
 
     switch (sortBy) {
       case 'price_asc':
-        console.log('📊 Tri prix croissant avant:', sorted.map(p => ({ title: p.title, price: p.price_per_night })));
+        if (__DEV__) {
+          console.log('📊 Tri prix croissant avant:', sorted.map((p) => ({ title: p.title, price: p.price_per_night })));
+        }
         const sortedAsc = sorted.sort((a, b) => (a.price_per_night || 0) - (b.price_per_night || 0));
-        console.log('📊 Tri prix croissant après:', sortedAsc.map(p => ({ title: p.title, price: p.price_per_night })));
+        if (__DEV__) {
+          console.log('📊 Tri prix croissant après:', sortedAsc.map((p) => ({ title: p.title, price: p.price_per_night })));
+        }
         return sortedAsc;
-      
+
       case 'price_desc':
-        console.log('📊 Tri prix décroissant avant:', sorted.map(p => ({ title: p.title, price: p.price_per_night })));
+        if (__DEV__) {
+          console.log('📊 Tri prix décroissant avant:', sorted.map((p) => ({ title: p.title, price: p.price_per_night })));
+        }
         const sortedDesc = sorted.sort((a, b) => (b.price_per_night || 0) - (a.price_per_night || 0));
-        console.log('📊 Tri prix décroissant après:', sortedDesc.map(p => ({ title: p.title, price: p.price_per_night })));
+        if (__DEV__) {
+          console.log('📊 Tri prix décroissant après:', sortedDesc.map((p) => ({ title: p.title, price: p.price_per_night })));
+        }
         return sortedDesc;
       
       case 'rating':

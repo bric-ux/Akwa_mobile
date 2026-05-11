@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -34,6 +34,8 @@ import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
 
+const SEARCH_LIST_PAGE_SIZE = 30;
+
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
 
 const SearchScreen: React.FC = () => {
@@ -61,6 +63,37 @@ const SearchScreen: React.FC = () => {
   const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
   const lastHandledCatalogVersionRef = useRef<number | null>(null);
   const sortedProperties = usePropertySorting(properties, sortBy);
+
+  const [searchListPage, setSearchListPage] = useState(1);
+  useEffect(() => {
+    setSearchListPage(1);
+  }, [properties]);
+
+  const sortedPropertiesVisible = useMemo(
+    () => sortedProperties.slice(0, searchListPage * SEARCH_LIST_PAGE_SIZE),
+    [sortedProperties, searchListPage]
+  );
+  const hasMoreSearchListItems = sortedProperties.length > sortedPropertiesVisible.length;
+
+  const handleSearchListEndReached = useCallback(() => {
+    if (!hasMoreSearchListItems) return;
+    setSearchListPage((p) => p + 1);
+  }, [hasMoreSearchListItems]);
+
+  const searchListFooter = useMemo(() => {
+    if (sortedProperties.length === 0) return null;
+    return (
+      <View style={styles.searchListFooter}>
+        <Text style={styles.searchListFooterText}>
+          Affichage de {sortedPropertiesVisible.length} sur {sortedProperties.length}
+        </Text>
+        {hasMoreSearchListItems ? (
+          <Text style={styles.searchListFooterHint}>Faites défiler pour afficher plus</Text>
+        ) : null}
+      </View>
+    );
+  }, [sortedProperties.length, sortedPropertiesVisible.length, hasMoreSearchListItems]);
+
   const { listings: monthlyListings, loading: monthlyLoading, fetchListings: fetchMonthlyListings } = useApprovedMonthlyRentalListings();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   
@@ -849,7 +882,7 @@ const SearchScreen: React.FC = () => {
           />
         ) : (
           <FlatList
-            data={sortedProperties}
+            data={sortedPropertiesVisible}
             renderItem={renderPropertyCard}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
@@ -864,6 +897,9 @@ const SearchScreen: React.FC = () => {
             }
             onScroll={handleScroll}
             scrollEventThrottle={16}
+            onEndReached={handleSearchListEndReached}
+            onEndReachedThreshold={0.35}
+            ListFooterComponent={searchListFooter}
             ListHeaderComponent={
               <SearchResultsHeader
                 resultsCount={sortedProperties.length}
@@ -878,7 +914,7 @@ const SearchScreen: React.FC = () => {
         )
       ) : (
         <FlatList
-          data={sortedProperties}
+          data={sortedPropertiesVisible}
           renderItem={renderPropertyCard}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
@@ -893,6 +929,9 @@ const SearchScreen: React.FC = () => {
           }
           onScroll={handleScroll}
           scrollEventThrottle={16}
+          onEndReached={handleSearchListEndReached}
+          onEndReachedThreshold={0.35}
+          ListFooterComponent={searchListFooter}
           ListHeaderComponent={
             <SearchResultsHeader
               resultsCount={sortedProperties.length}
@@ -1282,6 +1321,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
     paddingTop: 10,
+  },
+  searchListFooter: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  searchListFooterText: {
+    fontSize: 13,
+    color: '#666',
+  },
+  searchListFooterHint: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
   },
   monthlySection: {
     marginTop: 24,
