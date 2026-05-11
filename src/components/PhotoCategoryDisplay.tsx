@@ -69,7 +69,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   autre: '#6b7280'
 };
 
-function LightboxMedia({ uri, style }: { uri: string; style: object }) {
+function LightboxMedia({ uri, style, active = false }: { uri: string; style: object; active?: boolean }) {
   const [videoFailed, setVideoFailed] = useState(false);
   if (isVideoUrl(uri) && !videoFailed) {
     return (
@@ -78,7 +78,8 @@ function LightboxMedia({ uri, style }: { uri: string; style: object }) {
         style={style as any}
         resizeMode={ResizeMode.CONTAIN}
         useNativeControls
-        shouldPlay
+        shouldPlay={false}
+        isMuted={!active}
         isLooping={false}
         onError={() => setVideoFailed(true)}
       />
@@ -591,7 +592,11 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                     key={photo.id || `lb-${idx}`}
                     style={[styles.lightboxPage, { width: screenWidth }]}
                   >
-                    <LightboxMedia uri={photo.url} style={styles.lightboxImage} />
+                    <LightboxMedia
+                      uri={photo.url}
+                      style={styles.lightboxImage}
+                      active={idx === currentPhotoIndex}
+                    />
                   </View>
                 ))}
               </ScrollView>
@@ -706,7 +711,11 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                     key={photo.id || `fg-${idx}`}
                     style={[styles.lightboxPage, { width: screenWidth }]}
                   >
-                    <LightboxMedia uri={photo.url} style={styles.fullGalleryImage} />
+                    <LightboxMedia
+                      uri={photo.url}
+                      style={styles.fullGalleryImage}
+                      active={idx === currentPhotoIndex}
+                    />
                   </View>
                 ))}
               </ScrollView>
