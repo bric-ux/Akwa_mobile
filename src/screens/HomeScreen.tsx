@@ -76,19 +76,26 @@ const HomeScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const lastScrollY = useRef(0);
   const [teddyFabVisibleFromScroll, setTeddyFabVisibleFromScroll] = useState(true);
+  const teddyFabVisibleRef = useRef(true);
+
+  const setFabVisibleIfNeeded = useCallback((next: boolean) => {
+    if (teddyFabVisibleRef.current === next) return;
+    teddyFabVisibleRef.current = next;
+    setTeddyFabVisibleFromScroll(next);
+  }, []);
 
   const onExploreScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
     const prev = lastScrollY.current;
     if (y < 120) {
-      setTeddyFabVisibleFromScroll(true);
+      setFabVisibleIfNeeded(true);
     } else if (y > prev + 8) {
-      setTeddyFabVisibleFromScroll(false);
+      setFabVisibleIfNeeded(false);
     } else if (y < prev - 8) {
-      setTeddyFabVisibleFromScroll(true);
+      setFabVisibleIfNeeded(true);
     }
     lastScrollY.current = y;
-  }, []);
+  }, [setFabVisibleIfNeeded]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -489,7 +496,7 @@ const HomeScreen: React.FC = () => {
             />
           }
           onScroll={onExploreScroll}
-          scrollEventThrottle={16}
+          scrollEventThrottle={32}
           removeClippedSubviews={Platform.OS === 'android'}
           maxToRenderPerBatch={6}
           windowSize={9}

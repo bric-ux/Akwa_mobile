@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import { InteractionManager } from 'react-native';
 import { supabase } from '../services/supabase';
 import type { Property, SearchFilters } from '../types';
 import { getPricesForDateBatch } from '../utils/priceCalculator';
@@ -425,7 +426,10 @@ export function useExploreCityHome() {
       setLayoutSections(lightSections);
       exploreHomeCache = { sections: lightSections, at: Date.now() };
 
-      // Enrichissement différé (prix dynamiques + ratings batch) sans bloquer l'affichage initial.
+      // Enrichissement différé (prix dynamiques + ratings batch) sans bloquer le 1er scroll.
+      await new Promise<void>((resolve) => {
+        InteractionManager.runAfterInteractions(() => resolve());
+      });
       const enrichedList = await transformRowsToProperties(uniqueRows);
       const enrichedById = new Map(enrichedList.map((p) => [p.id, p]));
       const enrichedGroups: CityGroup<Property>[] = rawGroups.map((g) => ({

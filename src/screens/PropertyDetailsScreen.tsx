@@ -75,7 +75,6 @@ const PropertyDetailsScreen: React.FC = () => {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
-  const [priceLoading, setPriceLoading] = useState(false);
   const [virtualTourOpen, setVirtualTourOpen] = useState(false);
   
   // Utiliser les dates de la route si disponibles, sinon utiliser les dates du context
@@ -188,20 +187,19 @@ const PropertyDetailsScreen: React.FC = () => {
     loadProperty();
   }, [propertyId]);
 
-  // Charger le prix pour aujourd'hui (ou le prix de base)
+  // Prix affiché immédiatement (base), puis affiné en arrière-plan.
   useEffect(() => {
     const loadTodayPrice = async () => {
       if (property) {
-        setPriceLoading(true);
+        setDisplayPrice(property.price_per_night || null);
         try {
           const today = new Date();
           const price = await getPriceForDate(property.id, today, property.price_per_night);
           setDisplayPrice(price);
         } catch (error) {
           logError('Error loading today price:', error);
-          setDisplayPrice(null);
-        } finally {
-          setPriceLoading(false);
+          // Garder le prix de base déjà affiché.
+          setDisplayPrice(property.price_per_night || null);
         }
       }
     };
@@ -355,16 +353,12 @@ const PropertyDetailsScreen: React.FC = () => {
 
         <View style={styles.priceContainer}>
           <View style={styles.priceRow}>
-            {priceLoading ? (
-                <Text style={styles.price}>{t('common.loading')}</Text>
-            ) : (
-              <>
-                <Text style={styles.price}>
-                  {formatCurrencyPrice(displayPrice !== null ? displayPrice : property.price_per_night, false)}
-                </Text>
-                <Text style={styles.priceUnit}>/{t('common.perNight')}</Text>
-              </>
-            )}
+            <>
+              <Text style={styles.price}>
+                {formatCurrencyPrice(displayPrice !== null ? displayPrice : property.price_per_night, false)}
+              </Text>
+              <Text style={styles.priceUnit}>/{t('common.perNight')}</Text>
+            </>
           </View>
           {(property.discount_enabled && property.discount_percentage && property.discount_min_nights) || 
            (property.long_stay_discount_enabled && property.long_stay_discount_percentage && property.long_stay_discount_min_nights) ? (
