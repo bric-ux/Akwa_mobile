@@ -541,23 +541,8 @@ const SearchScreen: React.FC = () => {
 
   const handleSortChange = (newSort: SortOption) => {
     console.log('🔄 Changement de tri:', newSort);
-    const updatedFilters = {
-      ...filters,
-      sortBy: newSort as any
-    };
-    setFilters(updatedFilters);
-    // Relancer la recherche avec le nouveau tri
-    const searchFilters = { 
-      ...updatedFilters, 
-      city: shortTermSearchQuery,
-      checkIn,
-      checkOut,
-      adults,
-      children,
-      babies,
-      guests: adults + children + babies
-    };
-    fetchProperties(searchFilters);
+    // Le tri est appliqué côté client (usePropertySorting) — pas de refetch réseau.
+    setFilters((prev) => ({ ...prev, sortBy: newSort as any }));
   };
   
   const handleViewToggle = () => {
