@@ -598,7 +598,7 @@ const AppNavigator = () => {
           component={PropertyDetailsScreen}
           options={{ 
             title: 'Détails de la propriété',
-            headerBackTitle: 'Retour'
+            headerBackTitle: 'Retour',
           }}
         />
         <Stack.Screen

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -63,7 +63,14 @@ const PropertyDetailsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
   const { formatPrice: formatCurrencyPrice } = useCurrency();
-  const { propertyId, checkIn: routeCheckIn, checkOut: routeCheckOut, adults: routeAdults, children: routeChildren, babies: routeBabies } = route.params;
+  const {
+    propertyId,
+    checkIn: routeCheckIn,
+    checkOut: routeCheckOut,
+    adults: routeAdults,
+    children: routeChildren,
+    babies: routeBabies,
+  } = route.params;
   const { getPropertyById } = useProperties();
   const { user } = useAuth();
   const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useFavorites();
@@ -76,7 +83,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [virtualTourOpen, setVirtualTourOpen] = useState(false);
-  
+
   // Utiliser les dates de la route si disponibles, sinon utiliser les dates du context
   // Utiliser useMemo pour recalculer quand les valeurs changent
   const checkIn = React.useMemo(() => routeCheckIn || searchDates.checkIn, [routeCheckIn, searchDates.checkIn]);
@@ -118,21 +125,24 @@ const PropertyDetailsScreen: React.FC = () => {
     }
   }, [routeCheckIn, routeCheckOut, routeAdults, routeChildren, routeBabies]);
 
+  useLayoutEffect(() => {
+    setProperty(null);
+    setLoading(true);
+  }, [propertyId]);
 
   useEffect(() => {
+    let cancelled = false;
     const loadProperty = async () => {
       try {
-        setLoading(true);
         log('🔍 Chargement de la propriété avec ID:', propertyId);
-        
-        // Vérifier que l'ID est valide
+
         if (!propertyId) {
           throw new Error('ID de propriété manquant');
         }
-        
+
         const propertyData = await getPropertyById(propertyId);
-        
-        // Debug pour vérifier les données récupérées
+        if (cancelled) return;
+
         log('🔍 [PropertyDetailsScreen] Données de la propriété récupérées:', {
           title: propertyData?.title,
           house_rules: propertyData?.house_rules,
@@ -146,28 +156,26 @@ const PropertyDetailsScreen: React.FC = () => {
           long_stay_discount_percentage: propertyData?.long_stay_discount_percentage,
           discount_enabled: propertyData?.discount_enabled,
           discount_min_nights: propertyData?.discount_min_nights,
-          discount_percentage: propertyData?.discount_percentage
+          discount_percentage: propertyData?.discount_percentage,
         });
-        
+
         setProperty(propertyData);
 
-        // Profil hôte en arrière-plan : n’alourdit pas l’affichage du corps de la fiche
         if (propertyData?.host_id) {
           log('🔄 Chargement du profil de l\'hôte (async):', propertyData.host_id);
           void getHostProfile(propertyData.host_id);
         }
 
-        // Vérifier si la propriété est en favoris
         if (user && propertyData) {
           const favorited = isFavoriteSync(propertyData.id);
           setIsFavorited(favorited);
         }
       } catch (error: any) {
+        if (cancelled) return;
         logError('❌ Erreur lors du chargement de la propriété:', error);
-        
-        // Messages d'erreur plus spécifiques
+
         let errorMessage = 'Impossible de charger les détails de la propriété';
-        
+
         if (error.message?.includes('réseau') || error.message?.includes('network')) {
           errorMessage = 'Erreur de connexion réseau. Vérifiez votre connexion internet.';
         } else if (error.message?.includes('authentification') || error.message?.includes('auth')) {
@@ -177,14 +185,17 @@ const PropertyDetailsScreen: React.FC = () => {
         } else if (error.message) {
           errorMessage = error.message;
         }
-        
+
         Alert.alert(t('common.error'), errorMessage);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadProperty();
+    return () => {
+      cancelled = true;
+    };
   }, [propertyId]);
 
   // Prix affiché immédiatement (base), puis affiné en arrière-plan.
@@ -268,19 +279,40 @@ const PropertyDetailsScreen: React.FC = () => {
   };
 
 
-  if (loading) {
+  if (!property && !loading) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.loadingText}>{t('common.loading')}</Text>
-      </View>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <TouchableOpacity
+          style={[styles.backButton, { top: insets.top + 4 }]}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="arrow-back" size={24} color="#1e293b" />
+        </TouchableOpacity>
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorText}>{t('property.notFound')}</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
-  if (!property) {
+  const waitingForProperty =
+    loading || !property || property.id !== propertyId;
+
+  if (waitingForProperty) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{t('property.notFound')}</Text>
-      </View>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <TouchableOpacity
+          style={[styles.backButton, { top: insets.top + 4 }]}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="arrow-back" size={24} color="#1e293b" />
+        </TouchableOpacity>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color="#94a3b8" />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -710,37 +742,39 @@ const PropertyDetailsScreen: React.FC = () => {
         />
       )}
 
-      <Modal
-        visible={virtualTourOpen}
-        animationType="slide"
-        onRequestClose={() => setVirtualTourOpen(false)}
-      >
-        <SafeAreaView style={styles.virtualTourModalRoot} edges={['top', 'bottom']}>
-          <View style={styles.virtualTourHeader}>
-            <TouchableOpacity onPress={() => setVirtualTourOpen(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <Text style={styles.virtualTourHeaderAction}>Fermer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                const u = normalizeVirtualTourUrl(property.virtual_tour_url ?? null);
-                if (u) Linking.openURL(u);
-              }}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Text style={styles.virtualTourHeaderAction}>Ouvrir dans le navigateur</Text>
-            </TouchableOpacity>
-          </View>
-          {normalizeVirtualTourUrl(property.virtual_tour_url ?? null) ? (
-            <WebView
-              source={{ uri: normalizeVirtualTourUrl(property.virtual_tour_url ?? null)! }}
-              style={styles.virtualTourWebView}
-              startInLoadingState
-              allowsInlineMediaPlayback
-              mediaPlaybackRequiresUserAction={false}
-            />
-          ) : null}
-        </SafeAreaView>
-      </Modal>
+      {property ? (
+        <Modal
+          visible={virtualTourOpen}
+          animationType="slide"
+          onRequestClose={() => setVirtualTourOpen(false)}
+        >
+          <SafeAreaView style={styles.virtualTourModalRoot} edges={['top', 'bottom']}>
+            <View style={styles.virtualTourHeader}>
+              <TouchableOpacity onPress={() => setVirtualTourOpen(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Text style={styles.virtualTourHeaderAction}>Fermer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  const u = normalizeVirtualTourUrl(property.virtual_tour_url ?? null);
+                  if (u) Linking.openURL(u);
+                }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={styles.virtualTourHeaderAction}>Ouvrir dans le navigateur</Text>
+              </TouchableOpacity>
+            </View>
+            {normalizeVirtualTourUrl(property.virtual_tour_url ?? null) ? (
+              <WebView
+                source={{ uri: normalizeVirtualTourUrl(property.virtual_tour_url ?? null)! }}
+                style={styles.virtualTourWebView}
+                startInLoadingState
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
+              />
+            ) : null}
+          </SafeAreaView>
+        </Modal>
+      ) : null}
       
     </SafeAreaView>
   );
@@ -749,6 +783,12 @@ const PropertyDetailsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  loadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#f8f9fa',
   },
   backButton: {
@@ -775,6 +815,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f8f9fa',
+    paddingHorizontal: 24,
   },
   imageContainer: {
     position: 'relative',
