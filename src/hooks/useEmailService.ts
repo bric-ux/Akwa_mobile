@@ -214,16 +214,25 @@ export const useEmailService = () => {
     });
   };
 
-  const sendNewMessage = async (recipientEmail: string, recipientName: string, senderName: string, propertyTitle: string, message: string) => {
+  const sendNewMessage = async (
+    recipientEmail: string,
+    recipientName: string,
+    senderName: string,
+    propertyTitle: string,
+    message: string,
+    options?: { conversationId?: string; userId?: string },
+  ) => {
     return sendEmail({
       type: 'new_message',
       to: recipientEmail,
+      ...(options?.userId ? { userId: options.userId } : {}),
       data: {
         recipientName,
         senderName,
         propertyTitle,
-        message
-      }
+        message,
+        ...(options?.conversationId ? { conversationId: options.conversationId } : {}),
+      },
     });
   };
 
@@ -250,8 +259,9 @@ export const useEmailService = () => {
         propertyTitle,
         propertyType,
         location,
-        pricePerNight
-      }
+        pricePerNight,
+        skipSmsMirror: true,
+      },
     });
   };
 

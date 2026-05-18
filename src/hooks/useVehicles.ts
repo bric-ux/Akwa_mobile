@@ -729,7 +729,7 @@ export const useVehicles = () => {
               body: {
                 type: 'vehicle_submitted',
                 to: 'contact@akwahome.com',
-                data: emailData
+                data: { ...emailData, skipSmsMirror: true },
               }
             });
             console.log('✅ [useVehicles] Email admin envoyé');

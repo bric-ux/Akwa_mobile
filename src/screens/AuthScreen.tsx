@@ -573,25 +573,6 @@ const AuthScreen: React.FC = () => {
                 : t('auth.signupSubtitle')}
             </Text>
 
-            <View style={styles.methodToggle}>
-              <TouchableOpacity
-                style={[styles.methodTab, authMethod === 'phone' && styles.methodTabActive]}
-                onPress={() => setAuthMethod('phone')}
-              >
-                <Text style={[styles.methodTabText, authMethod === 'phone' && styles.methodTabTextActive]}>
-                  Téléphone
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.methodTab, authMethod === 'email' && styles.methodTabActive]}
-                onPress={() => setAuthMethod('email')}
-              >
-                <Text style={[styles.methodTabText, authMethod === 'email' && styles.methodTabTextActive]}>
-                  Email
-                </Text>
-              </TouchableOpacity>
-            </View>
-
             {authMethod === 'phone' ? (
               isLogin ? (
                 <PhoneSignInForm
@@ -761,6 +742,31 @@ const AuthScreen: React.FC = () => {
             </TouchableOpacity>
               </>
             )}
+
+            <View style={styles.altMethodBlock}>
+              <View style={styles.altMethodDivider}>
+                <View style={styles.altMethodLine} />
+                <Text style={styles.altMethodOr}>{t('auth.or')}</Text>
+                <View style={styles.altMethodLine} />
+              </View>
+              <TouchableOpacity
+                style={styles.altMethodButton}
+                onPress={() => setAuthMethod(authMethod === 'phone' ? 'email' : 'phone')}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  authMethod === 'phone' ? t('auth.switchToEmail') : t('auth.switchToPhone')
+                }
+              >
+                <Ionicons
+                  name={authMethod === 'phone' ? 'mail-outline' : 'call-outline'}
+                  size={20}
+                  color="#2E7D32"
+                />
+                <Text style={styles.altMethodButtonText}>
+                  {authMethod === 'phone' ? t('auth.switchToEmail') : t('auth.switchToPhone')}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity style={styles.toggleButton} onPress={toggleAuthMode}>
               <Text style={styles.toggleButtonText}>
@@ -965,34 +971,45 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 22,
   },
-  methodToggle: {
+  altMethodBlock: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  altMethodDivider: {
     flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 999,
-    padding: 4,
-    marginBottom: 20,
-  },
-  methodTab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 999,
     alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
   },
-  methodTabActive: {
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+  altMethodLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e2e8f0',
   },
-  methodTabText: {
-    fontSize: 14,
+  altMethodOr: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#64748b',
+    color: '#94a3b8',
+    textTransform: 'lowercase',
   },
-  methodTabTextActive: {
+  altMethodButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+  },
+  altMethodButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
     color: '#2E7D32',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   inputContainer: {
     flexDirection: 'row',

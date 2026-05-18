@@ -250,6 +250,7 @@ export const useIdentityVerification = () => {
                   type: 'identity_document_received',
                   to: admin.email,
                   data: {
+                    skipSmsMirror: true,
                     adminName: admin.first_name || 'Administrateur',
                     userName: userProfile?.first_name && userProfile?.last_name 
                       ? `${userProfile.first_name} ${userProfile.last_name}` 

@@ -147,6 +147,9 @@ export const translations: Record<string, Record<string, string>> = {
     'auth.and': 'et notre',
     'auth.signupSuccess': 'Inscription réussie !',
     'auth.loginRequired': 'Connexion requise',
+    'auth.or': 'ou',
+    'auth.switchToEmail': 'Continuer avec mon adresse email',
+    'auth.switchToPhone': 'Continuer avec mon numéro de téléphone',
     
     // Profile
     'profile.title': 'Profil',
@@ -820,6 +823,9 @@ export const translations: Record<string, Record<string, string>> = {
     'auth.and': 'and our',
     'auth.signupSuccess': 'Sign up successful!',
     'auth.loginRequired': 'Login required',
+    'auth.or': 'or',
+    'auth.switchToEmail': 'Continue with my email address',
+    'auth.switchToPhone': 'Continue with my phone number',
     
     // Profile
     'profile.title': 'Profile',

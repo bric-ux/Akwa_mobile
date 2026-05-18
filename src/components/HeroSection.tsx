@@ -30,15 +30,24 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress, topInse
   const heroMinHeight = useMemo(() => {
     const ratio = veryCompact ? 0.52 : compact ? 0.44 : 0.4;
     const raw = Math.round(height * ratio);
-    if (veryCompact) return Math.max(raw, 268);
-    if (compact) return Math.max(raw, 248);
-    return Math.max(raw, 220);
-  }, [height, compact, veryCompact]);
+    const fontBoost = fontScale > 1.1 ? Math.round((fontScale - 1) * 56) : 0;
+    const androidBoost = Platform.OS === 'android' ? 28 : 0;
+    const base = veryCompact ? 268 : compact ? 248 : 220;
+    return Math.max(raw, base) + fontBoost + androidBoost;
+  }, [height, compact, veryCompact, fontScale]);
 
   const dynamic = useMemo(() => {
     const baseTaglineMb = veryCompact ? 12 : compact ? 18 : 32;
     const taglineMarginBottom =
       fontScale > 1.12 ? Math.max(8, Math.round(baseTaglineMb / Math.min(fontScale, 1.45))) : baseTaglineMb;
+    const scaledSearchText =
+      fontScale > 1.15
+        ? Math.max(12, Math.round((veryCompact ? 14 : compact ? 15 : 16) / Math.min(fontScale, 1.35)))
+        : veryCompact
+          ? 14
+          : compact
+            ? 15
+            : 16;
     return {
       titleSize: veryCompact ? 24 : compact ? 28 : 32,
       titleMarginBottom: veryCompact ? 8 : compact ? 12 : 16,
@@ -47,14 +56,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress, topInse
       taglineSize: veryCompact ? 13 : compact ? 15 : 16,
       taglineMarginBottom,
       searchPadV: veryCompact ? 12 : compact ? 14 : 16,
-      searchPadH: veryCompact ? 16 : compact ? 20 : 24,
-      searchTextSize: veryCompact ? 14 : compact ? 15 : 16,
+      searchPadH: veryCompact ? 14 : compact ? 18 : 24,
+      searchTextSize: scaledSearchText,
       iconSize: veryCompact ? 18 : 20,
     };
   }, [compact, veryCompact, fontScale]);
 
   return (
-    <View style={[styles.container, { height: heroMinHeight }]}>
+    <View style={[styles.container, { minHeight: heroMinHeight }]}>
       <View style={styles.imageClip}>
         <Image
           source={HERO_SOURCE}
@@ -68,6 +77,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress, topInse
       <View
         style={[
           styles.overlay,
+          { minHeight: heroMinHeight },
           Platform.OS === 'android' && styles.overlayAndroid,
           topInset > 0 && { paddingTop: Math.max(12, topInset) },
         ]}
@@ -113,13 +123,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress, topInse
               ]}
               onPress={onSearchPress}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Rechercher un hébergement"
             >
               <Ionicons name="search" size={dynamic.iconSize} color="#fff" />
               <Text
                 style={[styles.searchButtonText, { fontSize: dynamic.searchTextSize }]}
                 numberOfLines={2}
                 adjustsFontSizeToFit
-                minimumFontScale={0.85}
+                minimumFontScale={0.8}
               >
                 Rechercher un hébergement
               </Text>
@@ -138,8 +150,6 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
     position: 'relative',
     backgroundColor: '#1e293b',
-    /** Évite tout débordement ; sur Android l’élévation du bouton ne doit pas « flotter » au-dessus du bloc suivant. */
-    overflow: 'hidden',
   },
   imageClip: {
     ...StyleSheet.absoluteFillObject,
@@ -149,16 +159,16 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
     alignItems: 'center',
-    paddingTop: 12,
+    paddingTop: 16,
     paddingBottom: 16,
   },
-  /** Marge bas un peu plus généreuse sur Android (police système / barre de nav). */
+  /** Android : marges verticales un peu plus larges (police système / encoches variables). */
   overlayAndroid: {
-    paddingBottom: 22,
+    paddingTop: 20,
+    paddingBottom: 24,
   },
   content: {
     alignItems: 'center',
@@ -202,9 +212,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'stretch',
     backgroundColor: '#22C55E',
     borderRadius: 25,
-    maxWidth: '100%',
+    width: '100%',
     gap: 6,
     /** iOS : ombre ; Android : pas d’elevation (sinon le bouton se superpose au header suivant, ex. widget météo). */
     ...Platform.select({

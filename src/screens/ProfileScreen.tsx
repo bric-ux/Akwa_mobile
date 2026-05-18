@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,11 @@ import {
   Alert,
   Image,
   InteractionManager,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute, CommonActions } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useUserProfile, clearProfileCache } from '../hooks/useUserProfile';
 import { useAuth } from '../services/AuthContext';
@@ -27,6 +28,7 @@ import { HOST_COLORS, VEHICLE_COLORS, MONTHLY_RENTAL_COLORS, TRAVELER_COLORS } f
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { APP_VERSION } from '../constants/appVersion';
 import BottomNavigationBar from '../components/BottomNavigationBar';
+import ProfileLoadingSkeleton from '../components/ProfileLoadingSkeleton';
 import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
 
 const ProfileScreen: React.FC = () => {
@@ -46,6 +48,44 @@ const ProfileScreen: React.FC = () => {
   const [hasPendingApplications, setHasPendingApplications] = useState(false);
   const [hasVehicles, setHasVehicles] = useState(false);
   const [hasMonthlyListings, setHasMonthlyListings] = useState(false);
+  const contentOpacity = useRef(new Animated.Value(1)).current;
+  const sessionKey = user?.id ?? 'guest';
+  const prevSessionKey = useRef(sessionKey);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (prevSessionKey.current === sessionKey) return;
+    prevSessionKey.current = sessionKey;
+    contentOpacity.setValue(0.92);
+    Animated.timing(contentOpacity, {
+      toValue: 1,
+      duration: 360,
+      useNativeDriver: true,
+    }).start();
+  }, [sessionKey, authLoading, contentOpacity]);
+
+  const goToGuestProfileTab = () => {
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'Home',
+            state: {
+              index: 4,
+              routes: [
+                { name: 'HomeTab' },
+                { name: 'MessagingTab' },
+                { name: 'BookingsTab' },
+                { name: 'FavoritesTab' },
+                { name: 'ProfileTab' },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+  };
 
   const checkMonthlyListings = async () => {
     if (!user) return;
@@ -182,22 +222,14 @@ const ProfileScreen: React.FC = () => {
               
               // Utiliser la fonction signOut du contexte pour mettre à jour le state
               await signOut();
-              
-              // Forcer la navigation vers l'écran d'authentification
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Auth' }],
-              });
+              goToGuestProfileTab();
             } catch (error: any) {
               console.error('Erreur lors de la déconnexion:', error);
               
               // Si c'est une erreur de session manquante, on considère que la déconnexion est réussie
               if (error?.message?.includes('Auth session missing')) {
                 clearProfileCache();
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Auth' }],
-                });
+                goToGuestProfileTab();
                 return;
               }
               
@@ -438,13 +470,7 @@ const ProfileScreen: React.FC = () => {
   };
 
   if (authLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>{t('profile.loading')}</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <ProfileLoadingSkeleton />;
   }
 
   // Invité ou session expirée : pas de « redirection » automatique (souvent bloquée depuis l’onglet) — écran explicite + reset stack
@@ -454,6 +480,7 @@ const ProfileScreen: React.FC = () => {
 
   if (!user || sessionExpired) {
     return (
+      <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={[styles.centerContainer, styles.guestContent]}>
           <Ionicons name="person-circle-outline" size={80} color="#bbb" />
@@ -472,20 +499,16 @@ const ProfileScreen: React.FC = () => {
         </View>
         {!isInTabNavigator && <BottomNavigationBar activeScreen="compte" />}
       </SafeAreaView>
+      </Animated.View>
     );
   }
 
   if (loading && !profile) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>{t('profile.loading')}</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <ProfileLoadingSkeleton />;
   }
 
   return (
+    <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView 
         contentContainerStyle={[styles.scrollContainer, { paddingBottom: 80 }]}
@@ -760,6 +783,7 @@ const ProfileScreen: React.FC = () => {
       {/* Menu de navigation en bas - seulement si on est dans le Stack, pas dans le TabNavigator */}
       {!isInTabNavigator && <BottomNavigationBar activeScreen="compte" />}
     </SafeAreaView>
+    </Animated.View>
   );
 };
 

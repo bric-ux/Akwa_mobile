@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, Image, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -50,12 +50,7 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   if (showSplash) {
     return (
       <View style={styles.splashContainer}>
-        <Image
-          source={require('./assets/icon.png')}
-          style={styles.splashLogo}
-          resizeMode="contain"
-        />
-        <ActivityIndicator size="large" color="#e67e22" style={styles.splashSpinner} />
+        <ActivityIndicator size="large" color="#e67e22" />
       </View>
     );
   }
@@ -86,13 +81,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#ffffff',
-  },
-  splashLogo: {
-    width: 220,
-    height: 120,
-    marginBottom: 24,
-  },
-  splashSpinner: {
-    marginTop: 8,
   },
 });

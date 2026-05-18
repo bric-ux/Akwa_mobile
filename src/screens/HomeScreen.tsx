@@ -275,7 +275,8 @@ const HomeScreen: React.FC = () => {
             <Image
               source={require('../../assets/images/vehicles-suv.jpg')}
               style={styles.vehiclesPromoBgImage}
-              contentFit={vehiclesPromoNarrow ? 'contain' : 'cover'}
+              contentFit="cover"
+              contentPosition="center"
               cachePolicy="memory-disk"
               priority="high"
               transition={200}
@@ -750,9 +751,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: '#1e293b',
   },
-  /** Plus de hauteur + image en « contain » : moins de recadrage agressif sur petits écrans. */
   vehiclesPromoBackgroundNarrow: {
-    minHeight: 260,
+    minHeight: 280,
   },
   vehiclesPromoBgImage: {
     ...StyleSheet.absoluteFillObject,

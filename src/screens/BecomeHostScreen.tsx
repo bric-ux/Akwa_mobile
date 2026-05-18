@@ -1586,6 +1586,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
                   type: 'host_application_updated',
                   to: admin.email,
                   data: {
+                    skipSmsMirror: true,
                     hostName: formData.hostFullName,
                     hostEmail: formData.hostEmail,
                     hostPhone: formData.hostPhone,
@@ -1661,6 +1662,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
                     type: 'host_application_received',
                     to: admin.email,
                     data: {
+                      skipSmsMirror: true,
                       hostName: formData.hostFullName,
                       hostEmail: formData.hostEmail,
                       hostPhone: formData.hostPhone,
@@ -1700,6 +1702,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
                   type: 'host_application_received',
                   to: 'admin@akwahome.com',
                   data: {
+                    skipSmsMirror: true,
                     hostName: formData.hostFullName,
                     hostEmail: formData.hostEmail,
                     hostPhone: formData.hostPhone,

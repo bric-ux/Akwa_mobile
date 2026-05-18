@@ -11,6 +11,7 @@ import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS } f
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { PushNotificationBootstrap } from '../components/PushNotificationBootstrap';
 import { PushNotificationNavigationHandler } from '../components/PushNotificationNavigationHandler';
+import AuthSessionFade from '../components/AuthSessionFade';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -616,6 +617,7 @@ const AppNavigator = () => {
       <PushNotificationNavigationHandler navigationRef={navigationRef} />
       <TabNotificationBadgesProvider>
       <AdminNotificationsProvider>
+      <AuthSessionFade>
       <Stack.Navigator
         initialRouteName="Home"
         screenOptions={{
@@ -1298,6 +1300,7 @@ const AppNavigator = () => {
       </Stack.Navigator>
       <StripeReturnHandler navigationRef={navigationRef} />
       <WaveReturnHandler />
+      </AuthSessionFade>
       </AdminNotificationsProvider>
       </TabNotificationBadgesProvider>
     </NavigationContainer>

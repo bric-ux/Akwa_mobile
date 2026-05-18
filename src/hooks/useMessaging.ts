@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Conversation, Message } from '../types';
-import { useEmailService } from './useEmailService';
-import { sendPushToUser } from '../services/pushNotificationService';
-import { PUSH_TYPE_MESSAGE } from '../services/pushNavigation';
 import { log, logError, logWarn } from '../utils/logger';
 
 export const useMessaging = () => {
@@ -12,8 +9,6 @@ export const useMessaging = () => {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { sendNewMessage } = useEmailService();
-
   // Charger les conversations de l'utilisateur
   const loadConversations = useCallback(async (userId: string) => {
     log('🔄 [useMessaging] Chargement des conversations pour:', userId);
@@ -294,6 +289,13 @@ export const useMessaging = () => {
     setError(null);
     
     try {
+      // Avant insertion : 1er message = seul déclencheur SMS/email Twilio côté client
+      const { count: existingCount } = await supabase
+        .from('conversation_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId);
+      const isFirstMessage = (existingCount ?? 0) === 0;
+
       const { data, error } = await supabase
         .from('conversation_messages')
         .insert({
@@ -334,51 +336,55 @@ export const useMessaging = () => {
         })
         .eq('id', conversationId);
 
-      // Envoyer email de notification au destinataire
-      try {
-        // Récupérer les détails de la conversation pour l'email
-        const { data: conversationData } = await supabase
-          .from('conversations')
-          .select(`
-            *,
-            property:properties(title),
-            host_profile:profiles!conversations_host_id_fkey(first_name, last_name, email),
-            guest_profile:profiles!conversations_guest_id_fkey(first_name, last_name, email)
-          `)
-          .eq('id', conversationId)
-          .single();
+      // Email + SMS Twilio uniquement sur le 1er message (push/in-app via trigger DB)
+      if (isFirstMessage) {
+        setTimeout(async () => {
+          try {
+            const { data: conversation } = await supabase
+              .from('conversations')
+              .select('host_id, guest_id, property_id, vehicle_id, properties(title), vehicles(title)')
+              .eq('id', conversationId)
+              .single();
+            if (!conversation) return;
 
-        if (conversationData) {
-          // Déterminer qui est le destinataire
-          const isHost = senderId === conversationData.host_id;
-          const recipientProfile = isHost ? conversationData.guest_profile : conversationData.host_profile;
-          const senderProfile = isHost ? conversationData.host_profile : conversationData.guest_profile;
+            const recipientId =
+              senderId === conversation.host_id ? conversation.guest_id : conversation.host_id;
+            if (!recipientId || recipientId === senderId) return;
 
-          if (recipientProfile?.email) {
-            await sendNewMessage(
-              recipientProfile.email,
-              `${recipientProfile.first_name} ${recipientProfile.last_name}`,
-              `${senderProfile?.first_name} ${senderProfile?.last_name}`,
-              conversationData.property?.title || 'Propriété',
-              message.trim()
-            );
-            console.log('✅ [useMessaging] Email de notification envoyé à:', recipientProfile.email);
+            const { data: recipientProfile } = await supabase
+              .from('profiles')
+              .select('email, first_name, last_name')
+              .eq('user_id', recipientId)
+              .single();
+            if (!recipientProfile?.email) return;
+
+            const senderName = data.sender_profile
+              ? `${data.sender_profile.first_name} ${data.sender_profile.last_name}`.trim()
+              : 'Utilisateur';
+            const itemTitle =
+              (conversation as { properties?: { title?: string } | null }).properties?.title ||
+              (conversation as { vehicles?: { title?: string } | null }).vehicles?.title ||
+              'votre annonce';
+
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'new_message',
+                to: recipientProfile.email,
+                userId: recipientId,
+                data: {
+                  recipientName: `${recipientProfile.first_name ?? ''} ${recipientProfile.last_name ?? ''}`.trim(),
+                  senderName,
+                  propertyTitle: itemTitle,
+                  message: message.trim(),
+                  conversationId,
+                },
+              },
+            });
+            log('✅ [useMessaging] Notification premier message (email/SMS) envoyée');
+          } catch (notifErr) {
+            logError('❌ [useMessaging] Notification premier message échouée:', notifErr);
           }
-          // Notification push sur le téléphone du destinataire (sans email)
-          const recipientUserId = isHost ? conversationData.guest_id : conversationData.host_id;
-          const senderName = senderProfile?.first_name ? `${senderProfile.first_name} ${senderProfile.last_name || ''}`.trim() : 'Quelqu\'un';
-          const body = `${senderName} : ${message.trim().slice(0, 80)}${message.trim().length > 80 ? '...' : ''}`;
-          const conv = conversationData as Conversation;
-          sendPushToUser(recipientUserId, 'Nouveau message', body, {
-            type: PUSH_TYPE_MESSAGE,
-            conversationId,
-            ...(conv.property_id ? { propertyId: conv.property_id } : {}),
-            ...(conv.vehicle_id ? { vehicleId: conv.vehicle_id } : {}),
-          }).catch(() => {});
-        }
-      } catch (emailError) {
-        console.error('❌ [useMessaging] Erreur envoi email notification:', emailError);
-        // Ne pas faire échouer l'envoi du message si l'email échoue
+        }, 0);
       }
 
       return newMessage;

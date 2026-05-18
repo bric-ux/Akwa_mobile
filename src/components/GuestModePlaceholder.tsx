@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, CommonActions } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import BottomNavigationBar from './BottomNavigationBar';
@@ -20,7 +20,7 @@ interface GuestModePlaceholderProps {
 }
 
 /**
- * Même expérience « mode invité » que sur Mon compte : titre, explication, Se connecter / S’inscrire, reset vers Auth.
+ * Même expérience « mode invité » que sur Mon compte : titre, explication, Se connecter / S’inscrire (modale Auth).
  */
 const GuestModePlaceholder: React.FC<GuestModePlaceholderProps> = ({
   icon,
@@ -33,12 +33,7 @@ const GuestModePlaceholder: React.FC<GuestModePlaceholderProps> = ({
   const { loading: authLoading } = useAuth();
 
   const goToAuthScreen = () => {
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: 'Auth' as never }],
-      }),
-    );
+    navigation.navigate('Auth' as never);
   };
 
   if (authLoading) {

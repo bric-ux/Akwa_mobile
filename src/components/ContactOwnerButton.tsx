@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import {
   TouchableOpacity,
+  Pressable,
   Text,
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -31,8 +33,19 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
   const { user } = useAuth();
   const { createOrGetConversation, loadConversations } = useMessaging();
   const [loading, setLoading] = useState(false);
+  const pressLockRef = React.useRef(false);
+
+  const releasePressLock = () => {
+    setTimeout(() => {
+      pressLockRef.current = false;
+    }, 400);
+  };
 
   const handleContactOwner = async () => {
+    if (pressLockRef.current) return;
+    pressLockRef.current = true;
+
+    try {
     if (!user) {
       Alert.alert(
         'Connexion requise',
@@ -50,7 +63,6 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
       return;
     }
 
-    // L'utilisateur ne peut pas se contacter lui-même
     if (user.id === vehicle.owner_id) {
       Alert.alert(
         'Action impossible',
@@ -112,6 +124,9 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
       );
     } finally {
       setLoading(false);
+    }
+    } finally {
+      releasePressLock();
     }
   };
 
@@ -194,46 +209,71 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
     }
   };
 
+  const isDisabled = loading || (!!user && user.id === vehicle.owner_id);
+  const buttonStyle = getButtonStyle();
+
+  const content = loading ? (
+    <ActivityIndicator
+      size="small"
+      color={variant === 'outline' ? '#2563eb' : '#fff'}
+    />
+  ) : (
+    <>
+      {showIcon && (
+        <Ionicons
+          name="chatbubble-ellipses"
+          size={getIconSize()}
+          color={variant === 'outline' ? '#2563eb' : '#fff'}
+        />
+      )}
+      <Text style={getTextStyle()} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+        Contacter
+      </Text>
+    </>
+  );
+
+  if (Platform.OS === 'android') {
+    return (
+      <Pressable
+        style={({ pressed }) => [...buttonStyle, pressed && !isDisabled && styles.pressed]}
+        onPress={handleContactOwner}
+        disabled={isDisabled}
+        android_ripple={{ color: 'rgba(37, 99, 235, 0.15)', borderless: false }}
+        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+        accessibilityRole="button"
+        accessibilityLabel="Contacter le propriétaire"
+      >
+        {content}
+      </Pressable>
+    );
+  }
+
   return (
     <TouchableOpacity
-      style={getButtonStyle()}
+      style={buttonStyle}
       onPress={handleContactOwner}
-      disabled={loading || (!!user && user.id === vehicle.owner_id)}
+      disabled={isDisabled}
       activeOpacity={0.8}
     >
-      {loading ? (
-        <ActivityIndicator 
-          size="small" 
-          color={variant === 'outline' ? '#2563eb' : '#fff'} 
-        />
-      ) : (
-        <>
-          {showIcon && (
-            <Ionicons
-              name="chatbubble-ellipses"
-              size={getIconSize()}
-              color={variant === 'outline' ? '#2563eb' : '#fff'}
-            />
-          )}
-          <Text style={getTextStyle()} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-            Contacter
-          </Text>
-        </>
-      )}
+      {content}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
+  pressed: {
+    opacity: 0.9,
+  },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 8,
-    minHeight: 56,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    gap: 6,
+    minHeight: 52,
+    width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -254,16 +294,17 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   smallButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    minHeight: 52,
+    maxHeight: 52,
   },
   mediumButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    borderRadius: 14,
-    minHeight: 60,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    minHeight: 52,
   },
   largeButton: {
     paddingHorizontal: 24,

@@ -6,10 +6,11 @@ import {
   ScrollView,
   FlatList,
   TouchableOpacity,
+  Pressable,
   Alert,
   ActivityIndicator,
   Dimensions,
-  LinearGradient,
+  Platform,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -49,6 +50,7 @@ const VehicleDetailsScreen: React.FC = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showHostProfile, setShowHostProfile] = useState(false);
   const galleryListRef = useRef<FlatList<string>>(null);
+  const bookPressLockRef = useRef(false);
   const galleryUrls = vehicle ? getVehicleGalleryUrls(vehicle) : [];
 
   useEffect(() => {
@@ -115,7 +117,15 @@ const VehicleDetailsScreen: React.FC = () => {
     loadVehicle();
   }, [vehicleId]);
 
-  const handleBookVehicle = () => {
+  const handleBookVehicle = useCallback(() => {
+    if (bookPressLockRef.current) return;
+    bookPressLockRef.current = true;
+    setTimeout(() => {
+      bookPressLockRef.current = false;
+    }, 500);
+
+    if (!vehicle) return;
+
     if (!user) {
       Alert.alert(
         'Connexion requise',
@@ -123,12 +133,12 @@ const VehicleDetailsScreen: React.FC = () => {
         [
           { text: 'Annuler', style: 'cancel' },
           { text: 'Se connecter', onPress: () => navigation.navigate('Auth' as never) },
-        ]
+        ],
       );
       return;
     }
     navigation.navigate('VehicleBooking' as never, { vehicleId: vehicle.id } as never);
-  };
+  }, [navigation, user, vehicle]);
 
   useEffect(() => {
     if (!galleryUrls || galleryUrls.length === 0) return;
@@ -618,14 +628,21 @@ const VehicleDetailsScreen: React.FC = () => {
                   size="medium"
                 />
               </View>
-              <TouchableOpacity
-                style={styles.bookButton}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.bookButton,
+                  pressed && styles.bookButtonPressed,
+                ]}
                 onPress={handleBookVehicle}
-                activeOpacity={0.85}
+                android_ripple={{ color: 'rgba(255,255,255,0.25)', borderless: false }}
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                accessibilityRole="button"
+                accessibilityLabel="Réserver"
               >
-                <Text style={styles.bookButtonText}>Réserver</Text>
-                <Ionicons name="arrow-forward-circle" size={22} color="#fff" />
-              </TouchableOpacity>
+                <Text style={styles.bookButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                  Réserver
+                </Text>
+              </Pressable>
             </View>
           </SafeAreaView>
         </View>
@@ -1172,41 +1189,51 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
-    gap: 16,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
-    alignItems: 'stretch',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'android' ? 14 : 20,
+    alignItems: 'center',
     backgroundColor: '#fff',
   },
   contactButtonWrapper: {
     flex: 1,
-    minWidth: 110,
-    minHeight: 60,
+    flexBasis: 0,
+    minWidth: 0,
     justifyContent: 'center',
   },
   bookButton: {
-    flex: 1.5,
+    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
     backgroundColor: VEHICLE_COLORS.primary,
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    borderRadius: 14,
-    flexDirection: 'row',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    minHeight: 60,
-    shadowColor: VEHICLE_COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
+    minHeight: 52,
+    maxHeight: 52,
+    overflow: 'hidden',
+    ...(Platform.OS === 'android'
+      ? { elevation: 2 }
+      : {
+          shadowColor: VEHICLE_COLORS.primary,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.2,
+          shadowRadius: 8,
+        }),
+  },
+  bookButtonPressed: {
+    opacity: 0.92,
   },
   bookButtonText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+    maxWidth: '100%',
   },
 });
 
