@@ -38,6 +38,7 @@ import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { PROPERTY_TYPES } from '../constants/hostListingForm';
 import { consumeHostAssistantDraft } from '../lib/hostOnboardingAssistant';
 import BecomeHostGuidedFlow from './becomeHost/BecomeHostGuidedFlow';
+import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
 
 const CANCELLATION_POLICIES = [
   { 
@@ -89,6 +90,7 @@ const MAX_PROPERTY_VIDEOS = 5;
 const BecomeHostScreen: React.FC = ({ route }: any) => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
+  const isPhoneAccount = user ? isPhonePseudoEmail(user.email) : false;
   const { t } = useLanguage();
   
   useEffect(() => {
@@ -467,15 +469,20 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     const editId = route?.params?.editApplicationId;
     const phoneFromMeta =
       typeof metadata?.phone === 'string' ? metadata.phone.trim() : '';
+    const accountEmail = user.email || '';
+    const phoneAccount = isPhonePseudoEmail(accountEmail);
+    const phoneFromAccount = phoneAccount
+      ? displayEmailOrPhone(accountEmail, phoneFromMeta) || phoneFromMeta
+      : phoneFromMeta;
 
     setFormData(prev => ({
       ...prev,
-      hostEmail: user.email || '',
+      hostEmail: phoneAccount ? '' : accountEmail,
       hostFullName: metadata?.first_name && metadata?.last_name
         ? `${metadata.first_name} ${metadata.last_name}`
         : '',
       // Nouvelle candidature : pré-remplir le téléphone (profil / métadonnées) pour ne pas le redemander à chaque ouverture
-      ...(!editId && phoneFromMeta ? { hostPhone: phoneFromMeta } : {}),
+      ...(!editId && phoneFromAccount ? { hostPhone: phoneFromAccount } : {}),
     }));
 
     // Nouvelle candidature : si le profil a déjà un code (1re propriété ou ancien flux),
@@ -1066,7 +1073,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         
       case 2:
         // Étape 2: Informations hôte
-        const step2Fields = ['hostFullName', 'hostEmail', 'hostPhone'];
+        const step2Fields = ['hostFullName', 'hostPhone'];
+        if (!isPhoneAccount) {
+          step2Fields.push('hostEmail');
+        }
         const missingStep2 = step2Fields.filter(field => !formData[field as keyof typeof formData]);
         
         if (missingStep2.length > 0) {
@@ -1080,10 +1090,18 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         
         // Validation email
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.hostEmail)) {
+        const hostEmailTrimmed = formData.hostEmail?.trim() || '';
+        if (!isPhoneAccount && !emailRegex.test(hostEmailTrimmed)) {
           Alert.alert(
             'Email invalide',
             'Veuillez saisir une adresse email valide.'
+          );
+          return false;
+        }
+        if (isPhoneAccount && hostEmailTrimmed && !emailRegex.test(hostEmailTrimmed)) {
+          Alert.alert(
+            'Email invalide',
+            'Si vous renseignez un email, il doit être valide.'
           );
           return false;
         }
@@ -1321,7 +1339,10 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         isFurnished: formData.isFurnished,
       }),
       fullName: formData.hostFullName,
-      email: formData.hostEmail,
+      email:
+        isPhoneAccount && !formData.hostEmail?.trim()
+          ? user?.email || ''
+          : formData.hostEmail,
       phone: formData.hostPhone,
       // Format exact comme sur le site web
       images: selectedImages.map(img => img.uri), // URLs publiques
@@ -2153,13 +2174,13 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
 
       {/* Email */}
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email *</Text>
+        <Text style={styles.label}>{isPhoneAccount ? 'Email (optionnel)' : 'Email *'}</Text>
         <TextInput
           ref={(ref) => { inputRefs.current['hostEmail'] = ref; }}
           style={getInputStyle('hostEmail')}
           value={formData.hostEmail}
           onChangeText={(value) => handleInputChange('hostEmail', value)}
-          placeholder="votre@email.com"
+          placeholder={isPhoneAccount ? 'Ajouter un email (facultatif)' : 'votre@email.com'}
           keyboardType="email-address"
           placeholderTextColor="#999"
           returnKeyType="next"
@@ -2794,6 +2815,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           <BecomeHostGuidedFlow
             guidedStep={guidedStep}
             setGuidedStep={setGuidedStep}
+            isPhoneAccount={isPhoneAccount}
             isEditMode={isEditMode}
             fieldsToRevise={fieldsToRevise}
             revisionMessage={revisionMessage}

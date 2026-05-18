@@ -104,6 +104,11 @@ import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
 import StripeReturnHandler from '../components/StripeReturnHandler';
 import WaveReturnHandler from '../components/WaveReturnHandler';
 import { AdminNotificationsProvider } from '../contexts/AdminNotificationsContext';
+import {
+  TabNotificationBadgesProvider,
+  useTabNotificationBadges,
+} from '../contexts/TabNotificationBadgesContext';
+import { TabBarBadgeIcon } from '../components/TabBarBadgeIcon';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList } from '../types';
@@ -118,18 +123,23 @@ const MonthlyRentalTab = createBottomTabNavigator<MonthlyRentalTabParamList>();
 
 // Tab Navigator
 const TabNavigator = () => {
+  const badges = useTabNotificationBadges();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
+          let badgeCount = 0;
 
           if (route.name === 'HomeTab') {
             iconName = focused ? 'search' : 'search-outline';
           } else if (route.name === 'MessagingTab') {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            badgeCount = badges.unreadMessages;
           } else if (route.name === 'BookingsTab') {
             iconName = focused ? 'calendar' : 'calendar-outline';
+            badgeCount = badges.guestBookingsTotal;
           } else if (route.name === 'FavoritesTab') {
             iconName = focused ? 'heart' : 'heart-outline';
           } else if (route.name === 'ProfileTab') {
@@ -138,7 +148,15 @@ const TabNavigator = () => {
             iconName = 'search-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return (
+            <TabBarBadgeIcon
+              name={iconName}
+              focused={focused}
+              color={color}
+              size={size}
+              badgeCount={badgeCount}
+            />
+          );
         },
         tabBarActiveTintColor: '#e67e22',
         tabBarInactiveTintColor: 'gray',
@@ -176,19 +194,24 @@ const TabNavigator = () => {
 
 // Host Tab Navigator (pour les hôtes)
 const HostTabNavigator = () => {
+  const badges = useTabNotificationBadges();
+
   return (
     <HostTab.Navigator
       initialRouteName="HostPropertiesTab"
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
+          let badgeCount = 0;
 
           if (route.name === 'HostPropertiesTab') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'HostBookingsTab') {
             iconName = focused ? 'calendar' : 'calendar-outline';
+            badgeCount = badges.hostPropertyBookings;
           } else if (route.name === 'HostMessagingTab') {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            badgeCount = badges.unreadMessages;
           } else if (route.name === 'HostStatsTab') {
             iconName = focused ? 'stats-chart' : 'stats-chart-outline';
           } else if (route.name === 'HostPayoutsTab') {
@@ -199,7 +222,15 @@ const HostTabNavigator = () => {
             iconName = 'home-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return (
+            <TabBarBadgeIcon
+              name={iconName}
+              focused={focused}
+              color={color}
+              size={size}
+              badgeCount={badgeCount}
+            />
+          );
         },
         tabBarActiveTintColor: HOST_COLORS.primary,
         tabBarInactiveTintColor: 'gray',
@@ -242,19 +273,24 @@ const HostTabNavigator = () => {
 
 // Vehicle Owner Tab Navigator (pour les propriétaires de véhicules)
 const VehicleOwnerTabNavigator = () => {
+  const badges = useTabNotificationBadges();
+
   return (
     <VehicleOwnerTab.Navigator
       initialRouteName="VehicleOwnerVehiclesTab"
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
+          let badgeCount = 0;
 
           if (route.name === 'VehicleOwnerVehiclesTab') {
             iconName = focused ? 'car' : 'car-outline';
           } else if (route.name === 'VehicleOwnerBookingsTab') {
             iconName = focused ? 'calendar' : 'calendar-outline';
+            badgeCount = badges.hostVehicleBookings;
           } else if (route.name === 'VehicleOwnerMessagingTab') {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            badgeCount = badges.unreadMessages;
           } else if (route.name === 'VehicleOwnerStatsTab') {
             iconName = focused ? 'stats-chart' : 'stats-chart-outline';
           } else if (route.name === 'VehicleOwnerPayoutsTab') {
@@ -265,7 +301,15 @@ const VehicleOwnerTabNavigator = () => {
             iconName = 'car-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return (
+            <TabBarBadgeIcon
+              name={iconName}
+              focused={focused}
+              color={color}
+              size={size}
+              badgeCount={badgeCount}
+            />
+          );
         },
         tabBarActiveTintColor: VEHICLE_COLORS.primary,
         tabBarInactiveTintColor: 'gray',
@@ -308,19 +352,24 @@ const VehicleOwnerTabNavigator = () => {
 
 // Vehicle Tab Navigator (pour la recherche de véhicules par les voyageurs)
 const VehicleTabNavigator = () => {
+  const badges = useTabNotificationBadges();
+
   return (
     <VehicleTab.Navigator
       initialRouteName="VehiclesTab"
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
+          let badgeCount = 0;
 
           if (route.name === 'VehiclesTab') {
             iconName = focused ? 'car' : 'car-outline';
           } else if (route.name === 'VehicleBookingsTab') {
             iconName = focused ? 'calendar' : 'calendar-outline';
+            badgeCount = badges.guestVehicleBookings;
           } else if (route.name === 'VehicleMessagingTab') {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            badgeCount = badges.unreadMessages;
           } else if (route.name === 'VehicleFavoritesTab') {
             iconName = focused ? 'heart' : 'heart-outline';
           } else if (route.name === 'VehicleProfileTab') {
@@ -329,7 +378,15 @@ const VehicleTabNavigator = () => {
             iconName = 'car-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return (
+            <TabBarBadgeIcon
+              name={iconName}
+              focused={focused}
+              color={color}
+              size={size}
+              badgeCount={badgeCount}
+            />
+          );
         },
         tabBarActiveTintColor: TRAVELER_COLORS.primary,
         tabBarInactiveTintColor: 'gray',
@@ -367,18 +424,22 @@ const VehicleTabNavigator = () => {
 
 // Mode Logement longue durée (propriétaire : logements, candidatures, messages, stats, compte)
 const MonthlyRentalOwnerTabNavigator = () => {
+  const badges = useTabNotificationBadges();
+
   return (
     <MonthlyRentalTab.Navigator
       initialRouteName="MonthlyRentalListingsTab"
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
+          let badgeCount = 0;
           if (route.name === 'MonthlyRentalListingsTab') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'MonthlyRentalCandidaturesTab') {
             iconName = focused ? 'people' : 'people-outline';
           } else if (route.name === 'MonthlyRentalMessagesTab') {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            badgeCount = badges.unreadMessages;
           } else if (route.name === 'MonthlyRentalStatsTab') {
             iconName = focused ? 'stats-chart' : 'stats-chart-outline';
           } else if (route.name === 'MonthlyRentalProfileTab') {
@@ -386,7 +447,15 @@ const MonthlyRentalOwnerTabNavigator = () => {
           } else {
             iconName = 'home-outline';
           }
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return (
+            <TabBarBadgeIcon
+              name={iconName}
+              focused={focused}
+              color={color}
+              size={size}
+              badgeCount={badgeCount}
+            />
+          );
         },
         tabBarActiveTintColor: MONTHLY_RENTAL_COLORS.primary,
         tabBarInactiveTintColor: 'gray',
@@ -533,6 +602,7 @@ const AppNavigator = () => {
     <NavigationContainer ref={navigationRef}>
       <PushNotificationBootstrap />
       <PushNotificationNavigationHandler navigationRef={navigationRef} />
+      <TabNotificationBadgesProvider>
       <AdminNotificationsProvider>
       <Stack.Navigator
         initialRouteName="Home"
@@ -1212,6 +1282,7 @@ const AppNavigator = () => {
       <StripeReturnHandler navigationRef={navigationRef} />
       <WaveReturnHandler />
       </AdminNotificationsProvider>
+      </TabNotificationBadgesProvider>
     </NavigationContainer>
   );
 };

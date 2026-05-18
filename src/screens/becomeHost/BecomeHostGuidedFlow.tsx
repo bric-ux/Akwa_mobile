@@ -87,12 +87,13 @@ export type BecomeHostGuidedFlowProps = {
   onSubmit: () => void;
   loading: boolean;
   isSubmitting: boolean;
+  isPhoneAccount?: boolean;
 };
 
 function canGoNextGuided(
   step: number,
   fd: Record<string, unknown>,
-  extras: { hostFullName: string; hostEmail: string; hostPhone: string },
+  extras: { hostFullName: string; hostEmail: string; hostPhone: string; isPhoneAccount?: boolean },
 ): boolean {
   switch (step) {
     case 1:
@@ -104,7 +105,11 @@ function canGoNextGuided(
     case 4:
       return Boolean(fd.price && String(fd.price).trim());
     case 5:
-      return Boolean(extras.hostFullName && extras.hostEmail && extras.hostPhone);
+      return Boolean(
+        extras.hostFullName &&
+          extras.hostPhone &&
+          (extras.isPhoneAccount || extras.hostEmail),
+      );
     default:
       return true;
   }
@@ -147,6 +152,7 @@ export default function BecomeHostGuidedFlow(props: BecomeHostGuidedFlowProps) {
     onSubmit,
     loading,
     isSubmitting,
+    isPhoneAccount = false,
   } = props;
 
   const goNextGuided = () => {
@@ -154,6 +160,7 @@ export default function BecomeHostGuidedFlow(props: BecomeHostGuidedFlowProps) {
       hostFullName: formData.hostFullName,
       hostEmail: formData.hostEmail,
       hostPhone: formData.hostPhone,
+      isPhoneAccount,
     });
     if (!ok) {
       Alert.alert(
@@ -511,12 +518,15 @@ export default function BecomeHostGuidedFlow(props: BecomeHostGuidedFlowProps) {
                 />
               </View>
               <View>
-                <Text style={styles.fieldLabel}>Email *</Text>
+                <Text style={styles.fieldLabel}>
+                  {isPhoneAccount ? 'Email (optionnel)' : 'Email *'}
+                </Text>
                 <TextInput
                   style={styles.input}
                   value={formData.hostEmail}
                   onChangeText={(v) => handleInputChange('hostEmail', v)}
                   keyboardType="email-address"
+                  placeholder={isPhoneAccount ? 'Ajouter un email (facultatif)' : 'votre@email.com'}
                   placeholderTextColor="#999"
                 />
               </View>

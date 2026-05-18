@@ -7,8 +7,9 @@ import {
   ScrollView,
   Dimensions,
   LayoutChangeEvent,
+  TouchableOpacity,
+  Pressable,
 } from 'react-native';
-import { TouchableOpacity } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { Property } from '../types';
 import { useFavorites } from '../hooks/useFavorites';
@@ -171,51 +172,33 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
     </View>
   );
 
-  return (
-    <TouchableOpacity
-      style={[
-        styles.container,
-        variant === 'list' &&
-          (horizontalShelf ? styles.listContainerShelf : styles.listContainer),
-      ]}
-      onPress={handlePropertyPress}
-      activeOpacity={0.8}
-    >
-      {variant === 'list' ? (
+  if (variant === 'list') {
+    return (
+      <View
+        style={[
+          styles.container,
+          horizontalShelf ? styles.listContainerShelf : styles.listContainer,
+        ]}
+      >
         <View style={[styles.cardLayout, horizontalShelf && styles.cardLayoutShelf]}>
-          {/* Image avec prix en overlay */}
-          <View style={styles.imageArea}>
-            {renderListCoverImage(CAROUSEL_HEIGHT)}
-            {/* Prix en overlay */}
-            <View style={styles.priceOverlay} pointerEvents="none">
-              <View style={styles.priceOverlayContent}>
-                <Text style={styles.priceText}>
-                  {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
-                </Text>
+          <TouchableOpacity onPress={handlePropertyPress} activeOpacity={0.8}>
+            <View style={styles.imageArea}>
+              {renderListCoverImage(CAROUSEL_HEIGHT)}
+              <View style={styles.priceOverlay} pointerEvents="none">
+                <View style={styles.priceOverlayContent}>
+                  <Text style={styles.priceText}>
+                    {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
+                  </Text>
+                </View>
+                {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
+                  <Text style={styles.discountOverlay}>
+                    -{property.discount_percentage}% {t('property.forNights')} {property.discount_min_nights}+ {t('property.nights')}
+                  </Text>
+                )}
               </View>
-              {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
-                <Text style={styles.discountOverlay}>
-                  -{property.discount_percentage}% {t('property.forNights')} {property.discount_min_nights}+ {t('property.nights')}
-                </Text>
-              )}
             </View>
-            
-            {/* Bouton favori */}
-            <TouchableOpacity
-              style={styles.favoriteButton}
-              onPress={handleFavoritePress}
-              disabled={favoriteLoading}
-            >
-              <Ionicons
-                name={isFavorited ? 'heart' : 'heart-outline'}
-                size={20}
-                color={isFavorited ? '#e74c3c' : '#fff'}
-              />
-            </TouchableOpacity>
-          </View>
-          
-          {/* Contenu de la carte */}
-          <View style={[styles.cardContent, horizontalShelf && styles.cardContentShelf]}>
+
+            <View style={[styles.cardContent, horizontalShelf && styles.cardContentShelf]}>
             <Text style={styles.cardTitle} numberOfLines={1}>
               {property.title}
             </Text>
@@ -250,34 +233,57 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
             ) : horizontalShelf ? (
               <View style={styles.cardAmenitiesShelfPlaceholder} />
             ) : null}
-          </View>
+            </View>
+          </TouchableOpacity>
+
+          <Pressable
+            style={styles.favoriteButton}
+            onPress={handleFavoritePress}
+            disabled={favoriteLoading}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={isFavorited ? 'heart' : 'heart-outline'}
+              size={20}
+              color={isFavorited ? '#e74c3c' : '#fff'}
+            />
+          </Pressable>
         </View>
-      ) : (
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      style={styles.container}
+      onPress={handlePropertyPress}
+      activeOpacity={0.8}
+    >
         <>
           <View style={styles.imageArea}>
             {renderImageCarousel(CAROUSEL_HEIGHT)}
-            <TouchableOpacity
+            <View style={styles.priceOverlay} pointerEvents="none">
+              <Text style={styles.priceText}>
+                {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
+              </Text>
+              {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
+                <Text style={styles.discountOverlay}>
+                  -{property.discount_percentage}% {t('property.forNights')} {property.discount_min_nights}+ {t('property.nights')}
+                </Text>
+              )}
+            </View>
+            <Pressable
               style={styles.favoriteButton}
               onPress={handleFavoritePress}
               disabled={favoriteLoading}
+              hitSlop={8}
             >
               <Ionicons
                 name={isFavorited ? 'heart' : 'heart-outline'}
                 size={20}
                 color={isFavorited ? '#e74c3c' : '#fff'}
               />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.priceContainer}>
-            <Text style={styles.price}>
-              {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
-            </Text>
-            {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
-              <Text style={styles.discountBadgeOverlay}>
-                -{property.discount_percentage}% {t('property.forNights')} {property.discount_min_nights}+ {t('property.nights')}
-              </Text>
-            )}
+            </Pressable>
           </View>
 
           <View style={styles.content}>
@@ -331,7 +337,6 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
             )}
           </View>
         </>
-      )}
     </TouchableOpacity>
   );
 };
@@ -369,6 +374,7 @@ const styles = StyleSheet.create({
   },
   // Nouveaux styles pour le design en cartes
   cardLayout: {
+    position: 'relative',
     backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
@@ -381,6 +387,8 @@ const styles = StyleSheet.create({
   imageArea: {
     position: 'relative',
     width: '100%',
+    height: CAROUSEL_HEIGHT,
+    overflow: 'hidden',
   },
   imageContainer: {
     width: '100%',
@@ -493,10 +501,11 @@ const styles = StyleSheet.create({
   },
   favoriteButton: {
     position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    top: 10,
+    left: 10,
+    zIndex: 20,
+    elevation: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     borderRadius: 20,
     width: 36,
     height: 36,

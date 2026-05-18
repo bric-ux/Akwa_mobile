@@ -1,16 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-
-const { width } = Dimensions.get('window');
+import { useAuth } from '../services/AuthContext';
 
 interface Announcement {
   icon: string;
@@ -20,30 +18,60 @@ interface Announcement {
   action: () => void;
 }
 
-export const InfoBanner: React.FC = () => {
+const CAROUSEL_MAX_HEIGHT = 72;
+
+type InfoBannerProps = {
+  /** Bandeau défilant Conciergerie / Véhicules (masqué au scroll vers le bas sur Explorer). */
+  showCarousel?: boolean;
+};
+
+export const InfoBanner: React.FC<InfoBannerProps> = ({ showCarousel = true }) => {
   const navigation = useNavigation();
+  const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const translateX = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const carouselCollapse = useRef(new Animated.Value(1)).current;
 
-  const announcements: Announcement[] = [
-    {
-      icon: 'sparkles',
-      label: 'Conciergerie',
-      color: '#10b981',
-      accentColor: 'rgba(16, 185, 129, 0.1)',
-      action: () => navigation.navigate('Conciergerie' as never),
-    },
-    {
-      icon: 'car-sport',
-      label: 'Véhicules',
-      color: '#3b82f6',
-      accentColor: 'rgba(59, 130, 246, 0.1)',
-      action: () => navigation.navigate('Vehicles' as never),
-    },
-  ];
+  const goToBecomeHost = () => {
+    if (user) {
+      navigation.navigate('BecomeHost' as never);
+    } else {
+      navigation.navigate('Auth' as never, { returnTo: 'BecomeHost' } as never);
+    }
+  };
+
+  const announcements: Announcement[] = useMemo(
+    () => [
+      {
+        icon: 'sparkles',
+        label: 'Conciergerie',
+        color: '#10b981',
+        accentColor: 'rgba(16, 185, 129, 0.1)',
+        action: () => navigation.navigate('Conciergerie' as never),
+      },
+      {
+        icon: 'car-sport',
+        label: 'Véhicules',
+        color: '#3b82f6',
+        accentColor: 'rgba(59, 130, 246, 0.1)',
+        action: () => navigation.navigate('Vehicles' as never),
+      },
+    ],
+    [navigation],
+  );
 
   useEffect(() => {
+    Animated.timing(carouselCollapse, {
+      toValue: showCarousel ? 1 : 0,
+      duration: 220,
+      useNativeDriver: false,
+    }).start();
+  }, [showCarousel, carouselCollapse]);
+
+  useEffect(() => {
+    if (!showCarousel) return;
+
     const interval = setInterval(() => {
       Animated.sequence([
         Animated.parallel([
@@ -77,12 +105,27 @@ export const InfoBanner: React.FC = () => {
     }, 4500);
 
     return () => clearInterval(interval);
-  }, [currentIndex, announcements.length]);
+  }, [announcements.length, scaleAnim, translateX, showCarousel]);
 
   const current = announcements[currentIndex];
 
+  const carouselMaxHeight = carouselCollapse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, CAROUSEL_MAX_HEIGHT],
+  });
+  const carouselOpacity = carouselCollapse;
+
   return (
-    <View style={styles.container}>
+    <View style={styles.wrapper}>
+      <Animated.View
+        style={{
+          maxHeight: carouselMaxHeight,
+          opacity: carouselOpacity,
+          overflow: 'hidden',
+        }}
+        pointerEvents={showCarousel ? 'auto' : 'none'}
+      >
+      <View style={styles.container}>
       <TouchableOpacity
         onPress={current.action}
         activeOpacity={0.85}
@@ -92,27 +135,23 @@ export const InfoBanner: React.FC = () => {
           style={[
             styles.content,
             {
-              transform: [
-                { translateX },
-                { scale: scaleAnim },
-              ],
+              transform: [{ translateX }, { scale: scaleAnim }],
             },
           ]}
         >
-          {/* Icon with glow effect */}
           <View style={[styles.iconContainer, { backgroundColor: current.accentColor }]}>
             <Ionicons name={current.icon as any} size={16} color={current.color} />
           </View>
 
-          {/* Text */}
           <View style={styles.textContainer}>
-            <Text style={styles.label}>{current.label}</Text>
+            <Text style={styles.label} numberOfLines={1}>
+              {current.label}
+            </Text>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>Nouveau</Text>
             </View>
           </View>
 
-          {/* Arrow */}
           <Ionicons
             name="chevron-forward"
             size={14}
@@ -122,11 +161,10 @@ export const InfoBanner: React.FC = () => {
         </Animated.View>
       </TouchableOpacity>
 
-      {/* Minimal indicators */}
       <View style={styles.indicators}>
-        {announcements.map((_, index) => (
+        {announcements.map((item, index) => (
           <TouchableOpacity
-            key={index}
+            key={item.label}
             onPress={() => {
               setCurrentIndex(index);
               translateX.setValue(0);
@@ -146,17 +184,64 @@ export const InfoBanner: React.FC = () => {
           </TouchableOpacity>
         ))}
       </View>
+      </View>
+      </Animated.View>
+
+      <TouchableOpacity
+        onPress={goToBecomeHost}
+        activeOpacity={0.85}
+        style={styles.hostBanner}
+      >
+        <View style={[styles.hostIconContainer, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+          <Ionicons name="home" size={16} color="#10b981" />
+        </View>
+        <Text style={styles.hostBannerText}>
+          Ajouter une résidence sur AkwaHome{' '}
+          <Text style={styles.hostBannerLink}>en cliquant ici</Text>
+        </Text>
+        <Ionicons name="chevron-forward" size={14} color="rgba(255, 255, 255, 0.4)" />
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     backgroundColor: '#0a0e1a',
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  container: {
     paddingVertical: 6,
     paddingHorizontal: 12,
+  },
+  hostBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(16, 185, 129, 0.25)',
+    backgroundColor: 'rgba(16, 185, 129, 0.14)',
+  },
+  hostIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hostBannerText: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
+  hostBannerLink: {
+    color: '#6ee7b7',
+    textDecorationLine: 'underline',
   },
   touchable: {
     borderRadius: 8,
@@ -188,6 +273,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   label: {
+    flex: 1,
     color: '#fff',
     fontSize: 13,
     fontWeight: '600',

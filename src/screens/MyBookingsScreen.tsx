@@ -33,6 +33,7 @@ import { useCurrency } from '../hooks/useCurrency';
 import GuestModePlaceholder from '../components/GuestModePlaceholder';
 import MediaThumb from '../components/MediaThumb';
 import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
+import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -44,6 +45,10 @@ const MyBookingsScreen: React.FC = () => {
   const { getMyBookings: getVehicleBookings, loading: vehiclesLoading } = useVehicleBookings();
   const { canUserReviewProperty } = useReviews();
   const { canReviewVehicle } = useVehicleReviews();
+  const {
+    markGuestPropertyBookingsViewed,
+    markGuestVehicleBookingsViewed,
+  } = useTabNotificationBadges();
   const { getBookingPendingRequest } = useBookingModifications();
   const { getBookingPendingRequest: getVehicleBookingPendingRequest } = useVehicleBookingModifications();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -188,8 +193,10 @@ const MyBookingsScreen: React.FC = () => {
     React.useCallback(() => {
       if (user) {
         loadBookings();
+        markGuestPropertyBookingsViewed();
+        markGuestVehicleBookingsViewed();
       }
-    }, [user])
+    }, [user, markGuestPropertyBookingsViewed, markGuestVehicleBookingsViewed])
   );
 
   const handleRefresh = async () => {

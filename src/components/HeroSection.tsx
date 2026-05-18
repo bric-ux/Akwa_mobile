@@ -1,14 +1,12 @@
-import React, { useMemo, useRef, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   useWindowDimensions,
-  ScrollView,
   PixelRatio,
   Platform,
-  LayoutChangeEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,14 +15,13 @@ const HERO_SOURCE = require('../../assets/images/hero-cote-ivoire.jpg');
 
 interface HeroSectionProps {
   onSearchPress?: () => void;
+  /** Marge haute (safe area / header) pour éviter que le titre soit masqué sous la barre système */
+  topInset?: number;
 }
 
-export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
+export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress, topInset = 0 }) => {
   const { height } = useWindowDimensions();
   const fontScale = PixelRatio.getFontScale();
-  const heroScrollRef = useRef<ScrollView>(null);
-  const scrollViewportH = useRef(0);
-  const scrollContentH = useRef(0);
 
   /** Petits écrans : plus de hauteur hero + typo réduite pour éviter le bouton coupé par overflow. */
   const compact = height < 700;
@@ -56,31 +53,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
     };
   }, [compact, veryCompact, fontScale]);
 
-  const scrollCtaIntoView = useCallback(() => {
-    const vh = scrollViewportH.current;
-    const ch = scrollContentH.current;
-    if (vh <= 0 || ch <= 0 || ch <= vh + 2) return;
-    requestAnimationFrame(() => {
-      heroScrollRef.current?.scrollToEnd({ animated: false });
-    });
-  }, []);
-
-  const onHeroScrollLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      scrollViewportH.current = e.nativeEvent.layout.height;
-      scrollCtaIntoView();
-    },
-    [scrollCtaIntoView],
-  );
-
-  const onHeroContentSizeChange = useCallback(
-    (_w: number, h: number) => {
-      scrollContentH.current = h;
-      scrollCtaIntoView();
-    },
-    [scrollCtaIntoView],
-  );
-
   return (
     <View style={[styles.container, { height: heroMinHeight }]}>
       <View style={styles.imageClip}>
@@ -93,23 +65,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
           transition={200}
         />
       </View>
-      <ScrollView
-        ref={heroScrollRef}
-        style={styles.scrollFill}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-        keyboardShouldPersistTaps="handled"
-        onLayout={onHeroScrollLayout}
-        onContentSizeChange={onHeroContentSizeChange}
+      <View
+        style={[
+          styles.overlay,
+          Platform.OS === 'android' && styles.overlayAndroid,
+          topInset > 0 && { paddingTop: Math.max(12, topInset) },
+        ]}
       >
-        <View
-          style={[
-            styles.overlay,
-            Platform.OS === 'android' && styles.overlayAndroid,
-          ]}
-        >
-          <View style={styles.content}>
+        <View style={styles.content}>
             <Text style={[styles.title, { fontSize: dynamic.titleSize }]}>Trouvez votre</Text>
             <Text
               style={[
@@ -161,9 +124,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearchPress }) => {
                 Rechercher un hébergement
               </Text>
             </TouchableOpacity>
-          </View>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 };
@@ -186,15 +148,8 @@ const styles = StyleSheet.create({
   backgroundImage: {
     ...StyleSheet.absoluteFillObject,
   },
-  scrollFill: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'flex-end',
-  },
   overlay: {
-    flexGrow: 1,
+    flex: 1,
     justifyContent: 'flex-end',
     backgroundColor: 'rgba(0, 0, 0, 0.2)',
     alignItems: 'center',

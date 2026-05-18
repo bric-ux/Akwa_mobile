@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { isPhonePseudoEmail } from '../lib/displayContact';
 
 export const useEmailVerification = () => {
   const [isEmailVerified, setIsEmailVerified] = useState(false);
@@ -46,6 +47,11 @@ export const useEmailVerification = () => {
 
       if (!profile) {
         console.error('❌ Profil non trouvé pour user_id:', user.id);
+        return;
+      }
+
+      if (isPhonePseudoEmail(profile.email)) {
+        setIsEmailVerified(true);
         return;
       }
 

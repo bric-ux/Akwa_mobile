@@ -38,6 +38,7 @@ import {
   fetchHostFinancialOverviewForBookings,
   HostFinancialOverview,
 } from '../components/HostBookingFinancialAlerts';
+import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 type HostVehicleBookingsRouteParams = {
   vehicleId?: string;
@@ -53,6 +54,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const { getMyVehicles } = useVehicles();
   const { canReviewBooking } = useVehicleRenterReviews();
   const { user } = useAuth();
+  const { markHostVehicleBookingsViewed } = useTabNotificationBadges();
   const { getPendingRequestsForOwner } = useVehicleBookingModifications();
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -133,7 +135,8 @@ const HostVehicleBookingsScreen: React.FC = () => {
   useFocusEffect(
     React.useCallback(() => {
       loadBookings();
-    }, [selectedVehicleId])
+      markHostVehicleBookingsViewed();
+    }, [selectedVehicleId, markHostVehicleBookingsViewed])
   );
 
   const handleRefresh = async () => {

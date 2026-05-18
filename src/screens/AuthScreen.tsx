@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
   Image,
   Linking,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +23,8 @@ import { useAuth } from '../services/AuthContext';
 import PasswordValidation from '../components/PasswordValidation';
 import EmailVerificationModal from '../components/EmailVerificationModal';
 import PasswordResetModal from '../components/PasswordResetModal';
+import PhoneSignInForm from '../components/auth/PhoneSignInForm';
+import PhoneSignUpForm from '../components/auth/PhoneSignUpForm';
 import { useEmailVerification } from '../hooks/useEmailVerification';
 import { useLanguage } from '../contexts/LanguageContext';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
@@ -36,6 +39,8 @@ const AuthScreen: React.FC = () => {
   const { signIn, signUp } = useAuth();
 
   const [isLogin, setIsLogin] = useState(true);
+  /** Aligné site web : téléphone par défaut */
+  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('phone');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -56,6 +61,15 @@ const AuthScreen: React.FC = () => {
   } | null>(null);
 
   const { generateVerificationCode } = useEmailVerification();
+
+  const handleBack = useCallback(() => {
+    Keyboard.dismiss();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('Home' as never);
+  }, [navigation]);
 
   // Fonction de validation du mot de passe
   const validatePassword = (password: string) => {
@@ -149,6 +163,70 @@ const AuthScreen: React.FC = () => {
     return null;
   };
 
+  const navigateAfterLogin = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+
+    if (returnTo && returnTo !== 'Auth') {
+      if (returnParams) {
+        navigation.replace(returnTo as any, returnParams);
+      } else {
+        navigation.replace(returnTo as any);
+      }
+      return;
+    }
+
+    try {
+      const preferredMode = await AsyncStorage.getItem('preferredMode');
+      if (preferredMode === 'host' && currentUser) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_host')
+          .eq('user_id', currentUser.id)
+          .single();
+        const { data: properties } = await supabase
+          .from('properties')
+          .select('id')
+          .eq('host_id', currentUser.id)
+          .limit(1);
+        const isHost = profile?.is_host || (properties && properties.length > 0);
+        if (isHost) {
+          navigation.reset({ index: 0, routes: [{ name: 'HostSpace' }] });
+          return;
+        }
+        await AsyncStorage.setItem('preferredMode', 'traveler');
+      } else if (preferredMode === 'vehicle' && currentUser) {
+        const { data: vehicles } = await supabase
+          .from('vehicles')
+          .select('id')
+          .eq('owner_id', currentUser.id)
+          .limit(1);
+        if (vehicles && vehicles.length > 0) {
+          navigation.reset({ index: 0, routes: [{ name: 'VehicleOwnerSpace' }] });
+          return;
+        }
+        await AsyncStorage.setItem('preferredMode', 'traveler');
+      } else if (FEATURE_MONTHLY_RENTAL && preferredMode === 'monthly_rental' && currentUser) {
+        const { data: listings } = await supabase
+          .from('monthly_rental_listings')
+          .select('id')
+          .eq('owner_id', currentUser.id)
+          .limit(1);
+        if (listings && listings.length > 0) {
+          navigation.reset({ index: 0, routes: [{ name: 'MonthlyRentalOwnerSpace' }] });
+          return;
+        }
+        await AsyncStorage.setItem('preferredMode', 'traveler');
+      }
+    } catch (error) {
+      console.error('Error checking preferred mode:', error);
+    }
+
+    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
+
   const handleEmailVerificationSuccess = () => {
     setShowEmailVerification(false);
     setPendingUserData(null);
@@ -192,106 +270,7 @@ const AuthScreen: React.FC = () => {
       if (isLogin) {
         // Connexion
         await signIn(email, password);
-
-        // Attendre un peu pour que l'utilisateur soit disponible
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Récupérer l'utilisateur actuel
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-        // Redirection automatique après connexion réussie
-        if (returnTo && returnTo !== 'Auth') {
-          if (returnParams) {
-            navigation.replace(returnTo as any, returnParams);
-          } else {
-            navigation.replace(returnTo as any);
-          }
-        } else {
-          // Vérifier le mode préféré sauvegardé
-          try {
-            const preferredMode = await AsyncStorage.getItem('preferredMode');
-            if (preferredMode === 'host' && currentUser) {
-              // Vérifier que l'utilisateur est bien hôte
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('is_host')
-                .eq('user_id', currentUser.id)
-                .single();
-
-              const { data: properties } = await supabase
-                .from('properties')
-                .select('id')
-                .eq('host_id', currentUser.id)
-                .limit(1);
-
-              const isHost = profile?.is_host || (properties && properties.length > 0);
-
-              if (isHost) {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'HostSpace' }],
-                });
-              } else {
-                // L'utilisateur n'est pas hôte, réinitialiser le mode préféré
-                await AsyncStorage.setItem('preferredMode', 'traveler');
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                });
-              }
-            } else if (preferredMode === 'vehicle' && currentUser) {
-              // Vérifier si l'utilisateur a des véhicules
-              const { data: vehicles } = await supabase
-                .from('vehicles')
-                .select('id')
-                .eq('owner_id', currentUser.id)
-                .limit(1);
-
-              if (vehicles && vehicles.length > 0) {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'VehicleOwnerSpace' }],
-                });
-              } else {
-                // L'utilisateur n'a pas de véhicules, réinitialiser le mode préféré
-                await AsyncStorage.setItem('preferredMode', 'traveler');
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                });
-              }
-            } else if (FEATURE_MONTHLY_RENTAL && preferredMode === 'monthly_rental' && currentUser) {
-              const { data: listings } = await supabase
-                .from('monthly_rental_listings')
-                .select('id')
-                .eq('owner_id', currentUser.id)
-                .limit(1);
-              if (listings && listings.length > 0) {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'MonthlyRentalOwnerSpace' }],
-                });
-              } else {
-                await AsyncStorage.setItem('preferredMode', 'traveler');
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                });
-              }
-            } else {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Home' }],
-              });
-            }
-          } catch (error) {
-            console.error('Error checking preferred mode:', error);
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Home' }],
-            });
-          }
-        }
+        await navigateAfterLogin();
       } else {
         // Inscription
         // Convertir la date au format ISO (YYYY-MM-DD) pour la base de données
@@ -431,6 +410,7 @@ const AuthScreen: React.FC = () => {
 
   const toggleAuthMode = () => {
     setIsLogin(!isLogin);
+    setAuthMethod('phone');
     setEmail('');
     setPassword('');
     setConfirmPassword('');
@@ -516,7 +496,7 @@ const AuthScreen: React.FC = () => {
           <View style={styles.header}>
             <TouchableOpacity 
               style={styles.backButton} 
-              onPress={() => navigation.navigate('Home')}
+              onPress={handleBack}
             >
               <Ionicons name="arrow-back" size={24} color="#2E7D32" />
               <Text style={styles.backButtonText}>{t('common.back')}</Text>
@@ -544,6 +524,51 @@ const AuthScreen: React.FC = () => {
                 : t('auth.signupSubtitle')}
             </Text>
 
+            <View style={styles.methodToggle}>
+              <TouchableOpacity
+                style={[styles.methodTab, authMethod === 'phone' && styles.methodTabActive]}
+                onPress={() => setAuthMethod('phone')}
+              >
+                <Text style={[styles.methodTabText, authMethod === 'phone' && styles.methodTabTextActive]}>
+                  Téléphone
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.methodTab, authMethod === 'email' && styles.methodTabActive]}
+                onPress={() => setAuthMethod('email')}
+              >
+                <Text style={[styles.methodTabText, authMethod === 'email' && styles.methodTabTextActive]}>
+                  Email
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {authMethod === 'phone' ? (
+              isLogin ? (
+                <PhoneSignInForm
+                  onSuccess={async () => {
+                    setLoading(true);
+                    try {
+                      await navigateAfterLogin();
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                />
+              ) : (
+                <PhoneSignUpForm
+                  onSuccess={async () => {
+                    setLoading(true);
+                    try {
+                      await navigateAfterLogin();
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                />
+              )
+            ) : (
+              <>
             {!isLogin && (
               <>
                 <View style={styles.inputContainer}>
@@ -640,8 +665,8 @@ const AuthScreen: React.FC = () => {
               </View>
             )}
 
-            {/* Lien "Mot de passe oublié" - uniquement en mode connexion */}
-            {isLogin && (
+            {/* Mot de passe oublié (email uniquement ; téléphone : dans PhoneSignInForm) */}
+            {isLogin && authMethod === 'email' && (
               <TouchableOpacity 
                 style={styles.forgotPasswordContainer}
                 onPress={handleForgotPassword}
@@ -685,6 +710,8 @@ const AuthScreen: React.FC = () => {
                   : t('auth.createAccount')}
               </Text>
             </TouchableOpacity>
+              </>
+            )}
 
             <TouchableOpacity style={styles.toggleButton} onPress={toggleAuthMode}>
               <Text style={styles.toggleButtonText}>
@@ -886,8 +913,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 16,
     lineHeight: 22,
+  },
+  methodToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 999,
+    padding: 4,
+    marginBottom: 20,
+  },
+  methodTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
+  methodTabActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  methodTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  methodTabTextActive: {
+    color: '#2E7D32',
   },
   inputContainer: {
     flexDirection: 'row',

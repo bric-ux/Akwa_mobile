@@ -18,6 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../services/supabase';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { displayEmailOrPhone } from '../lib/displayContact';
 
 interface UserProfile {
   id: string;
@@ -460,9 +461,9 @@ const EditProfileScreen: React.FC = () => {
               <Text style={styles.label}>Email</Text>
               <TextInput
                 style={[styles.input, styles.disabledInput]}
-                value={profile?.email || ''}
+                value={displayEmailOrPhone(profile?.email, formData.phone)}
                 editable={false}
-                placeholder="Email"
+                placeholder="Email ou téléphone"
               />
               <Text style={styles.disabledHint}>L'email ne peut pas être modifié</Text>
             </View>

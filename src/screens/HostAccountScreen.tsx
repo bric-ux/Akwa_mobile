@@ -21,6 +21,7 @@ import { useVehicles } from '../hooks/useVehicles';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { APP_VERSION } from '../constants/appVersion';
+import { displayEmailOrPhone } from '../lib/displayContact';
 
 const HostAccountScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -256,7 +257,9 @@ const HostAccountScreen: React.FC = () => {
           <Text style={styles.userName}>
             {profile?.first_name || 'Hôte'} {profile?.last_name || ''}
           </Text>
-          <Text style={styles.userEmail}>{profile?.email}</Text>
+          <Text style={styles.userEmail}>
+            {displayEmailOrPhone(profile?.email, (profile as { phone?: string } | null)?.phone)}
+          </Text>
           
           {/* Badge Hôte */}
           <View style={styles.hostBadge}>

@@ -26,6 +26,7 @@ import { HOST_COLORS, VEHICLE_COLORS, MONTHLY_RENTAL_COLORS, TRAVELER_COLORS } f
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { APP_VERSION } from '../constants/appVersion';
 import BottomNavigationBar from '../components/BottomNavigationBar';
+import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -519,27 +520,39 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.userName}>
             {profile?.first_name || 'Utilisateur'} {profile?.last_name || ''}
           </Text>
-          <Text style={styles.userEmail}>{profile?.email}</Text>
-          
-          {/* Statut de vérification d'email */}
-          <View style={styles.emailStatusContainer}>
-            <Ionicons 
-              name={isEmailVerified ? 'checkmark-circle' : 'alert-circle'} 
-              size={16} 
-              color={isEmailVerified ? '#10b981' : '#f59e0b'} 
-            />
-            <Text style={styles.emailStatusText}>
-              {isEmailVerified ? t('auth.emailVerified') : t('auth.emailNotVerified')}
-            </Text>
-            {!isEmailVerified && (
-              <TouchableOpacity 
-                style={styles.verifyEmailButton}
-                onPress={handleEmailVerification}
-              >
-                <Text style={styles.verifyEmailButtonText}>{t('auth.verifyEmail')}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          {(() => {
+            const contactDisplay = displayEmailOrPhone(
+              profile?.email ?? user?.email,
+              (profile as { phone?: string } | null)?.phone,
+            );
+            const phoneAccount = isPhonePseudoEmail(profile?.email ?? user?.email);
+            if (!contactDisplay) return null;
+            return (
+              <>
+                <Text style={styles.userEmail}>{contactDisplay}</Text>
+                {!phoneAccount && (
+                  <View style={styles.emailStatusContainer}>
+                    <Ionicons
+                      name={isEmailVerified ? 'checkmark-circle' : 'alert-circle'}
+                      size={16}
+                      color={isEmailVerified ? '#10b981' : '#f59e0b'}
+                    />
+                    <Text style={styles.emailStatusText}>
+                      {isEmailVerified ? t('auth.emailVerified') : t('auth.emailNotVerified')}
+                    </Text>
+                    {!isEmailVerified && (
+                      <TouchableOpacity
+                        style={styles.verifyEmailButton}
+                        onPress={handleEmailVerification}
+                      >
+                        <Text style={styles.verifyEmailButtonText}>{t('auth.verifyEmail')}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </>
+            );
+          })()}
           
           {/* Statut de vérification d'identité */}
           {verificationStatus && (

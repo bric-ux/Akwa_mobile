@@ -24,6 +24,7 @@ import MessageBubble from '../components/MessageBubble';
 import { useLanguage } from '../contexts/LanguageContext';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import GuestModePlaceholder from '../components/GuestModePlaceholder';
+import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -57,6 +58,7 @@ const MessagingScreen: React.FC = () => {
     clearUnreadForConversation,
     clearMessages
   } = useMessaging();
+  const { refresh: refreshTabBadges } = useTabNotificationBadges();
 
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -161,7 +163,7 @@ const MessagingScreen: React.FC = () => {
   // Réinitialiser l'état quand l'écran perd le focus (quand on fait goBack)
   useFocusEffect(
     useCallback(() => {
-      // Quand l'écran est focus, on ne fait rien
+      refreshTabBadges();
       return () => {
         // Quand l'écran perd le focus (on quitte), réinitialiser si on était dans une conversation ouverte depuis une propriété
         if (openedFromParam) {
@@ -172,7 +174,7 @@ const MessagingScreen: React.FC = () => {
           setShowConversations(true);
         }
       };
-    }, [openedFromParam, clearMessages])
+    }, [openedFromParam, clearMessages, refreshTabBadges])
   );
 
   // Configuration du temps réel
@@ -196,11 +198,12 @@ const MessagingScreen: React.FC = () => {
           await loadMessages(conversationId);
           // Marquer comme lus après avoir chargé les messages
           await markMessagesAsRead(conversationId, user.id);
+          refreshTabBadges();
         };
         loadAndMark();
       }
     }
-  }, [selectedConversation?.id, user, loadMessages, markMessagesAsRead]);
+  }, [selectedConversation?.id, user, loadMessages, markMessagesAsRead, refreshTabBadges]);
 
   // Auto-scroll vers le bas quand de nouveaux messages arrivent
   useEffect(() => {

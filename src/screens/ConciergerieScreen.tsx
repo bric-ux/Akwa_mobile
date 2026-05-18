@@ -18,6 +18,9 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { supabase } from '../services/supabase';
+import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
+
+type ContactMethod = 'email' | 'phone';
 
 const ConciergerieScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -49,11 +52,23 @@ const ConciergerieScreen: React.FC = () => {
         .join(' ')
         .trim();
       
+      const accountEmail = profile.email || user.email || '';
+      const profilePhone = profile.phone || '';
+      const phoneAccount = isPhonePseudoEmail(accountEmail);
+
       setFormData(prev => ({
         ...prev,
         name: fullName || prev.name,
-        email: profile.email || prev.email,
-        phone: profile.phone || prev.phone,
+        contactMethod: phoneAccount || profilePhone ? 'phone' : 'email',
+        contactValue: phoneAccount
+          ? displayEmailOrPhone(accountEmail, profilePhone)
+          : profilePhone && !phoneAccount
+            ? profilePhone
+            : phoneAccount
+              ? ''
+              : accountEmail && !phoneAccount
+                ? accountEmail
+                : prev.contactValue,
       }));
     }
   }, [user, profile, profileLoading]);
@@ -103,10 +118,25 @@ const ConciergerieScreen: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.email || !formData.phone) {
-      Alert.alert('Informations manquantes', 'Veuillez remplir tous les champs obligatoires.');
+    const contact = formData.contactValue.trim();
+    if (!formData.name.trim() || !contact) {
+      Alert.alert('Informations manquantes', 'Veuillez remplir le nom et votre contact.');
       return;
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^[0-9+\-\s()]{8,}$/;
+    if (formData.contactMethod === 'email' && !emailRegex.test(contact)) {
+      Alert.alert('Contact invalide', 'Veuillez saisir une adresse email valide.');
+      return;
+    }
+    if (formData.contactMethod === 'phone' && !phoneRegex.test(contact)) {
+      Alert.alert('Contact invalide', 'Veuillez saisir un numéro de téléphone valide (au moins 8 chiffres).');
+      return;
+    }
+
+    const clientEmail = formData.contactMethod === 'email' ? contact : '';
+    const clientPhone = formData.contactMethod === 'phone' ? contact : '';
 
     try {
       setLoading(true);
@@ -118,8 +148,9 @@ const ConciergerieScreen: React.FC = () => {
           to: 'jeanbrice270@gmail.com',
           data: {
             clientName: formData.name,
-            clientEmail: formData.email,
-            clientPhone: formData.phone,
+            clientEmail,
+            clientPhone,
+            contactMethod: formData.contactMethod === 'email' ? 'Email' : 'Téléphone',
             propertyType: formData.propertyType || 'Non spécifié',
             numberOfRooms: formData.numberOfRooms || 'Non spécifié',
             surface: formData.surface || 'Non spécifié',
@@ -164,8 +195,8 @@ const ConciergerieScreen: React.FC = () => {
 
       setFormData({
         name: '',
-        email: '',
-        phone: '',
+        contactMethod: 'email',
+        contactValue: '',
         propertyType: '',
         numberOfRooms: '',
         surface: '',
@@ -338,25 +369,64 @@ const ConciergerieScreen: React.FC = () => {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Email *</Text>
+                <Text style={styles.inputLabel}>Contact *</Text>
+                <View style={styles.contactMethodRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.contactMethodBtn,
+                      formData.contactMethod === 'email' && styles.contactMethodBtnActive,
+                    ]}
+                    onPress={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        contactMethod: 'email',
+                        contactValue: prev.contactMethod === 'phone' ? '' : prev.contactValue,
+                      }))
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.contactMethodBtnText,
+                        formData.contactMethod === 'email' && styles.contactMethodBtnTextActive,
+                      ]}
+                    >
+                      Email
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.contactMethodBtn,
+                      formData.contactMethod === 'phone' && styles.contactMethodBtnActive,
+                    ]}
+                    onPress={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        contactMethod: 'phone',
+                        contactValue: prev.contactMethod === 'email' ? '' : prev.contactValue,
+                      }))
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.contactMethodBtnText,
+                        formData.contactMethod === 'phone' && styles.contactMethodBtnTextActive,
+                      ]}
+                    >
+                      Téléphone
+                    </Text>
+                  </TouchableOpacity>
+                </View>
                 <TextInput
                   style={styles.input}
-                  value={formData.email}
-                  onChangeText={(text) => setFormData({ ...formData, email: text })}
-                  placeholder="votre@email.com"
-                  keyboardType="email-address"
+                  value={formData.contactValue}
+                  onChangeText={(text) => setFormData({ ...formData, contactValue: text })}
+                  placeholder={
+                    formData.contactMethod === 'email'
+                      ? 'votre@email.com'
+                      : '+225 XX XX XX XX XX'
+                  }
+                  keyboardType={formData.contactMethod === 'email' ? 'email-address' : 'phone-pad'}
                   autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Téléphone *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.phone}
-                  onChangeText={(text) => setFormData({ ...formData, phone: text })}
-                  placeholder="+225 XX XX XX XX XX"
-                  keyboardType="phone-pad"
                 />
               </View>
 
@@ -947,6 +1017,32 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333',
     marginBottom: 8,
+  },
+  contactMethodRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  contactMethodBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  contactMethodBtnActive: {
+    borderColor: '#e67e22',
+    backgroundColor: '#fef5ee',
+  },
+  contactMethodBtnText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  contactMethodBtnTextActive: {
+    color: '#e67e22',
   },
   input: {
     backgroundColor: '#fff',

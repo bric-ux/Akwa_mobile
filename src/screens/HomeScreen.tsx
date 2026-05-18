@@ -78,6 +78,8 @@ const HomeScreen: React.FC = () => {
   const lastScrollY = useRef(0);
   const [teddyFabVisibleFromScroll, setTeddyFabVisibleFromScroll] = useState(true);
   const teddyFabVisibleRef = useRef(true);
+  const [carouselBannerVisible, setCarouselBannerVisible] = useState(true);
+  const carouselBannerVisibleRef = useRef(true);
   const [showDeferredHeaderContent, setShowDeferredHeaderContent] = useState(false);
 
   useEffect(() => {
@@ -95,18 +97,27 @@ const HomeScreen: React.FC = () => {
     setTeddyFabVisibleFromScroll(next);
   }, []);
 
+  const setCarouselBannerVisibleIfNeeded = useCallback((next: boolean) => {
+    if (carouselBannerVisibleRef.current === next) return;
+    carouselBannerVisibleRef.current = next;
+    setCarouselBannerVisible(next);
+  }, []);
+
   const onExploreScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
     const prev = lastScrollY.current;
     if (y < 120) {
       setFabVisibleIfNeeded(true);
+      setCarouselBannerVisibleIfNeeded(true);
     } else if (y > prev + 8) {
       setFabVisibleIfNeeded(false);
+      setCarouselBannerVisibleIfNeeded(false);
     } else if (y < prev - 8) {
       setFabVisibleIfNeeded(true);
+      setCarouselBannerVisibleIfNeeded(true);
     }
     lastScrollY.current = y;
-  }, [setFabVisibleIfNeeded]);
+  }, [setFabVisibleIfNeeded, setCarouselBannerVisibleIfNeeded]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -497,7 +508,7 @@ const HomeScreen: React.FC = () => {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
         <Header />
-        <InfoBanner />
+        <InfoBanner showCarousel={carouselBannerVisible} />
         
         <FlatList
           style={styles.content}

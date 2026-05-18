@@ -19,6 +19,7 @@ import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { useLanguage } from '../contexts/LanguageContext';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
 import { APP_VERSION } from '../constants/appVersion';
+import { displayEmailOrPhone } from '../lib/displayContact';
 
 const VehicleOwnerAccountScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -232,7 +233,9 @@ const VehicleOwnerAccountScreen: React.FC = () => {
           <Text style={styles.userName}>
             {profile?.first_name || 'Propriétaire'} {profile?.last_name || ''}
           </Text>
-          <Text style={styles.userEmail}>{profile?.email}</Text>
+          <Text style={styles.userEmail}>
+            {displayEmailOrPhone(profile?.email, (profile as { phone?: string } | null)?.phone)}
+          </Text>
           
           {/* Badge Propriétaire de véhicule */}
           <View style={styles.vehicleOwnerBadge}>

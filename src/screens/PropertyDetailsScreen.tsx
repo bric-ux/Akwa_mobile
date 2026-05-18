@@ -343,6 +343,27 @@ const PropertyDetailsScreen: React.FC = () => {
             }}
           />
         )}
+        <TouchableOpacity
+          style={[styles.imageOverlayButton, styles.favoriteOverlayButton]}
+          onPress={handleFavoritePress}
+          disabled={favoriteLoading}
+          accessibilityRole="button"
+          accessibilityLabel={t('favorites.title')}
+        >
+          <Ionicons
+            name={isFavorited ? 'heart' : 'heart-outline'}
+            size={24}
+            color={isFavorited ? '#e74c3c' : '#475569'}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.imageOverlayButton, styles.shareOverlayButton]}
+          onPress={handleShareProperty}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.share')}
+        >
+          <Ionicons name="share-outline" size={22} color="#1e293b" />
+        </TouchableOpacity>
       </View>
 
       {/* Informations principales */}
@@ -350,29 +371,6 @@ const PropertyDetailsScreen: React.FC = () => {
         <View style={styles.titleContainer}>
           <View style={styles.titleTextWrap}>
             <Text style={styles.title}>{property.title}</Text>
-          </View>
-          <View style={styles.titleActions}>
-            <TouchableOpacity
-              style={styles.iconHeaderButton}
-              onPress={handleShareProperty}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.share')}
-            >
-              <Ionicons name="share-outline" size={22} color="#475569" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.iconHeaderButton}
-              onPress={handleFavoritePress}
-              disabled={favoriteLoading}
-              accessibilityRole="button"
-              accessibilityLabel={t('favorites.title')}
-            >
-              <Ionicons
-                name={isFavorited ? 'heart' : 'heart-outline'}
-                size={24}
-                color={isFavorited ? '#e74c3c' : '#666'}
-              />
-            </TouchableOpacity>
           </View>
         </View>
         
@@ -819,6 +817,31 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     position: 'relative',
+  },
+  imageOverlayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  favoriteOverlayButton: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 6,
+  },
+  shareOverlayButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 6,
   },
   mainImage: {
     height: 300,

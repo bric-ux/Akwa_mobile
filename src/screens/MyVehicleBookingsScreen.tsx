@@ -33,6 +33,7 @@ import { getCommissionRates } from '../lib/commissions';
 import ContactOwnerButton from '../components/ContactOwnerButton';
 import MediaThumb from '../components/MediaThumb';
 import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
+import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 const MyVehicleBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -43,6 +44,7 @@ const MyVehicleBookingsScreen: React.FC = () => {
   const { canUserReviewProperty } = useReviews();
   const { getBookingPendingRequest, cancelModificationRequest } = useVehicleBookingModifications();
   const { getBookingPendingRequest: getPropertyBookingPendingRequest } = useBookingModifications();
+  const { markGuestVehicleBookingsViewed } = useTabNotificationBadges();
   const [cancellingRequests, setCancellingRequests] = useState<{ [key: string]: boolean }>({});
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [propertyBookings, setPropertyBookings] = useState<Booking[]>([]);
@@ -170,8 +172,9 @@ const MyVehicleBookingsScreen: React.FC = () => {
     useCallback(() => {
       if (user) {
         loadBookings();
+        markGuestVehicleBookingsViewed();
       }
-    }, [user])
+    }, [user, markGuestVehicleBookingsViewed])
   );
 
   const handleRefresh = async () => {

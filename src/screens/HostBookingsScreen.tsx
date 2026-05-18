@@ -37,6 +37,7 @@ import { calculateHostNetAmount as calculateHostNetAmountCentralized } from '../
 import { useCurrency } from '../hooks/useCurrency';
 import MediaThumb from '../components/MediaThumb';
 import { getPropertyCoverUrl, isVideoUrl } from '../utils/media';
+import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 const HostBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -62,6 +63,7 @@ const HostBookingsScreen: React.FC = () => {
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
   const [bookingDetailsModalVisible, setBookingDetailsModalVisible] = useState(false);
   const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<HostBooking | null>(null);
+  const { markHostPropertyBookingsViewed } = useTabNotificationBadges();
   const { getPendingRequestsForHost } = useBookingModifications();
   const [modificationRequests, setModificationRequests] = useState<BookingModificationRequest[]>([]);
   const [financialOverview, setFinancialOverview] = useState<HostFinancialOverview>({
@@ -135,8 +137,9 @@ const HostBookingsScreen: React.FC = () => {
     React.useCallback(() => {
       if (user) {
         loadData();
+        markHostPropertyBookingsViewed();
       }
-    }, [user])
+    }, [user, markHostPropertyBookingsViewed])
   );
 
   const handleRefresh = async () => {
