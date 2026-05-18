@@ -374,7 +374,7 @@ export default function BecomeHostGuidedFlow(props: BecomeHostGuidedFlowProps) {
                   <Text style={styles.teddyAiBannerTxt}>
                     Génération par Teddy IA basée sur les infos déjà saisies.
                   </Text>
-                  {aiTitleSuggestions.length === 0 && !aiDraftDescription ? (
+                  {(!aiGenerating && (aiTitleSuggestions.length === 0 || !aiDraftDescription)) ? (
                     <TouchableOpacity
                       style={[styles.teddyAiBtn, aiGenerating && styles.btnDisabled]}
                       onPress={generateAiTitleAndDescription}
@@ -383,7 +383,11 @@ export default function BecomeHostGuidedFlow(props: BecomeHostGuidedFlowProps) {
                       {aiGenerating ? (
                         <ActivityIndicator color="#fff" />
                       ) : (
-                        <Text style={styles.teddyAiBtnTxt}>Proposer 3 titres + description</Text>
+                        <Text style={styles.teddyAiBtnTxt}>
+                          {aiTitleSuggestions.length > 0 && !aiDraftDescription
+                            ? 'Relancer la description IA'
+                            : 'Proposer 3 titres + description'}
+                        </Text>
                       )}
                     </TouchableOpacity>
                   ) : null}

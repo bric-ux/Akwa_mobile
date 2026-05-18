@@ -20,7 +20,7 @@ import {
 type Mode = 'signin' | 'forgot-send' | 'forgot-verify';
 
 type Props = {
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 };
 
 const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
@@ -64,7 +64,7 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
         setError('Numéro ou mot de passe incorrect');
         return;
       }
-      onSuccess();
+      await onSuccess();
     } catch {
       setError('Une erreur est survenue');
     } finally {
@@ -129,8 +129,7 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
         setPassword('');
         return;
       }
-      Alert.alert('Mot de passe modifié', 'Vous êtes connecté.');
-      onSuccess();
+      await onSuccess();
     } finally {
       setLoading(false);
     }

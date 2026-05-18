@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   Image,
+  InteractionManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -63,17 +64,17 @@ const ProfileScreen: React.FC = () => {
   // Rafraîchir le profil quand l'écran devient actif (seulement si connecté)
   useFocusEffect(
     React.useCallback(() => {
-      if (user) {
+      if (!user) return;
+      const task = InteractionManager.runAfterInteractions(() => {
         refreshProfile();
         checkPendingApplications();
         checkVehicles();
         if (FEATURE_MONTHLY_RENTAL) checkMonthlyListings();
-        // Rafraîchir aussi le statut de vérification de l'email immédiatement
-        // Vérifier immédiatement pour éviter l'affichage de "non vérifié" puis "vérifié"
         checkEmailVerificationStatus(true);
-      }
+      });
+      return () => task.cancel();
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]) // Ne pas inclure les fonctions pour éviter les boucles
+    }, [user]),
   );
 
   const checkPendingApplications = async () => {

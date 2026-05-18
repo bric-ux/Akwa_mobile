@@ -36,7 +36,11 @@ import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { PROPERTY_TYPES } from '../constants/hostListingForm';
-import { consumeHostAssistantDraft } from '../lib/hostOnboardingAssistant';
+import {
+  consumeHostAssistantDraft,
+  extractAiDescriptionFromAssistantResponse,
+  normalizeTitleSuggestionsFromAi,
+} from '../lib/hostOnboardingAssistant';
 import BecomeHostGuidedFlow from './becomeHost/BecomeHostGuidedFlow';
 import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
 import AdminCreateForUserPanel, { AdminTargetUser } from '../components/admin/AdminCreateForUserPanel';
@@ -602,7 +606,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             {
               role: 'user',
               content:
-                `Voici les infos déjà saisies: ${context}. Propose exactement 3 titres accrocheurs adaptés et une description complète en français, professionnelle et orientée conversion. Dans la description, n'ajoute aucune formule d'introduction (pas de "Pour la description", pas de "Je propose"). Donne directement le texte final prêt à publier.`,
+                `Voici les infos déjà saisies: ${context}. Réponds en JSON valide. Obligatoire: title_suggestions avec exactement 3 titres courts ET draft_patch.description avec une description complète (4 à 8 phrases, français, prête à publier, sans formule d'intro). Ne laisse pas draft_patch.description vide ni ne mets la description seulement dans reply.`,
             },
           ],
         },
@@ -612,16 +616,11 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         throw new Error(data?.error || error?.message || 'Erreur IA');
       }
 
-      const titles = Array.isArray(data?.title_suggestions)
-        ? data!.title_suggestions!.map((t) => String(t).trim()).filter(Boolean).slice(0, 3)
-        : [];
-      const rawDescription = String((data?.draft_patch as { description?: string })?.description || '').trim();
-      const aiDescription = rawDescription
-        .replace(/^pour la description[,:\s-]*/i, '')
-        .replace(/^je vous propose[,:\s-]*/i, '')
-        .replace(/^je propose[,:\s-]*/i, '')
-        .trim();
-
+      const titles = normalizeTitleSuggestionsFromAi(data?.title_suggestions);
+      const aiDescription = extractAiDescriptionFromAssistantResponse({
+        draft_patch: data?.draft_patch,
+        reply: data?.reply,
+      });
       const draftTitle = String((data?.draft_patch as { title?: string })?.title || '').trim();
 
       const elapsed = Date.now() - startTs;
@@ -634,6 +633,11 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       if (aiDescription) {
         setAiDraftDescription(aiDescription);
         handleInputChange('description', aiDescription);
+      } else if (titles.length > 0) {
+        Alert.alert(
+          'Description non générée',
+          'Les titres sont prêts. Appuyez à nouveau sur « Proposer 3 titres + description » ou rédigez la description manuellement.',
+        );
       }
       if (titles.length === 0 && draftTitle) {
         handleInputChange('title', draftTitle);
@@ -1504,35 +1508,48 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           .update({ role: 'host', is_host: true })
           .eq('user_id', adminTargetUser.user_id);
 
-        try {
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('email, first_name')
-            .eq('user_id', adminTargetUser.user_id)
-            .maybeSingle();
-          if (prof?.email) {
-            await supabase.functions.invoke('send-email', {
-              body: {
-                type: 'asset_assigned_by_admin',
-                to: prof.email,
-                data: {
-                  firstName: prof.first_name || adminTargetUser.full_name.split(' ')[0],
-                  assetKind: 'property',
-                  assetTitle: applicationPayload.title,
-                  siteUrl: 'https://akwahome.com',
-                },
-              },
-            });
-          }
-        } catch (notifyErr) {
-          console.error('Notification asset_assigned échouée:', notifyErr);
-        }
+        const createdForName = adminTargetUser.full_name;
+        const createdTitle = applicationPayload.title;
+        const targetUserId = adminTargetUser.user_id;
 
-        Alert.alert(
-          `Résidence créée pour ${adminTargetUser.full_name}`,
-          'Le propriétaire a été notifié.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Admin' as never) }],
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [
+              {
+                name: 'Home',
+                state: { index: 0, routes: [{ name: 'HomeTab' }] },
+              },
+            ],
+          }),
         );
+
+        void (async () => {
+          try {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('email, first_name')
+              .eq('user_id', targetUserId)
+              .maybeSingle();
+            if (prof?.email) {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'asset_assigned_by_admin',
+                  to: prof.email,
+                  data: {
+                    firstName: prof.first_name || createdForName.split(' ')[0],
+                    assetKind: 'property',
+                    assetTitle: createdTitle,
+                    siteUrl: 'https://akwahome.com',
+                  },
+                },
+              });
+            }
+          } catch (notifyErr) {
+            console.error('Notification asset_assigned échouée:', notifyErr);
+          }
+        })();
+
         return;
       } catch (e: unknown) {
         const message =

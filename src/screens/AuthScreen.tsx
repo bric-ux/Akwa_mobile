@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, CommonActions } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
@@ -49,6 +49,7 @@ const AuthScreen: React.FC = () => {
   const [lastName, setLastName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -166,13 +167,46 @@ const AuthScreen: React.FC = () => {
     return null;
   };
 
-  const navigateAfterLogin = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const {
-      data: { user: currentUser },
-    } = await supabase.auth.getUser();
+  /** Ferme la modale Auth puis active l’onglet Explorer sans reset de la pile. */
+  const leaveAuthForExplorer = useCallback(() => {
+    Keyboard.dismiss();
+    setIsClosing(true);
+
+    const focusExplorerTab = () => {
+      navigation.dispatch(
+        CommonActions.navigate({
+          name: 'Home',
+          params: { screen: 'HomeTab' },
+          merge: true,
+        }),
+      );
+    };
+
+    requestAnimationFrame(() => {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+        InteractionManager.runAfterInteractions(focusExplorerTab);
+        return;
+      }
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [
+            {
+              name: 'Home',
+              state: { index: 0, routes: [{ name: 'HomeTab' }] },
+            },
+          ],
+        }),
+      );
+    });
+  }, [navigation]);
+
+  const navigateAfterLogin = useCallback(async () => {
+    Keyboard.dismiss();
 
     if (returnTo && returnTo !== 'Auth') {
+      setIsClosing(true);
       if (returnParams) {
         navigation.replace(returnTo as any, returnParams);
       } else {
@@ -181,43 +215,54 @@ const AuthScreen: React.FC = () => {
       return;
     }
 
+    const preferredMode = await AsyncStorage.getItem('preferredMode');
+
+    if (!preferredMode || preferredMode === 'traveler') {
+      leaveAuthForExplorer();
+      return;
+    }
+
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+    if (!currentUser) {
+      leaveAuthForExplorer();
+      return;
+    }
+
     try {
-      const preferredMode = await AsyncStorage.getItem('preferredMode');
-      if (preferredMode === 'host' && currentUser) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_host')
-          .eq('user_id', currentUser.id)
-          .single();
-        const { data: properties } = await supabase
-          .from('properties')
-          .select('id')
-          .eq('host_id', currentUser.id)
-          .limit(1);
+      if (preferredMode === 'host') {
+        const [{ data: profile }, { data: properties }] = await Promise.all([
+          supabase.from('profiles').select('is_host').eq('user_id', currentUser.id).single(),
+          supabase.from('properties').select('id').eq('host_id', currentUser.id).limit(1),
+        ]);
         const isHost = profile?.is_host || (properties && properties.length > 0);
         if (isHost) {
+          setIsClosing(true);
           navigation.reset({ index: 0, routes: [{ name: 'HostSpace' }] });
           return;
         }
         await AsyncStorage.setItem('preferredMode', 'traveler');
-      } else if (preferredMode === 'vehicle' && currentUser) {
+      } else if (preferredMode === 'vehicle') {
         const { data: vehicles } = await supabase
           .from('vehicles')
           .select('id')
           .eq('owner_id', currentUser.id)
           .limit(1);
         if (vehicles && vehicles.length > 0) {
+          setIsClosing(true);
           navigation.reset({ index: 0, routes: [{ name: 'VehicleOwnerSpace' }] });
           return;
         }
         await AsyncStorage.setItem('preferredMode', 'traveler');
-      } else if (FEATURE_MONTHLY_RENTAL && preferredMode === 'monthly_rental' && currentUser) {
+      } else if (FEATURE_MONTHLY_RENTAL && preferredMode === 'monthly_rental') {
         const { data: listings } = await supabase
           .from('monthly_rental_listings')
           .select('id')
           .eq('owner_id', currentUser.id)
           .limit(1);
         if (listings && listings.length > 0) {
+          setIsClosing(true);
           navigation.reset({ index: 0, routes: [{ name: 'MonthlyRentalOwnerSpace' }] });
           return;
         }
@@ -227,8 +272,8 @@ const AuthScreen: React.FC = () => {
       console.error('Error checking preferred mode:', error);
     }
 
-    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-  };
+    leaveAuthForExplorer();
+  }, [navigation, returnTo, returnParams, leaveAuthForExplorer]);
 
   const handleEmailVerificationSuccess = () => {
     setShowEmailVerification(false);
@@ -238,10 +283,7 @@ const AuthScreen: React.FC = () => {
     if (returnTo) {
       navigation.navigate(returnTo as any, returnParams);
     } else {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
+      leaveAuthForExplorer();
     }
   };
 
@@ -487,6 +529,10 @@ const AuthScreen: React.FC = () => {
       setDateError(null);
     }
   };
+
+  if (isClosing) {
+    return <View style={styles.container} />;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>

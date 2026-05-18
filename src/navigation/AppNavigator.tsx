@@ -1,7 +1,7 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef, CommonActions } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, TransitionPresets } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -498,12 +498,24 @@ const AppNavigator = () => {
   const hasCheckedMode = React.useRef(false);
 
   React.useEffect(() => {
+    if (!user) {
+      hasCheckedMode.current = false;
+    }
+  }, [user]);
+
+  React.useEffect(() => {
     const checkAndNavigate = async () => {
       if (!authLoading && user && !hasCheckedMode.current) {
         // Attendre que le navigator soit prêt
         const checkReady = setInterval(() => {
           if (navigationRef.isReady()) {
             clearInterval(checkReady);
+            // Connexion depuis Auth : AuthScreen gère la navigation (évite double reset + lag)
+            const activeRoute = navigationRef.getCurrentRoute()?.name;
+            if (activeRoute === 'Auth') {
+              hasCheckedMode.current = true;
+              return;
+            }
             hasCheckedMode.current = true;
             (async () => {
               try {
@@ -644,7 +656,12 @@ const AppNavigator = () => {
           component={AuthScreen}
           options={{ 
             title: 'Authentification',
-            headerShown: false 
+            headerShown: false,
+            gestureEnabled: true,
+            cardOverlayEnabled: true,
+            ...(Platform.OS === 'android'
+              ? TransitionPresets.FadeFromBottomAndroid
+              : TransitionPresets.ModalSlideFromBottomIOS),
           }}
         />
         <Stack.Screen 

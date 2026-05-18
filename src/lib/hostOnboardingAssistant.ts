@@ -92,6 +92,40 @@ export async function consumeHostAssistantDraft(): Promise<HostAssistantFormDraf
 }
 
 /** Messages pour le bouton « Continuer vers le formulaire » (localisation = liste officielle uniquement) */
+/** Nettoie les formules d’intro que le modèle ajoute parfois en tête de description. */
+export function stripAiDescriptionBoilerplate(text: string): string {
+  return text
+    .replace(/^pour la description[,:\s-]*/i, '')
+    .replace(/^je vous propose[,:\s-]*/i, '')
+    .replace(/^je propose[,:\s-]*/i, '')
+    .trim();
+}
+
+export function normalizeTitleSuggestionsFromAi(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((t) => String(t).trim()).filter(Boolean).slice(0, 3);
+}
+
+/**
+ * L’Edge renvoie souvent les titres dans title_suggestions mais la description
+ * uniquement dans reply — on lit draft_patch.description puis reply en secours.
+ */
+export function extractAiDescriptionFromAssistantResponse(data: {
+  draft_patch?: Record<string, unknown>;
+  reply?: string;
+}): string {
+  const fromPatch = stripAiDescriptionBoilerplate(
+    String(data.draft_patch?.description ?? '').trim(),
+  );
+  if (fromPatch.length >= 40) return fromPatch;
+
+  const reply = stripAiDescriptionBoilerplate(String(data.reply ?? '').trim());
+  if (reply.length < 80) return '';
+  if (reply.length < 140 && /\?\s*$/.test(reply)) return '';
+
+  return reply;
+}
+
 export function getAssistantDraftBlockingMessage(d: HostAssistantFormDraft): string | null {
   if (!d.propertyType?.trim() || !ALLOWED_PROPERTY_TYPES.has(d.propertyType)) {
     return 'Sélectionnez un type de logement parmi les boutons.';

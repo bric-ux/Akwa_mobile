@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
 import { useAuth } from '../services/AuthContext';
 import { VehicleType, TransmissionType, FuelType } from '../types';
@@ -794,35 +794,48 @@ const AddVehicleScreen: React.FC = () => {
           await supabase.from('vehicle_photos').insert(photoInserts);
         }
 
-        try {
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('email, first_name')
-            .eq('user_id', adminTargetUser.user_id)
-            .maybeSingle();
-          if (prof?.email) {
-            await supabase.functions.invoke('send-email', {
-              body: {
-                type: 'asset_assigned_by_admin',
-                to: prof.email,
-                data: {
-                  firstName: prof.first_name || adminTargetUser.full_name.split(' ')[0],
-                  assetKind: 'vehicle',
-                  assetTitle: formData.title.trim(),
-                  siteUrl: 'https://akwahome.com',
-                },
-              },
-            });
-          }
-        } catch (notifyErr) {
-          console.error('Notification asset_assigned échouée:', notifyErr);
-        }
+        const createdForName = adminTargetUser.full_name;
+        const createdTitle = formData.title.trim();
+        const targetUserId = adminTargetUser.user_id;
 
-        Alert.alert(
-          `Véhicule créé pour ${adminTargetUser.full_name}`,
-          'Le propriétaire a été notifié.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Admin' as never) }],
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [
+              {
+                name: 'Home',
+                state: { index: 0, routes: [{ name: 'HomeTab' }] },
+              },
+            ],
+          }),
         );
+
+        void (async () => {
+          try {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('email, first_name')
+              .eq('user_id', targetUserId)
+              .maybeSingle();
+            if (prof?.email) {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  type: 'asset_assigned_by_admin',
+                  to: prof.email,
+                  data: {
+                    firstName: prof.first_name || createdForName.split(' ')[0],
+                    assetKind: 'vehicle',
+                    assetTitle: createdTitle,
+                    siteUrl: 'https://akwahome.com',
+                  },
+                },
+              });
+            }
+          } catch (notifyErr) {
+            console.error('Notification asset_assigned échouée:', notifyErr);
+          }
+        })();
+
         return;
       }
 

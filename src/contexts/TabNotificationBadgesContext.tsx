@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { InteractionManager } from 'react-native';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 
@@ -105,8 +106,15 @@ export const TabNotificationBadgesProvider: React.FC<{
   }, [user?.id]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!user?.id) {
+      setBadges(emptyBadges);
+      return;
+    }
+    const task = InteractionManager.runAfterInteractions(() => {
+      void refresh();
+    });
+    return () => task.cancel();
+  }, [refresh, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;

@@ -24,7 +24,7 @@ import {
 type Step = 'form' | 'verify';
 
 type Props = {
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 };
 
 const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
@@ -152,11 +152,10 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
       });
       if (signErr) {
         Alert.alert('Compte créé', 'Connectez-vous avec votre numéro.');
-        onSuccess();
+        await onSuccess();
         return;
       }
-      Alert.alert('Bienvenue !', 'Votre compte a été créé.');
-      onSuccess();
+      await onSuccess();
     } catch {
       setError('Une erreur est survenue');
     } finally {
