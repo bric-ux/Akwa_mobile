@@ -12,6 +12,7 @@ import {
   Image,
   Linking,
   Keyboard,
+  InteractionManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,11 +65,13 @@ const AuthScreen: React.FC = () => {
 
   const handleBack = useCallback(() => {
     Keyboard.dismiss();
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-    navigation.navigate('Home' as never);
+    InteractionManager.runAfterInteractions(() => {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+        return;
+      }
+      navigation.navigate('Home' as never);
+    });
   }, [navigation]);
 
   // Fonction de validation du mot de passe

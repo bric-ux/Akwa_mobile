@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect, useRoute, CommonActions } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useUserProfile, clearProfileCache } from '../hooks/useUserProfile';
 import { useAuth } from '../services/AuthContext';
@@ -432,12 +432,8 @@ const ProfileScreen: React.FC = () => {
   const finalMenuItems = menuItems;
 
   const goToAuthScreen = () => {
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: 'Auth' as never }],
-      }),
-    );
+    // navigate (pas reset) : l’accueil reste sous Auth → retour instantané sans remonter tout l’app
+    navigation.navigate('Auth' as never);
   };
 
   if (authLoading) {

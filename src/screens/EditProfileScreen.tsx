@@ -19,6 +19,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../services/supabase';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { displayEmailOrPhone } from '../lib/displayContact';
+import {
+  assertPhoneAvailableForProfile,
+  isPhoneAlreadyUsedError,
+  normalizePhoneE164,
+} from '../lib/phone';
 
 interface UserProfile {
   id: string;
@@ -69,14 +74,24 @@ const EditProfileScreen: React.FC = () => {
         return;
       }
       
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, phone, phone_e164, avatar_url, bio')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
       const userProfile: UserProfile = {
         id: user.id,
         email: user.email || '',
-        first_name: user.user_metadata?.first_name || '',
-        last_name: user.user_metadata?.last_name || '',
-        phone: user.user_metadata?.phone || '',
-        avatar_url: user.user_metadata?.avatar_url || '',
-        bio: user.user_metadata?.bio || '',
+        first_name: profileRow?.first_name || user.user_metadata?.first_name || '',
+        last_name: profileRow?.last_name || user.user_metadata?.last_name || '',
+        phone:
+          profileRow?.phone ||
+          profileRow?.phone_e164 ||
+          user.user_metadata?.phone ||
+          '',
+        avatar_url: profileRow?.avatar_url || user.user_metadata?.avatar_url || '',
+        bio: profileRow?.bio || user.user_metadata?.bio || '',
       };
       
       setProfile(userProfile);
@@ -221,6 +236,22 @@ const EditProfileScreen: React.FC = () => {
       if (userError || !user) {
         throw new Error('Utilisateur non connecté');
       }
+
+      const phoneTrimmed = formData.phone.trim();
+      if (phoneTrimmed) {
+        if (!normalizePhoneE164(phoneTrimmed)) {
+          Alert.alert(
+            'Numéro invalide',
+            'Utilisez le format international, par exemple +225 07 12 34 56 78.',
+          );
+          return;
+        }
+        const phoneCheck = await assertPhoneAvailableForProfile(phoneTrimmed, user.id);
+        if (!phoneCheck.ok) {
+          Alert.alert('Numéro déjà utilisé', phoneCheck.message);
+          return;
+        }
+      }
       
       let avatarUrl = avatarUri;
       
@@ -267,7 +298,15 @@ const EditProfileScreen: React.FC = () => {
           .eq('user_id', user.id);
 
         if (profileError) {
+          if (isPhoneAlreadyUsedError(profileError)) {
+            Alert.alert(
+              'Numéro déjà utilisé',
+              'Ce numéro est déjà associé à un autre compte AkwaHome.',
+            );
+            return;
+          }
           console.error('Erreur lors de la mise à jour du profil:', profileError);
+          throw profileError;
         }
       } else {
         // Créer un nouveau profil
@@ -285,7 +324,15 @@ const EditProfileScreen: React.FC = () => {
           });
 
         if (profileError) {
+          if (isPhoneAlreadyUsedError(profileError)) {
+            Alert.alert(
+              'Numéro déjà utilisé',
+              'Ce numéro est déjà associé à un autre compte AkwaHome.',
+            );
+            return;
+          }
           console.error('Erreur lors de la création du profil:', profileError);
+          throw profileError;
         }
       }
 

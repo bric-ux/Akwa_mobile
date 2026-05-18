@@ -39,6 +39,7 @@ import { PROPERTY_TYPES } from '../constants/hostListingForm';
 import { consumeHostAssistantDraft } from '../lib/hostOnboardingAssistant';
 import BecomeHostGuidedFlow from './becomeHost/BecomeHostGuidedFlow';
 import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
+import AdminCreateForUserPanel, { AdminTargetUser } from '../components/admin/AdminCreateForUserPanel';
 
 const CANCELLATION_POLICIES = [
   { 
@@ -129,6 +130,25 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   /** Empêche les doubles envois (loading du hook ne couvre pas fetchPaymentInfo + validations avant insert). */
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitInFlightRef = useRef(false);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCreateForEnabled, setAdminCreateForEnabled] = useState(false);
+  const [adminTargetUser, setAdminTargetUser] = useState<AdminTargetUser | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user) {
+        if (!cancelled) setIsAdmin(false);
+        return;
+      }
+      const { data } = await supabase.rpc('is_admin');
+      if (!cancelled) setIsAdmin(data === true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const [formData, setFormData] = useState({
     // Informations sur le logement
@@ -1147,10 +1167,21 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       return;
     }
 
+    if (adminCreateForEnabled && !adminTargetUser) {
+      Alert.alert(
+        'Utilisateur cible requis',
+        "Vérifiez d'abord l'email ou le numéro de téléphone du propriétaire.",
+      );
+      return;
+    }
+
+    const isAdminCreateForOther =
+      adminCreateForEnabled && !!adminTargetUser && !isEditMode;
+
     // Vérifier l'identité avant de permettre la soumission (seulement pour les nouvelles candidatures)
     // Ne pas demander l'identité lors de la modification d'une candidature existante
     // Permettre la soumission si l'identité est uploadée, même si elle est en cours de vérification
-    if (!isEditMode && !hasUploadedIdentity && !identityUploadedInSession) {
+    if (!isAdminCreateForOther && !isEditMode && !hasUploadedIdentity && !identityUploadedInSession) {
       Alert.alert(
         'Vérification d\'identité requise',
         'Vous devez envoyer une pièce d\'identité pour soumettre votre candidature.',
@@ -1177,6 +1208,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     submitInFlightRef.current = true;
     setIsSubmitting(true);
     try {
+    if (!isAdminCreateForOther) {
     // Recharger les informations de paiement avant la validation
     // (au cas où elles n'auraient pas été rechargées automatiquement)
     console.log('🔄 Rechargement des informations de paiement avant validation...');
@@ -1262,6 +1294,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     
     if (paymentPending || paymentVerified) {
       console.log('ℹ️ Informations de paiement', paymentPending ? 'en cours d\'étude' : 'vérifiées', ', autorisation de la soumission');
+    }
     }
 
     // Re-valider au submit (nom résolu pour referral_code_submitted ; évite course avec loadUserProfile)
@@ -1401,6 +1434,111 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         }
       } catch (error) {
         console.error('Erreur lors de l\'enregistrement du code de parrainage:', error);
+      }
+    }
+
+    if (isAdminCreateForOther && adminTargetUser) {
+      try {
+        const { data: appRow, error: insErr } = await supabase
+          .from('host_applications')
+          .insert({
+            user_id: adminTargetUser.user_id,
+            property_type: applicationPayload.propertyType,
+            location: applicationPayload.location,
+            max_guests: applicationPayload.maxGuests,
+            bedrooms: applicationPayload.bedrooms,
+            bathrooms: applicationPayload.bathrooms,
+            title: applicationPayload.title,
+            description: applicationPayload.description,
+            price_per_night: applicationPayload.pricePerNight,
+            full_name: adminTargetUser.full_name,
+            email: applicationPayload.email,
+            phone: applicationPayload.phone,
+            address_details: formData.addressDetails?.trim() || null,
+            is_monthly_rental: isMonthly,
+            monthly_rent_price: applicationPayload.monthlyRentPrice ?? null,
+            security_deposit: applicationPayload.securityDeposit ?? null,
+            minimum_duration_months: applicationPayload.minimumDurationMonths ?? null,
+            charges_included: applicationPayload.chargesIncluded ?? false,
+            surface_m2: applicationPayload.surfaceM2 ?? null,
+            number_of_rooms: applicationPayload.numberOfRooms ?? null,
+            is_furnished: applicationPayload.isFurnished ?? false,
+            images: applicationPayload.images || [],
+            categorized_photos: applicationPayload.categorizedPhotos as any,
+            amenities: applicationPayload.amenities || [],
+            custom_amenities: applicationPayload.customAmenities || null,
+            minimum_nights: applicationPayload.minimumNights,
+            auto_booking: applicationPayload.autoBooking,
+            cancellation_policy: applicationPayload.cancellationPolicy,
+            host_guide: applicationPayload.hostGuide,
+            check_in_time: applicationPayload.checkInTime,
+            check_out_time: applicationPayload.checkOutTime,
+            house_rules: applicationPayload.houseRules,
+            discount_enabled: applicationPayload.discountEnabled,
+            discount_min_nights: applicationPayload.discountMinNights,
+            discount_percentage: applicationPayload.discountPercentage,
+            long_stay_discount_enabled: applicationPayload.longStayDiscountEnabled,
+            long_stay_discount_min_nights: applicationPayload.longStayDiscountMinNights,
+            long_stay_discount_percentage: applicationPayload.longStayDiscountPercentage,
+            cleaning_fee: applicationPayload.cleaningFee,
+            taxes: applicationPayload.taxes,
+            free_cleaning_min_days: applicationPayload.freeCleaningMinDays,
+            created_by_admin_id: user.id,
+            created_for_user_id: adminTargetUser.user_id,
+          } as any)
+          .select()
+          .single();
+        if (insErr) throw insErr;
+
+        await supabase
+          .from('host_applications')
+          .update({
+            status: 'approved',
+            reviewed_at: new Date().toISOString(),
+            admin_notes: "Créé et approuvé par admin pour le compte de l'utilisateur.",
+          })
+          .eq('id', appRow.id);
+
+        await supabase
+          .from('profiles')
+          .update({ role: 'host', is_host: true })
+          .eq('user_id', adminTargetUser.user_id);
+
+        try {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('email, first_name')
+            .eq('user_id', adminTargetUser.user_id)
+            .maybeSingle();
+          if (prof?.email) {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'asset_assigned_by_admin',
+                to: prof.email,
+                data: {
+                  firstName: prof.first_name || adminTargetUser.full_name.split(' ')[0],
+                  assetKind: 'property',
+                  assetTitle: applicationPayload.title,
+                  siteUrl: 'https://akwahome.com',
+                },
+              },
+            });
+          }
+        } catch (notifyErr) {
+          console.error('Notification asset_assigned échouée:', notifyErr);
+        }
+
+        Alert.alert(
+          `Résidence créée pour ${adminTargetUser.full_name}`,
+          'Le propriétaire a été notifié.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Admin' as never) }],
+        );
+        return;
+      } catch (e: unknown) {
+        const message =
+          e instanceof Error ? e.message : 'Impossible de créer la résidence pour cet utilisateur.';
+        Alert.alert('Erreur de création admin', message);
+        return;
       }
     }
 
@@ -2812,6 +2950,16 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         {!listingType || !listingTypeConfirmed ? (
           renderListingTypeChoice()
         ) : listingType === 'short_term' ? (
+          <>
+          {isAdmin && !isEditMode && (
+            <AdminCreateForUserPanel
+              assetKind="property"
+              enabled={adminCreateForEnabled}
+              onEnabledChange={setAdminCreateForEnabled}
+              targetUser={adminTargetUser}
+              onTargetUserChange={setAdminTargetUser}
+            />
+          )}
           <BecomeHostGuidedFlow
             guidedStep={guidedStep}
             setGuidedStep={setGuidedStep}
@@ -2856,6 +3004,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             loading={loading}
             isSubmitting={isSubmitting}
           />
+          </>
         ) : (
           <>
             {renderStep1()}

@@ -30,6 +30,7 @@ import VehicleBrandAutocomplete from '../components/VehicleBrandAutocomplete';
 import MediaThumb from '../components/MediaThumb';
 import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
 import { isMediaRowVideo, normalizeHostMediaRows } from '../utils/media';
+import AdminCreateForUserPanel, { AdminTargetUser } from '../components/admin/AdminCreateForUserPanel';
 
 const MAX_VEHICLE_VIDEOS = 5;
 
@@ -121,6 +122,24 @@ const AddVehicleScreen: React.FC = () => {
   const { t } = useLanguage();
   const { addVehicle } = useVehicles();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCreateForEnabled, setAdminCreateForEnabled] = useState(false);
+  const [adminTargetUser, setAdminTargetUser] = useState<AdminTargetUser | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user) {
+        if (!cancelled) setIsAdmin(false);
+        return;
+      }
+      const { data } = await supabase.rpc('is_admin');
+      if (!cancelled) setIsAdmin(data === true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -574,6 +593,14 @@ const AddVehicleScreen: React.FC = () => {
       return;
     }
 
+    if (adminCreateForEnabled && !adminTargetUser) {
+      Alert.alert(
+        'Utilisateur cible requis',
+        "Vérifiez d'abord l'email ou le numéro de téléphone du propriétaire.",
+      );
+      return;
+    }
+
     // Validation
     if (!formData.title.trim()) {
       Alert.alert('Erreur', 'Veuillez saisir un titre');
@@ -733,6 +760,72 @@ const AddVehicleScreen: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      if (adminCreateForEnabled && adminTargetUser) {
+        const { photos: _photos, ...vehicleInsert } = vehiclePayload;
+        const { data: newVehicle, error: insErr } = await supabase
+          .from('vehicles')
+          .insert({
+            ...vehicleInsert,
+            owner_id: adminTargetUser.user_id,
+            is_approved: true,
+            approval_status: 'approved',
+            created_by_admin_id: user.id,
+            created_for_user_id: adminTargetUser.user_id,
+          } as any)
+          .select()
+          .single();
+        if (insErr) throw insErr;
+
+        if (newVehicle && selectedImages.length > 0) {
+          const photoInserts = selectedImages.map((img, index) => {
+            const vid = isMediaRowVideo(img);
+            const isMain =
+              !vid &&
+              (Boolean(img.isMain) ||
+                (index === 0 && !selectedImages.some((p) => p.isMain && !isMediaRowVideo(p))));
+            return {
+              vehicle_id: newVehicle.id,
+              url: img.uri,
+              category: vid ? 'video' : img.category || 'exterior',
+              display_order: img.displayOrder ?? index,
+              is_main: isMain,
+            };
+          });
+          await supabase.from('vehicle_photos').insert(photoInserts);
+        }
+
+        try {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('email, first_name')
+            .eq('user_id', adminTargetUser.user_id)
+            .maybeSingle();
+          if (prof?.email) {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                type: 'asset_assigned_by_admin',
+                to: prof.email,
+                data: {
+                  firstName: prof.first_name || adminTargetUser.full_name.split(' ')[0],
+                  assetKind: 'vehicle',
+                  assetTitle: formData.title.trim(),
+                  siteUrl: 'https://akwahome.com',
+                },
+              },
+            });
+          }
+        } catch (notifyErr) {
+          console.error('Notification asset_assigned échouée:', notifyErr);
+        }
+
+        Alert.alert(
+          `Véhicule créé pour ${adminTargetUser.full_name}`,
+          'Le propriétaire a été notifié.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Admin' as never) }],
+        );
+        return;
+      }
+
       console.log('🚀 [AddVehicleScreen] Soumission du véhicule...', { vehiclePayload });
       const result = await addVehicle(vehiclePayload);
       console.log('✅ [AddVehicleScreen] Résultat:', result);
@@ -794,6 +887,16 @@ const AddVehicleScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {isAdmin && (
+            <AdminCreateForUserPanel
+              assetKind="vehicle"
+              enabled={adminCreateForEnabled}
+              onEnabledChange={setAdminCreateForEnabled}
+              targetUser={adminTargetUser}
+              onTargetUserChange={setAdminTargetUser}
+            />
+          )}
+
           <View style={styles.guidedProgressCard}>
             <Text style={styles.guidedProgressMeta}>
               Étape {guidedStep + 1} sur {TOTAL_VEHICLE_STEPS}
