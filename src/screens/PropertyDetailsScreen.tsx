@@ -343,31 +343,35 @@ const PropertyDetailsScreen: React.FC = () => {
             }}
           />
         )}
-        <TouchableOpacity
-          style={[styles.imageOverlayButton, styles.favoriteOverlayButton]}
-          onPress={handleFavoritePress}
-          disabled={favoriteLoading}
-          accessibilityRole="button"
-          accessibilityLabel={t('favorites.title')}
-        >
-          <Ionicons
-            name={isFavorited ? 'heart' : 'heart-outline'}
-            size={24}
-            color={isFavorited ? '#e74c3c' : '#475569'}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.imageOverlayButton, styles.shareOverlayButton]}
-          onPress={handleShareProperty}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.share')}
-        >
-          <Ionicons name="share-outline" size={22} color="#1e293b" />
-        </TouchableOpacity>
       </View>
 
-      {/* Informations principales */}
+      {/* Informations principales — carte qui remonte sur la galerie */}
       <View style={styles.content}>
+        <View style={styles.floatingActions}>
+          <TouchableOpacity
+            style={styles.floatingActionTouch}
+            onPress={handleFavoritePress}
+            disabled={favoriteLoading}
+            accessibilityRole="button"
+            accessibilityLabel={t('favorites.title')}
+          >
+            <Ionicons
+              name={isFavorited ? 'heart' : 'heart-outline'}
+              size={20}
+              color={isFavorited ? '#e74c3c' : '#64748b'}
+            />
+          </TouchableOpacity>
+          <View style={styles.floatingActionDivider} />
+          <TouchableOpacity
+            style={styles.floatingActionTouch}
+            onPress={handleShareProperty}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.share')}
+          >
+            <Ionicons name="share-outline" size={19} color="#1e293b" />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.titleContainer}>
           <View style={styles.titleTextWrap}>
             <Text style={styles.title}>{property.title}</Text>
@@ -818,31 +822,6 @@ const styles = StyleSheet.create({
   imageContainer: {
     position: 'relative',
   },
-  imageOverlayButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  favoriteOverlayButton: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    zIndex: 6,
-  },
-  shareOverlayButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    zIndex: 6,
-  },
   mainImage: {
     height: 300,
   },
@@ -865,7 +844,45 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   content: {
-    padding: 20,
+    marginTop: -14,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 4,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  floatingActions: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: -16,
+    marginBottom: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 2,
+    backgroundColor: '#fff',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15, 23, 42, 0.06)',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  floatingActionTouch: {
+    paddingVertical: 4,
+    paddingHorizontal: 14,
+  },
+  floatingActionDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 16,
+    backgroundColor: '#e2e8f0',
   },
   titleTextWrap: {
     flex: 1,
