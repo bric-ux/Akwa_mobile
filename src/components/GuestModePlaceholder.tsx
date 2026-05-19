@@ -32,8 +32,8 @@ const GuestModePlaceholder: React.FC<GuestModePlaceholderProps> = ({
   const { t } = useLanguage();
   const { loading: authLoading } = useAuth();
 
-  const goToAuthScreen = () => {
-    navigation.navigate('Auth' as never);
+  const goToAuthScreen = (mode: 'login' | 'signup') => {
+    navigation.navigate('Auth' as never, { mode } as never);
   };
 
   if (authLoading) {
@@ -52,10 +52,10 @@ const GuestModePlaceholder: React.FC<GuestModePlaceholderProps> = ({
         <Ionicons name={icon} size={80} color="#bbb" />
         <Text style={styles.title}>{t('profile.guestTitle')}</Text>
         <Text style={styles.subtitle}>{t(subtitleKey)}</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={goToAuthScreen}>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => goToAuthScreen('login')}>
           <Text style={styles.primaryButtonText}>{t('auth.signIn')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={goToAuthScreen}>
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => goToAuthScreen('signup')}>
           <Text style={styles.secondaryButtonText}>{t('auth.signUp')}</Text>
         </TouchableOpacity>
       </View>

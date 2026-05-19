@@ -16,6 +16,7 @@ import {
   E164_REGEX,
   PASSWORD_REGEX,
 } from '../../lib/phoneAuth';
+import { getEdgeFunctionErrorMessage } from '../../lib/edgeFunctionError';
 
 type Mode = 'signin' | 'forgot-send' | 'forgot-verify';
 
@@ -52,12 +53,20 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
       const { data, error: resolveErr } = await supabase.functions.invoke('resolve-phone-email', {
         body: { phone: phoneE164 },
       });
-      if (resolveErr || !data?.email) {
-        setError(data?.error || 'Aucun compte associé à ce numéro');
+      const resolvedEmail =
+        data && typeof data === 'object' && 'email' in data ? (data as { email?: string }).email : null;
+      if (resolveErr || !resolvedEmail) {
+        const msg =
+          (data && typeof data === 'object' && 'error' in data
+            ? String((data as { error?: string }).error)
+            : null) ||
+          resolveErr?.message ||
+          'Aucun compte associé à ce numéro';
+        setError(msg);
         return;
       }
       const { error: signErr } = await supabase.auth.signInWithPassword({
-        email: data.email,
+        email: resolvedEmail,
         password,
       });
       if (signErr) {
@@ -84,8 +93,8 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
       const { data, error: sendErr } = await supabase.functions.invoke('send-phone-otp', {
         body: { phone: phoneE164, purpose: 'reset' },
       });
-      if (sendErr || data?.error) {
-        setError(data?.error || "Erreur d'envoi du SMS");
+      if (sendErr || (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error)) {
+        setError(await getEdgeFunctionErrorMessage(data, sendErr, "Erreur d'envoi du SMS"));
         return;
       }
       setNormalizedPhone(phoneE164);

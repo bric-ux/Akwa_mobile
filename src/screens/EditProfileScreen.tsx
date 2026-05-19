@@ -18,7 +18,11 @@ import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../services/supabase';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { displayEmailOrPhone } from '../lib/displayContact';
+import { getProfileContactEmail, isPhonePseudoEmail } from '../lib/displayContact';
+import {
+  assertEmailAvailableForProfile,
+  isValidContactEmail,
+} from '../lib/email';
 import {
   assertPhoneAvailableForProfile,
   isPhoneAlreadyUsedError,
@@ -45,8 +49,10 @@ const EditProfileScreen: React.FC = () => {
     first_name: '',
     last_name: '',
     phone: '',
+    contact_email: '',
     bio: '',
   });
+  const [isPhoneAccount, setIsPhoneAccount] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,13 +82,16 @@ const EditProfileScreen: React.FC = () => {
       
       const { data: profileRow } = await supabase
         .from('profiles')
-        .select('first_name, last_name, phone, phone_e164, avatar_url, bio')
+        .select('first_name, last_name, phone, phone_e164, avatar_url, bio, email')
         .eq('user_id', user.id)
         .maybeSingle();
 
+      const phoneAccount = isPhonePseudoEmail(user.email);
+      setIsPhoneAccount(phoneAccount);
+
       const userProfile: UserProfile = {
         id: user.id,
-        email: user.email || '',
+        email: getProfileContactEmail(user.email, profileRow?.email) || user.email || '',
         first_name: profileRow?.first_name || user.user_metadata?.first_name || '',
         last_name: profileRow?.last_name || user.user_metadata?.last_name || '',
         phone:
@@ -99,6 +108,7 @@ const EditProfileScreen: React.FC = () => {
         first_name: userProfile.first_name || '',
         last_name: userProfile.last_name || '',
         phone: userProfile.phone || '',
+        contact_email: getProfileContactEmail(user.email, profileRow?.email),
         bio: userProfile.bio || '',
       });
       setAvatarUri(userProfile.avatar_url || null);
@@ -237,6 +247,21 @@ const EditProfileScreen: React.FC = () => {
         throw new Error('Utilisateur non connecté');
       }
 
+      const phoneAccountSave = isPhonePseudoEmail(user.email);
+      const contactEmailTrimmed = formData.contact_email.trim().toLowerCase();
+
+      if (phoneAccountSave && contactEmailTrimmed) {
+        if (!isValidContactEmail(contactEmailTrimmed)) {
+          Alert.alert('Email invalide', 'Saisissez une adresse email valide (ex. nom@gmail.com).');
+          return;
+        }
+        const emailCheck = await assertEmailAvailableForProfile(contactEmailTrimmed, user.id);
+        if (!emailCheck.ok) {
+          Alert.alert('Email déjà utilisé', emailCheck.message);
+          return;
+        }
+      }
+
       const phoneTrimmed = formData.phone.trim();
       if (phoneTrimmed) {
         if (!normalizePhoneE164(phoneTrimmed)) {
@@ -284,17 +309,27 @@ const EditProfileScreen: React.FC = () => {
         .eq('user_id', user.id)
         .single();
 
+      const phoneNorm = phoneTrimmed ? normalizePhoneE164(phoneTrimmed) : null;
+      const profilePhoneFields: Record<string, unknown> = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        phone: phoneTrimmed || null,
+        phone_e164: phoneNorm,
+        bio: formData.bio,
+        avatar_url: avatarUrl,
+      };
+      if (phoneNorm && user.email && !isPhonePseudoEmail(user.email)) {
+        profilePhoneFields.phone_verified = true;
+      }
+      if (phoneAccountSave && contactEmailTrimmed) {
+        profilePhoneFields.email = contactEmailTrimmed;
+        profilePhoneFields.email_verified = false;
+      }
+
       if (existingProfile) {
-        // Mettre à jour le profil existant
         const { error: profileError } = await supabase
           .from('profiles')
-          .update({
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            phone: formData.phone,
-            bio: formData.bio,
-            avatar_url: avatarUrl,
-          })
+          .update(profilePhoneFields)
           .eq('user_id', user.id);
 
         if (profileError) {
@@ -314,11 +349,7 @@ const EditProfileScreen: React.FC = () => {
           .from('profiles')
           .insert({
             user_id: user.id,
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            phone: formData.phone,
-            bio: formData.bio,
-            avatar_url: avatarUrl,
+            ...profilePhoneFields,
             role: 'user',
             is_host: false,
           });
@@ -387,7 +418,9 @@ const EditProfileScreen: React.FC = () => {
       // Mettre à jour le cache global avec les nouvelles données
       const updatedProfile: UserProfile = {
         id: profile?.id || '',
-        email: profile?.email || '',
+        email: phoneAccountSave && contactEmailTrimmed
+          ? contactEmailTrimmed
+          : profile?.email || user.email || '',
         first_name: formData.first_name,
         last_name: formData.last_name,
         phone: formData.phone,
@@ -504,16 +537,37 @@ const EditProfileScreen: React.FC = () => {
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={[styles.input, styles.disabledInput]}
-                value={displayEmailOrPhone(profile?.email, formData.phone)}
-                editable={false}
-                placeholder="Email ou téléphone"
-              />
-              <Text style={styles.disabledHint}>L'email ne peut pas être modifié</Text>
-            </View>
+            {isPhoneAccount ? (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.contact_email}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, contact_email: text }))
+                  }
+                  placeholder="ex. nom@gmail.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Text style={styles.fieldHint}>
+                  Votre compte a été créé par téléphone. Ajoutez votre email pour les
+                  confirmations et notifications.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={[styles.input, styles.disabledInput]}
+                  value={profile?.email || ''}
+                  editable={false}
+                  placeholder="Email"
+                />
+                <Text style={styles.disabledHint}>L'email de connexion ne peut pas être modifié</Text>
+              </View>
+            )}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Téléphone</Text>
@@ -660,6 +714,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 5,
+  },
+  fieldHint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 6,
+    lineHeight: 18,
   },
   textArea: {
     height: 100,

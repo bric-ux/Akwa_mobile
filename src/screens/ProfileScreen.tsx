@@ -29,7 +29,11 @@ import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { APP_VERSION } from '../constants/appVersion';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import ProfileLoadingSkeleton from '../components/ProfileLoadingSkeleton';
-import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
+import {
+  displayEmailOrPhone,
+  getProfileContactEmail,
+  isPhonePseudoEmail,
+} from '../lib/displayContact';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -49,6 +53,7 @@ const ProfileScreen: React.FC = () => {
   const [hasVehicles, setHasVehicles] = useState(false);
   const [hasMonthlyListings, setHasMonthlyListings] = useState(false);
   const contentOpacity = useRef(new Animated.Value(1)).current;
+  const isLoggingOutRef = useRef(false);
   const sessionKey = user?.id ?? 'guest';
   const prevSessionKey = useRef(sessionKey);
 
@@ -64,7 +69,8 @@ const ProfileScreen: React.FC = () => {
     }).start();
   }, [sessionKey, authLoading, contentOpacity]);
 
-  const goToGuestProfileTab = () => {
+  /** Après déconnexion : retour Explorer (pas l’écran « Mode invité » du profil). */
+  const goToExplorerAfterLogout = () => {
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
@@ -72,7 +78,7 @@ const ProfileScreen: React.FC = () => {
           {
             name: 'Home',
             state: {
-              index: 4,
+              index: 0,
               routes: [
                 { name: 'HomeTab' },
                 { name: 'MessagingTab' },
@@ -215,24 +221,21 @@ const ProfileScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Nettoyer le mode préféré lors de la déconnexion
+              isLoggingOutRef.current = true;
               await AsyncStorage.removeItem('preferredMode');
-              // Nettoyer le cache du profil avant la déconnexion
               clearProfileCache();
-              
-              // Utiliser la fonction signOut du contexte pour mettre à jour le state
+              goToExplorerAfterLogout();
               await signOut();
-              goToGuestProfileTab();
             } catch (error: any) {
               console.error('Erreur lors de la déconnexion:', error);
               
-              // Si c'est une erreur de session manquante, on considère que la déconnexion est réussie
               if (error?.message?.includes('Auth session missing')) {
                 clearProfileCache();
-                goToGuestProfileTab();
+                goToExplorerAfterLogout();
                 return;
               }
               
+              isLoggingOutRef.current = false;
               Alert.alert(t('common.error'), t('profile.logoutError'));
             }
           },
@@ -464,9 +467,8 @@ const ProfileScreen: React.FC = () => {
   // Utiliser la liste construite dynamiquement
   const finalMenuItems = menuItems;
 
-  const goToAuthScreen = () => {
-    // navigate (pas reset) : l’accueil reste sous Auth → retour instantané sans remonter tout l’app
-    navigation.navigate('Auth' as never);
+  const goToAuthScreen = (mode: 'login' | 'signup') => {
+    navigation.navigate('Auth' as never, { mode } as never);
   };
 
   if (authLoading) {
@@ -479,6 +481,9 @@ const ProfileScreen: React.FC = () => {
     (error.includes('Session expirée') || error.includes('Auth session missing'));
 
   if (!user || sessionExpired) {
+    if (isLoggingOutRef.current) {
+      return <ProfileLoadingSkeleton />;
+    }
     return (
       <Animated.View style={{ flex: 1, opacity: contentOpacity }}>
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -490,10 +495,10 @@ const ProfileScreen: React.FC = () => {
               ? t('profile.sessionExpiredGuest')
               : t('profile.guestSubtitle')}
           </Text>
-          <TouchableOpacity style={styles.guestPrimaryButton} onPress={goToAuthScreen}>
+          <TouchableOpacity style={styles.guestPrimaryButton} onPress={() => goToAuthScreen('login')}>
             <Text style={styles.guestPrimaryButtonText}>{t('auth.signIn')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.guestSecondaryButton} onPress={goToAuthScreen}>
+          <TouchableOpacity style={styles.guestSecondaryButton} onPress={() => goToAuthScreen('signup')}>
             <Text style={styles.guestSecondaryButtonText}>{t('auth.signUp')}</Text>
           </TouchableOpacity>
         </View>
@@ -541,16 +546,31 @@ const ProfileScreen: React.FC = () => {
             {profile?.first_name || 'Utilisateur'} {profile?.last_name || ''}
           </Text>
           {(() => {
-            const contactDisplay = displayEmailOrPhone(
-              profile?.email ?? user?.email,
+            const phoneAccount = isPhonePseudoEmail(user?.email);
+            const phoneDisplay = displayEmailOrPhone(
+              user?.email,
               (profile as { phone?: string } | null)?.phone,
             );
-            const phoneAccount = isPhonePseudoEmail(profile?.email ?? user?.email);
-            if (!contactDisplay) return null;
+            const contactEmail = phoneAccount
+              ? getProfileContactEmail(user?.email, profile?.email)
+              : profile?.email || user?.email || '';
+            const showEmailStatus = !phoneAccount || !!contactEmail;
+
+            if (!phoneDisplay && !contactEmail) return null;
+
             return (
               <>
-                <Text style={styles.userEmail}>{contactDisplay}</Text>
-                {!phoneAccount && (
+                {phoneAccount && phoneDisplay ? (
+                  <Text style={styles.userEmail}>{phoneDisplay}</Text>
+                ) : null}
+                {contactEmail ? (
+                  <Text style={[styles.userEmail, phoneAccount && phoneDisplay && styles.userEmailSecondary]}>
+                    {contactEmail}
+                  </Text>
+                ) : !phoneAccount && phoneDisplay ? (
+                  <Text style={styles.userEmail}>{phoneDisplay}</Text>
+                ) : null}
+                {showEmailStatus && contactEmail && (
                   <View style={styles.emailStatusContainer}>
                     <Ionicons
                       name={isEmailVerified ? 'checkmark-circle' : 'alert-circle'}
@@ -874,6 +894,9 @@ const styles = StyleSheet.create({
   userEmail: {
     fontSize: 16,
     color: '#666',
+  },
+  userEmailSecondary: {
+    marginTop: 4,
   },
   verifiedBadge: {
     position: 'absolute',

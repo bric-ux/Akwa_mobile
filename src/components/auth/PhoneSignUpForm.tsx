@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../services/supabase';
 import PhoneNumberField from '../PhoneNumberField';
+import DateOfBirthField from '../DateOfBirthField';
 import PasswordValidation from '../PasswordValidation';
 import {
   buildE164,
@@ -20,6 +21,7 @@ import {
   PASSWORD_REGEX,
   validateAdultAgeDdMmYyyy,
 } from '../../lib/phoneAuth';
+import { getEdgeFunctionErrorMessage } from '../../lib/edgeFunctionError';
 
 type Step = 'form' | 'verify';
 
@@ -45,21 +47,6 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
   const [code, setCode] = useState('');
   const [normalizedPhone, setNormalizedPhone] = useState('');
   const [dateError, setDateError] = useState<string | null>(null);
-
-  const handleDateChange = (text: string) => {
-    const numericText = text.replace(/\D/g, '').slice(0, 8);
-    let formatted = '';
-    if (numericText.length >= 1) formatted = numericText.slice(0, 2);
-    if (numericText.length >= 3) formatted += '/' + numericText.slice(2, 4);
-    if (numericText.length >= 5) formatted += '/' + numericText.slice(4, 8);
-    setForm((p) => ({ ...p, dateOfBirth: formatted }));
-    if (formatted.length === 10) {
-      const v = validateAdultAgeDdMmYyyy(formatted);
-      setDateError(v.isValid ? null : v.message);
-    } else {
-      setDateError(null);
-    }
-  };
 
   const sendCode = async () => {
     setError(null);
@@ -104,8 +91,12 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
       const { data, error: sendErr } = await supabase.functions.invoke('send-phone-otp', {
         body: { phone: phoneE164, purpose: 'signup' },
       });
-      if (sendErr || data?.error) {
-        setError(data?.error || "Erreur d'envoi du SMS");
+      if (sendErr || (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error)) {
+        const msg = await getEdgeFunctionErrorMessage(data, sendErr, "Erreur d'envoi du SMS");
+        if (__DEV__) {
+          console.warn('[PhoneSignUp] send-phone-otp failed', { phoneE164, data, sendErr });
+        }
+        setError(msg);
         return;
       }
       setNormalizedPhone(phoneE164);
@@ -170,8 +161,8 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
       const { data, error: sendErr } = await supabase.functions.invoke('send-phone-otp', {
         body: { phone: normalizedPhone, purpose: 'signup' },
       });
-      if (sendErr || data?.error) {
-        setError(data?.error || "Erreur d'envoi");
+      if (sendErr || (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error)) {
+        setError(await getEdgeFunctionErrorMessage(data, sendErr, "Erreur d'envoi"));
       } else {
         Alert.alert('Nouveau code envoyé');
       }
@@ -248,18 +239,15 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
       />
       <Text style={styles.hint}>Un code SMS sera envoyé.</Text>
 
-      <Text style={styles.label}>Date de naissance</Text>
-      <TextInput
-        style={[styles.field, dateError && styles.fieldError]}
+      <DateOfBirthField
+        variant="signup"
+        label="Date de naissance"
+        hint="18 ans minimum"
         value={form.dateOfBirth}
-        onChangeText={handleDateChange}
-        placeholder="JJ/MM/AAAA"
-        keyboardType="number-pad"
-        maxLength={10}
-        placeholderTextColor="#999"
+        onChange={(ddMmYyyy) => setForm((p) => ({ ...p, dateOfBirth: ddMmYyyy }))}
+        onErrorChange={setDateError}
+        error={dateError}
       />
-      {dateError ? <Text style={styles.errorText}>{dateError}</Text> : null}
-      <Text style={styles.hint}>18 ans min.</Text>
 
       <Text style={styles.label}>Mot de passe</Text>
       <View style={styles.inputRow}>

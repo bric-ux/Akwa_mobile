@@ -224,7 +224,12 @@ export type RootStackParamList = {
   HostSpace: { screen?: keyof HostTabParamList } | undefined; // Navigation hôte avec onglets
   VehicleOwnerSpace: { screen?: keyof VehicleOwnerTabParamList } | undefined; // Navigation propriétaire de véhicule avec onglets
   MonthlyRentalOwnerSpace: { screen?: keyof MonthlyRentalTabParamList } | undefined; // Mode logement longue durée (gérer annonces + candidatures)
-  Auth: { returnTo?: string; returnParams?: Record<string, unknown> };
+  Auth: {
+    returnTo?: string;
+    returnParams?: Record<string, unknown>;
+    /** Onglet initial : connexion (défaut) ou inscription */
+    mode?: 'login' | 'signup';
+  };
   EmailVerification: { email: string; firstName: string };
   Search: { destination?: string; initialRentalType?: 'short_term' | 'monthly' | 'all' };
   PropertyDetails: { 

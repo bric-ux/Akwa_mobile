@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
+import { getProfileContactEmail } from '../lib/displayContact';
 
 export interface UserProfile {
   id: string;
@@ -106,7 +107,7 @@ export const useUserProfile = () => {
 
       const userProfile: UserProfile = {
         id: user.id,
-        email: user.email || '',
+        email: getProfileContactEmail(user.email, profileData?.email) || user.email || '',
         first_name: profileData?.first_name || user.user_metadata?.first_name || '',
         last_name: profileData?.last_name || user.user_metadata?.last_name || '',
         phone: profileData?.phone || user.user_metadata?.phone || '',

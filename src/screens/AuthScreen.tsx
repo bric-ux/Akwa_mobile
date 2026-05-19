@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp, CommonActions } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, CommonActions, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
@@ -26,6 +26,7 @@ import EmailVerificationModal from '../components/EmailVerificationModal';
 import PasswordResetModal from '../components/PasswordResetModal';
 import PhoneSignInForm from '../components/auth/PhoneSignInForm';
 import PhoneSignUpForm from '../components/auth/PhoneSignUpForm';
+import DateOfBirthField from '../components/DateOfBirthField';
 import { useEmailVerification } from '../hooks/useEmailVerification';
 import { useLanguage } from '../contexts/LanguageContext';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
@@ -36,10 +37,10 @@ const AuthScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<AuthScreenRouteProp>();
   const { t } = useLanguage();
-  const { returnTo, returnParams } = route.params || {};
+  const { returnTo, returnParams, mode: authModeParam } = route.params || {};
   const { signIn, signUp } = useAuth();
 
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(authModeParam !== 'signup');
   /** Aligné site web : téléphone par défaut */
   const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('phone');
   const [email, setEmail] = useState('');
@@ -63,6 +64,12 @@ const AuthScreen: React.FC = () => {
   } | null>(null);
 
   const { generateVerificationCode } = useEmailVerification();
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsLogin(authModeParam !== 'signup');
+    }, [authModeParam]),
+  );
 
   const handleBack = useCallback(() => {
     Keyboard.dismiss();
@@ -499,37 +506,6 @@ const AuthScreen: React.FC = () => {
     }
   };
 
-  // Fonction pour formater automatiquement la date avec les séparateurs
-  const handleDateInputChange = (text: string) => {
-    // Supprimer tous les caractères non numériques
-    const numericText = text.replace(/\D/g, '');
-    
-    // Limiter à 8 chiffres (DDMMYYYY)
-    const limitedText = numericText.slice(0, 8);
-    
-    // Formater avec les séparateurs
-    let formattedText = '';
-    if (limitedText.length >= 1) {
-      formattedText = limitedText.slice(0, 2);
-    }
-    if (limitedText.length >= 3) {
-      formattedText += '/' + limitedText.slice(2, 4);
-    }
-    if (limitedText.length >= 5) {
-      formattedText += '/' + limitedText.slice(4, 8);
-    }
-    
-    setDateOfBirth(formattedText);
-    
-    // Validation en temps réel si la date est complète
-    if (formattedText.length === 10) { // DD/MM/YYYY
-      const ageValidation = validateAdultAge(formattedText);
-      setDateError(ageValidation.isValid ? null : ageValidation.message);
-    } else {
-      setDateError(null);
-    }
-  };
-
   if (isClosing) {
     return <View style={styles.container} />;
   }
@@ -623,21 +599,14 @@ const AuthScreen: React.FC = () => {
                   />
                 </View>
 
-                <View style={styles.inputContainer}>
-                  <Ionicons name="calendar-outline" size={20} color="#666" style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, dateError && styles.inputError]}
-                    placeholder={t('auth.dateOfBirth')}
-                    value={dateOfBirth}
-                    onChangeText={handleDateInputChange}
-                    keyboardType="numeric"
-                    maxLength={10}
-                    placeholderTextColor="#999"
-                  />
-                </View>
-                {dateError && (
-                  <Text style={styles.errorText}>{dateError}</Text>
-                )}
+                <DateOfBirthField
+                  variant="auth"
+                  placeholder={t('auth.dateOfBirth')}
+                  value={dateOfBirth}
+                  onChange={setDateOfBirth}
+                  onErrorChange={setDateError}
+                  error={dateError}
+                />
               </>
             )}
 
