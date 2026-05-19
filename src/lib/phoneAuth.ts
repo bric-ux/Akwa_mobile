@@ -9,6 +9,9 @@ export const PHONE_PSEUDO_EMAIL_DOMAIN = '@phone.akwahome.local';
 export const PASSWORD_REGEX =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
+/** Exemple affiché dans les champs mot de passe (inscription). */
+export const PASSWORD_EXAMPLE = 'Mot123@';
+
 export const E164_REGEX = /^\+\d{8,15}$/;
 
 export type CountryDial = {

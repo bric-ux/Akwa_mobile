@@ -15,6 +15,7 @@ import {
   buildE164,
   E164_REGEX,
   PASSWORD_REGEX,
+  PASSWORD_EXAMPLE,
 } from '../../lib/phoneAuth';
 import { getEdgeFunctionErrorMessage } from '../../lib/edgeFunctionError';
 
@@ -190,14 +191,14 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
             value={newPassword}
             onChangeText={setNewPassword}
             secureTextEntry={!showPassword}
-            placeholder="••••••••"
+            placeholder={PASSWORD_EXAMPLE}
             placeholderTextColor="#999"
           />
           <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
             <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#666" />
           </TouchableOpacity>
         </View>
-        <Text style={styles.hint}>8 car. · maj · min · chiffre · @$!%*?&</Text>
+        <Text style={styles.hint}>Ex. {PASSWORD_EXAMPLE} — 8 car. min., maj., min., chiffre, @$!%*?&</Text>
         <Text style={styles.label}>Confirmer</Text>
         <View style={styles.inputRow}>
           <TextInput
@@ -205,7 +206,7 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry={!showPassword}
-            placeholder="••••••••"
+            placeholder={PASSWORD_EXAMPLE}
             placeholderTextColor="#999"
           />
         </View>

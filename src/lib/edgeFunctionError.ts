@@ -1,3 +1,5 @@
+import { mapSmsOtpUserMessage } from './smsOtpError';
+
 /**
  * Supabase renvoie souvent `error` + `data: null` quand l’edge function répond en 4xx/5xx.
  * Le corps JSON ({ error: "..." }) est dans `error.context` (Response).
@@ -38,5 +40,5 @@ export async function getEdgeFunctionErrorMessage(
   fallback: string,
 ): Promise<string> {
   const msg = await readEdgeFunctionError(data, fnError);
-  return msg || fallback;
+  return mapSmsOtpUserMessage(msg || fallback);
 }

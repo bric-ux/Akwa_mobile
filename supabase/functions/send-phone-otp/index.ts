@@ -3,6 +3,7 @@ import { z } from "https://esm.sh/zod@3.23.8";
 import { normalizePhoneE164 } from "../_shared/normalizePhone.ts";
 import { isAllowedSignupPhone } from "../_shared/signupPhone.ts";
 import { sendSmsSmart, isAfricanE164 } from "../_shared/sms.ts";
+import { termiiErrorToUserMessage, twilioErrorToUserMessage } from "../_shared/smsUserError.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -184,17 +185,7 @@ Deno.serve(async (req) => {
 
       if (smsResult.provider === "twilio") {
         const twCode = Number(errAny?.code);
-        const INVALID_NUMBER_CODES = new Set([21211, 21614]);
-        const UNSUPPORTED_CODES = new Set([30410, 30007, 21408]);
-
-        let userMessage = "Échec d'envoi du SMS. Vérifiez votre numéro.";
-        if (INVALID_NUMBER_CODES.has(twCode)) {
-          userMessage =
-            "Numéro invalide. Vérifiez l'indicatif pays et saisissez le numéro complet au format international.";
-        } else if (UNSUPPORTED_CODES.has(twCode)) {
-          userMessage =
-            "Ce numéro n'est pas pris en charge pour l'envoi de SMS. Utilisez un autre numéro ou connectez-vous via votre adresse e-mail.";
-        }
+        const userMessage = twilioErrorToUserMessage(errAny);
 
         return new Response(
           JSON.stringify({
@@ -207,9 +198,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const termiiMsg =
-        (typeof errAny?.message === "string" && errAny.message) ||
-        "Échec d'envoi du SMS. Vérifiez votre numéro et réessayez.";
+      const termiiMsg = termiiErrorToUserMessage(errAny);
       return new Response(
         JSON.stringify({ error: termiiMsg, provider: "termii", details: errAny }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -24,6 +24,7 @@ import { useAuth } from '../services/AuthContext';
 import PasswordValidation from '../components/PasswordValidation';
 import EmailVerificationModal from '../components/EmailVerificationModal';
 import PasswordResetModal from '../components/PasswordResetModal';
+import { PASSWORD_EXAMPLE } from '../lib/phoneAuth';
 import PhoneSignInForm from '../components/auth/PhoneSignInForm';
 import PhoneSignUpForm from '../components/auth/PhoneSignUpForm';
 import DateOfBirthField from '../components/DateOfBirthField';
@@ -627,7 +628,7 @@ const AuthScreen: React.FC = () => {
               <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder={t('auth.password')}
+                placeholder={isLogin ? t('auth.password') : PASSWORD_EXAMPLE}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -655,7 +656,7 @@ const AuthScreen: React.FC = () => {
                 <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder={t('auth.confirmPassword')}
+                  placeholder={PASSWORD_EXAMPLE}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showPassword}
