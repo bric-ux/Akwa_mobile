@@ -18,29 +18,48 @@ export type CountryDial = {
   name: string;
 };
 
-export const COUNTRIES: CountryDial[] = [
-  { code: 'FR', dial: '+33', flag: '🇫🇷', name: 'France' },
+/** Téléphone (inscription, connexion, reset) : Côte d'Ivoire + Europe. */
+export const PHONE_AUTH_COUNTRIES: CountryDial[] = [
   { code: 'CI', dial: '+225', flag: '🇨🇮', name: "Côte d'Ivoire" },
-  { code: 'SN', dial: '+221', flag: '🇸🇳', name: 'Sénégal' },
-  { code: 'CM', dial: '+237', flag: '🇨🇲', name: 'Cameroun' },
-  { code: 'BJ', dial: '+229', flag: '🇧🇯', name: 'Bénin' },
-  { code: 'BF', dial: '+226', flag: '🇧🇫', name: 'Burkina Faso' },
-  { code: 'ML', dial: '+223', flag: '🇲🇱', name: 'Mali' },
-  { code: 'TG', dial: '+228', flag: '🇹🇬', name: 'Togo' },
-  { code: 'NE', dial: '+227', flag: '🇳🇪', name: 'Niger' },
-  { code: 'GN', dial: '+224', flag: '🇬🇳', name: 'Guinée' },
-  { code: 'GA', dial: '+241', flag: '🇬🇦', name: 'Gabon' },
-  { code: 'CG', dial: '+242', flag: '🇨🇬', name: 'Congo' },
-  { code: 'CD', dial: '+243', flag: '🇨🇩', name: 'RD Congo' },
-  { code: 'MA', dial: '+212', flag: '🇲🇦', name: 'Maroc' },
-  { code: 'DZ', dial: '+213', flag: '🇩🇿', name: 'Algérie' },
-  { code: 'TN', dial: '+216', flag: '🇹🇳', name: 'Tunisie' },
+  { code: 'FR', dial: '+33', flag: '🇫🇷', name: 'France' },
   { code: 'BE', dial: '+32', flag: '🇧🇪', name: 'Belgique' },
   { code: 'CH', dial: '+41', flag: '🇨🇭', name: 'Suisse' },
-  { code: 'CA', dial: '+1', flag: '🇨🇦', name: 'Canada' },
-  { code: 'US', dial: '+1', flag: '🇺🇸', name: 'États-Unis' },
+  { code: 'DE', dial: '+49', flag: '🇩🇪', name: 'Allemagne' },
+  { code: 'ES', dial: '+34', flag: '🇪🇸', name: 'Espagne' },
+  { code: 'IT', dial: '+39', flag: '🇮🇹', name: 'Italie' },
+  { code: 'PT', dial: '+351', flag: '🇵🇹', name: 'Portugal' },
+  { code: 'NL', dial: '+31', flag: '🇳🇱', name: 'Pays-Bas' },
+  { code: 'LU', dial: '+352', flag: '🇱🇺', name: 'Luxembourg' },
   { code: 'GB', dial: '+44', flag: '🇬🇧', name: 'Royaume-Uni' },
+  { code: 'IE', dial: '+353', flag: '🇮🇪', name: 'Irlande' },
+  { code: 'AT', dial: '+43', flag: '🇦🇹', name: 'Autriche' },
+  { code: 'PL', dial: '+48', flag: '🇵🇱', name: 'Pologne' },
+  { code: 'SE', dial: '+46', flag: '🇸🇪', name: 'Suède' },
+  { code: 'NO', dial: '+47', flag: '🇳🇴', name: 'Norvège' },
+  { code: 'DK', dial: '+45', flag: '🇩🇰', name: 'Danemark' },
+  { code: 'FI', dial: '+358', flag: '🇫🇮', name: 'Finlande' },
+  { code: 'GR', dial: '+30', flag: '🇬🇷', name: 'Grèce' },
+  { code: 'CZ', dial: '+420', flag: '🇨🇿', name: 'Tchéquie' },
+  { code: 'HU', dial: '+36', flag: '🇭🇺', name: 'Hongrie' },
+  { code: 'RO', dial: '+40', flag: '🇷🇴', name: 'Roumanie' },
+  { code: 'BG', dial: '+359', flag: '🇧🇬', name: 'Bulgarie' },
+  { code: 'HR', dial: '+385', flag: '🇭🇷', name: 'Croatie' },
+  { code: 'SK', dial: '+421', flag: '🇸🇰', name: 'Slovaquie' },
+  { code: 'SI', dial: '+386', flag: '🇸🇮', name: 'Slovénie' },
+  { code: 'LT', dial: '+370', flag: '🇱🇹', name: 'Lituanie' },
+  { code: 'LV', dial: '+371', flag: '🇱🇻', name: 'Lettonie' },
+  { code: 'EE', dial: '+372', flag: '🇪🇪', name: 'Estonie' },
+  { code: 'CY', dial: '+357', flag: '🇨🇾', name: 'Chypre' },
+  { code: 'MT', dial: '+356', flag: '🇲🇹', name: 'Malte' },
+  { code: 'IS', dial: '+354', flag: '🇮🇸', name: 'Islande' },
+  { code: 'LI', dial: '+423', flag: '🇱🇮', name: 'Liechtenstein' },
 ];
+
+/** @deprecated Utiliser PHONE_AUTH_COUNTRIES */
+export const PHONE_SIGNUP_COUNTRIES = PHONE_AUTH_COUNTRIES;
+
+/** @deprecated Utiliser PHONE_AUTH_COUNTRIES */
+export const COUNTRIES = PHONE_AUTH_COUNTRIES;
 
 /** @deprecated Utiliser normalizeLocalPart / buildE164 depuis ./phone */
 export function digitsOnly(raw: string, dial = '+225'): string {

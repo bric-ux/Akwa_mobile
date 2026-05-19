@@ -9,18 +9,25 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COUNTRIES } from '../lib/phoneAuth';
+import { PHONE_AUTH_COUNTRIES, type CountryDial } from '../lib/phoneAuth';
 
 type Props = {
   dial: string;
   local: string;
   onDialChange: (dial: string) => void;
   onLocalChange: (local: string) => void;
+  countries?: CountryDial[];
 };
 
-const PhoneNumberField: React.FC<Props> = ({ dial, local, onDialChange, onLocalChange }) => {
+const PhoneNumberField: React.FC<Props> = ({
+  dial,
+  local,
+  onDialChange,
+  onLocalChange,
+  countries = PHONE_AUTH_COUNTRIES,
+}) => {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const selected = COUNTRIES.find((c) => c.dial === dial) ?? COUNTRIES.find((c) => c.code === 'CI')!;
+  const selected = countries.find((c) => c.dial === dial) ?? countries.find((c) => c.code === 'CI')!;
 
   return (
     <View style={styles.row}>
@@ -49,7 +56,7 @@ const PhoneNumberField: React.FC<Props> = ({ dial, local, onDialChange, onLocalC
               </TouchableOpacity>
             </View>
             <FlatList
-              data={COUNTRIES}
+              data={countries}
               keyExtractor={(item) => item.code}
               renderItem={({ item }) => (
                 <TouchableOpacity

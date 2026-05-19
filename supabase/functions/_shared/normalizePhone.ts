@@ -1,4 +1,4 @@
-/** Indicatif Côte d'Ivoire — Twilio attend le 0 national après +225 (ex. +2250712345678). */
+/** Indicatif Côte d'Ivoire — format +22507… (Termii / Twilio via sendSmsSmart). */
 export const IVORY_COAST_DIAL = "+225";
 
 /**
@@ -34,7 +34,7 @@ export function normalizePhoneE164(phone: string): string | null {
   return /^\+\d{8,15}$/.test(p) ? p : null;
 }
 
-/** Alias explicite avant envoi SMS Twilio. */
+/** Alias avant envoi SMS (Termii Afrique, Twilio ailleurs). */
 export function normalizePhoneForTwilio(phone: string): string | null {
   return normalizePhoneE164(phone);
 }

@@ -237,7 +237,7 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
         onDialChange={(v) => setForm((p) => ({ ...p, dial: v }))}
         onLocalChange={(v) => setForm((p) => ({ ...p, localPhone: v }))}
       />
-      <Text style={styles.hint}>Un code SMS sera envoyé.</Text>
+      <Text style={styles.hint}>Côte d&apos;Ivoire ou Europe — un code SMS sera envoyé.</Text>
 
       <DateOfBirthField
         variant="signup"
