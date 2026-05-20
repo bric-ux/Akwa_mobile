@@ -54,16 +54,17 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
       const { data, error: resolveErr } = await supabase.functions.invoke('resolve-phone-email', {
         body: { phone: phoneE164 },
       });
+      const payload = data as { email?: string; success?: boolean; error?: string } | null;
       const resolvedEmail =
-        data && typeof data === 'object' && 'email' in data ? (data as { email?: string }).email : null;
-      if (resolveErr || !resolvedEmail) {
-        const msg =
-          (data && typeof data === 'object' && 'error' in data
-            ? String((data as { error?: string }).error)
-            : null) ||
-          resolveErr?.message ||
-          'Aucun compte associé à ce numéro';
-        setError(msg);
+        typeof payload?.email === 'string' && payload.email.trim() ? payload.email.trim() : null;
+      if (resolveErr || payload?.success === false || !resolvedEmail) {
+        setError(
+          await getEdgeFunctionErrorMessage(
+            data,
+            resolveErr,
+            'Aucun compte associé à ce numéro',
+          ),
+        );
         return;
       }
       const { error: signErr } = await supabase.auth.signInWithPassword({
@@ -94,7 +95,12 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
       const { data, error: sendErr } = await supabase.functions.invoke('send-phone-otp', {
         body: { phone: phoneE164, purpose: 'reset' },
       });
-      if (sendErr || (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error)) {
+      const sendPayload = data as { error?: string; success?: boolean } | null;
+      if (
+        sendErr ||
+        sendPayload?.success === false ||
+        (sendPayload && typeof sendPayload.error === 'string' && sendPayload.error)
+      ) {
         setError(await getEdgeFunctionErrorMessage(data, sendErr, "Erreur d'envoi du SMS"));
         return;
       }
@@ -125,8 +131,10 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
       const { data, error: vErr } = await supabase.functions.invoke('verify-phone-otp', {
         body: { phone: normalizedPhone, code, purpose: 'reset', newPassword },
       });
-      if (vErr || data?.error || !data?.email) {
-        setError(data?.error || 'Code incorrect ou expiré');
+      if (vErr || data?.error || data?.success === false || !data?.email) {
+        setError(
+          await getEdgeFunctionErrorMessage(data, vErr, 'Code incorrect ou expiré'),
+        );
         return;
       }
       const { error: signErr } = await supabase.auth.signInWithPassword({

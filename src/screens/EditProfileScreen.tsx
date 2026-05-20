@@ -23,10 +23,13 @@ import {
   assertEmailAvailableForProfile,
   isValidContactEmail,
 } from '../lib/email';
+import PhoneNumberField from '../components/PhoneNumberField';
 import {
   assertPhoneAvailableForProfile,
+  buildE164,
   isPhoneAlreadyUsedError,
   normalizePhoneE164,
+  resolveProfilePhoneForInput,
 } from '../lib/phone';
 
 interface UserProfile {
@@ -48,10 +51,11 @@ const EditProfileScreen: React.FC = () => {
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
-    phone: '',
     contact_email: '',
     bio: '',
   });
+  const [phoneDial, setPhoneDial] = useState('+225');
+  const [phoneLocal, setPhoneLocal] = useState('');
   const [isPhoneAccount, setIsPhoneAccount] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
@@ -103,11 +107,18 @@ const EditProfileScreen: React.FC = () => {
         bio: profileRow?.bio || user.user_metadata?.bio || '',
       };
       
+      const phoneResolved = resolveProfilePhoneForInput({
+        phone: profileRow?.phone,
+        phoneE164: profileRow?.phone_e164,
+        profileCountry: profileRow?.country,
+      });
+
       setProfile(userProfile);
+      setPhoneDial(phoneResolved.dial);
+      setPhoneLocal(phoneResolved.local);
       setFormData({
         first_name: userProfile.first_name || '',
         last_name: userProfile.last_name || '',
-        phone: userProfile.phone || '',
         contact_email: getProfileContactEmail(user.email, profileRow?.email),
         bio: userProfile.bio || '',
       });
@@ -262,16 +273,19 @@ const EditProfileScreen: React.FC = () => {
         }
       }
 
-      const phoneTrimmed = formData.phone.trim();
-      if (phoneTrimmed) {
-        if (!normalizePhoneE164(phoneTrimmed)) {
+      const phoneLocalTrimmed = phoneLocal.trim();
+      const phoneE164 = phoneLocalTrimmed ? buildE164(phoneDial, phoneLocalTrimmed) : '';
+      const phoneNorm = phoneE164 ? normalizePhoneE164(phoneE164) : null;
+
+      if (phoneLocalTrimmed) {
+        if (!phoneNorm) {
           Alert.alert(
             'Numéro invalide',
-            'Utilisez le format international, par exemple +225 07 12 34 56 78.',
+            'Sélectionnez l\'indicatif pays et saisissez un numéro valide.',
           );
           return;
         }
-        const phoneCheck = await assertPhoneAvailableForProfile(phoneTrimmed, user.id);
+        const phoneCheck = await assertPhoneAvailableForProfile(phoneNorm, user.id);
         if (!phoneCheck.ok) {
           Alert.alert('Numéro déjà utilisé', phoneCheck.message);
           return;
@@ -294,7 +308,7 @@ const EditProfileScreen: React.FC = () => {
         data: {
           first_name: formData.first_name,
           last_name: formData.last_name,
-          phone: formData.phone,
+          phone: phoneNorm || '',
           bio: formData.bio,
           avatar_url: avatarUrl,
         },
@@ -309,11 +323,10 @@ const EditProfileScreen: React.FC = () => {
         .eq('user_id', user.id)
         .single();
 
-      const phoneNorm = phoneTrimmed ? normalizePhoneE164(phoneTrimmed) : null;
       const profilePhoneFields: Record<string, unknown> = {
         first_name: formData.first_name,
         last_name: formData.last_name,
-        phone: phoneTrimmed || null,
+        phone: phoneNorm,
         phone_e164: phoneNorm,
         bio: formData.bio,
         avatar_url: avatarUrl,
@@ -423,7 +436,7 @@ const EditProfileScreen: React.FC = () => {
           : profile?.email || user.email || '',
         first_name: formData.first_name,
         last_name: formData.last_name,
-        phone: formData.phone,
+        phone: phoneNorm || '',
         bio: formData.bio,
         avatar_url: avatarUrl,
       };
@@ -571,13 +584,15 @@ const EditProfileScreen: React.FC = () => {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Téléphone</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.phone}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
-                placeholder="Votre numéro de téléphone"
-                keyboardType="phone-pad"
+              <PhoneNumberField
+                dial={phoneDial}
+                local={phoneLocal}
+                onDialChange={setPhoneDial}
+                onLocalChange={setPhoneLocal}
               />
+              <Text style={styles.fieldHint}>
+                Saisissez le 0 devant votre numéro (ex. 07…, 06…). Enregistré au format international.
+              </Text>
             </View>
 
             <View style={styles.inputGroup}>

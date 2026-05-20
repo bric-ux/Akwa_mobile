@@ -92,7 +92,12 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
       const { data, error: sendErr } = await supabase.functions.invoke('send-phone-otp', {
         body: { phone: phoneE164, purpose: 'signup' },
       });
-      if (sendErr || (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error)) {
+      const sendPayload = data as { error?: string; success?: boolean } | null;
+      if (
+        sendErr ||
+        sendPayload?.success === false ||
+        (sendPayload && typeof sendPayload.error === 'string' && sendPayload.error)
+      ) {
         const msg = await getEdgeFunctionErrorMessage(data, sendErr, "Erreur d'envoi du SMS");
         if (__DEV__) {
           console.warn('[PhoneSignUp] send-phone-otp failed', { phoneE164, data, sendErr });
@@ -134,8 +139,8 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
           dateOfBirth: dateIso,
         },
       });
-      if (verifyErr || data?.error || !data?.email) {
-        setError(data?.error || 'Code incorrect');
+      if (verifyErr || data?.error || data?.success === false || !data?.email) {
+        setError(await getEdgeFunctionErrorMessage(data, verifyErr, 'Code incorrect'));
         return;
       }
       const { error: signErr } = await supabase.auth.signInWithPassword({
@@ -162,7 +167,12 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
       const { data, error: sendErr } = await supabase.functions.invoke('send-phone-otp', {
         body: { phone: normalizedPhone, purpose: 'signup' },
       });
-      if (sendErr || (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error)) {
+      const resendPayload = data as { error?: string; success?: boolean } | null;
+      if (
+        sendErr ||
+        resendPayload?.success === false ||
+        (resendPayload && typeof resendPayload.error === 'string' && resendPayload.error)
+      ) {
         setError(await getEdgeFunctionErrorMessage(data, sendErr, "Erreur d'envoi"));
       } else {
         Alert.alert('Nouveau code envoyé');

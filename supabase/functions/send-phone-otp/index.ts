@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
-import { normalizePhoneE164 } from "../_shared/normalizePhone.ts";
+import { normalizePhoneE164, phoneE164ForSms } from "../_shared/normalizePhone.ts";
 import { isAllowedSignupPhone } from "../_shared/signupPhone.ts";
 import { sendSmsSmart, isAfricanE164 } from "../_shared/sms.ts";
 import { termiiErrorToUserMessage, twilioErrorToUserMessage } from "../_shared/smsUserError.ts";
@@ -109,39 +109,40 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: existingEmail } = await supabase.rpc("resolve_phone_to_email", {
-      p_phone: phoneE164,
-    });
+    const { data: existingEmail, error: resolveRpcErr } = await supabase.rpc(
+      "resolve_phone_to_email",
+      { p_phone: phoneE164 },
+    );
 
-    if (purpose === "signup") {
-      const { data: existing } = await supabase
-        .from("profiles")
-        .select("user_id, phone_verified")
-        .eq("phone_e164", phoneE164)
-        .maybeSingle();
-
-      if (existing?.phone_verified || existingEmail) {
-        return new Response(
-          JSON.stringify({ error: "Ce numéro est déjà associé à un compte. Connectez-vous." }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    if (resolveRpcErr) {
+      console.error("resolve_phone_to_email RPC error:", resolveRpcErr);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Service téléphone indisponible. Réessayez dans quelques instants.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    if (purpose === "login" || purpose === "reset") {
-      const { data: existing } = await supabase
-        .from("profiles")
-        .select("user_id, phone_verified")
-        .eq("phone_e164", phoneE164)
-        .eq("phone_verified", true)
-        .maybeSingle();
+    if (purpose === "signup" && existingEmail) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Ce numéro est déjà associé à un compte. Connectez-vous.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-      if (!existing && !existingEmail) {
-        return new Response(
-          JSON.stringify({ error: "Aucun compte associé à ce numéro." }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    if ((purpose === "login" || purpose === "reset") && !existingEmail) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Aucun compte associé à ce numéro.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const code = generateCode();
@@ -173,7 +174,8 @@ Deno.serve(async (req) => {
 
     const smsBody = `AkwaHome : votre code de verification est ${code}. Valide 10 minutes. Ne partagez jamais ce code.`;
 
-    const smsResult = await sendSmsSmart(phoneE164, smsBody);
+    const smsTo = phoneE164ForSms(phoneE164) ?? phoneE164;
+    const smsResult = await sendSmsSmart(smsTo, smsBody);
 
     if (!smsResult.ok) {
       const errAny: Record<string, unknown> =

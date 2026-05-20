@@ -1,12 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   Modal,
-  Platform,
   StyleSheet,
   InteractionManager,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -32,8 +32,27 @@ type Props = {
   variant?: Variant;
 };
 
-/** Calendrier natif sur Android récent ; dialog classique sinon. */
-const ANDROID_DATE_DISPLAY = Platform.OS === 'android' ? 'calendar' : 'spinner';
+const MONTH_NAMES_FR = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+];
+
+function formatDatePreview(date: Date): string {
+  const d = date.getDate();
+  const m = MONTH_NAMES_FR[date.getMonth()] ?? '';
+  const y = date.getFullYear();
+  return `${d} ${m} ${y}`;
+}
 
 const DateOfBirthField: React.FC<Props> = ({
   value,
@@ -42,7 +61,7 @@ const DateOfBirthField: React.FC<Props> = ({
   error,
   label,
   hint,
-  placeholder = 'JJ/MM/AAAA',
+  placeholder = 'Choisir une date',
   variant = 'signup',
 }) => {
   const [showPicker, setShowPicker] = useState(false);
@@ -62,9 +81,7 @@ const DateOfBirthField: React.FC<Props> = ({
   );
 
   const openPicker = () => {
-    const initial = getDefaultDateOfBirthPickerValue(value);
-    setTempDate(initial);
-    // Évite que le dialog Android ne s’ouvre pas dans un ScrollView / clavier actif
+    setTempDate(getDefaultDateOfBirthPickerValue(value));
     InteractionManager.runAfterInteractions(() => {
       setShowPicker(true);
     });
@@ -74,21 +91,11 @@ const DateOfBirthField: React.FC<Props> = ({
     setShowPicker(false);
   };
 
-  const onPickerChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (Platform.OS === 'android') {
-      closePicker();
-      if (event.type === 'dismissed') return;
-      if (!selectedDate) return;
-      // type 'set' (API 33+) ou undefined sur anciennes versions après validation
-      if (event.type === 'set' || event.type === 'neutralButton' || event.type == null) {
-        applyDate(selectedDate);
-      }
-      return;
-    }
+  const onPickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (selectedDate) setTempDate(clampDateOfBirth(selectedDate));
   };
 
-  const confirmIos = () => {
+  const confirm = () => {
     applyDate(tempDate);
     closePicker();
   };
@@ -96,6 +103,11 @@ const DateOfBirthField: React.FC<Props> = ({
   const isAuth = variant === 'auth';
   const hasError = !!error;
   const pickerValue = clampDateOfBirth(tempDate);
+
+  const displayValue = useMemo(() => {
+    if (value) return value;
+    return placeholder;
+  }, [value, placeholder]);
 
   return (
     <View style={styles.wrap}>
@@ -109,52 +121,48 @@ const DateOfBirthField: React.FC<Props> = ({
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={label || 'Date de naissance'}
-        accessibilityHint="Ouvre le sélecteur de date"
+        accessibilityHint="Ouvre le sélecteur jour, mois et année"
       >
         {isAuth ? (
           <Ionicons name="calendar-outline" size={20} color="#666" style={styles.authIcon} />
         ) : (
           <Ionicons name="calendar-outline" size={20} color="#666" />
         )}
-        <Text style={[styles.triggerText, !value && styles.placeholder]}>
-          {value || placeholder}
-        </Text>
+        <Text style={[styles.triggerText, !value && styles.placeholder]}>{displayValue}</Text>
         <Ionicons name="chevron-down" size={18} color="#9ca3af" />
       </TouchableOpacity>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       {hint && !error ? <Text style={styles.hint}>{hint}</Text> : null}
 
-      {/* Android : dialog calendrier natif (hors Modal pour fiabilité) */}
-      {Platform.OS === 'android' && showPicker ? (
-        <DateTimePicker
-          value={pickerValue}
-          mode="date"
-          display={ANDROID_DATE_DISPLAY}
-          maximumDate={getMaxDateOfBirth()}
-          minimumDate={getMinDateOfBirth()}
-          onChange={onPickerChange}
-          positiveButton={{ label: 'OK', textColor: '#2E7D32' }}
-          negativeButton={{ label: 'Annuler', textColor: '#666' }}
-        />
-      ) : null}
+      <Modal
+        visible={showPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={closePicker}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={closePicker} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Date de naissance</Text>
+              <TouchableOpacity onPress={closePicker} hitSlop={12} accessibilityLabel="Fermer">
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
 
-      {/* iOS : feuille modale + roue */}
-      {Platform.OS === 'ios' ? (
-        <Modal
-          visible={showPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={closePicker}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalSheet}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Date de naissance</Text>
-                <TouchableOpacity onPress={closePicker} hitSlop={12}>
-                  <Ionicons name="close" size={24} color="#666" />
-                </TouchableOpacity>
+            <Text style={styles.modalHint}>
+              Faites défiler le jour, le mois et l&apos;année. Vous devez avoir au moins 18 ans.
+            </Text>
+
+            <View style={styles.previewBox}>
+              <Ionicons name="calendar" size={22} color="#2E7D32" />
+              <View style={styles.previewTexts}>
+                <Text style={styles.previewMain}>{formatDatePreview(pickerValue)}</Text>
+                <Text style={styles.previewSub}>{formatDateDdMmYyyy(pickerValue)}</Text>
               </View>
-              <Text style={styles.modalHint}>Vous devez avoir au moins 18 ans.</Text>
+            </View>
+
+            <View style={styles.pickerWrap}>
               <DateTimePicker
                 value={pickerValue}
                 mode="date"
@@ -163,20 +171,22 @@ const DateOfBirthField: React.FC<Props> = ({
                 maximumDate={getMaxDateOfBirth()}
                 minimumDate={getMinDateOfBirth()}
                 onChange={onPickerChange}
-                style={styles.iosPicker}
+                style={styles.picker}
+                {...(Platform.OS === 'android' ? { textColor: '#111827' } : {})}
               />
-              <View style={styles.modalFooter}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={closePicker}>
-                  <Text style={styles.cancelBtnText}>Annuler</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.confirmBtn} onPress={confirmIos}>
-                  <Text style={styles.confirmBtnText}>Confirmer</Text>
-                </TouchableOpacity>
-              </View>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closePicker}>
+                <Text style={styles.cancelBtnText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmBtn} onPress={confirm}>
+                <Text style={styles.confirmBtnText}>Confirmer</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </Modal>
-      ) : null}
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -237,14 +247,17 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   modalSheet: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 24,
+    paddingBottom: Platform.OS === 'android' ? 20 : 24,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -263,10 +276,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     paddingHorizontal: 20,
-    marginBottom: 4,
+    lineHeight: 20,
+    marginBottom: 12,
   },
-  iosPicker: {
-    height: 220,
+  previewBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    padding: 14,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  previewTexts: {
+    flex: 1,
+    gap: 2,
+  },
+  previewMain: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#14532d',
+    textTransform: 'capitalize',
+  },
+  previewSub: {
+    fontSize: 14,
+    color: '#166534',
+  },
+  pickerWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: Platform.OS === 'android' ? 200 : 220,
+  },
+  picker: {
+    width: '100%',
+    height: Platform.OS === 'android' ? 200 : 220,
   },
   modalFooter: {
     flexDirection: 'row',
