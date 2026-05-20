@@ -24,6 +24,8 @@ import {
   isValidContactEmail,
 } from '../lib/email';
 import PhoneNumberField from '../components/PhoneNumberField';
+import CountrySelectField from '../components/CountrySelectField';
+import { resolveProfileCountryLabel } from '../lib/phoneAuth';
 import {
   assertPhoneAvailableForProfile,
   buildE164,
@@ -53,6 +55,10 @@ const EditProfileScreen: React.FC = () => {
     last_name: '',
     contact_email: '',
     bio: '',
+    country: '',
+    city: '',
+    address: '',
+    postal_code: '',
   });
   const [phoneDial, setPhoneDial] = useState('+225');
   const [phoneLocal, setPhoneLocal] = useState('');
@@ -86,7 +92,9 @@ const EditProfileScreen: React.FC = () => {
       
       const { data: profileRow } = await supabase
         .from('profiles')
-        .select('first_name, last_name, phone, phone_e164, avatar_url, bio, email')
+        .select(
+          'first_name, last_name, phone, phone_e164, avatar_url, bio, email, country, city, address, postal_code',
+        )
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -121,6 +129,10 @@ const EditProfileScreen: React.FC = () => {
         last_name: userProfile.last_name || '',
         contact_email: getProfileContactEmail(user.email, profileRow?.email),
         bio: userProfile.bio || '',
+        country: resolveProfileCountryLabel(profileRow?.country) || profileRow?.country || '',
+        city: profileRow?.city || '',
+        address: profileRow?.address || '',
+        postal_code: profileRow?.postal_code || '',
       });
       setAvatarUri(userProfile.avatar_url || null);
     } catch (error) {
@@ -330,6 +342,10 @@ const EditProfileScreen: React.FC = () => {
         phone_e164: phoneNorm,
         bio: formData.bio,
         avatar_url: avatarUrl,
+        country: formData.country.trim() || null,
+        city: formData.city.trim() || null,
+        address: formData.address.trim() || null,
+        postal_code: formData.postal_code.trim() || null,
       };
       if (phoneNorm && user.email && !isPhonePseudoEmail(user.email)) {
         profilePhoneFields.phone_verified = true;
@@ -504,7 +520,11 @@ const EditProfileScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+        >
           {/* Photo de profil */}
           <View style={styles.avatarSection}>
             <TouchableOpacity
@@ -582,6 +602,56 @@ const EditProfileScreen: React.FC = () => {
               </View>
             )}
 
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Adresse</Text>
+
+              <View style={styles.inputGroup}>
+                <CountrySelectField
+                  label="Pays"
+                  value={formData.country}
+                  onChange={(name, item) => {
+                    setFormData((prev) => ({ ...prev, country: name }));
+                    if (!phoneLocal.trim()) {
+                      setPhoneDial(item.dial);
+                    }
+                  }}
+                  hint="Pays de résidence affiché sur votre profil"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Ville</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.city}
+                  onChangeText={(text) => setFormData((prev) => ({ ...prev, city: text }))}
+                  placeholder="Votre ville"
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Adresse</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.address}
+                  onChangeText={(text) => setFormData((prev) => ({ ...prev, address: text }))}
+                  placeholder="Rue, quartier…"
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Code postal</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.postal_code}
+                  onChangeText={(text) => setFormData((prev) => ({ ...prev, postal_code: text }))}
+                  placeholder="Code postal"
+                />
+              </View>
+            </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Téléphone</Text>
               <PhoneNumberField
@@ -591,7 +661,8 @@ const EditProfileScreen: React.FC = () => {
                 onLocalChange={setPhoneLocal}
               />
               <Text style={styles.fieldHint}>
-                Saisissez le 0 devant votre numéro (ex. 07…, 06…). Enregistré au format international.
+                Touchez l&apos;indicatif (+225, +33…) pour changer de pays. Saisissez le 0 devant
+                votre numéro (ex. 07…, 06…).
               </Text>
             </View>
 
@@ -696,6 +767,17 @@ const styles = StyleSheet.create({
   avatarHint: {
     fontSize: 14,
     color: '#666',
+  },
+  section: {
+    marginTop: 8,
+    marginBottom: 4,
+    gap: 4,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
   },
   formContainer: {
     backgroundColor: '#fff',

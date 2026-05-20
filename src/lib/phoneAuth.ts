@@ -64,6 +64,42 @@ export const PHONE_SIGNUP_COUNTRIES = PHONE_AUTH_COUNTRIES;
 /** @deprecated Utiliser PHONE_AUTH_COUNTRIES */
 export const COUNTRIES = PHONE_AUTH_COUNTRIES;
 
+const PROFILE_COUNTRY_ALIASES: Record<string, string> = {
+  "cote d'ivoire": 'CI',
+  "côte d'ivoire": 'CI',
+  'ivory coast': 'CI',
+  ci: 'CI',
+  france: 'FR',
+  fr: 'FR',
+  belgique: 'BE',
+  belgium: 'BE',
+  be: 'BE',
+  suisse: 'CH',
+  switzerland: 'CH',
+  ch: 'CH',
+  'royaume-uni': 'GB',
+  'united kingdom': 'GB',
+  gb: 'GB',
+  allemagne: 'DE',
+  germany: 'DE',
+  de: 'DE',
+};
+
+/** Libellé pays pour affichage (profil stocké en texte libre ou code ISO). */
+export function resolveProfileCountryLabel(country: string | null | undefined): string {
+  if (!country?.trim()) return '';
+  const raw = country.trim();
+  const key = raw.toLowerCase();
+  const code =
+    PROFILE_COUNTRY_ALIASES[key] ?? (raw.length === 2 ? raw.toUpperCase() : undefined);
+  if (code) {
+    const found = PHONE_AUTH_COUNTRIES.find((c) => c.code === code);
+    if (found) return found.name;
+  }
+  const byName = PHONE_AUTH_COUNTRIES.find((c) => c.name.toLowerCase() === key);
+  return byName?.name ?? raw;
+}
+
 /** @deprecated Utiliser normalizeLocalPart / buildE164 depuis ./phone */
 export function digitsOnly(raw: string, dial = '+225'): string {
   const d = raw.replace(/\D/g, '');
