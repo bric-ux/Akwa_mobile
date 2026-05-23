@@ -7,6 +7,8 @@ import { AuthProvider, useAuth } from './src/services/AuthContext';
 import { CurrencyProvider } from './src/contexts/CurrencyContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { SearchDatesProvider } from './src/contexts/SearchDatesContext';
+import { NetworkProvider } from './src/contexts/NetworkContext';
+import OfflineBanner from './src/components/OfflineBanner';
 import AppNavigator from './src/navigation/AppNavigator';
 import CurrencyDefaultFromCountry from './src/components/CurrencyDefaultFromCountry';
 import ForceUpdateScreen from './src/screens/ForceUpdateScreen';
@@ -24,9 +26,14 @@ export default function App() {
             <CurrencyProvider>
               <AuthProvider>
                 <SearchDatesProvider>
-                  <AuthGate>
-                    <AppNavigator />
-                  </AuthGate>
+                  <NetworkProvider>
+                    <AuthGate>
+                      <View style={styles.appRoot}>
+                        <AppNavigator />
+                        <OfflineBanner />
+                      </View>
+                    </AuthGate>
+                  </NetworkProvider>
                 </SearchDatesProvider>
               </AuthProvider>
             </CurrencyProvider>
@@ -78,6 +85,9 @@ const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const styles = StyleSheet.create({
+  appRoot: {
+    flex: 1,
+  },
   gestureRoot: {
     flex: 1,
   },

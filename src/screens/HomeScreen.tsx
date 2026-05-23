@@ -30,6 +30,9 @@ import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
 import TeddyExploreFab from '../components/TeddyExploreFab';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useNetwork } from '../contexts/NetworkContext';
+import LoadErrorCard from '../components/LoadErrorCard';
+import type { LoadFailureKind } from '../utils/loadError';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -67,6 +70,7 @@ const HomeScreen: React.FC = () => {
   const { width: windowWidth } = useWindowDimensions();
   const vehiclesPromoNarrow = windowWidth < 400;
   const { t } = useLanguage();
+  const { isOffline } = useNetwork();
   const {
     layoutSections: exploreSections,
     loading: exploreLoading,
@@ -237,6 +241,28 @@ const HomeScreen: React.FC = () => {
     [handlePropertyPress, navigateSearchCity, navigation],
   );
 
+  const exploreFailureKind: LoadFailureKind | null = exploreError
+    ? isOffline
+      ? 'offline'
+      : 'network'
+    : null;
+
+  const exploreErrorCard = useMemo(() => {
+    if (!exploreFailureKind) return null;
+    const title = isOffline ? t('home.exploreLoadErrorOffline') : t('home.exploreLoadError');
+    const message = isOffline ? t('common.offlineHint') : t('common.checkConnection');
+    return (
+      <LoadErrorCard
+        kind={exploreFailureKind}
+        title={title}
+        message={message}
+        retryLabel={t('common.retry')}
+        onRetry={() => void refreshExploreCityHome()}
+        compact
+      />
+    );
+  }, [exploreFailureKind, isOffline, t, refreshExploreCityHome]);
+
   const listHeader = useMemo(() => (
     <>
       <HeroSection onSearchPress={handleSearchPress} />
@@ -257,9 +283,10 @@ const HomeScreen: React.FC = () => {
         <View style={styles.exploreIntroHeader}>
           <Text style={styles.sectionTitle}>Explorez par ville</Text>
         </View>
+        {exploreErrorCard}
       </View>
     </>
-  ), [handleSearchPress, showDeferredHeaderContent]);
+  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard]);
 
   const listFooter = useMemo(
     () => (
@@ -486,6 +513,17 @@ const HomeScreen: React.FC = () => {
         </View>
       );
     }
+    if (exploreFailureKind && exploreSections.length === 0) {
+      return (
+        <LoadErrorCard
+          kind={exploreFailureKind}
+          title={isOffline ? t('home.exploreLoadErrorOffline') : t('home.exploreLoadError')}
+          message={isOffline ? t('common.offlineHint') : t('common.checkConnection')}
+          retryLabel={t('common.retry')}
+          onRetry={() => void refreshExploreCityHome()}
+        />
+      );
+    }
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyTitle}>{emptyMessageShort}</Text>
@@ -493,17 +531,15 @@ const HomeScreen: React.FC = () => {
         <Text style={styles.emptySubtitle}>{t('property.noPropertiesSubtext')}</Text>
       </View>
     );
-  }, [emptyMessageShort, t, listLoadingEmpty]);
-
-  const showError = exploreError;
-
-  if (showError) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Erreur: {showError}</Text>
-      </View>
-    );
-  }
+  }, [
+    emptyMessageShort,
+    t,
+    listLoadingEmpty,
+    exploreFailureKind,
+    exploreSections.length,
+    isOffline,
+    refreshExploreCityHome,
+  ]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>

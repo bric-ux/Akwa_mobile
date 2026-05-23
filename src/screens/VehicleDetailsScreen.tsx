@@ -31,6 +31,9 @@ import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import { Video, ResizeMode } from 'expo-av';
 import { getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
 import { getVehiclePublicWebUrl, shareListingLink } from '../utils/shareListingLink';
+import { useNetwork } from '../contexts/NetworkContext';
+import { classifyLoadError, type LoadFailureKind } from '../utils/loadError';
+import LoadErrorCard from '../components/LoadErrorCard';
 
 type VehicleDetailsRouteProp = RouteProp<RootStackParamList, 'VehicleDetails'>;
 
@@ -44,9 +47,11 @@ const VehicleDetailsScreen: React.FC = () => {
   const { formatPrice, refreshCurrency } = useCurrency();
   const { t } = useLanguage();
   const { user } = useAuth();
+  const { isOffline } = useNetwork();
   
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailure, setLoadFailure] = useState<LoadFailureKind | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showHostProfile, setShowHostProfile] = useState(false);
   const galleryListRef = useRef<FlatList<string>>(null);
@@ -100,22 +105,36 @@ const VehicleDetailsScreen: React.FC = () => {
     });
   }, [vehicle, t]);
 
-  useEffect(() => {
-    const loadVehicle = async () => {
-      try {
-        setLoading(true);
-        const vehicleData = await getVehicleById(vehicleId);
-        setVehicle(vehicleData);
-      } catch (error: any) {
-        console.error('Erreur lors du chargement du véhicule:', error);
-        Alert.alert('Erreur', 'Impossible de charger les détails du véhicule');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadVehicle = useCallback(async () => {
+    if (!vehicleId) {
+      setLoadFailure('not_found');
+      setLoading(false);
+      return;
+    }
 
-    loadVehicle();
-  }, [vehicleId]);
+    setLoading(true);
+    setLoadFailure(null);
+
+    try {
+      const vehicleData = await getVehicleById(vehicleId);
+      if (!vehicleData) {
+        setVehicle(null);
+        setLoadFailure('not_found');
+        return;
+      }
+      setVehicle(vehicleData);
+    } catch (error: unknown) {
+      console.error('Erreur lors du chargement du véhicule:', error);
+      setVehicle(null);
+      setLoadFailure(classifyLoadError(error, isOffline));
+    } finally {
+      setLoading(false);
+    }
+  }, [vehicleId, getVehicleById, isOffline]);
+
+  useEffect(() => {
+    void loadVehicle();
+  }, [loadVehicle]);
 
   const handleBookVehicle = useCallback(() => {
     if (bookPressLockRef.current) return;
@@ -148,19 +167,60 @@ const VehicleDetailsScreen: React.FC = () => {
     }
   }, [galleryUrls]);
 
-  if (loading) {
+  const renderVehicleBackButton = () => (
+    <SafeAreaView style={styles.headerContainer} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => safeGoBack(navigation, 'Vehicles')}
+          accessibilityLabel={t('common.back')}
+        >
+          <View style={styles.backButtonCircle}>
+            <Ionicons name="arrow-back" size={22} color="#1e293b" />
+          </View>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+
+  if (loading && !vehicle) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
+      <View style={styles.safeArea}>
+        {renderVehicleBackButton()}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={VEHICLE_COLORS.primary} />
+        </View>
       </View>
     );
   }
 
-  if (!vehicle) {
+  if (loadFailure || !vehicle) {
+    const kind = loadFailure ?? 'not_found';
+    const title =
+      kind === 'not_found'
+        ? t('vehicle.loadErrorNotFound')
+        : kind === 'offline'
+          ? t('common.offline')
+          : t('vehicle.loadErrorNetwork');
+    const message =
+      kind === 'not_found'
+        ? t('vehicle.loadErrorNotFoundDesc')
+        : kind === 'offline'
+          ? t('common.offlineHint')
+          : t('vehicle.loadErrorNetworkDesc');
+
     return (
-      <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle-outline" size={64} color="#ccc" />
-        <Text style={styles.errorText}>Véhicule introuvable</Text>
+      <View style={styles.safeArea}>
+        {renderVehicleBackButton()}
+        <View style={styles.errorContainer}>
+          <LoadErrorCard
+            kind={kind}
+            title={title}
+            message={message}
+            retryLabel={t('common.retry')}
+            onRetry={kind === 'not_found' ? undefined : () => void loadVehicle()}
+          />
+        </View>
       </View>
     );
   }

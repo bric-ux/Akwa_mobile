@@ -39,6 +39,9 @@ import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import { getPropertyPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 import { WebView } from 'react-native-webview';
 import { normalizeVirtualTourUrl } from '../utils/virtualTourUrl';
+import { useNetwork } from '../contexts/NetworkContext';
+import { classifyLoadError, type LoadFailureKind } from '../utils/loadError';
+import LoadErrorCard from '../components/LoadErrorCard';
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   apartment: 'Appartement',
@@ -62,6 +65,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
+  const { isOffline } = useNetwork();
   const { formatPrice: formatCurrencyPrice } = useCurrency();
   const {
     propertyId,
@@ -79,6 +83,7 @@ const PropertyDetailsScreen: React.FC = () => {
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailure, setLoadFailure] = useState<LoadFailureKind | null>(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
@@ -128,20 +133,23 @@ const PropertyDetailsScreen: React.FC = () => {
   useLayoutEffect(() => {
     setProperty(null);
     setLoading(true);
+    setLoadFailure(null);
   }, [propertyId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadProperty = async () => {
-      try {
+  const loadProperty = useCallback(async () => {
+    if (!propertyId) {
+      setLoadFailure('not_found');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setLoadFailure(null);
+
+    try {
         log('🔍 Chargement de la propriété avec ID:', propertyId);
 
-        if (!propertyId) {
-          throw new Error('ID de propriété manquant');
-        }
-
         const propertyData = await getPropertyById(propertyId);
-        if (cancelled) return;
 
         log('🔍 [PropertyDetailsScreen] Données de la propriété récupérées:', {
           title: propertyData?.title,
@@ -170,33 +178,18 @@ const PropertyDetailsScreen: React.FC = () => {
           const favorited = isFavoriteSync(propertyData.id);
           setIsFavorited(favorited);
         }
-      } catch (error: any) {
-        if (cancelled) return;
+      } catch (error: unknown) {
         logError('❌ Erreur lors du chargement de la propriété:', error);
-
-        let errorMessage = 'Impossible de charger les détails de la propriété';
-
-        if (error.message?.includes('réseau') || error.message?.includes('network')) {
-          errorMessage = 'Erreur de connexion réseau. Vérifiez votre connexion internet.';
-        } else if (error.message?.includes('authentification') || error.message?.includes('auth')) {
-          errorMessage = 'Erreur d\'authentification. Veuillez vous reconnecter.';
-        } else if (error.message?.includes('non trouvée')) {
-          errorMessage = 'Cette propriété n\'existe pas ou n\'est plus disponible.';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-
-        Alert.alert(t('common.error'), errorMessage);
+        setProperty(null);
+        setLoadFailure(classifyLoadError(error, isOffline));
       } finally {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       }
-    };
+  }, [propertyId, getPropertyById, getHostProfile, user, isFavoriteSync, isOffline]);
 
-    loadProperty();
-    return () => {
-      cancelled = true;
-    };
-  }, [propertyId]);
+  useEffect(() => {
+    void loadProperty();
+  }, [loadProperty]);
 
   // Prix affiché immédiatement (base), puis affiné en arrière-plan.
   useEffect(() => {
@@ -279,36 +272,21 @@ const PropertyDetailsScreen: React.FC = () => {
   };
 
 
-  if (!property && !loading) {
+  const renderDetailBackButton = () => (
+    <TouchableOpacity
+      style={[styles.backButton, { top: insets.top + 4 }]}
+      onPress={() => navigation.goBack()}
+      activeOpacity={0.8}
+      accessibilityLabel={t('common.back')}
+    >
+      <Ionicons name="arrow-back" size={24} color="#1e293b" />
+    </TouchableOpacity>
+  );
+
+  if (loading && !property) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <TouchableOpacity
-          style={[styles.backButton, { top: insets.top + 4 }]}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1e293b" />
-        </TouchableOpacity>
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>{t('property.notFound')}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const waitingForProperty =
-    loading || !property || property.id !== propertyId;
-
-  if (waitingForProperty) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <TouchableOpacity
-          style={[styles.backButton, { top: insets.top + 4 }]}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1e293b" />
-        </TouchableOpacity>
+        {renderDetailBackButton()}
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#94a3b8" />
         </View>
@@ -316,15 +294,40 @@ const PropertyDetailsScreen: React.FC = () => {
     );
   }
 
+  if (loadFailure || !property) {
+    const kind = loadFailure ?? 'not_found';
+    const title =
+      kind === 'not_found'
+        ? t('property.loadErrorNotFound')
+        : kind === 'offline'
+          ? t('common.offline')
+          : t('property.loadErrorNetwork');
+    const message =
+      kind === 'not_found'
+        ? t('property.loadErrorNotFoundDesc')
+        : kind === 'offline'
+          ? t('common.offlineHint')
+          : t('property.loadErrorNetworkDesc');
+
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {renderDetailBackButton()}
+        <View style={styles.centerContainer}>
+          <LoadErrorCard
+            kind={kind}
+            title={title}
+            message={message}
+            retryLabel={t('common.retry')}
+            onRetry={kind === 'not_found' ? undefined : () => void loadProperty()}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <TouchableOpacity
-        style={[styles.backButton, { top: insets.top + 4 }]}
-        onPress={() => navigation.goBack()}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="arrow-back" size={24} color="#1e293b" />
-      </TouchableOpacity>
+      {renderDetailBackButton()}
       <ScrollView style={styles.scrollView}>
       {/* Galerie d'images par catégories */}
       <View style={styles.imageContainer}>
