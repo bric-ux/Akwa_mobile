@@ -43,6 +43,20 @@ export function isSmallCity<T>(g: CityGroup<T>): boolean {
   return g.totalCount < SMALL_CITY_MAX_EXCLUSIVE;
 }
 
+/** Dernière mise en avant admin en premier, puis created_at (aligné web CitiesHorizontalSections). */
+export function sortByHomeFeatured<T extends { home_featured_at?: string | null; created_at?: string }>(
+  rows: T[],
+): T[] {
+  return [...rows].sort((a, b) => {
+    const fa = a.home_featured_at ? new Date(a.home_featured_at).getTime() : 0;
+    const fb = b.home_featured_at ? new Date(b.home_featured_at).getTime() : 0;
+    if (fb !== fa) return fb - fa;
+    const ca = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const cb = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return cb - ca;
+  });
+}
+
 export function buildLayoutSections<T>(groups: CityGroup<T>[]): LayoutSection<T>[] {
   const large = groups.filter((g) => !isSmallCity(g));
   const small = groups.filter((g) => isSmallCity(g));

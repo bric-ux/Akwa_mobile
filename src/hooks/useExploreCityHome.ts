@@ -10,6 +10,7 @@ import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion
 import {
   buildLayoutSections,
   cityLabel,
+  sortByHomeFeatured,
   type CityGroup,
   type LayoutSection,
   MAX_CITY_SECTIONS,
@@ -390,6 +391,7 @@ export function useExploreCityHome() {
             .eq('is_hidden', false)
             .eq('hide_from_home', false)
             .neq('property_type', 'long_term_rental')
+            .order('home_featured_at', { ascending: false, nullsFirst: false })
             .order('created_at', { ascending: false })
             .limit(PER_CITY_LIMIT);
 
@@ -400,7 +402,7 @@ export function useExploreCityHome() {
             citySlug: slug,
             cityName: officialName,
             totalCount: total,
-            properties: data,
+            properties: sortByHomeFeatured(data),
           } as CityGroup<any>;
         }),
       );

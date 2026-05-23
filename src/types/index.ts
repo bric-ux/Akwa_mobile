@@ -83,6 +83,8 @@ export interface Property {
   is_hidden?: boolean;
   /** Masquer uniquement sur l’accueil (Explorer/Home), sans impacter la recherche. */
   hide_from_home?: boolean;
+  /** Dernière mise en avant sur l’accueil (tri DESC par ville). */
+  home_featured_at?: string | null;
   /** Annonce publiée (visible voyageur si true et non masquée admin) */
   is_active?: boolean;
   /** Mis par l’admin : l’hôte ne peut pas remettre is_active à true seul */

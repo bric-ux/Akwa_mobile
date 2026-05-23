@@ -22,7 +22,14 @@ const AdminPropertiesScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const { getAllProperties, updatePropertyStatus, updatePropertyHomeVisibility, deleteProperty, loading } = useAdmin();
+  const {
+    getAllProperties,
+    updatePropertyStatus,
+    updatePropertyHomeVisibility,
+    updatePropertyHomeFeatured,
+    deleteProperty,
+    loading,
+  } = useAdmin();
   
   const [properties, setProperties] = useState<AdminProperty[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -107,6 +114,35 @@ const AdminPropertiesScreen: React.FC = () => {
           },
         },
       ]
+    );
+  };
+
+  const handleHomeFeatured = async (property: AdminProperty) => {
+    Alert.alert(
+      'Mise en avant',
+      `Mettre "${property.title}" en première position sur l’accueil (ville) ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Mettre en avant',
+          onPress: async () => {
+            try {
+              const result = await updatePropertyHomeFeatured(property.id);
+              if (result.success) {
+                Alert.alert(
+                  'Succès',
+                  'Cette annonce apparaîtra en première sur l’accueil (ville).',
+                );
+                loadProperties();
+              } else {
+                Alert.alert('Erreur', 'Impossible de mettre en avant');
+              }
+            } catch {
+              Alert.alert('Erreur', 'Une erreur est survenue');
+            }
+          },
+        },
+      ],
     );
   };
 
@@ -248,6 +284,28 @@ const AdminPropertiesScreen: React.FC = () => {
           />
           <Text style={styles.actionButtonText}>
             {property.hide_from_home ? 'Mettre sur accueil' : 'Retirer accueil'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            property.home_featured_at ? styles.featuredButtonActive : styles.featuredButton,
+          ]}
+          onPress={() => handleHomeFeatured(property)}
+        >
+          <Ionicons
+            name={property.home_featured_at ? 'star' : 'star-outline'}
+            size={16}
+            color={property.home_featured_at ? '#fff' : '#b45309'}
+          />
+          <Text
+            style={[
+              styles.actionButtonText,
+              property.home_featured_at && styles.featuredButtonTextActive,
+            ]}
+          >
+            Mise en avant
           </Text>
         </TouchableOpacity>
 
@@ -557,7 +615,9 @@ const styles = StyleSheet.create({
   },
   propertyActions: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    gap: 8,
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
@@ -575,6 +635,19 @@ const styles = StyleSheet.create({
     color: '#333',
     marginLeft: 4,
     fontWeight: '500',
+  },
+  featuredButton: {
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#fdba74',
+  },
+  featuredButtonActive: {
+    backgroundColor: '#b45309',
+    borderWidth: 1,
+    borderColor: '#b45309',
+  },
+  featuredButtonTextActive: {
+    color: '#fff',
   },
   deleteButton: {
     backgroundColor: '#ffeaea',

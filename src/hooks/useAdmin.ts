@@ -405,6 +405,42 @@ export const useAdmin = () => {
     }
   };
 
+  /** Mettre en avant sur l’accueil (première carte de la ville sur Explorer). */
+  const updatePropertyHomeFeatured = async (propertyId: string) => {
+    if (!user) {
+      setError('Vous devez être connecté');
+      return { success: false };
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error } = await supabase
+        .from('properties')
+        .update({
+          home_featured_at: new Date().toISOString(),
+          hide_from_home: false,
+        })
+        .eq('id', propertyId);
+
+      if (error) {
+        console.error('Error updating property home featured:', error);
+        setError('Erreur lors de la mise en avant');
+        return { success: false };
+      }
+
+      bumpPublicPropertyListVersion();
+      return { success: true };
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      setError('Une erreur inattendue est survenue');
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deleteProperty = async (propertyId: string) => {
     if (!user) {
       setError('Vous devez être connecté');
@@ -773,6 +809,7 @@ export const useAdmin = () => {
     getAllProperties,
     updatePropertyStatus,
     updatePropertyHomeVisibility,
+    updatePropertyHomeFeatured,
     deleteProperty,
     getAllUsers,
     updateUserRole,
