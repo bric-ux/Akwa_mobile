@@ -244,7 +244,7 @@ export type RootStackParamList = {
   };
   Booking: { propertyId: string };
   MonthlyRentalListingDetail: { listingId: string }; // Détail annonce longue durée (voyageur)
-  HostProfile: { hostId: string; propertyOnly?: boolean };
+  HostProfile: { hostId: string; propertyOnly?: boolean; showListings?: boolean };
   HostBookings: undefined;
   HostReviews: undefined;
   Settings: undefined;

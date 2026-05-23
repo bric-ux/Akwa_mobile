@@ -16,8 +16,13 @@ export interface HostProfile {
   properties?: {
     id: string;
     title: string;
+    slug?: string | null;
+    price_per_night?: number | null;
+    images?: string[] | null;
     rating?: number;
     review_count?: number;
+    locations?: { name?: string } | null;
+    property_photos?: Array<{ url: string; is_main?: boolean | null }> | null;
   }[];
   total_reviews?: number;
   average_rating?: number;
@@ -97,9 +102,15 @@ export const useHostProfile = () => {
 
       const { data: properties, error: propertiesError } = await supabase
         .from('properties')
-        .select('id, title, rating, review_count, host_id')
+        .select(`
+          id, title, slug, price_per_night, images, rating, review_count, host_id,
+          locations:location_id ( name ),
+          property_photos ( url, is_main, display_order )
+        `)
         .eq('host_id', hostId)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('is_hidden', false)
+        .order('created_at', { ascending: false });
       
       if (propertiesError) {
         console.error('❌ [useHostProfile] Erreur lors du chargement des propriétés:', propertiesError);

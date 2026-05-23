@@ -620,9 +620,22 @@ const PropertyDetailsScreen: React.FC = () => {
                   {hostProfile && ((hostProfile.total_properties != null && hostProfile.total_properties > 0) || (hostProfile.average_rating != null && hostProfile.average_rating > 0)) && (
                     <View style={styles.hostStats}>
                       {(hostProfile.total_properties != null && hostProfile.total_properties > 0) && (
-                        <Text style={styles.hostStat}>
-                          {hostProfile.total_properties} propriété{hostProfile.total_properties > 1 ? 's' : ''}
-                        </Text>
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            const nav = navigation as any;
+                            nav.navigate('HostProfile', {
+                              hostId: property.host_id,
+                              propertyOnly: true,
+                              showListings: true,
+                            });
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                        >
+                          <Text style={[styles.hostStat, styles.hostStatLink]}>
+                            {hostProfile.total_properties} propriété{hostProfile.total_properties > 1 ? 's' : ''}
+                          </Text>
+                        </TouchableOpacity>
                       )}
                       {(hostProfile.average_rating != null && hostProfile.average_rating > 0) && (
                         <Text style={styles.hostStat}>
@@ -1211,6 +1224,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 12,
     fontWeight: '500',
+  },
+  hostStatLink: {
+    textDecorationLine: 'underline',
   },
   // Styles pour les avis (défilement horizontal)
   reviewHeader: {

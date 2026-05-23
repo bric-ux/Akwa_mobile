@@ -13,13 +13,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useHostProfile } from '../hooks/useHostProfile';
 import { useHostReviews } from '../hooks/useHostReviews';
+import PublicHostPropertiesList from '../components/PublicHostPropertiesList';
 
 const HostProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { hostId, propertyOnly } = (route.params as any) || {};
+  const { hostId, propertyOnly, showListings: initialShowListings } = (route.params as any) || {};
   const { hostProfile, loading, error, getHostProfile } = useHostProfile();
   const { reviews, loading: reviewsLoading, getHostReviews } = useHostReviews();
+  const [showPropertiesList, setShowPropertiesList] = React.useState(Boolean(initialShowListings));
+  const properties = hostProfile?.properties ?? [];
 
   useEffect(() => {
     if (hostId) {
@@ -122,10 +125,20 @@ const HostProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Statistiques</Text>
           <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
+            <TouchableOpacity
+              style={styles.statItem}
+              disabled={properties.length === 0}
+              onPress={() => setShowPropertiesList((v) => !v)}
+              activeOpacity={properties.length > 0 ? 0.7 : 1}
+            >
               <Text style={styles.statNumber}>{hostProfile.total_properties || 0}</Text>
               <Text style={styles.statLabel}>Propriétés</Text>
-            </View>
+              {properties.length > 0 && (
+                <Text style={styles.statHint}>
+                  {showPropertiesList ? 'Masquer' : 'Voir la liste'}
+                </Text>
+              )}
+            </TouchableOpacity>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{hostProfile.total_reviews || 0}</Text>
               <Text style={styles.statLabel}>Avis</Text>
@@ -138,6 +151,20 @@ const HostProfileScreen: React.FC = () => {
             </View>
           </View>
         </View>
+
+        {showPropertiesList && properties.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Logements ({properties.length})
+            </Text>
+            <PublicHostPropertiesList
+              properties={properties}
+              onSelect={(propertyId) => {
+                (navigation as any).navigate('PropertyDetails', { propertyId });
+              }}
+            />
+          </View>
+        )}
 
         {/* Avis reçus */}
         <View style={styles.section}>
@@ -361,6 +388,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+  },
+  statHint: {
+    fontSize: 11,
+    color: '#2E7D32',
+    marginTop: 4,
+    fontWeight: '600',
   },
   reviewsContainer: {
     marginTop: 16,

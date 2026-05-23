@@ -11,9 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useHostProfile } from '../hooks/useHostProfile';
 import { useHostReviews } from '../hooks/useHostReviews';
+import PublicHostPropertiesList from './PublicHostPropertiesList';
+import PublicOwnerVehiclesList, { type PublicOwnerVehicle } from './PublicOwnerVehiclesList';
 
 interface HostProfileModalProps {
   visible: boolean;
@@ -29,9 +32,13 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
   hostId,
   reviewsContext = 'all',
 }) => {
+  const navigation = useNavigation<any>();
   const { hostProfile, loading, getHostProfile } = useHostProfile();
   const { reviews, loading: reviewsLoading, getHostReviews } = useHostReviews();
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [showListings, setShowListings] = useState(false);
+  const [ownerVehicles, setOwnerVehicles] = useState<PublicOwnerVehicle[]>([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
 
   const MAX_REVIEWS_PREVIEW = 3;
 
@@ -46,8 +53,26 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
       getHostProfile(hostId);
       getHostReviews(hostId);
       setShowAllReviews(false);
+      setShowListings(false);
+
+      if (reviewsContext === 'vehicle') {
+        setVehiclesLoading(true);
+        supabase
+          .from('vehicles')
+          .select('id, title, brand, model, price_per_day, images')
+          .eq('owner_id', hostId)
+          .eq('is_active', true)
+          .eq('is_approved', true)
+          .order('created_at', { ascending: false })
+          .then(({ data }) => {
+            setOwnerVehicles((data as PublicOwnerVehicle[]) || []);
+          })
+          .finally(() => setVehiclesLoading(false));
+      } else {
+        setOwnerVehicles([]);
+      }
     }
-  }, [visible, hostId, getHostProfile, getHostReviews]);
+  }, [visible, hostId, reviewsContext, getHostProfile, getHostReviews]);
 
   const totalReviewsCount = displayReviews.length;
   const combinedAverageRating =
@@ -60,19 +85,23 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
         )
       : 0;
 
-  const distinctPropertyCount = new Set(
-    displayReviews
-      .filter((r) => r.review_type === 'property' && r.property_id)
-      .map((r) => r.property_id as string),
-  ).size;
+  const hostProperties = hostProfile?.properties ?? [];
+  const listingsCount =
+    reviewsContext === 'vehicle' ? ownerVehicles.length : hostProperties.length;
+  const listingsLabel =
+    reviewsContext === 'vehicle'
+      ? `Véhicule${listingsCount !== 1 ? 's' : ''}`
+      : `Logement${listingsCount !== 1 ? 's' : ''}`;
 
-  const distinctVehicleCount = new Set(
-    displayReviews
-      .filter((r) => r.review_type === 'vehicle' && r.vehicle_id)
-      .map((r) => r.vehicle_id as string),
-  ).size;
+  const openProperty = (propertyId: string) => {
+    onClose();
+    navigation.navigate('PropertyDetails', { propertyId });
+  };
 
-  const totalAssetsCount = distinctPropertyCount + distinctVehicleCount;
+  const openVehicle = (vehicleId: string) => {
+    onClose();
+    navigation.navigate('VehicleDetails', { vehicleId });
+  };
 
   const renderStars = (rating: number) => {
     return (
@@ -156,12 +185,22 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
 
               {/* Statistiques */}
               <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
+                <TouchableOpacity
+                  style={styles.statItem}
+                  disabled={listingsCount === 0 || vehiclesLoading}
+                  onPress={() => setShowListings((v) => !v)}
+                  activeOpacity={listingsCount > 0 ? 0.7 : 1}
+                >
                   <Text style={styles.statValue}>
-                    {totalAssetsCount}
+                    {vehiclesLoading ? '…' : listingsCount}
                   </Text>
-                  <Text style={styles.statLabel}>Biens notés</Text>
-                </View>
+                  <Text style={styles.statLabel}>{listingsLabel}</Text>
+                  {listingsCount > 0 && (
+                    <Text style={styles.statHint}>
+                      {showListings ? 'Masquer' : 'Voir la liste'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>
@@ -177,6 +216,27 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                   <Text style={styles.statLabel}>Avis</Text>
                 </View>
               </View>
+
+              {showListings && listingsCount > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>
+                    {reviewsContext === 'vehicle'
+                      ? `Véhicules (${ownerVehicles.length})`
+                      : `Logements (${hostProperties.length})`}
+                  </Text>
+                  {reviewsContext === 'vehicle' ? (
+                    <PublicOwnerVehiclesList
+                      vehicles={ownerVehicles}
+                      onSelect={openVehicle}
+                    />
+                  ) : (
+                    <PublicHostPropertiesList
+                      properties={hostProperties}
+                      onSelect={openProperty}
+                    />
+                  )}
+                </View>
+              )}
 
               {/* Bio */}
               {hostProfile.bio && (
@@ -409,6 +469,12 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     color: '#6b7280',
+  },
+  statHint: {
+    fontSize: 10,
+    color: '#2563eb',
+    marginTop: 4,
+    fontWeight: '600',
   },
   statDivider: {
     width: 1,
