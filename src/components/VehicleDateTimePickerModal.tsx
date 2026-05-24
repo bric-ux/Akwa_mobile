@@ -976,7 +976,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    height: SCREEN_HEIGHT * 0.85,
     maxHeight: SCREEN_HEIGHT * 0.85,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -986,13 +988,16 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     flexDirection: 'column',
+    minHeight: 0,
   },
   contentWrapper: {
     flex: 1,
     flexDirection: 'column',
+    minHeight: 0,
   },
   contentScroll: {
     flex: 1,
+    minHeight: 0,
   },
   contentScrollContent: {
     paddingBottom: 20,
@@ -1156,7 +1161,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingVertical: 10,
     gap: 12,
-    flex: 1,
   },
   pickerColumnHeader: {
     flex: 1,
@@ -1242,6 +1246,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   confirmButtonWrapper: {
+    flexShrink: 0,
     paddingVertical: 16,
     paddingHorizontal: 0,
     backgroundColor: '#fff',
