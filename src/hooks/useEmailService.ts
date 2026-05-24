@@ -1,10 +1,11 @@
 // Hook pour l'envoi d'emails avec les mêmes contenus que le site web
 import { supabase } from '../services/supabase';
+import { phoneToSmsRoutingEmail } from '../utils/adminProfileShare';
 
 const isDev = __DEV__;
 
 export interface EmailData {
-  type: 'welcome' | 'email_confirmation' | 'booking_request' | 'booking_request_sent' | 'booking_response' | 'booking_confirmed' | 'booking_confirmed_host' | 'booking_cancelled' | 'booking_cancelled_host' | 'booking_completed' | 'booking_completed_host' | 'password_reset' | 'new_message' | 'host_application_submitted' | 'host_application_received' | 'host_application_approved' | 'host_application_rejected' | 'new_property_review' | 'new_guest_review' | 'new_vehicle_review' | 'new_renter_review' | 'new_property_review_response' | 'property_review_published' | 'new_guest_review_response' | 'guest_review_published' | 'new_vehicle_review_response' | 'vehicle_review_published' | 'new_vehicle_renter_review_response' | 'vehicle_renter_review_published' | 'conciergerie_request';
+  type: 'welcome' | 'email_confirmation' | 'booking_request' | 'booking_request_sent' | 'booking_response' | 'booking_confirmed' | 'booking_confirmed_host' | 'booking_cancelled' | 'booking_cancelled_host' | 'booking_completed' | 'booking_completed_host' | 'password_reset' | 'new_message' | 'host_application_submitted' | 'host_application_received' | 'host_application_approved' | 'host_application_rejected' | 'new_property_review' | 'new_guest_review' | 'new_vehicle_review' | 'new_renter_review' | 'new_property_review_response' | 'property_review_published' | 'new_guest_review_response' | 'guest_review_published' | 'new_vehicle_review_response' | 'vehicle_review_published' | 'new_vehicle_renter_review_response' | 'vehicle_renter_review_published' | 'conciergerie_request' | 'profile_share_invite';
   to: string;
   data: any;
 }
@@ -454,6 +455,73 @@ export const useEmailService = () => {
     });
   };
 
+  const sendProfileShareInvite = async (
+    email: string,
+    data: {
+      firstName: string;
+      displayName: string;
+      profileUrl: string;
+      messageBody?: string;
+      userId?: string;
+    },
+  ) => {
+    return sendEmail({
+      type: 'profile_share_invite',
+      to: email,
+      data,
+    });
+  };
+
+  const sendProfileShareInviteViaSms = async (
+    phoneE164: string,
+    data: {
+      firstName: string;
+      displayName: string;
+      profileUrl: string;
+      messageBody?: string;
+      smsBody?: string;
+      userId?: string;
+    },
+  ) => {
+    return sendEmail({
+      type: 'profile_share_invite',
+      to: phoneToSmsRoutingEmail(phoneE164),
+      data,
+    });
+  };
+
+  /** SMS si numéro disponible, sinon email. */
+  const sendProfileShareInviteSmart = async (options: {
+    phoneE164?: string | null;
+    email?: string | null;
+    data: {
+      firstName: string;
+      displayName: string;
+      profileUrl: string;
+      messageBody?: string;
+      smsBody?: string;
+      userId?: string;
+    };
+  }): Promise<{ success: boolean; channel: 'sms' | 'email' | 'none'; error?: unknown; data?: unknown }> => {
+    const phone = options.phoneE164?.trim();
+    if (phone && /^\+\d{8,15}$/.test(phone)) {
+      const result = await sendProfileShareInviteViaSms(phone, options.data);
+      return { ...result, channel: 'sms' };
+    }
+
+    const email = options.email?.trim();
+    if (email && !email.toLowerCase().endsWith('@phone.akwahome.local')) {
+      const result = await sendProfileShareInvite(email, options.data);
+      return { ...result, channel: 'email' };
+    }
+
+    return {
+      success: false,
+      channel: 'none',
+      error: new Error('Aucun numéro ni email utilisable'),
+    };
+  };
+
   return {
     sendEmail,
     sendWelcomeEmail,
@@ -485,5 +553,8 @@ export const useEmailService = () => {
     sendVehicleReviewPublished,
     sendNewVehicleRenterReviewResponse,
     sendVehicleRenterReviewPublished,
+    sendProfileShareInvite,
+    sendProfileShareInviteViaSms,
+    sendProfileShareInviteSmart,
   };
 };

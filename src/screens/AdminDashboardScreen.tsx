@@ -130,6 +130,10 @@ const AdminDashboardScreen: React.FC = () => {
     navigation.navigate('AdminUsers');
   };
 
+  const handleNavigateToProfileShare = () => {
+    navigation.navigate('AdminProfileShare');
+  };
+
   const handleNavigateToIdentityDocuments = () => {
     navigation.navigate('AdminIdentityDocuments');
   };
@@ -392,6 +396,14 @@ const AdminDashboardScreen: React.FC = () => {
             description="Modifier les rôles et gérer les comptes utilisateurs"
             icon="people-outline"
             onPress={handleNavigateToUsers}
+          />
+
+          <QuickAction
+            title="Partager les vitrines"
+            description="SMS ou email avec le lien de profil public"
+            icon="share-social-outline"
+            onPress={handleNavigateToProfileShare}
+            color="#2563eb"
           />
 
           <QuickAction
