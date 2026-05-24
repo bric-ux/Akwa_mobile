@@ -36,7 +36,7 @@ import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { log, logError } from '../utils/logger';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
-import { getPropertyPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
+import { getPropertyPublicWebUrl, getOwnerPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 import { WebView } from 'react-native-webview';
 import { normalizeVirtualTourUrl } from '../utils/virtualTourUrl';
 import { useNetwork } from '../contexts/NetworkContext';
@@ -626,12 +626,19 @@ const PropertyDetailsScreen: React.FC = () => {
                         <TouchableOpacity
                           onPress={(e) => {
                             e.stopPropagation?.();
-                            const nav = navigation as any;
-                            nav.navigate('HostProfile', {
-                              hostId: property.host_id,
-                              propertyOnly: true,
-                              showListings: true,
-                            });
+                            if (property.host_id) {
+                              const hostName = hostProfile
+                                ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim()
+                                : undefined;
+                              Linking.openURL(
+                                getOwnerPublicWebUrl(property.host_id, {
+                                  type: 'host',
+                                  tab: 'properties',
+                                  listings: true,
+                                  name: hostName,
+                                }),
+                              );
+                            }
                           }}
                           hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                         >

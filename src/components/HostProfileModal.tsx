@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,15 +8,31 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useHostProfile } from '../hooks/useHostProfile';
 import { useHostReviews } from '../hooks/useHostReviews';
-import PublicHostPropertiesList from './PublicHostPropertiesList';
-import PublicOwnerVehiclesList, { type PublicOwnerVehicle } from './PublicOwnerVehiclesList';
+import type { PublicOwnerVehicle } from './PublicOwnerVehiclesList';
+import { getOwnerPublicWebUrl, shareProfileLink } from '../utils/shareListingLink';
+
+const openOwnerListingsVitrine = (
+  hostId: string,
+  reviewsContext: 'vehicle' | 'all',
+  name?: string,
+) => {
+  const isVehicle = reviewsContext === 'vehicle';
+  Linking.openURL(
+    getOwnerPublicWebUrl(hostId, {
+      type: isVehicle ? 'vehicle' : 'host',
+      tab: isVehicle ? 'vehicles' : 'properties',
+      listings: true,
+      name,
+    }),
+  );
+};
 
 interface HostProfileModalProps {
   visible: boolean;
@@ -32,11 +48,9 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
   hostId,
   reviewsContext = 'all',
 }) => {
-  const navigation = useNavigation<any>();
   const { hostProfile, loading, getHostProfile } = useHostProfile();
   const { reviews, loading: reviewsLoading, getHostReviews } = useHostReviews();
   const [showAllReviews, setShowAllReviews] = useState(false);
-  const [showListings, setShowListings] = useState(false);
   const [ownerVehicles, setOwnerVehicles] = useState<PublicOwnerVehicle[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
 
@@ -53,7 +67,6 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
       getHostProfile(hostId);
       getHostReviews(hostId);
       setShowAllReviews(false);
-      setShowListings(false);
 
       if (reviewsContext === 'vehicle') {
         setVehiclesLoading(true);
@@ -87,21 +100,27 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
 
   const hostProperties = hostProfile?.properties ?? [];
   const listingsCount =
-    reviewsContext === 'vehicle' ? ownerVehicles.length : hostProperties.length;
+    reviewsContext === 'vehicle' ? ownerVehicles.length : (hostProfile?.total_properties ?? hostProperties.length);
   const listingsLabel =
     reviewsContext === 'vehicle'
       ? `Véhicule${listingsCount !== 1 ? 's' : ''}`
       : `Logement${listingsCount !== 1 ? 's' : ''}`;
+  const hasListings = listingsCount > 0;
+  const hasRating = combinedAverageRating > 0;
+  const hasReviews = totalReviewsCount > 0;
 
-  const openProperty = (propertyId: string) => {
-    onClose();
-    navigation.navigate('PropertyDetails', { propertyId });
-  };
-
-  const openVehicle = (vehicleId: string) => {
-    onClose();
-    navigation.navigate('VehicleDetails', { vehicleId });
-  };
+  const handleShareProfile = useCallback(() => {
+    if (!hostId || !hostProfile) return;
+    const name = `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Propriétaire';
+    shareProfileLink({
+      url: getOwnerPublicWebUrl(hostId, {
+        type: reviewsContext === 'vehicle' ? 'vehicle' : 'host',
+        name,
+      }),
+      name,
+      type: reviewsContext === 'vehicle' ? 'vehicle' : 'host',
+    });
+  }, [hostId, hostProfile, reviewsContext]);
 
   const renderStars = (rating: number) => {
     return (
@@ -134,9 +153,16 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
               <Ionicons name="person-outline" size={20} color="#2563eb" />
               <Text style={styles.headerTitle}>Profil du propriétaire</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              {hostProfile ? (
+                <TouchableOpacity onPress={handleShareProfile} style={styles.shareButton}>
+                  <Ionicons name="share-outline" size={22} color="#333" />
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {loading ? (
@@ -185,58 +211,49 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
 
               {/* Statistiques */}
               <View style={styles.statsContainer}>
-                <TouchableOpacity
-                  style={styles.statItem}
-                  disabled={listingsCount === 0 || vehiclesLoading}
-                  onPress={() => setShowListings((v) => !v)}
-                  activeOpacity={listingsCount > 0 ? 0.7 : 1}
-                >
-                  <Text style={styles.statValue}>
-                    {vehiclesLoading ? '…' : listingsCount}
-                  </Text>
-                  <Text style={styles.statLabel}>{listingsLabel}</Text>
-                  {listingsCount > 0 && (
-                    <Text style={styles.statHint}>
-                      {showListings ? 'Masquer' : 'Voir la liste'}
+                {hasListings && (
+                  <TouchableOpacity
+                    style={[styles.statItem, styles.listingsStatItem]}
+                    disabled={vehiclesLoading}
+                    onPress={() =>
+                      openOwnerListingsVitrine(
+                        hostId,
+                        reviewsContext,
+                        `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim(),
+                      )
+                    }
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.statValue}>
+                      {vehiclesLoading ? '…' : listingsCount}
                     </Text>
-                  )}
-                </TouchableOpacity>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>
-                    {combinedAverageRating.toFixed(1)}
-                  </Text>
-                  <Text style={styles.statLabel}>Note moyenne</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statValue}>
-                    {totalReviewsCount}
-                  </Text>
-                  <Text style={styles.statLabel}>Avis</Text>
-                </View>
+                    <Text style={styles.statLabel}>{listingsLabel}</Text>
+                    <View style={styles.listingsCta}>
+                      <Ionicons name="open-outline" size={12} color="#2563eb" />
+                      <Text style={styles.listingsCtaText}>Voir la liste</Text>
+                      <Ionicons name="chevron-forward" size={12} color="#2563eb" />
+                    </View>
+                  </TouchableOpacity>
+                )}
+                {hasRating && (
+                  <>
+                    {hasListings && <View style={styles.statDivider} />}
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{combinedAverageRating.toFixed(1)}</Text>
+                      <Text style={styles.statLabel}>Note moyenne</Text>
+                    </View>
+                  </>
+                )}
+                {hasReviews && (
+                  <>
+                    {(hasListings || hasRating) && <View style={styles.statDivider} />}
+                    <View style={styles.statItem}>
+                      <Text style={styles.statValue}>{totalReviewsCount}</Text>
+                      <Text style={styles.statLabel}>Avis</Text>
+                    </View>
+                  </>
+                )}
               </View>
-
-              {showListings && listingsCount > 0 && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>
-                    {reviewsContext === 'vehicle'
-                      ? `Véhicules (${ownerVehicles.length})`
-                      : `Logements (${hostProperties.length})`}
-                  </Text>
-                  {reviewsContext === 'vehicle' ? (
-                    <PublicOwnerVehiclesList
-                      vehicles={ownerVehicles}
-                      onSelect={openVehicle}
-                    />
-                  ) : (
-                    <PublicHostPropertiesList
-                      properties={hostProperties}
-                      onSelect={openProperty}
-                    />
-                  )}
-                </View>
-              )}
 
               {/* Bio */}
               {hostProfile.bio && (
@@ -247,10 +264,11 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
               )}
 
               {/* Avis */}
+              {displayReviews.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>
-                    Avis des locataires {displayReviews.length > 0 && `(${displayReviews.length})`}
+                    Avis des locataires ({displayReviews.length})
                   </Text>
                 </View>
                 {reviewsLoading ? (
@@ -258,7 +276,7 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                     <ActivityIndicator size="small" color="#2563eb" />
                     <Text style={styles.loadingReviewsText}>Chargement des avis...</Text>
                   </View>
-                ) : displayReviews.length > 0 ? (
+                ) : (
                   <>
                     {(showAllReviews ? displayReviews : displayReviews.slice(0, MAX_REVIEWS_PREVIEW)).map((review) => (
                       <View key={review.id} style={styles.reviewItem}>
@@ -322,15 +340,9 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                       </TouchableOpacity>
                     )}
                   </>
-                ) : (
-                  <View style={styles.emptyReviews}>
-                    <Ionicons name="star-outline" size={48} color="#d1d5db" />
-                    <Text style={styles.emptyReviewsText}>
-                      Aucun avis pour le moment
-                    </Text>
-                  </View>
                 )}
               </View>
+              )}
             </ScrollView>
           ) : (
             <View style={styles.errorContainer}>
@@ -374,6 +386,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  shareButton: {
+    padding: 4,
   },
   closeButton: {
     padding: 4,
@@ -475,6 +495,34 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     marginTop: 4,
     fontWeight: '600',
+  },
+  listingsStatItem: {
+    marginHorizontal: 4,
+    marginVertical: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  listingsCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#2563eb',
+  },
+  listingsCtaText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563eb',
   },
   statDivider: {
     width: 1,
