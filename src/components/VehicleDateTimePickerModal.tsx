@@ -8,7 +8,9 @@ import {
   Dimensions,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TRAVELER_COLORS } from '../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -85,9 +87,27 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     return base;
   });
 
-  const hoursScrollRef = useRef<ScrollView>(null);
-  const minutesScrollRef = useRef<ScrollView>(null);
-  const datesScrollRef = useRef<ScrollView>(null);
+  const datesScrollRef = useRef<GHScrollView | ScrollView>(null);
+  const hoursScrollRef = useRef<GHScrollView | ScrollView>(null);
+  const minutesScrollRef = useRef<GHScrollView | ScrollView>(null);
+  const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
+
+  const PickerScrollView = Platform.OS === 'android' ? GHScrollView : ScrollView;
+
+  const pickerScrollHandlers = {
+    onScrollBeginDrag: () => setParentScrollEnabled(false),
+    onScrollEndDrag: () => setParentScrollEnabled(true),
+    onMomentumScrollEnd: () => setParentScrollEnabled(true),
+  };
+
+  const switchToDaysMode = () => {
+    setActiveTab('start');
+    setMode('days');
+  };
+
+  const switchToManualMode = () => {
+    setMode('manual');
+  };
 
   // Générer les dates à afficher (1 an à partir d'aujourd'hui)
   const generateDates = (): Date[] => {
@@ -112,21 +132,21 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const minutes = [0, 30];
 
-  const currentDate = activeTab === 'start' ? tempStartDate : tempEndDate;
-  const setCurrentDate = activeTab === 'start' ? setTempStartDate : setTempEndDate;
+  const currentDate = (mode === 'days' || activeTab === 'start') ? tempStartDate : tempEndDate;
+  const effectiveTab = mode === 'days' ? 'start' : activeTab;
 
   const handleDateSelect = (date: Date) => {
-    console.log(`📅 [VehicleDateTimePickerModal] handleDateSelect - activeTab: ${activeTab}, date sélectionnée:`, date.toISOString());
+    console.log(`📅 [VehicleDateTimePickerModal] handleDateSelect - activeTab: ${effectiveTab}, date sélectionnée:`, date.toISOString());
     const newDate = new Date(date);
     // Préserver l'heure et la minute du sélecteur courant.
-    const currentHour = activeTab === 'start' ? tempStartDate.getHours() : tempEndDate.getHours();
-    const currentMinute = activeTab === 'start' ? tempStartDate.getMinutes() : tempEndDate.getMinutes();
+    const currentHour = effectiveTab === 'start' ? tempStartDate.getHours() : tempEndDate.getHours();
+    const currentMinute = effectiveTab === 'start' ? tempStartDate.getMinutes() : tempEndDate.getMinutes();
     newDate.setHours(currentHour, currentMinute, 0, 0);
     
     console.log(`📅 [VehicleDateTimePickerModal] handleDateSelect - Heure préservée: ${currentHour}, nouvelle date:`, newDate.toISOString());
     
     // Si c'est la date de début et que c'est aujourd'hui, arrondir à l'heure supérieure
-    if (activeTab === 'start') {
+    if (effectiveTab === 'start') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const selectedDateOnly = new Date(date);
@@ -180,10 +200,10 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   };
 
   const handleHourSelect = (hour: number) => {
-    console.log(`🕐 [VehicleDateTimePickerModal] handleHourSelect - activeTab: ${activeTab}, heure sélectionnée: ${hour}`);
+    console.log(`🕐 [VehicleDateTimePickerModal] handleHourSelect - activeTab: ${effectiveTab}, heure sélectionnée: ${hour}`);
     
     // Utiliser la date actuelle selon l'onglet (tempStartDate ou tempEndDate)
-    const currentDateToUse = activeTab === 'start' ? tempStartDate : tempEndDate;
+    const currentDateToUse = effectiveTab === 'start' ? tempStartDate : tempEndDate;
     const newDate = new Date(currentDateToUse);
     newDate.setHours(hour, currentDateToUse.getMinutes(), 0, 0);
     
@@ -202,7 +222,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       console.log(`⚠️ [VehicleDateTimePickerModal] Heure ajustée car dans le passé`);
     }
     
-    if (activeTab === 'start') {
+    if (effectiveTab === 'start') {
       console.log(`🕐 [VehicleDateTimePickerModal] Mise à jour tempStartDate:`, {
         avant: tempStartDate.toISOString(),
         après: newDate.toISOString(),
@@ -231,11 +251,11 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
   };
 
   const handleMinuteSelect = (minute: number) => {
-    const currentDateToUse = activeTab === 'start' ? tempStartDate : tempEndDate;
+    const currentDateToUse = effectiveTab === 'start' ? tempStartDate : tempEndDate;
     const newDate = new Date(currentDateToUse);
     newDate.setMinutes(minute, 0, 0);
 
-    if (activeTab === 'start') {
+    if (effectiveTab === 'start') {
       const now = new Date();
       const dateOnly = new Date(newDate);
       dateOnly.setHours(0, 0, 0, 0);
@@ -442,19 +462,166 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
     }, delay);
   };
 
-  // Scroll pour le mode "sélection manuelle" (utilise currentDate qui change selon activeTab)
+  // Scroll initial à l'ouverture ou au changement de mode / onglet (pas à chaque tap)
   useEffect(() => {
-    if (visible && mode === 'manual') {
-      scrollToDateAndHour(currentDate, 200);
+    if (!visible) return;
+    if (mode === 'manual') {
+      scrollToDateAndHour(currentDate, 250);
+    } else {
+      scrollToDateAndHour(tempStartDate, 250);
     }
-  }, [currentDate, visible, activeTab, mode]);
+  }, [visible, mode, activeTab]);
 
-  // Scroll pour le mode "par nombre de jours" (utilise tempStartDate)
-  useEffect(() => {
-    if (visible && mode === 'days') {
-      scrollToDateAndHour(tempStartDate, 200);
-    }
-  }, [tempStartDate, visible, mode]);
+  const renderPickerColumns = () => {
+    const dateSource = mode === 'days' ? tempStartDate : currentDate;
+
+    return (
+      <>
+        <View style={styles.pickerContainer}>
+          <View style={styles.pickerColumnHeader}>
+            <Text style={styles.pickerColumnTitle}>Date</Text>
+          </View>
+          <View style={styles.pickerColumnHeader}>
+            <Text style={styles.pickerColumnTitle}>Heure</Text>
+          </View>
+          <View style={styles.pickerColumnHeader}>
+            <Text style={styles.pickerColumnTitle}>Minutes</Text>
+          </View>
+        </View>
+
+        <View style={styles.pickerContainer}>
+          <View style={styles.pickerColumn}>
+            <PickerScrollView
+              ref={datesScrollRef}
+              style={styles.pickerScroll}
+              contentContainerStyle={styles.pickerScrollContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              snapToInterval={46}
+              decelerationRate="fast"
+              scrollEventThrottle={16}
+              keyboardShouldPersistTaps="handled"
+              {...pickerScrollHandlers}
+            >
+              {dates.map((date, index) => {
+                const isDateSelected =
+                  date.getDate() === dateSource.getDate() &&
+                  date.getMonth() === dateSource.getMonth() &&
+                  date.getFullYear() === dateSource.getFullYear();
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dateToCheck = new Date(date);
+                dateToCheck.setHours(0, 0, 0, 0);
+                const isPast = dateToCheck.getTime() < today.getTime();
+                const disablePast = mode === 'days' || activeTab === 'start';
+
+                return (
+                  <TouchableOpacity
+                    key={`date-${index}`}
+                    style={[
+                      styles.pickerItem,
+                      isDateSelected && styles.pickerItemSelected,
+                      isPast && disablePast && styles.pickerItemDisabled,
+                    ]}
+                    onPress={() => {
+                      if (!(isPast && disablePast)) {
+                        if (mode === 'days') {
+                          setActiveTab('start');
+                        }
+                        handleDateSelect(date);
+                      }
+                    }}
+                    disabled={isPast && disablePast}
+                  >
+                    <Text
+                      style={[
+                        styles.pickerText,
+                        isDateSelected && styles.pickerTextSelected,
+                        isPast && disablePast && styles.pickerTextDisabled,
+                      ]}
+                    >
+                      {formatDate(date)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </PickerScrollView>
+          </View>
+
+          <View style={styles.pickerColumn}>
+            <PickerScrollView
+              ref={hoursScrollRef}
+              style={styles.pickerScroll}
+              contentContainerStyle={styles.pickerScrollContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              snapToInterval={46}
+              decelerationRate="fast"
+              scrollEventThrottle={16}
+              keyboardShouldPersistTaps="handled"
+              {...pickerScrollHandlers}
+            >
+              {hours.map((hour) => {
+                const isHourSelected = dateSource.getHours() === hour;
+                return (
+                  <TouchableOpacity
+                    key={`hour-${hour}`}
+                    style={[styles.pickerItem, isHourSelected && styles.pickerItemSelected]}
+                    onPress={() => {
+                      if (mode === 'days') {
+                        setActiveTab('start');
+                      }
+                      handleHourSelect(hour);
+                    }}
+                  >
+                    <Text style={[styles.pickerText, isHourSelected && styles.pickerTextSelected]}>
+                      {hour.toString().padStart(2, '0')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </PickerScrollView>
+          </View>
+
+          <View style={styles.pickerColumn}>
+            <PickerScrollView
+              ref={minutesScrollRef}
+              style={styles.pickerScroll}
+              contentContainerStyle={styles.pickerScrollContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              snapToInterval={46}
+              decelerationRate="fast"
+              scrollEventThrottle={16}
+              keyboardShouldPersistTaps="handled"
+              {...pickerScrollHandlers}
+            >
+              {minutes.map((minute) => {
+                const isMinuteSelected = dateSource.getMinutes() === minute;
+                return (
+                  <TouchableOpacity
+                    key={`minute-${minute}`}
+                    style={[styles.pickerItem, isMinuteSelected && styles.pickerItemSelected]}
+                    onPress={() => {
+                      if (mode === 'days') {
+                        setActiveTab('start');
+                      }
+                      handleMinuteSelect(minute);
+                    }}
+                  >
+                    <Text style={[styles.pickerText, isMinuteSelected && styles.pickerTextSelected]}>
+                      {minute.toString().padStart(2, '0')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </PickerScrollView>
+          </View>
+        </View>
+      </>
+    );
+  };
 
   // Mettre à jour tempStartDate et tempEndDate UNIQUEMENT quand le modal s'ouvre (visible passe de false à true)
   // ou quand startDateTime/endDateTime changent depuis l'extérieur
@@ -498,14 +665,6 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       hasInitializedRef.current = false;
     }
   }, [visible, startDateTime, endDateTime]);
-  
-  // Scroller vers la date/heure actuelle quand on change d'onglet (sans réinitialiser les valeurs)
-  useEffect(() => {
-    if (visible && mode === 'manual') {
-      scrollToDateAndHour(currentDate, 200);
-    }
-  }, [activeTab, visible, mode]); // Seulement quand activeTab change, pas quand currentDate change
-
   if (!visible) return null;
 
   const duration = calculateDuration();
@@ -528,13 +687,15 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
               style={styles.contentScroll}
               contentContainerStyle={styles.contentScrollContent}
               showsVerticalScrollIndicator={false}
-              nestedScrollEnabled={true}
+              nestedScrollEnabled
+              scrollEnabled={parentScrollEnabled}
+              keyboardShouldPersistTaps="handled"
             >
           {/* Sélecteur de mode */}
           <View style={styles.modeSelector}>
             <TouchableOpacity
               style={[styles.modeButton, mode === 'days' && styles.modeButtonActive]}
-              onPress={() => setMode('days')}
+              onPress={switchToDaysMode}
             >
               <Ionicons name="calendar-number-outline" size={18} color={mode === 'days' ? TRAVELER_COLORS.primary : '#666'} />
               <Text style={[styles.modeButtonText, mode === 'days' && styles.modeButtonTextActive]}>
@@ -543,7 +704,7 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modeButton, mode === 'manual' && styles.modeButtonActive]}
-              onPress={() => setMode('manual')}
+              onPress={switchToManualMode}
             >
               <Ionicons name="time-outline" size={18} color={mode === 'manual' ? TRAVELER_COLORS.primary : '#666'} />
               <Text style={[styles.modeButtonText, mode === 'manual' && styles.modeButtonTextActive]}>
@@ -614,159 +775,6 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                   </Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Sélecteurs Date et Heure */}
-              <View style={styles.pickerContainer}>
-                {/* Titres des colonnes */}
-                <View style={styles.pickerColumnHeader}>
-                  <Text style={styles.pickerColumnTitle}>Date</Text>
-                </View>
-                <View style={styles.pickerColumnHeader}>
-                  <Text style={styles.pickerColumnTitle}>Heure</Text>
-                </View>
-                <View style={styles.pickerColumnHeader}>
-                  <Text style={styles.pickerColumnTitle}>Minutes</Text>
-                </View>
-              </View>
-              
-              <View style={styles.pickerContainer}>
-                {/* Colonne Date */}
-                <View style={styles.pickerColumn}>
-                  <ScrollView
-                    ref={datesScrollRef}
-                    style={styles.pickerScroll}
-                    contentContainerStyle={styles.pickerScrollContent}
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={46}
-                    decelerationRate="fast"
-                  >
-                    {dates.map((date, index) => {
-                      const isDateSelected = 
-                        date.getDate() === tempStartDate.getDate() &&
-                        date.getMonth() === tempStartDate.getMonth() &&
-                        date.getFullYear() === tempStartDate.getFullYear();
-                      
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const dateToCheck = new Date(date);
-                      dateToCheck.setHours(0, 0, 0, 0);
-                      const isPast = dateToCheck.getTime() < today.getTime();
-                      
-                      return (
-                        <TouchableOpacity
-                          key={index}
-                          style={[
-                            styles.pickerItem,
-                            isDateSelected && styles.pickerItemSelected,
-                            isPast && styles.pickerItemDisabled
-                          ]}
-                          onPress={() => {
-                            if (!isPast) {
-                              const newDate = new Date(date);
-                              newDate.setHours(tempStartDate.getHours(), tempStartDate.getMinutes(), 0, 0);
-                              setTempStartDate(newDate);
-                            }
-                          }}
-                          disabled={isPast}
-                        >
-                          <Text style={[
-                            styles.pickerText,
-                            isDateSelected && styles.pickerTextSelected,
-                            isPast && styles.pickerTextDisabled
-                          ]}>
-                            {formatDate(date)}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-                
-                {/* Colonne Heures */}
-                <View style={styles.pickerColumn}>
-                  <ScrollView
-                    ref={hoursScrollRef}
-                    style={styles.pickerScroll}
-                    contentContainerStyle={styles.pickerScrollContent}
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={46}
-                    decelerationRate="fast"
-                  >
-                    {hours.map((hour) => {
-                      const isHourSelected = tempStartDate.getHours() === hour;
-                      return (
-                        <TouchableOpacity
-                          key={hour}
-                          style={[
-                            styles.pickerItem,
-                            isHourSelected && styles.pickerItemSelected
-                          ]}
-                          onPress={() => {
-                            const newDate = new Date(tempStartDate);
-                            newDate.setHours(hour, tempStartDate.getMinutes(), 0, 0);
-                            setTempStartDate(newDate);
-                          }}
-                        >
-                          <Text style={[
-                            styles.pickerText,
-                            isHourSelected && styles.pickerTextSelected
-                          ]}>
-                            {hour.toString().padStart(2, '0')}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-                
-                {/* Colonne Minutes - 00 / 30 */}
-                <View style={styles.pickerColumn}>
-                  <ScrollView
-                    ref={minutesScrollRef}
-                    style={styles.pickerScroll}
-                    contentContainerStyle={styles.pickerScrollContent}
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={46}
-                    decelerationRate="fast"
-                  >
-                    {minutes.map((minute) => {
-                      const isMinuteSelected = tempStartDate.getMinutes() === minute;
-                      return (
-                        <TouchableOpacity
-                          key={`days-minute-${minute}`}
-                          style={[
-                            styles.pickerItem,
-                            isMinuteSelected && styles.pickerItemSelected
-                          ]}
-                          onPress={() => {
-                            const newDate = new Date(tempStartDate);
-                            newDate.setMinutes(minute, 0, 0);
-                            setTempStartDate(newDate);
-                          }}
-                        >
-                          <Text style={[
-                            styles.pickerText,
-                            isMinuteSelected && styles.pickerTextSelected
-                          ]}>
-                            {minute.toString().padStart(2, '0')}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              </View>
-
-              {/* Aperçu de la date de fin calculée */}
-              <View style={styles.calculatedEndContainer}>
-                <Ionicons name="information-circle-outline" size={20} color={TRAVELER_COLORS.primary} />
-                <View style={styles.calculatedEndContent}>
-                  <Text style={styles.calculatedEndLabel}>Date et heure de fin (calculée automatiquement)</Text>
-                  <Text style={styles.calculatedEndValue}>
-                    {formatDate(tempEndDate)} à {formatTime(tempEndDate)}
-                  </Text>
-                </View>
-              </View>
             </>
           ) : (
             <>
@@ -795,142 +803,23 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
                   </Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Titres des colonnes */}
-              <View style={styles.pickerContainer}>
-                <View style={styles.pickerColumnHeader}>
-                  <Text style={styles.pickerColumnTitle}>Date</Text>
-                </View>
-                <View style={styles.pickerColumnHeader}>
-                  <Text style={styles.pickerColumnTitle}>Heure</Text>
-                </View>
-                <View style={styles.pickerColumnHeader}>
-                  <Text style={styles.pickerColumnTitle}>Minutes</Text>
-                </View>
-              </View>
-
-              {/* Trois colonnes scrollables : Date, Heures, Minutes */}
-              <View style={styles.pickerContainer}>
-                {/* Colonne Date */}
-                <View style={styles.pickerColumn}>
-                  <ScrollView
-                    ref={datesScrollRef}
-                    style={styles.pickerScroll}
-                    contentContainerStyle={styles.pickerScrollContent}
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={46}
-                    decelerationRate="fast"
-                  >
-                    {dates.map((date, index) => {
-                      const isDateSelected = 
-                        date.getDate() === currentDate.getDate() &&
-                        date.getMonth() === currentDate.getMonth() &&
-                        date.getFullYear() === currentDate.getFullYear();
-                      
-                      // Vérifier si la date est dans le passé (pour l'onglet début)
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const dateToCheck = new Date(date);
-                      dateToCheck.setHours(0, 0, 0, 0);
-                      const isPast = dateToCheck.getTime() < today.getTime();
-                      
-                      return (
-                        <TouchableOpacity
-                          key={index}
-                          style={[
-                            styles.pickerItem,
-                            isDateSelected && styles.pickerItemSelected,
-                            isPast && activeTab === 'start' && styles.pickerItemDisabled
-                          ]}
-                          onPress={() => {
-                            if (!(isPast && activeTab === 'start')) {
-                              handleDateSelect(date);
-                            }
-                          }}
-                          disabled={isPast && activeTab === 'start'}
-                        >
-                          <Text style={[
-                            styles.pickerText,
-                            isDateSelected && styles.pickerTextSelected,
-                            isPast && activeTab === 'start' && styles.pickerTextDisabled
-                          ]}>
-                            {formatDate(date)}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-                
-                {/* Colonne Heures */}
-                <View style={styles.pickerColumn}>
-                  <ScrollView
-                    ref={hoursScrollRef}
-                    style={styles.pickerScroll}
-                    contentContainerStyle={styles.pickerScrollContent}
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={46}
-                    decelerationRate="fast"
-                  >
-                    {hours.map((hour) => {
-                      const isHourSelected = currentDate.getHours() === hour;
-                      return (
-                        <TouchableOpacity
-                          key={hour}
-                          style={[
-                            styles.pickerItem,
-                            isHourSelected && styles.pickerItemSelected
-                          ]}
-                          onPress={() => handleHourSelect(hour)}
-                        >
-                          <Text style={[
-                            styles.pickerText,
-                            isHourSelected && styles.pickerTextSelected
-                          ]}>
-                            {hour.toString().padStart(2, '0')}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-                
-                {/* Colonne Minutes - 00 / 30 */}
-                <View style={styles.pickerColumn}>
-                  <ScrollView
-                    ref={minutesScrollRef}
-                    style={styles.pickerScroll}
-                    contentContainerStyle={styles.pickerScrollContent}
-                    showsVerticalScrollIndicator={false}
-                    snapToInterval={46}
-                    decelerationRate="fast"
-                  >
-                    {minutes.map((minute) => {
-                      const isMinuteSelected = currentDate.getMinutes() === minute;
-                      return (
-                        <TouchableOpacity
-                          key={`manual-minute-${minute}`}
-                          style={[
-                            styles.pickerItem,
-                            isMinuteSelected && styles.pickerItemSelected
-                          ]}
-                          onPress={() => handleMinuteSelect(minute)}
-                        >
-                          <Text style={[
-                            styles.pickerText,
-                            isMinuteSelected && styles.pickerTextSelected
-                          ]}>
-                            {minute.toString().padStart(2, '0')}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              </View>
             </>
           )}
             </ScrollView>
+
+            <View style={styles.pickerSection}>{renderPickerColumns()}</View>
+
+            {mode === 'days' ? (
+              <View style={styles.calculatedEndContainer}>
+                <Ionicons name="information-circle-outline" size={20} color={TRAVELER_COLORS.primary} />
+                <View style={styles.calculatedEndContent}>
+                  <Text style={styles.calculatedEndLabel}>Date et heure de fin (calculée automatiquement)</Text>
+                  <Text style={styles.calculatedEndValue}>
+                    {formatDate(tempEndDate)} à {formatTime(tempEndDate)}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
           </View>
 
           {/* Bouton de confirmation fixé en bas (toujours visible) */}
@@ -1154,6 +1043,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#0369a1',
+  },
+  pickerSection: {
+    flexShrink: 0,
+    paddingBottom: 4,
   },
   pickerContainer: {
     flexDirection: 'row',
