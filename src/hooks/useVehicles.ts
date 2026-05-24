@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { isVideoUrl } from '../utils/media';
 import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
+import { fetchPublicOwnerInfo } from '../utils/publicOwnerInfo';
 import { Vehicle, VehicleFilters } from '../types';
 
 export const useVehicles = () => {
@@ -476,6 +477,48 @@ export const useVehicles = () => {
         ? photos.map((p: any) => p.url)
         : (data.images || []);
 
+      let owner = data.owner
+        ? {
+            user_id: data.owner.user_id,
+            first_name: data.owner.first_name,
+            last_name: data.owner.last_name,
+            avatar_url: data.owner.avatar_url,
+            identity_verified: data.owner.identity_verified,
+            city: data.owner.city,
+            country: data.owner.country,
+            bio: data.owner.bio,
+          }
+        : undefined;
+
+      const ownerId = data.owner_id as string | undefined;
+      if (ownerId && !owner) {
+        const publicOwner = await fetchPublicOwnerInfo(ownerId);
+        if (publicOwner) {
+          owner = {
+            user_id: publicOwner.user_id,
+            first_name: publicOwner.first_name,
+            last_name: publicOwner.last_name,
+            avatar_url: publicOwner.avatar_url,
+            city: publicOwner.city,
+            country: publicOwner.country,
+            bio: publicOwner.bio,
+          };
+        }
+      } else if (ownerId && owner && !owner.first_name && !owner.last_name) {
+        const publicOwner = await fetchPublicOwnerInfo(ownerId);
+        if (publicOwner) {
+          owner = {
+            ...owner,
+            first_name: publicOwner.first_name,
+            last_name: publicOwner.last_name,
+            avatar_url: publicOwner.avatar_url ?? owner.avatar_url,
+            city: publicOwner.city ?? owner.city,
+            country: publicOwner.country ?? owner.country,
+            bio: publicOwner.bio ?? owner.bio,
+          };
+        }
+      }
+
       return {
         ...data,
         location: data.locations ? {
@@ -489,16 +532,7 @@ export const useVehicles = () => {
         } : undefined,
         photos: photos,
         images: images,
-        owner: data.owner ? {
-          user_id: data.owner.user_id,
-          first_name: data.owner.first_name,
-          last_name: data.owner.last_name,
-          avatar_url: data.owner.avatar_url,
-          identity_verified: data.owner.identity_verified,
-          city: data.owner.city,
-          country: data.owner.country,
-          bio: data.owner.bio,
-        } : undefined,
+        owner,
       };
     } catch (err: any) {
       console.error('Erreur lors du chargement du véhicule:', err);

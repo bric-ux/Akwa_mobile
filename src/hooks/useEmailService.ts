@@ -28,6 +28,34 @@ export const useEmailService = () => {
         throw error;
       }
 
+      const body = data as Record<string, unknown> | null;
+      const channel = body?.channel as string | undefined;
+      const sent = body?.sent;
+      const skipped = body?.skipped;
+      const explicitSuccess = body?.success;
+
+      if (explicitSuccess === false) {
+        return { success: false, data: body, error: body?.error ?? body?.details };
+      }
+
+      if (channel === 'sms') {
+        if (sent === true) {
+          return { success: true, data: body };
+        }
+        if (skipped === true) {
+          return {
+            success: false,
+            data: body,
+            error: new Error(String(body?.reason ?? 'SMS ignoré (doublon ou filtre)')),
+          };
+        }
+        return {
+          success: false,
+          data: body,
+          error: body?.details ?? body?.error ?? new Error('Échec envoi SMS'),
+        };
+      }
+
       return { success: true, data };
     } catch (error: any) {
       console.error('[useEmailService] Erreur envoi email:', error?.message ?? error, payload?.type, to);

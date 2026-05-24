@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,15 +15,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
-import { useAdmin } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useEmailService } from '../hooks/useEmailService';
-import { supabase } from '../services/supabase';
 import { sendPushToUser } from '../services/pushNotificationService';
 import {
   buildProfileUrlForRecipient,
   DEFAULT_PROFILE_SHARE_MESSAGE,
+  fetchProfileShareRecipients,
   fillProfileShareMessage,
   getRecipientDisplayName,
   phoneForSmsE164,
@@ -66,8 +65,8 @@ const AdminProfileShareScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const { getAllUsers } = useAdmin();
   const { sendProfileShareInviteSmart } = useEmailService();
+  const initialLoadDone = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -77,56 +76,27 @@ const AdminProfileShareScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [messageTemplate, setMessageTemplate] = useState(DEFAULT_PROFILE_SHARE_MESSAGE);
 
-  const loadRecipients = useCallback(async () => {
+  const loadRecipients = useCallback(async (force = false) => {
+    if (!force && initialLoadDone.current) {
+      return;
+    }
     setLoading(true);
     try {
-      const [allUsers, propertiesRes, vehiclesRes] = await Promise.all([
-        getAllUsers(),
-        supabase.from('properties').select('host_id'),
-        supabase.from('vehicles').select('owner_id'),
-      ]);
-
-      const propertyHostIds = new Set(
-        (propertiesRes.data ?? []).map((p) => p.host_id).filter(Boolean),
-      );
-      const vehicleOwnerIds = new Set(
-        (vehiclesRes.data ?? []).map((v) => v.owner_id).filter(Boolean),
-      );
-
-      const list: ProfileShareRecipient[] = (allUsers ?? [])
-        .map((u) => {
-          const isHost = Boolean(u.is_host) || propertyHostIds.has(u.user_id);
-          const isVehicleOwner = vehicleOwnerIds.has(u.user_id);
-          if (!isHost && !isVehicleOwner) return null;
-          return {
-            user_id: u.user_id,
-            first_name: u.first_name ?? '',
-            last_name: u.last_name ?? '',
-            email: u.email,
-            phone: u.phone,
-            phone_e164: (u as { phone_e164?: string | null }).phone_e164,
-            is_host: isHost,
-            is_vehicle_owner: isVehicleOwner,
-          };
-        })
-        .filter((r): r is ProfileShareRecipient => r !== null);
-
-      list.sort((a, b) =>
-        getRecipientDisplayName(a).localeCompare(getRecipientDisplayName(b), 'fr'),
-      );
+      const list = await fetchProfileShareRecipients();
       setRecipients(list);
+      initialLoadDone.current = true;
     } catch (e) {
       console.error('[AdminProfileShare] loadRecipients', e);
       Alert.alert('Erreur', 'Impossible de charger les hôtes et propriétaires.');
     } finally {
       setLoading(false);
     }
-  }, [getAllUsers]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       if (user && profile?.role === 'admin') {
-        loadRecipients();
+        loadRecipients(false);
       }
     }, [user, profile, loadRecipients]),
   );
@@ -341,7 +311,11 @@ const AdminProfileShareScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Partager les vitrines</Text>
-        <TouchableOpacity onPress={loadRecipients} style={styles.backButton} disabled={loading}>
+        <TouchableOpacity
+          onPress={() => loadRecipients(true)}
+          style={styles.backButton}
+          disabled={loading}
+        >
           <Ionicons name="refresh" size={22} color="#e74c3c" />
         </TouchableOpacity>
       </View>

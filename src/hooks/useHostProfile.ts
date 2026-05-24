@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
+import { fetchPublicOwnerInfo } from '../utils/publicOwnerInfo';
 
 export interface HostProfile {
   id: string;
@@ -82,48 +83,26 @@ export const useHostProfile = () => {
     try {
       console.log('🔄 [useHostProfile] Chargement du profil pour hostId:', hostId);
 
-      // Cherchons d'abord dans host_public_info (table principale pour les hôtes)
-      const { data, error } = await supabase
-        .from('host_public_info')
-        .select('*')
-        .eq('user_id', hostId)
-        .single();
-      
-      console.log('🔍 [useHostProfile] Requête profiles - Data:', data, 'Error:', error);
+      let baseProfile: HostProfile | null = null;
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          console.log('⚠️ [useHostProfile] Aucun profil trouvé dans host_public_info, essai dans profiles...');
-
-          const profileFromTable = await loadProfileFromProfilesTable(hostId);
-
-          if (!profileFromTable) {
-            console.log('⚠️ [useHostProfile] Aucun profil trouvé non plus dans profiles pour hostId:', hostId);
-            const defaultProfile: HostProfile = {
-              id: hostId,
-              first_name: 'Propriétaire',
-              last_name: '',
-              avatar_url: undefined,
-              bio: undefined,
-              phone: undefined,
-              email: '',
-              created_at: new Date().toISOString(),
-            };
-            setHostProfile(defaultProfile);
-            return defaultProfile;
-          }
-
-          console.log('✅ [useHostProfile] Profil trouvé dans profiles:', profileFromTable);
-          setHostProfile(profileFromTable);
-          hostProfileCache.set(hostId, { profile: profileFromTable, at: Date.now() });
-          return profileFromTable;
+      const publicInfo = await fetchPublicOwnerInfo(hostId);
+      if (publicInfo) {
+        baseProfile = mapProfileRow(publicInfo as unknown as Record<string, unknown>, hostId);
+        console.log('✅ [useHostProfile] Profil chargé depuis host_public_info:', baseProfile);
+      } else {
+        console.log('⚠️ [useHostProfile] Pas dans host_public_info, essai profiles (utilisateur connecté)...');
+        baseProfile = await loadProfileFromProfilesTable(hostId);
+        if (baseProfile) {
+          console.log('✅ [useHostProfile] Profil chargé depuis profiles:', baseProfile);
         }
-        throw error;
       }
 
-      const baseProfile = mapProfileRow(data as Record<string, unknown>, hostId);
-
-      console.log('✅ [useHostProfile] Profil chargé:', baseProfile);
+      if (!baseProfile) {
+        console.log('⚠️ [useHostProfile] Profil introuvable pour hostId:', hostId);
+        setHostProfile(null);
+        setError('Profil indisponible');
+        return null;
+      }
 
       const { data: properties, error: propertiesError } = await supabase
         .from('properties')
@@ -136,47 +115,45 @@ export const useHostProfile = () => {
         .eq('is_active', true)
         .eq('is_hidden', false)
         .order('created_at', { ascending: false });
-      
+
       if (propertiesError) {
         console.error('❌ [useHostProfile] Erreur lors du chargement des propriétés:', propertiesError);
-        console.log('🔍 [useHostProfile] Détails de l\'erreur:', propertiesError);
       } else {
         console.log('✅ [useHostProfile] Propriétés chargées:', properties?.length || 0);
-        console.log('🔍 [useHostProfile] Détails des propriétés:', properties);
       }
-      
-      // Récupérer tous les avis approuvés pour toutes les propriétés de l'hôte
+
       const propertiesList = properties || [];
-      const propertyIds = propertiesList.map(p => p.id);
-      
+      const propertyIds = propertiesList.map((p) => p.id);
+
       let totalReviews = 0;
       let averageRating = 0;
-      
+
       if (propertyIds.length > 0) {
         const { data: reviews, error: reviewsError } = await supabase
           .from('reviews')
           .select('rating, approved')
           .in('property_id', propertyIds)
           .eq('approved', true);
-        
+
         if (reviewsError) {
           console.error('❌ [useHostProfile] Erreur lors du chargement des avis:', reviewsError);
-          // Fallback sur les données des propriétés si les avis ne peuvent pas être chargés
           totalReviews = propertiesList.reduce((sum, prop) => sum + (prop.review_count || 0), 0);
-          const propertiesWithRating = propertiesList.filter(prop => prop.rating && prop.rating > 0);
-          averageRating = propertiesWithRating.length > 0
-            ? propertiesWithRating.reduce((sum, prop) => sum + (prop.rating || 0), 0) / propertiesWithRating.length
-            : 0;
+          const propertiesWithRating = propertiesList.filter((prop) => prop.rating && prop.rating > 0);
+          averageRating =
+            propertiesWithRating.length > 0
+              ? propertiesWithRating.reduce((sum, prop) => sum + (prop.rating || 0), 0) /
+                propertiesWithRating.length
+              : 0;
         } else {
-          // Calculer à partir des avis réels
           const approvedReviews = reviews || [];
           totalReviews = approvedReviews.length;
-          averageRating = totalReviews > 0
-            ? approvedReviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
-            : 0;
+          averageRating =
+            totalReviews > 0
+              ? approvedReviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
+              : 0;
         }
       }
-      
+
       const totalProperties = propertiesList.length;
 
       const enrichedProfile = {
@@ -186,12 +163,6 @@ export const useHostProfile = () => {
         average_rating: Math.round(averageRating * 10) / 10,
         total_properties: totalProperties,
       };
-
-      console.log('📊 [useHostProfile] Statistiques calculées:', {
-        totalProperties,
-        totalReviews,
-        averageRating: enrichedProfile.average_rating
-      });
 
       setHostProfile(enrichedProfile);
       hostProfileCache.set(hostId, { profile: enrichedProfile, at: Date.now() });

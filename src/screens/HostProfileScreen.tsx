@@ -187,7 +187,7 @@ const HostProfileScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={[styles.hero, { backgroundColor: accent.primary }]}>
-        <View style={[styles.heroGlow, { backgroundColor: accent.secondary }]} />
+        <View style={[styles.heroGlow, { backgroundColor: accent.secondary }]} pointerEvents="none" />
         <View style={styles.header}>
           <TouchableOpacity style={styles.headerIconBtn} onPress={handleBack}>
             <Ionicons name="arrow-back" size={22} color="#fff" />
@@ -208,7 +208,11 @@ const HostProfileScreen: React.FC = () => {
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
             {hostProfile.avatar_url ? (
-              <Image source={{ uri: hostProfile.avatar_url }} style={[styles.avatar, { borderColor: accent.primary }]} />
+              <Image
+                source={{ uri: hostProfile.avatar_url }}
+                style={[styles.avatar, { borderColor: accent.primary }]}
+                resizeMode="cover"
+              />
             ) : (
               <View style={[styles.avatarPlaceholder, { borderColor: accent.primary, backgroundColor: accent.light }]}>
                 <Text style={[styles.avatarInitials, { color: accent.primary }]}>
@@ -218,8 +222,8 @@ const HostProfileScreen: React.FC = () => {
               </View>
             )}
             {hostProfile.identity_verified ? (
-              <View style={[styles.verifiedBadge, { backgroundColor: accent.light }]}>
-                <Ionicons name="shield-checkmark" size={14} color={accent.primary} />
+              <View style={[styles.verifiedBadge, { backgroundColor: accent.primary }]}>
+                <Ionicons name="shield-checkmark" size={14} color="#fff" />
               </View>
             ) : null}
           </View>
@@ -268,11 +272,15 @@ const HostProfileScreen: React.FC = () => {
                   <Text style={[styles.statNumber, { color: accent.primary }]}>
                     {vehiclesLoading && isVehicleContext ? '…' : listingsCount}
                   </Text>
-                  <Text style={styles.statLabel}>{isVehicleContext ? 'Véhicules' : 'Logements'}</Text>
+                  <Text style={styles.statLabel} numberOfLines={1}>{isVehicleContext ? 'Véhicules' : 'Logements'}</Text>
                   <View style={[styles.listingsCta, { borderColor: accent.primary }]}>
-                    <Ionicons name="list-outline" size={12} color={accent.primary} />
-                    <Text style={[styles.listingsCtaText, { color: accent.primary }]}>Voir la liste</Text>
-                    <Ionicons name="chevron-forward" size={12} color={accent.primary} />
+                    <Text
+                      style={[styles.listingsCtaText, { color: accent.primary }]}
+                      numberOfLines={1}
+                    >
+                      Voir la liste
+                    </Text>
+                    <Ionicons name="chevron-forward" size={10} color={accent.primary} />
                   </View>
                 </TouchableOpacity>
               ) : null}
@@ -492,7 +500,7 @@ const styles = StyleSheet.create({
     borderRadius: 90,
     opacity: 0.35,
     top: -40,
-    right: -30,
+    left: -30,
   },
   header: {
     flexDirection: 'row',
@@ -542,6 +550,10 @@ const styles = StyleSheet.create({
   avatarContainer: {
     marginBottom: 12,
     position: 'relative',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    overflow: 'hidden',
   },
   avatar: {
     width: 96,
@@ -642,7 +654,8 @@ const styles = StyleSheet.create({
   statItem: {
     alignItems: 'center',
     flex: 1,
-    paddingHorizontal: 4,
+    minWidth: 0,
+    paddingHorizontal: 2,
   },
   statNumber: {
     fontSize: 22,
@@ -656,9 +669,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   listingsStatItem: {
-    marginHorizontal: 4,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
+    marginHorizontal: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     borderRadius: 12,
     borderWidth: 2,
   },
@@ -666,17 +679,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    marginTop: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: 2,
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     borderRadius: 999,
     backgroundColor: '#fff',
     borderWidth: 1,
+    maxWidth: '100%',
+    alignSelf: 'center',
   },
   listingsCtaText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
+    flexShrink: 1,
   },
   reviewsContainer: {
     marginTop: 4,

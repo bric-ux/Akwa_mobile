@@ -19,6 +19,7 @@ import { useHostReviews } from '../hooks/useHostReviews';
 import type { PublicOwnerVehicle } from './PublicOwnerVehiclesList';
 import { getOwnerPublicWebUrl, shareProfileLink } from '../utils/shareListingLink';
 import { buildHostProfileInternalParams } from '../utils/profileNavigation';
+import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
 import type { RootStackParamList } from '../types';
 
 interface HostProfileModalProps {
@@ -97,6 +98,9 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
   const hasRating = combinedAverageRating > 0;
   const hasReviews = totalReviewsCount > 0;
 
+  const accent = reviewsContext === 'vehicle' ? VEHICLE_COLORS : HOST_COLORS;
+  const screenTitle = reviewsContext === 'vehicle' ? 'Profil du propriétaire' : 'Profil de l\'hôte';
+
   const handleShareProfile = useCallback(() => {
     if (!hostId || !hostProfile) return;
     const name = `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Propriétaire';
@@ -151,127 +155,166 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.header}>
-            <View style={styles.headerTitleContainer}>
-              <Ionicons name="person-outline" size={20} color="#2563eb" />
-              <Text style={styles.headerTitle}>Profil du propriétaire</Text>
-            </View>
-            <View style={styles.headerActions}>
-              {hostProfile ? (
-                <TouchableOpacity onPress={handleShareProfile} style={styles.shareButton}>
-                  <Ionicons name="share-outline" size={22} color="#333" />
+        <SafeAreaView style={styles.modalContainer} edges={['bottom']}>
+          <View style={[styles.hero, { backgroundColor: accent.primary }]}>
+            <View
+              style={[styles.heroGlow, { backgroundColor: accent.secondary }]}
+              pointerEvents="none"
+            />
+            <View style={styles.header}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {screenTitle}
+              </Text>
+              <View style={styles.headerActions}>
+                {hostProfile ? (
+                  <TouchableOpacity
+                    onPress={handleShareProfile}
+                    style={styles.headerIconBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="share-outline" size={22} color="#fff" />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.headerIconSpacer} />
+                )}
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={styles.headerIconBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={24} color="#fff" />
                 </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
+              </View>
             </View>
           </View>
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2563eb" />
+              <ActivityIndicator size="large" color={accent.primary} />
               <Text style={styles.loadingText}>Chargement du profil...</Text>
             </View>
           ) : hostProfile ? (
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-              {/* Photo et informations de base */}
-              <View style={styles.profileHeader}>
+            <ScrollView
+              style={styles.content}
+              contentContainerStyle={styles.contentContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.profileCard}>
                 <View style={styles.avatarContainer}>
                   {hostProfile.avatar_url ? (
                     <Image
                       source={{ uri: hostProfile.avatar_url }}
-                      style={styles.avatar}
+                      style={[styles.avatar, { borderColor: accent.primary }]}
+                      resizeMode="cover"
                     />
                   ) : (
-                    <View style={styles.avatarPlaceholder}>
-                      <Text style={styles.avatarText}>
-                        {hostProfile.first_name?.charAt(0) || 'P'}
-                        {hostProfile.last_name?.charAt(0) || ''}
+                    <View
+                      style={[
+                        styles.avatarPlaceholder,
+                        { borderColor: accent.primary, backgroundColor: accent.light },
+                      ]}
+                    >
+                      <Text style={[styles.avatarText, { color: accent.primary }]}>
+                        {(hostProfile.first_name?.[0] || 'P').toUpperCase()}
+                        {(hostProfile.last_name?.[0] || '').toUpperCase()}
                       </Text>
                     </View>
                   )}
+                  {hostProfile.identity_verified ? (
+                    <View style={[styles.verifiedIconBadge, { backgroundColor: accent.primary }]}>
+                      <Ionicons name="shield-checkmark" size={12} color="#fff" />
+                    </View>
+                  ) : null}
                 </View>
+
                 <Text style={styles.name}>
                   {hostProfile.first_name || ''} {hostProfile.last_name || ''}
                 </Text>
-                {hostProfile.city && (
+
+                <View style={[styles.rolePill, { backgroundColor: accent.light }]}>
+                  <Ionicons
+                    name={reviewsContext === 'vehicle' ? 'car-outline' : 'home-outline'}
+                    size={14}
+                    color={accent.primary}
+                  />
+                  <Text style={[styles.rolePillText, { color: accent.primary }]}>
+                    {reviewsContext === 'vehicle' ? 'Propriétaire sur AkwaHome' : 'Hôte sur AkwaHome'}
+                  </Text>
+                </View>
+
+                {(hostProfile.city || hostProfile.country) ? (
                   <View style={styles.locationRow}>
-                    <Ionicons name="location-outline" size={16} color="#666" />
+                    <Ionicons name="location-outline" size={14} color="#64748b" />
                     <Text style={styles.location}>
-                      {hostProfile.city}
-                      {hostProfile.country ? `, ${hostProfile.country}` : ''}
+                      {[hostProfile.city, hostProfile.country].filter(Boolean).join(', ')}
                     </Text>
                   </View>
-                )}
-                {hostProfile.identity_verified && (
-                  <View style={styles.verifiedBadge}>
-                    <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-                    <Text style={styles.verifiedText}>Propriétaire vérifié</Text>
-                  </View>
-                )}
+                ) : null}
               </View>
 
-              {/* Statistiques */}
-              <View style={styles.statsContainer}>
+              {(hasListings || hasRating || hasReviews) ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Statistiques</Text>
+                <View style={[styles.statsContainer, { borderColor: accent.light, backgroundColor: accent.light }]}>
                 {hasListings && (
                   <TouchableOpacity
-                    style={[styles.statItem, styles.listingsStatItem]}
+                    style={[
+                      styles.statItem,
+                      styles.listingsStatItem,
+                      { borderColor: accent.primary, backgroundColor: '#fff' },
+                    ]}
                     disabled={vehiclesLoading}
                     onPress={handleOpenListings}
                     activeOpacity={0.75}
                   >
-                    <Text style={styles.statValue}>
+                    <Text style={[styles.statValue, { color: accent.primary }]}>
                       {vehiclesLoading ? '…' : listingsCount}
                     </Text>
-                    <Text style={styles.statLabel}>{listingsLabel}</Text>
-                    <View style={styles.listingsCta}>
-                      <Ionicons name="list-outline" size={12} color="#2563eb" />
-                      <Text style={styles.listingsCtaText}>Voir la liste</Text>
-                      <Ionicons name="chevron-forward" size={12} color="#2563eb" />
+                    <Text style={styles.statLabel} numberOfLines={1}>{listingsLabel}</Text>
+                    <View style={[styles.listingsCta, { borderColor: accent.primary }]}>
+                      <Text
+                        style={[styles.listingsCtaText, { color: accent.primary }]}
+                        numberOfLines={1}
+                      >
+                        Voir la liste
+                      </Text>
+                      <Ionicons name="chevron-forward" size={10} color={accent.primary} />
                     </View>
                   </TouchableOpacity>
                 )}
                 {hasRating && (
-                  <>
-                    {hasListings && <View style={styles.statDivider} />}
                     <View style={styles.statItem}>
-                      <Text style={styles.statValue}>{combinedAverageRating.toFixed(1)}</Text>
-                      <Text style={styles.statLabel}>Note moyenne</Text>
+                      <Ionicons name="star" size={18} color="#f59e0b" style={{ marginBottom: 4 }} />
+                      <Text style={[styles.statValue, { color: accent.primary }]}>{combinedAverageRating.toFixed(1)}</Text>
+                      <Text style={styles.statLabel} numberOfLines={1}>Note / 5</Text>
                     </View>
-                  </>
                 )}
                 {hasReviews && (
-                  <>
-                    {(hasListings || hasRating) && <View style={styles.statDivider} />}
                     <View style={styles.statItem}>
-                      <Text style={styles.statValue}>{totalReviewsCount}</Text>
-                      <Text style={styles.statLabel}>Avis</Text>
+                      <Ionicons name="chatbubbles-outline" size={18} color={accent.primary} style={{ marginBottom: 4 }} />
+                      <Text style={[styles.statValue, { color: accent.primary }]}>{totalReviewsCount}</Text>
+                      <Text style={styles.statLabel} numberOfLines={1}>Avis</Text>
                     </View>
-                  </>
                 )}
+                </View>
               </View>
+              ) : null}
 
-              {/* Bio */}
-              {hostProfile.bio && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>À propos</Text>
+              {hostProfile.bio ? (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>À propos</Text>
                   <Text style={styles.bioText}>{hostProfile.bio}</Text>
                 </View>
-              )}
+              ) : null}
 
-              {/* Avis */}
-              {displayReviews.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>
-                    Avis des locataires ({displayReviews.length})
-                  </Text>
-                </View>
+              {displayReviews.length > 0 ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>
+                  Avis des locataires ({displayReviews.length})
+                </Text>
                 {reviewsLoading ? (
                   <View style={styles.loadingReviewsContainer}>
-                    <ActivityIndicator size="small" color="#2563eb" />
+                    <ActivityIndicator size="small" color={accent.primary} />
                     <Text style={styles.loadingReviewsText}>Chargement des avis...</Text>
                   </View>
                 ) : (
@@ -303,9 +346,9 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                           <Text style={styles.reviewComment}>{review.comment}</Text>
                         )}
                         {review.review_type === 'property' && review.property_title && (
-                          <View style={styles.reviewTypeBadge}>
-                            <Ionicons name="home-outline" size={12} color="#2563eb" />
-                            <Text style={styles.reviewTypeText}>
+                          <View style={[styles.reviewTypeBadge, { backgroundColor: accent.light }]}>
+                            <Ionicons name="home-outline" size={12} color={accent.primary} />
+                            <Text style={[styles.reviewTypeText, { color: accent.primary }]}>
                               Résidence meublée: {review.property_title}
                             </Text>
                           </View>
@@ -322,25 +365,25 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                     ))}
                     {displayReviews.length > MAX_REVIEWS_PREVIEW && (
                       <TouchableOpacity
-                        style={styles.showAllButton}
+                        style={[styles.showAllButton, { borderColor: accent.primary, backgroundColor: accent.light }]}
                         onPress={() => setShowAllReviews(!showAllReviews)}
                       >
-                        <Text style={styles.showAllButtonText}>
+                        <Text style={[styles.showAllButtonText, { color: accent.primary }]}>
                           {showAllReviews 
                             ? 'Voir moins d\'avis' 
                             : `Voir tous les avis (${displayReviews.length - MAX_REVIEWS_PREVIEW} de plus)`}
                         </Text>
-                        <Ionicons 
-                          name={showAllReviews ? 'chevron-up' : 'chevron-down'} 
-                          size={20} 
-                          color="#2563eb" 
+                        <Ionicons
+                          name={showAllReviews ? 'chevron-up' : 'chevron-down'}
+                          size={20}
+                          color={accent.primary}
                         />
                       </TouchableOpacity>
                     )}
                   </>
                 )}
               </View>
-              )}
+              ) : null}
             </ScrollView>
           ) : (
             <View style={styles.errorContainer}>
@@ -361,40 +404,56 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f1f5f9',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    marginTop: 60,
+    marginTop: 48,
+    overflow: 'hidden',
+  },
+  hero: {
+    paddingBottom: 28,
+    overflow: 'hidden',
+  },
+  heroGlow: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    opacity: 0.3,
+    top: -50,
+    left: -30,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  headerTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    marginRight: 12,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
-  shareButton: {
-    padding: 4,
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  closeButton: {
-    padding: 4,
+  headerIconSpacer: {
+    width: 40,
+    height: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -405,143 +464,170 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#6b7280',
+    color: '#64748b',
   },
   content: {
     flex: 1,
+    marginTop: -20,
   },
-  profileHeader: {
-    alignItems: 'center',
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 28,
+  },
+  profileCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
     paddingVertical: 24,
     paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   avatarContainer: {
     marginBottom: 12,
+    position: 'relative',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    overflow: 'hidden',
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
   },
   avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#2563eb',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
   },
   avatarText: {
     fontSize: 32,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: '700',
+  },
+  verifiedIconBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   name: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#1f2937',
+    fontWeight: '800',
+    color: '#0f172a',
     marginBottom: 8,
+    textAlign: 'center',
+  },
+  rolePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginBottom: 6,
+  },
+  rolePillText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 12,
+    marginTop: 6,
   },
   location: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
+    color: '#64748b',
   },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#d1fae5',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  card: {
+    backgroundColor: '#fff',
     borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 12,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  verifiedText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#065f46',
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 12,
   },
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#f9fafb',
-    marginHorizontal: 20,
-    marginBottom: 24,
-    borderRadius: 12,
-    paddingVertical: 20,
+    justifyContent: 'space-around',
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    borderRadius: 14,
+    borderWidth: 1,
   },
   statItem: {
-    flex: 1,
     alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 2,
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginBottom: 4,
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  statHint: {
-    fontSize: 10,
-    color: '#2563eb',
-    marginTop: 4,
-    fontWeight: '600',
+    fontSize: 11,
+    color: '#64748b',
+    textAlign: 'center',
+    fontWeight: '500',
   },
   listingsStatItem: {
-    marginHorizontal: 4,
-    marginVertical: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    marginHorizontal: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#2563eb',
-    backgroundColor: '#eff6ff',
   },
   listingsCta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    marginTop: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    gap: 2,
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     borderRadius: 999,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#2563eb',
+    maxWidth: '100%',
+    alignSelf: 'center',
   },
   listingsCtaText: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '700',
-    color: '#2563eb',
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: '#e5e7eb',
-  },
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
+    flexShrink: 1,
   },
   bioText: {
-    fontSize: 14,
-    color: '#4b5563',
-    lineHeight: 20,
+    fontSize: 15,
+    color: '#475569',
+    lineHeight: 22,
   },
   reviewItem: {
     backgroundColor: '#f9fafb',

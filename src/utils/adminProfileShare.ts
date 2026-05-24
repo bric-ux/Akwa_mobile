@@ -1,4 +1,102 @@
 import { getOwnerPublicWebUrl, PublicProfileShareType } from './shareListingLink';
+import { supabase } from '../services/supabase';
+
+const PROFILE_SHARE_SELECT =
+  'user_id, first_name, last_name, email, phone, phone_e164, is_host';
+
+type ProfileShareRow = {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  phone_e164: string | null;
+  is_host: boolean | null;
+};
+
+const PROFILE_FETCH_CHUNK = 150;
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+/** Hôtes et propriétaires véhicules uniquement — pas de scan de toute la table profiles. */
+export async function fetchProfileShareRecipients(): Promise<ProfileShareRecipient[]> {
+  const [propertiesRes, vehiclesRes, hostProfilesRes] = await Promise.all([
+    supabase.from('properties').select('host_id').eq('is_active', true).eq('is_hidden', false),
+    supabase
+      .from('vehicles')
+      .select('owner_id')
+      .eq('is_active', true)
+      .eq('is_approved', true),
+    supabase.from('profiles').select(PROFILE_SHARE_SELECT).eq('is_host', true),
+  ]);
+
+  if (propertiesRes.error) throw propertiesRes.error;
+  if (vehiclesRes.error) throw vehiclesRes.error;
+  if (hostProfilesRes.error) throw hostProfilesRes.error;
+
+  const propertyHostIds = new Set(
+    (propertiesRes.data ?? []).map((p) => p.host_id).filter(Boolean) as string[],
+  );
+  const vehicleOwnerIds = new Set(
+    (vehiclesRes.data ?? []).map((v) => v.owner_id).filter(Boolean) as string[],
+  );
+
+  const profileById = new Map<string, ProfileShareRow>();
+  for (const row of (hostProfilesRes.data ?? []) as ProfileShareRow[]) {
+    if (row.user_id) profileById.set(row.user_id, row);
+  }
+
+  const missingIds = [...new Set([...propertyHostIds, ...vehicleOwnerIds])].filter(
+    (id) => !profileById.has(id),
+  );
+
+  for (const chunk of chunkArray(missingIds, PROFILE_FETCH_CHUNK)) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(PROFILE_SHARE_SELECT)
+      .in('user_id', chunk);
+    if (error) throw error;
+    for (const row of (data ?? []) as ProfileShareRow[]) {
+      if (row.user_id) profileById.set(row.user_id, row);
+    }
+  }
+
+  const allUserIds = new Set<string>([
+    ...propertyHostIds,
+    ...vehicleOwnerIds,
+    ...profileById.keys(),
+  ]);
+
+  const list: ProfileShareRecipient[] = [];
+  for (const userId of allUserIds) {
+    const row = profileById.get(userId);
+    if (!row) continue;
+    const isHost = Boolean(row.is_host) || propertyHostIds.has(userId);
+    const isVehicleOwner = vehicleOwnerIds.has(userId);
+    if (!isHost && !isVehicleOwner) continue;
+    list.push({
+      user_id: userId,
+      first_name: row.first_name ?? '',
+      last_name: row.last_name ?? '',
+      email: row.email,
+      phone: row.phone,
+      phone_e164: row.phone_e164,
+      is_host: isHost,
+      is_vehicle_owner: isVehicleOwner,
+    });
+  }
+
+  list.sort((a, b) =>
+    getRecipientDisplayName(a).localeCompare(getRecipientDisplayName(b), 'fr'),
+  );
+  return list;
+}
 
 export type ProfileShareRecipient = {
   user_id: string;
