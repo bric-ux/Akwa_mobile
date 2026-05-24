@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -27,12 +27,17 @@ interface AutoCompleteSearchProps {
   initialValue?: string;
 }
 
-const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
+export interface AutoCompleteSearchHandle {
+  getQuery: () => string;
+  blur: () => void;
+}
+
+const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSearchProps>(({
   placeholder = "Où allez-vous ?",
   onSearch,
   onSuggestionSelect,
   initialValue = '',
-}) => {
+}, ref) => {
   const [query, setQuery] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -42,6 +47,11 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
   const isProcessingRef = useRef(false);
   const lastProcessedId = useRef<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
+
+  useImperativeHandle(ref, () => ({
+    getQuery: () => query,
+    blur: () => textInputRef.current?.blur(),
+  }));
 
   // Charger les recherches récentes
   useEffect(() => {
@@ -358,7 +368,9 @@ const AutoCompleteSearch: React.FC<AutoCompleteSearchProps> = ({
       )}
     </View>
   );
-};
+});
+
+AutoCompleteSearch.displayName = 'AutoCompleteSearch';
 
 const styles = StyleSheet.create({
   container: {

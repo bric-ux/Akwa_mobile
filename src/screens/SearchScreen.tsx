@@ -11,6 +11,7 @@ import {
   Modal,
   RefreshControl,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -25,7 +26,7 @@ import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
 import FiltersModal from '../components/FiltersModal';
 import SearchSuggestions from '../components/SearchSuggestions';
 import SearchResultsHeader from '../components/SearchResultsHeader';
-import AutoCompleteSearch from '../components/AutoCompleteSearch';
+import AutoCompleteSearch, { AutoCompleteSearchHandle } from '../components/AutoCompleteSearch';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import SearchButton from '../components/SearchButton';
 import SearchResultsView from '../components/SearchResultsView';
@@ -59,6 +60,7 @@ const SearchScreen: React.FC = () => {
   const [isMapView, setIsMapView] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const searchInputRef = useRef<AutoCompleteSearchHandle>(null);
   
   const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
   const lastHandledCatalogVersionRef = useRef<number | null>(null);
@@ -481,9 +483,12 @@ const SearchScreen: React.FC = () => {
     setIsHeaderCollapsed(!isHeaderCollapsed);
   };
 
-  const handleSearchButtonPress = () => {
-    // Vérifier que la ville est remplie
-    if (!currentSearchQuery.trim()) {
+  const handleSearchButtonPress = async () => {
+    // Lire la valeur saisie dans le champ (état local AutoCompleteSearch), pas seulement le state parent
+    const queryFromInput = searchInputRef.current?.getQuery()?.trim() ?? '';
+    const query = queryFromInput || currentSearchQuery.trim();
+
+    if (!query) {
       Alert.alert(
         'Ville requise',
         'Veuillez saisir une ville ou un quartier pour effectuer la recherche.',
@@ -491,13 +496,14 @@ const SearchScreen: React.FC = () => {
       );
       return;
     }
-    
-    // Lancer la recherche
-    handleSearch(currentSearchQuery);
-    // Replier le header après recherche seulement si on a des résultats
-    if (sortedProperties.length > 0) {
-      setIsHeaderCollapsed(true);
-    }
+
+    searchInputRef.current?.blur();
+    Keyboard.dismiss();
+
+    await handleSearch(query);
+    // Replier le header dès que la recherche est lancée (comme iOS) ;
+    // l’UI masque le formulaire seulement quand hasResults devient true.
+    setIsHeaderCollapsed(true);
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
@@ -705,6 +711,7 @@ const SearchScreen: React.FC = () => {
           <View style={styles.headerContent}>
             {/* Barre de recherche avec autocomplétion */}
             <AutoCompleteSearch
+              ref={searchInputRef}
               placeholder="Où allez-vous ?"
               onSearch={handleSearch}
               onSuggestionSelect={handleSuggestionSelect}
