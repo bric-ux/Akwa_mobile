@@ -12,6 +12,7 @@ import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { PushNotificationBootstrap } from '../components/PushNotificationBootstrap';
 import { PushNotificationNavigationHandler } from '../components/PushNotificationNavigationHandler';
 import AuthSessionFade from '../components/AuthSessionFade';
+import { appLinking } from './linking';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -612,7 +613,7 @@ const AppNavigator = () => {
   }, [user, authLoading, navigationRef]);
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} linking={appLinking}>
       <PushNotificationBootstrap />
       <PushNotificationNavigationHandler navigationRef={navigationRef} />
       <TabNotificationBadgesProvider>

@@ -17,6 +17,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
       "buildNumber": "41",
+      "associatedDomains": [
+        "applinks:akwahome.com",
+        "applinks:www.akwahome.com"
+      ],
       "splash": {
         "image": "./assets/icon.png",
         "resizeMode": "contain",
@@ -42,7 +46,24 @@
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
       "package": "com.jeanbrice270.AkwaHomeMobile",
-      "versionCode": 21
+      "versionCode": 21,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "akwahome.com", "pathPrefix": "/profil" },
+            { "scheme": "https", "host": "akwahome.com", "pathPrefix": "/profile" },
+            { "scheme": "https", "host": "akwahome.com", "pathPrefix": "/property" },
+            { "scheme": "https", "host": "akwahome.com", "pathPrefix": "/vehicles" },
+            { "scheme": "https", "host": "www.akwahome.com", "pathPrefix": "/profil" },
+            { "scheme": "https", "host": "www.akwahome.com", "pathPrefix": "/profile" },
+            { "scheme": "https", "host": "www.akwahome.com", "pathPrefix": "/property" },
+            { "scheme": "https", "host": "www.akwahome.com", "pathPrefix": "/vehicles" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
