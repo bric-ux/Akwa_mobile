@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,33 +11,93 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { useHostProfile } from '../hooks/useHostProfile';
 import { useHostReviews } from '../hooks/useHostReviews';
 import { getOwnerPublicWebUrl, shareProfileLink } from '../utils/shareListingLink';
+import { handleHostProfileBack } from '../utils/profileNavigation';
+import PublicHostPropertiesList from '../components/PublicHostPropertiesList';
+import PublicOwnerVehiclesList, { type PublicOwnerVehicle } from '../components/PublicOwnerVehiclesList';
+import ContactHostButton from '../components/ContactHostButton';
+import ContactOwnerButton from '../components/ContactOwnerButton';
+import { supabase } from '../services/supabase';
+import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
+import type { RootStackParamList, Property, Vehicle } from '../types';
 
-const openHostListingsVitrine = (hostId: string, name?: string) => {
-  Linking.openURL(
-    getOwnerPublicWebUrl(hostId, {
-      type: 'host',
-      tab: 'properties',
-      listings: true,
-      name,
-    }),
-  );
-};
+type HostProfileRouteProp = RouteProp<RootStackParamList, 'HostProfile'>;
+type HostProfileNavigationProp = StackNavigationProp<RootStackParamList, 'HostProfile'>;
 
 const HostProfileScreen: React.FC = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { hostId, propertyOnly } = (route.params as any) || {};
+  const navigation = useNavigation<HostProfileNavigationProp>();
+  const route = useRoute<HostProfileRouteProp>();
+  const {
+    hostId,
+    propertyOnly,
+    showListings,
+    listingsTab,
+    profileContext = 'host',
+    returnFromInternal,
+  } = route.params;
+  const scrollRef = useRef<ScrollView>(null);
+  const listingsSectionY = useRef(0);
   const { hostProfile, loading, error, getHostProfile } = useHostProfile();
   const { reviews, loading: reviewsLoading, getHostReviews } = useHostReviews();
+  const [ownerVehicles, setOwnerVehicles] = useState<PublicOwnerVehicle[]>([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
   const properties = hostProfile?.properties ?? [];
   const propertyCount = hostProfile?.total_properties ?? properties.length;
-  const hasProperties = propertyCount > 0;
+  const vehicleCount = ownerVehicles.length;
+  const isVehicleContext = profileContext === 'vehicle' || listingsTab === 'vehicles';
+  const listingsCount = isVehicleContext ? vehicleCount : propertyCount;
+  const hasListings = listingsCount > 0;
   const hasReviews = (hostProfile?.total_reviews ?? 0) > 0;
   const hasRating = (hostProfile?.average_rating ?? 0) > 0;
+  const hasAnyStat = hasListings || hasReviews || hasRating;
+
+  const accent = isVehicleContext ? VEHICLE_COLORS : HOST_COLORS;
+  const roleLabel = isVehicleContext ? 'propriétaire' : 'hôte';
+  const contactTitle = isVehicleContext ? "Contacter le propriétaire" : "Contacter l'hôte";
+  const screenTitle = isVehicleContext ? 'Profil du propriétaire' : "Profil de l'hôte";
+  const hostDisplayName =
+    `${hostProfile?.first_name || ''} ${hostProfile?.last_name || ''}`.trim() || roleLabel;
+
+  const contactProperty = useMemo((): Property | null => {
+    const p = properties[0];
+    if (!p || !hostId) return null;
+    return {
+      id: p.id,
+      title: p.title,
+      host_id: hostId,
+      description: null,
+      price_per_night: p.price_per_night ?? 0,
+      images: p.images ?? [],
+      created_at: '',
+      updated_at: '',
+    } as Property;
+  }, [properties, hostId]);
+
+  const contactVehicle = useMemo((): Vehicle | null => {
+    const v = ownerVehicles[0];
+    if (!v || !hostId) return null;
+    return {
+      id: v.id,
+      title: v.title ?? 'Véhicule',
+      owner_id: hostId,
+      price_per_day: v.price_per_day ?? 0,
+      images: v.images ?? [],
+    } as Vehicle;
+  }, [ownerVehicles, hostId]);
+
+  const handleBack = useCallback(() => {
+    handleHostProfileBack(navigation, { returnFromInternal });
+  }, [navigation, returnFromInternal]);
+
+  const scrollToListings = useCallback(() => {
+    if (listingsSectionY.current > 0) {
+      scrollRef.current?.scrollTo({ y: listingsSectionY.current, animated: true });
+    }
+  }, []);
 
   useEffect(() => {
     if (hostId) {
@@ -45,6 +105,32 @@ const HostProfileScreen: React.FC = () => {
       getHostReviews(hostId, { propertyOnly: propertyOnly === true });
     }
   }, [hostId, propertyOnly, getHostProfile, getHostReviews]);
+
+  useEffect(() => {
+    if (!hostId || !isVehicleContext) {
+      setOwnerVehicles([]);
+      return;
+    }
+    setVehiclesLoading(true);
+    supabase
+      .from('vehicles')
+      .select('id, title, brand, model, price_per_day, images')
+      .eq('owner_id', hostId)
+      .eq('is_active', true)
+      .eq('is_approved', true)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setOwnerVehicles((data as PublicOwnerVehicle[]) || []);
+      })
+      .finally(() => setVehiclesLoading(false));
+  }, [hostId, isVehicleContext]);
+
+  useEffect(() => {
+    if (showListings && !loading && hasListings) {
+      const timer = setTimeout(scrollToListings, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [showListings, loading, hasListings, scrollToListings]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -59,13 +145,13 @@ const HostProfileScreen: React.FC = () => {
     const name = `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim() || 'Hôte';
     shareProfileLink({
       url: getOwnerPublicWebUrl(hostId, {
-        type: 'host',
+        type: isVehicleContext ? 'vehicle' : 'host',
         name,
       }),
       name,
-      type: 'host',
+      type: isVehicleContext ? 'vehicle' : 'host',
     });
-  }, [hostId, hostProfile]);
+  }, [hostId, hostProfile, isVehicleContext]);
 
   if (loading) {
     return (
@@ -89,7 +175,7 @@ const HostProfileScreen: React.FC = () => {
           </Text>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={handleBack}
           >
             <Text style={styles.backButtonText}>Retour</Text>
           </TouchableOpacity>
@@ -100,102 +186,147 @@ const HostProfileScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profil de l'hôte</Text>
-        <TouchableOpacity style={styles.shareButton} onPress={handleShareProfile}>
-          <Ionicons name="share-outline" size={22} color="#333" />
-        </TouchableOpacity>
+      <View style={[styles.hero, { backgroundColor: accent.primary }]}>
+        <View style={[styles.heroGlow, { backgroundColor: accent.secondary }]} />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={22} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{screenTitle}</Text>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={handleShareProfile}>
+            <Ionicons name="share-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Photo de profil et informations de base */}
-        <View style={styles.profileSection}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
             {hostProfile.avatar_url ? (
-              <Image
-                source={{ uri: hostProfile.avatar_url }}
-                style={styles.avatar}
-              />
+              <Image source={{ uri: hostProfile.avatar_url }} style={[styles.avatar, { borderColor: accent.primary }]} />
             ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={40} color="#666" />
+              <View style={[styles.avatarPlaceholder, { borderColor: accent.primary, backgroundColor: accent.light }]}>
+                <Text style={[styles.avatarInitials, { color: accent.primary }]}>
+                  {(hostProfile.first_name?.[0] || 'A').toUpperCase()}
+                  {(hostProfile.last_name?.[0] || '').toUpperCase()}
+                </Text>
               </View>
             )}
+            {hostProfile.identity_verified ? (
+              <View style={[styles.verifiedBadge, { backgroundColor: accent.light }]}>
+                <Ionicons name="shield-checkmark" size={14} color={accent.primary} />
+              </View>
+            ) : null}
           </View>
-          
-          <Text style={styles.hostName}>
-            {hostProfile.first_name} {hostProfile.last_name}
-          </Text>
-          
-          <Text style={styles.hostTitle}>Hôte sur AkwaHome</Text>
-          
-          {hostProfile.created_at ? (
-            <Text style={styles.memberSince}>
-              Membre depuis {formatDate(hostProfile.created_at)}
+
+          <Text style={styles.hostName}>{hostDisplayName}</Text>
+          <View style={[styles.rolePill, { backgroundColor: accent.light }]}>
+            <Ionicons
+              name={isVehicleContext ? 'car-outline' : 'home-outline'}
+              size={14}
+              color={accent.primary}
+            />
+            <Text style={[styles.rolePillText, { color: accent.primary }]}>
+              {isVehicleContext ? 'Propriétaire sur AkwaHome' : 'Hôte sur AkwaHome'}
             </Text>
+          </View>
+          {hostProfile.created_at ? (
+            <Text style={styles.memberSince}>Membre depuis {formatDate(hostProfile.created_at)}</Text>
+          ) : null}
+          {(hostProfile.city || hostProfile.country) ? (
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={14} color="#64748b" />
+              <Text style={styles.locationText}>
+                {[hostProfile.city, hostProfile.country].filter(Boolean).join(', ')}
+              </Text>
+            </View>
           ) : null}
         </View>
 
-        {/* Bio */}
         {hostProfile.bio ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>À propos</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>À propos</Text>
             <Text style={styles.bioText}>{hostProfile.bio}</Text>
           </View>
         ) : null}
 
-        {/* Statistiques de l'hôte */}
-        {(hasProperties || hasReviews || hasRating) && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Statistiques</Text>
-          <View style={styles.statsContainer}>
-            {hasProperties && (
-              <TouchableOpacity
-                style={[styles.statItem, styles.listingsStatItem]}
-                onPress={() =>
-                  hostId &&
-                  openHostListingsVitrine(
-                    hostId,
-                    `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim(),
-                  )
-                }
-                activeOpacity={0.75}
-              >
-                <Text style={styles.statNumber}>{propertyCount}</Text>
-                <Text style={styles.statLabel}>Propriétés</Text>
-                <View style={styles.listingsCta}>
-                  <Ionicons name="open-outline" size={12} color="#2E7D32" />
-                  <Text style={styles.listingsCtaText}>Voir la liste</Text>
-                  <Ionicons name="chevron-forward" size={12} color="#2E7D32" />
+        {hasAnyStat ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Statistiques</Text>
+            <View style={[styles.statsContainer, { borderColor: accent.light, backgroundColor: accent.light }]}>
+              {hasListings ? (
+                <TouchableOpacity
+                  style={[styles.statItem, styles.listingsStatItem, { borderColor: accent.primary, backgroundColor: '#fff' }]}
+                  onPress={scrollToListings}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.statNumber, { color: accent.primary }]}>
+                    {vehiclesLoading && isVehicleContext ? '…' : listingsCount}
+                  </Text>
+                  <Text style={styles.statLabel}>{isVehicleContext ? 'Véhicules' : 'Logements'}</Text>
+                  <View style={[styles.listingsCta, { borderColor: accent.primary }]}>
+                    <Ionicons name="list-outline" size={12} color={accent.primary} />
+                    <Text style={[styles.listingsCtaText, { color: accent.primary }]}>Voir la liste</Text>
+                    <Ionicons name="chevron-forward" size={12} color={accent.primary} />
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+              {hasReviews ? (
+                <View style={styles.statItem}>
+                  <Ionicons name="chatbubbles-outline" size={20} color={accent.primary} style={{ marginBottom: 4 }} />
+                  <Text style={[styles.statNumber, { color: accent.primary }]}>{hostProfile.total_reviews}</Text>
+                  <Text style={styles.statLabel}>Avis</Text>
                 </View>
-              </TouchableOpacity>
-            )}
-            {hasReviews && (
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{hostProfile.total_reviews}</Text>
-                <Text style={styles.statLabel}>Avis</Text>
-              </View>
-            )}
-            {hasRating && (
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{hostProfile.average_rating}/5</Text>
-                <Text style={styles.statLabel}>Note moyenne</Text>
-              </View>
+              ) : null}
+              {hasRating ? (
+                <View style={styles.statItem}>
+                  <Ionicons name="star" size={20} color="#f59e0b" style={{ marginBottom: 4 }} />
+                  <Text style={[styles.statNumber, { color: accent.primary }]}>{hostProfile.average_rating}</Text>
+                  <Text style={styles.statLabel}>Note / 5</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        {hasListings ? (
+          <View
+            style={styles.card}
+            onLayout={(e) => {
+              listingsSectionY.current = e.nativeEvent.layout.y;
+            }}
+          >
+            <Text style={styles.cardTitle}>
+              {isVehicleContext ? 'Véhicules disponibles' : 'Logements disponibles'}
+            </Text>
+            {vehiclesLoading && isVehicleContext ? (
+              <ActivityIndicator size="small" color="#2E7D32" style={{ marginVertical: 16 }} />
+            ) : isVehicleContext ? (
+              <PublicOwnerVehiclesList
+                vehicles={ownerVehicles}
+                onSelect={(vehicleId) =>
+                  navigation.navigate('VehicleDetails', { vehicleId })
+                }
+              />
+            ) : (
+              <PublicHostPropertiesList
+                properties={properties}
+                onSelect={(propertyId) =>
+                  navigation.navigate('PropertyDetails', { propertyId })
+                }
+              />
             )}
           </View>
-        </View>
-        )}
+        ) : null}
 
-        {reviews.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Avis reçus ({reviews.length})</Text>
+        {reviews.length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Avis reçus ({reviews.length})</Text>
             {reviewsLoading ? (
               <View style={styles.loadingReviewsContainer}>
                 <ActivityIndicator size="small" color="#2E7D32" />
@@ -204,10 +335,10 @@ const HostProfileScreen: React.FC = () => {
             ) : (
               <View style={styles.reviewsContainer}>
                 {reviews.slice(0, 3).map((review) => (
-                <View key={review.id} style={styles.reviewCard}>
+                <View key={review.id} style={[styles.reviewCard, { borderLeftColor: accent.primary }]}>
                   <View style={styles.reviewHeader}>
                     <View style={styles.reviewerInfo}>
-                      <View style={styles.reviewerAvatar}>
+                      <View style={[styles.reviewerAvatar, { backgroundColor: accent.primary }]}>
                         <Text style={styles.reviewerInitial}>
                           {review.reviewer_name?.charAt(0) || 'U'}
                         </Text>
@@ -233,7 +364,9 @@ const HostProfileScreen: React.FC = () => {
                   {review.comment ? (
                     <Text style={styles.reviewComment}>{review.comment}</Text>
                   ) : null}
-                  <Text style={styles.propertyTitle}>Propriété: {review.property_title || 'Propriété'}</Text>
+                  <Text style={[styles.propertyTitle, { color: accent.primary }]}>
+                    Propriété: {review.property_title || 'Propriété'}
+                  </Text>
                 </View>
               ))}
               {reviews.length > 3 ? (
@@ -244,31 +377,66 @@ const HostProfileScreen: React.FC = () => {
               </View>
             )}
           </View>
-        )}
+        ) : null}
 
-        {/* Informations de contact */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informations de contact</Text>
-          <View style={styles.contactInfo}>
-            <View style={styles.contactItem}>
-              <Ionicons name="mail-outline" size={20} color="#2E7D32" />
-              <Text style={styles.contactText}>{hostProfile.email}</Text>
-            </View>
+        <View style={[styles.card, styles.contactCard, { borderColor: accent.light }]}>
+          <Text style={styles.cardTitle}>{contactTitle}</Text>
+          <Text style={styles.contactHint}>
+            Une question avant de réserver ? Envoyez un message à {hostProfile.first_name || roleLabel}.
+          </Text>
+
+          {isVehicleContext && contactVehicle ? (
+            <ContactOwnerButton
+              vehicle={contactVehicle}
+              variant="primary"
+              size="large"
+              style={styles.contactCta}
+              openInStack
+            />
+          ) : null}
+          {!isVehicleContext && contactProperty ? (
+            <ContactHostButton
+              property={contactProperty}
+              variant="primary"
+              size="large"
+              style={styles.contactCta}
+              openInStack
+            />
+          ) : null}
+
+          <View style={styles.contactActions}>
+            {hostProfile.email ? (
+              <TouchableOpacity
+                style={styles.contactActionBtn}
+                onPress={() => Linking.openURL(`mailto:${hostProfile.email}`)}
+              >
+                <Ionicons name="mail-outline" size={18} color={accent.primary} />
+                <Text style={styles.contactActionText}>E-mail</Text>
+              </TouchableOpacity>
+            ) : null}
             {hostProfile.phone ? (
-              <View style={styles.contactItem}>
-                <Ionicons name="call-outline" size={20} color="#2E7D32" />
-                <Text style={styles.contactText}>{hostProfile.phone}</Text>
-              </View>
+              <TouchableOpacity
+                style={styles.contactActionBtn}
+                onPress={() => Linking.openURL(`tel:${hostProfile.phone}`)}
+              >
+                <Ionicons name="call-outline" size={18} color={accent.primary} />
+                <Text style={styles.contactActionText}>Téléphone</Text>
+              </TouchableOpacity>
             ) : null}
           </View>
         </View>
 
-        {/* Message de bienvenue */}
-        <View style={styles.welcomeSection}>
-          <Ionicons name="home-outline" size={32} color="#2E7D32" />
-          <Text style={styles.welcomeTitle}>Bienvenue chez {hostProfile.first_name} !</Text>
+        <View style={[styles.welcomeSection, { backgroundColor: accent.light }]}>
+          <Ionicons name={isVehicleContext ? 'car-outline' : 'home-outline'} size={28} color={accent.primary} />
+          <Text style={styles.welcomeTitle}>
+            {isVehicleContext
+              ? `Location avec ${hostProfile.first_name || 'ce propriétaire'}`
+              : `Bienvenue chez ${hostProfile.first_name || 'votre hôte'} !`}
+          </Text>
           <Text style={styles.welcomeMessage}>
-            Votre hôte est là pour vous accueillir et vous faire passer un séjour inoubliable.
+            {isVehicleContext
+              ? 'Un propriétaire réactif pour vous accompagner tout au long de votre location.'
+              : 'Votre hôte est là pour vous accueillir et vous faire passer un séjour inoubliable.'}
           </Text>
         </View>
       </ScrollView>
@@ -279,7 +447,7 @@ const HostProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f1f5f9',
   },
   centerContainer: {
     flex: 1,
@@ -290,145 +458,209 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
+    color: '#64748b',
   },
   errorTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1e293b',
     marginTop: 16,
     marginBottom: 8,
   },
   errorMessage: {
     fontSize: 16,
-    color: '#666',
+    color: '#64748b',
     textAlign: 'center',
     marginBottom: 24,
+  },
+  backButton: {
+    padding: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: HOST_COLORS.primary,
+  },
+  hero: {
+    paddingBottom: 28,
+    overflow: 'hidden',
+  },
+  heroGlow: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    opacity: 0.35,
+    top: -40,
+    right: -30,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
-  backButton: {
-    padding: 8,
-  },
-  shareButton: {
-    padding: 8,
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  placeholder: {
-    width: 40,
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    marginHorizontal: 8,
   },
   scrollView: {
     flex: 1,
+    marginTop: -20,
   },
-  profileSection: {
-    alignItems: 'center',
-    paddingVertical: 30,
-    paddingHorizontal: 20,
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 28,
+  },
+  profileCard: {
     backgroundColor: '#fff',
-    marginBottom: 10,
+    borderRadius: 20,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   avatarContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
+    position: 'relative',
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     borderWidth: 3,
-    borderColor: '#2E7D32',
   },
   avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#f0f0f0',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: '#2E7D32',
+  },
+  avatarInitials: {
+    fontSize: 32,
+    fontWeight: '700',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: -4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   hostName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  hostTitle: {
-    fontSize: 16,
-    color: '#2E7D32',
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
     marginBottom: 8,
+    textAlign: 'center',
+  },
+  rolePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginBottom: 6,
+  },
+  rolePillText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   memberSince: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 4,
   },
-  section: {
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+  },
+  locationText: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  card: {
     backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    marginBottom: 10,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 12,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
     marginBottom: 12,
   },
   bioText: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 24,
+    fontSize: 15,
+    color: '#475569',
+    lineHeight: 22,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 16,
-    paddingVertical: 20,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 1,
   },
   statItem: {
     alignItems: 'center',
     flex: 1,
+    paddingHorizontal: 4,
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2E7D32',
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 12,
+    color: '#64748b',
     textAlign: 'center',
-  },
-  statHint: {
-    fontSize: 11,
-    color: '#2E7D32',
-    marginTop: 4,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   listingsStatItem: {
     marginHorizontal: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#2E7D32',
-    backgroundColor: '#f0fdf4',
   },
   listingsCta: {
     flexDirection: 'row',
@@ -436,28 +668,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     marginTop: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#2E7D32',
   },
   listingsCtaText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    color: '#2E7D32',
   },
   reviewsContainer: {
-    marginTop: 16,
+    marginTop: 4,
   },
   reviewCard: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f8fafc',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    padding: 14,
+    marginBottom: 10,
     borderLeftWidth: 4,
-    borderLeftColor: '#2E7D32',
   },
   reviewHeader: {
     flexDirection: 'row',
@@ -471,27 +700,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   reviewerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#2E7D32',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   reviewerInitial: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
   },
   reviewerName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#333',
+    color: '#1e293b',
   },
   reviewDate: {
     fontSize: 12,
-    color: '#666',
+    color: '#64748b',
     marginTop: 2,
   },
   ratingContainer: {
@@ -500,73 +728,85 @@ const styles = StyleSheet.create({
   },
   reviewComment: {
     fontSize: 14,
-    color: '#555',
+    color: '#475569',
     lineHeight: 20,
-    marginTop: 8,
+    marginTop: 6,
     fontStyle: 'italic',
   },
   propertyTitle: {
     fontSize: 12,
-    color: '#2E7D32',
-    fontWeight: '500',
+    fontWeight: '600',
     marginTop: 8,
   },
   moreReviews: {
-    fontSize: 14,
-    color: '#2E7D32',
+    fontSize: 13,
+    color: '#64748b',
     textAlign: 'center',
-    marginTop: 8,
-    fontStyle: 'italic',
+    marginTop: 6,
+    fontWeight: '500',
   },
   loadingReviewsContainer: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 16,
   },
   loadingReviewsText: {
     marginTop: 8,
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
   },
-  emptyReviews: {
-    alignItems: 'center',
-    paddingVertical: 20,
+  contactCard: {
+    borderWidth: 1,
   },
-  emptyReviewsText: {
+  contactHint: {
     fontSize: 14,
-    color: '#9ca3af',
-    marginTop: 12,
+    color: '#64748b',
+    lineHeight: 20,
+    marginBottom: 14,
   },
-  contactInfo: {
-    gap: 12,
+  contactCta: {
+    marginBottom: 12,
   },
-  contactItem: {
+  contactActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  contactActionBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  contactText: {
-    fontSize: 16,
-    color: '#333',
+  contactActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
   },
   welcomeSection: {
-    backgroundColor: '#fff',
+    borderRadius: 16,
     paddingHorizontal: 20,
-    paddingVertical: 30,
-    marginBottom: 20,
+    paddingVertical: 22,
+    marginBottom: 8,
     alignItems: 'center',
   },
   welcomeTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 12,
-    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginTop: 10,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   welcomeMessage: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    color: '#475569',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 21,
   },
 });
 

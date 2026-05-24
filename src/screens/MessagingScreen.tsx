@@ -297,8 +297,24 @@ const MessagingScreen: React.FC = () => {
   };
 
   const handleBackToConversations = () => {
-    console.log('🔙 [MessagingScreen] handleBackToConversations appelé', { openedFromParam, propertyId, vehicleId });
-    
+    console.log('🔙 [MessagingScreen] handleBackToConversations appelé', {
+      openedFromParam,
+      propertyId,
+      vehicleId,
+      routeName: route.name,
+    });
+
+  if (route.name === 'Messaging') {
+    hasOpenedConversationRef.current = null;
+    lastLoadedConversationId.current = null;
+    clearMessages();
+    setSelectedConversation(null);
+    setShowConversations(true);
+    setOpenedFromParam(false);
+    navigation.goBack();
+    return;
+  }
+
     // Toujours retourner à la liste locale des conversations
     // Si on est dans l'onglet MessagingTab, on reste dans l'onglet
     console.log('🔙 [MessagingScreen] Retour à la liste des conversations');

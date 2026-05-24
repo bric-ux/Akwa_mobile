@@ -8,31 +8,18 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { supabase } from '../services/supabase';
 import { useHostProfile } from '../hooks/useHostProfile';
 import { useHostReviews } from '../hooks/useHostReviews';
 import type { PublicOwnerVehicle } from './PublicOwnerVehiclesList';
 import { getOwnerPublicWebUrl, shareProfileLink } from '../utils/shareListingLink';
-
-const openOwnerListingsVitrine = (
-  hostId: string,
-  reviewsContext: 'vehicle' | 'all',
-  name?: string,
-) => {
-  const isVehicle = reviewsContext === 'vehicle';
-  Linking.openURL(
-    getOwnerPublicWebUrl(hostId, {
-      type: isVehicle ? 'vehicle' : 'host',
-      tab: isVehicle ? 'vehicles' : 'properties',
-      listings: true,
-      name,
-    }),
-  );
-};
+import { buildHostProfileInternalParams } from '../utils/profileNavigation';
+import type { RootStackParamList } from '../types';
 
 interface HostProfileModalProps {
   visible: boolean;
@@ -48,6 +35,7 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
   hostId,
   reviewsContext = 'all',
 }) => {
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { hostProfile, loading, getHostProfile } = useHostProfile();
   const { reviews, loading: reviewsLoading, getHostReviews } = useHostReviews();
   const [showAllReviews, setShowAllReviews] = useState(false);
@@ -121,6 +109,22 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
       type: reviewsContext === 'vehicle' ? 'vehicle' : 'host',
     });
   }, [hostId, hostProfile, reviewsContext]);
+
+  const handleOpenListings = useCallback(() => {
+    if (!hostId) return;
+    const isVehicle = reviewsContext === 'vehicle';
+    onClose();
+    navigation.navigate(
+      'HostProfile',
+      buildHostProfileInternalParams({
+        hostId,
+        showListings: true,
+        listingsTab: isVehicle ? 'vehicles' : 'properties',
+        profileContext: isVehicle ? 'vehicle' : 'host',
+        propertyOnly: !isVehicle,
+      }),
+    );
+  }, [hostId, reviewsContext, onClose, navigation]);
 
   const renderStars = (rating: number) => {
     return (
@@ -215,13 +219,7 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                   <TouchableOpacity
                     style={[styles.statItem, styles.listingsStatItem]}
                     disabled={vehiclesLoading}
-                    onPress={() =>
-                      openOwnerListingsVitrine(
-                        hostId,
-                        reviewsContext,
-                        `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim(),
-                      )
-                    }
+                    onPress={handleOpenListings}
                     activeOpacity={0.75}
                   >
                     <Text style={styles.statValue}>
@@ -229,7 +227,7 @@ const HostProfileModal: React.FC<HostProfileModalProps> = ({
                     </Text>
                     <Text style={styles.statLabel}>{listingsLabel}</Text>
                     <View style={styles.listingsCta}>
-                      <Ionicons name="open-outline" size={12} color="#2563eb" />
+                      <Ionicons name="list-outline" size={12} color="#2563eb" />
                       <Text style={styles.listingsCtaText}>Voir la liste</Text>
                       <Ionicons name="chevron-forward" size={12} color="#2563eb" />
                     </View>

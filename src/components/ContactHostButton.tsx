@@ -18,6 +18,8 @@ interface ContactHostButtonProps {
   size?: 'small' | 'medium' | 'large';
   showIcon?: boolean;
   style?: any;
+  /** Ouvre la messagerie sur la pile (retour = écran précédent, ex. vitrine profil) */
+  openInStack?: boolean;
 }
 
 const ContactHostButton: React.FC<ContactHostButtonProps> = ({
@@ -25,7 +27,8 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
   variant = 'primary',
   size = 'medium',
   showIcon = true,
-  style
+  style,
+  openInStack = false,
 }) => {
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -81,7 +84,15 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
 
       if (conversationId) {
         console.log('✅ [ContactHostButton] Conversation créée:', conversationId);
-        
+
+        if (openInStack) {
+          (navigation as any).navigate('Messaging', {
+            conversationId,
+            propertyId: property.id,
+          });
+          return;
+        }
+
         Alert.alert(
           'Conversation créée',
           'Vous pouvez maintenant discuter avec l\'hôte',

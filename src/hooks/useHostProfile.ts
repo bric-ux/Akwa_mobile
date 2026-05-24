@@ -32,6 +32,36 @@ export interface HostProfile {
 const HOST_PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 const hostProfileCache = new Map<string, { profile: HostProfile; at: number }>();
 
+function mapProfileRow(row: Record<string, unknown>, hostId: string): HostProfile {
+  return {
+    id: String(row.user_id ?? row.id ?? hostId),
+    first_name: String(row.first_name ?? ''),
+    last_name: String(row.last_name ?? ''),
+    avatar_url: (row.avatar_url as string | undefined) ?? undefined,
+    bio: (row.bio as string | undefined) ?? undefined,
+    phone: (row.phone as string | undefined) ?? undefined,
+    email: String(row.email ?? ''),
+    created_at: String(row.created_at ?? new Date().toISOString()),
+    city: (row.city as string | undefined) ?? undefined,
+    country: (row.country as string | undefined) ?? undefined,
+    identity_verified: Boolean(row.identity_verified),
+  };
+}
+
+async function loadProfileFromProfilesTable(hostId: string) {
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_id', hostId)
+    .maybeSingle();
+
+  if (profileError || !profileData) {
+    return null;
+  }
+
+  return mapProfileRow(profileData as Record<string, unknown>, hostId);
+}
+
 export const useHostProfile = () => {
   const [hostProfile, setHostProfile] = useState<HostProfile | null>(null);
   const [loading, setLoading] = useState(false);
@@ -64,41 +94,36 @@ export const useHostProfile = () => {
       if (error) {
         if (error.code === 'PGRST116') {
           console.log('⚠️ [useHostProfile] Aucun profil trouvé dans host_public_info, essai dans profiles...');
-          
-          // Essayer dans la table profiles comme fallback
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', hostId)
-            .single();
-          
-          if (profileError) {
+
+          const profileFromTable = await loadProfileFromProfilesTable(hostId);
+
+          if (!profileFromTable) {
             console.log('⚠️ [useHostProfile] Aucun profil trouvé non plus dans profiles pour hostId:', hostId);
-            // Créer un profil par défaut si aucun profil n'existe
             const defaultProfile: HostProfile = {
               id: hostId,
-              first_name: 'Hôte',
-              last_name: 'AkwaHome',
+              first_name: 'Propriétaire',
+              last_name: '',
               avatar_url: undefined,
               bio: undefined,
               phone: undefined,
-              email: 'hote@akwahome.com',
+              email: '',
               created_at: new Date().toISOString(),
             };
             setHostProfile(defaultProfile);
-            hostProfileCache.set(hostId, { profile: defaultProfile, at: Date.now() });
             return defaultProfile;
-          } else {
-            console.log('✅ [useHostProfile] Profil trouvé dans profiles:', profileData);
-            setHostProfile(profileData);
-            hostProfileCache.set(hostId, { profile: profileData, at: Date.now() });
-            return profileData;
           }
+
+          console.log('✅ [useHostProfile] Profil trouvé dans profiles:', profileFromTable);
+          setHostProfile(profileFromTable);
+          hostProfileCache.set(hostId, { profile: profileFromTable, at: Date.now() });
+          return profileFromTable;
         }
         throw error;
       }
 
-      console.log('✅ [useHostProfile] Profil chargé:', data);
+      const baseProfile = mapProfileRow(data as Record<string, unknown>, hostId);
+
+      console.log('✅ [useHostProfile] Profil chargé:', baseProfile);
 
       const { data: properties, error: propertiesError } = await supabase
         .from('properties')
@@ -155,11 +180,11 @@ export const useHostProfile = () => {
       const totalProperties = propertiesList.length;
 
       const enrichedProfile = {
-        ...data,
+        ...baseProfile,
         properties: propertiesList,
         total_reviews: totalReviews,
-        average_rating: Math.round(averageRating * 10) / 10, // Arrondir à 1 décimale
-        total_properties: totalProperties
+        average_rating: Math.round(averageRating * 10) / 10,
+        total_properties: totalProperties,
       };
 
       console.log('📊 [useHostProfile] Statistiques calculées:', {

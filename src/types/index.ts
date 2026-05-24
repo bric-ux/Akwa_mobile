@@ -244,7 +244,15 @@ export type RootStackParamList = {
   };
   Booking: { propertyId: string };
   MonthlyRentalListingDetail: { listingId: string }; // Détail annonce longue durée (voyageur)
-  HostProfile: { hostId: string; propertyOnly?: boolean; showListings?: boolean };
+  HostProfile: {
+    hostId: string;
+    propertyOnly?: boolean;
+    showListings?: boolean;
+    listingsTab?: 'properties' | 'vehicles';
+    profileContext?: 'host' | 'vehicle';
+    /** true si l'utilisateur arrive depuis une fiche logement/véhicule (pas un lien partagé) */
+    returnFromInternal?: boolean;
+  };
   HostBookings: undefined;
   HostReviews: undefined;
   Settings: undefined;

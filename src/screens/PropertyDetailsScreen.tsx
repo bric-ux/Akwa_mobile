@@ -37,6 +37,7 @@ import { log, logError } from '../utils/logger';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import { getPropertyPublicWebUrl, getOwnerPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
+import { buildHostProfileInternalParams } from '../utils/profileNavigation';
 import { WebView } from 'react-native-webview';
 import { normalizeVirtualTourUrl } from '../utils/virtualTourUrl';
 import { useNetwork } from '../contexts/NetworkContext';
@@ -591,7 +592,13 @@ const PropertyDetailsScreen: React.FC = () => {
               style={styles.hostCard}
               onPress={() => {
                 const nav = navigation as any;
-                nav.navigate('HostProfile', { hostId: property.host_id, propertyOnly: true });
+                nav.navigate(
+                  'HostProfile',
+                  buildHostProfileInternalParams({
+                    hostId: property.host_id,
+                    propertyOnly: true,
+                  }),
+                );
               }}
               activeOpacity={0.7}
             >
@@ -627,15 +634,14 @@ const PropertyDetailsScreen: React.FC = () => {
                           onPress={(e) => {
                             e.stopPropagation?.();
                             if (property.host_id) {
-                              const hostName = hostProfile
-                                ? `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim()
-                                : undefined;
-                              Linking.openURL(
-                                getOwnerPublicWebUrl(property.host_id, {
-                                  type: 'host',
-                                  tab: 'properties',
-                                  listings: true,
-                                  name: hostName,
+                              navigation.navigate(
+                                'HostProfile',
+                                buildHostProfileInternalParams({
+                                  hostId: property.host_id,
+                                  propertyOnly: true,
+                                  showListings: true,
+                                  listingsTab: 'properties',
+                                  profileContext: 'host',
                                 }),
                               );
                             }

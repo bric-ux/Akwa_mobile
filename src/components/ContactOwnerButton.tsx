@@ -20,6 +20,8 @@ interface ContactOwnerButtonProps {
   size?: 'small' | 'medium' | 'large';
   showIcon?: boolean;
   style?: any;
+  /** Ouvre la messagerie sur la pile (retour = écran précédent, ex. vitrine profil) */
+  openInStack?: boolean;
 }
 
 const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
@@ -27,7 +29,8 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
   variant = 'primary',
   size = 'medium',
   showIcon = true,
-  style
+  style,
+  openInStack = false,
 }) => {
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -105,14 +108,21 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
         
         // Navigation directe vers la conversation
         console.log('🚀 [ContactOwnerButton] Navigation vers la conversation:', conversationId);
-        (navigation as any).navigate('Home', { 
-          screen: 'MessagingTab',
-          params: { 
-            conversationId, 
+        if (openInStack) {
+          (navigation as any).navigate('Messaging', {
+            conversationId,
             vehicleId: vehicle.id,
-            openedFromParam: true
-          }
-        });
+          });
+        } else {
+          (navigation as any).navigate('Home', {
+            screen: 'MessagingTab',
+            params: {
+              conversationId,
+              vehicleId: vehicle.id,
+              openedFromParam: true,
+            },
+          });
+        }
       } else {
         throw new Error('Impossible de créer la conversation');
       }
