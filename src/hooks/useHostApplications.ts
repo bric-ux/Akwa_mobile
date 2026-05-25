@@ -2,6 +2,10 @@ import { useState, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
+import {
+  friendlyHostApplicationDbError,
+  mapHostApplicationNumbers,
+} from '../utils/hostApplicationNumbers';
 
 export interface HostApplicationData {
   propertyType: string;
@@ -154,6 +158,8 @@ export const useHostApplications = () => {
         return { success: false, error: errorMsg };
       }
 
+      const nums = mapHostApplicationNumbers(applicationData);
+
       // Permettre plusieurs candidatures même si une autre est en attente
       const { data, error } = await supabase
         .from('host_applications')
@@ -166,13 +172,13 @@ export const useHostApplications = () => {
           bathrooms: applicationData.bathrooms,
           title: applicationData.title.trim(),
           description: applicationData.description.trim(),
-          price_per_night: applicationData.pricePerNight ?? 0,
+          price_per_night: nums.price_per_night,
           is_monthly_rental: applicationData.isMonthlyRental ?? false,
-          monthly_rent_price: applicationData.monthlyRentPrice ?? null,
-          security_deposit: applicationData.securityDeposit ?? null,
+          monthly_rent_price: nums.monthly_rent_price,
+          security_deposit: nums.security_deposit,
           minimum_duration_months: applicationData.minimumDurationMonths ?? null,
           charges_included: applicationData.chargesIncluded ?? false,
-          surface_m2: applicationData.surfaceM2 ?? null,
+          surface_m2: nums.surface_m2,
           number_of_rooms: applicationData.numberOfRooms ?? null,
           is_furnished: applicationData.isFurnished ?? false,
           full_name: applicationData.fullName.trim(),
@@ -187,13 +193,13 @@ export const useHostApplications = () => {
           host_guide: applicationData.hostGuide?.trim() || null,
           discount_enabled: applicationData.discountEnabled || false,
           discount_min_nights: applicationData.discountMinNights || null,
-          discount_percentage: applicationData.discountPercentage || null,
+          discount_percentage: nums.discount_percentage,
           long_stay_discount_enabled: applicationData.longStayDiscountEnabled || false,
           long_stay_discount_min_nights: applicationData.longStayDiscountMinNights || null,
-          long_stay_discount_percentage: applicationData.longStayDiscountPercentage || null,
-          cleaning_fee: applicationData.cleaningFee || 0,
+          long_stay_discount_percentage: nums.long_stay_discount_percentage,
+          cleaning_fee: nums.cleaning_fee,
           free_cleaning_min_days: applicationData.freeCleaningMinDays || null,
-          taxes: applicationData.taxes || 0,
+          taxes: nums.taxes,
           check_in_time: applicationData.checkInTime || null,
           check_out_time: applicationData.checkOutTime || null,
           house_rules: applicationData.houseRules || null,
@@ -214,7 +220,9 @@ export const useHostApplications = () => {
           fullError: error
         });
         // Afficher un message d'erreur plus détaillé
-        const errorMessage = error.message || 'Erreur lors de la soumission de la candidature';
+        const errorMessage = friendlyHostApplicationDbError(
+          error.message || 'Erreur lors de la soumission de la candidature',
+        );
         setError(errorMessage);
         return { success: false, error: errorMessage, errorDetails: error } as any;
       }
@@ -265,6 +273,7 @@ export const useHostApplications = () => {
       return { success: false };
     } finally {
       setLoading(false);
+      hostApplicationMutationLockRef.current = false;
     }
   };
 
@@ -355,6 +364,18 @@ export const useHostApplications = () => {
         ? `Modifications:\n${changes.join('\n')}` 
         : 'Candidature modifiée';
       
+      const nums = mapHostApplicationNumbers({
+        isMonthlyRental: applicationData.isMonthlyRental,
+        pricePerNight: applicationData.pricePerNight,
+        monthlyRentPrice: applicationData.monthlyRentPrice,
+        securityDeposit: applicationData.securityDeposit,
+        surfaceM2: applicationData.surfaceM2,
+        cleaningFee: applicationData.cleaningFee,
+        taxes: applicationData.taxes,
+        discountPercentage: applicationData.discountPercentage,
+        longStayDiscountPercentage: applicationData.longStayDiscountPercentage,
+      });
+
       const { data, error } = await supabase
         .from('host_applications')
         .update({
@@ -365,14 +386,14 @@ export const useHostApplications = () => {
           bathrooms: applicationData.bathrooms,
           title: applicationData.title,
           description: applicationData.description,
-          price_per_night: applicationData.pricePerNight ?? 0,
+          price_per_night: nums.price_per_night,
           ...(applicationData.isMonthlyRental != null && {
             is_monthly_rental: applicationData.isMonthlyRental,
-            monthly_rent_price: applicationData.monthlyRentPrice ?? null,
-            security_deposit: applicationData.securityDeposit ?? null,
+            monthly_rent_price: nums.monthly_rent_price,
+            security_deposit: nums.security_deposit,
             minimum_duration_months: applicationData.minimumDurationMonths ?? null,
             charges_included: applicationData.chargesIncluded ?? false,
-            surface_m2: applicationData.surfaceM2 ?? null,
+            surface_m2: nums.surface_m2,
             number_of_rooms: applicationData.numberOfRooms ?? null,
             is_furnished: applicationData.isFurnished ?? false,
           }),
@@ -388,12 +409,12 @@ export const useHostApplications = () => {
           host_guide: applicationData.hostGuide || null,
           discount_enabled: applicationData.discountEnabled || false,
           discount_min_nights: applicationData.discountMinNights || null,
-          discount_percentage: applicationData.discountPercentage || null,
+          discount_percentage: nums.discount_percentage,
           long_stay_discount_enabled: applicationData.longStayDiscountEnabled || false,
           long_stay_discount_min_nights: applicationData.longStayDiscountMinNights || null,
-          long_stay_discount_percentage: applicationData.longStayDiscountPercentage || null,
-          cleaning_fee: applicationData.cleaningFee || 0,
-          taxes: applicationData.taxes || 0,
+          long_stay_discount_percentage: nums.long_stay_discount_percentage,
+          cleaning_fee: nums.cleaning_fee,
+          taxes: nums.taxes,
           status: 'reviewing',
           revision_message: changesText,
           updated_at: new Date().toISOString(),
@@ -405,8 +426,11 @@ export const useHostApplications = () => {
 
       if (error) {
         console.error('❌ Erreur Supabase:', error);
-        setError('Erreur lors de la mise à jour de la candidature');
-        return { success: false };
+        const errorMessage = friendlyHostApplicationDbError(
+          error.message || 'Erreur lors de la mise à jour de la candidature',
+        );
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
       }
 
       console.log('✅ Candidature mise à jour avec succès:', data);

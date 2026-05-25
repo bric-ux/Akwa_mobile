@@ -73,6 +73,8 @@ export const appLinking: LinkingOptions<RootStackParamList> = {
   prefixes: APP_LINK_PREFIXES,
   config: {
     screens: {
+      Home: '',
+      Search: 'search',
       HostProfile: {
         path: 'profil/:nameSlug/:hostId',
         parse: {
