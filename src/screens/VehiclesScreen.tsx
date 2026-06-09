@@ -556,7 +556,7 @@ const VehiclesScreen: React.FC = () => {
     fetchVehicles(cleanedFilters);
   };
 
-  const handleDateTimeChange = (start: string, end: string) => {
+  const handleDateTimeChange = (start: string, end: string, vehicleRentalDays?: number) => {
     console.log(`🕐 [VehiclesScreen] handleDateTimeChange - REÇU:`, {
       start,
       end,
@@ -589,8 +589,9 @@ const VehiclesScreen: React.FC = () => {
     saveSearchDates({
       checkIn: newStartDate,
       checkOut: newEndDate,
-      checkInDateTime: start, // Sauvegarder la date avec heure
-      checkOutDateTime: end, // Sauvegarder la date avec heure
+      checkInDateTime: start,
+      checkOutDateTime: end,
+      vehicleRentalDays,
       adults: 1,
       children: 0,
       babies: 0,
@@ -1497,10 +1498,10 @@ const VehiclesScreen: React.FC = () => {
           setShowDateTimePicker(false);
           setPendingVehicleForAvailability(null);
         }}
-        onConfirm={(start, end) => {
+        onConfirm={(start, end, rentalDaysIntent) => {
           setStartDateTime(start);
           setEndDateTime(end);
-          handleDateTimeChange(start, end);
+          handleDateTimeChange(start, end, rentalDaysIntent);
           
           // Si on vérifie la disponibilité d'un véhicule, fermer le modal d'abord puis vérifier
           if (pendingVehicleForAvailability) {

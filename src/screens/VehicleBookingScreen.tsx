@@ -272,6 +272,9 @@ const VehicleBookingScreen: React.FC = () => {
         }
         return 0;
       }
+      if (searchDates.vehicleRentalDays != null && searchDates.vehicleRentalDays >= 1) {
+        return searchDates.vehicleRentalDays;
+      }
       return d.rentalDays;
     }
 
@@ -288,7 +291,9 @@ const VehicleBookingScreen: React.FC = () => {
     const ed = new Date(end);
     ed.setHours(0, 0, 0, 0);
     const calendarDiffDays = Math.round((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24));
-    if (calendarDiffDays === 1 && totalHours <= 24) return 1;
+    if (searchDates.vehicleRentalDays != null && searchDates.vehicleRentalDays >= 1) {
+      return searchDates.vehicleRentalDays;
+    }
     return Math.max(1, calendarDiffDays + 1);
   };
 
@@ -310,7 +315,7 @@ const VehicleBookingScreen: React.FC = () => {
     });
   };
 
-  const handleDateTimeChange = (start: string, end: string) => {
+  const handleDateTimeChange = (start: string, end: string, vehicleRentalDays?: number) => {
     if (__DEV__) console.log(`🔄 [VehicleBookingScreen] handleDateTimeChange appelé avec:`, { start, end });
     const startDateObj = new Date(start);
     const endDateObj = new Date(end);
@@ -338,8 +343,9 @@ const VehicleBookingScreen: React.FC = () => {
     saveSearchDates({
       checkIn: startDateObj.toISOString().split('T')[0],
       checkOut: endDateObj.toISOString().split('T')[0],
-      checkInDateTime: start, // Sauvegarder avec les heures
-      checkOutDateTime: end,   // Sauvegarder avec les heures
+      checkInDateTime: start,
+      checkOutDateTime: end,
+      vehicleRentalDays,
       adults: 1,
       children: 0,
       babies: 0,
@@ -1854,8 +1860,8 @@ const VehicleBookingScreen: React.FC = () => {
         startDateTime={startDateTime}
         endDateTime={endDateTime}
         onClose={() => setShowDateTimePicker(false)}
-        onConfirm={(start, end) => {
-          handleDateTimeChange(start, end);
+        onConfirm={(start, end, rentalDaysIntent) => {
+          handleDateTimeChange(start, end, rentalDaysIntent);
         }}
       />
     </SafeAreaView>

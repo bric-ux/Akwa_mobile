@@ -39,12 +39,7 @@ export function computeVehicleRentalDurationFromIso(
   const endDayUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
   const calendarDiffDays = Math.round((endDayUtc - startDayUtc) / (1000 * 60 * 60 * 24));
 
-  let rentalDays: number;
-  if (calendarDiffDays === 1 && totalHours <= 24) {
-    rentalDays = 1;
-  } else {
-    rentalDays = Math.max(1, calendarDiffDays + 1);
-  }
+  const rentalDays = Math.max(1, calendarDiffDays + 1);
 
   const fullDaysFromHours = Math.floor(totalHours / 24);
   const hoursRemainder = totalHours - fullDaysFromHours * 24;

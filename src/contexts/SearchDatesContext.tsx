@@ -9,6 +9,8 @@ interface SearchDates {
   checkOut?: string;
   checkInDateTime?: string; // Date avec heure (ISO string)
   checkOutDateTime?: string; // Date avec heure (ISO string)
+  /** Mode « par nombre de jours » sur la recherche véhicule */
+  vehicleRentalDays?: number;
   adults?: number;
   children?: number;
   babies?: number;
@@ -74,6 +76,9 @@ export const SearchDatesProvider: React.FC<{ children: ReactNode }> = ({ childre
       if (newDates.checkOutDateTime && newDates.checkOutDateTime.trim() !== '') {
         filteredDates.checkOutDateTime = newDates.checkOutDateTime;
         console.log('📅 SearchDatesContext - checkOutDateTime sauvegardé:', newDates.checkOutDateTime);
+      }
+      if (newDates.vehicleRentalDays != null && newDates.vehicleRentalDays >= 1) {
+        filteredDates.vehicleRentalDays = newDates.vehicleRentalDays;
       }
       if (newDates.adults !== undefined) {
         filteredDates.adults = newDates.adults;

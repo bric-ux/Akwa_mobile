@@ -30,7 +30,7 @@ interface VehicleDateTimePickerModalProps {
   startDateTime: string | null;
   endDateTime: string | null;
   onClose: () => void;
-  onConfirm: (startDateTime: string, endDateTime: string) => void;
+  onConfirm: (startDateTime: string, endDateTime: string, rentalDaysIntent?: number) => void;
   /**
    * Si défini, appelé avant onConfirm / fermeture. Retourner false pour garder le modal ouvert
    * (ex. créneau indisponible). Peut être async.
@@ -402,17 +402,21 @@ const VehicleDateTimePickerModal: React.FC<VehicleDateTimePickerModalProps> = ({
       }
     }
 
-    onConfirm(startISO, endISO);
+    const rentalDaysIntent =
+      mode === 'days'
+        ? Math.min(365, Math.max(1, parseInt(rentalDays, 10) || 1))
+        : undefined;
+    onConfirm(startISO, endISO, rentalDaysIntent);
     onClose();
   };
 
   // Calculer automatiquement la date de fin si on est en mode "jours"
-  // N jours = N jours calendaires inclus (ex. 4 jours du 1er au 4 → fin = début + 3 jours, même heure)
+  // N jours inclusifs = début + (N − 1) jours calendaires (N = 1 → même jour, aligné web)
   useEffect(() => {
     if (mode === 'days' && rentalDays) {
       const n = parseInt(rentalDays, 10) || 1;
       const calculatedEndDate = new Date(tempStartDate);
-      const extraCalendarDays = n <= 1 ? 1 : n - 1;
+      const extraCalendarDays = Math.max(0, n - 1);
       calculatedEndDate.setDate(calculatedEndDate.getDate() + extraCalendarDays);
       calculatedEndDate.setHours(tempStartDate.getHours(), tempStartDate.getMinutes(), 0, 0);
       setTempEndDate(calculatedEndDate);
