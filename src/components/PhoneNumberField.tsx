@@ -12,6 +12,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PHONE_AUTH_COUNTRIES, type CountryDial } from '../lib/phoneAuth';
+import {
+  AUTH_FORM_PLACEHOLDER_COLOR,
+  AUTH_FORM_TEXT_COLOR,
+  authFormInputTextStyle,
+} from '../lib/authFormInput';
 
 type Props = {
   dial: string;
@@ -56,13 +61,15 @@ const PhoneNumberField: React.FC<Props> = ({
         <Ionicons name="chevron-down" size={16} color="#666" />
       </TouchableOpacity>
       <TextInput
-        style={[styles.localInput, disabled && styles.inputDisabled]}
+        style={[styles.localInput, authFormInputTextStyle, disabled && styles.inputDisabled]}
         value={local}
         onChangeText={onLocalChange}
         placeholder="07 00 00 00 00"
         keyboardType="phone-pad"
         autoComplete="tel"
-        placeholderTextColor="#999"
+        textContentType="telephoneNumber"
+        placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+        importantForAutofill="yes"
         editable={!disabled}
       />
 
@@ -130,7 +137,7 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   dialFlag: { fontSize: 18 },
-  dialText: { fontSize: 15, fontWeight: '600', color: '#333' },
+  dialText: { fontSize: 15, fontWeight: '600', color: AUTH_FORM_TEXT_COLOR },
   localInput: {
     flex: 1,
     backgroundColor: '#f8f9fa',
@@ -138,7 +145,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#333',
+    color: AUTH_FORM_TEXT_COLOR,
     borderWidth: 1,
     borderColor: '#e9ecef',
   },

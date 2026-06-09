@@ -17,6 +17,11 @@ import {
   PASSWORD_REGEX,
   PASSWORD_EXAMPLE,
 } from '../../lib/phoneAuth';
+import {
+  AUTH_FORM_PLACEHOLDER_COLOR,
+  AUTH_FORM_TEXT_COLOR,
+  authFormInputTextStyle,
+} from '../../lib/authFormInput';
 import { getEdgeFunctionErrorMessage } from '../../lib/edgeFunctionError';
 
 type Mode = 'signin' | 'forgot-send' | 'forgot-verify';
@@ -184,23 +189,27 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
         </View>
         <Text style={styles.label}>Code de vérification</Text>
         <TextInput
-          style={styles.otpInput}
+          style={[styles.otpInput, authFormInputTextStyle]}
           value={code}
           onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
           keyboardType="number-pad"
           maxLength={6}
           placeholder="123456"
-          placeholderTextColor="#999"
+          placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+          autoComplete="sms-otp"
+          textContentType="oneTimeCode"
         />
         <Text style={styles.label}>Nouveau mot de passe</Text>
         <View style={styles.inputRow}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, authFormInputTextStyle]}
             value={newPassword}
             onChangeText={setNewPassword}
             secureTextEntry={!showPassword}
             placeholder={PASSWORD_EXAMPLE}
-            placeholderTextColor="#999"
+            placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+            autoComplete="password-new"
+            textContentType="newPassword"
           />
           <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
             <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#666" />
@@ -210,12 +219,14 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
         <Text style={styles.label}>Confirmer</Text>
         <View style={styles.inputRow}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, authFormInputTextStyle]}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry={!showPassword}
             placeholder={PASSWORD_EXAMPLE}
-            placeholderTextColor="#999"
+            placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+            autoComplete="password-new"
+            textContentType="newPassword"
           />
         </View>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -241,12 +252,15 @@ const PhoneSignInForm: React.FC<Props> = ({ onSuccess }) => {
       </View>
       <View style={styles.inputRow}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, authFormInputTextStyle]}
           value={password}
           onChangeText={setPassword}
           secureTextEntry={!showPassword}
           placeholder="••••••••"
-          placeholderTextColor="#999"
+          placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+          autoComplete="password"
+          textContentType="password"
+          importantForAutofill="yes"
         />
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
           <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#666" />
@@ -283,7 +297,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e9ecef',
   },
-  input: { flex: 1, paddingVertical: 14, fontSize: 16, color: '#333' },
+  input: { flex: 1, paddingVertical: 14, fontSize: 16, color: AUTH_FORM_TEXT_COLOR },
   otpInput: {
     backgroundColor: '#f8f9fa',
     borderRadius: 12,
@@ -293,7 +307,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     borderWidth: 1,
     borderColor: '#e9ecef',
-    color: '#333',
+    color: AUTH_FORM_TEXT_COLOR,
   },
   hint: { fontSize: 12, color: '#6b7280', marginTop: -4 },
   errorText: { color: '#dc2626', fontSize: 14 },

@@ -22,6 +22,11 @@ import {
   validateAdultAgeDdMmYyyy,
   PASSWORD_EXAMPLE,
 } from '../../lib/phoneAuth';
+import {
+  AUTH_FORM_PLACEHOLDER_COLOR,
+  AUTH_FORM_TEXT_COLOR,
+  authFormInputTextStyle,
+} from '../../lib/authFormInput';
 import { getEdgeFunctionErrorMessage } from '../../lib/edgeFunctionError';
 
 type Step = 'form' | 'verify';
@@ -192,13 +197,15 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
         </View>
         <Text style={styles.label}>Code de vérification</Text>
         <TextInput
-          style={styles.otpInput}
+          style={[styles.otpInput, authFormInputTextStyle]}
           value={code}
           onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
           keyboardType="number-pad"
           maxLength={6}
           placeholder="123456"
-          placeholderTextColor="#999"
+          placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+          autoComplete="sms-otp"
+          textContentType="oneTimeCode"
         />
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
         <TouchableOpacity style={styles.primaryBtn} onPress={verifyCode} disabled={loading}>
@@ -222,21 +229,29 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
         <View style={styles.nameCol}>
           <Text style={styles.label}>Prénom</Text>
           <TextInput
-            style={styles.field}
+            style={[styles.field, authFormInputTextStyle]}
             value={form.firstName}
             onChangeText={(v) => setForm((p) => ({ ...p, firstName: v }))}
             placeholder="Prénom"
-            placeholderTextColor="#999"
+            placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+            autoCapitalize="words"
+            autoComplete="name-given"
+            textContentType="givenName"
+            importantForAutofill="yes"
           />
         </View>
         <View style={styles.nameCol}>
           <Text style={styles.label}>Nom</Text>
           <TextInput
-            style={styles.field}
+            style={[styles.field, authFormInputTextStyle]}
             value={form.lastName}
             onChangeText={(v) => setForm((p) => ({ ...p, lastName: v }))}
             placeholder="Nom"
-            placeholderTextColor="#999"
+            placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+            autoCapitalize="words"
+            autoComplete="name-family"
+            textContentType="familyName"
+            importantForAutofill="yes"
           />
         </View>
       </View>
@@ -263,12 +278,15 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
       <Text style={styles.label}>Mot de passe</Text>
       <View style={styles.inputRow}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, authFormInputTextStyle]}
           value={form.password}
           onChangeText={(v) => setForm((p) => ({ ...p, password: v }))}
           secureTextEntry={!showPassword}
           placeholder={PASSWORD_EXAMPLE}
-          placeholderTextColor="#999"
+          placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+          autoComplete="password-new"
+          textContentType="newPassword"
+          importantForAutofill="yes"
         />
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
           <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#666" />
@@ -280,12 +298,15 @@ const PhoneSignUpForm: React.FC<Props> = ({ onSuccess }) => {
       <Text style={styles.label}>Confirmer le mot de passe</Text>
       <View style={styles.inputRow}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, authFormInputTextStyle]}
           value={form.confirmPassword}
           onChangeText={(v) => setForm((p) => ({ ...p, confirmPassword: v }))}
           secureTextEntry={!showPassword}
           placeholder={PASSWORD_EXAMPLE}
-          placeholderTextColor="#999"
+          placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
+          autoComplete="password-new"
+          textContentType="newPassword"
+          importantForAutofill="yes"
         />
       </View>
 
@@ -334,7 +355,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#333',
+    color: AUTH_FORM_TEXT_COLOR,
     borderWidth: 1,
     borderColor: '#e9ecef',
   },
@@ -348,7 +369,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e9ecef',
   },
-  input: { flex: 1, paddingVertical: 14, fontSize: 16, color: '#333' },
+  input: { flex: 1, paddingVertical: 14, fontSize: 16, color: AUTH_FORM_TEXT_COLOR },
   otpInput: {
     backgroundColor: '#f8f9fa',
     borderRadius: 12,
@@ -358,7 +379,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     borderWidth: 1,
     borderColor: '#e9ecef',
-    color: '#333',
+    color: AUTH_FORM_TEXT_COLOR,
   },
   hint: { fontSize: 12, color: '#6b7280', marginTop: -4 },
   errorText: { color: '#dc2626', fontSize: 14 },

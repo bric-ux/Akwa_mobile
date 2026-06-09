@@ -34,6 +34,7 @@
       }
     },
     "android": {
+      "userInterfaceStyle": "light",
       "splash": {
         "image": "./assets/icon.png",
         "resizeMode": "contain",
@@ -90,7 +91,8 @@
           "sounds": []
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "./plugins/withDisableForcedDarkModeAndroid.js"
     ],
     "extra": {
       "eas": {

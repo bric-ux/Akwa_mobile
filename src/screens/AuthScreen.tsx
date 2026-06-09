@@ -25,6 +25,11 @@ import PasswordValidation from '../components/PasswordValidation';
 import EmailVerificationModal from '../components/EmailVerificationModal';
 import PasswordResetModal from '../components/PasswordResetModal';
 import { PASSWORD_EXAMPLE } from '../lib/phoneAuth';
+import {
+  AUTH_FORM_PLACEHOLDER_COLOR,
+  AUTH_FORM_TEXT_COLOR,
+  authFormInputTextStyle,
+} from '../lib/authFormInput';
 import PhoneSignInForm from '../components/auth/PhoneSignInForm';
 import PhoneSignUpForm from '../components/auth/PhoneSignUpForm';
 import DateOfBirthField from '../components/DateOfBirthField';
@@ -588,22 +593,30 @@ const AuthScreen: React.FC = () => {
                 <View style={styles.inputContainer}>
                   <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, authFormInputTextStyle]}
                     placeholder={t('auth.firstName')}
+                    placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
                     value={firstName}
                     onChangeText={setFirstName}
                     autoCapitalize="words"
+                    autoComplete="name-given"
+                    textContentType="givenName"
+                    importantForAutofill="yes"
                   />
                 </View>
 
                 <View style={styles.inputContainer}>
                   <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, authFormInputTextStyle]}
                     placeholder={t('auth.lastName')}
+                    placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
                     value={lastName}
                     onChangeText={setLastName}
                     autoCapitalize="words"
+                    autoComplete="name-family"
+                    textContentType="familyName"
+                    importantForAutofill="yes"
                   />
                 </View>
 
@@ -621,25 +634,33 @@ const AuthScreen: React.FC = () => {
             <View style={styles.inputContainer}>
               <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, authFormInputTextStyle]}
                 placeholder={t('auth.email')}
+                placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                importantForAutofill="yes"
               />
             </View>
 
             <View style={styles.inputContainer}>
               <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, authFormInputTextStyle]}
                 placeholder={isLogin ? t('auth.password') : PASSWORD_EXAMPLE}
+                placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                autoComplete={isLogin ? 'password' : 'password-new'}
+                textContentType={isLogin ? 'password' : 'newPassword'}
+                importantForAutofill="yes"
               />
               <TouchableOpacity
                 style={styles.eyeIcon}
@@ -662,12 +683,16 @@ const AuthScreen: React.FC = () => {
               <View style={styles.inputContainer}>
                 <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, authFormInputTextStyle]}
                   placeholder={PASSWORD_EXAMPLE}
+                  placeholderTextColor={AUTH_FORM_PLACEHOLDER_COLOR}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
+                  autoComplete="password-new"
+                  textContentType="newPassword"
+                  importantForAutofill="yes"
                 />
               </View>
             )}
@@ -1009,7 +1034,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 15,
     fontSize: 16,
-    color: '#333',
+    color: AUTH_FORM_TEXT_COLOR,
   },
   eyeIcon: {
     padding: 5,
