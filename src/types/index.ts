@@ -241,6 +241,8 @@ export type RootStackParamList = {
     adults?: number;
     children?: number;
     babies?: number;
+    /** Rouvrir la modale de réservation après connexion */
+    openBookingModal?: boolean;
   };
   Booking: { propertyId: string };
   MonthlyRentalListingDetail: { listingId: string }; // Détail annonce longue durée (voyageur)

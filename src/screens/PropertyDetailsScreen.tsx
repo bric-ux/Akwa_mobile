@@ -76,6 +76,7 @@ const PropertyDetailsScreen: React.FC = () => {
     adults: routeAdults,
     children: routeChildren,
     babies: routeBabies,
+    openBookingModal,
   } = route.params;
   const { getPropertyById } = useProperties();
   const { user } = useAuth();
@@ -257,6 +258,12 @@ const PropertyDetailsScreen: React.FC = () => {
     });
   }, [property, t]);
 
+  useEffect(() => {
+    if (!user || !property || !openBookingModal) return;
+    setShowBookingModal(true);
+    navigation.setParams({ openBookingModal: undefined } as never);
+  }, [user, property, openBookingModal, navigation]);
+
   const handleBookNow = () => {
     log('📅 PropertyDetailsScreen - handleBookNow appelé avec dates:', {
       checkIn,
@@ -267,11 +274,21 @@ const PropertyDetailsScreen: React.FC = () => {
       searchDates,
     });
     if (!user) {
-      // Rediriger vers la page de connexion
-      navigation.navigate('Auth' as never);
-    } else {
-      setShowBookingModal(true);
+      (navigation as any).navigate('Auth', {
+        returnTo: 'PropertyDetails',
+        returnParams: {
+          propertyId,
+          checkIn: routeCheckIn ?? searchDates.checkIn,
+          checkOut: routeCheckOut ?? searchDates.checkOut,
+          adults: routeAdults ?? searchDates.adults,
+          children: routeChildren ?? searchDates.children,
+          babies: routeBabies ?? searchDates.babies,
+          openBookingModal: true,
+        },
+      });
+      return;
     }
+    setShowBookingModal(true);
   };
 
 

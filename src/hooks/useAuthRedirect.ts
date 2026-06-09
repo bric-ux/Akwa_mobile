@@ -24,7 +24,7 @@ export const useAuthRedirect = () => {
         navigation.navigate('PropertyDetails', { propertyId });
       },
       'PropertyDetails',
-      { propertyId }
+      { propertyId, openBookingModal: true }
     );
   };
 

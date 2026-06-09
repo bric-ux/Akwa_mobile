@@ -151,7 +151,14 @@ const VehicleDetailsScreen: React.FC = () => {
         'Vous devez être connecté pour réserver un véhicule.',
         [
           { text: 'Annuler', style: 'cancel' },
-          { text: 'Se connecter', onPress: () => navigation.navigate('Auth' as never) },
+          {
+            text: 'Se connecter',
+            onPress: () =>
+              (navigation as any).navigate('Auth', {
+                returnTo: 'VehicleBooking',
+                returnParams: { vehicleId: vehicle.id },
+              }),
+          },
         ],
       );
       return;
