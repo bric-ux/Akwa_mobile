@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, Image, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, Image, StyleSheet, Platform } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -20,6 +21,7 @@ const SPLASH_MIN_DURATION_MS = 400;
 export default function App() {
   return (
     <GestureHandlerRootView style={styles.gestureRoot}>
+      <StatusBar style="dark" {...(Platform.OS === 'android' ? { backgroundColor: '#ffffff', translucent: false } : {})} />
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <LanguageProvider>
