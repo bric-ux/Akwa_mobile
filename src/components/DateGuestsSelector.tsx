@@ -18,6 +18,8 @@ interface DateGuestsSelectorProps {
   onDateGuestsChange: (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => void;
   isDateUnavailable?: (date: Date) => boolean; // Fonction optionnelle pour vérifier si une date est indisponible
   isDateRangeUnavailable?: (startDate: Date, endDate: Date) => boolean; // Fonction optionnelle pour vérifier si une plage de dates chevauche une période indisponible
+  /** Sans marges externes (dans une carte parente) */
+  embedded?: boolean;
 }
 
 export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
@@ -29,6 +31,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
   onDateGuestsChange,
   isDateUnavailable,
   isDateRangeUnavailable,
+  embedded = false,
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [tempCheckIn, setTempCheckIn] = useState(checkIn);
@@ -387,7 +390,7 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
 
   return (
     <>
-      <View style={styles.container}>
+      <View style={[styles.container, embedded && styles.containerEmbedded]}>
         {/* Arrivée */}
         <TouchableOpacity
           style={styles.item}
@@ -598,6 +601,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 5,
+  },
+  containerEmbedded: {
+    marginHorizontal: 0,
+    marginVertical: 0,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowOpacity: 0.06,
+    elevation: 2,
   },
   item: {
     flex: 1,

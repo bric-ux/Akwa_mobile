@@ -8,7 +8,6 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
-  Modal,
   RefreshControl,
   Platform,
   Keyboard,
@@ -24,11 +23,9 @@ import type { MonthlyRentalListing } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
 import FiltersModal from '../components/FiltersModal';
-import SearchSuggestions from '../components/SearchSuggestions';
 import SearchResultsHeader from '../components/SearchResultsHeader';
-import AutoCompleteSearch, { AutoCompleteSearchHandle } from '../components/AutoCompleteSearch';
-import DateGuestsSelector from '../components/DateGuestsSelector';
-import SearchButton from '../components/SearchButton';
+import { AutoCompleteSearchHandle } from '../components/AutoCompleteSearch';
+import SearchFormModal from '../components/SearchFormModal';
 import SearchResultsView from '../components/SearchResultsView';
 import { supabase } from '../services/supabase';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
@@ -52,11 +49,13 @@ const SearchScreen: React.FC = () => {
   });
   const initialRentalTypeApplied = useRef(false);
   const [showFilters, setShowFilters] = useState(false);
+  const resumeSearchFormAfterFiltersRef = useRef(false);
   // Utiliser sortBy des filtres, avec fallback sur 'popular'
   const sortBy = (filters.sortBy || 'popular') as SortOption;
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  const [hasSubmittedSearch, setHasSubmittedSearch] = useState(false);
+  const [showSearchForm, setShowSearchForm] = useState(true);
   const [isMapView, setIsMapView] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -158,18 +157,17 @@ const SearchScreen: React.FC = () => {
   const currentSearchQuery = rentalType === 'monthly' ? monthlySearchQuery : shortTermSearchQuery;
 
   useEffect(() => {
-    if (rentalType === 'short_term') {
-      if (shortTermSearchQuery) {
-        fetchProperties({ ...filters, city: shortTermSearchQuery });
-      } else {
-        fetchProperties(filters);
-      }
+    if (!hasSubmittedSearch || rentalType !== 'short_term') return;
+    if (shortTermSearchQuery) {
+      fetchProperties({ ...filters, city: shortTermSearchQuery });
+    } else {
+      fetchProperties(filters);
     }
-  }, [shortTermSearchQuery, filters, rentalType]);
+  }, [hasSubmittedSearch, shortTermSearchQuery, filters, rentalType]);
 
   useFocusEffect(
     useCallback(() => {
-      if (rentalType !== 'short_term') return;
+      if (!hasSubmittedSearch || rentalType !== 'short_term') return;
       const v = getPublicPropertyListVersion();
       if (lastHandledCatalogVersionRef.current === null) {
         lastHandledCatalogVersionRef.current = v;
@@ -183,11 +181,11 @@ const SearchScreen: React.FC = () => {
           refreshProperties(filters);
         }
       }
-    }, [rentalType, shortTermSearchQuery, filters, refreshProperties])
+    }, [hasSubmittedSearch, rentalType, shortTermSearchQuery, filters, refreshProperties])
   );
 
   const onRefresh = useCallback(async () => {
-    if (rentalType !== 'short_term') return;
+    if (!hasSubmittedSearch || rentalType !== 'short_term') return;
     setRefreshing(true);
     try {
       if (shortTermSearchQuery) {
@@ -198,13 +196,12 @@ const SearchScreen: React.FC = () => {
     } finally {
       setRefreshing(false);
     }
-  }, [rentalType, shortTermSearchQuery, filters, refreshProperties]);
+  }, [hasSubmittedSearch, rentalType, shortTermSearchQuery, filters, refreshProperties]);
 
   useEffect(() => {
-    if (rentalType === 'monthly') {
-      fetchMonthlyListings({ city: monthlySearchQuery || undefined });
-    }
-  }, [rentalType, monthlySearchQuery, fetchMonthlyListings]);
+    if (!hasSubmittedSearch || rentalType !== 'monthly') return;
+    fetchMonthlyListings({ city: monthlySearchQuery || undefined });
+  }, [hasSubmittedSearch, rentalType, monthlySearchQuery, fetchMonthlyListings]);
 
   // Charger les recherches récentes
   useEffect(() => {
@@ -212,12 +209,36 @@ const SearchScreen: React.FC = () => {
     setRecentSearches(['Abidjan', 'Yamoussoukro', 'Grand-Bassam']);
   }, []);
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = async (query: string, options?: { forceFetch?: boolean }) => {
     if (rentalType === 'monthly') {
       setMonthlySearchQuery(query);
     } else {
       setShortTermSearchQuery(query);
     }
+
+    if (!query.trim()) {
+      setSelectedLocation(null);
+      if (!hasSubmittedSearch) return;
+      setIsSearching(true);
+      try {
+        if (rentalType === 'monthly') {
+          await fetchMonthlyListings({});
+        } else {
+          await fetchProperties({
+            ...filters,
+            city: '',
+            centerLat: undefined,
+            centerLng: undefined,
+          });
+        }
+      } finally {
+        setIsSearching(false);
+      }
+      return;
+    }
+
+    if (!hasSubmittedSearch && !options?.forceFetch) return;
+
     setIsSearching(true);
     
     if (rentalType === 'monthly') {
@@ -308,30 +329,12 @@ const SearchScreen: React.FC = () => {
       } finally {
         setIsSearching(false);
       }
-    } else {
-      try {
-        // Si pas de query, réinitialiser les coordonnées
-        setSelectedLocation(null);
-        if (rentalType === 'monthly') {
-          await fetchMonthlyListings({});
-        } else {
-          await fetchProperties({
-            ...filters,
-            city: '',
-            centerLat: undefined,
-            centerLng: undefined,
-          });
-        }
-      } finally {
-        setIsSearching(false);
-      }
     }
   };
 
   const handleSuggestionSelect = async (suggestion: any) => {
     if (rentalType === 'monthly') {
       setMonthlySearchQuery(suggestion.text);
-      fetchMonthlyListings({ city: suggestion.text || undefined });
       return;
     }
     setShortTermSearchQuery(suggestion.text);
@@ -429,8 +432,23 @@ const SearchScreen: React.FC = () => {
     updateCellsBatchingPeriod: 50,
   } as const;
 
+  const closeFilters = () => {
+    setShowFilters(false);
+    if (resumeSearchFormAfterFiltersRef.current) {
+      resumeSearchFormAfterFiltersRef.current = false;
+      setShowSearchForm(true);
+    }
+  };
+
+  const openFiltersFromSearchForm = () => {
+    resumeSearchFormAfterFiltersRef.current = true;
+    setShowSearchForm(false);
+    setShowFilters(true);
+  };
+
   const handleFilterChange = (newFilters: SearchFilters) => {
     setFilters(newFilters);
+    if (!hasSubmittedSearch) return;
     const searchFilters = { 
       ...newFilters, 
       city: shortTermSearchQuery,
@@ -452,6 +470,8 @@ const SearchScreen: React.FC = () => {
 
 
   const handleClearAllFilters = () => {
+    setHasSubmittedSearch(false);
+    setShowSearchForm(true);
     const clearedFilters: SearchFilters =
       rentalType === 'monthly' ? { rentalType: 'monthly' } : { rentalType: 'short_term' };
     setFilters(clearedFilters);
@@ -478,11 +498,6 @@ const SearchScreen: React.FC = () => {
     // Le header se contrôle uniquement par le bouton recherche
   };
 
-  const handleHeaderPress = () => {
-    // Toggle du header : si replié → déplier, si déplié → replier
-    setIsHeaderCollapsed(!isHeaderCollapsed);
-  };
-
   const handleSearchButtonPress = async () => {
     // Lire la valeur saisie dans le champ (état local AutoCompleteSearch), pas seulement le state parent
     const queryFromInput = searchInputRef.current?.getQuery()?.trim() ?? '';
@@ -500,10 +515,9 @@ const SearchScreen: React.FC = () => {
     searchInputRef.current?.blur();
     Keyboard.dismiss();
 
-    await handleSearch(query);
-    // Replier le header dès que la recherche est lancée (comme iOS) ;
-    // l’UI masque le formulaire seulement quand hasResults devient true.
-    setIsHeaderCollapsed(true);
+    setHasSubmittedSearch(true);
+    setShowSearchForm(false);
+    await handleSearch(query, { forceFetch: true });
   };
 
   const handleDateGuestsChange = (dates: { checkIn?: string; checkOut?: string }, guests: { adults: number; children: number; babies: number }) => {
@@ -539,10 +553,12 @@ const SearchScreen: React.FC = () => {
     };
     
     setFilters(newFilters);
-    fetchProperties({ 
-      ...newFilters, 
-      city: shortTermSearchQuery 
-    });
+    if (hasSubmittedSearch) {
+      fetchProperties({
+        ...newFilters,
+        city: shortTermSearchQuery,
+      });
+    }
   };
 
   const handleSortChange = (newSort: SortOption) => {
@@ -608,44 +624,35 @@ const SearchScreen: React.FC = () => {
   };
 
   const hasPropertyResults = rentalType !== 'monthly' && sortedProperties.length > 0 && !loading && !error;
-  const hasMonthlyResults = rentalType === 'monthly' && monthlyListings.length > 0 && !monthlyLoading;
-  const hasResults = hasPropertyResults || hasMonthlyResults;
+
+  const openSearchForm = () => setShowSearchForm(true);
+  const closeSearchFormToResults = () => {
+    if (hasSubmittedSearch) setShowSearchForm(false);
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header avec contrôles de recherche */}
-      <View style={styles.searchHeader}>
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+      {hasSubmittedSearch && !showSearchForm ? (
+        <View style={styles.resultsTopBar}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
-          {hasResults && (
-            <View style={styles.headerCenter}>
-              <Text style={styles.resultsHeaderTitle}>
-                {currentSearchQuery
-                  ? `${currentSearchQuery} · ${rentalType === 'monthly' ? 'Location mensuelle' : 'Résidence meublée'}`
-                  : rentalType === 'monthly'
-                    ? 'Location mensuelle'
-                    : 'Résidence meublée'}
+          <TouchableOpacity style={styles.searchSummaryPill} onPress={openSearchForm} activeOpacity={0.85}>
+            <Ionicons name="search" size={18} color="#2E7D32" />
+            <View style={styles.searchSummaryTexts}>
+              <Text style={styles.searchSummaryTitle} numberOfLines={1}>
+                {currentSearchQuery || 'Destination'}
               </Text>
-              <Text style={styles.headerSubtitleText}>
+              <Text style={styles.searchSummarySubtitle} numberOfLines={1}>
                 {rentalType === 'monthly'
-                  ? 'Recherche dédiée longue durée'
-                  : `${getDatesText() ? `${getDatesText()} · ` : ''}${getGuestsText()}`}
+                  ? 'Location mensuelle'
+                  : `${getDatesText() || 'Dates flexibles'} · ${getGuestsText()}`}
               </Text>
             </View>
-          )}
-          {!hasResults && (
-            <Text style={styles.headerTitle}>Rechercher</Text>
-          )}
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setShowFilters(true)}
-          >
-            <Ionicons name={hasResults ? "options-outline" : "options"} size={24} color={hasResults ? "#333" : "#2E7D32"} />
+            <Ionicons name="chevron-down" size={18} color="#6b7280" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.filterButton} onPress={() => setShowFilters(true)}>
+            <Ionicons name="options-outline" size={24} color="#333" />
             {getActiveFiltersCount() > 0 && (
               <View style={styles.filterBadge}>
                 <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
@@ -653,112 +660,10 @@ const SearchScreen: React.FC = () => {
             )}
           </TouchableOpacity>
         </View>
-
-        {/* Switch premium des univers (même écran, flux isolés) - masqué si location mensuelle désactivée */}
-        {FEATURE_MONTHLY_RENTAL && (
-        <View style={styles.modeSwitchContainer}>
-          <TouchableOpacity
-            style={[
-              styles.modeChip,
-              rentalType === 'short_term' && styles.modeChipActive,
-            ]}
-            onPress={() => handleRentalModeSwitch('short_term')}
-            activeOpacity={0.9}
-          >
-            <Ionicons
-              name="home-outline"
-              size={16}
-              color={rentalType === 'short_term' ? '#fff' : '#2E7D32'}
-            />
-            <Text
-              style={[
-                styles.modeChipText,
-                rentalType === 'short_term' && styles.modeChipTextActive,
-              ]}
-            >
-              Résidence meublée
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.modeChip,
-              styles.modeChipMonthly,
-              rentalType === 'monthly' && styles.modeChipMonthlyActive,
-            ]}
-            onPress={() => handleRentalModeSwitch('monthly')}
-            activeOpacity={0.9}
-          >
-            <Ionicons
-              name="business-outline"
-              size={16}
-              color={rentalType === 'monthly' ? '#fff' : '#0d9488'}
-            />
-            <Text
-              style={[
-                styles.modeChipText,
-                styles.modeChipTextMonthly,
-                rentalType === 'monthly' && styles.modeChipTextActive,
-              ]}
-            >
-              Location mensuelle
-            </Text>
-          </TouchableOpacity>
-        </View>
-        )}
-
-        {/* Contrôles de recherche - toujours visibles */}
-        {(!hasResults || !isHeaderCollapsed) && (
-          <View style={styles.headerContent}>
-            {/* Barre de recherche avec autocomplétion */}
-            <AutoCompleteSearch
-              ref={searchInputRef}
-              placeholder="Où allez-vous ?"
-              onSearch={handleSearch}
-              onSuggestionSelect={handleSuggestionSelect}
-              initialValue={currentSearchQuery}
-            />
-
-            {/* Sélecteur de dates et voyageurs */}
-            {rentalType !== 'monthly' ? (
-              <DateGuestsSelector
-                checkIn={checkIn}
-                checkOut={checkOut}
-                adults={adults}
-                children={children}
-                babies={babies}
-                onDateGuestsChange={handleDateGuestsChange}
-              />
-            ) : (
-              <Text style={styles.monthlySearchHint}>
-                Recherche dédiée longue durée: filtrez par ville et critères mensuels.
-              </Text>
-            )}
-
-            {/* Bouton de recherche */}
-            <SearchButton
-              onPress={handleSearchButtonPress}
-              disabled={isSearching}
-              loading={isSearching}
-            />
-          </View>
-        )}
-
-        {/* Indicateur de réduction pour les résultats */}
-        {hasResults && isHeaderCollapsed && (
-          <TouchableOpacity
-            style={styles.collapsedIndicator}
-            onPress={() => setIsHeaderCollapsed(false)}
-          >
-            <Text style={styles.collapsedText}>
-              {currentSearchQuery ? `Recherche: ${currentSearchQuery}` : 'Modifier la recherche'}
-            </Text>
-            <Ionicons name="chevron-down" size={16} color="#666" />
-          </TouchableOpacity>
-        )}
-      </View>
+      ) : null}
 
       {/* Bouton pour effacer les filtres */}
-      {getActiveFiltersCount() > 0 && (
+      {hasSubmittedSearch && !showSearchForm && getActiveFiltersCount() > 0 && (
         <View style={styles.clearFiltersContainer}>
           <TouchableOpacity
             style={styles.clearFiltersButton}
@@ -772,8 +677,8 @@ const SearchScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Résultats */}
-      {(rentalType === 'monthly' ? monthlyLoading : loading) ? (
+      {/* Résultats (affichés seulement après validation) */}
+      {hasSubmittedSearch && !showSearchForm && ((rentalType === 'monthly' ? monthlyLoading : loading) ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={rentalType === 'monthly' ? '#0d9488' : '#2E7D32'} />
           <Text style={styles.loadingText}>Recherche en cours...</Text>
@@ -935,10 +840,10 @@ const SearchScreen: React.FC = () => {
             />
           }
         />
-      )}
+      ))}
 
       {/* Bouton flottant Carte/Liste (même logique que l'espace véhicules) */}
-      {rentalType === 'short_term' && hasPropertyResults && (
+      {hasSubmittedSearch && !showSearchForm && rentalType === 'short_term' && hasPropertyResults && (
         <TouchableOpacity
           style={isMapView ? styles.listButton : styles.mapButton}
           onPress={handleViewToggle}
@@ -953,10 +858,32 @@ const SearchScreen: React.FC = () => {
 
       <FiltersModal
         visible={showFilters}
-        onClose={() => setShowFilters(false)}
+        onClose={closeFilters}
         onApply={handleFilterChange}
         initialFilters={filters}
         lockedRentalType={FEATURE_MONTHLY_RENTAL ? (rentalType === 'monthly' ? 'monthly' : undefined) : 'short_term'}
+      />
+
+      <SearchFormModal
+        visible={showSearchForm}
+        canDismissToResults={hasSubmittedSearch}
+        onClose={closeSearchFormToResults}
+        onBack={() => navigation.goBack()}
+        onOpenFilters={openFiltersFromSearchForm}
+        rentalType={rentalType}
+        onRentalModeSwitch={handleRentalModeSwitch}
+        searchInputRef={searchInputRef}
+        currentSearchQuery={currentSearchQuery}
+        onSearch={handleSearch}
+        onSuggestionSelect={handleSuggestionSelect}
+        checkIn={checkIn}
+        checkOut={checkOut}
+        adults={adults}
+        children={children}
+        babies={babies}
+        onDateGuestsChange={handleDateGuestsChange}
+        onSearchPress={handleSearchButtonPress}
+        isSearching={isSearching}
       />
 
     </SafeAreaView>
@@ -967,6 +894,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  resultsTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  searchSummaryPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  searchSummaryTexts: {
+    flex: 1,
+    gap: 2,
+  },
+  searchSummaryTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  searchSummarySubtitle: {
+    fontSize: 12,
+    color: '#6b7280',
   },
   searchHeader: {
     backgroundColor: '#fff',

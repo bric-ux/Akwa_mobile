@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +24,12 @@ interface AutoCompleteSearchProps {
   onSearch: (query: string) => void;
   onSuggestionSelect?: (suggestion: SearchSuggestion) => void;
   initialValue?: string;
+  /** N'affiche les suggestions qu'après focus sur le champ (ex. réouverture modale) */
+  requireFocusForSuggestions?: boolean;
+  /** Liste en flux normal (pousse le contenu en dessous) au lieu d'un overlay */
+  inlineSuggestions?: boolean;
+  /** Marges intégrées dans une carte parente */
+  embedded?: boolean;
 }
 
 export interface AutoCompleteSearchHandle {
@@ -37,6 +42,9 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
   onSearch,
   onSuggestionSelect,
   initialValue = '',
+  requireFocusForSuggestions = false,
+  inlineSuggestions = false,
+  embedded = false,
 }, ref) => {
   const [query, setQuery] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
@@ -44,9 +52,11 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSuggestionSelected, setIsSuggestionSelected] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const isProcessingRef = useRef(false);
   const lastProcessedId = useRef<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
+  const lastSyncedInitialValue = useRef(initialValue);
 
   useImperativeHandle(ref, () => ({
     getQuery: () => query,
@@ -59,27 +69,33 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
     setRecentSearches(['Abidjan', 'Yamoussoukro', 'Grand-Bassam', 'San-Pédro']);
   }, []);
 
-  // Synchroniser avec la valeur initiale du parent
+  // Synchroniser uniquement quand le parent change initialValue (pas pendant la frappe locale)
   useEffect(() => {
-    // Mettre à jour query quand initialValue change (y compris quand il devient vide)
-    if (initialValue !== query) {
-      setQuery(initialValue);
-      // Réinitialiser aussi l'état de sélection quand on efface depuis le parent
-      if (initialValue === '') {
-        setIsSuggestionSelected(false);
-      }
+    if (initialValue === lastSyncedInitialValue.current) return;
+    lastSyncedInitialValue.current = initialValue;
+    setQuery(initialValue);
+    if (initialValue === '') {
+      setIsSuggestionSelected(false);
+      setShowSuggestions(false);
+    } else if (requireFocusForSuggestions) {
+      setIsSuggestionSelected(true);
+      setShowSuggestions(false);
+      setSuggestions([]);
     }
-  }, [initialValue]);
+  }, [initialValue, requireFocusForSuggestions]);
 
   // Recherche d'autocomplétion
   useEffect(() => {
+    if (requireFocusForSuggestions && !isInputFocused) {
+      return;
+    }
     if (query.length > 0 && !isSuggestionSelected) {
       searchSuggestions(query);
     } else if (query.length === 0) {
       setSuggestions([]);
       setShowSuggestions(false);
     }
-  }, [query, isSuggestionSelected]);
+  }, [query, isSuggestionSelected, isInputFocused, requireFocusForSuggestions]);
 
   const searchSuggestions = async (searchQuery: string) => {
     setLoading(true);
@@ -270,7 +286,7 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
     onSearch('');
   };
 
-  const renderSuggestion = ({ item }: { item: SearchSuggestion }) => {
+  const renderSuggestion = (item: SearchSuggestion) => {
     const handlePress = () => {
       console.log('🖱️ Clic détecté sur:', item.text, 'ID:', item.id);
       handleSuggestionPress(item);
@@ -316,7 +332,7 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, embedded && styles.searchContainerEmbedded]}>
         <Ionicons name="location" size={20} color="#666" style={styles.searchIcon} />
         <TextInput
           ref={textInputRef}
@@ -336,10 +352,16 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
           onSubmitEditing={handleSearch}
           returnKeyType="search"
           onFocus={() => {
-            // Afficher les suggestions si au moins une lettre est tapée
-            if (query.length > 0 && suggestions.length > 0 && !isSuggestionSelected) {
-              setShowSuggestions(true);
+            setIsInputFocused(true);
+            if (requireFocusForSuggestions && query.length > 0) {
+              setIsSuggestionSelected(false);
             }
+          }}
+          onBlur={() => {
+            setTimeout(() => {
+              setIsInputFocused(false);
+              setShowSuggestions(false);
+            }, 180);
           }}
         />
         {query.length > 0 && (
@@ -355,15 +377,15 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
       </View>
 
       {showSuggestions && suggestions.length > 0 && (
-        <View style={styles.suggestionsContainer}>
-          <FlatList
-            data={suggestions}
-            renderItem={renderSuggestion}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            style={styles.suggestionsList}
-            keyboardShouldPersistTaps="handled"
-          />
+        <View
+          style={[
+            inlineSuggestions ? styles.suggestionsContainerInline : styles.suggestionsContainer,
+            embedded && (inlineSuggestions ? styles.suggestionsInlineEmbedded : styles.suggestionsOverlayEmbedded),
+          ]}
+        >
+          <View style={styles.suggestionsList}>
+            {suggestions.map((item) => renderSuggestion(item))}
+          </View>
         </View>
       )}
     </View>
@@ -375,6 +397,12 @@ AutoCompleteSearch.displayName = 'AutoCompleteSearch';
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
+  },
+  searchContainerEmbedded: {
+    marginHorizontal: 0,
+    marginVertical: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -429,11 +457,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
-    maxHeight: 300,
+    maxHeight: 220,
     zIndex: 1000,
   },
+  suggestionsContainerInline: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    maxHeight: 220,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  suggestionsOverlayEmbedded: {
+    left: 0,
+    right: 0,
+  },
+  suggestionsInlineEmbedded: {
+    marginHorizontal: 0,
+  },
   suggestionsList: {
-    maxHeight: 300,
+    maxHeight: 220,
   },
   suggestionItem: {
     flexDirection: 'row',

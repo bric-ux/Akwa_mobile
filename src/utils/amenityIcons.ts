@@ -146,7 +146,7 @@ export const getAmenityIonicIcon = (amenityName: string): string => {
     'Armoire': 'archive-outline',
     
     // Localisation
-    'Accès plage': 'beach',
+    'Accès plage': 'umbrella-outline',
     'Vue sur mer': 'water',
     'Centre-ville': 'business',
     'Transport public': 'bus',
