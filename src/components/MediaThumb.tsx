@@ -3,7 +3,7 @@ import { View, StyleSheet, StyleProp, ViewStyle, ImageStyle } from 'react-native
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { isVideoUrl } from '../utils/media';
+import { getGalleryThumbUrl, isVideoUrl } from '../utils/media';
 
 type MediaThumbProps = {
   uri: string;
@@ -71,15 +71,22 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
     );
   }
 
+  const [useOriginal, setUseOriginal] = useState(false);
+  const displayUri = useOriginal ? uri : getGalleryThumbUrl(uri);
+
   return (
     <Image
-      source={uri}
+      source={displayUri}
       style={style as ImageStyle}
       contentFit={resizeMode === 'cover' ? 'cover' : 'contain'}
       cachePolicy="memory-disk"
       priority={priority}
       recyclingKey={recyclingKey ?? uri}
       transition={120}
+      allowDownscaling
+      onError={() => {
+        if (!useOriginal && displayUri !== uri) setUseOriginal(true);
+      }}
     />
   );
 };

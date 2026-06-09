@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
 import MediaThumb from './MediaThumb';
-import { isVideoUrl } from '../utils/media';
+import { getGalleryThumbUrl, getGalleryViewerUrl, isVideoUrl } from '../utils/media';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -74,7 +74,16 @@ const CATEGORY_COLORS: Record<string, string> = {
 function LightboxMedia({ uri, style, active = false }: { uri: string; style: object; active?: boolean }) {
   const [videoFailed, setVideoFailed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const [useOriginalFallback, setUseOriginalFallback] = useState(false);
   const videoRef = useRef<Video | null>(null);
+  const optimizedUri = getGalleryViewerUrl(uri);
+  const imageUri = useOriginalFallback || optimizedUri === uri ? uri : optimizedUri;
+
+  useEffect(() => {
+    setImageFailed(false);
+    setUseOriginalFallback(false);
+  }, [uri]);
 
   useEffect(() => {
     if (!active) {
@@ -121,15 +130,32 @@ function LightboxMedia({ uri, style, active = false }: { uri: string; style: obj
       </View>
     );
   }
+  if (imageFailed) {
+    return (
+      <View style={[style as any, styles.imageErrorFallback]}>
+        <Ionicons name="image-outline" size={48} color="#94a3b8" />
+        <Text style={styles.imageErrorText}>Image indisponible</Text>
+      </View>
+    );
+  }
+
   return (
     <ExpoImage
-      source={uri}
+      source={imageUri}
       style={style as any}
       contentFit="contain"
       cachePolicy="memory-disk"
-      priority={active ? 'high' : 'low'}
-      transition={0}
+      priority={active ? 'high' : 'normal'}
+      transition={active ? 120 : 0}
       allowDownscaling
+      recyclingKey={`lightbox-${uri}-${useOriginalFallback ? 'orig' : 'opt'}`}
+      onError={() => {
+        if (!useOriginalFallback && optimizedUri !== uri) {
+          setUseOriginalFallback(true);
+          return;
+        }
+        setImageFailed(true);
+      }}
     />
   );
 }
@@ -160,7 +186,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
     const end = Math.min(items.length - 1, centerIndex + radius);
     const urls = items
       .slice(start, end + 1)
-      .map((item) => item.url)
+      .map((item) => getGalleryViewerUrl(item.url))
       .filter((u) => !!u && !isVideoUrl(u));
     if (urls.length > 0) {
       void ExpoImage.prefetch(urls, 'memory-disk');
@@ -193,7 +219,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
     // Pré-charger un petit lot initial pour éviter le lag au premier clic lightbox.
     const warmupUrls = allPhotosFlat
       .slice(0, 20)
-      .map((p) => p.url)
+      .map((p) => getGalleryViewerUrl(p.url))
       .filter((u) => !!u && !isVideoUrl(u));
     if (warmupUrls.length > 0) {
       void ExpoImage.prefetch(warmupUrls, 'memory-disk');
@@ -670,7 +696,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                 initialNumToRender={2}
                 maxToRenderPerBatch={3}
                 windowSize={5}
-                removeClippedSubviews={Platform.OS === 'android'}
+                removeClippedSubviews={false}
+                extraData={currentPhotoIndex}
                 onMomentumScrollEnd={(e) => {
                   const w = e.nativeEvent.layoutMeasurement.width;
                   if (w <= 0) return;
@@ -804,7 +831,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                 initialNumToRender={2}
                 maxToRenderPerBatch={3}
                 windowSize={5}
-                removeClippedSubviews={Platform.OS === 'android'}
+                removeClippedSubviews={false}
+                extraData={currentPhotoIndex}
                 onMomentumScrollEnd={(e) => {
                   const w = e.nativeEvent.layoutMeasurement.width;
                   if (w <= 0) return;
@@ -889,6 +917,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#111',
+  },
+  imageErrorFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#111',
+    gap: 8,
+  },
+  imageErrorText: {
+    color: '#94a3b8',
+    fontSize: 14,
   },
   videoPlayOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -33,6 +33,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../hooks/useCurrency';
 import PropertyReviews from '../components/PropertyReviews';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
+import { getGalleryViewerUrl } from '../utils/media';
 import { log, logError } from '../utils/logger';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
@@ -218,6 +219,7 @@ const PropertyDetailsScreen: React.FC = () => {
     const imageUrls = (property.images || []).filter(Boolean);
     const warmupUrls = Array.from(new Set([...photoUrls, ...imageUrls]))
       .filter((u) => !/\.(mp4|mov|m4v|avi|webm)(\?|$)/i.test(u))
+      .map((u) => getGalleryViewerUrl(u))
       .slice(0, 12);
     if (warmupUrls.length > 0) {
       void Image.prefetch(warmupUrls, 'memory-disk');

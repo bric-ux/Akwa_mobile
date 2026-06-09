@@ -159,6 +159,80 @@ export function normalizePropertyPhotoRows<T extends { url: string; is_main?: bo
   })) as T[];
 }
 
+export type SupabaseImageTransformOptions = {
+  width: number;
+  height?: number;
+  quality?: number;
+  resize?: 'cover' | 'contain' | 'fill';
+};
+
+const HEIC_URL_RE = /\.(heic|heif)(\?|#|$)/i;
+
+export function isHeicUrl(url: string | undefined | null): boolean {
+  if (!url) return false;
+  return HEIC_URL_RE.test(url);
+}
+
+function isSupabasePublicStorageUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.hostname.endsWith('supabase.co') && u.pathname.includes('/storage/v1/object/public/');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Transforme `.../object/public/...` → `.../render/image/public/...` (Supabase).
+ * Réduit le poids des photos lourdes — critique sur Android (évite écran noir / OOM).
+ */
+export function getOptimizedSupabaseImageUrl(
+  url: string,
+  options: SupabaseImageTransformOptions,
+  forceTransform = false,
+): string {
+  if (!url || url.includes('placeholder')) return url;
+  if (!forceTransform && !isHeicUrl(url) && !isSupabasePublicStorageUrl(url)) return url;
+  try {
+    const u = new URL(url);
+    if (!u.hostname.endsWith('supabase.co')) return url;
+    if (!u.pathname.includes('/storage/v1/object/public/')) return url;
+    if (u.pathname.includes('/render/image/')) return url;
+    u.pathname = u.pathname.replace(
+      '/storage/v1/object/public/',
+      '/storage/v1/render/image/public/',
+    );
+    u.search = '';
+    u.searchParams.set('width', String(options.width));
+    if (options.height != null) {
+      u.searchParams.set('height', String(options.height));
+    }
+    u.searchParams.set('resize', options.resize ?? 'cover');
+    u.searchParams.set('quality', String(options.quality ?? 82));
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/** Vignettes grille / carrousel */
+export function getGalleryThumbUrl(url: string): string {
+  return getOptimizedSupabaseImageUrl(
+    url,
+    { width: 720, height: 480, quality: 80, resize: 'cover' },
+    isHeicUrl(url),
+  );
+}
+
+/** Lightbox plein écran — évite de charger l'original multi‑Mo */
+export function getGalleryViewerUrl(url: string): string {
+  return getOptimizedSupabaseImageUrl(
+    url,
+    { width: 1680, height: 1260, quality: 84, resize: 'contain' },
+    true,
+  );
+}
+
 export function getVehicleGalleryUrls(vehicle: {
   images?: string[];
   vehicle_photos?: Array<{ url?: string; is_main?: boolean; display_order?: number }>;
