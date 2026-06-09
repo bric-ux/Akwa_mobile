@@ -14,6 +14,7 @@ import {
   Keyboard,
   InteractionManager,
 } from 'react-native';
+import { ScrollView as GestureScrollView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp, CommonActions, useFocusEffect } from '@react-navigation/native';
@@ -38,6 +39,8 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
+
+const AuthScrollView = Platform.OS === 'android' ? GestureScrollView : ScrollView;
 
 const AuthScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -522,13 +525,17 @@ const AuthScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        enabled={Platform.OS === 'ios'}
       >
-        <ScrollView
+        <AuthScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={Platform.OS === 'android'}
+          showsVerticalScrollIndicator={Platform.OS === 'android'}
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'android'}
+          overScrollMode="always"
         >
           {/* Header */}
           <View style={styles.header}>
@@ -787,7 +794,7 @@ const AuthScreen: React.FC = () => {
               <Text style={styles.linkText}>{t('settings.privacyPolicy')}</Text>
             </Text>
           </View>
-        </ScrollView>
+        </AuthScrollView>
       </KeyboardAvoidingView>
 
       {/* Modal des conditions générales (fallback) */}
@@ -897,9 +904,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContainer: {
-    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
