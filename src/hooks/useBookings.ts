@@ -4,6 +4,7 @@ import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
 import { useIdentityVerification } from './useIdentityVerification';
 import { sendPushToUser } from '../services/pushNotificationService';
+import { notifyAdminsNewBookingPush } from '../services/notifyAdminsBookingPush';
 import { PUSH_TYPE_PROPERTY_BOOKING } from '../services/pushNavigation';
 
 export interface BookingData {
@@ -712,6 +713,14 @@ export const useBookings = () => {
               `${guestName} a réservé "${propertyInfo.title}" du ${bookingData.checkInDate} au ${bookingData.checkOutDate}.`,
               { type: PUSH_TYPE_PROPERTY_BOOKING, bookingId: booking.id }
             ).catch(() => {});
+
+            // Notification push au voyageur (réservation auto-confirmée)
+            sendPushToUser(
+              user.id,
+              'Réservation confirmée',
+              `Votre réservation pour "${propertyInfo.title}" est confirmée du ${bookingData.checkInDate} au ${bookingData.checkOutDate}.`,
+              { type: PUSH_TYPE_PROPERTY_BOOKING, bookingId: booking.id }
+            ).catch(() => {});
           } else if (initialStatus === 'pending') {
             // Réservation en attente - envoyer les emails de demande (comme sur le site web)
             if (__DEV__) console.log('✅ [useBookings] Réservation en attente - envoi emails de demande');
@@ -779,6 +788,15 @@ export const useBookings = () => {
         console.error('❌ [useBookings] Erreur envoi email:', emailError);
         // Ne pas faire échouer la réservation si l'email échoue
       }
+
+      notifyAdminsNewBookingPush({
+        bookingId: booking.id,
+        bookingType: 'property',
+        guestName:
+          `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() ||
+          'Voyageur',
+        status: initialStatus,
+      }).catch(() => {});
 
       return { success: true, booking };
     } catch (err) {

@@ -45,6 +45,7 @@ import AdminPropertiesScreen from '../screens/AdminPropertiesScreen';
 import AdminStatsScreen from '../screens/AdminStatsScreen';
 import AdminUsersScreen from '../screens/AdminUsersScreen';
 import AdminProfileShareScreen from '../screens/AdminProfileShareScreen';
+import AdminPushNotificationScreen from '../screens/AdminPushNotificationScreen';
 import AdminIdentityDocumentsScreen from '../screens/AdminIdentityDocumentsScreen';
 import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
 import PdfViewerScreen from '../screens/PdfViewerScreen';
@@ -965,6 +966,14 @@ const AppNavigator = () => {
               component={AdminProfileShareScreen}
               options={{
                 title: 'Partager les vitrines',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="AdminPushNotifications"
+              component={AdminPushNotificationScreen}
+              options={{
+                title: 'Notifications push',
                 headerShown: false,
               }}
             />

@@ -134,6 +134,10 @@ const AdminDashboardScreen: React.FC = () => {
     navigation.navigate('AdminProfileShare');
   };
 
+  const handleNavigateToPushNotifications = () => {
+    navigation.navigate('AdminPushNotifications');
+  };
+
   const handleNavigateToIdentityDocuments = () => {
     navigation.navigate('AdminIdentityDocuments');
   };
@@ -404,6 +408,14 @@ const AdminDashboardScreen: React.FC = () => {
             icon="share-social-outline"
             onPress={handleNavigateToProfileShare}
             color="#2563eb"
+          />
+
+          <QuickAction
+            title="Notifications push"
+            description="Envoyer un message en push uniquement"
+            icon="notifications"
+            onPress={handleNavigateToPushNotifications}
+            color="#111827"
           />
 
           <QuickAction

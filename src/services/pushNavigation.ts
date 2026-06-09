@@ -5,6 +5,8 @@ import type { RootStackParamList } from '../types';
 export const PUSH_TYPE_MESSAGE = 'message';
 export const PUSH_TYPE_PROPERTY_BOOKING = 'property_booking';
 export const PUSH_TYPE_VEHICLE_BOOKING = 'vehicle_booking';
+export const PUSH_TYPE_ADMIN_NEW_BOOKING = 'admin_new_booking';
+export const PUSH_TYPE_ADMIN_NEW_IDENTITY = 'admin_new_identity';
 
 /**
  * Navigation depuis le tap sur une notification (données Expo dans content.data).
@@ -40,6 +42,25 @@ export function navigateFromPushData(
 
   if (type === PUSH_TYPE_VEHICLE_BOOKING && data.bookingId) {
     navigationRef.navigate('VehicleBookingDetails', { bookingId: data.bookingId });
+    return true;
+  }
+
+  if (type === PUSH_TYPE_ADMIN_NEW_BOOKING && data.bookingId) {
+    navigationRef.navigate('AdminBookingManagement', {
+      bookingId: data.bookingId,
+      bookingType:
+        data.bookingType === 'vehicle' || data.bookingType === 'property'
+          ? data.bookingType
+          : undefined,
+    });
+    return true;
+  }
+
+  if (type === PUSH_TYPE_ADMIN_NEW_IDENTITY) {
+    navigationRef.navigate('AdminIdentityDocuments', {
+      ...(data.documentId ? { documentId: data.documentId } : {}),
+      ...(data.userId ? { userId: data.userId } : {}),
+    });
     return true;
   }
 

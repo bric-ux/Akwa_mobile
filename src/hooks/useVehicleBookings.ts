@@ -8,6 +8,7 @@ import { getCommissionRates, getTravelerServiceFeeTtcMultiplier } from '../lib/c
 import { calculateTotalPrice, calculateFees, calculateVehiclePriceWithHours, calculateHostCommission } from './usePricing';
 import { useCurrency } from './useCurrency';
 import { sendPushToUser } from '../services/pushNotificationService';
+import { notifyAdminsNewBookingPush } from '../services/notifyAdminsBookingPush';
 import { PUSH_TYPE_VEHICLE_BOOKING } from '../services/pushNavigation';
 import { computeVehicleRentalDurationFromIso } from '../lib/vehicleRentalDuration';
 import { computeVehicleDriverFee } from '../lib/vehicleDriverFee';
@@ -788,6 +789,14 @@ export const useVehicleBookings = () => {
               `${renterName} a réservé "${vehicleTitle}" du ${bookingData.startDate} au ${bookingData.endDate}.`,
               { type: PUSH_TYPE_VEHICLE_BOOKING, bookingId: booking.id }
             ).catch(() => {});
+
+            // Notification push au locataire (réservation auto-confirmée)
+            sendPushToUser(
+              user.id,
+              'Réservation véhicule confirmée',
+              `Votre réservation pour "${vehicleTitle}" du ${bookingData.startDate} au ${bookingData.endDate} est confirmée.`,
+              { type: PUSH_TYPE_VEHICLE_BOOKING, bookingId: booking.id }
+            ).catch(() => {});
           } else if (isCardPayment) {
             if (__DEV__) console.log('✅ [useVehicleBookings] Paiement carte - emails envoyés après confirmation Stripe');
           } else {
@@ -890,6 +899,21 @@ export const useVehicleBookings = () => {
       } catch (emailError) {
         console.error('❌ [useVehicleBookings] Erreur envoi email:', emailError);
         // Ne pas faire échouer la réservation si l'email échoue
+      }
+
+      if (!isCardPayment) {
+        notifyAdminsNewBookingPush({
+          bookingId: booking.id,
+          bookingType: 'vehicle',
+          listingTitle:
+            (vehicle as { title?: string; brand?: string; model?: string })?.title ||
+            `${(vehicle as { brand?: string; model?: string })?.brand || ''} ${(vehicle as { model?: string })?.model || ''}`.trim() ||
+            undefined,
+          guestName:
+            `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() ||
+            'Locataire',
+          status: booking.status,
+        }).catch(() => {});
       }
 
       return { success: true, booking, status: booking.status, checkoutUrl, paymentInitError };

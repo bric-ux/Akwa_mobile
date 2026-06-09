@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
 import { formatAmount } from '../utils/priceCalculator';
 
@@ -32,6 +33,8 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 const AdminBookingManagementScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<RootStackParamList, 'AdminBookingManagement'>>();
+  const autoSearchDone = useRef(false);
   const [searchInput, setSearchInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SearchResult | null>(null);
@@ -49,12 +52,15 @@ const AdminBookingManagementScreen: React.FC = () => {
     return trimmed.replace(/[^a-z0-9]/g, '');
   };
 
-  const searchBooking = async () => {
-    const parsed = parseSearchInput(searchInput);
-    console.log('🔍 [AdminBookingManagement] Recherche:', { searchInput, parsed, isUUID: UUID_REGEX.test(parsed) });
+  const searchBooking = useCallback(async (query?: string) => {
+    const rawInput = query ?? searchInput;
+    const parsed = parseSearchInput(rawInput);
+    console.log('🔍 [AdminBookingManagement] Recherche:', { searchInput: rawInput, parsed, isUUID: UUID_REGEX.test(parsed) });
 
     if (!parsed) {
-      Alert.alert('Champ requis', 'Veuillez saisir un numéro de réservation (ex: akwa-XXXXXXXX ou UUID complet)');
+      if (!query) {
+        Alert.alert('Champ requis', 'Veuillez saisir un numéro de réservation (ex: akwa-XXXXXXXX ou UUID complet)');
+      }
       return;
     }
 
@@ -222,7 +228,15 @@ const AdminBookingManagementScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchInput]);
+
+  useEffect(() => {
+    const bookingId = route.params?.bookingId?.trim();
+    if (!bookingId || autoSearchDone.current) return;
+    autoSearchDone.current = true;
+    setSearchInput(bookingId);
+    void searchBooking(bookingId);
+  }, [route.params?.bookingId, searchBooking]);
 
   const formatDate = (d?: string | null) => {
     if (!d) return '-';

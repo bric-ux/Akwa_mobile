@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute, type RouteProp } from '@react-navigation/native';
+import type { RootStackParamList } from '../types';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { supabase } from '../services/supabase';
@@ -43,8 +44,10 @@ interface UserProfile {
 
 const AdminIdentityDocumentsScreen: React.FC = () => {
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<RootStackParamList, 'AdminIdentityDocuments'>>();
   const { user } = useAuth();
   const { profile } = useUserProfile();
+  const deepLinkHandled = useRef(false);
   
   const [documents, setDocuments] = useState<IdentityDocument[]>([]);
   const [users, setUsers] = useState<Record<string, UserProfile>>({});
@@ -57,7 +60,13 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
   const [verifying, setVerifying] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
-  const loadDocuments = async () => {
+  const openDocument = useCallback((doc: IdentityDocument) => {
+    setSelectedDoc(doc);
+    setAdminNotes('');
+    setShowModal(true);
+  }, []);
+
+  const loadDocuments = useCallback(async () => {
     setLoading(true);
     try {
       // Charger tous les documents d'identité
@@ -85,13 +94,23 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
 
       setDocuments(docs);
       setUsers(userMap);
+
+      const targetDocumentId = route.params?.documentId?.trim();
+      if (targetDocumentId && !deepLinkHandled.current) {
+        const targetDoc = docs.find((d) => d.id === targetDocumentId);
+        if (targetDoc) {
+          deepLinkHandled.current = true;
+          setStatusFilter('pending');
+          openDocument(targetDoc);
+        }
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des documents:', error);
       Alert.alert('Erreur', 'Impossible de charger les documents d\'identité');
     } finally {
       setLoading(false);
     }
-  };
+  }, [openDocument, route.params?.documentId]);
 
   // Charger les documents quand l'écran devient actif
   useFocusEffect(
@@ -99,7 +118,7 @@ const AdminIdentityDocumentsScreen: React.FC = () => {
       if (user && profile?.role === 'admin') {
         loadDocuments();
       }
-    }, [user, profile])
+    }, [user, profile, loadDocuments])
   );
 
   const handleRefresh = async () => {

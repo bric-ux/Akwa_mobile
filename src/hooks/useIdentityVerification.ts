@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { notifyAdminsIdentityDocumentPush } from '../services/notifyAdminsIdentityPush';
 import { useAuth } from '../services/AuthContext';
 
 export interface IdentityDocument {
@@ -196,18 +197,26 @@ export const useIdentityVerification = () => {
         .getPublicUrl(filePath);
 
       // Sauvegarder dans la base de données avec verified = null (en attente)
-      const { error: dbError } = await supabase
+      const { data: insertedDoc, error: dbError } = await supabase
         .from('identity_documents')
         .insert({
           user_id: user.id,
           document_type: documentType,
           document_url: publicUrl,
           verified: null // null = en attente de validation admin
-        });
+        })
+        .select('id')
+        .single();
 
       if (dbError) throw dbError;
 
       console.log('✅ Document d\'identité uploadé avec succès');
+
+      notifyAdminsIdentityDocumentPush({
+        documentId: insertedDoc?.id,
+        userId: user.id,
+        documentType,
+      }).catch(() => {});
       
       // Envoyer les emails de notification
       try {
@@ -228,6 +237,8 @@ export const useIdentityVerification = () => {
                 firstName: userProfile.first_name || 'Utilisateur',
                 lastName: userProfile.last_name || '',
                 documentType: documentType,
+                documentId: insertedDoc?.id,
+                userId: user.id,
                 siteUrl: 'https://akwahome.com'
               }
             }
