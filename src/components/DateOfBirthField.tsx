@@ -91,8 +91,14 @@ const DateOfBirthField: React.FC<Props> = ({
     setShowPicker(false);
   };
 
-  const onPickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+  const onIosPickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (selectedDate) setTempDate(clampDateOfBirth(selectedDate));
+  };
+
+  const onAndroidPickerChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    closePicker();
+    if (event.type === 'dismissed' || !selectedDate) return;
+    applyDate(selectedDate);
   };
 
   const confirm = () => {
@@ -134,59 +140,71 @@ const DateOfBirthField: React.FC<Props> = ({
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       {hint && !error ? <Text style={styles.hint}>{hint}</Text> : null}
 
-      <Modal
-        visible={showPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={closePicker}
-      >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={closePicker} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Date de naissance</Text>
-              <TouchableOpacity onPress={closePicker} hitSlop={12} accessibilityLabel="Fermer">
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
+      {Platform.OS === 'android' && showPicker ? (
+        <DateTimePicker
+          value={pickerValue}
+          mode="date"
+          display="default"
+          maximumDate={getMaxDateOfBirth()}
+          minimumDate={getMinDateOfBirth()}
+          onChange={onAndroidPickerChange}
+        />
+      ) : null}
 
-            <Text style={styles.modalHint}>
-              Faites défiler le jour, le mois et l&apos;année. Vous devez avoir au moins 18 ans.
-            </Text>
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={showPicker}
+          transparent
+          animationType="slide"
+          onRequestClose={closePicker}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={closePicker} />
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Date de naissance</Text>
+                <TouchableOpacity onPress={closePicker} hitSlop={12} accessibilityLabel="Fermer">
+                  <Ionicons name="close" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
 
-            <View style={styles.previewBox}>
-              <Ionicons name="calendar" size={22} color="#2E7D32" />
-              <View style={styles.previewTexts}>
-                <Text style={styles.previewMain}>{formatDatePreview(pickerValue)}</Text>
-                <Text style={styles.previewSub}>{formatDateDdMmYyyy(pickerValue)}</Text>
+              <Text style={styles.modalHint}>
+                Faites défiler le jour, le mois et l&apos;année. Vous devez avoir au moins 18 ans.
+              </Text>
+
+              <View style={styles.previewBox}>
+                <Ionicons name="calendar" size={22} color="#2E7D32" />
+                <View style={styles.previewTexts}>
+                  <Text style={styles.previewMain}>{formatDatePreview(pickerValue)}</Text>
+                  <Text style={styles.previewSub}>{formatDateDdMmYyyy(pickerValue)}</Text>
+                </View>
+              </View>
+
+              <View style={styles.pickerWrap}>
+                <DateTimePicker
+                  value={pickerValue}
+                  mode="date"
+                  display="spinner"
+                  locale="fr-FR"
+                  maximumDate={getMaxDateOfBirth()}
+                  minimumDate={getMinDateOfBirth()}
+                  onChange={onIosPickerChange}
+                  style={styles.picker}
+                />
+              </View>
+
+              <View style={styles.modalFooter}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={closePicker}>
+                  <Text style={styles.cancelBtnText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.confirmBtn} onPress={confirm}>
+                  <Text style={styles.confirmBtnText}>Confirmer</Text>
+                </TouchableOpacity>
               </View>
             </View>
-
-            <View style={styles.pickerWrap}>
-              <DateTimePicker
-                value={pickerValue}
-                mode="date"
-                display="spinner"
-                locale="fr-FR"
-                maximumDate={getMaxDateOfBirth()}
-                minimumDate={getMinDateOfBirth()}
-                onChange={onPickerChange}
-                style={styles.picker}
-                {...(Platform.OS === 'android' ? { textColor: '#111827' } : {})}
-              />
-            </View>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={closePicker}>
-                <Text style={styles.cancelBtnText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmBtn} onPress={confirm}>
-                <Text style={styles.confirmBtnText}>Confirmer</Text>
-              </TouchableOpacity>
-            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      ) : null}
     </View>
   );
 };
