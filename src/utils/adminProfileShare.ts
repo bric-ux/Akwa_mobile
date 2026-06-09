@@ -1,4 +1,5 @@
-import { getOwnerPublicWebUrl, PublicProfileShareType } from './shareListingLink';
+import { getOwnerPublicWebUrl, getWebAppOrigin, PublicProfileShareType } from './shareListingLink';
+import { normalizePhoneForTwilio } from '../lib/phone';
 import { supabase } from '../services/supabase';
 
 const PROFILE_SHARE_SELECT =
@@ -124,6 +125,41 @@ Votre vitrine AkwaHome est prête ! Partagez ce lien sur vos réseaux (WhatsApp,
 Merci de faire vivre AkwaHome !
 L'équipe AkwaHome`;
 
+/** Espace hôte web (liste des résidences). */
+export function buildHostSpaceWebUrl(): string {
+  return `${getWebAppOrigin()}/host/properties`;
+}
+
+export const DEFAULT_AVAILABILITY_REMINDER_MESSAGE = `Cher {{firstName}},
+
+Pensez à mettre à jour les disponibilités de vos résidences : {{hostSpaceUrl}}
+
+→ Cliquez sur la résidence → Calendrier → sélectionnez les dates à bloquer.
+
+L'équipe AkwaHome`;
+
+export type ProfileShareMessagePreset = {
+  id: 'vitrine' | 'availability';
+  label: string;
+  description: string;
+  template: string;
+};
+
+export const PROFILE_SHARE_MESSAGE_PRESETS: ProfileShareMessagePreset[] = [
+  {
+    id: 'vitrine',
+    label: 'Partager la vitrine',
+    description: 'Invitation à diffuser le lien public du profil',
+    template: DEFAULT_PROFILE_SHARE_MESSAGE,
+  },
+  {
+    id: 'availability',
+    label: 'Rappel disponibilités',
+    description: 'Mise à jour du calendrier depuis l’espace hôte',
+    template: DEFAULT_AVAILABILITY_REMINDER_MESSAGE,
+  },
+];
+
 export function getRecipientDisplayName(r: {
   first_name?: string | null;
   last_name?: string | null;
@@ -152,11 +188,13 @@ export function buildProfileUrlForRecipient(recipient: ProfileShareRecipient): s
 
 export function fillProfileShareMessage(
   template: string,
-  vars: { firstName: string; profileUrl: string },
+  vars: { firstName: string; profileUrl: string; hostSpaceUrl?: string },
 ): string {
+  const hostSpaceUrl = vars.hostSpaceUrl ?? buildHostSpaceWebUrl();
   return template
     .replace(/\{\{firstName\}\}/g, vars.firstName)
-    .replace(/\{\{profileUrl\}\}/g, vars.profileUrl);
+    .replace(/\{\{profileUrl\}\}/g, vars.profileUrl)
+    .replace(/\{\{hostSpaceUrl\}\}/g, hostSpaceUrl);
 }
 
 /** Chiffres uniquement, préfixe 225 pour numéros ivoiriens locaux. */
@@ -181,11 +219,54 @@ export function phoneForSmsE164(
       if (!digits) return null;
       normalized = `+${digits}`;
     }
-    if (/^\+\d{8,15}$/.test(normalized)) return normalized;
+    if (/^\+\d{8,15}$/.test(normalized)) {
+      return normalizePhoneForTwilio(normalized) ?? normalized;
+    }
   }
   const waDigits = phoneForWhatsApp(phone);
   if (!waDigits) return null;
-  return `+${waDigits}`;
+  const e164 = `+${waDigits}`;
+  return normalizePhoneForTwilio(e164) ?? e164;
+}
+
+function phoneE164FromPseudoEmail(email?: string | null): string | null {
+  const e = email?.trim().toLowerCase();
+  if (!e?.endsWith('@phone.akwahome.local')) return null;
+  const digits = e.split('@')[0]?.replace(/\D/g, '') ?? '';
+  if (digits.length < 8) return null;
+  return normalizePhoneForTwilio(`+${digits}`);
+}
+
+/**
+ * Numéro réellement utilisé pour le SMS admin.
+ * Compte « téléphone » : le numéro de connexion est dans l'email fictif (@phone.akwahome.local),
+ * pas toujours dans profiles.phone / phone_e164 (souvent incohérent).
+ */
+export function resolveRecipientSmsE164(
+  recipient: Pick<ProfileShareRecipient, 'phone' | 'phone_e164' | 'email'>,
+): string | null {
+  const fromAuthEmail = phoneE164FromPseudoEmail(recipient.email);
+  const fromProfileFields = phoneForSmsE164(recipient.phone, recipient.phone_e164);
+
+  if (fromAuthEmail) {
+    if (fromProfileFields && fromProfileFields !== fromAuthEmail) {
+      return fromAuthEmail;
+    }
+    return fromAuthEmail;
+  }
+
+  return fromProfileFields;
+}
+
+/** Affichage admin : numéro SMS ou email réel. */
+export function formatRecipientContactLine(
+  recipient: Pick<ProfileShareRecipient, 'phone' | 'phone_e164' | 'email'>,
+): string {
+  const sms = resolveRecipientSmsE164(recipient);
+  if (sms) return `SMS : ${sms}`;
+  const email = recipient.email?.trim();
+  if (email && !email.toLowerCase().endsWith('@phone.akwahome.local')) return email;
+  return 'Aucun contact SMS / email';
 }
 
 /** Adresse fictive routée vers SMS par send-email. */
@@ -201,7 +282,7 @@ export function truncateSmsBody(text: string, maxLen = 480): string {
 }
 
 export function recipientHasSmsChannel(r: ProfileShareRecipient): boolean {
-  return phoneForSmsE164(r.phone, r.phone_e164) !== null;
+  return resolveRecipientSmsE164(r) !== null;
 }
 
 export function recipientHasEmailChannel(r: ProfileShareRecipient): boolean {

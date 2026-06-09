@@ -1,4 +1,4 @@
-/** Valeurs sûres pour host_applications (évite numeric field overflow DECIMAL(5,2) en prod). */
+/** Valeurs sûres pour host_applications (évite overflow + contraintes CHECK réduction). */
 
 const MAX_MONEY = 999_999_999;
 
@@ -12,8 +12,15 @@ export function clampHostMoney(value?: number | null): number | null {
 export function clampHostPercent(value?: number | null): number | null {
   if (value == null || Number.isNaN(value)) return null;
   const n = Math.round(Number(value));
+  if (n < 1 || n > 100) return null;
+  return n;
+}
+
+export function clampHostMinNights(value?: number | null): number | null {
+  if (value == null || Number.isNaN(value)) return null;
+  const n = Math.round(Number(value));
   if (n < 1) return null;
-  return Math.min(n, 100);
+  return n;
 }
 
 export function resolvePricePerNightForDb(
@@ -33,8 +40,6 @@ export function mapHostApplicationNumbers(data: {
   surfaceM2?: number | null;
   cleaningFee?: number | null;
   taxes?: number | null;
-  discountPercentage?: number | null;
-  longStayDiscountPercentage?: number | null;
 }) {
   const isMonthly = !!data.isMonthlyRental;
   return {
@@ -44,13 +49,41 @@ export function mapHostApplicationNumbers(data: {
     surface_m2: clampHostMoney(data.surfaceM2),
     cleaning_fee: clampHostMoney(data.cleaningFee) ?? 0,
     taxes: clampHostMoney(data.taxes) ?? 0,
-    discount_percentage: clampHostPercent(data.discountPercentage),
-    long_stay_discount_percentage: clampHostPercent(data.longStayDiscountPercentage),
+  };
+}
+
+/** Réductions : respecte check_host_app_discount_percentage (1–100 ou NULL). */
+export function mapHostApplicationDiscounts(data: {
+  discountEnabled?: boolean;
+  discountMinNights?: number | null;
+  discountPercentage?: number | null;
+  longStayDiscountEnabled?: boolean;
+  longStayDiscountMinNights?: number | null;
+  longStayDiscountPercentage?: number | null;
+}) {
+  const pct = clampHostPercent(data.discountPercentage);
+  const minNights = clampHostMinNights(data.discountMinNights);
+  const discountOk = !!data.discountEnabled && pct != null && minNights != null;
+
+  const longPct = clampHostPercent(data.longStayDiscountPercentage);
+  const longMin = clampHostMinNights(data.longStayDiscountMinNights);
+  const longOk = !!data.longStayDiscountEnabled && longPct != null && longMin != null;
+
+  return {
+    discount_enabled: discountOk,
+    discount_min_nights: discountOk ? minNights : null,
+    discount_percentage: discountOk ? pct : null,
+    long_stay_discount_enabled: longOk,
+    long_stay_discount_min_nights: longOk ? longMin : null,
+    long_stay_discount_percentage: longOk ? longPct : null,
   };
 }
 
 export function friendlyHostApplicationDbError(message: string): string {
   const m = message.toLowerCase();
+  if (m.includes('check_host_app_discount_percentage') || m.includes('discount_percentage')) {
+    return 'Le pourcentage de réduction doit être entre 1 et 100 %, avec un nombre de nuits minimum valide.';
+  }
   if (m.includes('numeric field overflow')) {
     return 'Un montant ou un pourcentage est trop élevé. Vérifiez le prix, le loyer mensuel, les frais et les réductions (max. 100 %).';
   }

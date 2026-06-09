@@ -509,6 +509,7 @@ export const useEmailService = () => {
       messageBody?: string;
       smsBody?: string;
       userId?: string;
+      forceResend?: boolean;
     },
   ) => {
     return sendEmail({
@@ -529,6 +530,8 @@ export const useEmailService = () => {
       messageBody?: string;
       smsBody?: string;
       userId?: string;
+      /** Envoi admin : ne pas bloquer sur un ancien anti-doublon. */
+      forceResend?: boolean;
     };
   }): Promise<{ success: boolean; channel: 'sms' | 'email' | 'none'; error?: unknown; data?: unknown }> => {
     const phone = options.phoneE164?.trim();

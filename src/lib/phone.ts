@@ -216,9 +216,26 @@ export function normalizePhoneE164(phone: string): string | null {
   return /^\+\d{8,15}$/.test(p) ? p : null;
 }
 
-/** Alias explicite avant envoi SMS Twilio. */
+/** Indicatifs hors CI : Twilio / Termii Europe — E.164 sans 0 trunk (ex. +33605636597). */
+const TWILIO_STRIP_ZERO_DIALS = DIALS_BY_LENGTH
+  .map((c) => c.dial)
+  .filter((d) => d !== IVORY_COAST_DIAL);
+
+/** Alias explicite avant envoi SMS (Termii Afrique, Twilio ailleurs). */
 export function normalizePhoneForTwilio(phone: string): string | null {
-  return normalizePhoneE164(phone);
+  const base = normalizePhoneE164(phone);
+  if (!base) return null;
+  if (base.startsWith(IVORY_COAST_DIAL)) return base;
+
+  for (const dial of TWILIO_STRIP_ZERO_DIALS) {
+    if (!base.startsWith(dial)) continue;
+    let national = base.slice(dial.length).replace(/\D/g, '');
+    if (national.startsWith('0')) national = national.slice(1);
+    const result = `${dial}${national}`;
+    return /^\+\d{8,15}$/.test(result) ? result : null;
+  }
+
+  return base;
 }
 
 export type PhoneAvailabilityResult =

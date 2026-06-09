@@ -4,6 +4,7 @@ import { useAuth } from '../services/AuthContext';
 import { useEmailService } from './useEmailService';
 import {
   friendlyHostApplicationDbError,
+  mapHostApplicationDiscounts,
   mapHostApplicationNumbers,
 } from '../utils/hostApplicationNumbers';
 
@@ -159,6 +160,7 @@ export const useHostApplications = () => {
       }
 
       const nums = mapHostApplicationNumbers(applicationData);
+      const discounts = mapHostApplicationDiscounts(applicationData);
 
       // Permettre plusieurs candidatures même si une autre est en attente
       const { data, error } = await supabase
@@ -191,12 +193,7 @@ export const useHostApplications = () => {
           auto_booking: applicationData.autoBooking || false,
           cancellation_policy: applicationData.cancellationPolicy || 'flexible',
           host_guide: applicationData.hostGuide?.trim() || null,
-          discount_enabled: applicationData.discountEnabled || false,
-          discount_min_nights: applicationData.discountMinNights || null,
-          discount_percentage: nums.discount_percentage,
-          long_stay_discount_enabled: applicationData.longStayDiscountEnabled || false,
-          long_stay_discount_min_nights: applicationData.longStayDiscountMinNights || null,
-          long_stay_discount_percentage: nums.long_stay_discount_percentage,
+          ...discounts,
           cleaning_fee: nums.cleaning_fee,
           free_cleaning_min_days: applicationData.freeCleaningMinDays || null,
           taxes: nums.taxes,
@@ -372,9 +369,8 @@ export const useHostApplications = () => {
         surfaceM2: applicationData.surfaceM2,
         cleaningFee: applicationData.cleaningFee,
         taxes: applicationData.taxes,
-        discountPercentage: applicationData.discountPercentage,
-        longStayDiscountPercentage: applicationData.longStayDiscountPercentage,
       });
+      const discounts = mapHostApplicationDiscounts(applicationData);
 
       const { data, error } = await supabase
         .from('host_applications')
@@ -407,12 +403,7 @@ export const useHostApplications = () => {
           auto_booking: applicationData.autoBooking || false,
           cancellation_policy: applicationData.cancellationPolicy || 'flexible',
           host_guide: applicationData.hostGuide || null,
-          discount_enabled: applicationData.discountEnabled || false,
-          discount_min_nights: applicationData.discountMinNights || null,
-          discount_percentage: nums.discount_percentage,
-          long_stay_discount_enabled: applicationData.longStayDiscountEnabled || false,
-          long_stay_discount_min_nights: applicationData.longStayDiscountMinNights || null,
-          long_stay_discount_percentage: nums.long_stay_discount_percentage,
+          ...discounts,
           cleaning_fee: nums.cleaning_fee,
           taxes: nums.taxes,
           status: 'reviewing',

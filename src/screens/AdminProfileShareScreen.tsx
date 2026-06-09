@@ -20,17 +20,21 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { useEmailService } from '../hooks/useEmailService';
 import { sendPushToUser } from '../services/pushNotificationService';
 import {
+  buildHostSpaceWebUrl,
   buildProfileUrlForRecipient,
   DEFAULT_PROFILE_SHARE_MESSAGE,
   fetchProfileShareRecipients,
   fillProfileShareMessage,
   getRecipientDisplayName,
-  phoneForSmsE164,
+  formatRecipientContactLine,
   phoneForWhatsApp,
+  PROFILE_SHARE_MESSAGE_PRESETS,
   recipientHasEmailChannel,
   recipientHasSmsChannel,
+  resolveRecipientSmsE164,
   truncateSmsBody,
   ProfileShareAudience,
+  ProfileShareMessagePreset,
   ProfileShareRecipient,
 } from '../utils/adminProfileShare';
 
@@ -74,7 +78,14 @@ const AdminProfileShareScreen: React.FC = () => {
   const [audience, setAudience] = useState<ProfileShareAudience>('single');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [messagePresetId, setMessagePresetId] =
+    useState<ProfileShareMessagePreset['id']>('vitrine');
   const [messageTemplate, setMessageTemplate] = useState(DEFAULT_PROFILE_SHARE_MESSAGE);
+
+  const applyMessagePreset = (preset: ProfileShareMessagePreset) => {
+    setMessagePresetId(preset.id);
+    setMessageTemplate(preset.template);
+  };
 
   const loadRecipients = useCallback(async (force = false) => {
     if (!force && initialLoadDone.current) {
@@ -129,12 +140,20 @@ const AdminProfileShareScreen: React.FC = () => {
 
   const previewRecipient = targetRecipients[0] ?? recipients[0] ?? null;
 
+  const hostSpaceUrl = buildHostSpaceWebUrl();
+
   const previewMessage = useMemo(() => {
-    if (!previewRecipient) return messageTemplate;
+    if (!previewRecipient) {
+      return fillProfileShareMessage(messageTemplate, {
+        firstName: 'Prénom',
+        profileUrl: 'https://…',
+        hostSpaceUrl,
+      });
+    }
     const firstName = previewRecipient.first_name?.trim() || 'Bonjour';
     const profileUrl = buildProfileUrlForRecipient(previewRecipient);
-    return fillProfileShareMessage(messageTemplate, { firstName, profileUrl });
-  }, [messageTemplate, previewRecipient]);
+    return fillProfileShareMessage(messageTemplate, { firstName, profileUrl, hostSpaceUrl });
+  }, [messageTemplate, previewRecipient, hostSpaceUrl]);
 
   const selectedRecipient = recipients.find((r) => r.user_id === selectedUserId);
 
@@ -168,11 +187,16 @@ const AdminProfileShareScreen: React.FC = () => {
       .filter(Boolean)
       .join(' + ');
 
+    const contactPreview =
+      audience === 'single' && selectedRecipient
+        ? `\n\nContact : ${formatRecipientContactLine(selectedRecipient)}`
+        : '';
+
     Alert.alert(
       'Confirmer l’envoi',
       `${channelLabel}\n\n${channelStats.sms} par SMS · ${channelStats.email} par email${
         channelStats.none > 0 ? ` · ${channelStats.none} sans contact` : ''
-      }`,
+      }${contactPreview}`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -192,9 +216,10 @@ const AdminProfileShareScreen: React.FC = () => {
                 const body = fillProfileShareMessage(messageTemplate, {
                   firstName,
                   profileUrl,
+                  hostSpaceUrl: buildHostSpaceWebUrl(),
                 });
                 const displayName = getRecipientDisplayName(recipient);
-                const phoneE164 = phoneForSmsE164(recipient.phone, recipient.phone_e164);
+                const phoneE164 = resolveRecipientSmsE164(recipient);
 
                 if (options.push) {
                   try {
@@ -221,6 +246,7 @@ const AdminProfileShareScreen: React.FC = () => {
                     messageBody: body,
                     smsBody: truncateSmsBody(body),
                     userId: recipient.user_id,
+                    forceResend: true,
                   },
                 });
 
@@ -256,7 +282,8 @@ const AdminProfileShareScreen: React.FC = () => {
       Alert.alert('Sélection requise', 'Choisissez une personne pour WhatsApp.');
       return;
     }
-    const waPhone = phoneForWhatsApp(selectedRecipient.phone);
+    const smsE164 = resolveRecipientSmsE164(selectedRecipient);
+    const waPhone = smsE164 ? smsE164.replace(/\D/g, '') : phoneForWhatsApp(selectedRecipient.phone);
     if (!waPhone) {
       Alert.alert('Téléphone manquant', 'Ce compte n’a pas de numéro utilisable pour WhatsApp.');
       return;
@@ -328,8 +355,8 @@ const AdminProfileShareScreen: React.FC = () => {
       ) : (
         <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.intro}>
-            Invitez les hôtes et propriétaires à partager le lien de leur vitrine. L’envoi se fait
-            par SMS si un numéro est renseigné, sinon par email.
+            Envoyez un message personnalisé aux hôtes (vitrine, rappel calendrier, etc.). L’envoi se
+            fait par SMS si un numéro est renseigné, sinon par email.
           </Text>
 
           <Text style={styles.sectionTitle}>Destinataires</Text>
@@ -376,7 +403,7 @@ const AdminProfileShareScreen: React.FC = () => {
                   >
                     <View style={styles.userRowMain}>
                       <Text style={styles.userName}>{getRecipientDisplayName(r)}</Text>
-                      <Text style={styles.userMeta}>{r.email || '—'}</Text>
+                      <Text style={styles.userMeta}>{formatRecipientContactLine(r)}</Text>
                     </View>
                     <View style={styles.badges}>
                       {badges.map((b) => (
@@ -402,8 +429,26 @@ const AdminProfileShareScreen: React.FC = () => {
           </View>
 
           <Text style={styles.sectionTitle}>Message</Text>
+          <Text style={styles.hint}>Modèles</Text>
+          <View style={styles.presetRow}>
+            {PROFILE_SHARE_MESSAGE_PRESETS.map((preset) => {
+              const active = messagePresetId === preset.id;
+              return (
+                <TouchableOpacity
+                  key={preset.id}
+                  style={[styles.presetChip, active && styles.presetChipActive]}
+                  onPress={() => applyMessagePreset(preset)}
+                >
+                  <Text style={[styles.presetChipLabel, active && styles.presetChipLabelActive]}>
+                    {preset.label}
+                  </Text>
+                  <Text style={styles.presetChipDesc}>{preset.description}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
           <Text style={styles.hint}>
-            Variables : {'{{firstName}}'}, {'{{profileUrl}}'}
+            Variables : {'{{firstName}}'}, {'{{profileUrl}}'}, {'{{hostSpaceUrl}}'}
           </Text>
           <TextInput
             style={styles.messageInput}
@@ -560,6 +605,18 @@ const styles = StyleSheet.create({
   },
   countText: { fontSize: 14, color: '#333', flex: 1 },
   hint: { fontSize: 12, color: '#888', marginBottom: 6 },
+  presetRow: { gap: 8, marginBottom: 10 },
+  presetChip: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+  },
+  presetChipActive: { borderColor: '#e74c3c', backgroundColor: '#fef2f2' },
+  presetChipLabel: { fontWeight: '700', fontSize: 14, color: '#333' },
+  presetChipLabelActive: { color: '#e74c3c' },
+  presetChipDesc: { fontSize: 12, color: '#888', marginTop: 4 },
   messageInput: {
     backgroundColor: '#fff',
     borderRadius: 10,
