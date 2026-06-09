@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -429,7 +430,8 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
       <Modal
         visible={showCalendar}
         animationType="slide"
-        presentationStyle="pageSheet"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
+        onRequestClose={() => setShowCalendar(false)}
       >
         <View style={styles.calendarModalContainer}>
           <View style={styles.calendarHeader}>
@@ -473,7 +475,8 @@ export const DateGuestsSelector: React.FC<DateGuestsSelectorProps> = ({
       <Modal
         visible={showModal}
         animationType="slide"
-        presentationStyle="pageSheet"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
+        onRequestClose={() => setShowModal(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>

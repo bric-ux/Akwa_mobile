@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
@@ -57,6 +58,15 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
   const lastProcessedId = useRef<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
   const lastSyncedInitialValue = useRef(initialValue);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const SUGGESTION_BLUR_DELAY_MS = Platform.OS === 'android' ? 320 : 180;
+
+  const cancelBlurHide = () => {
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = null;
+    }
+  };
 
   useImperativeHandle(ref, () => ({
     getQuery: () => query,
@@ -68,6 +78,8 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
     // Simuler le chargement des recherches récentes depuis le stockage local
     setRecentSearches(['Abidjan', 'Yamoussoukro', 'Grand-Bassam', 'San-Pédro']);
   }, []);
+
+  useEffect(() => () => cancelBlurHide(), []);
 
   // Synchroniser uniquement quand le parent change initialValue (pas pendant la frappe locale)
   useEffect(() => {
@@ -209,12 +221,14 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
 
       if (!propertiesError && properties) {
         properties.forEach((property) => {
+          const location = property.locations;
+          const locationName = Array.isArray(location) ? location[0]?.name : location?.name;
           suggestions.push({
             id: `property_${property.id}`,
             text: property.title,
             type: 'property',
             icon: 'home-outline',
-            subtitle: property.locations?.name || 'Propriété',
+            subtitle: locationName || 'Propriété',
           });
         });
       }
@@ -296,6 +310,7 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
       <TouchableOpacity
         key={item.id}
         style={styles.suggestionItem}
+        onPressIn={cancelBlurHide}
         onPress={handlePress}
         activeOpacity={0.7}
       >
@@ -352,16 +367,19 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
           onSubmitEditing={handleSearch}
           returnKeyType="search"
           onFocus={() => {
+            cancelBlurHide();
             setIsInputFocused(true);
             if (requireFocusForSuggestions && query.length > 0) {
               setIsSuggestionSelected(false);
             }
           }}
           onBlur={() => {
-            setTimeout(() => {
+            cancelBlurHide();
+            blurTimeoutRef.current = setTimeout(() => {
               setIsInputFocused(false);
               setShowSuggestions(false);
-            }, 180);
+              blurTimeoutRef.current = null;
+            }, SUGGESTION_BLUR_DELAY_MS);
           }}
         />
         {query.length > 0 && (

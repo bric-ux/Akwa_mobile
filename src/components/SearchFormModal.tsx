@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -83,10 +84,16 @@ const SearchFormModal: React.FC<Props> = ({
           </TouchableOpacity>
         </View>
 
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.hero}>
@@ -182,6 +189,7 @@ const SearchFormModal: React.FC<Props> = ({
 
           <SearchButton onPress={onSearchPress} disabled={isSearching} loading={isSearching} />
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );
@@ -212,6 +220,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#1f2937',
+  },
+  keyboardView: {
+    flex: 1,
   },
   scroll: {
     flex: 1,
@@ -304,6 +315,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+    ...(Platform.OS === 'android' ? { overflow: 'visible' as const } : {}),
   },
   fieldLabel: {
     fontSize: 13,
@@ -315,6 +327,7 @@ const styles = StyleSheet.create({
   },
   destinationField: {
     zIndex: 20,
+    ...(Platform.OS === 'android' ? { elevation: 12 } : {}),
   },
   datesGuestsField: {
     zIndex: 1,
