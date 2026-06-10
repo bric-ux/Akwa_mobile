@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AutoCompleteSearch, { AutoCompleteSearchHandle } from './AutoCompleteSearch';
+import DestinationSearchModal, { DestinationSuggestion } from './DestinationSearchModal';
 import DateGuestsSelector from './DateGuestsSelector';
 import SearchButton from './SearchButton';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
@@ -24,10 +24,9 @@ type Props = {
   onOpenFilters: () => void;
   rentalType: 'short_term' | 'monthly';
   onRentalModeSwitch: (type: 'short_term' | 'monthly') => void;
-  searchInputRef: React.RefObject<AutoCompleteSearchHandle | null>;
   currentSearchQuery: string;
   onSearch: (query: string) => void;
-  onSuggestionSelect: (suggestion: { text: string }) => void;
+  onSuggestionSelect: (suggestion: DestinationSuggestion) => void;
   checkIn: string;
   checkOut: string;
   adults: number;
@@ -37,7 +36,7 @@ type Props = {
     dates: { checkIn?: string; checkOut?: string },
     guests: { adults: number; children: number; babies: number },
   ) => void;
-  onSearchPress: () => void;
+  onSearchPress: (query: string) => void;
   isSearching: boolean;
 };
 
@@ -49,7 +48,6 @@ const SearchFormModal: React.FC<Props> = ({
   onOpenFilters,
   rentalType,
   onRentalModeSwitch,
-  searchInputRef,
   currentSearchQuery,
   onSearch,
   onSuggestionSelect,
@@ -62,6 +60,21 @@ const SearchFormModal: React.FC<Props> = ({
   onSearchPress,
   isSearching,
 }) => {
+  const [showDestinationModal, setShowDestinationModal] = useState(false);
+  const [destinationQuery, setDestinationQuery] = useState(currentSearchQuery);
+
+  useEffect(() => {
+    setDestinationQuery(currentSearchQuery);
+  }, [currentSearchQuery]);
+
+  const hasDestination = destinationQuery.trim().length > 0;
+
+  const handleDestinationSelect = (suggestion: DestinationSuggestion) => {
+    setDestinationQuery(suggestion.text);
+    onSearch(suggestion.text);
+    onSuggestionSelect(suggestion);
+  };
+
   return (
     <Modal
       visible={visible}
@@ -96,16 +109,18 @@ const SearchFormModal: React.FC<Props> = ({
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.hero}>
-            <View style={styles.heroIconWrap}>
-              <Ionicons name="compass-outline" size={32} color="#2E7D32" />
+          {!hasDestination && (
+            <View style={styles.hero}>
+              <View style={styles.heroIconWrap}>
+                <Ionicons name="compass-outline" size={32} color="#2E7D32" />
+              </View>
+              <Text style={styles.heroTitle}>Où souhaitez-vous séjourner ?</Text>
+              <Text style={styles.heroSubtitle}>
+                Choisissez une destination, vos dates et le nombre de voyageurs pour découvrir les hébergements
+                disponibles en Côte d&apos;Ivoire.
+              </Text>
             </View>
-            <Text style={styles.heroTitle}>Où souhaitez-vous séjourner ?</Text>
-            <Text style={styles.heroSubtitle}>
-              Choisissez une destination, vos dates et le nombre de voyageurs pour découvrir les hébergements
-              disponibles en Côte d&apos;Ivoire.
-            </Text>
-          </View>
+          )}
 
           {FEATURE_MONTHLY_RENTAL ? (
             <View style={styles.modeSwitch}>
@@ -150,18 +165,22 @@ const SearchFormModal: React.FC<Props> = ({
 
           <View style={styles.formCard}>
             <Text style={styles.fieldLabel}>Destination</Text>
-            <View style={styles.destinationField}>
-              <AutoCompleteSearch
-                ref={searchInputRef}
-                placeholder="Ville, commune ou quartier"
-                onSearch={onSearch}
-                onSuggestionSelect={onSuggestionSelect}
-                initialValue={currentSearchQuery}
-                requireFocusForSuggestions
-                inlineSuggestions
-                embedded
-              />
-            </View>
+            <TouchableOpacity
+              style={styles.destinationPicker}
+              onPress={() => setShowDestinationModal(true)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Choisir une destination"
+            >
+              <Ionicons name="location" size={20} color={hasDestination ? '#2E7D32' : '#9ca3af'} />
+              <Text
+                style={[styles.destinationPickerText, !hasDestination && styles.destinationPickerPlaceholder]}
+                numberOfLines={1}
+              >
+                {hasDestination ? destinationQuery : 'Ville, commune ou quartier'}
+              </Text>
+              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            </TouchableOpacity>
           </View>
 
           {rentalType !== 'monthly' ? (
@@ -187,10 +206,21 @@ const SearchFormModal: React.FC<Props> = ({
             </View>
           )}
 
-          <SearchButton onPress={onSearchPress} disabled={isSearching} loading={isSearching} />
+          <SearchButton
+            onPress={() => onSearchPress(destinationQuery.trim())}
+            disabled={isSearching}
+            loading={isSearching}
+          />
         </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <DestinationSearchModal
+        visible={showDestinationModal}
+        initialQuery={destinationQuery}
+        onClose={() => setShowDestinationModal(false)}
+        onSelect={handleDestinationSelect}
+      />
     </Modal>
   );
 };
@@ -325,9 +355,26 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  destinationField: {
-    zIndex: 20,
-    ...(Platform.OS === 'android' ? { elevation: 12 } : {}),
+  destinationPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  destinationPickerText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  destinationPickerPlaceholder: {
+    fontWeight: '400',
+    color: '#9ca3af',
   },
   datesGuestsField: {
     zIndex: 1,

@@ -24,7 +24,6 @@ import PropertyCard from '../components/PropertyCard';
 import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
 import FiltersModal from '../components/FiltersModal';
 import SearchResultsHeader from '../components/SearchResultsHeader';
-import { AutoCompleteSearchHandle } from '../components/AutoCompleteSearch';
 import SearchFormModal from '../components/SearchFormModal';
 import SearchResultsView from '../components/SearchResultsView';
 import { supabase } from '../services/supabase';
@@ -59,8 +58,6 @@ const SearchScreen: React.FC = () => {
   const [isMapView, setIsMapView] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const searchInputRef = useRef<AutoCompleteSearchHandle>(null);
-  
   const { properties, loading, error, fetchProperties, refreshProperties } = useProperties();
   const lastHandledCatalogVersionRef = useRef<number | null>(null);
   const sortedProperties = usePropertySorting(properties, sortBy);
@@ -498,22 +495,25 @@ const SearchScreen: React.FC = () => {
     // Le header se contrôle uniquement par le bouton recherche
   };
 
-  const handleSearchButtonPress = async () => {
-    // Lire la valeur saisie dans le champ (état local AutoCompleteSearch), pas seulement le state parent
-    const queryFromInput = searchInputRef.current?.getQuery()?.trim() ?? '';
-    const query = queryFromInput || currentSearchQuery.trim();
+  const handleSearchButtonPress = async (queryFromForm?: string) => {
+    const query = (queryFromForm ?? currentSearchQuery).trim();
 
     if (!query) {
       Alert.alert(
         'Ville requise',
-        'Veuillez saisir une ville ou un quartier pour effectuer la recherche.',
+        'Veuillez choisir une ville ou un quartier pour effectuer la recherche.',
         [{ text: 'OK' }]
       );
       return;
     }
 
-    searchInputRef.current?.blur();
     Keyboard.dismiss();
+
+    if (rentalType === 'monthly') {
+      setMonthlySearchQuery(query);
+    } else {
+      setShortTermSearchQuery(query);
+    }
 
     setHasSubmittedSearch(true);
     setShowSearchForm(false);
@@ -872,7 +872,6 @@ const SearchScreen: React.FC = () => {
         onOpenFilters={openFiltersFromSearchForm}
         rentalType={rentalType}
         onRentalModeSwitch={handleRentalModeSwitch}
-        searchInputRef={searchInputRef}
         currentSearchQuery={currentSearchQuery}
         onSearch={handleSearch}
         onSuggestionSelect={handleSuggestionSelect}
