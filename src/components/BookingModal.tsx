@@ -683,12 +683,9 @@ const BookingModal: React.FC<BookingModalProps> = ({
       try {
         setOpeningStripe(true);
         const checkoutToken = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16));
-        const ep = property.allow_partial_payment === true ? paymentPlan : 'full';
-        const svcFee = pricing.fees?.serviceFee ?? 0;
-        const chargeAmt = ep === 'split' ? Math.round((pricing.finalTotal - svcFee) * 0.5) + svcFee : pricing.finalTotal;
         const waveAmountXof = currency === 'EUR' && rates.EUR
-          ? Math.round(chargeAmt * rates.EUR)
-          : Math.round(chargeAmt);
+          ? Math.round(cardChargeAmount * rates.EUR)
+          : Math.round(cardChargeAmount);
         const waveBody: Record<string, unknown> = {
           checkout_token: checkoutToken,
           payment_type: 'booking',
@@ -715,7 +712,7 @@ const BookingModal: React.FC<BookingModalProps> = ({
           messageToHost: message.trim() || undefined,
           voucherCode: voucherDiscount?.valid ? voucherCode.trim() : undefined,
           paymentMethod: 'wave',
-          paymentPlan: ep,
+          paymentPlan: effectivePaymentPlan,
           paymentCurrency: currency,
           paymentRate: currency === 'EUR' ? rates.EUR : undefined,
         };
@@ -1097,7 +1094,8 @@ const BookingModal: React.FC<BookingModalProps> = ({
   const { nights, pricing, fees, finalTotal } = calculateTotal();
   // Paiement partiel : 100 % des frais de service au premier paiement, le reste (nuitées + ménage + taxes) en 50/50.
   const serviceFee = fees.serviceFee ?? 0;
-  const effectivePaymentPlan = property.allow_partial_payment === true ? paymentPlan : 'full';
+  // Aligné web (propertyDraftCheckout) : le montant suit le choix utilisateur, pas allow_partial_payment.
+  const effectivePaymentPlan = paymentPlan === 'split' ? 'split' : 'full';
   // Montants pré-calculés pour l'aperçu (option "split") et le calcul du montant réellement dû.
   const splitCardChargeAmount = Math.round((finalTotal - serviceFee) * 0.5) + serviceFee;
   const fullCardChargeAmount = finalTotal;
