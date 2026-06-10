@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +33,8 @@ interface DestinationSearchModalProps {
   initialQuery?: string;
   onClose: () => void;
   onSelect: (suggestion: DestinationSuggestion) => void;
+  /** Overlay plein écran dans un Modal parent — évite les Modals imbriqués (Android). */
+  embedded?: boolean;
 }
 
 const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
@@ -39,6 +42,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
   initialQuery = '',
   onClose,
   onSelect,
+  embedded = false,
 }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<DestinationSuggestion[]>([]);
@@ -56,6 +60,16 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
   useEffect(() => () => {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
   }, []);
+
+  // Android : bouton retour ferme la sélection de destination, pas le formulaire parent.
+  useEffect(() => {
+    if (!visible || !embedded || Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, embedded, onClose]);
 
   const buildDefaultSuggestions = (filter = ''): DestinationSuggestion[] => {
     const term = filter.trim().toLowerCase();
@@ -244,18 +258,13 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
 
   const showEmpty = !loading && query.trim().length >= 2 && results.length === 0;
 
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+  const content = (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        enabled={Platform.OS === 'ios'}
+      >
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Fermer">
               <Ionicons name="close" size={24} color="#1f2937" />
@@ -296,10 +305,13 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
           )}
 
           <FlatList
+            style={styles.list}
             data={results}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'android' ? 'on-drag' : 'none'}
+            nestedScrollEnabled
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
@@ -311,8 +323,24 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
               ) : null
             }
           />
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+
+  if (!visible) return null;
+
+  if (embedded) {
+    return <View style={styles.embeddedOverlay}>{content}</View>;
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
+      onRequestClose={onClose}
+    >
+      {content}
     </Modal>
   );
 };
@@ -323,6 +351,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   flex: {
+    flex: 1,
+  },
+  embeddedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 24,
+    backgroundColor: '#fff',
+  },
+  list: {
     flex: 1,
   },
   header: {

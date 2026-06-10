@@ -82,6 +82,7 @@ const SearchFormModal: React.FC<Props> = ({
       presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
       onRequestClose={canDismissToResults ? onClose : onBack}
     >
+      <View style={styles.modalRoot}>
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
         <View style={styles.topBar}>
           <TouchableOpacity
@@ -217,15 +218,21 @@ const SearchFormModal: React.FC<Props> = ({
 
       <DestinationSearchModal
         visible={showDestinationModal}
+        embedded
         initialQuery={destinationQuery}
         onClose={() => setShowDestinationModal(false)}
         onSelect={handleDestinationSelect}
       />
+      </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  modalRoot: {
+    flex: 1,
+    backgroundColor: '#f4f7f5',
+  },
   safe: {
     flex: 1,
     backgroundColor: '#f4f7f5',
