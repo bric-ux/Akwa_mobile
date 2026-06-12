@@ -50,6 +50,9 @@ const EXPLORE_CARD_WIDTH = Math.max(
   244,
   Math.round(SCREEN_W - EXPLORE_GUTTER - NEXT_CARD_PEEK),
 );
+const EXPLORE_ROW_GAP = 10;
+/** Peu de logements : remplir la ligne au lieu d’un carrousel avec vide à droite. */
+const EXPLORE_STATIC_ROW_MAX = 2;
 
 // Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
 const CAROUSEL_IMAGES = [
@@ -151,6 +154,51 @@ const HomeScreen: React.FC = () => {
     Linking.openURL(KEYBOX_WHATSAPP_URL).catch(() => {});
   }, []);
 
+  const renderExplorePropertyRow = useCallback(
+    (properties: Property[]) => {
+      const useStaticRow = properties.length > 0 && properties.length <= EXPLORE_STATIC_ROW_MAX;
+
+      if (useStaticRow) {
+        return (
+          <View style={styles.exploreStaticRow}>
+            {properties.map((p) => (
+              <View key={p.id} style={styles.exploreCardWrapStatic}>
+                <PropertyCard
+                  property={p}
+                  onPress={handlePropertyPress}
+                  variant="list"
+                  horizontalShelf
+                />
+              </View>
+            ))}
+          </View>
+        );
+      }
+
+      return (
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.exploreRowContent}
+        >
+          {properties.map((p) => (
+            <View key={p.id} style={[styles.exploreCardWrap, { width: EXPLORE_CARD_WIDTH }]}>
+              <PropertyCard
+                property={p}
+                onPress={handlePropertyPress}
+                variant="list"
+                horizontalShelf
+              />
+            </View>
+          ))}
+        </ScrollView>
+      );
+    },
+    [handlePropertyPress],
+  );
+
   const renderExploreSection = useCallback(
     ({ item }: { item: ExploreCitySection }) => {
       if (item.kind === 'large') {
@@ -173,24 +221,7 @@ const HomeScreen: React.FC = () => {
                 <Ionicons name="chevron-forward" size={16} color="#475569" />
               </TouchableOpacity>
             </View>
-            <ScrollView
-              horizontal
-              nestedScrollEnabled
-              keyboardShouldPersistTaps="handled"
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.exploreRowContent}
-            >
-              {g.properties.map((p) => (
-                <View key={p.id} style={[styles.exploreCardWrap, { width: EXPLORE_CARD_WIDTH }]}>
-                  <PropertyCard
-                    property={p}
-                    onPress={handlePropertyPress}
-                    variant="list"
-                    horizontalShelf
-                  />
-                </View>
-              ))}
-            </ScrollView>
+            {renderExplorePropertyRow(g.properties)}
           </View>
         );
       }
@@ -217,28 +248,11 @@ const HomeScreen: React.FC = () => {
               <Ionicons name="chevron-forward" size={16} color="#475569" />
             </TouchableOpacity>
           </View>
-          <ScrollView
-            horizontal
-            nestedScrollEnabled
-            keyboardShouldPersistTaps="handled"
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.exploreRowContent}
-          >
-            {flat.map((p) => (
-              <View key={p.id} style={[styles.exploreCardWrap, { width: EXPLORE_CARD_WIDTH }]}>
-                <PropertyCard
-                  property={p}
-                  onPress={handlePropertyPress}
-                  variant="list"
-                  horizontalShelf
-                />
-              </View>
-            ))}
-          </ScrollView>
+          {renderExplorePropertyRow(flat)}
         </View>
       );
     },
-    [handlePropertyPress, navigateSearchCity, navigation],
+    [handlePropertyPress, navigateSearchCity, navigation, renderExplorePropertyRow],
   );
 
   const exploreFailureKind: LoadFailureKind | null = exploreError
@@ -732,6 +746,16 @@ const styles = StyleSheet.create({
     paddingLeft: EXPLORE_GUTTER,
     paddingRight: NEXT_CARD_PEEK,
     paddingBottom: 4,
+  },
+  exploreStaticRow: {
+    flexDirection: 'row',
+    paddingHorizontal: EXPLORE_GUTTER,
+    gap: EXPLORE_ROW_GAP,
+    paddingBottom: 4,
+  },
+  exploreCardWrapStatic: {
+    flex: 1,
+    minWidth: 0,
   },
   exploreCardWrap: {
     marginRight: 10,
