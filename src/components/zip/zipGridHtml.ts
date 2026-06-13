@@ -63,6 +63,7 @@ export function buildZipGridHtml(puzzle: ZipPuzzle, cellSize: number): string {
       height: ${gridH}px;
       border-radius: 18px;
       transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+      touch-action: none;
     }
     .board.won {
       transform: scale(1.02);
@@ -221,8 +222,7 @@ export function buildZipGridHtml(puzzle: ZipPuzzle, cellSize: number): string {
       filter: url(#winGlow);
     }
     #hint {
-      margin-top: 10px; font-size: 11px; color: #94a3b8;
-      font-weight: 600; text-align: center; min-height: 14px;
+      display: none;
     }
   </style>
 </head>
@@ -282,6 +282,9 @@ export function buildZipGridHtml(puzzle: ZipPuzzle, cellSize: number): string {
     let dragging = false;
     let disabled = false;
     let won = false;
+    let activePointer = null;
+    let syncLock = false;
+    var usePointer = typeof window.PointerEvent !== 'undefined';
 
     function cellKey(r, c) { return r + ',' + c; }
     function post(msg) {
@@ -345,7 +348,13 @@ export function buildZipGridHtml(puzzle: ZipPuzzle, cellSize: number): string {
       };
     }
     function setHint(text) {
-      document.getElementById('hint').textContent = text || '';
+      /* hints désactivés pendant le jeu pour éviter les messages tutoriel intempestifs */
+    }
+    function syncPathFromNative(cells) {
+      syncLock = true;
+      path = Array.isArray(cells) ? cells.slice() : [];
+      render();
+      syncLock = false;
     }
     function drawPath() {
       var d = buildPathD(path);
@@ -375,7 +384,7 @@ export function buildZipGridHtml(puzzle: ZipPuzzle, cellSize: number): string {
       document.getElementById('progressFill').style.width = pct + '%';
       document.getElementById('progressLabel').textContent =
         path.length + ' / ' + total + ' cases' +
-        (path.length > 0 ? ' · n° ' + next + ' suivant' : ' · partez du 1');
+        (path.length > 0 ? ' · n° ' + next + ' suivant' : '');
 
       var pathSet = new Set(path.map(function(c) { return cellKey(c.row, c.col); }));
       var head = path.length ? path[path.length - 1] : null;
@@ -416,20 +425,12 @@ export function buildZipGridHtml(puzzle: ZipPuzzle, cellSize: number): string {
       var cell = pointToCell(clientX, clientY);
       if (!cell) return;
       var current = path;
-      var key = cellKey(cell.row, cell.col);
-      var label = PUZZLE.numbers[key];
-      var expected = getNextExpected();
-      if (!canExtend(cell)) {
-        if (current.length === 0) setHint('Glissez depuis la case 1');
-        else if (label !== undefined && label !== expected) setHint('Cherchez le n° ' + expected);
-        return;
-      }
+      if (!canExtend(cell)) return;
       var next = applyCellToPath(cell);
       if (next.length === current.length) return;
       path = next;
-      setHint('');
       render();
-      post({ type: 'path', path: path });
+      if (!syncLock) post({ type: 'path', path: path });
     }
     function buildGrid() {
       var grid = document.getElementById('grid');
@@ -509,29 +510,70 @@ export function buildZipGridHtml(puzzle: ZipPuzzle, cellSize: number): string {
       path = [];
       won = false;
       disabled = false;
+      dragging = false;
+      activePointer = null;
       document.getElementById('board').classList.remove('won');
       setHint('');
       render();
     };
+    window.setZipPath = function(cells) {
+      syncPathFromNative(cells);
+    };
     window.setZipDisabled = function(value) {
       disabled = !!value;
     };
+    function onPointerDown(e) {
+      if (disabled || won) return;
+      e.preventDefault();
+      var board = document.getElementById('board');
+      if (board.setPointerCapture) board.setPointerCapture(e.pointerId);
+      activePointer = e.pointerId;
+      dragging = true;
+      tryApply(e.clientX, e.clientY);
+    }
+    function onPointerMove(e) {
+      if (!dragging || e.pointerId !== activePointer) return;
+      e.preventDefault();
+      tryApply(e.clientX, e.clientY);
+    }
+    function onPointerEnd(e) {
+      if (e.pointerId !== activePointer) return;
+      var board = document.getElementById('board');
+      if (board.releasePointerCapture) {
+        try { board.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+      dragging = false;
+      activePointer = null;
+    }
     function onTouchStart(e) {
+      if (usePointer || disabled || won || dragging) return;
       e.preventDefault();
       dragging = true;
       tryApply(e.touches[0].clientX, e.touches[0].clientY);
     }
     function onTouchMove(e) {
+      if (usePointer || !dragging) return;
       e.preventDefault();
-      if (!dragging) return;
       tryApply(e.touches[0].clientX, e.touches[0].clientY);
     }
-    function onTouchEnd() { dragging = false; }
+    function onTouchEnd(e) {
+      if (usePointer) return;
+      e.preventDefault();
+      dragging = false;
+    }
     buildGrid();
-    document.body.addEventListener('touchstart', onTouchStart, { passive: false });
-    document.body.addEventListener('touchmove', onTouchMove, { passive: false });
-    document.body.addEventListener('touchend', onTouchEnd, { passive: false });
-    document.body.addEventListener('touchcancel', onTouchEnd, { passive: false });
+    var boardEl = document.getElementById('board');
+    if (usePointer) {
+      boardEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+      boardEl.addEventListener('pointermove', onPointerMove, { passive: false });
+      boardEl.addEventListener('pointerup', onPointerEnd, { passive: false });
+      boardEl.addEventListener('pointercancel', onPointerEnd, { passive: false });
+    } else {
+      boardEl.addEventListener('touchstart', onTouchStart, { passive: false });
+      boardEl.addEventListener('touchmove', onTouchMove, { passive: false });
+      boardEl.addEventListener('touchend', onTouchEnd, { passive: false });
+      boardEl.addEventListener('touchcancel', onTouchEnd, { passive: false });
+    }
     post({ type: 'ready' });
   </script>
 </body>

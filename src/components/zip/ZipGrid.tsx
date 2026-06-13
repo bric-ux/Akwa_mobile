@@ -26,6 +26,7 @@ export function findStartCell(puzzle: ZipPuzzle): ZipCell | null {
 
 const ZipGrid: React.FC<Props> = ({
   puzzle,
+  path,
   onPathChange,
   cellSize = 48,
   disabled = false,
@@ -34,37 +35,69 @@ const ZipGrid: React.FC<Props> = ({
 }) => {
   const webRef = useRef<WebView>(null);
   const onPathChangeRef = useRef(onPathChange);
+  const pathRef = useRef(path);
+  const webReadyRef = useRef(false);
   onPathChangeRef.current = onPathChange;
+  pathRef.current = path;
 
   const html = useMemo(() => buildZipGridHtml(puzzle, cellSize), [puzzle, cellSize]);
 
   const gridHeight = puzzle.rows * cellSize + 72;
   const gridWidth = puzzle.cols * cellSize + 16;
 
-  useEffect(() => {
-    webRef.current?.injectJavaScript(`window.setZipDisabled && window.setZipDisabled(${disabled ? 'true' : 'false'}); true;`);
-  }, [disabled]);
+  const inject = useCallback((js: string) => {
+    webRef.current?.injectJavaScript(`${js} true;`);
+  }, []);
+
+  const syncPath = useCallback(() => {
+    if (!webReadyRef.current) return;
+    inject(`window.setZipPath && window.setZipPath(${JSON.stringify(pathRef.current)});`);
+  }, [inject]);
+
+  const syncDisabled = useCallback(() => {
+    if (!webReadyRef.current) return;
+    inject(`window.setZipDisabled && window.setZipDisabled(${disabled ? 'true' : 'false'});`);
+  }, [disabled, inject]);
 
   useEffect(() => {
-    webRef.current?.injectJavaScript('window.resetZip && window.resetZip(); true;');
-  }, [resetToken]);
+    webReadyRef.current = false;
+  }, [html]);
+
+  useEffect(() => {
+    inject('window.resetZip && window.resetZip();');
+  }, [inject, resetToken]);
 
   useEffect(() => {
     if (celebrate) {
-      webRef.current?.injectJavaScript('window.celebrateZip && window.celebrateZip(); true;');
+      inject('window.celebrateZip && window.celebrateZip();');
     }
-  }, [celebrate]);
+  }, [celebrate, inject]);
 
   const onMessage = useCallback((event: WebViewMessageEvent) => {
     try {
       const data = JSON.parse(event.nativeEvent.data) as { type: string; path?: ZipCell[] };
+      if (data.type === 'ready') {
+        webReadyRef.current = true;
+        syncPath();
+        syncDisabled();
+      }
       if (data.type === 'path' && Array.isArray(data.path)) {
         onPathChangeRef.current(data.path);
       }
     } catch {
       // ignore malformed messages
     }
-  }, []);
+  }, [syncDisabled, syncPath]);
+
+  useEffect(() => {
+    syncDisabled();
+  }, [syncDisabled]);
+
+  const onLoadEnd = useCallback(() => {
+    webReadyRef.current = true;
+    syncPath();
+    syncDisabled();
+  }, [syncDisabled, syncPath]);
 
   return (
     <View style={[styles.container, { width: gridWidth, height: gridHeight }]}>
@@ -72,6 +105,7 @@ const ZipGrid: React.FC<Props> = ({
         ref={webRef}
         source={{ html }}
         onMessage={onMessage}
+        onLoadEnd={onLoadEnd}
         scrollEnabled={false}
         bounces={false}
         overScrollMode="never"
