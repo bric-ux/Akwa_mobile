@@ -3,7 +3,7 @@
     "name": "AkwaHome",
     "slug": "AkwaHomeMobile",
     "scheme": "akwahomemobile",
-    "version": "1.1.11",
+    "version": "1.1.12",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
-      "buildNumber": "42",
+      "buildNumber": "49",
       "associatedDomains": [
         "applinks:akwahome.com",
         "applinks:www.akwahome.com"
