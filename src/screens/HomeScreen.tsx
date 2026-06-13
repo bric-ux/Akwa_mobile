@@ -28,6 +28,7 @@ import { HeroSection } from '../components/HeroSection';
 import { InfoBanner } from '../components/InfoBanner';
 import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
+import ZipDailyCard from '../components/zip/ZipDailyCard';
 import TeddyExploreFab from '../components/TeddyExploreFab';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNetwork } from '../contexts/NetworkContext';
@@ -262,6 +263,7 @@ const HomeScreen: React.FC = () => {
       {showDeferredHeaderContent ? (
         <>
           <WeatherDateTimeWidget />
+          <ZipDailyCard />
           <ImageCarousel
             images={CAROUSEL_IMAGES}
             onImagePress={() => {}}

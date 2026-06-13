@@ -31,6 +31,8 @@ import HostProfileScreen from '../screens/HostProfileScreen';
 import HostBookingsScreen from '../screens/HostBookingsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import HelpAssistantScreen from '../screens/HelpAssistantScreen';
+import ZipGameScreen from '../screens/ZipGameScreen';
+import ZipLeaderboardScreen from '../screens/ZipLeaderboardScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 import BecomeHostScreen from '../screens/BecomeHostScreen';
@@ -743,6 +745,23 @@ const AppNavigator = () => {
           component={HelpAssistantScreen}
           options={{
             title: 'Aide',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="ZipGame"
+          component={ZipGameScreen}
+          options={{
+            title: 'Zip du jour',
+            headerShown: false,
+            gestureEnabled: false,
+          }}
+        />
+        <Stack.Screen
+          name="ZipLeaderboard"
+          component={ZipLeaderboardScreen}
+          options={{
+            title: 'Classement Zip',
             headerShown: false,
           }}
         />

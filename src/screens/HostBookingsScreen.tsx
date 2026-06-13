@@ -648,33 +648,22 @@ const HostBookingsScreen: React.FC = () => {
         {/* Bouton Contacter le voyageur - disponible pour toutes les réservations sauf annulées */}
         {item.status !== 'cancelled' && item.guest_id && item.properties?.id && (
           <>
-            <TouchableOpacity
+            <BookingContactButton
+              bookingId={item.id}
+              propertyId={item.properties.id}
+              otherParticipantId={item.guest_id}
+              otherParticipantName={
+                `${item.guest_profile?.first_name || ''} ${item.guest_profile?.last_name || ''}`.trim() ||
+                'Voyageur'
+              }
+              isHost={false}
+              messagingContext="host"
+              label="Contacter"
+              variant="outline"
+              size="small"
               style={[styles.actionButton, styles.contactButton]}
-              onPress={async () => {
-                try {
-                  const { data: guestProfile } = await supabase
-                    .from('profiles')
-                    .select('first_name, last_name, email, phone')
-                    .eq('user_id', item.guest_id)
-                    .single();
-
-                  if (guestProfile) {
-                    navigation.navigate('Messages' as never, {
-                      bookingId: item.id,
-                      propertyId: item.properties.id,
-                      otherParticipantId: item.guest_id,
-                      otherParticipantName: `${guestProfile.first_name || ''} ${guestProfile.last_name || ''}`.trim() || 'Voyageur',
-                      isHost: false,
-                    } as never);
-                  }
-                } catch (error) {
-                  console.error('Erreur navigation vers messages:', error);
-                }
-              }}
-            >
-              <Ionicons name="chatbubble-outline" size={isSmallScreen ? 14 : 16} color="#e67e22" />
-              <Text style={[styles.actionButtonText, styles.contactButtonText]} numberOfLines={1} adjustsFontSizeToFit={true} minimumFontScale={0.7}>Contacter</Text>
-            </TouchableOpacity>
+              textStyle={[styles.actionButtonText, styles.contactButtonText]}
+            />
             <TouchableOpacity
               style={[styles.actionButton, styles.profileButton]}
               onPress={() => {

@@ -17,9 +17,15 @@ interface BookingContactButtonProps {
   propertyId: string;
   otherParticipantId: string;
   otherParticipantName?: string;
-  isHost: boolean; // true si on contacte un hôte, false si on contacte un voyageur
+  /** true = on contacte un hôte ; false = on contacte un voyageur/locataire */
+  isHost: boolean;
+  /** Onglet messagerie cible selon l'espace (voyageur, hôte, véhicule…) */
+  messagingContext?: 'traveler' | 'host' | 'vehicle-renter' | 'vehicle-owner';
+  label?: string;
   variant?: 'primary' | 'outline';
   size?: 'small' | 'medium' | 'large';
+  style?: object;
+  textStyle?: object;
 }
 
 const BookingContactButton: React.FC<BookingContactButtonProps> = ({
@@ -28,8 +34,12 @@ const BookingContactButton: React.FC<BookingContactButtonProps> = ({
   otherParticipantId,
   otherParticipantName,
   isHost,
+  messagingContext = 'traveler',
+  label,
   variant = 'outline',
   size = 'medium',
+  style,
+  textStyle,
 }) => {
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -102,17 +112,39 @@ const BookingContactButton: React.FC<BookingContactButtonProps> = ({
 
       if (conversationId) {
         console.log('✅ [BookingContactButton] Conversation créée:', conversationId);
-        
-        // Navigation vers l'onglet de messagerie avec l'ID de conversation
-        (navigation as any).navigate('Home', { 
-          screen: 'MessagingTab',
-          params: { 
-            conversationId, 
-            propertyId,
-            bookingId,
-            recipientName: participantName
-          }
-        });
+
+        const params = {
+          conversationId,
+          propertyId,
+          bookingId,
+          recipientName: participantName,
+        };
+
+        switch (messagingContext) {
+          case 'host':
+            (navigation as any).navigate('HostSpace', {
+              screen: 'HostMessagingTab',
+              params,
+            });
+            break;
+          case 'vehicle-owner':
+            (navigation as any).navigate('VehicleOwnerSpace', {
+              screen: 'VehicleOwnerMessagingTab',
+              params,
+            });
+            break;
+          case 'vehicle-renter':
+            (navigation as any).navigate('VehicleSpace', {
+              screen: 'VehicleMessagingTab',
+              params,
+            });
+            break;
+          default:
+            (navigation as any).navigate('Home', {
+              screen: 'MessagingTab',
+              params,
+            });
+        }
       } else {
         throw new Error('Impossible de créer la conversation');
       }
@@ -176,7 +208,7 @@ const BookingContactButton: React.FC<BookingContactButtonProps> = ({
 
   return (
     <TouchableOpacity
-      style={getButtonStyle()}
+      style={[...getButtonStyle(), style]}
       onPress={handleContact}
       disabled={loading || (!!user && user.id === otherParticipantId)}
       activeOpacity={0.7}
@@ -194,8 +226,8 @@ const BookingContactButton: React.FC<BookingContactButtonProps> = ({
             color={variant === 'outline' ? '#e67e22' : '#fff'}
             style={styles.icon}
           />
-          <Text style={getTextStyle()}>
-            Contacter {isHost ? 'l\'hôte' : 'le voyageur'}
+          <Text style={[...getTextStyle(), textStyle]}>
+            {label ?? `Contacter ${isHost ? 'l\'hôte' : 'le voyageur'}`}
           </Text>
         </>
       )}

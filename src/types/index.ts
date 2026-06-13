@@ -259,6 +259,8 @@ export type RootStackParamList = {
   HostReviews: undefined;
   Settings: undefined;
   HelpAssistant: undefined;
+  ZipGame: undefined;
+  ZipLeaderboard: undefined;
   EditProfile: undefined;
   BecomeHost: undefined;
   /** Assistant IA (questions / réponses) — réservé usage futur */
