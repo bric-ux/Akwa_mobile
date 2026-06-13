@@ -114,6 +114,40 @@ async function sendExpoBatch(
   return { delivered, failed };
 }
 
+async function loadAlreadyPlayedUserIds(
+  admin: ReturnType<typeof createClient>,
+  puzzleDate: string,
+): Promise<Set<string>> {
+  const played = new Set<string>();
+  const pageSize = 1000;
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await admin
+      .from("zip_game_results")
+      .select("user_id")
+      .eq("puzzle_date", puzzleDate)
+      .order("user_id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("[zip-daily-challenge-push] zip_game_results:", error.message);
+      throw error;
+    }
+
+    if (!data?.length) break;
+
+    for (const row of data) {
+      if (row.user_id) played.add(row.user_id);
+    }
+
+    if (data.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return played;
+}
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -177,7 +211,10 @@ serve(async (req: Request): Promise<Response> => {
     let delivered = 0;
     let failed = 0;
     let skippedDisabled = 0;
+    let skippedAlreadyPlayed = 0;
     let offset = 0;
+
+    const alreadyPlayed = await loadAlreadyPlayedUserIds(admin, puzzle.dateKey);
 
     while (true) {
       const { data: profiles, error: profileErr } = await admin
@@ -200,6 +237,10 @@ serve(async (req: Request): Promise<Response> => {
         if (!token) continue;
         if (profile.push_notifications_enabled === false) {
           skippedDisabled += 1;
+          continue;
+        }
+        if (alreadyPlayed.has(profile.user_id)) {
+          skippedAlreadyPlayed += 1;
           continue;
         }
         targeted += 1;
@@ -236,7 +277,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     console.log(
-      `[zip-daily-challenge-push] ${puzzle.dateKey} → targeted=${targeted} delivered=${delivered} failed=${failed}`,
+      `[zip-daily-challenge-push] ${puzzle.dateKey} → targeted=${targeted} delivered=${delivered} failed=${failed} skipped_played=${skippedAlreadyPlayed}`,
     );
 
     return new Response(
@@ -248,6 +289,7 @@ serve(async (req: Request): Promise<Response> => {
         delivered,
         failed,
         skipped_disabled: skippedDisabled,
+        skipped_already_played: skippedAlreadyPlayed,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
