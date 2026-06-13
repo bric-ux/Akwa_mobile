@@ -320,6 +320,21 @@ const AdminDashboardScreen: React.FC = () => {
         <AdminNotificationBell />
 
         {/* Statistiques principales */}
+        <Text style={styles.sectionTitle}>Aperçu</Text>
+        <View style={styles.statsContainer}>
+          <View style={[styles.statCard, { borderLeftColor: '#ea580c' }]}>
+            <View style={styles.statContent}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#fff7ed' }]}>
+                <Ionicons name="grid-outline" size={22} color="#ea580c" />
+              </View>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>{stats?.zipUniquePlayers ?? 0}</Text>
+                <Text style={styles.statTitle}>Joueurs Zip (uniques)</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
         {/* Actions rapides */}
         <Text style={styles.sectionTitle}>Actions rapides</Text>
         

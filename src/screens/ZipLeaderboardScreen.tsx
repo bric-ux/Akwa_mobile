@@ -20,7 +20,7 @@ const ZipLeaderboardScreen: React.FC = () => {
   const { user } = useAuth();
   const puzzleDate = getLocalDateKey();
   const puzzle = getDailyPuzzle();
-  const { leaderboard, myResult, loading, reload, error } = useZipGame(puzzleDate);
+  const { leaderboard, myResult, loading, reload, error, alreadyPlayedToday } = useZipGame(puzzleDate);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -68,9 +68,11 @@ const ZipLeaderboardScreen: React.FC = () => {
               <Ionicons name="game-controller-outline" size={48} color="#cbd5e1" />
               <Text style={styles.emptyTitle}>Aucun score aujourd'hui</Text>
               <Text style={styles.emptyText}>Soyez le premier à relever le défi !</Text>
-              <TouchableOpacity style={styles.playBtn} onPress={() => navigation.navigate('ZipGame' as never)}>
-                <Text style={styles.playBtnText}>Jouer</Text>
-              </TouchableOpacity>
+              {!alreadyPlayedToday && (
+                <TouchableOpacity style={styles.playBtn} onPress={() => navigation.navigate('ZipGame' as never)}>
+                  <Text style={styles.playBtnText}>Jouer</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
           renderItem={({ item, index }) => {

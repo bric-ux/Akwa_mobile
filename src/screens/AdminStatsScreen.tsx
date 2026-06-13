@@ -170,6 +170,13 @@ const AdminStatsScreen: React.FC = () => {
             icon="time-outline"
             color="#e74c3c"
           />
+
+          <StatCard
+            title="Joueurs Zip (uniques)"
+            value={stats?.zipUniquePlayers || 0}
+            icon="grid-outline"
+            color="#ea580c"
+          />
           
           <StatCard
             title="Documents à vérifier"

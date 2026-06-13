@@ -18,6 +18,7 @@ import type { ZipCell } from '../games/zip/types';
 import { validateZipPath } from '../games/zip/validateZipPath';
 import { formatZipTime, useZipGame } from '../hooks/useZipGame';
 import { useAuth } from '../services/AuthContext';
+import { getLocalZipCompletion, setLocalZipCompletion } from '../utils/zipLocalCompletion';
 
 const ZipGameScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -25,7 +26,7 @@ const ZipGameScreen: React.FC = () => {
   const { user } = useAuth();
   const puzzleDate = getLocalDateKey();
   const puzzle = useMemo(() => getDailyPuzzle(), []);
-  const { myResult, submitResult, submitting } = useZipGame(puzzleDate);
+  const { myResult, submitResult, submitting, loading, alreadyPlayedToday } = useZipGame(puzzleDate);
 
   const [path, setPath] = useState<ZipCell[]>([]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -33,14 +34,21 @@ const ZipGameScreen: React.FC = () => {
   const [completed, setCompleted] = useState(false);
   const [savedTimeMs, setSavedTimeMs] = useState<number | null>(null);
   const [resetToken, setResetToken] = useState(0);
+  const [localFinishedMs, setLocalFinishedMs] = useState<number | null>(null);
+  const [checkingLocal, setCheckingLocal] = useState(!user);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const completedRef = useRef(false);
   const submittingRef = useRef(false);
+  const lockedRef = useRef(false);
+
+  const finishedToday = alreadyPlayedToday || localFinishedMs != null;
+  const displayTimeMs = savedTimeMs ?? myResult?.time_ms ?? localFinishedMs ?? elapsedMs;
 
   completedRef.current = completed;
   submittingRef.current = submitting;
+  lockedRef.current = finishedToday || completed;
 
   useEffect(() => {
     navigation.setOptions({ gestureEnabled: false });
@@ -49,6 +57,36 @@ const ZipGameScreen: React.FC = () => {
     };
   }, [navigation]);
 
+  useEffect(() => {
+    if (myResult) {
+      setCompleted(true);
+      setSavedTimeMs(myResult.time_ms);
+      setElapsedMs(myResult.time_ms);
+      setCheckingLocal(false);
+    }
+  }, [myResult]);
+
+  useEffect(() => {
+    if (user || myResult) {
+      setCheckingLocal(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const local = await getLocalZipCompletion(puzzleDate);
+      if (cancelled) return;
+      if (local) {
+        setLocalFinishedMs(local.timeMs);
+        setCompleted(true);
+        setElapsedMs(local.timeMs);
+      }
+      setCheckingLocal(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, myResult, puzzleDate]);
+
   const cellSize = useMemo(() => {
     const maxGrid = Math.max(puzzle.rows, puzzle.cols);
     const available = Math.min(width - 48, height * 0.45);
@@ -56,7 +94,7 @@ const ZipGameScreen: React.FC = () => {
   }, [height, puzzle.cols, puzzle.rows, width]);
 
   useEffect(() => {
-    if (startedAt && !completed) {
+    if (startedAt && !completed && !finishedToday) {
       timerRef.current = setInterval(() => {
         setElapsedMs(Date.now() - startedAt);
       }, 100);
@@ -64,11 +102,11 @@ const ZipGameScreen: React.FC = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [startedAt, completed]);
+  }, [startedAt, completed, finishedToday]);
 
   const handlePathChange = useCallback(
     (nextPath: ZipCell[]) => {
-      if (completedRef.current || submittingRef.current) return;
+      if (lockedRef.current || submittingRef.current) return;
 
       let startMs = startedAtRef.current;
       if (nextPath.length === 1 && !startMs) {
@@ -98,6 +136,8 @@ const ZipGameScreen: React.FC = () => {
 
       void (async () => {
         if (!user) {
+          await setLocalZipCompletion(puzzleDate, finishMs);
+          setLocalFinishedMs(finishMs);
           showResultAlert(
             'Bravo !',
             `Terminé en ${formatZipTime(finishMs)}. Connectez-vous pour apparaître au classement.`,
@@ -116,36 +156,39 @@ const ZipGameScreen: React.FC = () => {
         });
         if (result === 'saved') {
           setSavedTimeMs(finishMs);
-          showResultAlert('Bravo !', `Nouveau record : ${formatZipTime(finishMs)}`);
-        } else if (result === 'kept') {
+          showResultAlert('Bravo !', `Terminé en ${formatZipTime(finishMs)}`);
+        } else if (result === 'already_played') {
           showResultAlert(
-            'Bravo !',
-            `Terminé en ${formatZipTime(finishMs)}. Meilleur temps : ${formatZipTime(myResult?.time_ms ?? finishMs)}.`,
+            'Défi déjà terminé',
+            `Vous avez déjà joué aujourd'hui (${formatZipTime(myResult?.time_ms ?? finishMs)}).`,
           );
+        } else if (result === 'error') {
+          showResultAlert('Erreur', 'Impossible d\'enregistrer votre score.');
         }
       })();
     },
-    [myResult?.time_ms, navigation, puzzle, submitResult, user],
+    [myResult?.time_ms, navigation, puzzle, puzzleDate, submitResult, user],
   );
-
-  const reset = () => {
-    setPath([]);
-    startedAtRef.current = null;
-    setStartedAt(null);
-    setElapsedMs(0);
-    setCompleted(false);
-    setSavedTimeMs(null);
-    setResetToken((t) => t + 1);
-  };
 
   const difficultyLabel =
     puzzle.difficulty === 'easy' ? 'Facile' : puzzle.difficulty === 'medium' ? 'Moyen' : 'Difficile';
 
-  const gridDisabled = completed || submitting;
+  const gridDisabled = finishedToday || completed || submitting;
+  const showConfetti = completed && !finishedToday;
+
+  if (loading || checkingLocal) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color="#e67e22" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <ZipConfetti active={completed} />
+      <ZipConfetti active={showConfetti} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#0f172a" />
@@ -167,34 +210,60 @@ const ZipGameScreen: React.FC = () => {
         <Text style={styles.badge}>{puzzle.rows}×{puzzle.cols}</Text>
         <View style={styles.timerBadge}>
           <Ionicons name="time-outline" size={14} color="#e67e22" />
-          <Text style={styles.timerText}>
-            {completed && savedTimeMs != null ? formatZipTime(savedTimeMs) : formatZipTime(elapsedMs)}
-          </Text>
+          <Text style={styles.timerText}>{formatZipTime(displayTimeMs)}</Text>
         </View>
+        {finishedToday && (
+          <View style={styles.doneBadge}>
+            <Ionicons name="checkmark-circle" size={13} color="#15803d" />
+            <Text style={styles.doneBadgeText}>Terminé</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.gridZone}>
         <Text style={styles.instruction}>
-          Maintenez le doigt sur le <Text style={styles.bold}>1</Text> et glissez sans le lever
+          {finishedToday
+            ? 'Défi du jour terminé. Revenez demain pour une nouvelle grille !'
+            : (
+              <>
+                Maintenez le doigt sur le <Text style={styles.bold}>1</Text> et glissez sans le lever
+              </>
+            )}
         </Text>
-        <ZipGrid
-          puzzle={puzzle}
-          path={path}
-          onPathChange={handlePathChange}
-          cellSize={cellSize}
-          disabled={gridDisabled}
-          resetToken={resetToken}
-          celebrate={completed}
-        />
+        <View style={styles.gridWrap}>
+          <ZipGrid
+            puzzle={puzzle}
+            path={path}
+            onPathChange={handlePathChange}
+            cellSize={cellSize}
+            disabled={gridDisabled}
+            resetToken={resetToken}
+            celebrate={showConfetti}
+          />
+          {finishedToday && (
+            <View style={styles.lockedOverlay} pointerEvents="none">
+              <View style={styles.lockedCard}>
+                <Ionicons name="trophy" size={28} color="#ea580c" />
+                <Text style={styles.lockedTitle}>Déjà joué aujourd'hui</Text>
+                <Text style={styles.lockedTime}>{formatZipTime(displayTimeMs)}</Text>
+                {myResult?.rank ? (
+                  <Text style={styles.lockedRank}>Classement · #{myResult.rank}</Text>
+                ) : null}
+              </View>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.secondaryBtn} onPress={reset} disabled={submitting}>
-          <Ionicons name="refresh-outline" size={18} color="#64748b" />
-          <Text style={styles.secondaryBtnText}>Recommencer</Text>
-        </TouchableOpacity>
+        {!finishedToday && !completed && (
+          <TouchableOpacity style={styles.secondaryBtn} onPress={() => setResetToken((t) => t + 1)} disabled={submitting}>
+            <Ionicons name="refresh-outline" size={18} color="#64748b" />
+            <Text style={styles.secondaryBtnText}>Recommencer</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
-          style={styles.primaryBtn}
+          style={[styles.primaryBtn, (finishedToday || completed) && styles.primaryBtnFull]}
           onPress={() => navigation.navigate('ZipLeaderboard' as never)}
         >
           <Ionicons name="trophy-outline" size={18} color="#fff" />
@@ -221,6 +290,7 @@ const ZipGameScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -238,6 +308,7 @@ const styles = StyleSheet.create({
   metaBar: {
     flexDirection: 'row',
     justifyContent: 'center',
+    flexWrap: 'wrap',
     gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -262,6 +333,16 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   timerText: { fontSize: 12, fontWeight: '700', color: '#c2410c' },
+  doneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  doneBadgeText: { fontSize: 12, fontWeight: '700', color: '#15803d' },
   gridZone: {
     flex: 1,
     justifyContent: 'center',
@@ -269,11 +350,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
   },
+  gridWrap: { position: 'relative' },
+  lockedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(248, 250, 252, 0.72)',
+    borderRadius: 16,
+  },
+  lockedCard: {
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    gap: 4,
+  },
+  lockedTitle: { fontSize: 15, fontWeight: '800', color: '#0f172a', marginTop: 4 },
+  lockedTime: { fontSize: 22, fontWeight: '800', color: '#ea580c' },
+  lockedRank: { fontSize: 13, fontWeight: '600', color: '#64748b' },
   instruction: {
     fontSize: 14,
     color: '#334155',
     textAlign: 'center',
     lineHeight: 20,
+    paddingHorizontal: 8,
   },
   bold: { fontWeight: '800', color: '#15803d' },
   footer: {
@@ -305,6 +411,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#e67e22',
   },
+  primaryBtnFull: { flex: 1 },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
   savingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 8 },
   savingText: { color: '#64748b' },

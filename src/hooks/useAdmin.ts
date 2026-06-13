@@ -24,6 +24,7 @@ export interface DashboardStats {
   totalRevenue: number;
   averageRating: number;
   pendingApplications: number;
+  zipUniquePlayers: number;
   recentUsers: any[];
   recentBookings: AdminRecentBookingItem[];
   popularCities: any[];
@@ -585,6 +586,20 @@ export const useAdmin = () => {
     setLoading(true);
     setError(null);
 
+    const fetchZipUniquePlayers = async (): Promise<number> => {
+      const { data, error } = await supabase.rpc('count_zip_unique_players');
+      if (!error && typeof data === 'number') return data;
+
+      const { data: rows, error: rowsError } = await supabase
+        .from('zip_game_results')
+        .select('user_id');
+      if (rowsError) {
+        console.warn('[useAdmin] zip unique players fallback error', rowsError);
+        return 0;
+      }
+      return new Set((rows ?? []).map((row) => row.user_id)).size;
+    };
+
     try {
       // Statistiques utilisateurs
       const { count: totalUsers } = await supabase
@@ -623,6 +638,8 @@ export const useAdmin = () => {
         .from('host_applications')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'pending');
+
+      const zipUniquePlayers = await fetchZipUniquePlayers();
 
       // Utilisateurs récents
       const { data: recentUsers } = await supabase
@@ -725,6 +742,7 @@ export const useAdmin = () => {
         totalRevenue,
         averageRating: Math.round(averageRating * 10) / 10,
         pendingApplications: pendingApplications || 0,
+        zipUniquePlayers,
         recentUsers: recentUsers || [],
         recentBookings,
         popularCities: popularLocations || [],
@@ -741,6 +759,7 @@ export const useAdmin = () => {
         totalRevenue: 0,
         averageRating: 0,
         pendingApplications: 0,
+        zipUniquePlayers: 0,
         recentUsers: [],
         recentBookings: [],
         popularCities: [],

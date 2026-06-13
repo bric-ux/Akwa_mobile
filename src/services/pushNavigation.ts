@@ -7,6 +7,7 @@ export const PUSH_TYPE_PROPERTY_BOOKING = 'property_booking';
 export const PUSH_TYPE_VEHICLE_BOOKING = 'vehicle_booking';
 export const PUSH_TYPE_ADMIN_NEW_BOOKING = 'admin_new_booking';
 export const PUSH_TYPE_ADMIN_NEW_IDENTITY = 'admin_new_identity';
+export const PUSH_TYPE_ZIP_DAILY = 'zip_daily';
 
 /**
  * Navigation depuis le tap sur une notification (données Expo dans content.data).
@@ -61,6 +62,11 @@ export function navigateFromPushData(
       ...(data.documentId ? { documentId: data.documentId } : {}),
       ...(data.userId ? { userId: data.userId } : {}),
     });
+    return true;
+  }
+
+  if (type === PUSH_TYPE_ZIP_DAILY || data.screen === 'ZipGame') {
+    navigationRef.navigate('ZipGame');
     return true;
   }
 

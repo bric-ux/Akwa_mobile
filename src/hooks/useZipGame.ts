@@ -104,9 +104,9 @@ export function useZipGame(puzzleDate = getLocalDateKey()) {
 
         if (existingError) throw existingError;
 
-        if (existing && existing.time_ms <= timeMs) {
+        if (existing) {
           await load();
-          return 'kept';
+          return 'already_played';
         }
 
         const payload = {
@@ -141,6 +141,7 @@ export function useZipGame(puzzleDate = getLocalDateKey()) {
     puzzleDate,
     leaderboard,
     myResult,
+    alreadyPlayedToday: myResult != null,
     loading,
     submitting,
     error,
