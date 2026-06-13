@@ -11,7 +11,7 @@ type Props = {
   cellSize?: number;
   disabled?: boolean;
   resetToken?: number;
-  onDebugLog?: (line: string) => void;
+  celebrate?: boolean;
 };
 
 export function findStartCell(puzzle: ZipPuzzle): ZipCell | null {
@@ -24,82 +24,45 @@ export function findStartCell(puzzle: ZipPuzzle): ZipCell | null {
   return null;
 }
 
-function debugLog(onDebugLog: Props['onDebugLog'], tag: string, detail?: unknown) {
-  const line = detail !== undefined ? `[ZipGrid:${tag}] ${JSON.stringify(detail)}` : `[ZipGrid:${tag}]`;
-  console.log(line);
-  onDebugLog?.(line);
-}
-
 const ZipGrid: React.FC<Props> = ({
   puzzle,
   onPathChange,
   cellSize = 48,
   disabled = false,
   resetToken = 0,
-  onDebugLog,
+  celebrate = false,
 }) => {
   const webRef = useRef<WebView>(null);
   const onPathChangeRef = useRef(onPathChange);
   onPathChangeRef.current = onPathChange;
-  const onDebugLogRef = useRef(onDebugLog);
-  onDebugLogRef.current = onDebugLog;
 
   const html = useMemo(() => buildZipGridHtml(puzzle, cellSize), [puzzle, cellSize]);
 
-  const gridHeight = puzzle.rows * cellSize + 60;
+  const gridHeight = puzzle.rows * cellSize + 72;
   const gridWidth = puzzle.cols * cellSize + 16;
 
   useEffect(() => {
-    debugLog(onDebugLogRef.current, 'mount', {
-      puzzleId: puzzle.id,
-      rows: puzzle.rows,
-      cols: puzzle.cols,
-      cellSize,
-      gridWidth,
-      gridHeight,
-      disabled,
-    });
-  }, [cellSize, disabled, gridHeight, gridWidth, puzzle.cols, puzzle.id, puzzle.rows]);
-
-  useEffect(() => {
-    debugLog(onDebugLogRef.current, 'setDisabled', { disabled });
     webRef.current?.injectJavaScript(`window.setZipDisabled && window.setZipDisabled(${disabled ? 'true' : 'false'}); true;`);
   }, [disabled]);
 
   useEffect(() => {
-    debugLog(onDebugLogRef.current, 'resetToken', { resetToken });
     webRef.current?.injectJavaScript('window.resetZip && window.resetZip(); true;');
   }, [resetToken]);
 
+  useEffect(() => {
+    if (celebrate) {
+      webRef.current?.injectJavaScript('window.celebrateZip && window.celebrateZip(); true;');
+    }
+  }, [celebrate]);
+
   const onMessage = useCallback((event: WebViewMessageEvent) => {
-    const raw = event.nativeEvent.data;
     try {
-      const data = JSON.parse(raw) as {
-        type: string;
-        path?: ZipCell[];
-        msg?: string;
-        extra?: unknown;
-      };
-
-      if (data.type === 'log') {
-        debugLog(onDebugLogRef.current, 'web', { msg: data.msg, extra: data.extra });
-        return;
-      }
-
-      if (data.type === 'ready') {
-        debugLog(onDebugLogRef.current, 'web-ready');
-        return;
-      }
-
+      const data = JSON.parse(event.nativeEvent.data) as { type: string; path?: ZipCell[] };
       if (data.type === 'path' && Array.isArray(data.path)) {
-        debugLog(onDebugLogRef.current, 'path-message', { len: data.path.length });
         onPathChangeRef.current(data.path);
-        return;
       }
-
-      debugLog(onDebugLogRef.current, 'unknown-message', data);
-    } catch (err) {
-      debugLog(onDebugLogRef.current, 'parse-error', { raw, err: String(err) });
+    } catch {
+      // ignore malformed messages
     }
   }, []);
 
@@ -109,10 +72,6 @@ const ZipGrid: React.FC<Props> = ({
         ref={webRef}
         source={{ html }}
         onMessage={onMessage}
-        onLoadStart={() => debugLog(onDebugLogRef.current, 'webview-load-start')}
-        onLoadEnd={() => debugLog(onDebugLogRef.current, 'webview-load-end')}
-        onError={(e) => debugLog(onDebugLogRef.current, 'webview-error', e.nativeEvent)}
-        onHttpError={(e) => debugLog(onDebugLogRef.current, 'webview-http-error', e.nativeEvent)}
         scrollEnabled={false}
         bounces={false}
         overScrollMode="never"
@@ -135,15 +94,13 @@ const styles = StyleSheet.create({
   container: {
     alignSelf: 'center',
     overflow: 'hidden',
-    borderRadius: 12,
-    backgroundColor: '#fff',
   },
   webview: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
   },
   webviewContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
   },
 });
 

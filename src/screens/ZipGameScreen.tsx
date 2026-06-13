@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import ZipConfetti from '../components/zip/ZipConfetti';
 import ZipGrid from '../components/zip/ZipGrid';
 import { getDailyPuzzle, getLocalDateKey } from '../games/zip/puzzles';
 import type { ZipCell } from '../games/zip/types';
@@ -32,12 +33,6 @@ const ZipGameScreen: React.FC = () => {
   const [completed, setCompleted] = useState(false);
   const [savedTimeMs, setSavedTimeMs] = useState<number | null>(null);
   const [resetToken, setResetToken] = useState(0);
-  const [debugLines, setDebugLines] = useState<string[]>([]);
-
-  const pushDebug = useCallback((line: string) => {
-    console.log(line);
-    setDebugLines((prev) => [line, ...prev].slice(0, 8));
-  }, []);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<number | null>(null);
@@ -73,12 +68,7 @@ const ZipGameScreen: React.FC = () => {
 
   const handlePathChange = useCallback(
     (nextPath: ZipCell[]) => {
-      pushDebug(`[ZipScreen] handlePathChange len=${nextPath.length} completed=${completedRef.current} submitting=${submittingRef.current}`);
-
-      if (completedRef.current || submittingRef.current) {
-        pushDebug('[ZipScreen] BLOCKED: completed or submitting');
-        return;
-      }
+      if (completedRef.current || submittingRef.current) return;
 
       let startMs = startedAtRef.current;
       if (nextPath.length === 1 && !startMs) {
@@ -95,23 +85,20 @@ const ZipGameScreen: React.FC = () => {
       setPath(nextPath);
 
       const validation = validateZipPath(puzzle, nextPath);
-      if (!validation.ok) {
-        if (nextPath.length > 0) {
-          pushDebug(`[ZipScreen] validation pending len=${nextPath.length}`);
-        }
-        return;
-      }
-
-      pushDebug('[ZipScreen] PUZZLE COMPLETE');
+      if (!validation.ok) return;
 
       const finishMs = startMs ? Date.now() - startMs : 0;
       setCompleted(true);
       setElapsedMs(finishMs);
       if (timerRef.current) clearInterval(timerRef.current);
 
+      const showResultAlert = (title: string, message: string, buttons?: { text: string; style?: 'cancel' | 'default'; onPress?: () => void }[]) => {
+        setTimeout(() => Alert.alert(title, message, buttons), 1400);
+      };
+
       void (async () => {
         if (!user) {
-          Alert.alert(
+          showResultAlert(
             'Bravo !',
             `Terminé en ${formatZipTime(finishMs)}. Connectez-vous pour apparaître au classement.`,
             [
@@ -129,16 +116,16 @@ const ZipGameScreen: React.FC = () => {
         });
         if (result === 'saved') {
           setSavedTimeMs(finishMs);
-          Alert.alert('Bravo !', `Nouveau record : ${formatZipTime(finishMs)}`);
+          showResultAlert('Bravo !', `Nouveau record : ${formatZipTime(finishMs)}`);
         } else if (result === 'kept') {
-          Alert.alert(
+          showResultAlert(
             'Bravo !',
             `Terminé en ${formatZipTime(finishMs)}. Meilleur temps : ${formatZipTime(myResult?.time_ms ?? finishMs)}.`,
           );
         }
       })();
     },
-    [myResult?.time_ms, navigation, puzzle, pushDebug, submitResult, user],
+    [myResult?.time_ms, navigation, puzzle, submitResult, user],
   );
 
   const reset = () => {
@@ -158,6 +145,7 @@ const ZipGameScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <ZipConfetti active={completed} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#0f172a" />
@@ -196,20 +184,8 @@ const ZipGameScreen: React.FC = () => {
           cellSize={cellSize}
           disabled={gridDisabled}
           resetToken={resetToken}
-          onDebugLog={pushDebug}
+          celebrate={completed}
         />
-        <View style={styles.debugPanel}>
-          <Text style={styles.debugTitle}>Debug Zip (Metro + écran)</Text>
-          {debugLines.length === 0 ? (
-            <Text style={styles.debugLine}>Touchez/glissez la grille…</Text>
-          ) : (
-            debugLines.map((line, i) => (
-              <Text key={`${i}-${line.slice(0, 20)}`} style={styles.debugLine} numberOfLines={2}>
-                {line}
-              </Text>
-            ))
-          )}
-        </View>
       </View>
 
       <View style={styles.footer}>
@@ -291,27 +267,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
-    gap: 8,
-  },
-  debugPanel: {
-    width: '100%',
-    maxHeight: 120,
-    backgroundColor: '#0f172a',
-    borderRadius: 8,
-    padding: 8,
-    marginTop: 4,
-  },
-  debugTitle: {
-    color: '#94a3b8',
-    fontSize: 10,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  debugLine: {
-    color: '#e2e8f0',
-    fontSize: 9,
-    fontFamily: 'monospace',
-    marginBottom: 2,
+    gap: 12,
   },
   instruction: {
     fontSize: 14,
