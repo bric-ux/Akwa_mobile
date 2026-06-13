@@ -18,6 +18,7 @@ import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useBookingPDF } from '../hooks/useBookingPDF';
 import AdminNotificationBell from '../components/AdminNotificationBell';
+import AdminRecentBookingsSection from '../components/admin/AdminRecentBookingsSection';
 import { supabase } from '../services/supabase';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
@@ -53,50 +54,6 @@ const AdminDashboardScreen: React.FC = () => {
         loadStats();
       }
     }, [user, profile])
-  );
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
-
-  const StatCard = ({ title, value, icon, color, onPress }: {
-    title: string;
-    value: string | number;
-    icon: string;
-    color: string;
-    onPress?: () => void;
-  }) => (
-    <TouchableOpacity
-      style={[styles.statCard, { borderLeftColor: color }]}
-      onPress={onPress}
-      disabled={!onPress}
-    >
-      <View style={styles.statContent}>
-        <View style={styles.statIconContainer}>
-          <Ionicons name={icon as any} size={24} color={color} />
-        </View>
-        <View style={styles.statTextContainer}>
-          <Text style={styles.statValue}>{value}</Text>
-          <Text style={styles.statTitle}>{title}</Text>
-        </View>
-      </View>
-      {onPress && (
-        <Ionicons name="chevron-forward" size={20} color="#ccc" />
-      )}
-    </TouchableOpacity>
   );
 
   const QuickAction = ({ title, description, icon, onPress, color }: {
@@ -547,33 +504,8 @@ const AdminDashboardScreen: React.FC = () => {
         </View>
 
         {/* Réservations récentes */}
-        {stats?.recentBookings && stats.recentBookings.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Réservations récentes</Text>
-            <View style={styles.recentContainer}>
-              {stats.recentBookings.slice(0, 3).map((booking, index) => (
-                <View key={index} style={styles.recentItem}>
-                  <View style={styles.recentItemContent}>
-                    <Text style={styles.recentItemTitle}>
-                      {booking.properties?.title || 'Propriété'}
-                    </Text>
-                    <Text style={styles.recentItemSubtitle}>
-                      {booking.profiles?.first_name} {booking.profiles?.last_name}
-                    </Text>
-                    <View style={styles.recentItemMeta}>
-                      <Text style={styles.recentItemDate}>
-                        {formatDate(booking.created_at)}
-                      </Text>
-                      <Text style={styles.recentItemPrice}>
-                        {formatPrice(booking.total_price || 0)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </>
-        )}
+        <Text style={styles.sectionTitle}>Réservations récentes</Text>
+        <AdminRecentBookingsSection items={stats?.recentBookings || []} limit={8} />
       </ScrollView>
 
       {/* Modal pour saisie email de test */}

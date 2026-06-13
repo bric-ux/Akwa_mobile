@@ -23,6 +23,7 @@ import { calculateHostCommission } from '../hooks/usePricing';
 import { Image, ScrollView } from 'react-native';
 import MediaThumb from '../components/MediaThumb';
 import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
+import { countUpcomingVehicleBookings } from '../utils/upcomingBookings';
 import { safeGoBack } from '../utils/navigation';
 import VehicleBookingDetailsModal from '../components/VehicleBookingDetailsModal';
 import SimpleMessageModal from '../components/SimpleMessageModal';
@@ -320,6 +321,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
         cancelled: 0,
         completed: 0,
         inProgress: 0,
+        upcoming: 0,
       };
 
       let isCurrentlyRented = false;
@@ -378,6 +380,8 @@ const HostVehicleBookingsScreen: React.FC = () => {
           }
         }
       });
+
+      stats.upcoming = countUpcomingVehicleBookings(vehicleBookings, isBookingInProgress);
 
       return {
         vehicle,
@@ -726,29 +730,46 @@ const HostVehicleBookingsScreen: React.FC = () => {
                       <Text style={styles.vehicleCardTitle} numberOfLines={2}>
                         {item.vehicle.brand} {item.vehicle.model}
                       </Text>
-                      {item.isCurrentlyRented ? (
-                        <View style={styles.rentedBadge}>
-                          <Text style={styles.rentedBadgeText}>En location</Text>
-                        </View>
-                      ) : item.stats.pending > 0 && item.isAvailable ? (
-                        <View style={[styles.unavailableBadge, { backgroundColor: '#f59e0b' }]}>
-                          <Text style={styles.unavailableBadgeText}>En attente ({item.stats.pending})</Text>
-                        </View>
-                      ) : item.isAvailable ? (
-                        <View style={styles.availableBadge}>
-                          <Text style={styles.availableBadgeText}>Disponible</Text>
-                        </View>
-                      ) : (
-                        <View style={styles.unavailableBadge}>
-                          <Text style={styles.unavailableBadgeText}>Indisponible</Text>
-                        </View>
-                      )}
+                      <View style={styles.vehicleCardBadges}>
+                        {item.isCurrentlyRented ? (
+                          <View style={styles.rentedBadge}>
+                            <Text style={styles.rentedBadgeText}>En location</Text>
+                          </View>
+                        ) : item.stats.pending > 0 && item.isAvailable ? (
+                          <View style={[styles.unavailableBadge, { backgroundColor: '#f59e0b' }]}>
+                            <Text style={styles.unavailableBadgeText}>En attente ({item.stats.pending})</Text>
+                          </View>
+                        ) : item.isAvailable ? (
+                          <View style={styles.availableBadge}>
+                            <Text style={styles.availableBadgeText}>Disponible</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.unavailableBadge}>
+                            <Text style={styles.unavailableBadgeText}>Indisponible</Text>
+                          </View>
+                        )}
+                        {item.stats.upcoming > 0 && (
+                          <View style={styles.upcomingBadge}>
+                            <Ionicons name="calendar-outline" size={12} color="#fff" />
+                            <Text style={styles.upcomingBadgeText}>
+                              {t('hostBookings.upcomingBadge', { count: item.stats.upcoming })}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                     <Text style={styles.vehicleCardYear}>{item.vehicle.year}</Text>
                     <View style={styles.vehicleCardStats}>
                       <Text style={styles.vehicleCardStatText}>
                         Total: {item.stats.total}
                       </Text>
+                      {item.stats.upcoming > 0 && (
+                        <Text style={[styles.vehicleCardStatText, { color: '#1d4ed8', fontWeight: '600' }]}>
+                          {item.stats.upcoming}{' '}
+                          {item.stats.upcoming > 1 ? t('hostBookings.reservations') : t('hostBookings.reservation')}{' '}
+                          {t('hostBookings.upcomingSuffix')}
+                        </Text>
+                      )}
                       {item.stats.pending > 0 && (
                         <Text style={[styles.vehicleCardStatText, { color: '#FFA500' }]}>
                           En attente: {item.stats.pending}
@@ -1308,6 +1329,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     flex: 1,
+  },
+  vehicleCardBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 4,
+    maxWidth: '50%',
+  },
+  upcomingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  upcomingBadgeText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '600',
   },
   rentedBadge: {
     backgroundColor: '#1e293b', // slate-800 comme sur le site web

@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin, DashboardStats } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
+import AdminRecentBookingsSection from '../components/admin/AdminRecentBookingsSection';
 
 const AdminStatsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -179,33 +180,8 @@ const AdminStatsScreen: React.FC = () => {
         </View>
 
         {/* Activité récente */}
-        {stats?.recentBookings && stats.recentBookings.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Réservations récentes</Text>
-            <View style={styles.recentContainer}>
-              {stats.recentBookings.slice(0, 5).map((booking, index) => (
-                <View key={index} style={styles.recentItem}>
-                  <View style={styles.recentItemContent}>
-                    <Text style={styles.recentItemTitle}>
-                      {booking.properties?.title || 'Propriété'}
-                    </Text>
-                    <Text style={styles.recentItemSubtitle}>
-                      {booking.profiles?.first_name} {booking.profiles?.last_name}
-                    </Text>
-                    <View style={styles.recentItemMeta}>
-                      <Text style={styles.recentItemDate}>
-                        {formatDate(booking.created_at)}
-                      </Text>
-                      <Text style={styles.recentItemPrice}>
-                        {formatPrice(booking.total_price || 0)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </>
-        )}
+        <Text style={styles.sectionTitle}>Réservations récentes</Text>
+        <AdminRecentBookingsSection items={stats?.recentBookings || []} limit={5} />
 
         {/* Villes populaires */}
         {stats?.popularCities && stats.popularCities.length > 0 && (

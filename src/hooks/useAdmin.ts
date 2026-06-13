@@ -11,6 +11,12 @@ export interface MonthlyRentalListingWithOwner extends MonthlyRentalListing {
   payment?: MonthlyRentalListingPayment | null;
 }
 
+export interface AdminRecentBookingItem {
+  kind: 'property' | 'vehicle';
+  created_at: string;
+  booking: any;
+}
+
 export interface DashboardStats {
   totalUsers: number;
   totalProperties: number;
@@ -19,7 +25,7 @@ export interface DashboardStats {
   averageRating: number;
   pendingApplications: number;
   recentUsers: any[];
-  recentBookings: any[];
+  recentBookings: AdminRecentBookingItem[];
   popularCities: any[];
 }
 
@@ -625,21 +631,82 @@ export const useAdmin = () => {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      // Réservations récentes
-      const { data: recentBookings } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          check_in_date,
-          check_out_date,
-          total_price,
-          status,
-          created_at,
-          properties!inner(title),
-          profiles!inner(first_name, last_name)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(5);
+      // Réservations récentes (logements + véhicules)
+      const [recentPropertyBookingsResult, recentVehicleBookingsResult] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select(`
+            id,
+            booking_code,
+            total_price,
+            status,
+            check_in_date,
+            check_out_date,
+            guests_count,
+            created_at,
+            payment_method,
+            special_requests,
+            property:properties(
+              id,
+              title,
+              address,
+              images,
+              property_photos(url, category, display_order, is_main),
+              host:profiles!properties_host_id_fkey(user_id, first_name, last_name, email, phone)
+            ),
+            guest:profiles!bookings_guest_id_fkey(user_id, first_name, last_name, email, phone)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('vehicle_bookings')
+          .select(`
+            id,
+            vehicle_booking_code,
+            total_price,
+            status,
+            start_date,
+            end_date,
+            created_at,
+            payment_method,
+            special_requests,
+            with_driver,
+            daily_rate,
+            vehicle:vehicles(
+              id,
+              brand,
+              model,
+              title,
+              images,
+              vehicle_photos(url, is_main),
+              owner:profiles!vehicles_owner_id_fkey(user_id, first_name, last_name, email, phone)
+            ),
+            renter:profiles!vehicle_bookings_renter_id_fkey(user_id, first_name, last_name, email, phone)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(10),
+      ]);
+
+      const recentPropertyBookings = recentPropertyBookingsResult.data || [];
+      const recentVehicleBookings = recentVehicleBookingsResult.data || [];
+
+      const recentBookings: AdminRecentBookingItem[] = [
+        ...recentPropertyBookings.map((booking) => ({
+          kind: 'property' as const,
+          created_at: booking.created_at,
+          booking,
+        })),
+        ...recentVehicleBookings.map((booking) => ({
+          kind: 'vehicle' as const,
+          created_at: booking.created_at,
+          booking,
+        })),
+      ]
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        )
+        .slice(0, 8);
 
       // Villes populaires (via locations)
       const { data: popularLocations } = await supabase
@@ -659,7 +726,7 @@ export const useAdmin = () => {
         averageRating: Math.round(averageRating * 10) / 10,
         pendingApplications: pendingApplications || 0,
         recentUsers: recentUsers || [],
-        recentBookings: recentBookings || [],
+        recentBookings,
         popularCities: popularLocations || [],
       };
 

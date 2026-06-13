@@ -25,6 +25,7 @@ import BookingContactButton from '../components/BookingContactButton';
 import GuestReviewModal from '../components/GuestReviewModal';
 import GuestProfileModal from '../components/GuestProfileModal';
 import HostBookingDetailsModal from '../components/HostBookingDetailsModal';
+import { countUpcomingPropertyBookings } from '../utils/upcomingBookings';
 import {
   fetchHostFinancialOverviewForBookings,
   HostFinancialOverview,
@@ -297,6 +298,7 @@ const HostBookingsScreen: React.FC = () => {
         cancelled: 0,
         completed: 0,
         inProgress: 0,
+        upcoming: 0,
       };
 
       let isCurrentlyOccupied = false;
@@ -323,6 +325,8 @@ const HostBookingsScreen: React.FC = () => {
           console.error('Erreur lors du traitement des dates:', dateError);
         }
       });
+
+      stats.upcoming = countUpcomingPropertyBookings(propertyBookings, isBookingInProgress);
 
       return {
         property: {
@@ -865,21 +869,38 @@ const HostBookingsScreen: React.FC = () => {
                       <Text style={styles.propertyCardTitle} numberOfLines={2}>
                         {item.property?.title || t('messages.property')}
                       </Text>
-                      {item.isCurrentlyOccupied ? (
-                        <View style={styles.occupiedBadgeSmall}>
-                          <Ionicons name="time" size={12} color="#fff" />
-                          <Text style={styles.occupiedBadgeSmallText}>{t('hostBookings.occupied')}</Text>
-                        </View>
-                      ) : item.isAvailable ? (
-                        <View style={styles.availableBadgeSmall}>
-                          <Ionicons name="checkmark-circle" size={12} color="#fff" />
-                          <Text style={styles.availableBadgeSmallText}>{t('hostBookings.available')}</Text>
-                        </View>
-                      ) : null}
+                      <View style={styles.propertyCardBadges}>
+                        {item.stats.upcoming > 0 && (
+                          <View style={styles.upcomingBadgeSmall}>
+                            <Ionicons name="calendar-outline" size={12} color="#fff" />
+                            <Text style={styles.upcomingBadgeSmallText}>
+                              {t('hostBookings.upcomingBadge', { count: item.stats.upcoming })}
+                            </Text>
+                          </View>
+                        )}
+                        {item.isCurrentlyOccupied ? (
+                          <View style={styles.occupiedBadgeSmall}>
+                            <Ionicons name="time" size={12} color="#fff" />
+                            <Text style={styles.occupiedBadgeSmallText}>{t('hostBookings.occupied')}</Text>
+                          </View>
+                        ) : item.isAvailable ? (
+                          <View style={styles.availableBadgeSmall}>
+                            <Ionicons name="checkmark-circle" size={12} color="#fff" />
+                            <Text style={styles.availableBadgeSmallText}>{t('hostBookings.available')}</Text>
+                          </View>
+                        ) : null}
+                      </View>
                     </View>
                     <Text style={styles.propertyCardLocation}>
                       {item.property?.location?.name || item.property?.locations?.name || t('hostBookings.unknownLocation')}
                     </Text>
+                    {item.stats.upcoming > 0 && (
+                      <Text style={styles.upcomingLineText}>
+                        {item.stats.upcoming}{' '}
+                        {item.stats.upcoming > 1 ? t('hostBookings.reservations') : t('hostBookings.reservation')}{' '}
+                        {t('hostBookings.upcomingSuffix')}
+                      </Text>
+                    )}
                     
                     <View style={styles.statusInfo}>
                       {item.isAvailable ? (
@@ -1540,6 +1561,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     flex: 1,
+  },
+  propertyCardBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 4,
+    maxWidth: '45%',
+  },
+  upcomingBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  upcomingBadgeSmallText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  upcomingLineText: {
+    fontSize: 12,
+    color: '#1d4ed8',
+    fontWeight: '500',
+    marginBottom: 4,
   },
   occupiedBadgeSmall: {
     flexDirection: 'row',
