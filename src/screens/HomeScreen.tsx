@@ -50,9 +50,6 @@ const EXPLORE_CARD_WIDTH = Math.max(
   244,
   Math.round(SCREEN_W - EXPLORE_GUTTER - NEXT_CARD_PEEK),
 );
-const EXPLORE_ROW_GAP = 10;
-/** Peu de logements : remplir la ligne au lieu d’un carrousel avec vide à droite. */
-const EXPLORE_STATIC_ROW_MAX = 2;
 
 // Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
 const CAROUSEL_IMAGES = [
@@ -156,25 +153,6 @@ const HomeScreen: React.FC = () => {
 
   const renderExplorePropertyRow = useCallback(
     (properties: Property[]) => {
-      const useStaticRow = properties.length > 0 && properties.length <= EXPLORE_STATIC_ROW_MAX;
-
-      if (useStaticRow) {
-        return (
-          <View style={styles.exploreStaticRow}>
-            {properties.map((p) => (
-              <View key={p.id} style={styles.exploreCardWrapStatic}>
-                <PropertyCard
-                  property={p}
-                  onPress={handlePropertyPress}
-                  variant="list"
-                  horizontalShelf
-                />
-              </View>
-            ))}
-          </View>
-        );
-      }
-
       return (
         <ScrollView
           horizontal
@@ -746,16 +724,6 @@ const styles = StyleSheet.create({
     paddingLeft: EXPLORE_GUTTER,
     paddingRight: NEXT_CARD_PEEK,
     paddingBottom: 4,
-  },
-  exploreStaticRow: {
-    flexDirection: 'row',
-    paddingHorizontal: EXPLORE_GUTTER,
-    gap: EXPLORE_ROW_GAP,
-    paddingBottom: 4,
-  },
-  exploreCardWrapStatic: {
-    flex: 1,
-    minWidth: 0,
   },
   exploreCardWrap: {
     marginRight: 10,
