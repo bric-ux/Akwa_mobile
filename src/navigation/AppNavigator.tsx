@@ -82,7 +82,7 @@ import HotelDetailScreen from '../screens/HotelDetailScreen';
 import MyHotelBookingsScreen from '../screens/MyHotelBookingsScreen';
 import MyHotelEstablishmentsScreen from '../screens/MyHotelEstablishmentsScreen';
 import HostHotelBookingsScreen from '../screens/HostHotelBookingsScreen';
-import HotelManagerAccountScreen from '../screens/HotelManagerAccountScreen';
+import HotelRoomTypeCalendarScreen from '../screens/HotelRoomTypeCalendarScreen';
 import AddListingChoiceScreen from '../screens/AddListingChoiceScreen';
 import AddHotelEstablishmentScreen from '../screens/AddHotelEstablishmentScreen';
 import EditHotelEstablishmentScreen from '../screens/EditHotelEstablishmentScreen';
@@ -569,7 +569,7 @@ const HotelManagerTabNavigator = () => {
       />
       <HotelManagerTab.Screen
         name="HotelManagerProfileTab"
-        component={HotelManagerAccountScreen}
+        component={ProfileScreen}
         options={{ tabBarLabel: 'Mon compte' }}
       />
     </HotelManagerTab.Navigator>
@@ -1444,6 +1444,11 @@ const AppNavigator = () => {
               name="EditHotelRoomType"
               component={EditHotelRoomTypeScreen}
               options={{ title: 'Modifier chambre', headerShown: false }}
+            />
+            <Stack.Screen
+              name="HotelRoomTypeCalendar"
+              component={HotelRoomTypeCalendarScreen}
+              options={{ title: 'Calendrier chambre', headerShown: false }}
             />
             <Stack.Screen 
               name="VehicleBooking" 

@@ -142,6 +142,13 @@ const HotelEstablishmentManagementScreen: React.FC = () => {
       onPress: () => navigation.navigate('HotelRoomTypes', { establishmentId }),
     },
     {
+      id: 'calendar',
+      icon: 'calendar-outline' as const,
+      title: 'Calendrier & disponibilités',
+      subtitle: 'Bloquer des dates, synchroniser iCal',
+      onPress: () => navigation.navigate('HotelRoomTypes', { establishmentId }),
+    },
+    {
       id: 'preview',
       icon: 'eye-outline' as const,
       title: 'Voir la fiche voyageur',

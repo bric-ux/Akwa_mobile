@@ -13,7 +13,7 @@ import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import type { HotelRoomType, RootStackParamList } from '../types';
+import type { HotelEstablishment, HotelRoomType, RootStackParamList } from '../types';
 import { useHotels } from '../hooks/useHotels';
 import { useCurrency } from '../hooks/useCurrency';
 import { useAuth } from '../services/AuthContext';
@@ -21,6 +21,7 @@ import { HOTEL_COLORS } from '../constants/colors';
 import { getRoomCategoryLabel } from '../constants/hotelListingForm';
 import { safeGoBack } from '../utils/navigation';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
+import HotelBookingModal from '../components/HotelBookingModal';
 
 type Route = RouteProp<RootStackParamList, 'HotelRoomDetail'>;
 const { width } = Dimensions.get('window');
@@ -30,22 +31,23 @@ const PLACEHOLDER = 'https://via.placeholder.com/800x500?text=Chambre';
 const HotelRoomDetailScreen: React.FC = () => {
   const route = useRoute<Route>();
   const navigation = useNavigation<any>();
-  const { establishmentId, roomTypeId } = route.params;
+  const { establishmentId, roomTypeId, checkIn, checkOut, guests } = route.params;
   const { getEstablishmentById } = useHotels();
   const { formatPrice } = useCurrency();
   const { user } = useAuth();
 
+  const [establishment, setEstablishment] = useState<HotelEstablishment | null>(null);
   const [room, setRoom] = useState<HotelRoomType | null>(null);
-  const [establishmentTitle, setEstablishmentTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
+  const [bookingOpen, setBookingOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     const est = await getEstablishmentById(establishmentId);
     const found = est?.hotel_room_types?.find((rt) => rt.id === roomTypeId) ?? null;
+    setEstablishment(est);
     setRoom(found);
-    setEstablishmentTitle(est?.title ?? '');
     setLoading(false);
   }, [establishmentId, roomTypeId, getEstablishmentById]);
 
@@ -61,10 +63,7 @@ const HotelRoomDetailScreen: React.FC = () => {
       });
       return;
     }
-    Alert.alert(
-      'Réservation',
-      'Le parcours de réservation multi-chambres arrive dans la prochaine étape.',
-    );
+    setBookingOpen(true);
   };
 
   if (loading) {
@@ -167,8 +166,8 @@ const HotelRoomDetailScreen: React.FC = () => {
           ) : null}
 
           <Text style={styles.title}>{room.name}</Text>
-          {establishmentTitle ? (
-            <Text style={styles.establishmentName}>{establishmentTitle}</Text>
+          {establishment?.title ? (
+            <Text style={styles.establishmentName}>{establishment.title}</Text>
           ) : null}
 
           <Text style={styles.price}>
@@ -224,6 +223,18 @@ const HotelRoomDetailScreen: React.FC = () => {
           <Text style={styles.bookBtnText}>Réserver cette chambre</Text>
         </TouchableOpacity>
       </SafeAreaView>
+
+      {establishment && room ? (
+        <HotelBookingModal
+          visible={bookingOpen}
+          onClose={() => setBookingOpen(false)}
+          establishment={establishment}
+          roomType={room}
+          initialCheckIn={checkIn}
+          initialCheckOut={checkOut}
+          initialGuests={guests}
+        />
+      ) : null}
     </View>
   );
 };

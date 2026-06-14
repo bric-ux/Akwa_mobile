@@ -51,43 +51,57 @@ const HotelRoomTypesScreen: React.FC = () => {
   const renderItem = ({ item }: { item: HotelRoomType }) => {
     const cover = item.images?.[0] || 'https://via.placeholder.com/80?text=Chambre';
     return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() =>
-          navigation.navigate('EditHotelRoomType', {
-            establishmentId,
-            roomTypeId: item.id,
-          })
-        }
-      >
-        <MediaThumb uri={cover} style={styles.cover} resizeMode="cover" />
-        <View style={styles.body}>
-          <Text style={styles.name} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={styles.meta}>
-            {getRoomCategoryLabel(item.room_category)} • {item.max_guests} pers. •{' '}
-            {item.inventory_count} unité{item.inventory_count !== 1 ? 's' : ''}
-          </Text>
-          <Text style={styles.price}>{formatPrice(item.price_per_night)}/nuit</Text>
-          <View
-            style={[
-              styles.badge,
-              { backgroundColor: item.status === 'active' ? '#dcfce7' : '#f1f5f9' },
-            ]}
-          >
-            <Text
+      <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.cardMain}
+          onPress={() =>
+            navigation.navigate('EditHotelRoomType', {
+              establishmentId,
+              roomTypeId: item.id,
+            })
+          }
+        >
+          <MediaThumb uri={cover} style={styles.cover} resizeMode="cover" />
+          <View style={styles.body}>
+            <Text style={styles.name} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.meta}>
+              {getRoomCategoryLabel(item.room_category)} • {item.max_guests} pers. •{' '}
+              {item.inventory_count} unité{item.inventory_count !== 1 ? 's' : ''}
+            </Text>
+            <Text style={styles.price}>{formatPrice(item.price_per_night)}/nuit</Text>
+            <View
               style={[
-                styles.badgeText,
-                { color: item.status === 'active' ? '#16a34a' : '#64748b' },
+                styles.badge,
+                { backgroundColor: item.status === 'active' ? '#dcfce7' : '#f1f5f9' },
               ]}
             >
-              {item.status === 'active' ? 'Actif' : 'Masqué'}
-            </Text>
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: item.status === 'active' ? '#16a34a' : '#64748b' },
+                ]}
+              >
+                {item.status === 'active' ? 'Actif' : 'Masqué'}
+              </Text>
+            </View>
           </View>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
-      </TouchableOpacity>
+          <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.calendarBtn}
+          onPress={() =>
+            navigation.navigate('HotelRoomTypeCalendar', {
+              roomTypeId: item.id,
+              establishmentId,
+              roomTypeName: item.name,
+            })
+          }
+        >
+          <Ionicons name="calendar-outline" size={22} color={HOTEL_COLORS.primary} />
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -183,9 +197,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 12,
     marginBottom: 10,
+    overflow: 'hidden',
+  },
+  cardMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
     gap: 12,
+  },
+  calendarBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cover: { width: 64, height: 64, borderRadius: 8 },
   body: { flex: 1, gap: 2 },

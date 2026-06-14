@@ -414,6 +414,7 @@ const ProfileScreen: React.FC = () => {
   let menuItems = [...baseMenuItems];
 
   const isInMonthlyRentalMode = route.name === 'MonthlyRentalProfileTab';
+  const isInHotelManagerMode = route.name === 'HotelManagerProfileTab';
 
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
   if (profile?.is_host || hasPendingApplications) {
@@ -432,7 +433,7 @@ const ProfileScreen: React.FC = () => {
     menuItems.push(vehicleSpaceItem);
   }
 
-  if (hasHotels) {
+  if (hasHotels && !isInHotelManagerMode) {
     menuItems.push(hotelManagerSpaceItem);
   }
 
@@ -740,6 +741,46 @@ const ProfileScreen: React.FC = () => {
                 <View style={styles.monthlyRentalSpaceTextContainer}>
                   <Text style={styles.monthlyRentalSpaceText}>Mode logement longue durée</Text>
                   <Text style={styles.monthlyRentalSpaceSubtext}>Gérez vos logements et candidatures</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Bouton Mode voyageur (espace gestionnaire hôtel) */}
+        {isInHotelManagerMode && (
+          <View style={styles.travelerSpaceContainer}>
+            <TouchableOpacity
+              style={[styles.travelerSpaceButton, { backgroundColor: HOTEL_COLORS.primary }]}
+              onPress={() => {
+                Alert.alert(
+                  'Mode voyageur',
+                  'Retourner à l\'exploration des logements ?',
+                  [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    {
+                      text: t('common.continue'),
+                      onPress: () => {
+                        navigation.navigate('ModeTransition' as never, {
+                          targetMode: 'traveler',
+                          targetPath: 'Home',
+                          fromMode: 'hotel_manager',
+                        });
+                      },
+                    },
+                  ],
+                );
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.travelerSpaceContent}>
+                <View style={[styles.travelerSpaceIconContainer, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                  <Ionicons name="airplane" size={18} color="#fff" />
+                </View>
+                <View style={styles.travelerSpaceTextContainer}>
+                  <Text style={styles.travelerSpaceText}>Mode voyageur</Text>
+                  <Text style={styles.travelerSpaceSubtext}>Recherche, réservations, favoris</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#fff" />
               </View>

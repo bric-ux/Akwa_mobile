@@ -7,7 +7,7 @@ import { supabase } from './supabase';
 const CREATE_CHECKOUT_SESSION = 'create-checkout-session';
 const CHECK_PAYMENT_STATUS = 'check-payment-status';
 
-export type BookingType = 'property' | 'vehicle';
+export type BookingType = 'property' | 'vehicle' | 'hotel';
 export type PaymentType = 'booking' | 'modification_surplus' | 'vehicle_modification_surplus' | 'penalty' | 'platform_commission' | 'host_refund';
 
 export interface CreateCheckoutSessionResult {
@@ -143,8 +143,18 @@ export async function checkPaymentStatus(
     payment_type === 'booking' &&
     (checkout_token || booking_id)
   ) {
-    const table = booking_type === 'vehicle' ? 'vehicle_bookings' : 'bookings';
-    const paymentTable = booking_type === 'vehicle' ? 'vehicle_payments' : 'payments';
+    const table =
+      booking_type === 'vehicle'
+        ? 'vehicle_bookings'
+        : booking_type === 'hotel'
+          ? 'hotel_bookings'
+          : 'bookings';
+    const paymentTable =
+      booking_type === 'vehicle'
+        ? 'vehicle_payments'
+        : booking_type === 'hotel'
+          ? 'hotel_payments'
+          : 'payments';
     let resolvedId = booking_id;
 
     if (!resolvedId && checkout_token) {

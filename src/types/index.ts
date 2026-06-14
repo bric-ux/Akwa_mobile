@@ -330,7 +330,7 @@ export type RootStackParamList = {
     checkOut?: string;
     guests?: number;
   };
-  HotelRoomDetail: { establishmentId: string; roomTypeId: string };
+  HotelRoomDetail: { establishmentId: string; roomTypeId: string; checkIn?: string; checkOut?: string; guests?: number };
   HotelBooking: { establishmentId: string; checkIn?: string; checkOut?: string; guests?: number };
   AddListingChoice: undefined;
   AddHotelEstablishment: undefined;
@@ -339,6 +339,7 @@ export type RootStackParamList = {
   HotelRoomTypes: { establishmentId: string };
   AddHotelRoomType: { establishmentId: string };
   EditHotelRoomType: { establishmentId: string; roomTypeId: string };
+  HotelRoomTypeCalendar: { roomTypeId: string; establishmentId: string; roomTypeName?: string };
   VehicleBooking: { vehicleId: string };
   AddVehicle: undefined;
   MyVehicles: undefined;
@@ -436,6 +437,16 @@ export interface HotelEstablishmentPhoto {
   url: string;
   category?: string | null;
   display_order?: number | null;
+}
+
+export interface HotelBookingItem {
+  id: string;
+  booking_id: string;
+  room_type_id: string;
+  quantity: number;
+  price_per_night: number;
+  cleaning_fee: number;
+  line_total: number;
 }
 
 export interface HotelRoomType {
