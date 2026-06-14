@@ -88,21 +88,25 @@ export function useZipGame(puzzleDate = getLocalDateKey()) {
   const recordPlay = useCallback(
     async (params: { puzzleId: string; timeMs: number; moves: number }): Promise<ZipPlayResult> => {
       try {
-        const { data: auth, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
+        const { data: { session } } = await supabase.auth.getSession();
+        const uid = session?.user?.id ?? null;
 
         const timeMs = Math.max(1, Math.round(params.timeMs));
-        const anonymousId = auth.user ? null : await getOrCreateZipAnonymousId();
+        const moves = Math.max(1, Math.round(params.moves));
+        const anonymousId = uid ? null : await getOrCreateZipAnonymousId();
 
         const { data, error } = await supabase.rpc('record_zip_game_play', {
           p_puzzle_date: puzzleDate,
           p_puzzle_id: params.puzzleId,
           p_time_ms: timeMs,
-          p_moves: params.moves,
+          p_moves: moves,
           p_anonymous_id: anonymousId,
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error('[useZipGame] recordPlay RPC error', error.message, error);
+          throw error;
+        }
         return data === 'already_played' ? 'already_played' : 'saved';
       } catch (err: any) {
         console.error('[useZipGame] recordPlay error', err);

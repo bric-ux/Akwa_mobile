@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'zip_anonymous_player_id';
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value: string): boolean {
+  return UUID_RE.test(value.trim());
+}
 
 function generateUuid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -17,7 +23,7 @@ function generateUuid(): string {
 export async function getOrCreateZipAnonymousId(): Promise<string> {
   try {
     const existing = await AsyncStorage.getItem(STORAGE_KEY);
-    if (existing) return existing;
+    if (existing && isValidUuid(existing)) return existing.trim();
 
     const created = generateUuid();
     await AsyncStorage.setItem(STORAGE_KEY, created);
