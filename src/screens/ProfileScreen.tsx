@@ -388,15 +388,6 @@ const ProfileScreen: React.FC = () => {
     },
   };
 
-  const hotelTravelerSpaceItem = {
-    id: 'hotelTravelerSpace',
-    title: 'Hôtels & maisons d\'hôtes',
-    icon: 'bed-outline',
-    onPress: () => {
-      navigation.navigate('HotelSpace' as never, { screen: 'HotelsTab' } as never);
-    },
-  };
-
   // Éléments de menu communs
   const commonMenuItems = [
     {
@@ -435,8 +426,6 @@ const ProfileScreen: React.FC = () => {
   if (user) {
     menuItems.push(addListingItem);
   }
-
-  menuItems.push(hotelTravelerSpaceItem);
 
   // Ajouter "Espace Véhicules" si l'utilisateur a des véhicules (navigation complète)
   if (hasVehicles) {

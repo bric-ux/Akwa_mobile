@@ -14,7 +14,7 @@ const MyHotelBookingsScreen: React.FC = () => {
         <Ionicons name="bed-outline" size={56} color="#cbd5e1" />
         <Text style={styles.title}>Aucune réservation hôtel</Text>
         <Text style={styles.subtitle}>
-          Vos séjours en hôtel ou maison d&apos;hôtes apparaîtront ici.
+          Vos séjours en hôtel ou appart&apos;hôtel apparaîtront ici.
         </Text>
         <TouchableOpacity
           style={styles.cta}

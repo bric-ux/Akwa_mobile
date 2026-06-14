@@ -15,9 +15,15 @@ import {
 interface HotelCardProps {
   establishment: HotelEstablishment;
   onPress: (establishment: HotelEstablishment) => void;
+  /** Carrousel horizontal sur l'accueil (sans marges latérales). */
+  horizontalShelf?: boolean;
 }
 
-const HotelCard: React.FC<HotelCardProps> = ({ establishment, onPress }) => {
+const HotelCard: React.FC<HotelCardProps> = ({
+  establishment,
+  onPress,
+  horizontalShelf = false,
+}) => {
   const { formatPrice } = useCurrency();
   const coverUrl = getHotelCoverUrl(establishment);
   const minPrice = establishment.min_price_per_night ?? getMinRoomPrice(establishment);
@@ -26,11 +32,11 @@ const HotelCard: React.FC<HotelCardProps> = ({ establishment, onPress }) => {
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, horizontalShelf && styles.cardShelf]}
       activeOpacity={0.9}
       onPress={() => onPress(establishment)}
     >
-      <View style={styles.imageWrap}>
+      <View style={[styles.imageWrap, horizontalShelf && styles.imageWrapShelf]}>
         <Image
           source={{ uri: coverUrl }}
           style={styles.image}
@@ -52,7 +58,7 @@ const HotelCard: React.FC<HotelCardProps> = ({ establishment, onPress }) => {
         )}
       </View>
 
-      <View style={styles.body}>
+      <View style={[styles.body, horizontalShelf && styles.bodyShelf]}>
         <Text style={styles.title} numberOfLines={2}>
           {establishment.title}
         </Text>
@@ -98,9 +104,16 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
+  cardShelf: {
+    marginBottom: 0,
+    flex: 1,
+  },
   imageWrap: {
     height: 200,
     backgroundColor: '#f1f5f9',
+  },
+  imageWrapShelf: {
+    height: 180,
   },
   image: {
     width: '100%',
@@ -141,6 +154,9 @@ const styles = StyleSheet.create({
   body: {
     padding: 14,
     gap: 6,
+  },
+  bodyShelf: {
+    padding: 12,
   },
   title: {
     fontSize: 17,

@@ -88,7 +88,7 @@ const MyHotelEstablishmentsScreen: React.FC = () => {
         <Ionicons name="bed-outline" size={56} color="#cbd5e1" />
         <Text style={styles.emptyTitle}>Aucun établissement</Text>
         <Text style={styles.emptySubtitle}>
-          Créez votre premier hôtel ou maison d&apos;hôtes pour commencer à recevoir des réservations.
+          Créez votre premier hôtel ou appart&apos;hôtel pour commencer à recevoir des réservations.
         </Text>
         <TouchableOpacity
           style={styles.emptyCta}

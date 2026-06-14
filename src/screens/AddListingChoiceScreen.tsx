@@ -26,7 +26,7 @@ const LISTING_OPTIONS = [
   },
   {
     id: 'hotel',
-    title: 'Hôtel & maison d\'hôtes',
+    title: 'Hôtel & Appart\'hôtel',
     subtitle: 'Établissement multi-chambres avec inventaire',
     icon: 'bed-outline' as const,
     color: HOTEL_COLORS.primary,

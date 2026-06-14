@@ -114,10 +114,15 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
       Alert.alert('Permission requise', 'Accès aux photos nécessaire.');
       return;
     }
+    const limit = 10 - imageUris.length;
+    if (limit <= 0) {
+      Alert.alert('Limite', 'Maximum 10 photos par chambre.');
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsMultipleSelection: true,
-      selectionLimit: 10 - imageUris.length,
+      selectionLimit: limit,
       quality: 0.8,
     });
     if (!result.canceled && result.assets?.length) {
@@ -383,7 +388,7 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
 
           <TouchableOpacity style={styles.addPhotoBtn} onPress={pickImages}>
             <Ionicons name="camera-outline" size={22} color={HOTEL_COLORS.primary} />
-            <Text style={styles.addPhotoText}>Photos</Text>
+            <Text style={styles.addPhotoText}>Photos ({imageUris.length}/10)</Text>
           </TouchableOpacity>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {imageUris.map((uri, index) => (

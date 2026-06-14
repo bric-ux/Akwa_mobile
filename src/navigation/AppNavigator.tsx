@@ -88,6 +88,7 @@ import AddHotelEstablishmentScreen from '../screens/AddHotelEstablishmentScreen'
 import EditHotelEstablishmentScreen from '../screens/EditHotelEstablishmentScreen';
 import HotelEstablishmentManagementScreen from '../screens/HotelEstablishmentManagementScreen';
 import HotelRoomTypesScreen from '../screens/HotelRoomTypesScreen';
+import HotelRoomDetailScreen from '../screens/HotelRoomDetailScreen';
 import AddHotelRoomTypeScreen, { EditHotelRoomTypeScreen } from '../screens/HotelRoomTypeFormScreen';
 import VehicleDetailsScreen from '../screens/VehicleDetailsScreen';
 import AddVehicleScreen from '../screens/AddVehicleScreen';
@@ -1423,6 +1424,11 @@ const AppNavigator = () => {
               name="HotelEstablishmentManagement"
               component={HotelEstablishmentManagementScreen}
               options={{ title: 'Gestion hôtel', headerShown: false }}
+            />
+            <Stack.Screen
+              name="HotelRoomDetail"
+              component={HotelRoomDetailScreen}
+              options={{ title: 'Détail chambre', headerShown: false }}
             />
             <Stack.Screen
               name="HotelRoomTypes"

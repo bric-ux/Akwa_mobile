@@ -218,6 +218,8 @@ export interface SearchFilters {
   sortBy?: 'popular' | 'price_asc' | 'price_desc' | 'rating_desc' | 'recent' | '';
   // Type de logement : résidence meublée (court séjour) ou location longue durée
   rentalType?: 'short_term' | 'monthly' | 'all';
+  /** Court séjour : tout, résidences meublées seules, ou hôtels seuls */
+  accommodationType?: 'all' | 'property' | 'hotel';
 }
 
 // Types de navigation
@@ -236,7 +238,11 @@ export type RootStackParamList = {
     mode?: 'login' | 'signup';
   };
   EmailVerification: { email: string; firstName: string };
-  Search: { destination?: string; initialRentalType?: 'short_term' | 'monthly' | 'all' };
+  Search: {
+    destination?: string;
+    initialRentalType?: 'short_term' | 'monthly' | 'all';
+    initialAccommodationType?: 'all' | 'property' | 'hotel';
+  };
   PropertyDetails: { 
     propertyId: string;
     checkIn?: string;
@@ -324,6 +330,7 @@ export type RootStackParamList = {
     checkOut?: string;
     guests?: number;
   };
+  HotelRoomDetail: { establishmentId: string; roomTypeId: string };
   HotelBooking: { establishmentId: string; checkIn?: string; checkOut?: string; guests?: number };
   AddListingChoice: undefined;
   AddHotelEstablishment: undefined;

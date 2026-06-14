@@ -31,6 +31,7 @@ const ESTABLISHMENT_SELECT = `
     id,
     establishment_id,
     name,
+    room_category,
     description,
     max_guests,
     bedrooms,

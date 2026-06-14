@@ -23,6 +23,7 @@ import {
   getEstablishmentTypeLabel,
   getHotelGalleryUrls,
 } from '../lib/hotelUtils';
+import { getRoomCategoryLabel } from '../constants/hotelListingForm';
 import { safeGoBack } from '../utils/navigation';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 
@@ -131,8 +132,19 @@ const HotelDetailScreen: React.FC = () => {
           ) : null}
 
           <Text style={styles.sectionTitle}>Types de chambres</Text>
+          <Text style={styles.sectionHint}>Appuyez sur une chambre pour voir photos et équipements</Text>
           {(establishment.hotel_room_types ?? []).map((room) => (
-            <RoomTypeCard key={room.id} room={room} formatPrice={formatPrice} />
+            <RoomTypeCard
+              key={room.id}
+              room={room}
+              formatPrice={formatPrice}
+              onPress={() =>
+                navigation.navigate('HotelRoomDetail', {
+                  establishmentId: establishment.id,
+                  roomTypeId: room.id,
+                })
+              }
+            />
           ))}
 
           {(establishment.amenities?.length ?? 0) > 0 ? (
@@ -162,32 +174,53 @@ const HotelDetailScreen: React.FC = () => {
 function RoomTypeCard({
   room,
   formatPrice,
+  onPress,
 }: {
   room: HotelRoomType;
   formatPrice: (n: number) => string;
+  onPress: () => void;
 }) {
   const cover = room.images?.[0];
+  const photoCount = room.images?.filter(Boolean).length ?? 0;
   return (
-    <View style={styles.roomCard}>
+    <TouchableOpacity style={styles.roomCard} onPress={onPress} activeOpacity={0.85}>
       {cover ? (
-        <Image source={{ uri: cover }} style={styles.roomImage} contentFit="cover" />
+        <View>
+          <Image source={{ uri: cover }} style={styles.roomImage} contentFit="cover" />
+          {photoCount > 1 ? (
+            <View style={styles.photoCountBadge}>
+              <Ionicons name="images-outline" size={10} color="#fff" />
+              <Text style={styles.photoCountText}>{photoCount}</Text>
+            </View>
+          ) : null}
+        </View>
       ) : (
         <View style={[styles.roomImage, styles.roomImagePlaceholder]}>
           <Ionicons name="bed-outline" size={28} color="#94a3b8" />
         </View>
       )}
       <View style={styles.roomBody}>
+        {room.room_category ? (
+          <Text style={styles.roomCategory}>{getRoomCategoryLabel(room.room_category)}</Text>
+        ) : null}
         <Text style={styles.roomName}>{room.name}</Text>
         <Text style={styles.roomMeta}>
           {room.max_guests} pers. · {room.bedrooms} ch. · {room.bathrooms} sdb
         </Text>
+        {(room.amenities?.length ?? 0) > 0 ? (
+          <Text style={styles.roomAmenitiesPreview} numberOfLines={1}>
+            {room.amenities!.slice(0, 3).join(' · ')}
+            {(room.amenities?.length ?? 0) > 3 ? '…' : ''}
+          </Text>
+        ) : null}
         <Text style={styles.roomPrice}>
           {formatPrice(room.price_per_night)}
           <Text style={styles.roomPriceSuffix}>/nuit</Text>
         </Text>
         <Text style={styles.roomStock}>{room.inventory_count} disponible(s)</Text>
       </View>
-    </View>
+      <Ionicons name="chevron-forward" size={20} color="#cbd5e1" style={styles.roomChevron} />
+    </TouchableOpacity>
   );
 }
 
@@ -232,8 +265,10 @@ const styles = StyleSheet.create({
   locationText: { fontSize: 14, color: '#64748b' },
   description: { fontSize: 15, color: '#475569', lineHeight: 22, marginTop: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a', marginTop: 20, marginBottom: 10 },
+  sectionHint: { fontSize: 13, color: '#94a3b8', marginTop: -6, marginBottom: 10 },
   roomCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 14,
@@ -241,14 +276,30 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: '#f8fafc',
   },
-  roomImage: { width: 96, height: 96 },
+  roomImage: { width: 96, height: 110 },
   roomImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' },
+  photoCountBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  photoCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   roomBody: { flex: 1, padding: 10, justifyContent: 'center' },
+  roomCategory: { fontSize: 11, fontWeight: '700', color: HOTEL_COLORS.primary, marginBottom: 2 },
   roomName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
   roomMeta: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  roomAmenitiesPreview: { fontSize: 11, color: '#94a3b8', marginTop: 3 },
   roomPrice: { fontSize: 16, fontWeight: '800', color: HOTEL_COLORS.primary, marginTop: 4 },
   roomPriceSuffix: { fontSize: 12, fontWeight: '500' },
   roomStock: { fontSize: 11, color: '#64748b', marginTop: 2 },
+  roomChevron: { marginRight: 10 },
   amenitiesWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   amenityChip: {
     backgroundColor: '#f1f5f9',

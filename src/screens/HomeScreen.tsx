@@ -21,8 +21,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useExploreCityHome, ExploreCitySection } from '../hooks/useExploreCityHome';
-import { Property } from '../types';
+import { useExploreHotelsHome } from '../hooks/useExploreHotelsHome';
+import { Property, HotelEstablishment } from '../types';
 import PropertyCard from '../components/PropertyCard';
+import HotelCard from '../components/HotelCard';
 import { Header } from '../components/Header';
 import { HeroSection } from '../components/HeroSection';
 import { InfoBanner } from '../components/InfoBanner';
@@ -33,9 +35,9 @@ import TeddyExploreFab from '../components/TeddyExploreFab';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNetwork } from '../contexts/NetworkContext';
 import LoadErrorCard from '../components/LoadErrorCard';
-import { HOTEL_COLORS } from '../constants/colors';
 import type { LoadFailureKind } from '../utils/loadError';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
+import { HOTEL_COLORS } from '../constants/colors';
 
 const SCREEN_W = Dimensions.get('window').width;
 /** Titres explore + première carte : alignés sur le carrousel « trésors CI » ; carte suivante visible */
@@ -79,6 +81,11 @@ const HomeScreen: React.FC = () => {
     error: exploreError,
     refreshExploreCityHome,
   } = useExploreCityHome();
+  const {
+    hotels: exploreHotels,
+    loading: exploreHotelsLoading,
+    refreshExploreHotelsHome,
+  } = useExploreHotelsHome();
 
   const [refreshing, setRefreshing] = useState(false);
   const lastScrollY = useRef(0);
@@ -128,14 +135,22 @@ const HomeScreen: React.FC = () => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refreshExploreCityHome();
+      await Promise.all([refreshExploreCityHome(), refreshExploreHotelsHome()]);
     } finally {
       setRefreshing(false);
     }
-  }, [refreshExploreCityHome]);
+  }, [refreshExploreCityHome, refreshExploreHotelsHome]);
 
   const handlePropertyPress = useCallback((property: Property) => {
     navigation.navigate('PropertyDetails', { propertyId: property.id });
+  }, [navigation]);
+
+  const handleHotelPress = useCallback((establishment: HotelEstablishment) => {
+    navigation.navigate('HotelDetails', { establishmentId: establishment.id });
+  }, [navigation]);
+
+  const navigateSearchHotels = useCallback(() => {
+    (navigation as any).navigate('Search', { initialAccommodationType: 'hotel' });
   }, [navigation]);
 
   const handleSearchPress = useCallback(() => {
@@ -178,6 +193,72 @@ const HomeScreen: React.FC = () => {
     },
     [handlePropertyPress],
   );
+
+  const renderExploreHotelRow = useCallback(
+    (hotels: HotelEstablishment[]) => (
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.exploreRowContent}
+      >
+        {hotels.map((hotel) => (
+          <View key={hotel.id} style={[styles.exploreCardWrap, { width: EXPLORE_CARD_WIDTH }]}>
+            <HotelCard
+              establishment={hotel}
+              onPress={handleHotelPress}
+              horizontalShelf
+            />
+          </View>
+        ))}
+      </ScrollView>
+    ),
+    [handleHotelPress],
+  );
+
+  const exploreHotelsSection = useMemo(() => {
+    if (exploreHotelsLoading && exploreHotels.length === 0) {
+      return (
+        <View style={styles.exploreHotelsWarmup}>
+          <View style={styles.exploreHotelsWarmupCard} />
+          <View style={styles.exploreHotelsWarmupCard} />
+        </View>
+      );
+    }
+    if (exploreHotels.length === 0) return null;
+
+    const count = exploreHotels.length;
+    const subtitle = `${count} établissement${count > 1 ? 's' : ''} disponible${count > 1 ? 's' : ''}`;
+
+    return (
+      <View style={styles.exploreSection}>
+        <View style={styles.exploreSectionHeader}>
+          <View style={styles.exploreSectionTitles}>
+            <View style={styles.exploreHotelsTitleRow}>
+              <Ionicons name="bed" size={18} color={HOTEL_COLORS.primary} />
+              <Text style={styles.exploreCityTitle}>Hôtels & Appart&apos;hôtel</Text>
+            </View>
+            <Text style={styles.exploreCitySubtitle}>{subtitle}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.exploreVoirTout}
+            onPress={navigateSearchHotels}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.exploreVoirToutText}>Voir tout</Text>
+            <Ionicons name="chevron-forward" size={16} color="#475569" />
+          </TouchableOpacity>
+        </View>
+        {renderExploreHotelRow(exploreHotels)}
+      </View>
+    );
+  }, [
+    exploreHotels,
+    exploreHotelsLoading,
+    navigateSearchHotels,
+    renderExploreHotelRow,
+  ]);
 
   const renderExploreSection = useCallback(
     ({ item }: { item: ExploreCitySection }) => {
@@ -279,38 +360,14 @@ const HomeScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Explorez par ville</Text>
         </View>
         {exploreErrorCard}
+        {exploreHotelsSection}
       </View>
     </>
-  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard]);
+  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, exploreHotelsSection]);
 
   const listFooter = useMemo(
     () => (
       <>
-        {/* Hôtels & maisons d'hôtes */}
-        <View style={styles.hotelsPromoSection}>
-          <View style={styles.hotelsPromoCard}>
-            <View style={styles.hotelsPromoIconWrap}>
-              <Ionicons name="bed" size={32} color={HOTEL_COLORS.primary} />
-            </View>
-            <View style={styles.hotelsPromoTextWrap}>
-              <View style={styles.hotelsPromoBadge}>
-                <Text style={styles.hotelsPromoBadgeText}>NOUVEAU</Text>
-              </View>
-              <Text style={styles.hotelsPromoTitle}>Hôtels & maisons d&apos;hôtes</Text>
-              <Text style={styles.hotelsPromoSubtitle}>
-                Réservez des chambres à la nuit, plusieurs types disponibles
-              </Text>
-              <TouchableOpacity
-                style={styles.hotelsPromoButton}
-                onPress={() => (navigation as any).navigate('HotelSpace', { screen: 'HotelsTab' })}
-              >
-                <Text style={styles.hotelsPromoButtonText}>Découvrir</Text>
-                <Ionicons name="arrow-forward" size={16} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
         {/* Location de véhicules — après les résidences par ville */}
         <View style={styles.vehiclesPromoSection}>
           <View
@@ -756,6 +813,23 @@ const styles = StyleSheet.create({
   exploreCardWrap: {
     marginRight: 10,
   },
+  exploreHotelsTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  exploreHotelsWarmup: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: EXPLORE_GUTTER,
+    marginBottom: 8,
+  },
+  exploreHotelsWarmupCard: {
+    width: EXPLORE_CARD_WIDTH,
+    height: 260,
+    borderRadius: 16,
+    backgroundColor: '#e9ecef',
+  },
   emptyContainer: {
     padding: 40,
     alignItems: 'center',
@@ -784,70 +858,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 18,
     color: '#dc3545',
-  },
-  hotelsPromoSection: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  hotelsPromoCard: {
-    flexDirection: 'row',
-    gap: 14,
-    backgroundColor: HOTEL_COLORS.light,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#c7d2fe',
-  },
-  hotelsPromoIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hotelsPromoTextWrap: {
-    flex: 1,
-    gap: 4,
-  },
-  hotelsPromoBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: HOTEL_COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  hotelsPromoBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  hotelsPromoTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#1e1b4b',
-  },
-  hotelsPromoSubtitle: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
-  },
-  hotelsPromoButton: {
-    marginTop: 6,
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: HOTEL_COLORS.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  hotelsPromoButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 13,
   },
   vehiclesPromoSection: {
     marginHorizontal: 20,

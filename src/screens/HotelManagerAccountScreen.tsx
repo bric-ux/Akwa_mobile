@@ -74,21 +74,6 @@ const HotelManagerAccountScreen: React.FC = () => {
     ]);
   };
 
-  const handleSwitchToHotelTraveler = () => {
-    Alert.alert('Espace Hôtels', 'Découvrir les hôtels en tant que voyageur ?', [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.continue'),
-        onPress: () =>
-          navigation.navigate('ModeTransition', {
-            targetMode: 'traveler',
-            targetPath: 'HotelSpace',
-            fromMode: 'hotel_manager',
-          }),
-      },
-    ]);
-  };
-
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
@@ -157,7 +142,9 @@ const HotelManagerAccountScreen: React.FC = () => {
           <Text style={styles.name}>
             {profile?.first_name} {profile?.last_name}
           </Text>
-          <Text style={styles.email}>{displayEmailOrPhone(profile, user)}</Text>
+          <Text style={styles.email}>
+            {displayEmailOrPhone(profile?.email, (profile as { phone?: string } | null)?.phone)}
+          </Text>
           <View style={styles.modeBadge}>
             <Ionicons name="bed-outline" size={14} color={HOTEL_COLORS.primary} />
             <Text style={styles.modeBadgeText}>Gestionnaire hôtel</Text>
@@ -167,13 +154,9 @@ const HotelManagerAccountScreen: React.FC = () => {
         <IdentityVerificationAlert />
 
         <View style={styles.switchRow}>
-          <TouchableOpacity style={styles.switchBtn} onPress={handleSwitchToTraveler}>
+          <TouchableOpacity style={[styles.switchBtn, styles.switchBtnFull]} onPress={handleSwitchToTraveler}>
             <Ionicons name="airplane-outline" size={20} color={HOTEL_COLORS.primary} />
             <Text style={styles.switchBtnText}>Mode voyageur</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.switchBtn} onPress={handleSwitchToHotelTraveler}>
-            <Ionicons name="bed-outline" size={20} color={HOTEL_COLORS.primary} />
-            <Text style={styles.switchBtnText}>Espace Hôtels</Text>
           </TouchableOpacity>
         </View>
 
@@ -229,6 +212,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: HOTEL_COLORS.light,
+  },
+  switchBtnFull: {
+    flex: 1,
   },
   switchBtnText: { color: HOTEL_COLORS.primary, fontWeight: '600', fontSize: 13 },
   menuItem: {

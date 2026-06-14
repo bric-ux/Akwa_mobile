@@ -62,7 +62,7 @@ const HotelsScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={22} color="#0f172a" />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.headerTitle}>Hôtels & maisons d&apos;hôtes</Text>
+          <Text style={styles.headerTitle}>Hôtels & Appart&apos;hôtel</Text>
           <Text style={styles.headerSubtitle}>Chambres à la nuit en Côte d&apos;Ivoire</Text>
         </View>
       </View>

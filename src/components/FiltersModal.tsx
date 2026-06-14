@@ -37,6 +37,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   const [rentalType, setRentalType] = useState<'short_term' | 'monthly'>(
     lockedRentalType ?? (initialFilters.rentalType === 'monthly' ? 'monthly' : 'short_term')
   );
+  const accommodationType = filters.accommodationType ?? 'all';
   const [minPriceInput, setMinPriceInput] = useState<string>(initialFilters.priceMin?.toString() || '');
   const [maxPriceInput, setMaxPriceInput] = useState<string>(initialFilters.priceMax?.toString() || '');
 
@@ -85,6 +86,9 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     if (initialFilters.priceMax !== undefined) {
       setMaxPriceInput(initialFilters.priceMax.toString());
     }
+    if (initialFilters.accommodationType !== undefined) {
+      setFilters((prev) => ({ ...prev, accommodationType: initialFilters.accommodationType }));
+    }
   }, [initialFilters, lockedRentalType]);
 
   const handleApply = () => {
@@ -98,6 +102,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
       amenities: selectedAmenities.length > 0 ? selectedAmenities : undefined,
       sortBy: sortBy || undefined,
       rentalType: lockedRentalType ?? rentalType,
+      accommodationType: rentalType === 'monthly' ? undefined : (filters.accommodationType ?? 'all'),
     });
     onClose();
   };
@@ -113,7 +118,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   };
 
   const clearFilters = () => {
-    setFilters({});
+    setFilters({ accommodationType: 'all' });
     setSelectedAmenities([]);
     setSortBy('');
     setRentalType(lockedRentalType ?? 'short_term');
@@ -188,6 +193,40 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
                 >
                   <Text style={[styles.sortOptionText, rentalType === 'monthly' && styles.sortOptionTextActive]}>Location longue durée</Text>
                 </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {rentalType !== 'monthly' && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="bed" size={18} color="#2E7D32" />
+                <Text style={styles.sectionTitle}>Type d&apos;hébergement</Text>
+              </View>
+              <View style={styles.sortContainer}>
+                {([
+                  { key: 'all', label: 'Tout' },
+                  { key: 'property', label: 'Résidences meublées' },
+                  { key: 'hotel', label: 'Hôtels' },
+                ] as const).map((option) => (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[
+                      styles.sortOption,
+                      accommodationType === option.key && styles.sortOptionActive,
+                    ]}
+                    onPress={() => setFilters({ ...filters, accommodationType: option.key })}
+                  >
+                    <Text
+                      style={[
+                        styles.sortOptionText,
+                        accommodationType === option.key && styles.sortOptionTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
           )}
@@ -314,11 +353,12 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
             </View>
           </View>
 
-          {/* Type de logement */}
+          {/* Catégorie de résidence */}
+          {rentalType !== 'monthly' && accommodationType !== 'hotel' && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="home" size={18} color="#2E7D32" />
-              <Text style={styles.sectionTitle}>Type de logement</Text>
+              <Text style={styles.sectionTitle}>Catégorie de résidence</Text>
             </View>
             <View style={styles.propertyTypes}>
               {propertyTypes.map((type) => (
@@ -342,9 +382,10 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
               ))}
             </View>
           </View>
+          )}
 
 
-          {rentalType !== 'monthly' && (
+          {rentalType !== 'monthly' && accommodationType !== 'hotel' && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Recherche par rayon</Text>
               <Text style={styles.helpText}>
@@ -373,6 +414,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
           )}
 
           {/* Équipements */}
+          {rentalType !== 'monthly' && accommodationType !== 'hotel' && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="options" size={18} color="#2E7D32" />
@@ -410,6 +452,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
               </View>
             )}
           </View>
+          )}
 
           {/* Bouton effacer */}
           <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>

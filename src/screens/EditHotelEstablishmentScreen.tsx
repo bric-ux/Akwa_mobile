@@ -22,16 +22,12 @@ import CitySearchInputModal from '../components/CitySearchInputModal';
 import { supabase } from '../services/supabase';
 import { HOTEL_COLORS } from '../constants/colors';
 import { getHotelGalleryUrls } from '../lib/hotelUtils';
+import { HOTEL_ESTABLISHMENT_TYPES } from '../constants/hotelListingForm';
 import type { HotelEstablishmentType, RootStackParamList } from '../types';
 
 type Route = RouteProp<RootStackParamList, 'EditHotelEstablishment'>;
 
-const ESTABLISHMENT_TYPES: { value: HotelEstablishmentType; label: string }[] = [
-  { value: 'hotel', label: 'Hôtel' },
-  { value: 'guesthouse', label: "Maison d'hôtes" },
-  { value: 'residence', label: 'Résidence' },
-  { value: 'aparthotel', label: "Appart'hôtel" },
-];
+const ESTABLISHMENT_TYPES = HOTEL_ESTABLISHMENT_TYPES.map(({ value, label }) => ({ value, label }));
 
 const COMMON_AMENITIES = [
   'Wi-Fi',

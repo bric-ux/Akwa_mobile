@@ -2,8 +2,6 @@ import type { HotelEstablishmentType } from '../types';
 
 export const HOTEL_ESTABLISHMENT_TYPES: { value: HotelEstablishmentType; label: string; icon: string }[] = [
   { value: 'hotel', label: 'Hôtel', icon: '🏨' },
-  { value: 'guesthouse', label: "Maison d'hôtes", icon: '🛎️' },
-  { value: 'residence', label: 'Résidence', icon: '🏢' },
   { value: 'aparthotel', label: "Appart'hôtel", icon: '🏙️' },
 ];
 

@@ -125,8 +125,15 @@ const AddHotelEstablishmentScreen: React.FC = () => {
       return;
     }
     const current = target === 'establishment' ? imageUris : roomDraft.imageUris;
-    const limit = 20 - current.length;
-    if (limit <= 0) return;
+    const maxTotal = target === 'room' ? 10 : 20;
+    const limit = maxTotal - current.length;
+    if (limit <= 0) {
+      Alert.alert(
+        'Limite',
+        target === 'room' ? 'Maximum 10 photos par chambre.' : 'Maximum 20 photos.',
+      );
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsMultipleSelection: true,
@@ -524,6 +531,7 @@ const AddHotelEstablishmentScreen: React.FC = () => {
                   <Text style={styles.roomSummaryMeta}>
                     {getRoomCategoryLabel(room.room_category)} • {room.price_per_night} F/nuit •{' '}
                     {room.inventory_count} unité(s)
+                    {room.imageUris.length > 0 ? ` • ${room.imageUris.length} photo(s)` : ''}
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => removeRoom(room.tempId)}>
@@ -635,8 +643,34 @@ const AddHotelEstablishmentScreen: React.FC = () => {
                   onPress={() => pickImages('room')}
                 >
                   <Ionicons name="image-outline" size={20} color={HOTEL_COLORS.primary} />
-                  <Text style={styles.addPhotoText}>Photos chambre</Text>
+                  <Text style={styles.addPhotoText}>
+                    Photos chambre ({roomDraft.imageUris.length}/10)
+                  </Text>
                 </TouchableOpacity>
+                {roomDraft.imageUris.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.photoRow}
+                  >
+                    {roomDraft.imageUris.map((uri, index) => (
+                      <View key={`${uri}-${index}`} style={styles.photoWrap}>
+                        <Image source={{ uri }} style={styles.photo} />
+                        <TouchableOpacity
+                          style={styles.removePhoto}
+                          onPress={() =>
+                            setRoomDraft((prev) => ({
+                              ...prev,
+                              imageUris: prev.imageUris.filter((_, i) => i !== index),
+                            }))
+                          }
+                        >
+                          <Ionicons name="close" size={14} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : null}
 
                 <View style={styles.roomFormActions}>
                   <TouchableOpacity
