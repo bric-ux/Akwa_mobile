@@ -165,10 +165,10 @@ const HostAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
-      id: 'addProperty',
-      title: t('host.addProperty'),
+      id: 'addListing',
+      title: 'Ajouter un bien sur AkwaHome',
       icon: 'add-circle-outline',
-      onPress: () => navigation.navigate('BecomeHost' as never),
+      onPress: () => navigation.navigate('AddListingChoice' as never),
     },
     {
       id: 'myGuestReviews',

@@ -225,7 +225,10 @@ export type RootStackParamList = {
   Home: undefined;
   HostSpace: { screen?: keyof HostTabParamList } | undefined; // Navigation hôte avec onglets
   VehicleOwnerSpace: { screen?: keyof VehicleOwnerTabParamList } | undefined; // Navigation propriétaire de véhicule avec onglets
-  MonthlyRentalOwnerSpace: { screen?: keyof MonthlyRentalTabParamList } | undefined; // Mode logement longue durée (gérer annonces + candidatures)
+  MonthlyRentalOwnerSpace: { screen?: keyof MonthlyRentalTabParamList } | undefined;
+  VehicleSpace: { screen?: keyof VehicleTabParamList } | undefined;
+  HotelSpace: { screen?: keyof HotelTabParamList } | undefined;
+  HotelManagerSpace: { screen?: keyof HotelManagerTabParamList } | undefined;
   Auth: {
     returnTo?: string;
     returnParams?: Record<string, unknown>;
@@ -302,7 +305,7 @@ export type RootStackParamList = {
   PropertyPricing: { propertyId: string }; // Tarification
   PropertyRules: { propertyId: string }; // Règlement intérieur
   PropertyReviews: { propertyId: string }; // Avis pour une propriété spécifique
-  ModeTransition: { targetMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental'; targetPath?: string; fromMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental' }; // Page de transition entre modes
+  ModeTransition: { targetMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental' | 'hotel_manager'; targetPath?: string; fromMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental' | 'hotel_manager' }; // Page de transition entre modes
   MyBookings: undefined;
   MyGuestReviews: undefined;
   MyVehicleRenterReviews: undefined;
@@ -315,6 +318,20 @@ export type RootStackParamList = {
   Conciergerie: undefined;
   Vehicles: undefined;
   VehicleDetails: { vehicleId: string };
+  HotelDetails: {
+    establishmentId: string;
+    checkIn?: string;
+    checkOut?: string;
+    guests?: number;
+  };
+  HotelBooking: { establishmentId: string; checkIn?: string; checkOut?: string; guests?: number };
+  AddListingChoice: undefined;
+  AddHotelEstablishment: undefined;
+  EditHotelEstablishment: { establishmentId: string };
+  HotelEstablishmentManagement: { establishmentId: string };
+  HotelRoomTypes: { establishmentId: string };
+  AddHotelRoomType: { establishmentId: string };
+  EditHotelRoomType: { establishmentId: string; roomTypeId: string };
   VehicleBooking: { vehicleId: string };
   AddVehicle: undefined;
   MyVehicles: undefined;
@@ -355,6 +372,21 @@ export type VehicleTabParamList = {
   VehicleProfileTab: undefined;
 };
 
+export type HotelTabParamList = {
+  HotelsTab: undefined;
+  HotelBookingsTab: undefined;
+  HotelMessagingTab: { conversationId?: string };
+  HotelFavoritesTab: undefined;
+  HotelProfileTab: undefined;
+};
+
+export type HotelManagerTabParamList = {
+  HotelManagerEstablishmentsTab: undefined;
+  HotelManagerBookingsTab: undefined;
+  HotelManagerMessagingTab: { conversationId?: string };
+  HotelManagerProfileTab: undefined;
+};
+
 export type VehicleOwnerTabParamList = {
   VehicleOwnerVehiclesTab: undefined;
   VehicleOwnerBookingsTab: undefined;
@@ -385,6 +417,85 @@ export type VehicleType = 'car' | 'suv' | 'van' | 'truck' | 'motorcycle' | 'scoo
 export type VehicleBookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
 export type TransmissionType = 'manual' | 'automatic';
 export type FuelType = 'essence' | 'diesel' | 'electric' | 'hybrid';
+
+// ---------------------------------------------------------------------------
+// Hôtels & maisons d'hôtes (vertical séparé de properties)
+// ---------------------------------------------------------------------------
+
+export type HotelEstablishmentType = 'hotel' | 'guesthouse' | 'residence' | 'aparthotel';
+
+export interface HotelEstablishmentPhoto {
+  id?: string;
+  url: string;
+  category?: string | null;
+  display_order?: number | null;
+}
+
+export interface HotelRoomType {
+  id: string;
+  establishment_id: string;
+  name: string;
+  room_category?: string | null;
+  description?: string | null;
+  max_guests: number;
+  bedrooms: number;
+  bathrooms: number;
+  price_per_night: number;
+  cleaning_fee?: number;
+  taxes_per_night?: number;
+  inventory_count: number;
+  minimum_nights?: number;
+  amenities?: string[];
+  images?: string[];
+  sort_order?: number;
+  status: 'active' | 'hidden';
+}
+
+export interface HotelEstablishment {
+  id: string;
+  host_id: string;
+  title: string;
+  slug?: string | null;
+  description?: string | null;
+  establishment_type: HotelEstablishmentType;
+  location_id?: string | null;
+  address?: string | null;
+  address_details?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  star_rating?: number | null;
+  amenities?: string[];
+  images?: string[];
+  check_in_time?: string | null;
+  check_out_time?: string | null;
+  cancellation_policy?: string | null;
+  house_rules?: string | null;
+  status: 'draft' | 'active' | 'hidden';
+  hidden_by_admin?: boolean;
+  rating?: number;
+  review_count?: number;
+  created_at?: string;
+  updated_at?: string;
+  locations?: {
+    id: string;
+    name: string;
+    type?: string;
+    latitude?: number;
+    longitude?: number;
+  } | null;
+  hotel_establishment_photos?: HotelEstablishmentPhoto[];
+  hotel_room_types?: HotelRoomType[];
+  /** Prix minimum des chambres actives (calculé côté client) */
+  min_price_per_night?: number | null;
+}
+
+export interface HotelFilters {
+  search?: string;
+  establishmentType?: HotelEstablishmentType;
+  priceMin?: number;
+  priceMax?: number;
+  guests?: number;
+}
 
 export interface Vehicle {
   id: string;

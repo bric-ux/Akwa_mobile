@@ -31,6 +31,16 @@ export const VEHICLE_COLORS = {
   badgeText: '#2563eb',
 };
 
+// Mode Hôtels — Indigo (vertical voyageur distinct des résidences)
+export const HOTEL_COLORS = {
+  primary: '#4f46e5', // Indigo-600
+  secondary: '#6366f1', // Indigo-500
+  light: '#eef2ff',
+  dark: '#4338ca', // Indigo-700
+  badge: '#eef2ff',
+  badgeText: '#4f46e5',
+};
+
 // Mode Logement longue durée (propriétaire)
 export const MONTHLY_RENTAL_COLORS = {
   primary: '#0d9488', // Teal-600
@@ -55,12 +65,16 @@ export const COMMON_COLORS = {
 };
 
 // Fonction utilitaire pour obtenir la couleur selon le mode
-export const getModeColor = (mode: 'host' | 'vehicle' | 'traveler' = 'traveler') => {
+export const getModeColor = (
+  mode: 'host' | 'vehicle' | 'hotel' | 'traveler' = 'traveler',
+) => {
   switch (mode) {
     case 'host':
       return HOST_COLORS.primary;
     case 'vehicle':
       return VEHICLE_COLORS.primary;
+    case 'hotel':
+      return HOTEL_COLORS.primary;
     default:
       return TRAVELER_COLORS.primary;
   }

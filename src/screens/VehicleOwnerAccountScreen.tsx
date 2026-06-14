@@ -153,10 +153,10 @@ const VehicleOwnerAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('HelpAssistant' as never),
     },
     {
-      id: 'addVehicle',
-      title: 'Ajouter un véhicule',
+      id: 'addListing',
+      title: 'Ajouter un bien sur AkwaHome',
       icon: 'add-circle-outline',
-      onPress: () => navigation.navigate('AddVehicle' as never),
+      onPress: () => navigation.navigate('AddListingChoice' as never),
     },
     {
       id: 'myGuestReviews',

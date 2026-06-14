@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
-import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS, HOTEL_COLORS } from '../constants/colors';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { PushNotificationBootstrap } from '../components/PushNotificationBootstrap';
 import { PushNotificationNavigationHandler } from '../components/PushNotificationNavigationHandler';
@@ -77,6 +77,18 @@ import GuestReferralScreen from '../screens/GuestReferralScreen';
 import ModeTransitionScreen from '../screens/ModeTransitionScreen';
 import ConciergerieScreen from '../screens/ConciergerieScreen';
 import VehiclesScreen from '../screens/VehiclesScreen';
+import HotelsScreen from '../screens/HotelsScreen';
+import HotelDetailScreen from '../screens/HotelDetailScreen';
+import MyHotelBookingsScreen from '../screens/MyHotelBookingsScreen';
+import MyHotelEstablishmentsScreen from '../screens/MyHotelEstablishmentsScreen';
+import HostHotelBookingsScreen from '../screens/HostHotelBookingsScreen';
+import HotelManagerAccountScreen from '../screens/HotelManagerAccountScreen';
+import AddListingChoiceScreen from '../screens/AddListingChoiceScreen';
+import AddHotelEstablishmentScreen from '../screens/AddHotelEstablishmentScreen';
+import EditHotelEstablishmentScreen from '../screens/EditHotelEstablishmentScreen';
+import HotelEstablishmentManagementScreen from '../screens/HotelEstablishmentManagementScreen';
+import HotelRoomTypesScreen from '../screens/HotelRoomTypesScreen';
+import AddHotelRoomTypeScreen, { EditHotelRoomTypeScreen } from '../screens/HotelRoomTypeFormScreen';
 import VehicleDetailsScreen from '../screens/VehicleDetailsScreen';
 import AddVehicleScreen from '../screens/AddVehicleScreen';
 import MyVehiclesScreen from '../screens/MyVehiclesScreen';
@@ -117,13 +129,15 @@ import {
 import { TabBarBadgeIcon } from '../components/TabBarBadgeIcon';
 
 // Types
-import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList } from '../types';
+import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, HotelTabParamList, HotelManagerTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList } from '../types';
 import HostAccountScreen from '../screens/HostAccountScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 const HostTab = createBottomTabNavigator<HostTabParamList>();
 const VehicleTab = createBottomTabNavigator<VehicleTabParamList>();
+const HotelTab = createBottomTabNavigator<HotelTabParamList>();
+const HotelManagerTab = createBottomTabNavigator<HotelManagerTabParamList>();
 const VehicleOwnerTab = createBottomTabNavigator<VehicleOwnerTabParamList>();
 const MonthlyRentalTab = createBottomTabNavigator<MonthlyRentalTabParamList>();
 
@@ -428,6 +442,139 @@ const VehicleTabNavigator = () => {
   );
 };
 
+const HotelTabNavigator = () => {
+  const badges = useTabNotificationBadges();
+
+  return (
+    <HotelTab.Navigator
+      initialRouteName="HotelsTab"
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+          let badgeCount = 0;
+
+          if (route.name === 'HotelsTab') {
+            iconName = focused ? 'bed' : 'bed-outline';
+          } else if (route.name === 'HotelBookingsTab') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'HotelMessagingTab') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            badgeCount = badges.unreadMessages;
+          } else if (route.name === 'HotelFavoritesTab') {
+            iconName = focused ? 'heart' : 'heart-outline';
+          } else if (route.name === 'HotelProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else {
+            iconName = 'bed-outline';
+          }
+
+          return (
+            <TabBarBadgeIcon
+              name={iconName}
+              focused={focused}
+              color={color}
+              size={size}
+              badgeCount={badgeCount}
+            />
+          );
+        },
+        tabBarActiveTintColor: HOTEL_COLORS.primary,
+        tabBarInactiveTintColor: 'gray',
+        headerShown: false,
+      })}
+    >
+      <HotelTab.Screen
+        name="HotelsTab"
+        component={HotelsScreen}
+        options={{ tabBarLabel: 'Recherche' }}
+      />
+      <HotelTab.Screen
+        name="HotelBookingsTab"
+        component={MyHotelBookingsScreen}
+        options={{ tabBarLabel: 'Réservations' }}
+      />
+      <HotelTab.Screen
+        name="HotelMessagingTab"
+        component={MessagingScreen}
+        options={{ tabBarLabel: 'Messages' }}
+      />
+      <HotelTab.Screen
+        name="HotelFavoritesTab"
+        component={FavoritesScreen}
+        options={{ tabBarLabel: 'Favoris' }}
+      />
+      <HotelTab.Screen
+        name="HotelProfileTab"
+        component={ProfileScreen}
+        options={{ tabBarLabel: 'Mon compte' }}
+      />
+    </HotelTab.Navigator>
+  );
+};
+
+const HotelManagerTabNavigator = () => {
+  const badges = useTabNotificationBadges();
+
+  return (
+    <HotelManagerTab.Navigator
+      initialRouteName="HotelManagerEstablishmentsTab"
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+          let badgeCount = 0;
+
+          if (route.name === 'HotelManagerEstablishmentsTab') {
+            iconName = focused ? 'business' : 'business-outline';
+          } else if (route.name === 'HotelManagerBookingsTab') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'HotelManagerMessagingTab') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            badgeCount = badges.unreadMessages;
+          } else if (route.name === 'HotelManagerProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else {
+            iconName = 'business-outline';
+          }
+
+          return (
+            <TabBarBadgeIcon
+              name={iconName}
+              focused={focused}
+              color={color}
+              size={size}
+              badgeCount={badgeCount}
+            />
+          );
+        },
+        tabBarActiveTintColor: HOTEL_COLORS.primary,
+        tabBarInactiveTintColor: 'gray',
+        headerShown: false,
+      })}
+    >
+      <HotelManagerTab.Screen
+        name="HotelManagerEstablishmentsTab"
+        component={MyHotelEstablishmentsScreen}
+        options={{ tabBarLabel: 'Établissements' }}
+      />
+      <HotelManagerTab.Screen
+        name="HotelManagerBookingsTab"
+        component={HostHotelBookingsScreen}
+        options={{ tabBarLabel: 'Réservations' }}
+      />
+      <HotelManagerTab.Screen
+        name="HotelManagerMessagingTab"
+        component={MessagingScreen}
+        options={{ tabBarLabel: 'Messages' }}
+      />
+      <HotelManagerTab.Screen
+        name="HotelManagerProfileTab"
+        component={HotelManagerAccountScreen}
+        options={{ tabBarLabel: 'Mon compte' }}
+      />
+    </HotelManagerTab.Navigator>
+  );
+};
+
 // Mode Logement longue durée (propriétaire : logements, candidatures, messages, stats, compte)
 const MonthlyRentalOwnerTabNavigator = () => {
   const badges = useTabNotificationBadges();
@@ -651,6 +798,16 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="VehicleSpace" 
           component={VehicleTabNavigator}
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen 
+          name="HotelSpace" 
+          component={HotelTabNavigator}
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen 
+          name="HotelManagerSpace" 
+          component={HotelManagerTabNavigator}
           options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen 
@@ -1238,6 +1395,49 @@ const AppNavigator = () => {
                 title: 'Détails du véhicule',
                 headerShown: false,
               }}
+            />
+            <Stack.Screen 
+              name="HotelDetails" 
+              component={HotelDetailScreen}
+              options={{ 
+                title: 'Détails hôtel',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="AddListingChoice"
+              component={AddListingChoiceScreen}
+              options={{ title: 'Ajouter un bien', headerShown: false }}
+            />
+            <Stack.Screen
+              name="AddHotelEstablishment"
+              component={AddHotelEstablishmentScreen}
+              options={{ title: 'Ajouter un hôtel', headerShown: false }}
+            />
+            <Stack.Screen
+              name="EditHotelEstablishment"
+              component={EditHotelEstablishmentScreen}
+              options={{ title: 'Modifier établissement', headerShown: false }}
+            />
+            <Stack.Screen
+              name="HotelEstablishmentManagement"
+              component={HotelEstablishmentManagementScreen}
+              options={{ title: 'Gestion hôtel', headerShown: false }}
+            />
+            <Stack.Screen
+              name="HotelRoomTypes"
+              component={HotelRoomTypesScreen}
+              options={{ title: 'Types de chambres', headerShown: false }}
+            />
+            <Stack.Screen
+              name="AddHotelRoomType"
+              component={AddHotelRoomTypeScreen}
+              options={{ title: 'Nouvelle chambre', headerShown: false }}
+            />
+            <Stack.Screen
+              name="EditHotelRoomType"
+              component={EditHotelRoomTypeScreen}
+              options={{ title: 'Modifier chambre', headerShown: false }}
             />
             <Stack.Screen 
               name="VehicleBooking" 

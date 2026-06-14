@@ -24,7 +24,8 @@ import { useHostApplications } from '../hooks/useHostApplications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicles } from '../hooks/useVehicles';
-import { HOST_COLORS, VEHICLE_COLORS, MONTHLY_RENTAL_COLORS, TRAVELER_COLORS } from '../constants/colors';
+import { useHostHotels } from '../hooks/useHostHotels';
+import { HOST_COLORS, VEHICLE_COLORS, MONTHLY_RENTAL_COLORS, TRAVELER_COLORS, HOTEL_COLORS } from '../constants/colors';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { APP_VERSION } from '../constants/appVersion';
 import BottomNavigationBar from '../components/BottomNavigationBar';
@@ -41,16 +42,18 @@ const ProfileScreen: React.FC = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   
   // Détecter si on est dans le TabNavigator (ProfileTab) ou dans le Stack (Profile)
-  const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab' || route.name === 'MonthlyRentalProfileTab';
+  const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab' || route.name === 'MonthlyRentalProfileTab' || route.name === 'HotelProfileTab' || route.name === 'HotelManagerProfileTab';
   const { t } = useLanguage();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
   const { isEmailVerified, generateVerificationCode, checkEmailVerificationStatus } = useEmailVerification();
   const { getApplications } = useHostApplications();
   const { getMyVehicles } = useVehicles();
+  const { getMyEstablishments } = useHostHotels();
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [hasPendingApplications, setHasPendingApplications] = useState(false);
   const [hasVehicles, setHasVehicles] = useState(false);
+  const [hasHotels, setHasHotels] = useState(false);
   const [hasMonthlyListings, setHasMonthlyListings] = useState(false);
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const isLoggingOutRef = useRef(false);
@@ -115,6 +118,7 @@ const ProfileScreen: React.FC = () => {
         refreshProfile();
         checkPendingApplications();
         checkVehicles();
+        checkHotels();
         if (FEATURE_MONTHLY_RENTAL) checkMonthlyListings();
         checkEmailVerificationStatus(true);
       });
@@ -147,6 +151,18 @@ const ProfileScreen: React.FC = () => {
     } catch (error) {
       console.error('Erreur lors de la vérification des véhicules:', error);
       setHasVehicles(false);
+    }
+  };
+
+  const checkHotels = async () => {
+    if (!user) return;
+
+    try {
+      const establishments = await getMyEstablishments();
+      setHasHotels(establishments.length > 0);
+    } catch (error) {
+      console.error('Erreur lors de la vérification des hôtels:', error);
+      setHasHotels(false);
     }
   };
 
@@ -309,15 +325,11 @@ const ProfileScreen: React.FC = () => {
     },
   };
 
-  // Élément pour ajouter une propriété (si déjà hôte)
-  const addPropertyItem = {
-    id: 'addProperty',
-    title: t('host.addProperty'),
+  const addListingItem = {
+    id: 'addListing',
+    title: 'Ajouter un bien sur AkwaHome',
     icon: 'add-circle-outline',
-    onPress: () => {
-      console.log('🔵 [ProfileScreen] Navigation vers BecomeHost pour ajouter une propriété');
-      navigation.navigate('BecomeHost' as never);
-    },
+    onPress: () => navigation.navigate('AddListingChoice' as never),
   };
 
   // Élément pour l'espace véhicules (navigation complète avec onglets)
@@ -351,11 +363,38 @@ const ProfileScreen: React.FC = () => {
     },
   };
 
-  const addVehicleItem = {
-    id: 'addVehicle',
-    title: t('vehicles.addVehicle'),
-    icon: 'add-circle-outline',
-    onPress: () => navigation.navigate('AddVehicle' as never),
+  const hotelManagerSpaceItem = {
+    id: 'hotelManagerSpace',
+    title: 'Gérer mes hôtels',
+    icon: 'business-outline',
+    onPress: () => {
+      Alert.alert(
+        'Gestion hôtels',
+        'Accéder à votre espace de gestion hôtelière ?',
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.continue'),
+            onPress: () => {
+              navigation.navigate('ModeTransition' as never, {
+                targetMode: 'hotel_manager',
+                targetPath: 'HotelManagerSpace',
+                fromMode: 'traveler',
+              });
+            },
+          },
+        ],
+      );
+    },
+  };
+
+  const hotelTravelerSpaceItem = {
+    id: 'hotelTravelerSpace',
+    title: 'Hôtels & maisons d\'hôtes',
+    icon: 'bed-outline',
+    onPress: () => {
+      navigation.navigate('HotelSpace' as never, { screen: 'HotelsTab' } as never);
+    },
   };
 
   // Éléments de menu communs
@@ -388,20 +427,24 @@ const ProfileScreen: React.FC = () => {
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
   if (profile?.is_host || hasPendingApplications) {
     menuItems.push(hostSpaceItem);
-    // Si l'utilisateur est déjà hôte, ajouter aussi l'option "Ajouter une propriété"
-    if (profile?.is_host) {
-      menuItems.push(addPropertyItem);
-    }
   } else {
     // Ajouter "Devenir hôte" si pas encore hôte et pas de candidatures en cours
     menuItems.push(becomeHostItem);
   }
 
-  menuItems.push(addVehicleItem);
+  if (user) {
+    menuItems.push(addListingItem);
+  }
+
+  menuItems.push(hotelTravelerSpaceItem);
 
   // Ajouter "Espace Véhicules" si l'utilisateur a des véhicules (navigation complète)
   if (hasVehicles) {
     menuItems.push(vehicleSpaceItem);
+  }
+
+  if (hasHotels) {
+    menuItems.push(hotelManagerSpaceItem);
   }
 
   // Ajouter "Mode logement longue durée" si l'utilisateur a au moins un logement longue durée (et qu'on n'est pas déjà dans ce mode)
