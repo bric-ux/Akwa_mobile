@@ -31,7 +31,7 @@ const PLACEHOLDER = 'https://via.placeholder.com/800x500?text=Chambre';
 const HotelRoomDetailScreen: React.FC = () => {
   const route = useRoute<Route>();
   const navigation = useNavigation<any>();
-  const { establishmentId, roomTypeId, checkIn, checkOut, guests } = route.params;
+  const { establishmentId, roomTypeId, checkIn, checkOut, guests, openBooking } = route.params;
   const { getEstablishmentById } = useHotels();
   const { formatPrice } = useCurrency();
   const { user } = useAuth();
@@ -54,6 +54,12 @@ const HotelRoomDetailScreen: React.FC = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (openBooking && room && user) {
+      setBookingOpen(true);
+    }
+  }, [openBooking, room, user]);
 
   const handleBook = () => {
     if (!user) {

@@ -179,11 +179,33 @@ export const useHotelRoomTypeAvailabilityCalendar = (roomTypeId: string) => {
     });
   };
 
+  const isDateRangeUnavailable = (startDate: Date, endDate: Date) => {
+    const toStr = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const startStr = toStr(startDate);
+    const endStr = toStr(endDate);
+
+    return unavailableDates.some(({ start_date, end_date, endExclusive }) => {
+      const normalizedStart = normalizeDate(start_date);
+      const normalizedEnd = normalizeDate(end_date);
+      const exclusive = endExclusive !== false;
+      return exclusive
+        ? startStr < normalizedEnd && endStr > normalizedStart
+        : startStr <= normalizedEnd && endStr > normalizedStart;
+    });
+  };
+
   return {
     unavailableDates,
     inventoryCount,
     loading,
     refetch: fetchUnavailableDates,
     isDateUnavailable,
+    isDateRangeUnavailable,
   };
 };

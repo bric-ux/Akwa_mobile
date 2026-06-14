@@ -22,6 +22,7 @@ import {
   getEstablishmentLocationLabel,
   getEstablishmentTypeLabel,
   getHotelGalleryUrls,
+  getActiveRoomTypes,
 } from '../lib/hotelUtils';
 import { getRoomCategoryLabel } from '../constants/hotelListingForm';
 import { safeGoBack } from '../utils/navigation';
@@ -62,9 +63,36 @@ const HotelDetailScreen: React.FC = () => {
       });
       return;
     }
+
+    const activeRooms = getActiveRoomTypes(establishment.hotel_room_types);
+    if (activeRooms.length === 0) {
+      Alert.alert('Indisponible', 'Aucune chambre n\'est disponible à la réservation pour le moment.');
+      return;
+    }
+
+    const goToRoom = (roomTypeId: string) => {
+      navigation.navigate('HotelRoomDetail', {
+        establishmentId: establishment.id,
+        roomTypeId,
+        openBooking: true,
+      });
+    };
+
+    if (activeRooms.length === 1) {
+      goToRoom(activeRooms[0].id);
+      return;
+    }
+
     Alert.alert(
-      'Réservation',
-      'Le parcours de réservation multi-chambres arrive dans la prochaine étape.',
+      'Choisir une chambre',
+      'Sélectionnez le type de chambre que vous souhaitez réserver.',
+      [
+        ...activeRooms.map((room) => ({
+          text: room.name,
+          onPress: () => goToRoom(room.id),
+        })),
+        { text: 'Annuler', style: 'cancel' as const },
+      ],
     );
   };
 
@@ -89,6 +117,9 @@ const HotelDetailScreen: React.FC = () => {
 
   const gallery = getHotelGalleryUrls(establishment);
   const location = getEstablishmentLocationLabel(establishment);
+  const activeRooms = getActiveRoomTypes(establishment.hotel_room_types);
+  const bookLabel =
+    activeRooms.length > 1 ? 'Choisir une chambre' : activeRooms.length === 1 ? 'Réserver' : 'Indisponible';
 
   return (
     <View style={styles.container}>
@@ -163,8 +194,12 @@ const HotelDetailScreen: React.FC = () => {
       </ScrollView>
 
       <SafeAreaView edges={['bottom']} style={styles.footer}>
-        <TouchableOpacity style={styles.bookBtn} onPress={handleBook}>
-          <Text style={styles.bookBtnText}>Réserver</Text>
+        <TouchableOpacity
+          style={[styles.bookBtn, activeRooms.length === 0 && styles.bookBtnDisabled]}
+          onPress={handleBook}
+          disabled={activeRooms.length === 0}
+        >
+          <Text style={styles.bookBtnText}>{bookLabel}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     </View>
@@ -325,6 +360,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
+  bookBtnDisabled: { backgroundColor: '#cbd5e1' },
   bookBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 });
 

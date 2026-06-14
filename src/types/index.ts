@@ -330,7 +330,14 @@ export type RootStackParamList = {
     checkOut?: string;
     guests?: number;
   };
-  HotelRoomDetail: { establishmentId: string; roomTypeId: string; checkIn?: string; checkOut?: string; guests?: number };
+  HotelRoomDetail: {
+    establishmentId: string;
+    roomTypeId: string;
+    checkIn?: string;
+    checkOut?: string;
+    guests?: number;
+    openBooking?: boolean;
+  };
   HotelBooking: { establishmentId: string; checkIn?: string; checkOut?: string; guests?: number };
   AddListingChoice: undefined;
   AddHotelEstablishment: undefined;

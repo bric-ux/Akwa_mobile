@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -33,6 +33,7 @@ import {
   type HotelRoomCategory,
 } from '../constants/hotelListingForm';
 import type { HotelEstablishmentType } from '../types';
+import AdminCreateForUserPanel, { AdminTargetUser } from '../components/admin/AdminCreateForUserPanel';
 
 interface WizardRoomDraft {
   tempId: string;
@@ -82,6 +83,9 @@ const AddHotelEstablishmentScreen: React.FC = () => {
   const [rooms, setRooms] = useState<WizardRoomDraft[]>([]);
   const [roomDraft, setRoomDraft] = useState<WizardRoomDraft>(emptyRoomDraft());
   const [showRoomForm, setShowRoomForm] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCreateForEnabled, setAdminCreateForEnabled] = useState(false);
+  const [adminTargetUser, setAdminTargetUser] = useState<AdminTargetUser | null>(null);
 
   const [form, setForm] = useState({
     title: '',
@@ -101,6 +105,21 @@ const AddHotelEstablishmentScreen: React.FC = () => {
   };
 
   const totalSteps = HOTEL_WIZARD_STEPS.length;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user) {
+        if (!cancelled) setIsAdmin(false);
+        return;
+      }
+      const { data } = await supabase.rpc('is_admin');
+      if (!cancelled) setIsAdmin(data === true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const uploadImageToStorage = async (uri: string): Promise<string> => {
     if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
@@ -226,6 +245,13 @@ const AddHotelEstablishmentScreen: React.FC = () => {
       Alert.alert('Champs requis', 'Nom et type d\'établissement obligatoires.');
       return;
     }
+    if (adminCreateForEnabled && !adminTargetUser) {
+      Alert.alert(
+        'Utilisateur requis',
+        'Vérifiez le compte du gestionnaire hôtel avant de créer l\'établissement.',
+      );
+      return;
+    }
     if (publish && rooms.length === 0) {
       Alert.alert(
         'Chambres requises',
@@ -247,22 +273,27 @@ const AddHotelEstablishmentScreen: React.FC = () => {
         ...parseCustomAmenities(customAmenities),
       ];
 
-      const estResult = await createEstablishment({
-        title: form.title.trim(),
-        description: form.description.trim() || undefined,
-        establishment_type: form.establishment_type,
-        location_id: locationId,
-        address: form.address.trim() || locationLabel || undefined,
-        address_details: form.address_details.trim() || undefined,
-        star_rating: starRating && starRating >= 1 && starRating <= 5 ? starRating : null,
-        amenities: allAmenities,
-        imageUrls: establishmentImages,
-        check_in_time: form.check_in_time || undefined,
-        check_out_time: form.check_out_time || undefined,
-        cancellation_policy: form.cancellation_policy,
-        house_rules: form.house_rules.trim() || undefined,
-        status: publish ? 'active' : 'draft',
-      });
+      const estResult = await createEstablishment(
+        {
+          title: form.title.trim(),
+          description: form.description.trim() || undefined,
+          establishment_type: form.establishment_type,
+          location_id: locationId,
+          address: form.address.trim() || locationLabel || undefined,
+          address_details: form.address_details.trim() || undefined,
+          star_rating: starRating && starRating >= 1 && starRating <= 5 ? starRating : null,
+          amenities: allAmenities,
+          imageUrls: establishmentImages,
+          check_in_time: form.check_in_time || undefined,
+          check_out_time: form.check_out_time || undefined,
+          cancellation_policy: form.cancellation_policy,
+          house_rules: form.house_rules.trim() || undefined,
+          status: publish ? 'active' : 'draft',
+        },
+        adminCreateForEnabled && adminTargetUser
+          ? { hostId: adminTargetUser.user_id }
+          : undefined,
+      );
 
       if (!estResult.success || !estResult.establishmentId) {
         Alert.alert('Erreur', estResult.error || 'Impossible de créer l\'établissement.');
@@ -296,19 +327,28 @@ const AddHotelEstablishmentScreen: React.FC = () => {
         }
       }
 
+      const createdForName =
+        adminCreateForEnabled && adminTargetUser ? adminTargetUser.full_name : null;
+
       Alert.alert(
         'Succès',
-        publish
-          ? 'Établissement publié avec succès.'
-          : 'Brouillon enregistré. Vous pourrez ajouter des chambres plus tard.',
-        [
-          {
-            text: 'Gérer',
-            onPress: () =>
-              navigation.replace('HotelEstablishmentManagement', { establishmentId }),
-          },
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ],
+        createdForName
+          ? publish
+            ? `Établissement publié pour le compte de ${createdForName}.`
+            : `Brouillon créé pour le compte de ${createdForName}.`
+          : publish
+            ? 'Établissement publié avec succès.'
+            : 'Brouillon enregistré. Vous pourrez ajouter des chambres plus tard.',
+        createdForName
+          ? [{ text: 'OK', onPress: () => navigation.goBack() }]
+          : [
+              {
+                text: 'Gérer',
+                onPress: () =>
+                  navigation.replace('HotelEstablishmentManagement', { establishmentId }),
+              },
+              { text: 'OK', onPress: () => navigation.goBack() },
+            ],
       );
     } catch {
       Alert.alert('Erreur', 'Impossible d\'envoyer certaines photos ou de finaliser.');
@@ -733,6 +773,15 @@ const AddHotelEstablishmentScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          {isAdmin && step === 1 ? (
+            <AdminCreateForUserPanel
+              assetKind="hotel"
+              enabled={adminCreateForEnabled}
+              onEnabledChange={setAdminCreateForEnabled}
+              targetUser={adminTargetUser}
+              onTargetUserChange={setAdminTargetUser}
+            />
+          ) : null}
           {renderStepContent()}
         </ScrollView>
 

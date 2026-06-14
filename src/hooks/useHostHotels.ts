@@ -191,10 +191,13 @@ export function useHostHotels() {
   const createEstablishment = useCallback(
     async (
       input: CreateEstablishmentInput,
+      options?: { hostId?: string },
     ): Promise<{ success: boolean; establishmentId?: string; error?: string }> => {
       if (!user) {
         return { success: false, error: 'Vous devez être connecté' };
       }
+
+      const hostId = options?.hostId ?? user.id;
 
       setLoading(true);
       setError(null);
@@ -202,7 +205,7 @@ export function useHostHotels() {
       try {
         const imageUrls = input.imageUrls ?? [];
         const payload = {
-          host_id: user.id,
+          host_id: hostId,
           title: input.title.trim(),
           slug: uniqueSlug(input.title),
           description: input.description?.trim() || null,

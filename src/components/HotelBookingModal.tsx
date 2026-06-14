@@ -26,6 +26,8 @@ import {
 import { createCheckoutSession } from '../services/cardPaymentService';
 import { createWaveCheckoutSession, openWavePayment } from '../services/wavePaymentService';
 import { HOTEL_COLORS } from '../constants/colors';
+import { DateGuestsSelector } from './DateGuestsSelector';
+import { useHotelRoomTypeAvailabilityCalendar } from '../hooks/useHotelRoomTypeAvailabilityCalendar';
 
 interface HotelBookingModalProps {
   visible: boolean;
@@ -53,6 +55,9 @@ const HotelBookingModal: React.FC<HotelBookingModalProps> = ({
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } =
     useIdentityVerification();
   const { createHotelBooking, loading } = useHotelBookings();
+  const { isDateUnavailable, isDateRangeUnavailable } = useHotelRoomTypeAvailabilityCalendar(
+    roomType.id,
+  );
 
   const [checkIn, setCheckIn] = useState(initialCheckIn || '');
   const [checkOut, setCheckOut] = useState(initialCheckOut || '');
@@ -79,6 +84,20 @@ const HotelBookingModal: React.FC<HotelBookingModalProps> = ({
     const b = new Date(checkOut);
     return Math.max(1, Math.ceil((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24)));
   }, [checkIn, checkOut]);
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return 'Choisir';
+    try {
+      return new Date(dateStr).toLocaleDateString('fr-FR', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
 
   const pricing = useMemo(() => {
     if (nights < 1) return null;
@@ -308,26 +327,32 @@ const HotelBookingModal: React.FC<HotelBookingModalProps> = ({
 
           <BookingIdentityAlert />
 
-          <Text style={styles.label}>Arrivée (AAAA-MM-JJ)</Text>
-          <TextInput style={styles.input} value={checkIn} onChangeText={setCheckIn} placeholder="2026-06-15" />
-          <Text style={styles.label}>Départ (AAAA-MM-JJ)</Text>
-          <TextInput style={styles.input} value={checkOut} onChangeText={setCheckOut} placeholder="2026-06-18" />
+          <Text style={styles.sectionTitle}>Dates du séjour</Text>
+          <DateGuestsSelector
+            embedded
+            checkIn={checkIn}
+            checkOut={checkOut}
+            adults={guests}
+            children={0}
+            babies={0}
+            isDateUnavailable={isDateUnavailable}
+            isDateRangeUnavailable={isDateRangeUnavailable}
+            onDateGuestsChange={(dates, guestCounts) => {
+              if (dates.checkIn) setCheckIn(dates.checkIn);
+              if (dates.checkOut) setCheckOut(dates.checkOut);
+              setGuests(guestCounts.adults);
+            }}
+          />
+          {checkIn && checkOut ? (
+            <Text style={styles.dateSummary}>
+              {formatDateDisplay(checkIn)} → {formatDateDisplay(checkOut)} · {nights} nuit
+              {nights > 1 ? 's' : ''}
+            </Text>
+          ) : (
+            <Text style={styles.dateHint}>Appuyez sur Arrivée ou Départ pour ouvrir le calendrier</Text>
+          )}
 
           <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>Voyageurs</Text>
-              <View style={styles.stepper}>
-                <TouchableOpacity onPress={() => setGuests((g) => Math.max(1, g - 1))}>
-                  <Ionicons name="remove-circle-outline" size={28} color={HOTEL_COLORS.primary} />
-                </TouchableOpacity>
-                <Text style={styles.stepperVal}>{guests}</Text>
-                <TouchableOpacity
-                  onPress={() => setGuests((g) => Math.min(roomType.max_guests * quantity, g + 1))}
-                >
-                  <Ionicons name="add-circle-outline" size={28} color={HOTEL_COLORS.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
             <View style={styles.col}>
               <Text style={styles.label}>Chambres</Text>
               <View style={styles.stepper}>
@@ -458,6 +483,8 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   stepperVal: { fontSize: 18, fontWeight: '700', minWidth: 24, textAlign: 'center' },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginTop: 24, marginBottom: 10 },
+  dateSummary: { fontSize: 13, color: '#475569', marginTop: 8, marginBottom: 4 },
+  dateHint: { fontSize: 13, color: '#94a3b8', marginTop: 8, marginBottom: 4, fontStyle: 'italic' },
   payOption: {
     flexDirection: 'row',
     alignItems: 'center',

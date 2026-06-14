@@ -22,7 +22,7 @@ export type AdminTargetUser = {
 };
 
 type Props = {
-  assetKind: 'property' | 'vehicle';
+  assetKind: 'property' | 'vehicle' | 'hotel';
   targetUser: AdminTargetUser | null;
   enabled: boolean;
   onEnabledChange: (v: boolean) => void;
@@ -40,7 +40,8 @@ const AdminCreateForUserPanel: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const kindLabel = assetKind === 'vehicle' ? 'véhicule' : 'résidence';
+  const kindLabel =
+    assetKind === 'vehicle' ? 'véhicule' : assetKind === 'hotel' ? 'hôtel' : 'résidence';
 
   const verify = async () => {
     setError(null);
