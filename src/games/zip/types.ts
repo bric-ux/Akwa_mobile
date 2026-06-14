@@ -6,6 +6,8 @@ export type ZipPuzzle = {
   cols: number;
   /** Clé "row,col" → numéro à visiter dans l'ordre */
   numbers: Record<string, number>;
+  /** Parcours solution (génération de la grille) */
+  solutionPath: ZipCell[];
   theme: string;
   subtitle: string;
   difficulty: 'easy' | 'medium' | 'hard';

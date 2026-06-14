@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useMessaging } from '../hooks/useMessaging';
 import { supabase } from '../services/supabase';
@@ -121,12 +121,24 @@ const BookingContactButton: React.FC<BookingContactButtonProps> = ({
         };
 
         switch (messagingContext) {
-          case 'host':
-            (navigation as any).navigate('HostSpace', {
-              screen: 'HostMessagingTab',
-              params,
-            });
+          case 'host': {
+            const tabState = navigation.getState();
+            if (tabState?.routeNames?.includes('HostMessagingTab')) {
+              (navigation as any).navigate('HostMessagingTab', params);
+            } else {
+              navigation.dispatch(
+                CommonActions.navigate({
+                  name: 'HostSpace',
+                  params: {
+                    screen: 'HostMessagingTab',
+                    params,
+                  },
+                  merge: true,
+                })
+              );
+            }
             break;
+          }
           case 'vehicle-owner':
             (navigation as any).navigate('VehicleOwnerSpace', {
               screen: 'VehicleOwnerMessagingTab',

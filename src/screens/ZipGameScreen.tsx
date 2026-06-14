@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   useWindowDimensions,
+  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,8 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import ZipConfetti from '../components/zip/ZipConfetti';
 import ZipGrid from '../components/zip/ZipGrid';
+import ZipHowToPlay from '../components/zip/ZipHowToPlay';
 import { getDailyPuzzle, getLocalDateKey } from '../games/zip/puzzles';
 import type { ZipCell } from '../games/zip/types';
+import { getHint, MAX_ZIP_HINTS } from '../games/zip/zipHints';
 import { validateZipPath } from '../games/zip/validateZipPath';
 import { formatZipTime, useZipGame } from '../hooks/useZipGame';
 import { useAuth } from '../services/AuthContext';
@@ -26,7 +29,7 @@ const ZipGameScreen: React.FC = () => {
   const { user } = useAuth();
   const puzzleDate = getLocalDateKey();
   const puzzle = useMemo(() => getDailyPuzzle(), []);
-  const { myResult, submitResult, submitting, loading, alreadyPlayedToday } = useZipGame(puzzleDate);
+  const { myResult, submitResult, recordPlay, submitting, loading, alreadyPlayedToday } = useZipGame(puzzleDate);
 
   const [path, setPath] = useState<ZipCell[]>([]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -36,6 +39,10 @@ const ZipGameScreen: React.FC = () => {
   const [resetToken, setResetToken] = useState(0);
   const [localFinishedMs, setLocalFinishedMs] = useState<number | null>(null);
   const [checkingLocal, setCheckingLocal] = useState(!user);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [hintMessage, setHintMessage] = useState<string | null>(null);
+  const [hintFlash, setHintFlash] = useState<{ row: number; col: number; token: number } | null>(null);
+  const [showResultReview, setShowResultReview] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<number | null>(null);
@@ -136,8 +143,17 @@ const ZipGameScreen: React.FC = () => {
 
       void (async () => {
         if (!user) {
+          const playResult = await recordPlay({
+            puzzleId: puzzle.id,
+            timeMs: finishMs,
+            moves: nextPath.length,
+          });
           await setLocalZipCompletion(puzzleDate, finishMs);
           setLocalFinishedMs(finishMs);
+          if (playResult === 'error') {
+            showResultAlert('Erreur', 'Impossible d\'enregistrer votre partie.');
+            return;
+          }
           showResultAlert(
             'Bravo !',
             `Terminé en ${formatZipTime(finishMs)}. Connectez-vous pour apparaître au classement.`,
@@ -167,14 +183,36 @@ const ZipGameScreen: React.FC = () => {
         }
       })();
     },
-    [myResult?.time_ms, navigation, puzzle, puzzleDate, submitResult, user],
+    [myResult?.time_ms, navigation, puzzle, puzzleDate, recordPlay, submitResult, user],
   );
 
   const difficultyLabel =
     puzzle.difficulty === 'easy' ? 'Facile' : puzzle.difficulty === 'medium' ? 'Moyen' : 'Difficile';
 
-  const gridDisabled = finishedToday || completed || submitting;
+  const gridDisabled = (finishedToday || completed || submitting) && !showResultReview;
   const showConfetti = completed && !finishedToday;
+  const canShowResult = finishedToday || completed;
+  const reviewPath = useMemo(() => {
+    if (!showResultReview) return null;
+    if (path.length > 0 && validateZipPath(puzzle, path).ok) return path;
+    return puzzle.solutionPath;
+  }, [showResultReview, path, puzzle]);
+
+  const handleHint = () => {
+    if (hintsUsed >= MAX_ZIP_HINTS) {
+      Alert.alert('Plus d\'indices', 'Vous avez utilisé tous les indices disponibles pour ce défi.');
+      return;
+    }
+    const hint = getHint(puzzle, path, hintsUsed);
+    if (!hint) return;
+    setHintsUsed((n) => n + 1);
+    setHintMessage(hint.message);
+    setHintFlash({
+      row: hint.highlightCell.row,
+      col: hint.highlightCell.col,
+      token: Date.now(),
+    });
+  };
 
   if (loading || checkingLocal) {
     return (
@@ -197,12 +235,14 @@ const ZipGameScreen: React.FC = () => {
           <Text style={styles.headerTitle}>Zip AkwaHome</Text>
           <Text style={styles.headerSubtitle}>{puzzle.theme}</Text>
         </View>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('ZipLeaderboard' as never)}
-          style={styles.rankBtn}
-        >
-          <Ionicons name="podium-outline" size={22} color="#e67e22" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ZipLeaderboard' as never)}
+            style={styles.rankBtn}
+          >
+            <Ionicons name="podium-outline" size={22} color="#e67e22" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.metaBar}>
@@ -220,50 +260,95 @@ const ZipGameScreen: React.FC = () => {
         )}
       </View>
 
-      <View style={styles.gridZone}>
-        <Text style={styles.instruction}>
-          {finishedToday
-            ? 'Défi du jour terminé. Revenez demain pour une nouvelle grille !'
-            : (
-              <>
-                Maintenez le doigt sur le <Text style={styles.bold}>1</Text> et glissez sans le lever
-              </>
-            )}
-        </Text>
-        <View style={styles.gridWrap}>
-          <ZipGrid
-            puzzle={puzzle}
-            path={path}
-            onPathChange={handlePathChange}
-            cellSize={cellSize}
-            disabled={gridDisabled}
-            resetToken={resetToken}
-            celebrate={showConfetti}
-          />
-          {finishedToday && (
-            <View style={styles.lockedOverlay} pointerEvents="none">
-              <View style={styles.lockedCard}>
-                <Ionicons name="trophy" size={28} color="#ea580c" />
-                <Text style={styles.lockedTitle}>Déjà joué aujourd'hui</Text>
-                <Text style={styles.lockedTime}>{formatZipTime(displayTimeMs)}</Text>
-                {myResult?.rank ? (
-                  <Text style={styles.lockedRank}>Classement · #{myResult.rank}</Text>
-                ) : null}
-              </View>
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <View style={styles.gridZone}>
+          <Text style={styles.instruction}>
+            {showResultReview
+              ? 'Parcours solution du défi du jour.'
+              : finishedToday
+                ? 'Défi du jour terminé. Revenez demain pour une nouvelle grille !'
+                : (
+                  <>
+                    Maintenez le doigt sur le <Text style={styles.bold}>1</Text> et glissez sans le lever
+                  </>
+                )}
+          </Text>
+          {hintMessage && !showResultReview && !finishedToday && !completed && (
+            <View style={styles.hintBox}>
+              <Ionicons name="bulb-outline" size={16} color="#2563eb" />
+              <Text style={styles.hintText}>{hintMessage}</Text>
             </View>
           )}
+          <View style={styles.gridWrap}>
+            <ZipGrid
+              puzzle={puzzle}
+              path={path}
+              onPathChange={handlePathChange}
+              cellSize={cellSize}
+              disabled={gridDisabled}
+              resetToken={resetToken}
+              celebrate={showConfetti}
+              reviewPath={reviewPath}
+              hintFlash={hintFlash}
+            />
+            {finishedToday && !showResultReview && (
+              <View style={styles.lockedOverlay}>
+                <View style={styles.lockedCard}>
+                  <Ionicons name="trophy" size={28} color="#ea580c" />
+                  <Text style={styles.lockedTitle}>Déjà joué aujourd'hui</Text>
+                  <Text style={styles.lockedTime}>{formatZipTime(displayTimeMs)}</Text>
+                  {myResult?.rank ? (
+                    <Text style={styles.lockedRank}>Classement · #{myResult.rank}</Text>
+                  ) : null}
+                  <TouchableOpacity style={styles.resultBtn} onPress={() => setShowResultReview(true)}>
+                    <Ionicons name="eye-outline" size={16} color="#fff" />
+                    <Text style={styles.resultBtnText}>Voir le résultat</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
+
+        <ZipHowToPlay />
+      </ScrollView>
 
       <View style={styles.footer}>
         {!finishedToday && !completed && (
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => setResetToken((t) => t + 1)} disabled={submitting}>
-            <Ionicons name="refresh-outline" size={18} color="#64748b" />
-            <Text style={styles.secondaryBtnText}>Recommencer</Text>
+          <>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={handleHint} disabled={submitting}>
+              <Ionicons name="bulb-outline" size={18} color="#2563eb" />
+              <Text style={styles.hintBtnText}>Indice ({MAX_ZIP_HINTS - hintsUsed})</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setResetToken((t) => t + 1)} disabled={submitting}>
+              <Ionicons name="refresh-outline" size={18} color="#64748b" />
+              <Text style={styles.secondaryBtnText}>Recommencer</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {canShowResult && (
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={() => {
+              setShowResultReview((prev) => {
+                if (prev) setResetToken((t) => t + 1);
+                return !prev;
+              });
+            }}
+          >
+            <Ionicons name="eye-outline" size={18} color="#64748b" />
+            <Text style={styles.secondaryBtnText}>
+              {showResultReview ? 'Masquer' : 'Voir le résultat'}
+            </Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          style={[styles.primaryBtn, (finishedToday || completed) && styles.primaryBtnFull]}
+          style={[styles.primaryBtn, (finishedToday || completed) && styles.primaryBtnCompact]}
           onPress={() => navigation.navigate('ZipLeaderboard' as never)}
         >
           <Ionicons name="trophy-outline" size={18} color="#fff" />
@@ -302,6 +387,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 8 },
   headerText: { flex: 1, alignItems: 'center' },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '800', color: '#0f172a' },
   headerSubtitle: { fontSize: 12, color: '#64748b' },
   rankBtn: { padding: 8 },
@@ -343,11 +429,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   doneBadgeText: { fontSize: 12, fontWeight: '700', color: '#15803d' },
+  scrollArea: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 8 },
   gridZone: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
+    paddingTop: 8,
     gap: 12,
   },
   gridWrap: { position: 'relative' },
@@ -374,6 +462,17 @@ const styles = StyleSheet.create({
   lockedTitle: { fontSize: 15, fontWeight: '800', color: '#0f172a', marginTop: 4 },
   lockedTime: { fontSize: 22, fontWeight: '800', color: '#ea580c' },
   lockedRank: { fontSize: 13, fontWeight: '600', color: '#64748b' },
+  resultBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    backgroundColor: '#ea580c',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  resultBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   instruction: {
     fontSize: 14,
     color: '#334155',
@@ -382,6 +481,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   bold: { fontWeight: '800', color: '#15803d' },
+  hintBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#eff6ff',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    maxWidth: 340,
+  },
+  hintText: { flex: 1, fontSize: 13, lineHeight: 18, color: '#1e40af' },
+  hintBtnText: { color: '#2563eb', fontWeight: '600' },
   footer: {
     flexDirection: 'row',
     gap: 10,
@@ -411,7 +522,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#e67e22',
   },
-  primaryBtnFull: { flex: 1 },
+  primaryBtnCompact: { flex: 1.2 },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
   savingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 8 },
   savingText: { color: '#64748b' },

@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
 import { getLocalDateKey } from '../games/zip/puzzles';
 import type { ZipLeaderboardEntry } from '../games/zip/types';
+import { getOrCreateZipAnonymousId } from '../utils/zipPlayerId';
+
+type ZipPlayResult = 'saved' | 'already_played' | 'error';
 
 type MyResult = {
   time_ms: number;
@@ -82,6 +85,33 @@ export function useZipGame(puzzleDate = getLocalDateKey()) {
     void load();
   }, [load]);
 
+  const recordPlay = useCallback(
+    async (params: { puzzleId: string; timeMs: number; moves: number }): Promise<ZipPlayResult> => {
+      try {
+        const { data: auth, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+
+        const timeMs = Math.max(1, Math.round(params.timeMs));
+        const anonymousId = auth.user ? null : await getOrCreateZipAnonymousId();
+
+        const { data, error } = await supabase.rpc('record_zip_game_play', {
+          p_puzzle_date: puzzleDate,
+          p_puzzle_id: params.puzzleId,
+          p_time_ms: timeMs,
+          p_moves: params.moves,
+          p_anonymous_id: anonymousId,
+        });
+
+        if (error) throw error;
+        return data === 'already_played' ? 'already_played' : 'saved';
+      } catch (err: any) {
+        console.error('[useZipGame] recordPlay error', err);
+        return 'error';
+      }
+    },
+    [puzzleDate],
+  );
+
   const submitResult = useCallback(
     async (params: { puzzleId: string; timeMs: number; moves: number }) => {
       setSubmitting(true);
@@ -124,6 +154,7 @@ export function useZipGame(puzzleDate = getLocalDateKey()) {
 
         if (upsertError) throw upsertError;
 
+        await recordPlay(params);
         await load();
         return 'saved';
       } catch (err: any) {
@@ -134,7 +165,7 @@ export function useZipGame(puzzleDate = getLocalDateKey()) {
         setSubmitting(false);
       }
     },
-    [load, puzzleDate],
+    [load, puzzleDate, recordPlay],
   );
 
   return {
@@ -146,6 +177,7 @@ export function useZipGame(puzzleDate = getLocalDateKey()) {
     submitting,
     error,
     reload: load,
+    recordPlay,
     submitResult,
   };
 }

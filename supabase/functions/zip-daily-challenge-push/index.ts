@@ -160,6 +160,13 @@ serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  if (Deno.env.get("ZIP_DAILY_PUSH_ENABLED") === "false") {
+    return new Response(
+      JSON.stringify({ ok: true, skipped: "disabled", reason: "ZIP_DAILY_PUSH_ENABLED=false" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";

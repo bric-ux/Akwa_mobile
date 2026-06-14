@@ -12,6 +12,10 @@ type Props = {
   disabled?: boolean;
   resetToken?: number;
   celebrate?: boolean;
+  reviewPath?: ZipCell[] | null;
+  /** Masque le bandeau « Solution » en mode review (ex. grilles démo). */
+  reviewSilent?: boolean;
+  hintFlash?: { row: number; col: number; token: number } | null;
 };
 
 export function findStartCell(puzzle: ZipPuzzle): ZipCell | null {
@@ -32,6 +36,9 @@ const ZipGrid: React.FC<Props> = ({
   disabled = false,
   resetToken = 0,
   celebrate = false,
+  reviewPath = null,
+  reviewSilent = false,
+  hintFlash = null,
 }) => {
   const webRef = useRef<WebView>(null);
   const onPathChangeRef = useRef(onPathChange);
@@ -39,6 +46,10 @@ const ZipGrid: React.FC<Props> = ({
   const webReadyRef = useRef(false);
   onPathChangeRef.current = onPathChange;
   pathRef.current = path;
+  const reviewPathRef = useRef(reviewPath);
+  const reviewSilentRef = useRef(reviewSilent);
+  reviewPathRef.current = reviewPath;
+  reviewSilentRef.current = reviewSilent;
 
   const html = useMemo(() => buildZipGridHtml(puzzle, cellSize), [puzzle, cellSize]);
 
@@ -54,10 +65,12 @@ const ZipGrid: React.FC<Props> = ({
     inject(`window.setZipPath && window.setZipPath(${JSON.stringify(pathRef.current)});`);
   }, [inject]);
 
-  const syncDisabled = useCallback(() => {
-    if (!webReadyRef.current) return;
-    inject(`window.setZipDisabled && window.setZipDisabled(${disabled ? 'true' : 'false'});`);
-  }, [disabled, inject]);
+  const syncReview = useCallback(() => {
+    if (!webReadyRef.current || !reviewPathRef.current?.length) return;
+    inject(
+      `window.showZipReview && window.showZipReview(${JSON.stringify(reviewPathRef.current)}, ${reviewSilentRef.current ? 'true' : 'false'});`,
+    );
+  }, [inject]);
 
   useEffect(() => {
     webReadyRef.current = false;
@@ -73,6 +86,22 @@ const ZipGrid: React.FC<Props> = ({
     }
   }, [celebrate, inject]);
 
+  const syncDisabled = useCallback(() => {
+    if (!webReadyRef.current) return;
+    inject(`window.setZipDisabled && window.setZipDisabled(${disabled ? 'true' : 'false'});`);
+  }, [disabled, inject]);
+
+  useEffect(() => {
+    syncReview();
+  }, [reviewPath, reviewSilent, syncReview]);
+
+  useEffect(() => {
+    if (!hintFlash) return;
+    inject(
+      `window.flashZipHint && window.flashZipHint(${hintFlash.row}, ${hintFlash.col});`,
+    );
+  }, [hintFlash, inject]);
+
   const onMessage = useCallback((event: WebViewMessageEvent) => {
     try {
       const data = JSON.parse(event.nativeEvent.data) as { type: string; path?: ZipCell[] };
@@ -80,6 +109,7 @@ const ZipGrid: React.FC<Props> = ({
         webReadyRef.current = true;
         syncPath();
         syncDisabled();
+        syncReview();
       }
       if (data.type === 'path' && Array.isArray(data.path)) {
         onPathChangeRef.current(data.path);
@@ -87,7 +117,7 @@ const ZipGrid: React.FC<Props> = ({
     } catch {
       // ignore malformed messages
     }
-  }, [syncDisabled, syncPath]);
+  }, [syncDisabled, syncPath, syncReview]);
 
   useEffect(() => {
     syncDisabled();
@@ -97,7 +127,8 @@ const ZipGrid: React.FC<Props> = ({
     webReadyRef.current = true;
     syncPath();
     syncDisabled();
-  }, [syncDisabled, syncPath]);
+    syncReview();
+  }, [syncDisabled, syncPath, syncReview]);
 
   return (
     <View style={[styles.container, { width: gridWidth, height: gridHeight }]}>

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
@@ -26,6 +27,7 @@ interface SimpleMessageModalProps {
   visible: boolean;
   onClose: () => void;
   bookingId: string;
+  propertyId?: string;
   vehicleId?: string;
   otherParticipant: {
     id: string;
@@ -38,6 +40,7 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
   visible,
   onClose,
   bookingId,
+  propertyId,
   vehicleId,
   otherParticipant,
 }) => {
@@ -60,78 +63,86 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
 
   const initializeConversation = async () => {
     setLoading(true);
+    setConversationId(null);
+    setMessages([]);
     try {
+      let propId: string | null = propertyId || null;
       let vehId: string | null = vehicleId || null;
 
-      if (!vehId && bookingId) {
-        const { data: vehicleBooking } = await supabase
-          .from('vehicle_bookings')
-          .select('vehicle_id')
+      if (!propId && !vehId && bookingId) {
+        const { data: booking } = await supabase
+          .from('bookings')
+          .select('property_id')
           .eq('id', bookingId)
           .maybeSingle();
 
-        if (vehicleBooking?.vehicle_id) {
-          vehId = vehicleBooking.vehicle_id;
+        if (booking?.property_id) {
+          propId = booking.property_id;
+        } else {
+          const { data: vehicleBooking } = await supabase
+            .from('vehicle_bookings')
+            .select('vehicle_id')
+            .eq('id', bookingId)
+            .maybeSingle();
+
+          if (vehicleBooking?.vehicle_id) {
+            vehId = vehicleBooking.vehicle_id;
+          }
         }
       }
 
-      if (!vehId) {
-        console.error('Vehicle ID not found');
+      if (!propId && !vehId) {
+        console.error('[SimpleMessageModal] property_id or vehicle_id not found');
+        Alert.alert('Erreur', 'Impossible de créer la conversation.');
         return;
       }
 
-      // Déterminer qui est l'hôte et qui est l'invité
-      // Pour les véhicules, le propriétaire du véhicule est l'hôte, le locataire est l'invité
-      // Si otherParticipant.isHost est true, alors otherParticipant est le propriétaire (hôte)
-      // Sinon, otherParticipant est le locataire (invité) et user est le propriétaire (hôte)
       const hostId = otherParticipant.isHost ? otherParticipant.id : user.id;
       const guestId = otherParticipant.isHost ? user.id : otherParticipant.id;
-      
+
       console.log('🔍 [SimpleMessageModal] Conversation setup:', {
+        propertyId: propId,
         vehicleId: vehId,
         bookingId,
         otherParticipantId: otherParticipant.id,
         otherParticipantIsHost: otherParticipant.isHost,
         userId: user.id,
         hostId,
-        guestId
+        guestId,
       });
 
-      // Chercher une conversation existante
-      const { data: existingConversation } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('vehicle_id', vehId)
+      let existingQuery = supabase.from('conversations').select('id');
+      if (propId) {
+        existingQuery = existingQuery.eq('property_id', propId);
+      } else if (vehId) {
+        existingQuery = existingQuery.eq('vehicle_id', vehId);
+      }
+
+      const { data: existingConversation, error: fetchError } = await existingQuery
         .or(`and(guest_id.eq.${guestId},host_id.eq.${hostId}),and(guest_id.eq.${hostId},host_id.eq.${guestId})`)
         .maybeSingle();
+
+      if (fetchError) throw fetchError;
 
       let convId: string;
 
       if (existingConversation) {
         convId = existingConversation.id;
       } else {
-        // Récupérer le nom du véhicule pour le titre
-        let vehicleTitle = 'Véhicule';
-        if (vehId) {
-          const { data: vehicleData } = await supabase
-            .from('vehicles')
-            .select('title, brand, model')
-            .eq('id', vehId)
-            .single();
-          
-          if (vehicleData) {
-            vehicleTitle = vehicleData.title || `${vehicleData.brand || ''} ${vehicleData.model || ''}`.trim() || 'Véhicule';
-          }
+        const insertData: Record<string, string> = {
+          guest_id: guestId,
+          host_id: hostId,
+        };
+
+        if (propId) {
+          insertData.property_id = propId;
+        } else if (vehId) {
+          insertData.vehicle_id = vehId;
         }
-        const conversationTitle = `Véhicule - ${vehicleTitle}`;
 
         const { data: newConversation, error: createError } = await supabase
           .from('conversations')
-          .insert({
-            vehicle_id: vehId,
-            guest_id: guestId,
-            host_id: hostId,
-          })
+          .insert(insertData)
           .select('id')
           .single();
 
@@ -144,10 +155,9 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
 
       setConversationId(convId);
 
-      // Charger les messages
       const { data: messagesData, error: messagesError } = await supabase
-        .from('messages')
-        .select('*')
+        .from('conversation_messages')
+        .select('id, message, sender_id, created_at')
         .eq('conversation_id', convId)
         .order('created_at', { ascending: true });
 
@@ -155,6 +165,7 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
       setMessages(messagesData || []);
     } catch (error) {
       console.error('Error initializing conversation:', error);
+      Alert.alert('Erreur', 'Impossible de charger la conversation.');
     } finally {
       setLoading(false);
     }
@@ -163,24 +174,37 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
   const sendMessage = async () => {
     if (!newMessage.trim() || !conversationId || !user) return;
 
+    const messageText = newMessage.trim();
+    setNewMessage('');
     setSending(true);
     try {
       const { data, error } = await supabase
-        .from('messages')
+        .from('conversation_messages')
         .insert({
           conversation_id: conversationId,
           sender_id: user.id,
-          message: newMessage.trim(),
+          message: messageText,
         })
-        .select()
+        .select('id, message, sender_id, created_at')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        setNewMessage(messageText);
+        throw error;
+      }
 
-      setMessages([...messages, data]);
-      setNewMessage('');
+      await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
+
+      setMessages((prev) => {
+        if (prev.some((msg) => msg.id === data.id)) return prev;
+        return [...prev, data];
+      });
     } catch (error) {
       console.error('Error sending message:', error);
+      Alert.alert('Erreur', 'Impossible d\'envoyer le message.');
     } finally {
       setSending(false);
     }

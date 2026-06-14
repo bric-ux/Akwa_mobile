@@ -21,7 +21,7 @@ import { supabase } from '../services/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import CancellationDialog from '../components/CancellationDialog';
 import HostCancellationDialog from '../components/HostCancellationDialog';
-import BookingContactButton from '../components/BookingContactButton';
+import SimpleMessageModal from '../components/SimpleMessageModal';
 import GuestReviewModal from '../components/GuestReviewModal';
 import GuestProfileModal from '../components/GuestProfileModal';
 import HostBookingDetailsModal from '../components/HostBookingDetailsModal';
@@ -64,6 +64,16 @@ const HostBookingsScreen: React.FC = () => {
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
   const [bookingDetailsModalVisible, setBookingDetailsModalVisible] = useState(false);
   const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<HostBooking | null>(null);
+  const [messageModalVisible, setMessageModalVisible] = useState(false);
+  const [messageModalData, setMessageModalData] = useState<{
+    bookingId: string;
+    propertyId: string;
+    otherParticipant: {
+      id: string;
+      name: string;
+      isHost: boolean;
+    };
+  } | null>(null);
   const { markHostPropertyBookingsViewed } = useTabNotificationBadges();
   const { getPendingRequestsForHost } = useBookingModifications();
   const [modificationRequests, setModificationRequests] = useState<BookingModificationRequest[]>([]);
@@ -648,22 +658,27 @@ const HostBookingsScreen: React.FC = () => {
         {/* Bouton Contacter le voyageur - disponible pour toutes les réservations sauf annulées */}
         {item.status !== 'cancelled' && item.guest_id && item.properties?.id && (
           <>
-            <BookingContactButton
-              bookingId={item.id}
-              propertyId={item.properties.id}
-              otherParticipantId={item.guest_id}
-              otherParticipantName={
-                `${item.guest_profile?.first_name || ''} ${item.guest_profile?.last_name || ''}`.trim() ||
-                'Voyageur'
-              }
-              isHost={false}
-              messagingContext="host"
-              label="Contacter"
-              variant="outline"
-              size="small"
+            <TouchableOpacity
               style={[styles.actionButton, styles.contactButton]}
-              textStyle={[styles.actionButtonText, styles.contactButtonText]}
-            />
+              onPress={() => {
+                const guestName =
+                  `${item.guest_profile?.first_name || ''} ${item.guest_profile?.last_name || ''}`.trim() ||
+                  'Voyageur';
+                setMessageModalData({
+                  bookingId: item.id,
+                  propertyId: item.properties!.id,
+                  otherParticipant: {
+                    id: item.guest_id,
+                    name: guestName,
+                    isHost: false,
+                  },
+                });
+                setMessageModalVisible(true);
+              }}
+            >
+              <Ionicons name="chatbubble-outline" size={16} color="#e67e22" />
+              <Text style={[styles.actionButtonText, styles.contactButtonText]}>Contacter</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.profileButton]}
               onPress={() => {
@@ -1124,6 +1139,19 @@ const HostBookingsScreen: React.FC = () => {
         }}
         booking={selectedBookingForDetails}
       />
+
+      {messageModalData && (
+        <SimpleMessageModal
+          visible={messageModalVisible}
+          onClose={() => {
+            setMessageModalVisible(false);
+            setMessageModalData(null);
+          }}
+          bookingId={messageModalData.bookingId}
+          propertyId={messageModalData.propertyId}
+          otherParticipant={messageModalData.otherParticipant}
+        />
+      )}
 
       <HostCancellationDialog
         visible={hostCancellationDialogVisible}

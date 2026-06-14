@@ -224,6 +224,26 @@ export function buildZipGridHtml(puzzle: ZipPuzzle, cellSize: number): string {
     #hint {
       display: none;
     }
+    .cell.hint-flash {
+      z-index: 12;
+      animation: hintPulse 0.55s ease-in-out 5;
+      background: #dbeafe !important;
+    }
+    @keyframes hintPulse {
+      0%, 100% { box-shadow: inset 0 0 0 3px #3b82f6; }
+      50% { box-shadow: inset 0 0 0 5px #2563eb; }
+    }
+    .board.review {
+      pointer-events: none;
+    }
+    .board.review .win-banner {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+      animation: none;
+    }
+    .board.review.silent .win-banner {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -512,9 +532,36 @@ export function buildZipGridHtml(puzzle: ZipPuzzle, cellSize: number): string {
       disabled = false;
       dragging = false;
       activePointer = null;
-      document.getElementById('board').classList.remove('won');
+      document.getElementById('board').classList.remove('won', 'review', 'silent');
+      document.getElementById('winBanner').textContent = 'Bravo !';
       setHint('');
       render();
+    };
+    window.flashZipHint = function(row, col) {
+      document.querySelectorAll('.cell.hint-flash').forEach(function(el) {
+        el.classList.remove('hint-flash');
+      });
+      var el = document.querySelector('.cell[data-row="' + row + '"][data-col="' + col + '"]');
+      if (!el) return;
+      el.classList.add('hint-flash');
+      window.setTimeout(function() { el.classList.remove('hint-flash'); }, 3200);
+    };
+    window.showZipReview = function(cells, hideBanner) {
+      won = true;
+      disabled = true;
+      dragging = false;
+      activePointer = null;
+      var board = document.getElementById('board');
+      board.classList.add('won', 'review');
+      if (hideBanner) {
+        board.classList.add('silent');
+      } else {
+        board.classList.remove('silent');
+        document.getElementById('winBanner').textContent = 'Solution';
+      }
+      path = Array.isArray(cells) ? cells.slice() : [];
+      render();
+      drawPath();
     };
     window.setZipPath = function(cells) {
       syncPathFromNative(cells);

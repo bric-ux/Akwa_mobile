@@ -56,7 +56,7 @@ function buildFromPath(
     numbers[`${cell.row},${cell.col}`] = n;
   }
 
-  return { id, rows, cols, numbers, theme, subtitle, difficulty };
+  return { id, rows, cols, numbers, solutionPath: path, theme, subtitle, difficulty };
 }
 
 /** Banque de grilles thème Côte d'Ivoire / AkwaHome */

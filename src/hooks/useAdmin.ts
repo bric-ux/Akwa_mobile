@@ -591,13 +591,13 @@ export const useAdmin = () => {
       if (!error && typeof data === 'number') return data;
 
       const { data: rows, error: rowsError } = await supabase
-        .from('zip_game_results')
-        .select('user_id');
+        .from('zip_game_plays')
+        .select('player_key');
       if (rowsError) {
         console.warn('[useAdmin] zip unique players fallback error', rowsError);
         return 0;
       }
-      return new Set((rows ?? []).map((row) => row.user_id)).size;
+      return new Set((rows ?? []).map((row) => row.player_key)).size;
     };
 
     try {
