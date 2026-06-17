@@ -2,9 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { isMatchPredictionHomeBannerVisible } from '../constants/matchPrediction';
 
 const MatchPredictionBanner: React.FC = () => {
   const navigation = useNavigation();
+
+  if (!isMatchPredictionHomeBannerVisible()) {
+    return null;
+  }
 
   return (
     <TouchableOpacity
