@@ -95,6 +95,8 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
 
   const reviewCount = Number(property.review_count) || 0;
   const hasReviews = reviewCount > 0;
+  const locationLabel =
+    property.location?.name || property.locations?.name || property.location;
   const coverUri = getPropertyCoverUrl(property);
   const galleryRaw = getPropertyGalleryUrls(property);
   const galleryUrls = galleryRaw.length > 0 ? galleryRaw : [coverUri];
@@ -203,9 +205,14 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               {property.title}
             </Text>
             
-            <Text style={styles.cardLocation} numberOfLines={1}>
-              📍 {property.location?.name || property.locations?.name || property.location}
-            </Text>
+            {locationLabel ? (
+              <View style={styles.locationRow}>
+                <Ionicons name="location-outline" size={14} color="#666" />
+                <Text style={styles.cardLocation} numberOfLines={1}>
+                  {locationLabel}
+                </Text>
+              </View>
+            ) : null}
             
             <View style={[styles.cardRatingSlot, horizontalShelf && styles.cardRatingSlotShelf]}>
               {hasReviews ? (
@@ -291,9 +298,14 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               {property.title}
             </Text>
             
-            <Text style={styles.location} numberOfLines={1}>
-              📍 {property.location?.name || property.locations?.name || property.location}
-            </Text>
+            {locationLabel ? (
+              <View style={styles.locationRow}>
+                <Ionicons name="location-outline" size={14} color="#666" />
+                <Text style={styles.location} numberOfLines={1}>
+                  {locationLabel}
+                </Text>
+              </View>
+            ) : null}
             
             {/* Description courte */}
             {property.description && (
@@ -450,6 +462,13 @@ const styles = StyleSheet.create({
   cardLocation: {
     fontSize: 14,
     color: '#666',
+    flex: 1,
+    flexShrink: 1,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginBottom: 6,
   },
   cardRatingSlot: {},
@@ -560,7 +579,8 @@ const styles = StyleSheet.create({
   location: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 6,
+    flex: 1,
+    flexShrink: 1,
   },
   rating: {
     fontSize: 12,

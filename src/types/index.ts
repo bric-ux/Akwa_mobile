@@ -261,6 +261,7 @@ export type RootStackParamList = {
   HelpAssistant: undefined;
   ZipGame: undefined;
   ZipLeaderboard: undefined;
+  MatchPrediction: undefined;
   EditProfile: undefined;
   BecomeHost: undefined;
   /** Assistant IA (questions / réponses) — réservé usage futur */

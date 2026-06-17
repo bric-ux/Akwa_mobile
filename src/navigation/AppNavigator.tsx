@@ -33,6 +33,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import HelpAssistantScreen from '../screens/HelpAssistantScreen';
 import ZipGameScreen from '../screens/ZipGameScreen';
 import ZipLeaderboardScreen from '../screens/ZipLeaderboardScreen';
+import MatchPredictionScreen from '../screens/MatchPredictionScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 import BecomeHostScreen from '../screens/BecomeHostScreen';
@@ -762,6 +763,14 @@ const AppNavigator = () => {
           component={ZipLeaderboardScreen}
           options={{
             title: 'Classement Zip',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="MatchPrediction"
+          component={MatchPredictionScreen}
+          options={{
+            title: 'Concours pronostic',
             headerShown: false,
           }}
         />
