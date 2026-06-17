@@ -10,16 +10,26 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useHostHotels } from '../hooks/useHostHotels';
 import CitySearchInputModal from '../components/CitySearchInputModal';
-import { supabase } from '../services/supabase';
+import HotelMediaPickerRow from '../components/HotelMediaPickerRow';
+import HotelRoomDiscountFields, {
+  emptyHotelRoomDiscounts,
+  parseHotelRoomDiscounts,
+  type HotelRoomDiscountValues,
+} from '../components/HotelRoomDiscountFields';
+import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
+import {
+  MAX_HOTEL_ESTABLISHMENT_MEDIA,
+  MAX_HOTEL_ESTABLISHMENT_VIDEOS,
+  MAX_HOTEL_ROOM_MEDIA,
+  MAX_HOTEL_ROOM_VIDEOS,
+} from '../constants/hotelMedia';
 import { HOTEL_COLORS } from '../constants/colors';
 import {
   HOTEL_CANCELLATION_POLICIES,
@@ -49,6 +59,7 @@ interface WizardRoomDraft {
   minimum_nights: string;
   amenities: string[];
   imageUris: string[];
+  discounts: HotelRoomDiscountValues;
 }
 
 const emptyRoomDraft = (): WizardRoomDraft => ({
@@ -65,6 +76,7 @@ const emptyRoomDraft = (): WizardRoomDraft => ({
   minimum_nights: '1',
   amenities: [],
   imageUris: [],
+  discounts: emptyHotelRoomDiscounts(),
 });
 
 const AddHotelEstablishmentScreen: React.FC = () => {
@@ -121,54 +133,6 @@ const AddHotelEstablishmentScreen: React.FC = () => {
     };
   }, [user]);
 
-  const uploadImageToStorage = async (uri: string): Promise<string> => {
-    if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
-    const fileExt = uri.split('.').pop() || 'jpg';
-    const fileName = `hotel/${user?.id || 'anon'}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const response = await fetch(uri);
-    if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
-    const contentType = fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
-    const { error } = await supabase.storage
-      .from('property-images')
-      .upload(fileName, new Uint8Array(arrayBuffer), { contentType, upsert: false });
-    if (error) throw error;
-    const { data: { publicUrl } } = supabase.storage.from('property-images').getPublicUrl(fileName);
-    return publicUrl;
-  };
-
-  const pickImages = async (target: 'establishment' | 'room') => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Accès aux photos nécessaire.');
-      return;
-    }
-    const current = target === 'establishment' ? imageUris : roomDraft.imageUris;
-    const maxTotal = target === 'room' ? 10 : 20;
-    const limit = maxTotal - current.length;
-    if (limit <= 0) {
-      Alert.alert(
-        'Limite',
-        target === 'room' ? 'Maximum 10 photos par chambre.' : 'Maximum 20 photos.',
-      );
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsMultipleSelection: true,
-      selectionLimit: limit,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.length) {
-      const uris = result.assets.map((a) => a.uri);
-      if (target === 'establishment') {
-        setImageUris((prev) => [...prev, ...uris]);
-      } else {
-        setRoomDraft((prev) => ({ ...prev, imageUris: [...prev.imageUris, ...uris] }));
-      }
-    }
-  };
-
   const toggleAmenity = (name: string, list: string[], setter: (v: string[]) => void) => {
     setter(list.includes(name) ? list.filter((a) => a !== name) : [...list, name]);
   };
@@ -223,6 +187,22 @@ const AddHotelEstablishmentScreen: React.FC = () => {
       Alert.alert('Prix invalide', 'Prix par nuit minimum 1 000 FCFA.');
       return;
     }
+    const discountPayload = parseHotelRoomDiscounts(roomDraft.discounts);
+    if (
+      roomDraft.discounts.discount_enabled &&
+      (!discountPayload.discount_min_nights || discountPayload.discount_percentage == null)
+    ) {
+      Alert.alert('Réduction', 'Complétez la réduction par durée de séjour.');
+      return;
+    }
+    if (
+      roomDraft.discounts.long_stay_discount_enabled &&
+      (!discountPayload.long_stay_discount_min_nights ||
+        discountPayload.long_stay_discount_percentage == null)
+    ) {
+      Alert.alert('Réduction long séjour', 'Complétez les champs de réduction long séjour.');
+      return;
+    }
     setRooms((prev) => [...prev, { ...roomDraft }]);
     setRoomDraft(emptyRoomDraft());
     setShowRoomForm(false);
@@ -235,7 +215,7 @@ const AddHotelEstablishmentScreen: React.FC = () => {
   const uploadAllImages = async (uris: string[]): Promise<string[]> => {
     const urls: string[] = [];
     for (const uri of uris) {
-      urls.push(await uploadImageToStorage(uri));
+      urls.push(await uploadPropertyMediaToStorage(uri));
     }
     return urls;
   };
@@ -307,6 +287,7 @@ const AddHotelEstablishmentScreen: React.FC = () => {
         if (room.imageUris.length > 0) {
           roomImages = await uploadAllImages(room.imageUris);
         }
+        const discountPayload = parseHotelRoomDiscounts(room.discounts);
         const roomResult = await createRoomType({
           establishment_id: establishmentId,
           name: room.name.trim(),
@@ -321,6 +302,7 @@ const AddHotelEstablishmentScreen: React.FC = () => {
           minimum_nights: parseInt(room.minimum_nights, 10) || 1,
           amenities: room.amenities,
           imageUrls: roomImages,
+          ...discountPayload,
         });
         if (!roomResult.success) {
           Alert.alert('Attention', `Établissement créé mais chambre « ${room.name} » non enregistrée.`);
@@ -533,26 +515,14 @@ const AddHotelEstablishmentScreen: React.FC = () => {
 
       case 6:
         return (
-          <>
-            <Text style={styles.sectionTitle}>Photos de l&apos;établissement</Text>
-            <TouchableOpacity style={styles.addPhotoBtn} onPress={() => pickImages('establishment')}>
-              <Ionicons name="camera-outline" size={22} color={HOTEL_COLORS.primary} />
-              <Text style={styles.addPhotoText}>Ajouter des photos</Text>
-            </TouchableOpacity>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRow}>
-              {imageUris.map((uri, index) => (
-                <View key={`${uri}-${index}`} style={styles.photoWrap}>
-                  <Image source={{ uri }} style={styles.photo} />
-                  <TouchableOpacity
-                    style={styles.removePhoto}
-                    onPress={() => setImageUris((prev) => prev.filter((_, i) => i !== index))}
-                  >
-                    <Ionicons name="close" size={14} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-          </>
+          <HotelMediaPickerRow
+            label="Photos et vidéos de l'établissement"
+            hint="La première image (pas une vidéo) sert de couverture dans les listes."
+            mediaUris={imageUris}
+            onChange={setImageUris}
+            maxTotal={MAX_HOTEL_ESTABLISHMENT_MEDIA}
+            maxVideos={MAX_HOTEL_ESTABLISHMENT_VIDEOS}
+          />
         );
 
       case 7:
@@ -678,39 +648,18 @@ const AddHotelEstablishmentScreen: React.FC = () => {
                   })}
                 </View>
 
-                <TouchableOpacity
-                  style={styles.addPhotoBtn}
-                  onPress={() => pickImages('room')}
-                >
-                  <Ionicons name="image-outline" size={20} color={HOTEL_COLORS.primary} />
-                  <Text style={styles.addPhotoText}>
-                    Photos chambre ({roomDraft.imageUris.length}/10)
-                  </Text>
-                </TouchableOpacity>
-                {roomDraft.imageUris.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.photoRow}
-                  >
-                    {roomDraft.imageUris.map((uri, index) => (
-                      <View key={`${uri}-${index}`} style={styles.photoWrap}>
-                        <Image source={{ uri }} style={styles.photo} />
-                        <TouchableOpacity
-                          style={styles.removePhoto}
-                          onPress={() =>
-                            setRoomDraft((prev) => ({
-                              ...prev,
-                              imageUris: prev.imageUris.filter((_, i) => i !== index),
-                            }))
-                          }
-                        >
-                          <Ionicons name="close" size={14} color="#fff" />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </ScrollView>
-                ) : null}
+                <HotelRoomDiscountFields
+                  values={roomDraft.discounts}
+                  onChange={(discounts) => setRoomDraft((prev) => ({ ...prev, discounts }))}
+                />
+
+                <HotelMediaPickerRow
+                  label="Photos et vidéos de la chambre"
+                  mediaUris={roomDraft.imageUris}
+                  onChange={(uris) => setRoomDraft((prev) => ({ ...prev, imageUris: uris }))}
+                  maxTotal={MAX_HOTEL_ROOM_MEDIA}
+                  maxVideos={MAX_HOTEL_ROOM_VIDEOS}
+                />
 
                 <View style={styles.roomFormActions}>
                   <TouchableOpacity

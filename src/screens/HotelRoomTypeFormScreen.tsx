@@ -10,16 +10,22 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Image,
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useHostHotels } from '../hooks/useHostHotels';
-import { supabase } from '../services/supabase';
+import HotelMediaPickerRow from '../components/HotelMediaPickerRow';
+import HotelRoomDiscountFields, {
+  emptyHotelRoomDiscounts,
+  hotelRoomDiscountsFromRoom,
+  parseHotelRoomDiscounts,
+  type HotelRoomDiscountValues,
+} from '../components/HotelRoomDiscountFields';
+import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
+import { MAX_HOTEL_ROOM_MEDIA, MAX_HOTEL_ROOM_VIDEOS } from '../constants/hotelMedia';
 import { HOTEL_COLORS } from '../constants/colors';
 import {
   HOTEL_ROOM_AMENITIES,
@@ -48,6 +54,7 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
   const [isActive, setIsActive] = useState(true);
   const [roomCategory, setRoomCategory] = useState<HotelRoomCategory>('standard');
   const [roomAmenities, setRoomAmenities] = useState<string[]>([]);
+  const [discounts, setDiscounts] = useState<HotelRoomDiscountValues>(emptyHotelRoomDiscounts());
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -83,6 +90,7 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
       setImageUris(rt.images || []);
       setRoomCategory((rt.room_category as HotelRoomCategory) || 'standard');
       setRoomAmenities(rt.amenities || []);
+      setDiscounts(hotelRoomDiscountsFromRoom(rt));
       setIsActive(rt.status === 'active');
       setLoadingData(false);
     })();
@@ -90,44 +98,6 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
 
   const set = (key: string, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const uploadImageToStorage = async (uri: string): Promise<string> => {
-    if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
-    const fileExt = uri.split('.').pop() || 'jpg';
-    const fileName = `hotel-room/${user?.id || 'anon'}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const response = await fetch(uri);
-    if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
-    const contentType = fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
-    const { error } = await supabase.storage
-      .from('property-images')
-      .upload(fileName, new Uint8Array(arrayBuffer), { contentType, upsert: false });
-    if (error) throw error;
-    const { data: { publicUrl } } = supabase.storage.from('property-images').getPublicUrl(fileName);
-    return publicUrl;
-  };
-
-  const pickImages = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Accès aux photos nécessaire.');
-      return;
-    }
-    const limit = 10 - imageUris.length;
-    if (limit <= 0) {
-      Alert.alert('Limite', 'Maximum 10 photos par chambre.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsMultipleSelection: true,
-      selectionLimit: limit,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.length) {
-      setImageUris((prev) => [...prev, ...result.assets!.map((a) => a.uri)]);
-    }
   };
 
   const validateAndParse = () => {
@@ -174,6 +144,19 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
     const parsed = validateAndParse();
     if (!parsed) return;
 
+    const discountPayload = parseHotelRoomDiscounts(discounts);
+    if (discounts.discount_enabled && (!discountPayload.discount_min_nights || discountPayload.discount_percentage == null)) {
+      Alert.alert('Réduction', 'Indiquez le nombre de nuits minimum et le pourcentage.');
+      return;
+    }
+    if (
+      discounts.long_stay_discount_enabled &&
+      (!discountPayload.long_stay_discount_min_nights || discountPayload.long_stay_discount_percentage == null)
+    ) {
+      Alert.alert('Réduction long séjour', 'Indiquez le nombre de nuits minimum et le pourcentage.');
+      return;
+    }
+
     let imageUrls = imageUris;
     const needsUpload = imageUris.some((u) => !u.startsWith('http'));
     if (needsUpload) {
@@ -181,11 +164,11 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
       try {
         imageUrls = [];
         for (const uri of imageUris) {
-          imageUrls.push(await uploadImageToStorage(uri));
+          imageUrls.push(await uploadPropertyMediaToStorage(uri));
         }
       } catch {
         setUploadingImages(false);
-        Alert.alert('Erreur', 'Impossible d\'envoyer certaines photos.');
+        Alert.alert('Erreur', 'Impossible d\'envoyer certains médias.');
         return;
       }
       setUploadingImages(false);
@@ -195,6 +178,7 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
       const result = await createRoomType({
         establishment_id: establishmentId,
         ...parsed,
+        ...discountPayload,
         room_category: roomCategory,
         amenities: roomAmenities,
         imageUrls,
@@ -209,6 +193,7 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
     } else if (roomTypeId) {
       const result = await updateRoomType(roomTypeId, establishmentId, {
         ...parsed,
+        ...discountPayload,
         room_category: roomCategory,
         amenities: roomAmenities,
         imageUrls,
@@ -386,23 +371,15 @@ const HotelRoomTypeFormScreen: React.FC<Props> = ({ mode }) => {
             </View>
           )}
 
-          <TouchableOpacity style={styles.addPhotoBtn} onPress={pickImages}>
-            <Ionicons name="camera-outline" size={22} color={HOTEL_COLORS.primary} />
-            <Text style={styles.addPhotoText}>Photos ({imageUris.length}/10)</Text>
-          </TouchableOpacity>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {imageUris.map((uri, index) => (
-              <View key={`${uri}-${index}`} style={styles.photoWrap}>
-                <Image source={{ uri }} style={styles.photo} />
-                <TouchableOpacity
-                  style={styles.removePhoto}
-                  onPress={() => setImageUris((prev) => prev.filter((_, i) => i !== index))}
-                >
-                  <Ionicons name="close" size={14} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
+          <HotelRoomDiscountFields values={discounts} onChange={setDiscounts} />
+
+          <HotelMediaPickerRow
+            label="Photos et vidéos de la chambre"
+            mediaUris={imageUris}
+            onChange={setImageUris}
+            maxTotal={MAX_HOTEL_ROOM_MEDIA}
+            maxVideos={MAX_HOTEL_ROOM_VIDEOS}
+          />
 
           <TouchableOpacity
             style={styles.submitBtn}

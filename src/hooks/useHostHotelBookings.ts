@@ -46,7 +46,15 @@ export function useHostHotelBookings() {
       try {
         const { data: booking, error } = await supabase
           .from('hotel_bookings')
-          .update({ status })
+          .update({
+            status,
+            ...(status === 'cancelled'
+              ? {
+                  cancelled_at: new Date().toISOString(),
+                  cancelled_by: user.id,
+                }
+              : {}),
+          })
           .eq('id', bookingId)
           .select(
             `
@@ -71,6 +79,11 @@ export function useHostHotelBookings() {
             .eq('user_id', user.id)
             .maybeSingle();
           const hostName = `${hostProfile?.first_name || ''} ${hostProfile?.last_name || ''}`.trim();
+          const emailExtra = {
+            bookingId,
+            hostNetAmount: booking.host_net_amount ?? undefined,
+            serviceType: 'hotel' as const,
+          };
           await sendBookingConfirmed(
             guestEmail,
             guestName,
@@ -83,6 +96,8 @@ export function useHostHotelBookings() {
             '',
             hostProfile?.email || '',
             '',
+            undefined,
+            emailExtra,
           );
           if (hostProfile?.email) {
             await sendBookingConfirmedHost(
@@ -94,6 +109,7 @@ export function useHostHotelBookings() {
               booking.check_out_date,
               booking.guests_count,
               booking.total_price,
+              emailExtra,
             );
           }
           try {

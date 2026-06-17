@@ -24,6 +24,7 @@ import PropertyDetailsScreen from '../screens/PropertyDetailsScreen';
 import BookingScreen from '../screens/BookingScreen';
 import MyBookingsScreen from '../screens/MyBookingsScreen';
 import PropertyBookingDetailsScreen from '../screens/PropertyBookingDetailsScreen';
+import HotelBookingDetailsScreen from '../screens/HotelBookingDetailsScreen';
 import VehicleBookingDetailsScreen from '../screens/VehicleBookingDetailsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
@@ -1061,6 +1062,14 @@ const AppNavigator = () => {
           options={{ 
             title: 'Détails de réservation',
             headerShown: false 
+          }}
+        />
+        <Stack.Screen
+          name="HotelBookingDetails"
+          component={HotelBookingDetailsScreen}
+          options={{
+            title: 'Détails réservation hôtel',
+            headerShown: false,
           }}
         />
         <Stack.Screen

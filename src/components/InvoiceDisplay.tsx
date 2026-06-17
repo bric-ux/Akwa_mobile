@@ -143,7 +143,9 @@ const getPaymentMethodLabel = (method?: string): string => {
 };
 
 const getServiceTypeLabel = (serviceType: ServiceType): string => {
-  return serviceType === 'property' ? 'Résidence meublée' : 'Location de véhicule';
+  if (serviceType === 'property') return 'Résidence meublée';
+  if (serviceType === 'hotel') return 'Réservation hôtel';
+  return 'Location de véhicule';
 };
 
 export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
@@ -192,9 +194,9 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       setHostPendingPenaltyDeduct(0);
       return;
     }
-    const hostId = serviceType === 'property'
-      ? (booking.properties as any)?.host_id
-      : (booking.vehicle as any)?.owner_id;
+    const hostId = serviceType === 'property' || serviceType === 'hotel'
+      ? (booking.properties as { host_id?: string })?.host_id
+      : (booking.vehicle as { owner_id?: string })?.owner_id;
     if (!hostId) {
       setHostPendingPenaltyDeduct(0);
       return;
@@ -236,7 +238,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       }
 
       // Pour les propriétés
-      if (serviceType === 'property') {
+      if (serviceType === 'property' || serviceType === 'hotel') {
         // Pour l'hôte : récupérer depuis le booking si disponible
         if (type === 'host' && !hostEmail && booking.properties?.host_id) {
           try {
@@ -319,7 +321,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       if (__DEV__) console.log('🔍 [InvoiceDisplay] Recherche modification pour booking:', booking.id, 'serviceType:', serviceType);
       
       try {
-        if (serviceType === 'property') {
+        if (serviceType === 'property' || serviceType === 'hotel') {
           const { data, error } = await supabase
             .from('booking_modification_requests')
             .select('*')
@@ -481,7 +483,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   
   // Utiliser la valeur stockée en priorité, sinon recalculer
   let discountAmount = 0;
-  if (serviceType === 'property' && booking.properties) {
+  if ((serviceType === 'property' || serviceType === 'hotel') && booking.properties) {
     // Pour les propriétés, TOUJOURS utiliser la valeur stockée si elle existe (même si 0)
     // Ne recalculer QUE si discount_amount est null/undefined (anciennes réservations)
     if (booking.discount_amount !== undefined && booking.discount_amount !== null) {
@@ -650,7 +652,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
   if (calculationDetails) {
     // ✅ UTILISER DIRECTEMENT les valeurs stockées - AUCUN calcul
     // Pour les propriétés : base_price, price_after_discount et prix/nuit au moment de la réservation
-    if (serviceType === 'property') {
+    if (serviceType === 'property' || serviceType === 'hotel') {
       basePrice = calculationDetails.base_price ?? basePrice;
       priceAfterDiscount = calculationDetails.price_after_discount ?? priceAfterDiscount;
       discountAmount = calculationDetails.discount_amount ?? discountAmount;
@@ -735,12 +737,12 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
     effectiveCleaningFee = cleaningFee !== undefined ? cleaningFee : (booking.properties?.cleaning_fee || 0);
     
     // Appliquer la logique free_cleaning_min_days si applicable
-    if (serviceType === 'property' && booking.properties?.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days) {
+    if ((serviceType === 'property' || serviceType === 'hotel') && booking.properties?.free_cleaning_min_days && nights >= booking.properties.free_cleaning_min_days) {
       effectiveCleaningFee = 0;
     }
     
     // Calculer effectiveTaxes pour le fallback
-    effectiveTaxes = serviceType === 'property' ? taxesPerNight * nights : 0;
+    effectiveTaxes = serviceType === 'property' || serviceType === 'hotel' ? taxesPerNight * nights : 0;
     
     // Calculer le total payé : prix après réduction + frais de service + frais de ménage + taxes
     // BUG FIX: Pour les véhicules, utiliser priceAfterDiscountWithDriver (avec chauffeur)
@@ -803,7 +805,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       let emailType: string;
       let recipientEmail: string | undefined;
 
-      if (serviceType === 'property') {
+      if (serviceType === 'property' || serviceType === 'hotel') {
         emailType = 'send_invoice_by_email';
         
         recipientEmail = type === 'traveler' 
@@ -840,7 +842,7 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
       // Préparer les données pour l'email (l'Edge Function générera automatiquement le PDF)
       let emailData: any;
 
-      if (serviceType === 'property') {
+      if (serviceType === 'property' || serviceType === 'hotel') {
         emailData = {
           bookingId: booking.id,
           bookingCode: (booking as any).booking_code,
@@ -860,7 +862,8 @@ export const InvoiceDisplay: React.FC<InvoiceDisplayProps> = ({
           discount_amount: actualDiscountAmount, // Utiliser snake_case
           originalTotal: booking.original_total || booking.total_price || totalPaidByTraveler,
           status: booking.status || 'confirmed',
-          serviceType: 'property',
+          serviceType: serviceType,
+          booking_type: serviceType,
           property: {
             title: propertyOrVehicleTitle || '',
             address: booking.properties?.address || '',

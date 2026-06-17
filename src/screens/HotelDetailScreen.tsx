@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
   Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -18,6 +17,7 @@ import { useHotels } from '../hooks/useHotels';
 import { useCurrency } from '../hooks/useCurrency';
 import { useAuth } from '../services/AuthContext';
 import { HOTEL_COLORS } from '../constants/colors';
+import HotelMediaGallery from '../components/HotelMediaGallery';
 import {
   getEstablishmentLocationLabel,
   getEstablishmentTypeLabel,
@@ -29,7 +29,6 @@ import { safeGoBack } from '../utils/navigation';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 
 type HotelDetailsRoute = RouteProp<RootStackParamList, 'HotelDetails'>;
-const { width } = Dimensions.get('window');
 
 const HotelDetailScreen: React.FC = () => {
   const route = useRoute<HotelDetailsRoute>();
@@ -41,7 +40,6 @@ const HotelDetailScreen: React.FC = () => {
 
   const [establishment, setEstablishment] = useState<HotelEstablishment | null>(null);
   const [loading, setLoading] = useState(true);
-  const [imageIndex, setImageIndex] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,24 +121,18 @@ const HotelDetailScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.galleryWrap}>
-          <Image source={{ uri: gallery[imageIndex] }} style={styles.galleryImage} contentFit="cover" />
-          <SafeAreaView style={styles.galleryOverlay} edges={['top']}>
-            <TouchableOpacity style={styles.backBtnFloating} onPress={() => safeGoBack(navigation)}>
-              <Ionicons name="arrow-back" size={22} color="#fff" />
-            </TouchableOpacity>
-          </SafeAreaView>
-          {gallery.length > 1 ? (
-            <View style={styles.dots}>
-              {gallery.map((_, i) => (
-                <TouchableOpacity key={i} onPress={() => setImageIndex(i)}>
-                  <View style={[styles.dot, i === imageIndex && styles.dotActive]} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : null}
-        </View>
+      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
+        <HotelMediaGallery
+          urls={gallery}
+          height={300}
+          overlay={
+            <SafeAreaView style={styles.galleryOverlay} edges={['top']}>
+              <TouchableOpacity style={styles.backBtnFloating} onPress={() => safeGoBack(navigation)}>
+                <Ionicons name="arrow-back" size={22} color="#fff" />
+              </TouchableOpacity>
+            </SafeAreaView>
+          }
+        />
 
         <View style={styles.content}>
           <View style={styles.typePill}>

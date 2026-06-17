@@ -44,7 +44,13 @@ const ESTABLISHMENT_SELECT = `
     amenities,
     images,
     sort_order,
-    status
+    status,
+    discount_enabled,
+    discount_min_nights,
+    discount_percentage,
+    long_stay_discount_enabled,
+    long_stay_discount_min_nights,
+    long_stay_discount_percentage
   )
 `;
 

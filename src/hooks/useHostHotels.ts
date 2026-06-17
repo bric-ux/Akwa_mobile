@@ -6,6 +6,7 @@ import type {
   HotelEstablishmentType,
   HotelRoomType,
 } from '../types';
+import { isVideoUrl } from '../utils/media';
 
 const HOST_ESTABLISHMENT_SELECT = `
   id,
@@ -51,7 +52,13 @@ const HOST_ESTABLISHMENT_SELECT = `
     amenities,
     images,
     sort_order,
-    status
+    status,
+    discount_enabled,
+    discount_min_nights,
+    discount_percentage,
+    long_stay_discount_enabled,
+    long_stay_discount_min_nights,
+    long_stay_discount_percentage
   )
 `;
 
@@ -107,6 +114,12 @@ export interface CreateRoomTypeInput {
   amenities?: string[];
   imageUrls?: string[];
   status?: 'active' | 'hidden';
+  discount_enabled?: boolean;
+  discount_min_nights?: number | null;
+  discount_percentage?: number | null;
+  long_stay_discount_enabled?: boolean;
+  long_stay_discount_min_nights?: number | null;
+  long_stay_discount_percentage?: number | null;
 }
 
 export interface UpdateRoomTypeInput extends Partial<Omit<CreateRoomTypeInput, 'establishment_id'>> {
@@ -128,6 +141,7 @@ async function syncEstablishmentPhotos(
     establishment_id: establishmentId,
     url,
     display_order: index,
+    category: isVideoUrl(url) ? 'video' : 'autre',
   }));
 
   const { error } = await (supabase as any)
@@ -352,6 +366,12 @@ export function useHostHotels() {
           images: imageUrls,
           sort_order: nextOrder,
           status: input.status ?? 'active',
+          discount_enabled: input.discount_enabled ?? false,
+          discount_min_nights: input.discount_min_nights ?? null,
+          discount_percentage: input.discount_percentage ?? null,
+          long_stay_discount_enabled: input.long_stay_discount_enabled ?? false,
+          long_stay_discount_min_nights: input.long_stay_discount_min_nights ?? null,
+          long_stay_discount_percentage: input.long_stay_discount_percentage ?? null,
         };
 
         const { data, error: insertError } = await (supabase as any)
@@ -402,6 +422,18 @@ export function useHostHotels() {
         if (input.amenities !== undefined) updates.amenities = input.amenities;
         if (input.status !== undefined) updates.status = input.status;
         if (input.imageUrls !== undefined) updates.images = input.imageUrls;
+        if (input.discount_enabled !== undefined) updates.discount_enabled = input.discount_enabled;
+        if (input.discount_min_nights !== undefined) updates.discount_min_nights = input.discount_min_nights;
+        if (input.discount_percentage !== undefined) updates.discount_percentage = input.discount_percentage;
+        if (input.long_stay_discount_enabled !== undefined) {
+          updates.long_stay_discount_enabled = input.long_stay_discount_enabled;
+        }
+        if (input.long_stay_discount_min_nights !== undefined) {
+          updates.long_stay_discount_min_nights = input.long_stay_discount_min_nights;
+        }
+        if (input.long_stay_discount_percentage !== undefined) {
+          updates.long_stay_discount_percentage = input.long_stay_discount_percentage;
+        }
 
         const { error: updateError } = await (supabase as any)
           .from('hotel_room_types')

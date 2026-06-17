@@ -142,39 +142,73 @@ export const useEmailService = () => {
     });
   };
 
-  const sendBookingConfirmed = async (guestEmail: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number, hostName: string, hostPhone: string, hostEmail: string, propertyAddress: string, specialMessage?: string) => {
+  const sendBookingConfirmed = async (
+    guestEmail: string,
+    guestName: string,
+    propertyTitle: string,
+    checkIn: string,
+    checkOut: string,
+    guests: number,
+    totalPrice: number,
+    hostName: string,
+    hostPhone: string,
+    hostEmail: string,
+    propertyAddress: string,
+    specialMessage?: string,
+    extra?: { bookingId?: string; hostNetAmount?: number; serviceType?: string },
+  ) => {
     return sendEmail({
       type: 'booking_confirmed',
       to: guestEmail,
       data: {
+        bookingId: extra?.bookingId,
         guestName,
         propertyTitle,
         checkIn,
         checkOut,
         guests,
+        guestsCount: guests,
         totalPrice,
         hostName,
         hostPhone,
         hostEmail,
         propertyAddress,
-        specialMessage
-      }
+        specialMessage,
+        host_net_amount: extra?.hostNetAmount,
+        serviceType: extra?.serviceType || 'property',
+        booking_type: extra?.serviceType || 'property',
+      },
     });
   };
 
-  const sendBookingConfirmedHost = async (hostEmail: string, hostName: string, guestName: string, propertyTitle: string, checkIn: string, checkOut: string, guests: number, totalPrice: number) => {
+  const sendBookingConfirmedHost = async (
+    hostEmail: string,
+    hostName: string,
+    guestName: string,
+    propertyTitle: string,
+    checkIn: string,
+    checkOut: string,
+    guests: number,
+    totalPrice: number,
+    extra?: { bookingId?: string; hostNetAmount?: number; serviceType?: string },
+  ) => {
     return sendEmail({
       type: 'booking_confirmed_host',
       to: hostEmail,
       data: {
+        bookingId: extra?.bookingId,
         hostName,
         guestName,
         propertyTitle,
         checkIn,
         checkOut,
         guests,
-        totalPrice
-      }
+        guestsCount: guests,
+        totalPrice,
+        host_net_amount: extra?.hostNetAmount,
+        serviceType: extra?.serviceType || 'property',
+        booking_type: extra?.serviceType || 'property',
+      },
     });
   };
 

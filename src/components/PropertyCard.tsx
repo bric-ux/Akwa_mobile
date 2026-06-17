@@ -220,18 +220,16 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
             {property.amenities && property.amenities.length > 0 ? (
               <View style={[styles.cardAmenities, horizontalShelf && styles.cardAmenitiesShelf]}>
                 {property.amenities.slice(0, 3).map((amenity, index) => (
-                  <Text key={index} style={[styles.amenityTag, horizontalShelf && styles.amenityTagShelf]} numberOfLines={1}>
+                  <Text key={index} style={styles.amenityTag}>
                     {amenity.name}
                   </Text>
                 ))}
                 {property.amenities.length > 3 && (
-                  <Text style={styles.moreAmenities} numberOfLines={1}>
+                  <Text style={styles.moreAmenities}>
                     +{property.amenities.length - 3} {t('common.more')}
                   </Text>
                 )}
               </View>
-            ) : horizontalShelf ? (
-              <View style={styles.cardAmenitiesShelfPlaceholder} />
             ) : null}
             </View>
           </TouchableOpacity>
@@ -475,15 +473,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
-  /** Une seule ligne : plus de hauteur variable entre cartes. */
   cardAmenitiesShelf: {
-    flexWrap: 'nowrap',
-    maxHeight: 30,
-    overflow: 'hidden',
-    alignItems: 'center',
-  },
-  cardAmenitiesShelfPlaceholder: {
-    height: 30,
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    marginTop: 2,
   },
   amenityTag: {
     fontSize: 12,
@@ -494,10 +487,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#c8e6c9',
-  },
-  amenityTagShelf: {
-    flexShrink: 1,
-    maxWidth: '38%',
   },
   favoriteButton: {
     position: 'absolute',

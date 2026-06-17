@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import {
   getHotelCoverUrl,
   getMinRoomPrice,
 } from '../lib/hotelUtils';
+import { useHotelFavorites } from '../hooks/useHotelFavorites';
+import { useAuthRedirect } from '../hooks/useAuthRedirect';
 
 interface HotelCardProps {
   establishment: HotelEstablishment;
@@ -25,10 +27,28 @@ const HotelCard: React.FC<HotelCardProps> = ({
   horizontalShelf = false,
 }) => {
   const { formatPrice } = useCurrency();
+  const { requireAuthForFavorites } = useAuthRedirect();
+  const { toggleFavorite, isFavoriteSync, loading: favoriteLoading } = useHotelFavorites();
+  const [isFavorited, setIsFavorited] = useState(false);
   const coverUrl = getHotelCoverUrl(establishment);
   const minPrice = establishment.min_price_per_night ?? getMinRoomPrice(establishment);
   const location = getEstablishmentLocationLabel(establishment);
   const roomCount = establishment.hotel_room_types?.length ?? 0;
+
+  useEffect(() => {
+    setIsFavorited(isFavoriteSync(establishment.id));
+  }, [establishment.id, isFavoriteSync]);
+
+  const handleFavoritePress = (e: any) => {
+    e.stopPropagation();
+    requireAuthForFavorites(async () => {
+      try {
+        await toggleFavorite(establishment.id);
+      } catch (error) {
+        console.error('Erreur favoris hôtel:', error);
+      }
+    });
+  };
 
   return (
     <TouchableOpacity
@@ -43,11 +63,13 @@ const HotelCard: React.FC<HotelCardProps> = ({
           contentFit="cover"
           transition={200}
         />
-        <View style={styles.typeBadge}>
-          <Text style={styles.typeBadgeText}>
-            {getEstablishmentTypeLabel(establishment.establishment_type)}
-          </Text>
-        </View>
+        {!horizontalShelf ? (
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>
+              {getEstablishmentTypeLabel(establishment.establishment_type)}
+            </Text>
+          </View>
+        ) : null}
         {minPrice != null && (
           <View style={styles.priceBadge}>
             <Text style={styles.priceText}>
@@ -56,6 +78,18 @@ const HotelCard: React.FC<HotelCardProps> = ({
             </Text>
           </View>
         )}
+        <TouchableOpacity
+          style={styles.favoriteButton}
+          onPress={handleFavoritePress}
+          disabled={favoriteLoading}
+          hitSlop={8}
+        >
+          <Ionicons
+            name={isFavorited ? 'heart' : 'heart-outline'}
+            size={18}
+            color={isFavorited ? '#e74c3c' : '#fff'}
+          />
+        </TouchableOpacity>
       </View>
 
       <View style={[styles.body, horizontalShelf && styles.bodyShelf]}>
@@ -141,6 +175,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
+  },
+  favoriteButton: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   priceText: {
     color: '#fff',

@@ -316,6 +316,7 @@ export type RootStackParamList = {
   MyGuestReviews: undefined;
   MyVehicleRenterReviews: undefined;
   PropertyBookingDetails: { bookingId: string };
+  HotelBookingDetails: { bookingId: string; viewMode?: 'guest' | 'host' };
   VehicleBookingDetails: { bookingId: string };
   Favorites: undefined;
   Profile: undefined;
@@ -474,6 +475,12 @@ export interface HotelRoomType {
   images?: string[];
   sort_order?: number;
   status: 'active' | 'hidden';
+  discount_enabled?: boolean;
+  discount_min_nights?: number | null;
+  discount_percentage?: number | null;
+  long_stay_discount_enabled?: boolean;
+  long_stay_discount_min_nights?: number | null;
+  long_stay_discount_percentage?: number | null;
 }
 
 export interface HotelEstablishment {

@@ -9,7 +9,7 @@
  * 3. Calcul des commissions sur le prix APRÈS réduction
  */
 
-export type ServiceType = 'property' | 'vehicle';
+export type ServiceType = 'property' | 'vehicle' | 'hotel';
 
 export interface CommissionRates {
   travelerFeePercent: number;  // Frais de service payés par le voyageur

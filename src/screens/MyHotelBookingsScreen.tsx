@@ -55,7 +55,10 @@ const MyHotelBookingsScreen: React.FC = () => {
   };
 
   const renderItem = ({ item }: { item: HotelBooking }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => navigation.navigate('HotelBookingDetails', { bookingId: item.id, viewMode: 'guest' })}
+    >
       <Text style={styles.cardTitle}>{item.hotel_establishments?.title || 'Hôtel'}</Text>
       <Text style={styles.cardDates}>
         {item.check_in_date} → {item.check_out_date}
@@ -71,7 +74,7 @@ const MyHotelBookingsScreen: React.FC = () => {
           Paiement : {item.payment_method === 'cash' ? 'Espèces à l\'arrivée' : item.payment_method}
         </Text>
       ) : null}
-    </View>
+    </TouchableOpacity>
   );
 
   if (loading) {

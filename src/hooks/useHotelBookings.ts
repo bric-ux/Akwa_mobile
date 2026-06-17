@@ -54,12 +54,15 @@ export interface HotelBooking {
   exchange_rate?: number | null;
   message_to_host?: string | null;
   booking_code?: string | null;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
   created_at: string;
   hotel_establishments?: {
     id: string;
     title: string;
     host_id: string;
     address?: string | null;
+    cancellation_policy?: string | null;
   };
   hotel_booking_items?: HotelBookingItem[];
 }
@@ -80,6 +83,12 @@ export function buildLinesFromRoomType(
       cleaning_fee: room.cleaning_fee,
       taxes_per_night: room.taxes_per_night,
       quantity,
+      discount_enabled: room.discount_enabled,
+      discount_min_nights: room.discount_min_nights,
+      discount_percentage: room.discount_percentage,
+      long_stay_discount_enabled: room.long_stay_discount_enabled,
+      long_stay_discount_min_nights: room.long_stay_discount_min_nights,
+      long_stay_discount_percentage: room.long_stay_discount_percentage,
     },
   ];
 }
@@ -88,12 +97,8 @@ export function useHotelBookings() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const {
-    sendBookingRequest,
-    sendBookingRequestSent,
-    sendBookingConfirmed,
-    sendBookingConfirmedHost,
-  } = useEmailService();
+  const { sendBookingRequest, sendBookingRequestSent, sendBookingConfirmed, sendBookingConfirmedHost, sendBookingCancelled, sendBookingCancelledHost } =
+    useEmailService();
   const { hasUploadedIdentity, isVerified, verificationStatus, loading: identityLoading } =
     useIdentityVerification();
 
@@ -273,6 +278,11 @@ export function useHotelBookings() {
               );
             }
             if (initialStatus === 'confirmed' && guestProfile?.email && hostProfile?.email) {
+              const emailExtra = {
+                bookingId: booking.id,
+                hostNetAmount: data.hostNetAmount,
+                serviceType: 'hotel' as const,
+              };
               await sendBookingConfirmed(
                 guestProfile.email,
                 guestName,
@@ -285,6 +295,8 @@ export function useHotelBookings() {
                 '',
                 hostProfile.email,
                 '',
+                undefined,
+                emailExtra,
               );
               await sendBookingConfirmedHost(
                 hostProfile.email,
@@ -295,6 +307,7 @@ export function useHotelBookings() {
                 data.checkOutDate,
                 data.guestsCount,
                 data.totalPrice,
+                emailExtra,
               );
             }
           } catch (emailErr) {
@@ -350,8 +363,8 @@ export function useHotelBookings() {
       .select(
         `
         *,
-        hotel_establishments(id, title, host_id, address),
-        hotel_booking_items(*)
+        hotel_establishments(id, title, host_id, address, cancellation_policy),
+        hotel_booking_items(*, hotel_room_types(name, taxes_per_night))
       `,
       )
       .eq('guest_id', user.id)
@@ -363,11 +376,139 @@ export function useHotelBookings() {
     return (data ?? []) as HotelBooking[];
   }, [user]);
 
+  const fetchGuestBookingById = useCallback(
+    async (bookingId: string) => {
+      if (!user) return null;
+      const { data, error: fetchErr } = await supabase
+        .from('hotel_bookings')
+        .select(
+          `
+          *,
+          hotel_establishments(id, title, host_id, address, cancellation_policy),
+          hotel_booking_items(*, hotel_room_types(name, taxes_per_night, cleaning_fee))
+        `,
+        )
+        .eq('id', bookingId)
+        .eq('guest_id', user.id)
+        .maybeSingle();
+      if (fetchErr || !data) return null;
+      return data as HotelBooking;
+    },
+    [user],
+  );
+
+  const fetchHotelBookingById = useCallback(async (bookingId: string) => {
+    const { data, error: fetchErr } = await supabase
+      .from('hotel_bookings')
+      .select(
+        `
+        *,
+        hotel_establishments(id, title, host_id, address, cancellation_policy),
+        hotel_booking_items(*, hotel_room_types(name, taxes_per_night, cleaning_fee)),
+        profiles:guest_id(first_name, last_name, email, phone)
+      `,
+      )
+      .eq('id', bookingId)
+      .maybeSingle();
+    if (fetchErr || !data) return null;
+    return data as HotelBooking & {
+      profiles?: { first_name?: string; last_name?: string; email?: string; phone?: string };
+    };
+  }, []);
+
+  const cancelHotelBooking = useCallback(
+    async (bookingId: string, reason?: string) => {
+      if (!user) return { success: false, error: 'Non connecté' };
+      setLoading(true);
+      try {
+        const { data: booking, error } = await supabase
+          .from('hotel_bookings')
+          .update({
+            status: 'cancelled',
+            cancelled_at: new Date().toISOString(),
+            cancelled_by: user.id,
+            cancellation_reason: reason?.trim() || null,
+          })
+          .eq('id', bookingId)
+          .eq('guest_id', user.id)
+          .in('status', ['pending', 'confirmed'])
+          .select(
+            `
+            *,
+            hotel_establishments(id, title, host_id)
+          `,
+          )
+          .single();
+
+        if (error || !booking) {
+          return { success: false, error: 'Impossible d\'annuler cette réservation' };
+        }
+
+        const est = (booking as HotelBooking).hotel_establishments;
+        const { data: guestProfile } = await supabase
+          .from('profiles')
+          .select('email, first_name, last_name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const { data: hostProfile } = est?.host_id
+          ? await supabase
+              .from('profiles')
+              .select('email, first_name, last_name')
+              .eq('user_id', est.host_id)
+              .maybeSingle()
+          : { data: null };
+
+        const guestName = `${guestProfile?.first_name || ''} ${guestProfile?.last_name || ''}`.trim();
+        const title = est?.title || 'Hôtel';
+
+        try {
+          if (guestProfile?.email) {
+            await sendBookingCancelled(
+              guestProfile.email,
+              guestName,
+              title,
+              booking.check_in_date,
+              booking.check_out_date,
+              booking.guests_count,
+              booking.total_price,
+            );
+          }
+          if (hostProfile?.email) {
+            const hostName = `${hostProfile.first_name || ''} ${hostProfile.last_name || ''}`.trim();
+            await sendBookingCancelledHost(
+              hostProfile.email,
+              hostName,
+              guestName,
+              title,
+              booking.check_in_date,
+              booking.check_out_date,
+              booking.guests_count,
+              booking.total_price,
+            );
+          }
+        } catch (emailErr) {
+          console.error('[useHotelBookings] cancel emails', emailErr);
+        }
+
+        return { success: true };
+      } catch (e) {
+        console.error('[useHotelBookings] cancel', e);
+        return { success: false };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user, sendBookingCancelled, sendBookingCancelledHost],
+  );
+
   return {
     loading,
     error,
     createHotelBooking,
     fetchGuestBookings,
+    fetchGuestBookingById,
+    fetchHotelBookingById,
+    cancelHotelBooking,
     calculateHotelBookingPricing,
     buildLinesFromRoomType,
   };

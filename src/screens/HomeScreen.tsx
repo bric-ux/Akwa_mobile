@@ -153,6 +153,13 @@ const HomeScreen: React.FC = () => {
     (navigation as any).navigate('Search', { initialAccommodationType: 'hotel' });
   }, [navigation]);
 
+  const explorePropertiesTotal = useMemo(() => {
+    return exploreSections.reduce((sum, section) => {
+      if (section.kind === 'large') return sum + section.group.totalCount;
+      return sum + section.groups.reduce((s, g) => s + g.totalCount, 0);
+    }, 0);
+  }, [exploreSections]);
+
   const handleSearchPress = useCallback(() => {
     (navigation as any).navigate('Search');
   }, [navigation]);
@@ -356,14 +363,19 @@ const HomeScreen: React.FC = () => {
       )}
 
       <View style={styles.section}>
-        <View style={styles.exploreIntroHeader}>
-          <Text style={styles.sectionTitle}>Explorez par ville</Text>
-        </View>
         {exploreErrorCard}
         {exploreHotelsSection}
+        {explorePropertiesTotal > 0 || exploreLoading ? (
+          <View style={[styles.exploreSection, styles.explorePropertiesIntro]}>
+            <View style={styles.exploreHotelsTitleRow}>
+              <Ionicons name="home" size={18} color="#2E7D32" />
+              <Text style={styles.exploreCityTitle}>Résidences meublées</Text>
+            </View>
+          </View>
+        ) : null}
       </View>
     </>
-  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, exploreHotelsSection]);
+  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, exploreHotelsSection, explorePropertiesTotal, exploreLoading]);
 
   const listFooter = useMemo(
     () => (
@@ -817,6 +829,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  explorePropertiesIntro: {
+    marginTop: 4,
+    marginBottom: 6,
+    paddingHorizontal: EXPLORE_GUTTER,
   },
   exploreHotelsWarmup: {
     flexDirection: 'row',

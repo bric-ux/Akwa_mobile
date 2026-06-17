@@ -6,10 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
   Alert,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
@@ -18,13 +16,14 @@ import { useHotels } from '../hooks/useHotels';
 import { useCurrency } from '../hooks/useCurrency';
 import { useAuth } from '../services/AuthContext';
 import { HOTEL_COLORS } from '../constants/colors';
+import HotelMediaGallery from '../components/HotelMediaGallery';
+import MediaThumb from '../components/MediaThumb';
 import { getRoomCategoryLabel } from '../constants/hotelListingForm';
 import { safeGoBack } from '../utils/navigation';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import HotelBookingModal from '../components/HotelBookingModal';
 
 type Route = RouteProp<RootStackParamList, 'HotelRoomDetail'>;
-const { width } = Dimensions.get('window');
 
 const PLACEHOLDER = 'https://via.placeholder.com/800x500?text=Chambre';
 
@@ -96,53 +95,20 @@ const HotelRoomDetailScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.galleryWrap}>
-          <Image
-            source={{ uri: gallery[imageIndex] }}
-            style={styles.galleryImage}
-            contentFit="cover"
-          />
-          <SafeAreaView style={styles.galleryOverlay} edges={['top']}>
-            <TouchableOpacity style={styles.backBtnFloating} onPress={() => safeGoBack(navigation)}>
-              <Ionicons name="arrow-back" size={22} color="#fff" />
-            </TouchableOpacity>
-            {gallery.length > 1 ? (
-              <View style={styles.countBadge}>
-                <Text style={styles.countBadgeText}>
-                  {imageIndex + 1}/{gallery.length}
-                </Text>
-              </View>
-            ) : null}
-          </SafeAreaView>
-          {gallery.length > 1 ? (
-            <>
-              <TouchableOpacity
-                style={[styles.navArrow, styles.navArrowLeft]}
-                onPress={() =>
-                  setImageIndex((i) => (i > 0 ? i - 1 : gallery.length - 1))
-                }
-              >
-                <Ionicons name="chevron-back" size={24} color="#fff" />
+      <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
+        <HotelMediaGallery
+          urls={gallery}
+          height={300}
+          activeIndex={imageIndex}
+          onIndexChange={setImageIndex}
+          overlay={
+            <SafeAreaView style={styles.galleryOverlay} edges={['top']}>
+              <TouchableOpacity style={styles.backBtnFloating} onPress={() => safeGoBack(navigation)}>
+                <Ionicons name="arrow-back" size={22} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.navArrow, styles.navArrowRight]}
-                onPress={() =>
-                  setImageIndex((i) => (i < gallery.length - 1 ? i + 1 : 0))
-                }
-              >
-                <Ionicons name="chevron-forward" size={24} color="#fff" />
-              </TouchableOpacity>
-              <View style={styles.dots}>
-                {gallery.map((_, i) => (
-                  <TouchableOpacity key={i} onPress={() => setImageIndex(i)}>
-                    <View style={[styles.dot, i === imageIndex && styles.dotActive]} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          ) : null}
-        </View>
+            </SafeAreaView>
+          }
+        />
 
         {gallery.length > 1 ? (
           <ScrollView
@@ -152,10 +118,9 @@ const HotelRoomDetailScreen: React.FC = () => {
           >
             {gallery.map((uri, i) => (
               <TouchableOpacity key={`${uri}-${i}`} onPress={() => setImageIndex(i)}>
-                <Image
-                  source={{ uri }}
+                <MediaThumb
+                  uri={uri}
                   style={[styles.thumb, i === imageIndex && styles.thumbActive]}
-                  contentFit="cover"
                 />
               </TouchableOpacity>
             ))}
@@ -180,6 +145,33 @@ const HotelRoomDetailScreen: React.FC = () => {
             {formatPrice(room.price_per_night)}
             <Text style={styles.priceSuffix}>/nuit</Text>
           </Text>
+
+          {(room.discount_enabled &&
+            room.discount_percentage &&
+            room.discount_min_nights) ||
+          (room.long_stay_discount_enabled &&
+            room.long_stay_discount_percentage &&
+            room.long_stay_discount_min_nights) ? (
+            <View style={styles.discountBox}>
+              {room.discount_enabled &&
+              room.discount_percentage &&
+              room.discount_min_nights ? (
+                <Text style={styles.discountText}>
+                  Réduction {room.discount_percentage}% à partir de {room.discount_min_nights}{' '}
+                  nuit{room.discount_min_nights > 1 ? 's' : ''}
+                </Text>
+              ) : null}
+              {room.long_stay_discount_enabled &&
+              room.long_stay_discount_percentage &&
+              room.long_stay_discount_min_nights ? (
+                <Text style={styles.discountText}>
+                  Long séjour : {room.long_stay_discount_percentage}% à partir de{' '}
+                  {room.long_stay_discount_min_nights} nuit
+                  {room.long_stay_discount_min_nights > 1 ? 's' : ''}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
 
           <View style={styles.metaGrid}>
             <MetaItem icon="people-outline" label={`${room.max_guests} pers.`} />
@@ -335,6 +327,14 @@ const styles = StyleSheet.create({
   establishmentName: { fontSize: 14, color: '#64748b', marginTop: 4 },
   price: { fontSize: 22, fontWeight: '800', color: HOTEL_COLORS.primary, marginTop: 10 },
   priceSuffix: { fontSize: 14, fontWeight: '500', color: '#64748b' },
+  discountBox: {
+    marginTop: 10,
+    padding: 12,
+    backgroundColor: '#ecfdf5',
+    borderRadius: 10,
+    gap: 4,
+  },
+  discountText: { fontSize: 13, color: '#047857', fontWeight: '600' },
   metaGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

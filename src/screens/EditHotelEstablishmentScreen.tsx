@@ -10,16 +10,19 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useHostHotels } from '../hooks/useHostHotels';
 import CitySearchInputModal from '../components/CitySearchInputModal';
-import { supabase } from '../services/supabase';
+import HotelMediaPickerRow from '../components/HotelMediaPickerRow';
+import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
+import {
+  MAX_HOTEL_ESTABLISHMENT_MEDIA,
+  MAX_HOTEL_ESTABLISHMENT_VIDEOS,
+} from '../constants/hotelMedia';
 import { HOTEL_COLORS } from '../constants/colors';
 import { getHotelGalleryUrls } from '../lib/hotelUtils';
 import { HOTEL_ESTABLISHMENT_TYPES } from '../constants/hotelListingForm';
@@ -94,39 +97,6 @@ const EditHotelEstablishmentScreen: React.FC = () => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const uploadImageToStorage = async (uri: string): Promise<string> => {
-    if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
-    const fileExt = uri.split('.').pop() || 'jpg';
-    const fileName = `hotel/${user?.id || 'anon'}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const response = await fetch(uri);
-    if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
-    const contentType = fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
-    const { error } = await supabase.storage
-      .from('property-images')
-      .upload(fileName, new Uint8Array(arrayBuffer), { contentType, upsert: false });
-    if (error) throw error;
-    const { data: { publicUrl } } = supabase.storage.from('property-images').getPublicUrl(fileName);
-    return publicUrl;
-  };
-
-  const pickImages = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Accès aux photos nécessaire.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsMultipleSelection: true,
-      selectionLimit: 20 - imageUris.length,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.length) {
-      setImageUris((prev) => [...prev, ...result.assets!.map((a) => a.uri)]);
-    }
-  };
-
   const toggleAmenity = (name: string) => {
     setSelectedAmenities((prev) =>
       prev.includes(name) ? prev.filter((a) => a !== name) : [...prev, name],
@@ -146,11 +116,11 @@ const EditHotelEstablishmentScreen: React.FC = () => {
       try {
         imageUrls = [];
         for (const uri of imageUris) {
-          imageUrls.push(await uploadImageToStorage(uri));
+          imageUrls.push(await uploadPropertyMediaToStorage(uri));
         }
       } catch {
         setUploadingImages(false);
-        Alert.alert('Erreur', 'Impossible d\'envoyer certaines photos.');
+        Alert.alert('Erreur', 'Impossible d\'envoyer certains médias.');
         return;
       }
       setUploadingImages(false);
@@ -255,23 +225,14 @@ const EditHotelEstablishmentScreen: React.FC = () => {
             })}
           </View>
 
-          <TouchableOpacity style={styles.addPhotoBtn} onPress={pickImages}>
-            <Ionicons name="camera-outline" size={22} color={HOTEL_COLORS.primary} />
-            <Text style={styles.addPhotoText}>Photos</Text>
-          </TouchableOpacity>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRow}>
-            {imageUris.map((uri, index) => (
-              <View key={`${uri}-${index}`} style={styles.photoWrap}>
-                <Image source={{ uri }} style={styles.photo} />
-                <TouchableOpacity
-                  style={styles.removePhoto}
-                  onPress={() => setImageUris((prev) => prev.filter((_, i) => i !== index))}
-                >
-                  <Ionicons name="close" size={14} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
+          <HotelMediaPickerRow
+            label="Photos et vidéos"
+            hint="Glissez sur la fiche hôtel pour parcourir photos et vidéos."
+            mediaUris={imageUris}
+            onChange={setImageUris}
+            maxTotal={MAX_HOTEL_ESTABLISHMENT_MEDIA}
+            maxVideos={MAX_HOTEL_ESTABLISHMENT_VIDEOS}
+          />
 
           <TouchableOpacity
             style={styles.saveBtn}

@@ -11,13 +11,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { HOTEL_COLORS } from '../constants/colors';
 import { useHostHotelBookings } from '../hooks/useHostHotelBookings';
 import type { HotelBooking } from '../hooks/useHotelBookings';
 import { useCurrency } from '../hooks/useCurrency';
 
 const HostHotelBookingsScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const { fetchHostBookings, updateBookingStatus, loading } = useHostHotelBookings();
   const { formatPrice } = useCurrency();
   const [bookings, setBookings] = useState<HotelBooking[]>([]);
@@ -70,7 +71,10 @@ const HostHotelBookingsScreen: React.FC = () => {
   };
 
   const renderItem = ({ item }: { item: HotelBooking }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => navigation.navigate('HotelBookingDetails', { bookingId: item.id, viewMode: 'host' })}
+    >
       <Text style={styles.cardTitle}>{item.hotel_establishments?.title || 'Établissement'}</Text>
       <Text style={styles.cardDates}>
         {item.check_in_date} → {item.check_out_date}
@@ -92,7 +96,7 @@ const HostHotelBookingsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       ) : null}
-    </View>
+    </TouchableOpacity>
   );
 
   if (listLoading) {

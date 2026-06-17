@@ -149,6 +149,18 @@ const HotelBookingModal: React.FC<HotelBookingModalProps> = ({
           taxes_per_night: roomType.taxes_per_night || 0,
         },
       ];
+      const snap = pricing!;
+      const pricingSnapshot = {
+        nights: snap.nights,
+        basePrice: snap.basePrice,
+        priceAfterDiscount: snap.priceAfterDiscount,
+        totalCleaningFee: snap.totalCleaningFee,
+        totalTaxes: snap.totalTaxes,
+        serviceFee: snap.serviceFee,
+        hostCommission: snap.hostCommission,
+        hostNetAmount: snap.hostNetAmount,
+        finalTotal: snap.finalTotal,
+      };
       return {
         checkout_token: checkoutToken,
         booking_type: 'hotel',
@@ -160,6 +172,10 @@ const HotelBookingModal: React.FC<HotelBookingModalProps> = ({
         property_title: `${establishment.title} — ${roomType.name}`,
         check_in: checkIn,
         check_out: checkOut,
+        customer_country:
+          ((user?.user_metadata as { country_code?: string; country?: string })?.country_code ||
+            (user?.user_metadata as { country_code?: string; country?: string })?.country ||
+            ''),
         establishmentId: establishment.id,
         establishmentTitle: establishment.title,
         hostId: establishment.host_id,
@@ -167,14 +183,14 @@ const HotelBookingModal: React.FC<HotelBookingModalProps> = ({
         checkOutDate: checkOut,
         guestsCount: guests,
         lines,
-        totalPrice: pricing!.finalTotal,
-        hostNetAmount: pricing!.hostNetAmount,
+        totalPrice: snap.finalTotal,
+        hostNetAmount: snap.hostNetAmount,
         messageToHost: message.trim() || undefined,
         paymentMethod: method,
         paymentPlan: effectivePlan,
         paymentCurrency: currency,
         paymentRate: currency === 'EUR' ? rates.EUR : undefined,
-        pricingSnapshot: pricing,
+        pricingSnapshot,
         ...(currency === 'EUR' && rates.EUR ? { currency: 'eur', rate: rates.EUR } : {}),
       };
     },
@@ -191,6 +207,7 @@ const HotelBookingModal: React.FC<HotelBookingModalProps> = ({
       effectivePlan,
       currency,
       rates.EUR,
+      user,
     ],
   );
 
@@ -423,18 +440,79 @@ const HotelBookingModal: React.FC<HotelBookingModalProps> = ({
 
           {pricing ? (
             <View style={styles.summary}>
-              <Text style={styles.summaryLine}>
-                {nights} nuit{nights > 1 ? 's' : ''} × {quantity} chambre{quantity > 1 ? 's' : ''}
-              </Text>
-              <Text style={styles.summaryLine}>Frais de service (1 %) : {formatPriceForPayment(pricing.serviceFee)}</Text>
-              <Text style={styles.total}>
-                Total : {formatPriceForPayment(pricing.finalTotal)}
-              </Text>
-              {paymentMethod && paymentMethod !== 'cash' && effectivePlan === 'split' ? (
-                <Text style={styles.summaryLine}>
-                  À payer maintenant : {formatPriceForPayment(onlineCharge)}
-                </Text>
-              ) : null}
+              <Text style={styles.sectionTitle}>Récapitulatif</Text>
+              <View style={styles.priceBreakdown}>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>
+                    {formatPriceForPayment(roomType.price_per_night)} × {nights} nuit
+                    {nights > 1 ? 's' : ''}
+                    {quantity > 1 ? ` × ${quantity} chambres` : ''}
+                  </Text>
+                  <Text style={styles.priceValue}>{formatPriceForPayment(pricing.basePrice)}</Text>
+                </View>
+                {(roomType.cleaning_fee || 0) > 0 ? (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>
+                      Frais de ménage{quantity > 1 ? ` × ${quantity}` : ''}
+                    </Text>
+                    <Text style={styles.priceValue}>
+                      {formatPriceForPayment(pricing.totalCleaningFee)}
+                    </Text>
+                  </View>
+                ) : null}
+                {(roomType.taxes_per_night || 0) > 0 ? (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>
+                      Taxes de séjour × {nights} nuit{nights > 1 ? 's' : ''}
+                      {quantity > 1 ? ` × ${quantity}` : ''}
+                    </Text>
+                    <Text style={styles.priceValue}>{formatPriceForPayment(pricing.totalTaxes)}</Text>
+                  </View>
+                ) : null}
+                {pricing.discountApplied && pricing.discountAmount > 0 ? (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>
+                      Réduction{pricing.discountType === 'long_stay' ? ' long séjour' : ''}
+                    </Text>
+                    <Text style={[styles.priceValue, styles.discountValue]}>
+                      -{formatPriceForPayment(pricing.discountAmount)}
+                    </Text>
+                  </View>
+                ) : null}
+                {pricing.serviceFee > 0 ? (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>Frais de service (1 %)</Text>
+                    <Text style={styles.priceValue}>{formatPriceForPayment(pricing.serviceFee)}</Text>
+                  </View>
+                ) : null}
+                <View style={[styles.priceRow, styles.totalRow]}>
+                  <Text style={styles.totalLabel}>
+                    {paymentMethod && paymentMethod !== 'cash' && effectivePlan === 'split'
+                      ? 'Total à payer maintenant'
+                      : paymentMethod === 'card'
+                        ? 'Total à payer par carte'
+                        : 'Total'}
+                  </Text>
+                  <Text style={styles.totalValue}>
+                    {paymentMethod && paymentMethod !== 'cash' && effectivePlan === 'split'
+                      ? formatPriceForPayment(onlineCharge)
+                      : formatPriceForPayment(pricing.finalTotal)}
+                  </Text>
+                </View>
+                {paymentMethod && paymentMethod !== 'cash' && effectivePlan === 'split' ? (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>Solde à l'arrivée (50 %)</Text>
+                    <Text style={styles.priceValue}>
+                      {formatPriceForPayment(pricing.finalTotal - onlineCharge)}
+                    </Text>
+                  </View>
+                ) : null}
+                {paymentMethod === 'cash' ? (
+                  <Text style={styles.cashNote}>
+                    Le solde total sera réglé en espèces à l'arrivée à l'hôtel.
+                  </Text>
+                ) : null}
+              </View>
             </View>
           ) : null}
         </ScrollView>
@@ -513,8 +591,21 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#f8fafc',
     borderRadius: 12,
-    gap: 6,
   },
+  priceBreakdown: { gap: 8 },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  priceLabel: { flex: 1, fontSize: 14, color: '#64748b' },
+  priceValue: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  totalRow: { marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  totalLabel: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  totalValue: { fontSize: 18, fontWeight: '800', color: HOTEL_COLORS.primary },
+  cashNote: { fontSize: 12, color: '#64748b', marginTop: 8, fontStyle: 'italic' },
+  discountValue: { color: '#16a34a' },
   summaryLine: { fontSize: 14, color: '#64748b' },
   total: { fontSize: 18, fontWeight: '800', color: '#0f172a', marginTop: 4 },
   submitBtn: {
