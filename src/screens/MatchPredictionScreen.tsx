@@ -293,7 +293,7 @@ const MatchPredictionScreen: React.FC = () => {
             <Text style={styles.heroAccent}>score exact.</Text>
           </Text>
           <Text style={styles.heroSubtitle}>
-            Gagne un séjour dans une résidence partenaire.
+            1 nuit à gagner dans une résidence partenaire.
           </Text>
 
           <View style={styles.metaRow}>
@@ -460,7 +460,7 @@ const MatchPredictionScreen: React.FC = () => {
                 {[
                   { n: '01', t: 'Pronostique', d: 'Choisis le score exact avant le coup d\'envoi.' },
                   { n: '02', t: 'Crée ton compte', d: '1 SMS pour valider — bienvenue chez AkwaHome.' },
-                  { n: '03', t: 'Tirage au sort', d: 'Un bon pronostic remporte un séjour partenaire.' },
+                  { n: '03', t: 'Tirage au sort', d: 'Un bon pronostic remporte 1 nuit en résidence partenaire.' },
                 ].map((step) => (
                   <View key={step.n} style={styles.howCard}>
                     <Text style={styles.howNum}>{step.n}</Text>

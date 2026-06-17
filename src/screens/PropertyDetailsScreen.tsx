@@ -769,6 +769,7 @@ const PropertyDetailsScreen: React.FC = () => {
             variant="outline"
             size="medium"
             style={styles.contactButton}
+            openInStack
           />
         </View>
       </View>

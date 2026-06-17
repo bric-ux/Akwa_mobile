@@ -333,7 +333,7 @@ export type RootStackParamList = {
 
 export type TabParamList = {
   HomeTab: undefined;
-  MessagingTab: { conversationId?: string };
+  MessagingTab: { conversationId?: string; propertyId?: string; vehicleId?: string };
   BookingsTab: undefined;
   FavoritesTab: undefined;
   ProfileTab: undefined;

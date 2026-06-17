@@ -21,7 +21,7 @@ const MatchPredictionBanner: React.FC = () => {
         <View style={styles.content}>
           <Text style={styles.kicker}>Concours · Coupe du Monde 2026</Text>
           <Text style={styles.title} numberOfLines={2}>
-            Pronostique <Text style={styles.highlight}>🇩🇪 vs 🇨🇮</Text> · gagne un séjour 🎁
+            Pronostique <Text style={styles.highlight}>🇩🇪 vs 🇨🇮</Text> · 1 nuit à gagner 🎁
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
