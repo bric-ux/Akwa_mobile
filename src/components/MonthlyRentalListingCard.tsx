@@ -1,9 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import type { MonthlyRentalListing } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { formatCardLocationLabel } from '../utils/locationLabel';
+import { EXPLORE_SHELF_IMAGE_HEIGHT } from '../constants/exploreShelfCard';
+import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
 interface MonthlyRentalListingCardProps {
   listing: MonthlyRentalListing;
@@ -26,19 +29,38 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
     ? formatCardLocationLabel(listing.locations)
     : formatCardLocationLabel(listing.location);
 
+  if (horizontalShelf) {
+    return (
+      <ExploreShelfPhotoCard
+        onPress={() => onPress(listing)}
+        title={listing.title}
+        location={locationLabel || undefined}
+        priceLabel={`${formatPrice(listing.monthly_rent_price)}/mois`}
+        image={
+          <Image
+            source={{ uri: imageUri }}
+            style={styles.shelfImage}
+            contentFit="cover"
+            contentPosition="top"
+            transition={200}
+          />
+        }
+      />
+    );
+  }
+
   return (
     <TouchableOpacity
       style={[
         styles.container,
         variant === 'list' && styles.listContainer,
-        horizontalShelf && styles.listContainerShelf,
       ]}
       onPress={() => onPress(listing)}
       activeOpacity={0.8}
     >
       <View style={styles.cardLayout}>
         <View style={styles.imageContainer}>
-          <Image source={{ uri: imageUri }} style={styles.cardImage} resizeMode="cover" />
+          <Image source={{ uri: imageUri }} style={styles.cardImage} contentFit="cover" />
           <View style={styles.priceOverlay}>
             <Text style={styles.priceText}>
               {formatPrice(listing.monthly_rent_price)}/mois
@@ -75,9 +97,12 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
 };
 
 const styles = StyleSheet.create({
+  shelfImage: {
+    width: '100%',
+    height: EXPLORE_SHELF_IMAGE_HEIGHT,
+  },
   container: { marginHorizontal: 20, marginBottom: 16 },
   listContainer: {},
-  listContainerShelf: { marginHorizontal: 0, marginBottom: 0 },
   cardLayout: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -112,7 +137,7 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: 6,
   },
-  cardLocation: { fontSize: 13, color: '#666', flex: 1, flexShrink: 1 },
+  cardLocation: { fontSize: 13, color: '#666' },
   metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   metaText: { fontSize: 12, color: '#888' },
   metaDot: { fontSize: 12, color: '#ccc', marginHorizontal: 4 },

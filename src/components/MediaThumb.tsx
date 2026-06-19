@@ -18,6 +18,9 @@ type MediaThumbProps = {
   priority?: 'low' | 'normal' | 'high';
   /** Stabilise le recyclage des vues (listes) — ex. `${propertyId}-${index}` */
   recyclingKey?: string;
+  /** Accueil : charge l'URL source (évite le recadrage des miniatures liste). */
+  preferOriginal?: boolean;
+  contentPosition?: 'center' | 'top' | 'bottom';
 };
 
 /**
@@ -31,6 +34,8 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
   isVideo: isVideoProp,
   priority = 'normal',
   recyclingKey,
+  preferOriginal = false,
+  contentPosition = 'center',
 }) => {
   const [videoError, setVideoError] = useState(false);
   const video = isVideoProp ?? isVideoUrl(uri);
@@ -71,7 +76,7 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
     );
   }
 
-  const [useOriginal, setUseOriginal] = useState(false);
+  const [useOriginal, setUseOriginal] = useState(preferOriginal);
   const displayUri = useOriginal ? uri : getGalleryThumbUrl(uri);
 
   return (
@@ -79,6 +84,7 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
       source={displayUri}
       style={style as ImageStyle}
       contentFit={resizeMode === 'cover' ? 'cover' : 'contain'}
+      contentPosition={contentPosition}
       cachePolicy="memory-disk"
       priority={priority}
       recyclingKey={recyclingKey ?? uri}

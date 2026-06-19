@@ -13,6 +13,8 @@ import {
 } from '../lib/hotelUtils';
 import { useHotelFavorites } from '../hooks/useHotelFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
+import { EXPLORE_SHELF_IMAGE_HEIGHT } from '../constants/exploreShelfCard';
+import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
 interface HotelCardProps {
   establishment: HotelEstablishment;
@@ -50,26 +52,54 @@ const HotelCard: React.FC<HotelCardProps> = ({
     });
   };
 
+  if (horizontalShelf) {
+    return (
+      <ExploreShelfPhotoCard
+        onPress={() => onPress(establishment)}
+        title={establishment.title}
+        location={location || undefined}
+        priceLabel={
+          minPrice != null ? `${formatPrice(minPrice)}/nuit` : undefined
+        }
+        subtitle={
+          establishment.star_rating != null && establishment.star_rating > 0
+            ? `★ ${establishment.star_rating} étoiles`
+            : undefined
+        }
+        onFavoritePress={handleFavoritePress}
+        isFavorited={isFavorited}
+        favoriteLoading={favoriteLoading}
+        image={
+          <Image
+            source={{ uri: coverUrl }}
+            style={styles.shelfImage}
+            contentFit="cover"
+            contentPosition="top"
+            transition={200}
+          />
+        }
+      />
+    );
+  }
+
   return (
     <TouchableOpacity
-      style={[styles.card, horizontalShelf && styles.cardShelf]}
+      style={styles.card}
       activeOpacity={0.9}
       onPress={() => onPress(establishment)}
     >
-      <View style={[styles.imageWrap, horizontalShelf && styles.imageWrapShelf]}>
+      <View style={styles.imageWrap}>
         <Image
           source={{ uri: coverUrl }}
           style={styles.image}
           contentFit="cover"
           transition={200}
         />
-        {!horizontalShelf ? (
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText}>
-              {getEstablishmentTypeLabel(establishment.establishment_type)}
-            </Text>
-          </View>
-        ) : null}
+        <View style={styles.typeBadge}>
+          <Text style={styles.typeBadgeText}>
+            {getEstablishmentTypeLabel(establishment.establishment_type)}
+          </Text>
+        </View>
         {minPrice != null && (
           <View style={styles.priceBadge}>
             <Text style={styles.priceText}>
@@ -92,7 +122,7 @@ const HotelCard: React.FC<HotelCardProps> = ({
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.body, horizontalShelf && styles.bodyShelf]}>
+      <View style={styles.body}>
         <Text style={styles.title} numberOfLines={2}>
           {establishment.title}
         </Text>
@@ -125,6 +155,10 @@ const HotelCard: React.FC<HotelCardProps> = ({
 };
 
 const styles = StyleSheet.create({
+  shelfImage: {
+    width: '100%',
+    height: EXPLORE_SHELF_IMAGE_HEIGHT,
+  },
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -138,16 +172,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  cardShelf: {
-    marginBottom: 0,
-    flex: 1,
-  },
   imageWrap: {
     height: 200,
     backgroundColor: '#f1f5f9',
-  },
-  imageWrapShelf: {
-    height: 180,
   },
   image: {
     width: '100%',
@@ -200,9 +227,6 @@ const styles = StyleSheet.create({
   body: {
     padding: 14,
     gap: 6,
-  },
-  bodyShelf: {
-    padding: 12,
   },
   title: {
     fontSize: 17,

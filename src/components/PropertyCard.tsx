@@ -21,6 +21,8 @@ import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import MediaThumb from './MediaThumb';
 import { getPropertyCoverUrl, getPropertyGalleryUrls, isVideoUrl } from '../utils/media';
 import { getPropertyCardLocationLabel } from '../utils/locationLabel';
+import { EXPLORE_SHELF_IMAGE_HEIGHT } from '../constants/exploreShelfCard';
+import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
 const CAROUSEL_HEIGHT = 200;
 const SCREEN_W = Dimensions.get('window').width;
@@ -174,17 +176,56 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
     </View>
   );
 
+  if (variant === 'list' && horizontalShelf) {
+    const uri = coverUri || galleryUrls[0];
+    return (
+      <View style={styles.listContainerShelf}>
+        <ExploreShelfPhotoCard
+          onPress={handlePropertyPress}
+          title={property.title}
+          location={locationLabel || undefined}
+          priceLabel={`${formatPrice(effectiveNightPrice)}/nuit`}
+          promoLabel={
+            property.discount_enabled && property.discount_percentage && property.discount_min_nights
+              ? `-${property.discount_percentage}% dès ${property.discount_min_nights} nuits`
+              : undefined
+          }
+          subtitle={
+            hasReviews
+              ? `⭐ ${(Number(property.rating) || 0).toFixed(1)} (${reviewCount})`
+              : undefined
+          }
+          onFavoritePress={handleFavoritePress}
+          isFavorited={isFavorited}
+          favoriteLoading={favoriteLoading}
+          image={
+            <MediaThumb
+              uri={uri}
+              style={{ width: '100%', height: EXPLORE_SHELF_IMAGE_HEIGHT }}
+              resizeMode="cover"
+              contentPosition="top"
+              preferOriginal
+              isVideo={isVideoUrl(uri)}
+              priority="high"
+              recyclingKey={`${property.id}-shelf-cover`}
+            />
+          }
+        />
+      </View>
+    );
+  }
+
   if (variant === 'list') {
     return (
       <View
         style={[
           styles.container,
-          horizontalShelf ? styles.listContainerShelf : styles.listContainer,
+          styles.listContainer,
         ]}
       >
-        <View style={[styles.cardLayout, horizontalShelf && styles.cardLayoutShelf]}>
+        <View style={styles.cardLayout}>
           <TouchableOpacity onPress={handlePropertyPress} activeOpacity={0.8}>
-            <View style={styles.imageArea}>
+            <View style={[styles.imageArea, { height: CAROUSEL_HEIGHT }]}>
               {renderListCoverImage(CAROUSEL_HEIGHT)}
               <View style={styles.priceOverlay} pointerEvents="none">
                 <View style={styles.priceOverlayContent}>
@@ -200,7 +241,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               </View>
             </View>
 
-            <View style={[styles.cardContent, horizontalShelf && styles.cardContentShelf]}>
+            <View style={styles.cardContent}>
             <Text style={styles.cardTitle} numberOfLines={1}>
               {property.title}
             </Text>
@@ -214,18 +255,16 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               </View>
             ) : null}
             
-            <View style={[styles.cardRatingSlot, horizontalShelf && styles.cardRatingSlotShelf]}>
+            <View style={styles.cardRatingSlot}>
               {hasReviews ? (
-                <Text style={[styles.cardRating, horizontalShelf && styles.cardRatingInShelf]}>
+                <Text style={styles.cardRating}>
                   ⭐ {(Number(property.rating) || 0).toFixed(1)} ({reviewCount} {t('property.reviews')})
                 </Text>
-              ) : horizontalShelf ? (
-                <Text style={styles.cardRatingPlaceholder}> </Text>
               ) : null}
             </View>
             
             {property.amenities && property.amenities.length > 0 ? (
-              <View style={[styles.cardAmenities, horizontalShelf && styles.cardAmenitiesShelf]}>
+              <View style={styles.cardAmenities}>
                 {property.amenities.slice(0, 3).map((amenity, index) => (
                   <Text key={index} style={styles.amenityTag}>
                     {amenity.name}
@@ -392,12 +431,10 @@ const styles = StyleSheet.create({
   /** Carrousel Explore : hauteur de carte homogène (image fixe + zone texte réservée). */
   cardLayoutShelf: {
     flex: 1,
-    minHeight: CAROUSEL_HEIGHT + 132,
   },
   imageArea: {
     position: 'relative',
     width: '100%',
-    height: CAROUSEL_HEIGHT,
     overflow: 'hidden',
   },
   imageContainer: {
@@ -447,15 +484,19 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   cardContentShelf: {
-    flexGrow: 1,
-    justifyContent: 'flex-start',
-    minHeight: 124,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 6,
+  },
+  cardTitleShelf: {
+    fontSize: 15,
+    marginBottom: 4,
   },
   cardLocation: {
     fontSize: 14,
@@ -469,33 +510,24 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: 6,
   },
-  cardRatingSlot: {},
-  cardRatingSlotShelf: {
-    minHeight: 22,
-    marginBottom: 8,
-    justifyContent: 'center',
+  locationRowShelf: {
+    marginBottom: 0,
   },
+  cardRatingSlot: {},
   cardRating: {
     fontSize: 14,
     color: '#666',
     marginBottom: 12,
   },
-  cardRatingInShelf: {
-    marginBottom: 0,
-  },
-  cardRatingPlaceholder: {
-    fontSize: 14,
-    color: 'transparent',
+  cardRatingShelf: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
   },
   cardAmenities: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-  },
-  cardAmenitiesShelf: {
-    flexWrap: 'wrap',
-    alignItems: 'flex-start',
-    marginTop: 2,
   },
   amenityTag: {
     fontSize: 12,

@@ -9,7 +9,6 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
-  Dimensions,
   useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
@@ -46,22 +45,19 @@ import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { useApprovedMonthlyRentalListings } from '../hooks/useApprovedMonthlyRentalListings';
 import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
 import type { MonthlyRentalListing } from '../types';
+import { EXPLORE_SHELF_CARD_WIDTH, EXPLORE_SHELF_IMAGE_HEIGHT } from '../constants/exploreShelfCard';
 
-const SCREEN_W = Dimensions.get('window').width;
 /** Titres explore + première carte : alignés sur le carrousel « trésors CI » ; carte suivante visible */
 const EXPLORE_GUTTER = HOME_EXPLORE_HORIZONTAL_GUTTER;
-const NEXT_CARD_PEEK = 46;
+const NEXT_CARD_PEEK = 48;
+
+const EXPLORE_CARD_WIDTH = EXPLORE_SHELF_CARD_WIDTH;
 
 const KEYBOX_WHATSAPP_URL =
   'https://wa.me/33667672022?text=' +
   encodeURIComponent(
     "Bonjour, je suis propriétaire d'une résidence meublée et je souhaite des informations sur l'installation de boîtes à clés AkwaHome.",
   );
-
-const EXPLORE_CARD_WIDTH = Math.max(
-  244,
-  Math.round(SCREEN_W - EXPLORE_GUTTER - NEXT_CARD_PEEK),
-);
 
 // Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
 const CAROUSEL_IMAGES = [
@@ -261,6 +257,7 @@ const HomeScreen: React.FC = () => {
           nestedScrollEnabled
           keyboardShouldPersistTaps="handled"
           showsHorizontalScrollIndicator={false}
+          style={styles.exploreRowScroll}
           contentContainerStyle={styles.exploreRowContent}
         >
           {properties.map((p) => (
@@ -286,6 +283,7 @@ const HomeScreen: React.FC = () => {
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
         showsHorizontalScrollIndicator={false}
+        style={styles.exploreRowScroll}
         contentContainerStyle={styles.exploreRowContent}
       >
         {hotels.map((hotel) => (
@@ -309,6 +307,7 @@ const HomeScreen: React.FC = () => {
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
         showsHorizontalScrollIndicator={false}
+        style={styles.exploreRowScroll}
         contentContainerStyle={styles.exploreRowContent}
       >
         {listings.map((listing) => (
@@ -511,12 +510,12 @@ const HomeScreen: React.FC = () => {
         <View style={styles.headerDeferredPlaceholder} />
       )}
 
-      <View style={styles.section}>
+      <View>
         {exploreErrorCard}
         {exploreMonthlySection}
         {exploreHotelsSection}
         {explorePropertiesTotal > 0 || exploreLoading ? (
-          <View style={[styles.exploreSection, styles.explorePropertiesIntro]}>
+          <View style={styles.explorePropertiesIntro}>
             <View style={styles.exploreHotelsTitleRow}>
               <Ionicons name="home" size={18} color="#2E7D32" />
               <Text style={styles.exploreCityTitle}>Résidences meublées</Text>
@@ -794,6 +793,7 @@ const HomeScreen: React.FC = () => {
           keyExtractor={exploreKeyExtractor}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          removeClippedSubviews={false}
           contentContainerStyle={scrollContentStyle}
           ListHeaderComponent={listHeader}
           ListFooterComponent={listFooter}
@@ -896,7 +896,8 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   exploreSection: {
-    marginBottom: 14,
+    marginBottom: 22,
+    backgroundColor: 'transparent',
   },
   exploreIntroHeader: {
     paddingHorizontal: EXPLORE_GUTTER,
@@ -935,13 +936,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#475569',
   },
+  exploreRowScroll: {
+    flexGrow: 0,
+    marginHorizontal: -EXPLORE_GUTTER,
+    backgroundColor: 'transparent',
+    overflow: 'visible',
+  },
   exploreRowContent: {
     paddingLeft: EXPLORE_GUTTER,
     paddingRight: NEXT_CARD_PEEK,
-    paddingBottom: 4,
+    paddingBottom: 6,
+    paddingTop: 2,
+    alignItems: 'flex-start',
   },
   exploreCardWrap: {
-    marginRight: 10,
+    marginRight: 12,
   },
   exploreHotelsTitleRow: {
     flexDirection: 'row',
@@ -949,8 +958,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   explorePropertiesIntro: {
-    marginTop: 4,
-    marginBottom: 6,
+    marginTop: 8,
+    marginBottom: 10,
     paddingHorizontal: EXPLORE_GUTTER,
   },
   exploreHotelsWarmup: {
@@ -958,11 +967,12 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: EXPLORE_GUTTER,
     marginBottom: 8,
+    backgroundColor: 'transparent',
   },
   exploreHotelsWarmupCard: {
     width: EXPLORE_CARD_WIDTH,
-    height: 260,
-    borderRadius: 16,
+    height: EXPLORE_SHELF_IMAGE_HEIGHT,
+    borderRadius: 26,
     backgroundColor: '#e9ecef',
   },
   emptyContainer: {
