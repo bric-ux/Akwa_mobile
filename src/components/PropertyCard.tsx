@@ -24,7 +24,7 @@ import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 import { EXPLORE_SHELF_IMAGE_HEIGHT } from '../constants/exploreShelfCard';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
-const CAROUSEL_HEIGHT = 200;
+const CAROUSEL_HEIGHT = 220;
 const SCREEN_W = Dimensions.get('window').width;
 
 interface PropertyCardProps {
@@ -228,11 +228,9 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
             <View style={[styles.imageArea, { height: CAROUSEL_HEIGHT }]}>
               {renderListCoverImage(CAROUSEL_HEIGHT)}
               <View style={styles.priceOverlay} pointerEvents="none">
-                <View style={styles.priceOverlayContent}>
-                  <Text style={styles.priceText}>
-                    {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
-                  </Text>
-                </View>
+                <Text style={styles.priceText}>
+                  {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
+                </Text>
                 {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
                   <Text style={styles.discountOverlay}>
                     -{property.discount_percentage}% {t('property.forNights')} {property.discount_min_nights}+ {t('property.nights')}
@@ -262,21 +260,6 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
                 </Text>
               ) : null}
             </View>
-            
-            {property.amenities && property.amenities.length > 0 ? (
-              <View style={styles.cardAmenities}>
-                {property.amenities.slice(0, 3).map((amenity, index) => (
-                  <Text key={index} style={styles.amenityTag}>
-                    {amenity.name}
-                  </Text>
-                ))}
-                {property.amenities.length > 3 && (
-                  <Text style={styles.moreAmenities}>
-                    +{property.amenities.length - 3} {t('common.more')}
-                  </Text>
-                )}
-              </View>
-            ) : null}
             </View>
           </TouchableOpacity>
 
@@ -459,10 +442,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
-  },
-  priceOverlayContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    gap: 2,
   },
   priceText: {
     color: '#fff',
@@ -477,7 +457,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    marginTop: 4,
     fontWeight: '600',
   },
   cardContent: {
@@ -517,7 +496,7 @@ const styles = StyleSheet.create({
   cardRating: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 12,
+    marginBottom: 0,
   },
   cardRatingShelf: {
     fontSize: 12,

@@ -126,8 +126,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
-    alignItems: 'flex-end',
-    gap: 6,
+    alignItems: 'center',
+    gap: 2,
     maxWidth: '72%',
   },
   pricePill: {
@@ -135,6 +135,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 999,
+    alignSelf: 'center',
   },
   priceText: {
     color: '#0f172a',
@@ -146,11 +147,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
+    alignSelf: 'center',
   },
   promoText: {
     color: '#fff',
     fontSize: 10,
     fontWeight: '800',
+    textAlign: 'center',
   },
   favorite: {
     position: 'absolute',

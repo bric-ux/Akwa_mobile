@@ -39,7 +39,10 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useNetwork } from '../contexts/NetworkContext';
 import LoadErrorCard from '../components/LoadErrorCard';
 import type { LoadFailureKind } from '../utils/loadError';
-import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
+import {
+  HOME_EXPLORE_HORIZONTAL_GUTTER,
+  HOME_EXPLORE_CAROUSEL_LEFT_INSET,
+} from '../constants/homeExploreLayout';
 import { HOTEL_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { useApprovedMonthlyRentalListings } from '../hooks/useApprovedMonthlyRentalListings';
@@ -938,12 +941,13 @@ const styles = StyleSheet.create({
   },
   exploreRowScroll: {
     flexGrow: 0,
-    marginHorizontal: -EXPLORE_GUTTER,
+    marginLeft: 0,
+    marginRight: -EXPLORE_GUTTER,
     backgroundColor: 'transparent',
     overflow: 'visible',
   },
   exploreRowContent: {
-    paddingLeft: EXPLORE_GUTTER,
+    paddingLeft: EXPLORE_GUTTER + HOME_EXPLORE_CAROUSEL_LEFT_INSET,
     paddingRight: NEXT_CARD_PEEK,
     paddingBottom: 6,
     paddingTop: 2,
