@@ -41,19 +41,6 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
   const galleryScrollViewRef = useRef<ScrollView>(null);
   const [isFavorited, setIsFavorited] = useState(() => isFavoriteSync(vehicle.id));
 
-  const getVehicleTypeIcon = (type: string) => {
-    switch (type) {
-      case 'car': return 'car-outline';
-      case 'suv': return 'car-sport-outline';
-      case 'van': return 'bus-outline';
-      case 'truck': return 'car-sport-outline';
-      case 'motorcycle': return 'bicycle-outline';
-      case 'scooter': return 'bicycle-outline';
-      case 'bicycle': return 'bicycle-outline';
-      default: return 'car-outline';
-    }
-  };
-
   const vehicleImages = getVehicleGalleryUrls(vehicle);
   const coverUri =
     getVehicleCoverUrl(vehicle) || vehicleImages[0] || 'https://via.placeholder.com/300x200';
@@ -181,12 +168,6 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
                   {formatPrice(vehicle.price_per_hour)}/h
                 </Text>
               )}
-            </View>
-
-            {/* Badge type de véhicule */}
-            <View style={styles.typeBadge}>
-              <Ionicons name={getVehicleTypeIcon(vehicle.vehicle_type) as any} size={16} color="#fff" />
-              <Text style={styles.typeText}>{vehicle.vehicle_type?.toUpperCase() || 'VEHICULE'}</Text>
             </View>
 
             {/* Bouton favoris */}
@@ -428,23 +409,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
-  },
-  typeBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: 'rgba(46, 125, 50, 0.9)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  typeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
   },
   favoriteButton: {
     position: 'absolute',
