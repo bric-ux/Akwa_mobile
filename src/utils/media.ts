@@ -224,6 +224,37 @@ export function getGalleryThumbUrl(url: string): string {
   );
 }
 
+/** Carrousels accueil : recadrage portrait 3:4 côté CDN pour remplir l'encart. */
+export function getHomeShelfImageUrl(
+  url: string,
+  shelfWidth: number,
+  shelfHeight: number,
+): string {
+  if (!url || url.includes('placeholder')) return url;
+
+  const width = Math.round(shelfWidth * 2);
+  const height = Math.round(shelfHeight * 2);
+
+  if (url.includes('images.unsplash.com')) {
+    try {
+      const u = new URL(url);
+      u.searchParams.set('auto', 'format');
+      u.searchParams.set('fit', 'crop');
+      u.searchParams.set('w', String(width));
+      u.searchParams.set('h', String(height));
+      return u.toString();
+    } catch {
+      return url;
+    }
+  }
+
+  return getOptimizedSupabaseImageUrl(
+    url,
+    { width, height, quality: 82, resize: 'cover' },
+    true,
+  );
+}
+
 /** Cartes résultats : image entière dans l'encart (pas de recadrage CDN). */
 export function getListCardImageUrl(url: string): string {
   if (!url || url.includes('placeholder')) return url;

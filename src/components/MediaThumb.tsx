@@ -3,7 +3,16 @@ import { View, StyleSheet, StyleProp, ViewStyle, ImageStyle } from 'react-native
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { getGalleryThumbUrl, getListCardImageUrl, isVideoUrl } from '../utils/media';
+import {
+  EXPLORE_SHELF_IMAGE_HEIGHT,
+  EXPLORE_SHELF_CARD_WIDTH,
+} from '../constants/exploreShelfCard';
+import {
+  getGalleryThumbUrl,
+  getHomeShelfImageUrl,
+  getListCardImageUrl,
+  isVideoUrl,
+} from '../utils/media';
 
 type MediaThumbProps = {
   uri: string;
@@ -18,9 +27,9 @@ type MediaThumbProps = {
   priority?: 'low' | 'normal' | 'high';
   /** Stabilise le recyclage des vues (listes) — ex. `${propertyId}-${index}` */
   recyclingKey?: string;
-  /** Accueil carrousel : URL source + recadrage cover. */
+  /** Accueil carrousel : recadrage portrait optimisé pour remplir l'encart. */
   preferOriginal?: boolean;
-  /** Résultats recherche : image uploadée visible en entier dans l'encart. */
+  /** Résultats recherche : image uploadée sans crop agressif côté CDN. */
   fitWholeImage?: boolean;
   contentPosition?: 'center' | 'top' | 'bottom';
 };
@@ -53,11 +62,11 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
 
   if (video && !videoError) {
     return (
-      <View style={[styles.wrap, style as ViewStyle]}>
+      <View style={[preferOriginal ? styles.shelfWrap : styles.wrap, style as ViewStyle]}>
         <Video
           source={{ uri }}
-          style={StyleSheet.absoluteFill}
-          resizeMode={resizeMode === 'cover' ? ResizeMode.COVER : ResizeMode.CONTAIN}
+          style={preferOriginal ? styles.shelfMedia : StyleSheet.absoluteFill}
+          resizeMode={ResizeMode.COVER}
           shouldPlay={false}
           isMuted
           isLooping={false}
@@ -79,14 +88,37 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
     );
   }
 
-  const [useOriginal, setUseOriginal] = useState(preferOriginal);
+  const [useOriginal, setUseOriginal] = useState(false);
   const optimizedUri = useOriginal
     ? uri
     : fitWholeImage
       ? getListCardImageUrl(uri)
-      : getGalleryThumbUrl(uri);
+      : preferOriginal
+        ? getHomeShelfImageUrl(uri, EXPLORE_SHELF_CARD_WIDTH, EXPLORE_SHELF_IMAGE_HEIGHT)
+        : getGalleryThumbUrl(uri);
   const displayUri = useOriginal ? uri : optimizedUri;
   const contentFit = resizeMode === 'cover' ? 'cover' : 'contain';
+
+  if (preferOriginal) {
+    return (
+      <View style={[styles.shelfWrap, style as ViewStyle]}>
+        <Image
+          source={displayUri}
+          style={styles.shelfMedia}
+          contentFit={contentFit}
+          contentPosition={contentPosition}
+          cachePolicy="memory-disk"
+          priority={priority}
+          recyclingKey={recyclingKey ?? uri}
+          transition={120}
+          allowDownscaling
+          onError={() => {
+            if (!useOriginal && displayUri !== uri) setUseOriginal(true);
+          }}
+        />
+      </View>
+    );
+  }
 
   return (
     <Image
@@ -109,7 +141,16 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
 const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
-    backgroundColor: '#0f172a',
+    backgroundColor: '#e2e8f0',
+  },
+  shelfWrap: {
+    overflow: 'hidden',
+    backgroundColor: '#e2e8f0',
+  },
+  shelfMedia: {
+    width: '100%',
+    height: '100%',
+    transform: [{ scale: 1.08 }],
   },
   placeholder: {
     backgroundColor: '#f1f5f9',

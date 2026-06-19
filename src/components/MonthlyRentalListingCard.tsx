@@ -47,12 +47,15 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
         location={locationLabel || undefined}
         priceLabel={`${formatPrice(listing.monthly_rent_price)}/mois`}
         image={
-          <Image
-            source={{ uri: imageUri }}
+          <MediaThumb
+            uri={imageUri}
             style={styles.shelfImage}
-            contentFit="cover"
+            resizeMode="cover"
+            preferOriginal
             contentPosition="top"
-            transition={200}
+            isVideo={isVideoUrl(imageUri)}
+            priority="high"
+            recyclingKey={`${listing.id}-shelf-cover`}
           />
         }
       />

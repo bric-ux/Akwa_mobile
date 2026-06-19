@@ -15,6 +15,8 @@ import { useHotelFavorites } from '../hooks/useHotelFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import { EXPLORE_SHELF_IMAGE_HEIGHT, formatExploreShelfHeadline } from '../constants/exploreShelfCard';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
+import MediaThumb from './MediaThumb';
+import { isVideoUrl } from '../utils/media';
 
 interface HotelCardProps {
   establishment: HotelEstablishment;
@@ -73,12 +75,14 @@ const HotelCard: React.FC<HotelCardProps> = ({
         isFavorited={isFavorited}
         favoriteLoading={favoriteLoading}
         image={
-          <Image
-            source={{ uri: coverUrl }}
+          <MediaThumb
+            uri={coverUrl}
             style={styles.shelfImage}
-            contentFit="cover"
+            resizeMode="cover"
+            preferOriginal
             contentPosition="top"
-            transition={200}
+            priority="high"
+            recyclingKey={`${establishment.id}-shelf-cover`}
           />
         }
       />
