@@ -13,7 +13,7 @@ import {
 } from '../lib/hotelUtils';
 import { useHotelFavorites } from '../hooks/useHotelFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
-import { EXPLORE_SHELF_IMAGE_HEIGHT } from '../constants/exploreShelfCard';
+import { EXPLORE_SHELF_IMAGE_HEIGHT, formatExploreShelfHeadline } from '../constants/exploreShelfCard';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
 interface HotelCardProps {
@@ -56,14 +56,17 @@ const HotelCard: React.FC<HotelCardProps> = ({
     return (
       <ExploreShelfPhotoCard
         onPress={() => onPress(establishment)}
-        title={establishment.title}
+        title={formatExploreShelfHeadline({
+          title: establishment.title,
+          typeLabel: getEstablishmentTypeLabel(establishment.establishment_type),
+        })}
         location={location || undefined}
         priceLabel={
           minPrice != null ? `${formatPrice(minPrice)}/nuit` : undefined
         }
         subtitle={
           establishment.star_rating != null && establishment.star_rating > 0
-            ? `★ ${establishment.star_rating} étoiles`
+            ? `★ ${establishment.star_rating}`
             : undefined
         }
         onFavoritePress={handleFavoritePress}

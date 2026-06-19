@@ -21,7 +21,8 @@ import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import MediaThumb from './MediaThumb';
 import { getPropertyCoverUrl, getPropertyGalleryUrls, isVideoUrl } from '../utils/media';
 import { getPropertyCardLocationLabel } from '../utils/locationLabel';
-import { EXPLORE_SHELF_IMAGE_HEIGHT } from '../constants/exploreShelfCard';
+import { getPropertyTypeLabel } from '../utils/propertyTypeLabel';
+import { EXPLORE_SHELF_IMAGE_HEIGHT, formatExploreShelfHeadline, formatExploreShelfRatingSubtitle } from '../constants/exploreShelfCard';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
 const CAROUSEL_HEIGHT = 220;
@@ -122,22 +123,6 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
    * Liste (Explorer, recherche) : une seule image — pas de ScrollView horizontal dans la ligne,
    * sinon le défilement vertical du FlatList se bloque / saccade.
    */
-  const renderListCoverImage = (height: number) => {
-    const uri = coverUri || galleryUrls[0];
-    return (
-      <View style={[styles.imageContainer, { height }]}>
-        <MediaThumb
-          uri={uri}
-          style={{ width: '100%', height }}
-          resizeMode="cover"
-          isVideo={isVideoUrl(uri)}
-          priority="low"
-          recyclingKey={`${property.id}-list-cover`}
-        />
-      </View>
-    );
-  };
-
   const renderImageCarousel = (height: number) => (
     <View style={[styles.imageContainer, { height }]} onLayout={onStripLayout}>
       {galleryUrls.length > 1 ? (
@@ -176,13 +161,21 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
     </View>
   );
 
-  if (variant === 'list' && horizontalShelf) {
+  const renderExploreListCard = (
+    imageHeight: number,
+    wrapperStyle: object,
+    recyclingSuffix: string,
+    isHomeShelf: boolean,
+  ) => {
     const uri = coverUri || galleryUrls[0];
     return (
-      <View style={styles.listContainerShelf}>
+      <View style={wrapperStyle}>
         <ExploreShelfPhotoCard
           onPress={handlePropertyPress}
-          title={property.title}
+          title={formatExploreShelfHeadline({
+            title: property.title,
+            typeLabel: getPropertyTypeLabel(property.property_type),
+          })}
           location={locationLabel || undefined}
           priceLabel={`${formatPrice(effectiveNightPrice)}/nuit`}
           promoLabel={
@@ -190,94 +183,39 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               ? `-${property.discount_percentage}% dès ${property.discount_min_nights} nuits`
               : undefined
           }
-          subtitle={
-            hasReviews
-              ? `⭐ ${(Number(property.rating) || 0).toFixed(1)} (${reviewCount})`
-              : undefined
-          }
+          subtitle={formatExploreShelfRatingSubtitle(property.rating, reviewCount)}
           onFavoritePress={handleFavoritePress}
           isFavorited={isFavorited}
           favoriteLoading={favoriteLoading}
+          imageHeight={imageHeight}
           image={
             <MediaThumb
               uri={uri}
-              style={{ width: '100%', height: EXPLORE_SHELF_IMAGE_HEIGHT }}
+              style={{ width: '100%', height: imageHeight }}
               resizeMode="cover"
-              contentPosition="top"
-              preferOriginal
+              contentPosition={isHomeShelf ? 'top' : 'center'}
+              preferOriginal={isHomeShelf}
               isVideo={isVideoUrl(uri)}
-              priority="high"
-              recyclingKey={`${property.id}-shelf-cover`}
+              priority={isHomeShelf ? 'high' : 'low'}
+              recyclingKey={`${property.id}-${recyclingSuffix}`}
             />
           }
         />
       </View>
     );
+  };
+
+  if (variant === 'list' && horizontalShelf) {
+    return renderExploreListCard(
+      EXPLORE_SHELF_IMAGE_HEIGHT,
+      styles.listContainerShelf,
+      'shelf-cover',
+      true,
+    );
   }
 
   if (variant === 'list') {
-    return (
-      <View
-        style={[
-          styles.container,
-          styles.listContainer,
-        ]}
-      >
-        <View style={styles.cardLayoutList}>
-          <TouchableOpacity onPress={handlePropertyPress} activeOpacity={0.8}>
-            <View style={[styles.imageAreaList, { height: CAROUSEL_HEIGHT }]}>
-              {renderListCoverImage(CAROUSEL_HEIGHT)}
-              <View style={styles.priceOverlay} pointerEvents="none">
-                <Text style={styles.priceText}>
-                  {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
-                </Text>
-                {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
-                  <Text style={styles.discountOverlay}>
-                    -{property.discount_percentage}% {t('property.forNights')} {property.discount_min_nights}+ {t('property.nights')}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            <View style={styles.cardContentList}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {property.title}
-            </Text>
-            
-            {locationLabel ? (
-              <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={14} color="#666" />
-                <Text style={styles.cardLocation} numberOfLines={1}>
-                  {locationLabel}
-                </Text>
-              </View>
-            ) : null}
-            
-            <View style={styles.cardRatingSlot}>
-              {hasReviews ? (
-                <Text style={styles.cardRating}>
-                  ⭐ {(Number(property.rating) || 0).toFixed(1)} ({reviewCount} {t('property.reviews')})
-                </Text>
-              ) : null}
-            </View>
-            </View>
-          </TouchableOpacity>
-
-          <Pressable
-            style={styles.favoriteButton}
-            onPress={handleFavoritePress}
-            disabled={favoriteLoading}
-            hitSlop={8}
-          >
-            <Ionicons
-              name={isFavorited ? 'heart' : 'heart-outline'}
-              size={20}
-              color={isFavorited ? '#e74c3c' : '#fff'}
-            />
-          </Pressable>
-        </View>
-      </View>
-    );
+    return renderExploreListCard(CAROUSEL_HEIGHT, styles.listContainer, 'list-cover', false);
   }
 
   return (
@@ -392,12 +330,6 @@ const styles = StyleSheet.create({
   listContainer: {
     marginHorizontal: 20,
     marginBottom: 15,
-    borderRadius: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
   },
   listContainerShelf: {
     marginHorizontal: 0,

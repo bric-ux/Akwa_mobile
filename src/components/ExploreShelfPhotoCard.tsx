@@ -20,6 +20,7 @@ type ExploreShelfPhotoCardProps = {
   location?: string;
   priceLabel?: string;
   promoLabel?: string;
+  /** Sous le titre (ex. étoiles hôtel). */
   subtitle?: string;
   imageHeight?: number;
   image: React.ReactNode;
@@ -100,25 +101,27 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
           />
         </Pressable>
       ) : null}
+    </View>
 
-      <View style={styles.caption} pointerEvents="none">
-        <Text style={styles.title} numberOfLines={2}>
+    <View style={styles.meta} pointerEvents="none">
+      <View style={styles.titleRow}>
+        <Text style={styles.metaTitle} numberOfLines={1} ellipsizeMode="tail">
           {title}
         </Text>
-        {location ? (
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={13} color="#fff" />
-            <Text style={styles.location} numberOfLines={1}>
-              {location}
-            </Text>
-          </View>
-        ) : null}
         {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={1}>
+          <Text style={styles.metaSubtitle} numberOfLines={1}>
             {subtitle}
           </Text>
         ) : null}
       </View>
+      {location ? (
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={13} color="#64748b" />
+          <Text style={styles.metaLocation} numberOfLines={1}>
+            {location}
+          </Text>
+        </View>
+      ) : null}
     </View>
   </TouchableOpacity>
 );
@@ -126,18 +129,17 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
 const styles = StyleSheet.create({
   shell: {
     width: '100%',
-    borderRadius: EXPLORE_SHELF_IMAGE_RADIUS,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.22,
-    shadowRadius: 20,
-    elevation: 9,
   },
   frame: {
     width: '100%',
     borderRadius: EXPLORE_SHELF_IMAGE_RADIUS,
     overflow: 'hidden',
     backgroundColor: '#cbd5e1',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    elevation: 9,
   },
   topRightStack: {
     position: 'absolute',
@@ -204,48 +206,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  caption: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 14,
-    paddingBottom: 12,
-    paddingTop: 8,
+  meta: {
+    paddingTop: 9,
+    paddingHorizontal: 2,
   },
-  title: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
-    lineHeight: 21,
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  metaTitle: {
+    flex: 1,
+    color: '#0f172a',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
     letterSpacing: -0.2,
-    textShadowColor: 'rgba(0,0,0,0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+  },
+  metaSubtitle: {
+    flexShrink: 0,
+    color: '#b45309',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 5,
-  },
-  location: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0,0,0,0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 5,
-  },
-  subtitle: {
     marginTop: 4,
-    color: '#fff',
+  },
+  metaLocation: {
+    flex: 1,
+    color: '#64748b',
     fontSize: 12,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0,0,0,0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 5,
+    fontWeight: '500',
   },
 });
 

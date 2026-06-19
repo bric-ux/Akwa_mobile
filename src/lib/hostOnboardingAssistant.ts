@@ -1,7 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EXPLORE_SHELF_TITLE_ONE_LINE_MAX } from '../constants/exploreShelfCard';
 import { PROPERTY_TYPES } from '../constants/hostListingForm';
 
 const ALLOWED_PROPERTY_TYPES = new Set<string>(PROPERTY_TYPES.map((p) => p.value));
+
+/** Titres Teddy IA : même limite qu’une ligne carte accueil. */
+export const TEDDY_AI_TITLE_MAX_LENGTH = EXPLORE_SHELF_TITLE_ONE_LINE_MAX;
+
+export function truncateTeddyListingTitle(
+  title: string,
+  maxLength = TEDDY_AI_TITLE_MAX_LENGTH,
+): string {
+  const normalized = title.trim().replace(/\s+/g, ' ');
+  if (!normalized) return '';
+  if (normalized.length <= maxLength) return normalized;
+
+  const slice = normalized.slice(0, maxLength);
+  const lastSpace = slice.lastIndexOf(' ');
+  const cut = lastSpace > maxLength * 0.55 ? slice.slice(0, lastSpace) : slice;
+  return cut.trimEnd();
+}
 
 /** Lieu issu de CitySearchInputModal (villes / quartiers en base) */
 export type HostAssistantLocationPlace = {
@@ -62,7 +80,7 @@ export function mergeAssistantPatch(
   if (bd) next.bedrooms = bd;
   const bt = clampIntString(patch.bathrooms, 1, 24);
   if (bt) next.bathrooms = bt;
-  setStr('title', patch.title);
+  setStr('title', patch.title ? truncateTeddyListingTitle(String(patch.title)) : undefined);
   setStr('description', patch.description);
   const priceRaw = patch.price_per_night;
   if (priceRaw !== undefined && priceRaw !== null) {
@@ -103,7 +121,10 @@ export function stripAiDescriptionBoilerplate(text: string): string {
 
 export function normalizeTitleSuggestionsFromAi(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((t) => String(t).trim()).filter(Boolean).slice(0, 3);
+  return raw
+    .map((t) => truncateTeddyListingTitle(String(t)))
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
 /**

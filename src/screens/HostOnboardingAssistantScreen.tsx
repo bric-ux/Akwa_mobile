@@ -22,6 +22,7 @@ import {
   HostAssistantFormDraft,
   HostAssistantLocationPlace,
   mergeAssistantPatch,
+  normalizeTitleSuggestionsFromAi,
   saveHostAssistantDraft,
   getAssistantDraftBlockingMessage,
 } from '../lib/hostOnboardingAssistant';
@@ -154,13 +155,7 @@ const HostOnboardingAssistantScreen: React.FC = () => {
         : {};
       setMergedDraft((prev) => mergeAssistantPatch(prev, patch));
       setLastComplete(Boolean(data?.is_complete));
-      const rawTitles = data?.title_suggestions;
-      const titles = Array.isArray(rawTitles)
-        ? (rawTitles as unknown[])
-            .map((t) => String(t).trim())
-            .filter((t) => t.length > 0 && t.length <= 120)
-            .slice(0, 4)
-        : [];
+      const titles = normalizeTitleSuggestionsFromAi(data?.title_suggestions);
       setTitleSuggestions(titles);
       return reply;
     },

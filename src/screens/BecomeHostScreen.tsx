@@ -40,6 +40,7 @@ import {
   consumeHostAssistantDraft,
   extractAiDescriptionFromAssistantResponse,
   normalizeTitleSuggestionsFromAi,
+  truncateTeddyListingTitle,
 } from '../lib/hostOnboardingAssistant';
 import BecomeHostGuidedFlow from './becomeHost/BecomeHostGuidedFlow';
 import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
@@ -612,7 +613,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             {
               role: 'user',
               content:
-                `Voici les infos déjà saisies: ${context}. Réponds en JSON valide. Obligatoire: title_suggestions avec exactement 3 titres courts ET draft_patch.description avec une description complète (4 à 8 phrases, français, prête à publier, sans formule d'intro). Ne laisse pas draft_patch.description vide ni ne mets la description seulement dans reply.`,
+                `Voici les infos déjà saisies: ${context}. Réponds en JSON valide. Obligatoire: title_suggestions avec exactement 3 titres très courts (max 26 caractères chacun, une ligne sur l'accueil mobile, sans points de suspension) ET draft_patch.description avec une description complète (4 à 8 phrases, français, prête à publier, sans formule d'intro). draft_patch.title si présent: max 26 caractères. Ne laisse pas draft_patch.description vide ni ne mets la description seulement dans reply.`,
             },
           ],
         },
@@ -627,7 +628,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         draft_patch: data?.draft_patch,
         reply: data?.reply,
       });
-      const draftTitle = String((data?.draft_patch as { title?: string })?.title || '').trim();
+      const draftTitle = truncateTeddyListingTitle(
+        String((data?.draft_patch as { title?: string })?.title || ''),
+      );
 
       const elapsed = Date.now() - startTs;
       const remaining = Math.max(0, 10000 - elapsed);

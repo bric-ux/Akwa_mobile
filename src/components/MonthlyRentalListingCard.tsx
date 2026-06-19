@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import type { MonthlyRentalListing } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { formatCardLocationLabel } from '../utils/locationLabel';
-import { EXPLORE_SHELF_IMAGE_HEIGHT } from '../constants/exploreShelfCard';
+import { getPropertyTypeLabel } from '../utils/propertyTypeLabel';
+import { EXPLORE_SHELF_IMAGE_HEIGHT, formatExploreShelfHeadline } from '../constants/exploreShelfCard';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
 interface MonthlyRentalListingCardProps {
@@ -33,7 +34,10 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
     return (
       <ExploreShelfPhotoCard
         onPress={() => onPress(listing)}
-        title={listing.title}
+        title={formatExploreShelfHeadline({
+          title: listing.title,
+          typeLabel: getPropertyTypeLabel(listing.property_type),
+        })}
         location={locationLabel || undefined}
         priceLabel={`${formatPrice(listing.monthly_rent_price)}/mois`}
         image={

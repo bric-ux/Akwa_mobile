@@ -20,8 +20,15 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicleFavorites } from '../hooks/useVehicleFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import MediaThumb from './MediaThumb';
+import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 import { getVehicleCoverUrl, getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
 import { formatCardLocationLabel } from '../utils/locationLabel';
+import {
+  formatExploreShelfHeadline,
+  formatExploreShelfRatingSubtitle,
+} from '../constants/exploreShelfCard';
+
+const LIST_IMAGE_HEIGHT = 220;
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -110,43 +117,67 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
     });
   };
 
+  const vehicleTitle =
+    [vehicle.brand, vehicle.model, vehicle.year].filter(Boolean).join(' ').trim() ||
+    vehicle.title ||
+    'Véhicule';
+  const vehicleLocationLabel = vehicle.location
+    ? formatCardLocationLabel(vehicle.location)
+    : undefined;
+
+  if (variant === 'list') {
+    return (
+      <View style={styles.listContainer}>
+        <ExploreShelfPhotoCard
+          onPress={() => onPress(vehicle)}
+          title={formatExploreShelfHeadline({
+            title: vehicleTitle,
+            typeLabel: 'Véhicule',
+          })}
+          location={vehicleLocationLabel}
+          subtitle={formatExploreShelfRatingSubtitle(vehicle.rating, vehicle.review_count)}
+          priceLabel={`${formatPrice(vehicle.price_per_day)}/jour`}
+          onFavoritePress={handleFavoritePress}
+          isFavorited={isFavorited}
+          imageHeight={LIST_IMAGE_HEIGHT}
+          image={
+            <MediaThumb
+              uri={coverUri}
+              style={{ width: '100%', height: LIST_IMAGE_HEIGHT }}
+              resizeMode="cover"
+              contentPosition="center"
+              isVideo={isVideoUrl(coverUri)}
+              priority="low"
+              recyclingKey={`${vehicle.id}-list-cover`}
+            />
+          }
+        />
+      </View>
+    );
+  }
+
   return (
     <>
       <TouchableOpacity
-        style={[styles.container, variant === 'list' && styles.listContainer]}
+        style={styles.container}
         onPress={() => onPress(vehicle)}
         activeOpacity={0.8}
       >
         <View style={styles.cardLayout}>
-          {/* Image */}
           <View style={styles.imageContainer}>
-            {variant === 'list' ? (
-              // En mode liste, l'image n'est pas cliquable
-              <View style={styles.imageTouchable}>
-                <MediaThumb
-                  uri={coverUri}
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                  isVideo={isVideoUrl(coverUri)}
-                />
-              </View>
-            ) : (
-              // En mode grille, l'image est cliquable pour ouvrir la galerie
-              <TouchableOpacity
-                onPress={handleImagePress}
-                activeOpacity={0.9}
-                style={styles.imageTouchable}
-              >
-                <MediaThumb
-                  uri={coverUri}
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                  isVideo={isVideoUrl(coverUri)}
-                />
-              </TouchableOpacity>
-            )}
-            
-            {/* Prix en overlay */}
+            <TouchableOpacity
+              onPress={handleImagePress}
+              activeOpacity={0.9}
+              style={styles.imageTouchable}
+            >
+              <MediaThumb
+                uri={coverUri}
+                style={styles.cardImage}
+                resizeMode="cover"
+                isVideo={isVideoUrl(coverUri)}
+              />
+            </TouchableOpacity>
+
             <View style={styles.priceOverlay}>
               <Text style={styles.priceText}>
                 {formatPrice(vehicle.price_per_day)}/jour
@@ -158,7 +189,6 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
               )}
             </View>
 
-            {/* Bouton favoris */}
             <TouchableOpacity
               style={[styles.favoriteButton, isFavorited && styles.favoriteButtonActive]}
               onPress={handleFavoritePress}
@@ -171,148 +201,144 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
               />
             </TouchableOpacity>
           </View>
-        
-        {/* Contenu de la carte */}
-        <View style={styles.cardContentList}>
-          <Text style={styles.cardTitle} numberOfLines={1}>
-            {vehicle.brand || ''} {vehicle.model || ''} {vehicle.year || ''}
-          </Text>
-          
-          {vehicle.title && (
-            <Text style={styles.cardSubtitle} numberOfLines={1}>
-              {vehicle.title}
+
+          <View style={styles.cardContentList}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {vehicleTitle}
             </Text>
-          )}
-          
-          {vehicle.location && (
-            <View style={styles.locationRow}>
-              <Ionicons name="location-outline" size={14} color="#666" />
-              <Text style={styles.cardLocation} numberOfLines={1}>
-                {formatCardLocationLabel(vehicle.location)}
+
+            {vehicle.title ? (
+              <Text style={styles.cardSubtitle} numberOfLines={1}>
+                {vehicle.title}
               </Text>
-            </View>
-          )}
-          
-          {/* Caractéristiques */}
-          <View style={styles.featuresRow}>
-            <View style={styles.featureItem}>
-              <Ionicons name="people-outline" size={14} color="#666" />
-              <Text style={styles.featureText}>{vehicle.seats || 0} places</Text>
-            </View>
-            {vehicle.transmission && (
-              <View style={styles.featureItem}>
-                <Ionicons name="settings-outline" size={14} color="#666" />
-                <Text style={styles.featureText}>
-                  {vehicle.transmission === 'automatic' ? 'Automatique' : 'Manuelle'}
+            ) : null}
+
+            {vehicleLocationLabel ? (
+              <View style={styles.locationRow}>
+                <Ionicons name="location-outline" size={14} color="#666" />
+                <Text style={styles.cardLocation} numberOfLines={1}>
+                  {vehicleLocationLabel}
                 </Text>
               </View>
-            )}
-            {vehicle.fuel_type && (
+            ) : null}
+
+            <View style={styles.featuresRow}>
               <View style={styles.featureItem}>
-                <Ionicons name="flash-outline" size={14} color="#666" />
-                <Text style={styles.featureText}>{vehicle.fuel_type || ''}</Text>
+                <Ionicons name="people-outline" size={14} color="#666" />
+                <Text style={styles.featureText}>{vehicle.seats || 0} places</Text>
               </View>
-            )}
-          </View>
-          
-          {/* Note */}
-          {vehicle.rating > 0 && (
-            <View style={styles.ratingRow}>
-              <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={styles.ratingText}>
-                {vehicle.rating.toFixed(1)} ({vehicle.review_count} avis)
-              </Text>
+              {vehicle.transmission ? (
+                <View style={styles.featureItem}>
+                  <Ionicons name="settings-outline" size={14} color="#666" />
+                  <Text style={styles.featureText}>
+                    {vehicle.transmission === 'automatic' ? 'Automatique' : 'Manuelle'}
+                  </Text>
+                </View>
+              ) : null}
+              {vehicle.fuel_type ? (
+                <View style={styles.featureItem}>
+                  <Ionicons name="flash-outline" size={14} color="#666" />
+                  <Text style={styles.featureText}>{vehicle.fuel_type}</Text>
+                </View>
+              ) : null}
             </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
 
-    {/* Modal Galerie d'images */}
-    <Modal
-      visible={showImageGallery}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={() => setShowImageGallery(false)}
-    >
-      <SafeAreaView style={styles.galleryModalContainer} edges={['top']}>
-        <View style={styles.galleryHeader}>
-          <Text style={styles.galleryTitle} numberOfLines={1}>
-            {vehicle.title || `${vehicle.brand} ${vehicle.model}`}
-          </Text>
-          <TouchableOpacity
-            style={styles.galleryCloseButton}
-            onPress={() => setShowImageGallery(false)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.galleryImageContainer} pointerEvents="box-none">
-          <ScrollView
-            ref={galleryScrollViewRef}
-            horizontal
-            pagingEnabled
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(event) => {
-              const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-              setCurrentImageIndex(index);
-            }}
-            style={styles.galleryScrollView}
-            contentContainerStyle={styles.galleryScrollContent}
-          >
-            {vehicleImages.map((imageUrl, index) => (
-              <View key={index} style={styles.galleryImageWrapper}>
-                {isVideoUrl(imageUrl) ? (
-                  <Video
-                    source={{ uri: imageUrl }}
-                    style={styles.galleryImage}
-                    resizeMode={ResizeMode.CONTAIN}
-                    useNativeControls
-                    shouldPlay={false}
-                  />
-                ) : (
-                  <Image
-                    source={{ uri: imageUrl }}
-                    style={styles.galleryImage}
-                    resizeMode="contain"
-                  />
-                )}
+            {vehicle.rating > 0 ? (
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={14} color="#FFD700" />
+                <Text style={styles.ratingText}>
+                  {vehicle.rating.toFixed(1)} ({vehicle.review_count} avis)
+                </Text>
               </View>
-            ))}
-          </ScrollView>
-
-          {hasMultipleImages && (
-            <>
-              <TouchableOpacity
-                style={[styles.galleryNavButton, styles.galleryNavButtonLeft]}
-                onPress={handlePrevImage}
-              >
-                <Ionicons name="chevron-back" size={32} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.galleryNavButton, styles.galleryNavButtonRight]}
-                onPress={handleNextImage}
-              >
-                <Ionicons name="chevron-forward" size={32} color="#fff" />
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-
-        {hasMultipleImages && (
-          <View style={styles.galleryFooter}>
-            <View style={styles.galleryCounter}>
-              <Text style={styles.galleryCounterText}>
-                {currentImageIndex + 1} / {vehicleImages.length}
-              </Text>
-            </View>
+            ) : null}
           </View>
-        )}
-      </SafeAreaView>
-    </Modal>
+        </View>
+      </TouchableOpacity>
+
+      <Modal
+        visible={showImageGallery}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowImageGallery(false)}
+      >
+        <SafeAreaView style={styles.galleryModalContainer} edges={['top']}>
+          <View style={styles.galleryHeader}>
+            <Text style={styles.galleryTitle} numberOfLines={1}>
+              {vehicle.title || `${vehicle.brand} ${vehicle.model}`}
+            </Text>
+            <TouchableOpacity
+              style={styles.galleryCloseButton}
+              onPress={() => setShowImageGallery(false)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.galleryImageContainer} pointerEvents="box-none">
+            <ScrollView
+              ref={galleryScrollViewRef}
+              horizontal
+              pagingEnabled
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(event) => {
+                const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                setCurrentImageIndex(index);
+              }}
+              style={styles.galleryScrollView}
+              contentContainerStyle={styles.galleryScrollContent}
+            >
+              {vehicleImages.map((imageUrl, index) => (
+                <View key={index} style={styles.galleryImageWrapper}>
+                  {isVideoUrl(imageUrl) ? (
+                    <Video
+                      source={{ uri: imageUrl }}
+                      style={styles.galleryImage}
+                      resizeMode={ResizeMode.CONTAIN}
+                      useNativeControls
+                      shouldPlay={false}
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: imageUrl }}
+                      style={styles.galleryImage}
+                      resizeMode="contain"
+                    />
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+
+            {hasMultipleImages ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.galleryNavButton, styles.galleryNavButtonLeft]}
+                  onPress={handlePrevImage}
+                >
+                  <Ionicons name="chevron-back" size={32} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.galleryNavButton, styles.galleryNavButtonRight]}
+                  onPress={handleNextImage}
+                >
+                  <Ionicons name="chevron-forward" size={32} color="#fff" />
+                </TouchableOpacity>
+              </>
+            ) : null}
+          </View>
+
+          {hasMultipleImages ? (
+            <View style={styles.galleryFooter}>
+              <View style={styles.galleryCounter}>
+                <Text style={styles.galleryCounterText}>
+                  {currentImageIndex + 1} / {vehicleImages.length}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+        </SafeAreaView>
+      </Modal>
     </>
   );
 };
@@ -335,12 +361,6 @@ const styles = StyleSheet.create({
   listContainer: {
     marginHorizontal: 20,
     marginBottom: 15,
-    borderRadius: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
   },
   cardLayout: {
     backgroundColor: '#fff',
