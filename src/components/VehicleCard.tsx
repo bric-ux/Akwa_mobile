@@ -204,7 +204,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
           </View>
         
         {/* Contenu de la carte */}
-        <View style={styles.cardContent}>
+        <View style={styles.cardContentList}>
           <Text style={styles.cardTitle} numberOfLines={1}>
             {vehicle.brand || ''} {vehicle.model || ''} {vehicle.year || ''}
           </Text>
@@ -366,6 +366,7 @@ const styles = StyleSheet.create({
   listContainer: {
     marginHorizontal: 20,
     marginBottom: 15,
+    borderRadius: 16,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -374,24 +375,25 @@ const styles = StyleSheet.create({
   },
   cardLayout: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
   },
   imageContainer: {
     position: 'relative',
+    backgroundColor: '#e2e8f0',
   },
   imageTouchable: {
     width: '100%',
-    height: 200,
+    height: 220,
     position: 'relative',
   },
   cardImage: {
     width: '100%',
-    height: 200,
+    height: 220,
   },
   imageCountBadge: {
     position: 'absolute',
-    bottom: 12,
+    bottom: 26,
     left: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,7 +448,7 @@ const styles = StyleSheet.create({
   },
   favoriteButton: {
     position: 'absolute',
-    bottom: 12,
+    bottom: 26,
     right: 12,
     width: 40,
     height: 40,
@@ -456,13 +458,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+    zIndex: 4,
   },
   favoriteButtonActive: {
     borderColor: '#ef4444',
     backgroundColor: 'rgba(239, 68, 68, 0.2)',
   },
-  cardContent: {
-    padding: 16,
+  cardContentList: {
+    marginTop: -14,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   cardTitle: {
     fontSize: 18,

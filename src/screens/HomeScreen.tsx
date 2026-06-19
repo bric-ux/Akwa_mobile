@@ -341,7 +341,7 @@ const HomeScreen: React.FC = () => {
     if (exploreMonthlyListings.length === 0) return null;
 
     const count = exploreMonthlyListings.length;
-    const subtitle = `${count} logement${count > 1 ? 's' : ''} disponible${count > 1 ? 's' : ''}`;
+    const subtitle = `${count} location${count > 1 ? 's' : ''} au mois disponible${count > 1 ? 's' : ''}`;
 
     return (
       <View style={styles.exploreSection}>
@@ -349,7 +349,7 @@ const HomeScreen: React.FC = () => {
           <View style={styles.exploreSectionTitles}>
             <View style={styles.exploreHotelsTitleRow}>
               <Ionicons name="calendar" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
-              <Text style={styles.exploreCityTitle}>Location longue durée</Text>
+              <Text style={styles.exploreCityTitle}>Locations mensuelles</Text>
             </View>
             <Text style={styles.exploreCitySubtitle}>{subtitle}</Text>
           </View>

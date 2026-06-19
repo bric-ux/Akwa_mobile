@@ -223,9 +223,9 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
           styles.listContainer,
         ]}
       >
-        <View style={styles.cardLayout}>
+        <View style={styles.cardLayoutList}>
           <TouchableOpacity onPress={handlePropertyPress} activeOpacity={0.8}>
-            <View style={[styles.imageArea, { height: CAROUSEL_HEIGHT }]}>
+            <View style={[styles.imageAreaList, { height: CAROUSEL_HEIGHT }]}>
               {renderListCoverImage(CAROUSEL_HEIGHT)}
               <View style={styles.priceOverlay} pointerEvents="none">
                 <Text style={styles.priceText}>
@@ -239,7 +239,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               </View>
             </View>
 
-            <View style={styles.cardContent}>
+            <View style={styles.cardContentList}>
             <Text style={styles.cardTitle} numberOfLines={1}>
               {property.title}
             </Text>
@@ -392,6 +392,7 @@ const styles = StyleSheet.create({
   listContainer: {
     marginHorizontal: 20,
     marginBottom: 15,
+    borderRadius: 16,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -411,6 +412,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
+  cardLayoutList: {
+    position: 'relative',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
   /** Carrousel Explore : hauteur de carte homogène (image fixe + zone texte réservée). */
   cardLayoutShelf: {
     flex: 1,
@@ -419,6 +426,12 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     overflow: 'hidden',
+  },
+  imageAreaList: {
+    position: 'relative',
+    width: '100%',
+    overflow: 'hidden',
+    backgroundColor: '#e2e8f0',
   },
   imageContainer: {
     width: '100%',
@@ -461,6 +474,15 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     padding: 16,
+  },
+  cardContentList: {
+    marginTop: -14,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   cardContentShelf: {
     paddingHorizontal: 12,

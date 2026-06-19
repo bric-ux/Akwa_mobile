@@ -173,8 +173,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   imageWrap: {
-    height: 200,
-    backgroundColor: '#f1f5f9',
+    height: 220,
+    backgroundColor: '#e2e8f0',
   },
   image: {
     width: '100%',
@@ -225,8 +225,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   body: {
-    padding: 14,
+    marginTop: -14,
+    paddingTop: 14,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
     gap: 6,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   title: {
     fontSize: 17,

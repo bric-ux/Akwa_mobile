@@ -53,16 +53,33 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
 
       {priceLabel || promoLabel ? (
         <View style={styles.topRightStack} pointerEvents="none">
-          {priceLabel ? (
-            <View style={styles.pricePill}>
-              <Text style={styles.priceText}>{priceLabel}</Text>
-            </View>
-          ) : null}
-          {promoLabel ? (
-            <View style={styles.promoPill}>
-              <Text style={styles.promoText}>{promoLabel}</Text>
-            </View>
-          ) : null}
+          <View
+            style={[
+              styles.pricePromoGroup,
+              !(priceLabel && promoLabel) && styles.pricePromoGroupSolo,
+            ]}
+          >
+            {priceLabel ? (
+              <View
+                style={[
+                  styles.pricePill,
+                  priceLabel && promoLabel && styles.pricePillWithPromo,
+                ]}
+              >
+                <Text style={styles.priceText}>{priceLabel}</Text>
+              </View>
+            ) : null}
+            {promoLabel ? (
+              <View
+                style={[
+                  styles.promoPill,
+                  priceLabel && promoLabel && styles.promoPillAttached,
+                ]}
+              >
+                <Text style={styles.promoText}>{promoLabel}</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -127,8 +144,15 @@ const styles = StyleSheet.create({
     top: 12,
     right: 12,
     alignItems: 'center',
-    gap: 2,
     maxWidth: '72%',
+  },
+  pricePromoGroup: {
+    alignItems: 'stretch',
+    overflow: 'hidden',
+    borderRadius: 14,
+  },
+  pricePromoGroupSolo: {
+    borderRadius: 999,
   },
   pricePill: {
     backgroundColor: 'rgba(255,255,255,0.94)',
@@ -136,6 +160,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     alignSelf: 'center',
+  },
+  pricePillWithPromo: {
+    borderRadius: 0,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    alignSelf: 'stretch',
   },
   priceText: {
     color: '#0f172a',
@@ -148,6 +178,13 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 999,
     alignSelf: 'center',
+  },
+  promoPillAttached: {
+    borderRadius: 0,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+    alignSelf: 'stretch',
+    marginTop: 0,
   },
   promoText: {
     color: '#fff',

@@ -60,7 +60,7 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
     >
       <View style={styles.cardLayout}>
         <View style={styles.imageContainer}>
-          <Image source={{ uri: imageUri }} style={styles.cardImage} contentFit="cover" />
+          <Image source={{ uri: imageUri }} style={styles.cardImage} contentFit="cover" contentPosition="top" />
           <View style={styles.priceOverlay}>
             <Text style={styles.priceText}>
               {formatPrice(listing.monthly_rent_price)}/mois
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   listContainer: {},
   cardLayout: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -115,8 +115,9 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: 180,
+    height: 220,
     position: 'relative',
+    backgroundColor: '#e2e8f0',
   },
   cardImage: { width: '100%', height: '100%' },
   priceOverlay: {
@@ -129,7 +130,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   priceText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  cardContent: { padding: 14 },
+  cardContent: {
+    marginTop: -14,
+    paddingTop: 12,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
   cardTitle: { fontSize: 16, fontWeight: '600', color: '#1a1a1a', marginBottom: 4 },
   locationRow: {
     flexDirection: 'row',
