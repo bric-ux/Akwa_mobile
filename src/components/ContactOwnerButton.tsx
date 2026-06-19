@@ -109,7 +109,7 @@ const ContactOwnerButton: React.FC<ContactOwnerButtonProps> = ({
         // Navigation directe vers la conversation
         console.log('🚀 [ContactOwnerButton] Navigation vers la conversation:', conversationId);
         if (openInStack) {
-          (navigation as any).navigate('Messaging', {
+          (navigation as any).push('Messaging', {
             conversationId,
             vehicleId: vehicle.id,
           });

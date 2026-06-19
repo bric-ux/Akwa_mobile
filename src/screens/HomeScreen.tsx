@@ -31,6 +31,7 @@ import { InfoBanner } from '../components/InfoBanner';
 import ImageCarousel from '../components/ImageCarousel';
 import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
 import ZipDailyCard from '../components/zip/ZipDailyCard';
+import MatchPredictionBanner from '../components/MatchPredictionBanner';
 import TeddyExploreFab from '../components/TeddyExploreFab';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNetwork } from '../contexts/NetworkContext';
@@ -352,6 +353,7 @@ const HomeScreen: React.FC = () => {
       {showDeferredHeaderContent ? (
         <>
           <WeatherDateTimeWidget />
+          <MatchPredictionBanner />
           <ZipDailyCard />
           <ImageCarousel
             images={CAROUSEL_IMAGES}

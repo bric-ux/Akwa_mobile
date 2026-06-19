@@ -3,7 +3,7 @@
     "name": "AkwaHome",
     "slug": "AkwaHomeMobile",
     "scheme": "akwahomemobile",
-    "version": "1.1.12",
+    "version": "1.1.13",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jeanbrice270.akwahomemobile",
-      "buildNumber": "49",
+      "buildNumber": "50",
       "associatedDomains": [
         "applinks:akwahome.com",
         "applinks:www.akwahome.com"
@@ -53,7 +53,7 @@
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
       "package": "com.jeanbrice270.AkwaHomeMobile",
-      "versionCode": 22,
+      "versionCode": 23,
       "intentFilters": [
         {
           "action": "VIEW",

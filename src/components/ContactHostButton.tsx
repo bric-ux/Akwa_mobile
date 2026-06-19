@@ -18,7 +18,7 @@ interface ContactHostButtonProps {
   size?: 'small' | 'medium' | 'large';
   showIcon?: boolean;
   style?: any;
-  /** Ouvre la messagerie sur la pile (retour = écran précédent, ex. vitrine profil) */
+  /** Ouvre la messagerie sur la pile (retour = fiche propriété). false = onglet Messages de l'accueil */
   openInStack?: boolean;
 }
 
@@ -28,7 +28,7 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
   size = 'medium',
   showIcon = true,
   style,
-  openInStack = false,
+  openInStack = true,
 }) => {
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -86,29 +86,19 @@ const ContactHostButton: React.FC<ContactHostButtonProps> = ({
         console.log('✅ [ContactHostButton] Conversation créée:', conversationId);
 
         if (openInStack) {
-          (navigation as any).navigate('Messaging', {
+          // push (pas navigate) : navigate réutilise un Messaging déjà dans la pile
+          // et retire PropertyDetails → retour atterrit sur l'accueil
+          (navigation as any).push('Messaging', {
             conversationId,
             propertyId: property.id,
           });
           return;
         }
 
-        Alert.alert(
-          'Conversation créée',
-          'Vous pouvez maintenant discuter avec l\'hôte',
-          [
-            {
-              text: 'Ouvrir la conversation',
-              onPress: () => {
-                // Navigation vers l'onglet de messagerie avec l'ID de conversation et la propriété
-                (navigation as any).navigate('Home', { 
-                  screen: 'MessagingTab',
-                  params: { conversationId, propertyId: property.id }
-                });
-              }
-            }
-          ]
-        );
+        (navigation as any).navigate('Home', {
+          screen: 'MessagingTab',
+          params: { conversationId, propertyId: property.id },
+        });
       } else {
         throw new Error('Impossible de créer la conversation');
       }

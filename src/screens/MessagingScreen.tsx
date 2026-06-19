@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Dimensions,
   RefreshControl,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -303,36 +304,106 @@ const MessagingScreen: React.FC = () => {
     }
   };
 
-  const handleBackToConversations = () => {
-    console.log('🔙 [MessagingScreen] handleBackToConversations appelé', {
+  const handleBackToConversations = useCallback(() => {
+    const listingPropertyId =
+      propertyId ?? selectedConversation?.property?.id ?? (selectedConversation as any)?.property_id;
+    const listingVehicleId =
+      vehicleId ?? selectedConversation?.vehicle?.id ?? (selectedConversation as any)?.vehicle_id;
+
+    const resetChatState = () => {
+      hasOpenedConversationRef.current = null;
+      lastLoadedConversationId.current = null;
+      clearMessages();
+      setSelectedConversation(null);
+      setShowConversations(true);
+      setOpenedFromParam(false);
+    };
+
+    const returnToListing = () => {
+      resetChatState();
+      if (listingPropertyId) {
+        const state = navigation.getState();
+        const propertyDetailsIndex = state.routes.findIndex((r) => r.name === 'PropertyDetails');
+        const messagingIndex = state.routes.findIndex((r) => r.name === 'Messaging');
+        if (
+          route.name === 'Messaging' &&
+          propertyDetailsIndex >= 0 &&
+          messagingIndex > propertyDetailsIndex
+        ) {
+          navigation.goBack();
+          return;
+        }
+        (navigation as any).navigate('PropertyDetails', { propertyId: listingPropertyId });
+        return;
+      }
+      if (listingVehicleId) {
+        const state = navigation.getState();
+        const vehicleDetailsIndex = state.routes.findIndex((r) => r.name === 'VehicleDetails');
+        const messagingIndex = state.routes.findIndex((r) => r.name === 'Messaging');
+        if (
+          route.name === 'Messaging' &&
+          vehicleDetailsIndex >= 0 &&
+          messagingIndex > vehicleDetailsIndex
+        ) {
+          navigation.goBack();
+          return;
+        }
+        (navigation as any).navigate('VehicleDetails', { vehicleId: listingVehicleId });
+      }
+    };
+
+    console.log('🔙 [MessagingScreen] handleBackToConversations', {
       openedFromParam,
-      propertyId,
-      vehicleId,
+      listingPropertyId,
+      listingVehicleId,
       routeName: route.name,
+      showConversations,
     });
 
-  if (route.name === 'Messaging') {
-    hasOpenedConversationRef.current = null;
-    lastLoadedConversationId.current = null;
-    clearMessages();
-    setSelectedConversation(null);
-    setShowConversations(true);
-    setOpenedFromParam(false);
-    navigation.goBack();
-    return;
-  }
+    // Quitter le fil : revenir à la fiche si on vient d'une annonce
+    if (!showConversations) {
+      if (listingPropertyId || listingVehicleId || openedFromParam) {
+        returnToListing();
+        return;
+      }
+      resetChatState();
+      return;
+    }
 
-    // Toujours retourner à la liste locale des conversations
-    // Si on est dans l'onglet MessagingTab, on reste dans l'onglet
-    console.log('🔙 [MessagingScreen] Retour à la liste des conversations');
-    // Permet de rouvrir la même conversation (ex. 2e tap sur une notif avec le même conversationId)
-    hasOpenedConversationRef.current = null;
-    lastLoadedConversationId.current = null;
-    clearMessages();
-    setSelectedConversation(null);
-    setShowConversations(true);
-    setOpenedFromParam(false); // Réinitialiser le flag
-  };
+    // Liste des conversations sur la pile racine
+    if (route.name === 'Messaging') {
+      resetChatState();
+      navigation.goBack();
+    }
+  }, [
+    propertyId,
+    vehicleId,
+    selectedConversation,
+    showConversations,
+    openedFromParam,
+    route.name,
+    navigation,
+    clearMessages,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        if (!showConversations && selectedConversation) {
+          handleBackToConversations();
+          return true;
+        }
+        if (route.name === 'Messaging' && showConversations) {
+          navigation.goBack();
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+      return () => subscription.remove();
+    }, [showConversations, selectedConversation, route.name, navigation, handleBackToConversations])
+  );
 
   const handleRefresh = async () => {
     if (!user) return;

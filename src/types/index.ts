@@ -270,6 +270,7 @@ export type RootStackParamList = {
   HelpAssistant: undefined;
   ZipGame: undefined;
   ZipLeaderboard: undefined;
+  MatchPrediction: undefined;
   EditProfile: undefined;
   BecomeHost: undefined;
   /** Assistant IA (questions / réponses) — réservé usage futur */
@@ -365,7 +366,7 @@ export type RootStackParamList = {
 
 export type TabParamList = {
   HomeTab: undefined;
-  MessagingTab: { conversationId?: string };
+  MessagingTab: { conversationId?: string; propertyId?: string; vehicleId?: string };
   BookingsTab: undefined;
   FavoritesTab: undefined;
   ProfileTab: undefined;
