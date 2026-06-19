@@ -19,6 +19,7 @@ import type { MonthlyRentalListing } from '../types';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
+import { formatCardLocationLabel, LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
 
 type RouteProps = RouteProp<RootStackParamList, 'MonthlyRentalListingDetail'>;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -35,7 +36,10 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
     const load = async () => {
       const { data, error } = await supabase
         .from('monthly_rental_listings')
-        .select('*')
+        .select(`
+          *,
+          locations:location_id (${LOCATION_WITH_PARENT_SELECT})
+        `)
         .eq('id', listingId)
         .eq('status', 'approved')
         .single();
@@ -95,6 +99,9 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
 
   const images = Array.isArray(listing.images) ? listing.images : [];
   const mainImage = images[0] || 'https://via.placeholder.com/400x250';
+  const locationLabel = listing.locations
+    ? formatCardLocationLabel(listing.locations)
+    : formatCardLocationLabel(listing.location);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -102,15 +109,17 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <View style={styles.badgeLongueDuree}>
-          <Text style={styles.badgeText}>Location longue durée</Text>
-        </View>
       </View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Image source={{ uri: mainImage }} style={styles.heroImage} resizeMode="cover" />
         <View style={styles.body}>
           <Text style={styles.title}>{listing.title}</Text>
-          <Text style={styles.location}>📍 {listing.location}</Text>
+          {locationLabel ? (
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={18} color="#666" />
+              <Text style={styles.location}>{locationLabel}</Text>
+            </View>
+          ) : null}
           <View style={styles.priceRow}>
             <Text style={styles.price}>{formatPrice(listing.monthly_rent_price)}</Text>
             <Text style={styles.priceUnit}>/mois</Text>
@@ -179,11 +188,6 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   backBtn: { padding: 8 },
-  badgeLongueDuree: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  badgeText: { fontSize: 14, fontWeight: '600', color: MONTHLY_RENTAL_COLORS.primary },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 16, color: '#666' },
   scroll: { flex: 1 },
@@ -191,7 +195,13 @@ const styles = StyleSheet.create({
   heroImage: { width: SCREEN_WIDTH, height: 250, backgroundColor: '#ddd' },
   body: { padding: 20, backgroundColor: '#fff', marginTop: 8 },
   title: { fontSize: 22, fontWeight: '700', color: '#1a1a1a', marginBottom: 8 },
-  location: { fontSize: 15, color: '#666', marginBottom: 12 },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  location: { fontSize: 15, color: '#666', flex: 1 },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 16 },
   price: { fontSize: 24, fontWeight: '700', color: MONTHLY_RENTAL_COLORS.primary },
   priceUnit: { fontSize: 16, color: '#666', marginLeft: 4 },

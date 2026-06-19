@@ -37,6 +37,7 @@ import { getGalleryViewerUrl } from '../utils/media';
 import { log, logError } from '../utils/logger';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
+import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 import { getPropertyPublicWebUrl, getOwnerPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 import { buildHostProfileInternalParams } from '../utils/profileNavigation';
 import { WebView } from 'react-native-webview';
@@ -402,13 +403,12 @@ const PropertyDetailsScreen: React.FC = () => {
         </View>
         
         <View style={styles.locationContainer}>
-          <Text style={styles.location}>
-            📍 {typeof property.location === 'object' && property.location !== null && 'name' in property.location
-              ? property.location.name 
-              : typeof property.location === 'string' 
-              ? property.location 
-              : (property as any).locations?.name || 'Localisation inconnue'}
-          </Text>
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={18} color="#666" />
+            <Text style={styles.location}>
+              {getPropertyCardLocationLabel(property) || 'Localisation inconnue'}
+            </Text>
+          </View>
         </View>
 
         {(Number(property.review_count) || 0) > 0 && (
@@ -967,9 +967,15 @@ const styles = StyleSheet.create({
   locationContainer: {
     marginBottom: 10,
   },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   location: {
     fontSize: 16,
     color: '#6c757d',
+    flex: 1,
   },
   ratingContainer: {
     marginBottom: 15,

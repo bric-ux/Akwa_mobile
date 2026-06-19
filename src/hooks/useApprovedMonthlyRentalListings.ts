@@ -6,6 +6,7 @@ import {
   monthlyCatalogKey,
   setCachedMonthly,
 } from '../services/searchCatalogCache';
+import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
 
 export interface ApprovedMonthlyFilters {
   city?: string;
@@ -40,7 +41,10 @@ export const useApprovedMonthlyRentalListings = () => {
       try {
         let query = supabase
           .from('monthly_rental_listings')
-          .select('*')
+          .select(`
+            *,
+            locations:location_id (${LOCATION_WITH_PARENT_SELECT})
+          `)
           .eq('status', 'approved')
           .order('updated_at', { ascending: false });
 

@@ -531,6 +531,12 @@ export interface HotelEstablishment {
     type?: string;
     latitude?: number;
     longitude?: number;
+    parent?: {
+      id: string;
+      name: string;
+      type?: string;
+      parent?: { id: string; name: string; type?: string } | null;
+    } | null;
   } | null;
   hotel_establishment_photos?: HotelEstablishmentPhoto[];
   hotel_room_types?: HotelRoomType[];
@@ -635,6 +641,17 @@ export interface MonthlyRentalListing {
   description: string | null;
   location: string;
   location_id: string | null;
+  locations?: {
+    id: string;
+    name: string;
+    type?: string;
+    parent?: {
+      id: string;
+      name: string;
+      type?: string;
+      parent?: { id: string; name: string; type?: string } | null;
+    } | null;
+  } | null;
   property_type: string | null;
   surface_m2: number;
   number_of_rooms: number;

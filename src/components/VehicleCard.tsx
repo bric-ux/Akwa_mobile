@@ -21,6 +21,7 @@ import { useVehicleFavorites } from '../hooks/useVehicleFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import MediaThumb from './MediaThumb';
 import { getVehicleCoverUrl, getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
+import { formatCardLocationLabel } from '../utils/locationLabel';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -218,7 +219,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
             <View style={styles.locationRow}>
               <Ionicons name="location-outline" size={14} color="#666" />
               <Text style={styles.cardLocation} numberOfLines={1}>
-                {vehicle.location.name}
+                {formatCardLocationLabel(vehicle.location)}
               </Text>
             </View>
           )}

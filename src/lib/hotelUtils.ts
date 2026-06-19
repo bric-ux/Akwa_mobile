@@ -1,5 +1,6 @@
 import type { HotelEstablishment, HotelRoomType } from '../types';
 import { isVideoUrl } from '../utils/media';
+import { getEstablishmentCardLocationLabel } from '../utils/locationLabel';
 
 const ESTABLISHMENT_TYPE_LABELS: Record<string, string> = {
   hotel: 'Hôtel',
@@ -67,7 +68,5 @@ export function getMinRoomPrice(establishment: HotelEstablishment): number | nul
 }
 
 export function getEstablishmentLocationLabel(establishment: HotelEstablishment): string {
-  if (establishment.locations?.name) return establishment.locations.name;
-  if (establishment.address) return establishment.address;
-  return '';
+  return getEstablishmentCardLocationLabel(establishment);
 }

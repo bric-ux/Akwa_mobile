@@ -18,6 +18,7 @@ import { calculateTotalPrice, type DiscountConfig } from '../hooks/usePricing';
 import { useCurrency } from '../hooks/useCurrency';
 import MediaThumb from './MediaThumb';
 import { getPropertyCoverUrl, isVideoUrl } from '../utils/media';
+import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 
 interface BookingCardProps {
   booking: Booking;
@@ -343,9 +344,14 @@ const BookingCard: React.FC<BookingCardProps> = ({
                 {booking.properties?.title || 'Propriété non trouvée'}
               </Text>
             </View>
-            <Text style={styles.propertyLocation}>
-              📍 {booking.properties?.location?.name || booking.properties?.locations?.name || 'Localisation inconnue'}
-            </Text>
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={14} color="#666" />
+              <Text style={styles.propertyLocation} numberOfLines={1}>
+                {booking.properties
+                  ? getPropertyCardLocationLabel(booking.properties) || 'Localisation inconnue'
+                  : 'Localisation inconnue'}
+              </Text>
+            </View>
             <View style={styles.dateContainer}>
               <Text style={styles.dateText}>
                 {formatDate(booking.check_in_date)} - {formatDate(booking.check_out_date)}
@@ -594,10 +600,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8,
+  },
   propertyLocation: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 8,
+    flex: 1,
   },
   dateContainer: {
     flexDirection: 'row',

@@ -4,6 +4,7 @@ import { isVideoUrl } from '../utils/media';
 import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
 import { fetchPublicOwnerInfo } from '../utils/publicOwnerInfo';
 import { Vehicle, VehicleFilters } from '../types';
+import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
 
 export const useVehicles = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -24,14 +25,7 @@ export const useVehicles = () => {
         .from('vehicles')
         .select(`
           *,
-          locations:location_id (
-            id,
-            name,
-            type,
-            latitude,
-            longitude,
-            parent_id
-          ),
+          locations:location_id (${LOCATION_WITH_PARENT_SELECT}),
           vehicle_photos (
             id,
             url,
@@ -362,6 +356,7 @@ export const useVehicles = () => {
             latitude: vehicle.locations.latitude,
             longitude: vehicle.locations.longitude,
             parent_id: vehicle.locations.parent_id,
+            parent: vehicle.locations.parent,
           } : undefined,
           photos: photos,
           images: images.length > 0 ? images : vehicle.images || [],
@@ -573,14 +568,7 @@ export const useVehicles = () => {
         .from('vehicles')
         .select(`
           *,
-          locations:location_id (
-            id,
-            name,
-            type,
-            latitude,
-            longitude,
-            parent_id
-          ),
+          locations:location_id (${LOCATION_WITH_PARENT_SELECT}),
           vehicle_photos (
             id,
             url,
@@ -625,6 +613,7 @@ export const useVehicles = () => {
             latitude: vehicle.locations.latitude,
             longitude: vehicle.locations.longitude,
             parent_id: vehicle.locations.parent_id,
+            parent: vehicle.locations.parent,
           } : undefined,
           photos: sortedPhotos,
           images: images,

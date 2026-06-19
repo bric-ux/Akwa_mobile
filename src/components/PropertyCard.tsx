@@ -20,6 +20,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import MediaThumb from './MediaThumb';
 import { getPropertyCoverUrl, getPropertyGalleryUrls, isVideoUrl } from '../utils/media';
+import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 
 const CAROUSEL_HEIGHT = 200;
 const SCREEN_W = Dimensions.get('window').width;
@@ -95,8 +96,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
 
   const reviewCount = Number(property.review_count) || 0;
   const hasReviews = reviewCount > 0;
-  const locationLabel =
-    property.location?.name || property.locations?.name || property.location;
+  const locationLabel = getPropertyCardLocationLabel(property);
   const coverUri = getPropertyCoverUrl(property);
   const galleryRaw = getPropertyGalleryUrls(property);
   const galleryUrls = galleryRaw.length > 0 ? galleryRaw : [coverUri];

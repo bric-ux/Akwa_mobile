@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import type { HotelEstablishment } from '../types';
 import { getActiveRoomTypes, getMinRoomPrice } from '../lib/hotelUtils';
 import { logError } from '../utils/logger';
+import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
 
 const EXPLORE_HOTELS_LIMIT = 12;
 
@@ -28,7 +29,7 @@ const ESTABLISHMENT_SELECT = `
   review_count,
   status,
   created_at,
-  locations:location_id(id, name, type, latitude, longitude),
+  locations:location_id(${LOCATION_WITH_PARENT_SELECT}),
   hotel_establishment_photos(id, url, category, display_order),
   hotel_room_types(
     id,

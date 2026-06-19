@@ -218,6 +218,116 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
     [hostId, user?.id]
   );
 
+  const archiveListing = useCallback(
+    async (listingId: string): Promise<{ success: boolean; error?: string }> => {
+      const uid = hostId || user?.id;
+      if (!uid) return { success: false, error: 'Non connecté' };
+
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: listing, error: fetchErr } = await supabase
+          .from('monthly_rental_listings')
+          .select('id, status')
+          .eq('id', listingId)
+          .eq('owner_id', uid)
+          .single();
+
+        if (fetchErr || !listing) {
+          const msg = 'Annonce introuvable';
+          setError(msg);
+          return { success: false, error: msg };
+        }
+
+        if (listing.status !== 'approved' && listing.status !== 'pending') {
+          const msg = 'Seules les annonces approuvées ou en attente peuvent être masquées';
+          setError(msg);
+          return { success: false, error: msg };
+        }
+
+        const { error: err } = await supabase
+          .from('monthly_rental_listings')
+          .update({
+            status: 'archived',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', listingId)
+          .eq('owner_id', uid);
+
+        if (err) {
+          setError(err.message);
+          return { success: false, error: err.message };
+        }
+        return { success: true };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Erreur';
+        setError(msg);
+        return { success: false, error: msg };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [hostId, user?.id]
+  );
+
+  const restoreListing = useCallback(
+    async (listingId: string): Promise<{ success: boolean; error?: string }> => {
+      const uid = hostId || user?.id;
+      if (!uid) return { success: false, error: 'Non connecté' };
+
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: listing, error: fetchErr } = await supabase
+          .from('monthly_rental_listings')
+          .select('id, status, submitted_at, reviewed_at')
+          .eq('id', listingId)
+          .eq('owner_id', uid)
+          .single();
+
+        if (fetchErr || !listing) {
+          const msg = 'Annonce introuvable';
+          setError(msg);
+          return { success: false, error: msg };
+        }
+
+        if (listing.status !== 'archived') {
+          const msg = 'Cette annonce n\'est pas masquée';
+          setError(msg);
+          return { success: false, error: msg };
+        }
+
+        const targetStatus = listing.reviewed_at
+          ? 'approved'
+          : listing.submitted_at
+            ? 'pending'
+            : 'draft';
+
+        const { error: err } = await supabase
+          .from('monthly_rental_listings')
+          .update({
+            status: targetStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', listingId)
+          .eq('owner_id', uid);
+
+        if (err) {
+          setError(err.message);
+          return { success: false, error: err.message };
+        }
+        return { success: true };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Erreur';
+        setError(msg);
+        return { success: false, error: msg };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [hostId, user?.id]
+  );
+
   return {
     getListingById,
     getMyListings,
@@ -225,6 +335,8 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
     updateListing,
     submitForApproval,
     deleteListing,
+    archiveListing,
+    restoreListing,
     loading,
     error,
   };

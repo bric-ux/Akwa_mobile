@@ -46,7 +46,6 @@ import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { useApprovedMonthlyRentalListings } from '../hooks/useApprovedMonthlyRentalListings';
 import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
 import type { MonthlyRentalListing } from '../types';
-import { buildHomeCategoryPillImages } from '../utils/homeCategoryPillImages';
 
 const SCREEN_W = Dimensions.get('window').width;
 /** Titres explore + première carte : alignés sur le carrousel « trésors CI » ; carte suivante visible */
@@ -492,31 +491,11 @@ const HomeScreen: React.FC = () => {
     );
   }, [exploreFailureKind, isOffline, t, refreshExploreCityHome]);
 
-  const [pillImageTick, setPillImageTick] = useState(0);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setPillImageTick((value) => value + 1), 2000);
-    return () => clearTimeout(timer);
-  }, [exploreHotels.length, exploreMonthlyListings.length, exploreSections.length]);
-
-  const categoryPillImages = useMemo(
-    () =>
-      buildHomeCategoryPillImages({
-        exploreSections,
-        exploreHotels,
-        exploreMonthlyListings,
-      }),
-    [exploreSections, exploreHotels, exploreMonthlyListings, pillImageTick],
-  );
-
   const listHeader = useMemo(() => (
     <>
       <HeroSection onSearchPress={handleSearchPress} />
 
-      <HomeCategoryPills
-        onCategoryPress={handleCategoryPress}
-        categoryImages={categoryPillImages}
-      />
+      <HomeCategoryPills onCategoryPress={handleCategoryPress} />
 
       {showDeferredHeaderContent ? (
         <>
@@ -546,7 +525,7 @@ const HomeScreen: React.FC = () => {
         ) : null}
       </View>
     </>
-  ), [handleSearchPress, handleCategoryPress, categoryPillImages, showDeferredHeaderContent, exploreErrorCard, exploreMonthlySection, exploreHotelsSection, explorePropertiesTotal, exploreLoading]);
+  ), [handleSearchPress, handleCategoryPress, showDeferredHeaderContent, exploreErrorCard, exploreMonthlySection, exploreHotelsSection, explorePropertiesTotal, exploreLoading]);
 
   const listFooter = useMemo(
     () => (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { Property, SearchFilters, Amenity } from '../types';
+import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
 
 /** Date de référence pour le prix affiché en liste : arrivée recherchée ou aujourd’hui */
 function getRefDateStrForListPricing(filters?: SearchFilters): string {
@@ -83,14 +84,7 @@ const PROPERTY_SEARCH_LIST_SELECT = `
   long_stay_discount_min_nights,
   long_stay_discount_percentage,
   images,
-  locations:location_id (
-    id,
-    name,
-    type,
-    latitude,
-    longitude,
-    parent_id
-  ),
+  locations:location_id (${LOCATION_WITH_PARENT_SELECT}),
   property_photos (
     id,
     url,
@@ -494,14 +488,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         source === 'home'
           ? `
           *,
-          locations:location_id (
-            id,
-            name,
-            type,
-            latitude,
-            longitude,
-            parent_id
-          ),
+          locations:location_id (${LOCATION_WITH_PARENT_SELECT}),
           property_photos (
             id,
             url,
@@ -822,6 +809,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
                 latitude: location.latitude,
                 longitude: location.longitude,
                 parent_id: location.parent_id,
+                parent: location.parent,
               }
             : undefined,
           latitude,
@@ -879,14 +867,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         .from('properties')
         .select(`
           *,
-          locations:location_id (
-            id,
-            name,
-            type,
-            latitude,
-            longitude,
-            parent_id
-          ),
+          locations:location_id (${LOCATION_WITH_PARENT_SELECT}),
           property_photos (
             id,
             url,
@@ -1029,7 +1010,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           type: location.type,
           latitude: location.latitude,
           longitude: location.longitude,
-          parent_id: location.parent_id
+          parent_id: location.parent_id,
+          parent: location.parent,
         } : undefined,
         // Extraire les coordonnées directement sur la propriété pour compatibilité
         latitude: latitude,
@@ -1182,14 +1164,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         .from('properties')
         .select(`
           *,
-          locations:location_id (
-            id,
-            name,
-            type,
-            latitude,
-            longitude,
-            parent_id
-          ),
+          locations:location_id (${LOCATION_WITH_PARENT_SELECT}),
           property_photos (
             id,
             url,
@@ -1324,7 +1299,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
               type: location.type,
               latitude: location.latitude,
               longitude: location.longitude,
-              parent_id: location.parent_id
+              parent_id: location.parent_id,
+              parent: location.parent,
             } : undefined,
             // Extraire les coordonnées directement sur la propriété pour compatibilité
             latitude: latitude,

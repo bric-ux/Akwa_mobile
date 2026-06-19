@@ -22,7 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
   pending: 'En attente',
   approved: 'Approuvé',
   rejected: 'Refusé',
-  archived: 'Archivé',
+  archived: 'Masqué',
 };
 
 const MyMonthlyRentalListingsScreen: React.FC = () => {
@@ -30,10 +30,11 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
   const route = useRoute();
   const { user } = useAuth();
   const isTabScreen = route.name === 'MonthlyRentalListingsTab';
-  const { getMyListings, deleteListing, submitForApproval, loading } = useMonthlyRentalListings(user?.id);
+  const { getMyListings, deleteListing, submitForApproval, archiveListing, restoreListing, loading } = useMonthlyRentalListings(user?.id);
   const [listings, setListings] = useState<MonthlyRentalListing[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [actionId, setActionId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const data = await getMyListings();
@@ -76,24 +77,83 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
     }
   };
 
-  const handleDelete = (item: MonthlyRentalListing) => {
-    const canDelete = item.status === 'draft' || item.status === 'rejected';
-    if (!canDelete) {
-      Alert.alert('Suppression', 'Seuls les brouillons et les annonces refusées peuvent être supprimés.');
-      return;
+  const handleHide = (item: MonthlyRentalListing) => {
+    if (item.status !== 'approved' && item.status !== 'pending') return;
+    Alert.alert(
+      'Masquer l\'annonce',
+      `"${item.title}" ne sera plus visible par les voyageurs. Vous pourrez la réafficher à tout moment.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Masquer',
+          onPress: async () => {
+            setActionId(item.id);
+            try {
+              const r = await archiveListing(item.id);
+              if (r.success) load();
+              else Alert.alert('Erreur', r.error || 'Impossible de masquer l\'annonce');
+            } finally {
+              setActionId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleShow = (item: MonthlyRentalListing) => {
+    if (item.status !== 'archived') return;
+    Alert.alert(
+      'Réafficher l\'annonce',
+      `Remettre "${item.title}" en ligne ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Réafficher',
+          onPress: async () => {
+            setActionId(item.id);
+            try {
+              const r = await restoreListing(item.id);
+              if (r.success) load();
+              else Alert.alert('Erreur', r.error || 'Impossible de réafficher l\'annonce');
+            } finally {
+              setActionId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getDeleteMessage = (item: MonthlyRentalListing): string => {
+    const base = `Supprimer définitivement "${item.title}" ?`;
+    if (item.status === 'approved' || item.status === 'pending' || item.status === 'archived') {
+      return `${base}\n\nL'annonce et les candidatures associées seront supprimées.`;
     }
+    if (item.status === 'rejected') {
+      return `${base} Les candidatures associées seront aussi supprimées.`;
+    }
+    return base;
+  };
+
+  const handleDelete = (item: MonthlyRentalListing) => {
     Alert.alert(
       'Supprimer le logement',
-      `Supprimer "${item.title}" ?${item.status === 'draft' ? '' : ' Les candidatures associées seront aussi supprimées.'}`,
+      getDeleteMessage(item),
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Supprimer',
           style: 'destructive',
           onPress: async () => {
-            const r = await deleteListing(item.id);
-            if (r.success) load();
-            else Alert.alert('Erreur', r.error || 'Impossible de supprimer');
+            setActionId(item.id);
+            try {
+              const r = await deleteListing(item.id);
+              if (r.success) load();
+              else Alert.alert('Erreur', r.error || 'Impossible de supprimer');
+            } finally {
+              setActionId(null);
+            }
           },
         },
       ]
@@ -165,14 +225,52 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
             <Text style={styles.btnCandidaturesText}>Candidatures</Text>
           </TouchableOpacity>
         )}
+        {(item.status === 'approved' || item.status === 'pending') && (
+          <TouchableOpacity
+            style={styles.btnHide}
+            onPress={() => handleHide(item)}
+            disabled={actionId === item.id || loading}
+          >
+            {actionId === item.id ? (
+              <ActivityIndicator size="small" color="#64748b" />
+            ) : (
+              <>
+                <Ionicons name="eye-off-outline" size={18} color="#64748b" />
+                <Text style={styles.btnHideText}>Masquer</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+        {item.status === 'archived' && (
+          <TouchableOpacity
+            style={styles.btnShow}
+            onPress={() => handleShow(item)}
+            disabled={actionId === item.id || loading}
+          >
+            {actionId === item.id ? (
+              <ActivityIndicator size="small" color="#2E7D32" />
+            ) : (
+              <>
+                <Ionicons name="eye-outline" size={18} color="#2E7D32" />
+                <Text style={styles.btnShowText}>Réafficher</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.btnEdit} onPress={() => handleEdit(item.id)}>
           <Ionicons name="pencil-outline" size={20} color="#fff" />
         </TouchableOpacity>
-        {(item.status === 'draft' || item.status === 'rejected') && (
-          <TouchableOpacity style={styles.btnDelete} onPress={() => handleDelete(item)}>
+        <TouchableOpacity
+          style={styles.btnDelete}
+          onPress={() => handleDelete(item)}
+          disabled={actionId === item.id || loading}
+        >
+          {actionId === item.id ? (
+            <ActivityIndicator size="small" color="#c62828" />
+          ) : (
             <Ionicons name="trash-outline" size={20} color="#c62828" />
-          </TouchableOpacity>
-        )}
+          )}
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -315,6 +413,26 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   btnCandidaturesText: { fontSize: 14, color: '#2E7D32', fontWeight: '500' },
+  btnHide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+  },
+  btnHideText: { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  btnShow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#e8f5e9',
+    borderRadius: 8,
+  },
+  btnShowText: { fontSize: 13, color: '#2E7D32', fontWeight: '600' },
   btnEdit: {
     padding: 8,
     backgroundColor: '#2E7D32',

@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { MonthlyRentalListing } from '../types';
-import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
+import { formatCardLocationLabel } from '../utils/locationLabel';
 
 interface MonthlyRentalListingCardProps {
   listing: MonthlyRentalListing;
@@ -22,6 +22,9 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
   const imageUri = Array.isArray(listing.images) && listing.images.length > 0
     ? listing.images[0]
     : 'https://via.placeholder.com/300x200';
+  const locationLabel = listing.locations
+    ? formatCardLocationLabel(listing.locations)
+    : formatCardLocationLabel(listing.location);
 
   return (
     <TouchableOpacity
@@ -41,15 +44,17 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
               {formatPrice(listing.monthly_rent_price)}/mois
             </Text>
           </View>
-          <View style={styles.badgeLongueDuree}>
-            <Text style={styles.badgeText}>Longue durée</Text>
-          </View>
         </View>
         <View style={styles.cardContent}>
           <Text style={styles.cardTitle} numberOfLines={1}>{listing.title}</Text>
-          <Text style={styles.cardLocation} numberOfLines={1}>
-            📍 {listing.location}
-          </Text>
+          {locationLabel ? (
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={14} color="#666" />
+              <Text style={styles.cardLocation} numberOfLines={1}>
+                {locationLabel}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.metaRow}>
             <Text style={styles.metaText}>{listing.surface_m2} m²</Text>
             <Text style={styles.metaDot}>•</Text>
@@ -91,27 +96,23 @@ const styles = StyleSheet.create({
   cardImage: { width: '100%', height: '100%' },
   priceOverlay: {
     position: 'absolute',
-    bottom: 8,
-    left: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
   },
   priceText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  badgeLongueDuree: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: MONTHLY_RENTAL_COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
   cardContent: { padding: 14 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: '#1a1a1a', marginBottom: 4 },
-  cardLocation: { fontSize: 13, color: '#666', marginBottom: 6 },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  cardLocation: { fontSize: 13, color: '#666', flex: 1, flexShrink: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   metaText: { fontSize: 12, color: '#888' },
   metaDot: { fontSize: 12, color: '#ccc', marginHorizontal: 4 },

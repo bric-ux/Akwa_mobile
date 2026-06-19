@@ -17,6 +17,7 @@ import {
   MIN_PER_CITY,
   PER_CITY_LIMIT,
 } from '../utils/exploreCityLayout';
+import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
 
 const EXPLORE_HOME_CACHE_TTL_MS = 2 * 60 * 1000;
 let exploreHomeCache: {
@@ -202,6 +203,7 @@ async function transformRowsToProperties(rows: any[]): Promise<Property[]> {
               latitude: location.latitude,
               longitude: location.longitude,
               parent_id: location.parent_id,
+              parent: location.parent,
             }
           : undefined,
         latitude,
@@ -305,6 +307,7 @@ async function transformRowsToPropertiesLight(rows: any[]): Promise<Property[]> 
             latitude: location.latitude,
             longitude: location.longitude,
             parent_id: location.parent_id,
+            parent: location.parent,
           }
         : undefined,
       latitude,
@@ -363,14 +366,7 @@ export function useExploreCityHome() {
 
       const SELECT_HOME = `
         *,
-        locations:location_id (
-          id,
-          name,
-          type,
-          latitude,
-          longitude,
-          parent_id
-        ),
+        locations:location_id (${LOCATION_WITH_PARENT_SELECT}),
         property_photos (
           id,
           url,

@@ -137,16 +137,16 @@ const AmenityFilterPicker: React.FC<Props> = ({
             </View>
           ) : null}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>
-              {query.trim() ? `Résultats (${filteredAmenities.length})` : 'Tous les équipements'}
-            </Text>
-            {filteredAmenities.length === 0 ? (
-              <Text style={styles.emptyText}>Aucun équipement pour « {query} »</Text>
-            ) : (
-              filteredAmenities.map((amenity) => renderAmenityRow(amenity.name, amenity.id))
-            )}
-          </View>
+          {query.trim() ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Résultats ({filteredAmenities.length})</Text>
+              {filteredAmenities.length === 0 ? (
+                <Text style={styles.emptyText}>Aucun équipement pour « {query} »</Text>
+              ) : (
+                filteredAmenities.map((amenity) => renderAmenityRow(amenity.name, amenity.id))
+              )}
+            </View>
+          ) : null}
         </View>
       )}
     </View>

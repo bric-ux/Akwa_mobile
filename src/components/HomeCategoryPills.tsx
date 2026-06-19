@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
-  ImageSourcePropType,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
@@ -28,30 +27,30 @@ type CategoryDef = {
   color: string;
 };
 
-const FALLBACK_IMAGES: Record<HomeCategoryId, number> = {
-  residence: require('../../assets/images/plages-assinie.jpg'),
-  hotel: require('../../assets/images/abidjan.jpg'),
-  monthly: require('../../assets/images/culture.jpg'),
-  vehicle: require('../../assets/images/vehicles-suv.jpg'),
+const PILL_IMAGES: Record<HomeCategoryId, number> = {
+  residence: require('../../assets/images/pill-residence.jpg'),
+  hotel: require('../../assets/images/pill-hotel.jpg'),
+  monthly: require('../../assets/images/pill-monthly.jpg'),
+  vehicle: require('../../assets/images/pill-vehicle.jpg'),
 };
 
 const BASE_CATEGORIES: CategoryDef[] = [
   {
     id: 'residence',
     label: 'Résidences meublées',
-    fallbackImage: FALLBACK_IMAGES.residence,
+    fallbackImage: PILL_IMAGES.residence,
     color: HOST_COLORS.primary,
   },
   {
     id: 'hotel',
     label: 'Hôtels',
-    fallbackImage: FALLBACK_IMAGES.hotel,
+    fallbackImage: PILL_IMAGES.hotel,
     color: HOTEL_COLORS.primary,
   },
   {
     id: 'vehicle',
     label: 'Véhicules',
-    fallbackImage: FALLBACK_IMAGES.vehicle,
+    fallbackImage: PILL_IMAGES.vehicle,
     color: VEHICLE_COLORS.primary,
   },
 ];
@@ -59,28 +58,22 @@ const BASE_CATEGORIES: CategoryDef[] = [
 const MONTHLY_CATEGORY: CategoryDef = {
   id: 'monthly',
   label: 'Location',
-  fallbackImage: FALLBACK_IMAGES.monthly,
+  fallbackImage: PILL_IMAGES.monthly,
   color: MONTHLY_RENTAL_COLORS.primary,
 };
 
 type Props = {
   onCategoryPress: (id: HomeCategoryId) => void;
-  categoryImages?: Partial<Record<HomeCategoryId, string>>;
 };
 
 function CategoryPill({
   item,
-  imageUri,
   onPress,
 }: {
   item: CategoryDef;
-  imageUri?: string;
   onPress: () => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
-  const imageSource: ImageSourcePropType = imageUri
-    ? { uri: imageUri }
-    : item.fallbackImage;
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
@@ -100,11 +93,10 @@ function CategoryPill({
       >
         <View style={[styles.thumbRing, { borderColor: `${item.color}33` }]}>
           <Image
-            source={imageSource}
+            source={item.fallbackImage}
             style={styles.thumb}
             contentFit="cover"
             cachePolicy="memory-disk"
-            transition={imageUri ? 150 : 0}
           />
         </View>
         <Text style={[styles.pillLabel, { color: item.color }]}>{item.label}</Text>
@@ -113,7 +105,7 @@ function CategoryPill({
   );
 }
 
-const HomeCategoryPills: React.FC<Props> = ({ onCategoryPress, categoryImages }) => {
+const HomeCategoryPills: React.FC<Props> = ({ onCategoryPress }) => {
   const categories = useMemo(() => {
     const list = [...BASE_CATEGORIES];
     if (FEATURE_MONTHLY_RENTAL) {
@@ -142,7 +134,6 @@ const HomeCategoryPills: React.FC<Props> = ({ onCategoryPress, categoryImages })
         <CategoryPill
           key={item.id}
           item={item}
-          imageUri={categoryImages?.[item.id]}
           onPress={() => handlePress(item.id)}
         />
       ))}
