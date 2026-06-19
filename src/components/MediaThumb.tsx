@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   },
   shelfWrap: {
     overflow: 'hidden',
-    backgroundColor: '#e2e8f0',
+    backgroundColor: '#ffffff',
   },
   shelfMedia: {
     width: '100%',

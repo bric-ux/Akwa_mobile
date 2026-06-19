@@ -4,6 +4,14 @@ import type { HotelEstablishment } from '../types';
 import { getActiveRoomTypes, getMinRoomPrice } from '../lib/hotelUtils';
 import { logError } from '../utils/logger';
 import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
+import { getCachedHotels, setCachedHotels } from '../services/searchCatalogCache';
+import {
+  loadPersistedExploreHomeHotels,
+  persistExploreHomeHotels,
+  getExploreHotelsMemoryCache,
+  setExploreHotelsMemoryCache,
+} from '../utils/exploreHomeStorage';
+import { prefetchHotelShelfCovers } from '../utils/prefetchExploreShelfCovers';
 
 const EXPLORE_HOTELS_LIMIT = 12;
 
@@ -61,14 +69,30 @@ function enrichEstablishment(row: HotelEstablishment): HotelEstablishment {
   };
 }
 
+function applyHotels(
+  enriched: HotelEstablishment[],
+  setHotels: (hotels: HotelEstablishment[]) => void,
+) {
+  setHotels(enriched);
+  setExploreHotelsMemoryCache(enriched);
+  persistExploreHomeHotels(enriched);
+  setCachedHotels(enriched);
+  prefetchHotelShelfCovers(enriched);
+}
+
 export function useExploreHotelsHome() {
-  const [hotels, setHotels] = useState<HotelEstablishment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [hotels, setHotels] = useState<HotelEstablishment[]>(
+    () => getExploreHotelsMemoryCache() ?? getCachedHotels() ?? [],
+  );
+  const [loading, setLoading] = useState(() => hotels.length === 0);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { background?: boolean }) => {
+    const background = opts?.background === true;
     try {
-      setLoading(true);
+      if (!background) {
+        setLoading(true);
+      }
       setError(null);
 
       const { data, error: fetchError } = await supabase
@@ -87,18 +111,47 @@ export function useExploreHotelsHome() {
         .filter((e) => (e.hotel_room_types?.length ?? 0) > 0)
         .slice(0, EXPLORE_HOTELS_LIMIT);
 
-      setHotels(enriched);
+      applyHotels(enriched, setHotels);
     } catch (e) {
       logError('[useExploreHotelsHome] load', e);
       setError('Impossible de charger les hôtels');
-      setHotels([]);
+      if (!background) {
+        setHotels([]);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      const memoryHotels = getExploreHotelsMemoryCache();
+      if (memoryHotels && memoryHotels.length > 0) {
+        setHotels(memoryHotels);
+        prefetchHotelShelfCovers(memoryHotels);
+        setLoading(false);
+        void load({ background: true });
+        return;
+      }
+
+      const persisted = await loadPersistedExploreHomeHotels();
+      if (!cancelled && persisted && persisted.length > 0) {
+        setHotels(persisted);
+        prefetchHotelShelfCovers(persisted);
+        setLoading(false);
+      }
+
+      if (!cancelled) {
+        await load({ background: !!(persisted && persisted.length > 0) });
+      }
+    };
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
 
   return {

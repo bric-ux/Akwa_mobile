@@ -20,7 +20,7 @@ import { supabase } from '../services/supabase';
 export interface DestinationSuggestion {
   id: string;
   text: string;
-  type: 'city' | 'neighborhood' | 'commune' | 'property' | 'recent' | 'popular';
+  type: 'city' | 'neighborhood' | 'commune' | 'property' | 'recent' | 'popular' | 'nearby';
   subtitle?: string;
   latitude?: number;
   longitude?: number;
@@ -33,6 +33,8 @@ interface DestinationSearchModalProps {
   initialQuery?: string;
   onClose: () => void;
   onSelect: (suggestion: DestinationSuggestion) => void;
+  onNearbyPress?: () => void;
+  nearbyLoading?: boolean;
   /** Overlay plein écran dans un Modal parent — évite les Modals imbriqués (Android). */
   embedded?: boolean;
 }
@@ -42,6 +44,8 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
   initialQuery = '',
   onClose,
   onSelect,
+  onNearbyPress,
+  nearbyLoading = false,
   embedded = false,
 }) => {
   const [query, setQuery] = useState('');
@@ -222,6 +226,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
 
   const iconForType = (type: DestinationSuggestion['type']) => {
     switch (type) {
+      case 'nearby': return 'navigate';
       case 'recent': return 'time-outline';
       case 'popular': return 'star-outline';
       case 'commune': return 'business-outline';
@@ -233,6 +238,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
 
   const colorForType = (type: DestinationSuggestion['type']) => {
     switch (type) {
+      case 'nearby': return '#2E7D32';
       case 'recent': return '#6b7280';
       case 'popular': return '#e67e22';
       case 'commune': return '#8b5cf6';
@@ -292,6 +298,30 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
               </TouchableOpacity>
             )}
           </View>
+
+          {onNearbyPress ? (
+            <TouchableOpacity
+              style={styles.nearbyBtn}
+              onPress={onNearbyPress}
+              disabled={nearbyLoading}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Rechercher autour de moi"
+            >
+              <View style={styles.nearbyIconWrap}>
+                {nearbyLoading ? (
+                  <ActivityIndicator size="small" color="#2E7D32" />
+                ) : (
+                  <Ionicons name="navigate" size={22} color="#2E7D32" />
+                )}
+              </View>
+              <View style={styles.nearbyTextWrap}>
+                <Text style={styles.nearbyTitle}>Près de moi</Text>
+                <Text style={styles.nearbySubtitle}>Utiliser ma position actuelle</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+            </TouchableOpacity>
+          ) : null}
 
           {loading && (
             <View style={styles.loadingRow}>
@@ -401,6 +431,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1f2937',
     padding: 0,
+  },
+  nearbyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#ecfdf5',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  nearbyIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nearbyTextWrap: {
+    flex: 1,
+  },
+  nearbyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  nearbySubtitle: {
+    fontSize: 13,
+    color: '#4b5563',
+    marginTop: 2,
   },
   loadingRow: {
     flexDirection: 'row',

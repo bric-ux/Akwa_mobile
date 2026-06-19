@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { bumpPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
+import { findFeaturedPhotoIndex } from '../utils/propertyPhotoUtils';
 import { useAuth } from '../services/AuthContext';
 import { HostApplication } from './useHostApplications';
 import { Property } from './useProperties';
@@ -213,46 +214,84 @@ export const useAdmin = () => {
           }
         }
 
-                // Traiter les données de classification si fournies
-                if (photoCategories && application.images) {
-                  // Extraire les données de classification
-                  const adminCategory = photoCategories[0] || 'standard'; // Utiliser la première photo pour la catégorie globale
-                  const adminRating = parseInt(photoCategories[`rating_0`] || '3'); // Note par défaut 3
-                  const isFeatured = photoCategories[`featured_0`] === 'true';
+        // Traiter les données de classification si fournies
+        if (photoCategories && fullApplication?.images?.length) {
+          const images = fullApplication.images as string[];
+          const featuredIndex = findFeaturedPhotoIndex(photoCategories);
+          const referenceIndex = featuredIndex >= 0 ? featuredIndex : 0;
+          const adminCategory = photoCategories[referenceIndex] || photoCategories[0] || 'standard';
+          const adminRating = parseInt(
+            photoCategories[`rating_${referenceIndex}`] || photoCategories['rating_0'] || '3',
+            10,
+          );
+          const isFeatured = featuredIndex >= 0;
 
-                  // Mettre à jour l'application avec les données de classification
-                  await supabase
-                    .from('host_applications')
-                    .update({ 
-                      admin_category: adminCategory,
-                      admin_rating: adminRating,
-                      is_featured: isFeatured,
-                      classification_date: new Date().toISOString(),
-                      classified_by: user.id
-                    })
-                    .eq('id', applicationId);
+          await supabase
+            .from('host_applications')
+            .update({
+              admin_category: adminCategory,
+              admin_rating: adminRating,
+              is_featured: isFeatured,
+              classification_date: new Date().toISOString(),
+              classified_by: user.id,
+            })
+            .eq('id', applicationId);
 
-                  // Si une propriété est créée à partir de cette candidature, appliquer la classification
-                  const { data: createdProperty } = await supabase
-                    .from('properties')
-                    .select('id')
-                    .eq('host_id', application.user_id)
-                    .eq('title', application.title)
-                    .single();
+          const { data: createdProperty } = await supabase
+            .from('properties')
+            .select('id')
+            .eq('host_id', application.user_id)
+            .eq('title', application.title)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-                  if (createdProperty) {
-                    await supabase
-                      .from('properties')
-                      .update({
-                        admin_category: adminCategory,
-                        admin_rating: adminRating,
-                        is_featured: isFeatured,
-                        classification_date: new Date().toISOString(),
-                        classified_by: user.id
-                      })
-                      .eq('id', createdProperty.id);
-                  }
-                }
+          if (createdProperty) {
+            await supabase
+              .from('properties')
+              .update({
+                admin_category: adminCategory,
+                admin_rating: adminRating,
+                is_featured: isFeatured,
+                classification_date: new Date().toISOString(),
+                classified_by: user.id,
+              })
+              .eq('id', createdProperty.id);
+
+            if (featuredIndex >= 0 && images[featuredIndex]) {
+              const featuredUrl = images[featuredIndex];
+              await supabase
+                .from('property_photos')
+                .update({ is_main: false })
+                .eq('property_id', createdProperty.id);
+
+              const { error: mainPhotoError } = await supabase
+                .from('property_photos')
+                .update({ is_main: true })
+                .eq('property_id', createdProperty.id)
+                .eq('url', featuredUrl);
+
+              if (mainPhotoError) {
+                await supabase
+                  .from('property_photos')
+                  .update({ is_main: true })
+                  .eq('property_id', createdProperty.id)
+                  .eq('display_order', featuredIndex);
+              }
+
+              const reorderedImages = [
+                featuredUrl,
+                ...images.filter((url, index) => index !== featuredIndex && url !== featuredUrl),
+              ];
+              await supabase
+                .from('properties')
+                .update({ images: reorderedImages })
+                .eq('id', createdProperty.id);
+            }
+          }
+
+          bumpPublicPropertyListVersion();
+        }
 
         // Envoyer email de confirmation d'approbation
         try {

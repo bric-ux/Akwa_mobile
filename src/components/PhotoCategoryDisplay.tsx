@@ -17,6 +17,10 @@ import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
+import { bumpPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
+import {
+  buildPropertyImageUrls,
+} from '../utils/propertyPhotoUtils';
 import MediaThumb from './MediaThumb';
 import { getGalleryThumbUrl, getGalleryViewerUrl, isVideoUrl } from '../utils/media';
 
@@ -192,6 +196,42 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
       void ExpoImage.prefetch(urls, 'memory-disk');
     }
   }, []);
+
+  const setMainPhoto = useCallback(
+    async (photoId: string) => {
+      if (!propertyId) return;
+
+      await supabase
+        .from('property_photos')
+        .update({ is_main: false })
+        .eq('property_id', propertyId)
+        .eq('is_main', true);
+
+      const { error } = await supabase
+        .from('property_photos')
+        .update({ is_main: true })
+        .eq('id', photoId);
+
+      if (error) throw error;
+
+      const { data: photoRows } = await supabase
+        .from('property_photos')
+        .select('url, is_main, display_order')
+        .eq('property_id', propertyId);
+
+      if (photoRows?.length) {
+        const orderedUrls = buildPropertyImageUrls(photoRows);
+        await supabase
+          .from('properties')
+          .update({ images: orderedUrls })
+          .eq('id', propertyId);
+      }
+
+      bumpPublicPropertyListVersion();
+      onPhotoUpdate?.();
+    },
+    [onPhotoUpdate, propertyId],
+  );
 
   const allPhotosFlat = useMemo(
     () => [...photos].sort((a, b) => (a.display_order || 0) - (b.display_order || 0)),
@@ -452,28 +492,12 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                       onPress={async (e) => {
                         e.stopPropagation();
                         try {
-                          await supabase
-                            .from('property_photos')
-                            .update({ is_main: false })
-                            .eq('property_id', propertyId)
-                            .eq('is_main', true);
-                          
-                          const { error } = await supabase
-                            .from('property_photos')
-                            .update({ is_main: true })
-                            .eq('id', photo.id);
-                          
-                          if (error) throw error;
-                          
+                          await setMainPhoto(photo.id);
                           Alert.alert(
                             'Photo principale définie',
                             'Cette photo sera maintenant affichée en couverture.',
                             [{ text: 'OK' }]
                           );
-                          
-                          if (onPhotoUpdate) {
-                            onPhotoUpdate();
-                          }
                         } catch (error: any) {
                           console.error('Erreur lors de la définition de la photo principale:', error);
                           Alert.alert(
@@ -541,30 +565,12 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                       onPress={async (e) => {
                         e.stopPropagation();
                         try {
-                          // Désactiver toutes les autres photos principales
-                          await supabase
-                            .from('property_photos')
-                            .update({ is_main: false })
-                            .eq('property_id', propertyId)
-                            .eq('is_main', true);
-                          
-                          // Définir cette photo comme principale
-                          const { error } = await supabase
-                            .from('property_photos')
-                            .update({ is_main: true })
-                            .eq('id', photo.id);
-                          
-                          if (error) throw error;
-                          
+                          await setMainPhoto(photo.id);
                           Alert.alert(
                             'Photo principale définie',
                             'Cette photo sera maintenant affichée en couverture.',
                             [{ text: 'OK' }]
                           );
-                          
-                          if (onPhotoUpdate) {
-                            onPhotoUpdate();
-                          }
                         } catch (error: any) {
                           console.error('Erreur lors de la définition de la photo principale:', error);
                           Alert.alert(
@@ -614,28 +620,12 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                           onPress={async (e) => {
                             e.stopPropagation();
                             try {
-                              await supabase
-                                .from('property_photos')
-                                .update({ is_main: false })
-                                .eq('property_id', propertyId)
-                                .eq('is_main', true);
-                              
-                              const { error } = await supabase
-                                .from('property_photos')
-                                .update({ is_main: true })
-                                .eq('id', photo.id);
-                              
-                              if (error) throw error;
-                              
+                              await setMainPhoto(photo.id);
                               Alert.alert(
                                 'Photo principale définie',
                                 'Cette photo sera maintenant affichée en couverture.',
                                 [{ text: 'OK' }]
                               );
-                              
-                              if (onPhotoUpdate) {
-                                onPhotoUpdate();
-                              }
                             } catch (error: any) {
                               console.error('Erreur lors de la définition de la photo principale:', error);
                               Alert.alert(

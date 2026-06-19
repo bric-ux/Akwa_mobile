@@ -1,11 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import type { MonthlyRentalListing } from '../types';
-import {
-  getCachedMonthly,
-  monthlyCatalogKey,
-  setCachedMonthly,
-} from '../services/searchCatalogCache';
+import { monthlyCatalogKey, getCachedMonthly, setCachedMonthly } from '../services/searchCatalogCache';
+import { prefetchMonthlyShelfCovers } from '../utils/prefetchExploreShelfCovers';
 import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
 
 export interface ApprovedMonthlyFilters {
@@ -22,9 +19,18 @@ export interface ApprovedMonthlyFilters {
 
 /** Hook pour récupérer les annonces location longue durée approuvées (côté voyageur, public). */
 export const useApprovedMonthlyRentalListings = () => {
-  const [listings, setListings] = useState<MonthlyRentalListing[]>([]);
-  const [loading, setLoading] = useState(false);
+  const homeCacheKey = monthlyCatalogKey();
+  const [listings, setListings] = useState<MonthlyRentalListing[]>(
+    () => getCachedMonthly(homeCacheKey) ?? [],
+  );
+  const [loading, setLoading] = useState(() => (getCachedMonthly(homeCacheKey) ?? []).length === 0);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (listings.length > 0) {
+      prefetchMonthlyShelfCovers(listings);
+    }
+  }, []);
 
   const fetchListings = useCallback(
     async (filters?: ApprovedMonthlyFilters): Promise<MonthlyRentalListing[]> => {
@@ -32,6 +38,7 @@ export const useApprovedMonthlyRentalListings = () => {
       const cached = getCachedMonthly(cacheKey);
       if (cached) {
         setListings(cached);
+        prefetchMonthlyShelfCovers(cached);
         setLoading(false);
         return cached;
       }
@@ -85,6 +92,7 @@ export const useApprovedMonthlyRentalListings = () => {
         const result = (data || []) as MonthlyRentalListing[];
         setListings(result);
         setCachedMonthly(cacheKey, result);
+        prefetchMonthlyShelfCovers(result);
         return result;
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Erreur';

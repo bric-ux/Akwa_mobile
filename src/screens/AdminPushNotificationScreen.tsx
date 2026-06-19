@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -69,6 +72,34 @@ const AdminPushNotificationScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardInset(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardInset(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const scrollToFocusedField = useCallback((toEnd = false) => {
+    const delay = Platform.OS === 'ios' ? 80 : 120;
+    setTimeout(() => {
+      if (toEnd) {
+        scrollRef.current?.scrollToEnd({ animated: true });
+        return;
+      }
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }, delay);
+  }, []);
 
   const loadRecipients = useCallback(async (force = false) => {
     if (!force && initialLoadDone.current) return;
@@ -200,7 +231,23 @@ const AdminPushNotificationScreen: React.FC = () => {
           <Text style={styles.loadingText}>Chargement des destinataires…</Text>
         </View>
       ) : (
-        <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoid}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 4 : 0}
+        >
+          <ScrollView
+            ref={scrollRef}
+            style={styles.content}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: Math.max(40, keyboardInset > 0 ? keyboardInset * 0.35 : 40) },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            automaticallyAdjustKeyboardInsets
+            showsVerticalScrollIndicator={false}
+          >
           <Text style={styles.intro}>
             Envoyez un message uniquement en notification push sur l’application mobile. Seuls les
             utilisateurs ayant installé l’app et activé les notifications sont ciblés.
@@ -289,6 +336,7 @@ const AdminPushNotificationScreen: React.FC = () => {
             value={title}
             onChangeText={setTitle}
             maxLength={80}
+            onFocus={() => scrollToFocusedField(true)}
           />
           <Text style={styles.hint}>Corps du message (optionnel)</Text>
           <TextInput
@@ -299,6 +347,7 @@ const AdminPushNotificationScreen: React.FC = () => {
             onChangeText={setBody}
             textAlignVertical="top"
             maxLength={500}
+            onFocus={() => scrollToFocusedField(true)}
           />
 
           <Text style={styles.sectionTitle}>Envoyer</Text>
@@ -317,8 +366,9 @@ const AdminPushNotificationScreen: React.FC = () => {
             )}
           </TouchableOpacity>
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
+          <View style={{ height: 24 }} />
+          </ScrollView>
+        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );
@@ -338,7 +388,9 @@ const styles = StyleSheet.create({
   },
   backButton: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#333' },
-  content: { flex: 1, padding: 16 },
+  keyboardAvoid: { flex: 1 },
+  content: { flex: 1 },
+  scrollContent: { padding: 16, flexGrow: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   loadingText: { marginTop: 12, color: '#666' },
   deniedText: { color: '#666', fontSize: 16 },

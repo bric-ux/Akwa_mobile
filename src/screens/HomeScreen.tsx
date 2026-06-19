@@ -331,12 +331,7 @@ const HomeScreen: React.FC = () => {
   const exploreMonthlySection = useMemo(() => {
     if (!FEATURE_MONTHLY_RENTAL) return null;
     if (exploreMonthlyLoading && exploreMonthlyListings.length === 0) {
-      return (
-        <View style={styles.exploreHotelsWarmup}>
-          <View style={styles.exploreHotelsWarmupCard} />
-          <View style={styles.exploreHotelsWarmupCard} />
-        </View>
-      );
+      return null;
     }
     if (exploreMonthlyListings.length === 0) return null;
 
@@ -374,12 +369,7 @@ const HomeScreen: React.FC = () => {
 
   const exploreHotelsSection = useMemo(() => {
     if (exploreHotelsLoading && exploreHotels.length === 0) {
-      return (
-        <View style={styles.exploreHotelsWarmup}>
-          <View style={styles.exploreHotelsWarmupCard} />
-          <View style={styles.exploreHotelsWarmupCard} />
-        </View>
-      );
+      return null;
     }
     if (exploreHotels.length === 0) return null;
 
@@ -744,15 +734,7 @@ const HomeScreen: React.FC = () => {
   const listLoadingEmpty = exploreLoading && exploreSections.length === 0;
   const listEmptyComponent = useMemo(() => {
     if (listLoadingEmpty) {
-      return (
-        <View style={styles.warmupContainer}>
-          <View style={styles.warmupRow}>
-            <View style={styles.warmupCard} />
-            <View style={styles.warmupCard} />
-            <View style={styles.warmupCard} />
-          </View>
-        </View>
-      );
+      return null;
     }
     if (exploreFailureKind && exploreSections.length === 0) {
       return (

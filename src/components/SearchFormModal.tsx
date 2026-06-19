@@ -11,6 +11,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,6 +44,8 @@ type Props = {
   ) => void;
   onSearchPress: (query: string) => void;
   isSearching: boolean;
+  onNearbyPress?: () => void;
+  nearbyLoading?: boolean;
 };
 
 const SearchFormModal: React.FC<Props> = ({
@@ -65,6 +68,8 @@ const SearchFormModal: React.FC<Props> = ({
   onDateGuestsChange,
   onSearchPress,
   isSearching,
+  onNearbyPress,
+  nearbyLoading = false,
 }) => {
   const [showDestinationModal, setShowDestinationModal] = useState(false);
   const [destinationQuery, setDestinationQuery] = useState(currentSearchQuery);
@@ -159,6 +164,21 @@ const SearchFormModal: React.FC<Props> = ({
               </Text>
               <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
             </TouchableOpacity>
+
+            {rentalType !== 'monthly' && onNearbyPress ? (
+              <TouchableOpacity
+                style={styles.nearbyQuickBtn}
+                onPress={onNearbyPress}
+                disabled={nearbyLoading || isSearching}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="navigate" size={18} color="#2E7D32" />
+                <Text style={styles.nearbyQuickText}>Près de moi</Text>
+                {nearbyLoading ? (
+                  <ActivityIndicator size="small" color="#2E7D32" style={styles.nearbyQuickSpinner} />
+                ) : null}
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           {rentalType !== 'monthly' ? (
@@ -209,6 +229,15 @@ const SearchFormModal: React.FC<Props> = ({
         initialQuery={destinationQuery}
         onClose={() => setShowDestinationModal(false)}
         onSelect={handleDestinationSelect}
+        onNearbyPress={
+          rentalType !== 'monthly' && onNearbyPress
+            ? () => {
+                setShowDestinationModal(false);
+                onNearbyPress();
+              }
+            : undefined
+        }
+        nearbyLoading={nearbyLoading}
       />
       </View>
     </Modal>
@@ -338,6 +367,27 @@ const styles = StyleSheet.create({
   destinationPickerPlaceholder: {
     fontWeight: '400',
     color: '#9ca3af',
+  },
+  nearbyQuickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  nearbyQuickText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  nearbyQuickSpinner: {
+    marginLeft: 4,
   },
   datesGuestsField: {
     zIndex: 1,

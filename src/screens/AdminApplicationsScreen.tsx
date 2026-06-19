@@ -27,6 +27,12 @@ import { HostApplication } from '../hooks/useHostApplications';
 import { supabase } from '../services/supabase';
 import { getAmenityIcon } from '../utils/amenityIcons';
 import { useAmenities } from '../hooks/useAmenities';
+import {
+  getHostApplicationCoverUrl,
+  getHostApplicationPhotoCount,
+  getHostApplicationPhotoUrls,
+  getHostApplicationSortedPhotos,
+} from '../utils/hostApplicationPhotos';
 
 const AdminApplicationsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -264,7 +270,9 @@ const AdminApplicationsScreen: React.FC = () => {
 
   const renderApplicationItem = ({ item: application }: { item: HostApplication }) => {
     const statusInfo = getStatusBadge(application.status);
-    
+    const coverUrl = getHostApplicationCoverUrl(application);
+    const photoCount = getHostApplicationPhotoCount(application);
+
     return (
       <TouchableOpacity
         style={[
@@ -280,23 +288,35 @@ const AdminApplicationsScreen: React.FC = () => {
         }}
       >
         <View style={styles.applicationHeader}>
-          <View style={styles.applicationInfo}>
-            <Text style={styles.applicationTitle} numberOfLines={1}>
-              {application.title}
-            </Text>
-            <Text style={styles.applicationLocation} numberOfLines={1}>
-              📍 {application.location}
-            </Text>
-            <Text style={styles.applicationHost} numberOfLines={1}>
-              👤 {application.full_name}
-            </Text>
-            <Text style={styles.applicationEmail} numberOfLines={1}>
-              📧 {application.email}
-            </Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusInfo.color }]}>
-            <Ionicons name={statusInfo.icon as any} size={12} color="#fff" />
-            <Text style={styles.statusText}>{statusInfo.text}</Text>
+          {coverUrl ? (
+            <Image source={{ uri: coverUrl }} style={styles.applicationThumb} resizeMode="cover" />
+          ) : (
+            <View style={styles.applicationThumbPlaceholder}>
+              <Ionicons name="image-outline" size={28} color="#94a3b8" />
+            </View>
+          )}
+
+          <View style={styles.applicationHeaderContent}>
+            <View style={styles.applicationTitleRow}>
+              <View style={styles.applicationInfo}>
+                <Text style={styles.applicationTitle} numberOfLines={2}>
+                  {application.title}
+                </Text>
+                <Text style={styles.applicationLocation} numberOfLines={1}>
+                  📍 {application.location}
+                </Text>
+                <Text style={styles.applicationHost} numberOfLines={1}>
+                  👤 {application.full_name}
+                </Text>
+                <Text style={styles.applicationEmail} numberOfLines={1}>
+                  📧 {application.email}
+                </Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: statusInfo.color }]}>
+                <Ionicons name={statusInfo.icon as any} size={12} color="#fff" />
+                <Text style={styles.statusText}>{statusInfo.text}</Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -351,21 +371,7 @@ const AdminApplicationsScreen: React.FC = () => {
             <Text style={styles.actionButtonText}>Voir détails</Text>
           </TouchableOpacity>
           
-          {(() => {
-            let photoCount = 0;
-            if (application.images && application.images.length > 0) {
-              photoCount = application.images.length;
-            } else if (application.categorized_photos) {
-              try {
-                const photos = typeof application.categorized_photos === 'string' 
-                  ? JSON.parse(application.categorized_photos) 
-                  : application.categorized_photos;
-                photoCount = Array.isArray(photos) ? photos.length : 0;
-              } catch (e) {
-                photoCount = 0;
-              }
-            }
-            return photoCount > 0 ? (
+          {photoCount > 0 ? (
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => {
@@ -377,8 +383,7 @@ const AdminApplicationsScreen: React.FC = () => {
                 <Ionicons name="images-outline" size={16} color="#e67e22" />
                 <Text style={styles.actionButtonText}>Photos ({photoCount})</Text>
               </TouchableOpacity>
-            ) : null;
-          })()}
+            ) : null}
         </View>
       </TouchableOpacity>
     );
@@ -952,27 +957,9 @@ const AdminApplicationsScreen: React.FC = () => {
     if (!selectedApp || !showPhotos) return null;
 
     // Parser les photos catégorisées si disponibles
-    let categorizedPhotos: Array<{url: string, category: string, displayOrder: number}> = [];
-    let images: string[] = [];
-    
-    if (selectedApp.categorized_photos) {
-      try {
-        if (typeof selectedApp.categorized_photos === 'string') {
-          categorizedPhotos = JSON.parse(selectedApp.categorized_photos);
-        } else if (Array.isArray(selectedApp.categorized_photos)) {
-          categorizedPhotos = selectedApp.categorized_photos;
-        }
-        images = categorizedPhotos.map(p => p.url || p.uri).filter(Boolean);
-      } catch (e) {
-        console.error('Error parsing categorized_photos:', e);
-      }
-    }
-    
-    // Fallback sur images simple si pas de photos catégorisées
-    if (images.length === 0 && selectedApp.images) {
-      images = selectedApp.images;
-    }
-    
+    const images = getHostApplicationPhotoUrls(selectedApp);
+    const categorizedPhotos = getHostApplicationSortedPhotos(selectedApp);
+
     if (images.length === 0) return null;
 
     const currentPhoto = images[selectedPhotoIndex];
@@ -1412,13 +1399,34 @@ const styles = StyleSheet.create({
   },
   applicationHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: 12,
     marginBottom: 10,
+  },
+  applicationThumb: {
+    width: 92,
+    height: 92,
+    borderRadius: 12,
+    backgroundColor: '#e9ecef',
+  },
+  applicationThumbPlaceholder: {
+    width: 92,
+    height: 92,
+    borderRadius: 12,
+    backgroundColor: '#e9ecef',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applicationHeaderContent: {
+    flex: 1,
+  },
+  applicationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
   },
   applicationInfo: {
     flex: 1,
-    marginRight: 10,
   },
   applicationTitle: {
     fontSize: 16,

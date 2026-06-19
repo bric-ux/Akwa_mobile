@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { Property } from '../types';
+import {
+  buildPropertyImageUrls,
+  sortPropertyPhotosMainFirst,
+} from '../utils/propertyPhotoUtils';
 
 export interface SavedProperty {
   id: string;
@@ -162,14 +166,8 @@ export const useFavorites = () => {
         
         // Traiter les photos catégorisées
         const categorizedPhotos = property.property_photos || [];
-        const sortedPhotos = categorizedPhotos.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-        
-        // Créer un tableau d'images pour la compatibilité avec l'ancien système
-        const imageUrls = sortedPhotos.map(photo => photo.url);
-        
-        // Si pas de photos catégorisées, utiliser l'ancien système
-        const fallbackImages = property.images || [];
-        const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+        const sortedPhotos = sortPropertyPhotosMainFirst(categorizedPhotos);
+        const finalImages = buildPropertyImageUrls(sortedPhotos, property.images || []);
         
         return {
           ...property,

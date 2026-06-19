@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { Property, SearchFilters, Amenity } from '../types';
 import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
+import {
+  buildPropertyImageUrls,
+  sortPropertyPhotosMainFirst,
+} from '../utils/propertyPhotoUtils';
 
 /** Date de référence pour le prix affiché en liste : arrivée recherchée ou aujourd’hui */
 function getRefDateStrForListPricing(filters?: SearchFilters): string {
@@ -398,8 +402,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       // Récupérer les location_ids à filtrer
       let locationIds: string[] | null = null;
       
-      // Recherche par ville
-      if (filters?.city) {
+      // Recherche par ville (ignorée pour « Près de moi »)
+      if (filters?.city && !filters.nearbySearch) {
         const searchTerm = filters.city.trim();
         const { data: cityData } = await supabase
           .from('locations')
@@ -764,10 +768,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         const finalReviewCount = calculatedRating.review_count || property.review_count || 0;
 
         const categorizedPhotos = property.property_photos || [];
-        const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
-        const imageUrls = sortedPhotos.map((photo: any) => photo.url);
-        const fallbackImages = property.images || [];
-        const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+        const sortedPhotos = sortPropertyPhotosMainFirst(categorizedPhotos);
+        const finalImages = buildPropertyImageUrls(sortedPhotos, property.images || []);
 
         if (__DEV__ && property.title?.toLowerCase().includes('haut standing')) {
           console.log('🏠 useProperties - Transformation des données:', {
@@ -898,10 +900,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
 
       // Traiter les photos (sans attendre le rating — en parallèle avec équipements)
       const categorizedPhotos = data.property_photos || [];
-      const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
-      const imageUrls = sortedPhotos.map((photo: any) => photo.url);
-      const fallbackImages = data.images || [];
-      const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+      const sortedPhotos = sortPropertyPhotosMainFirst(categorizedPhotos);
+      const finalImages = buildPropertyImageUrls(sortedPhotos, data.images || []);
 
       // Rating + équipements en parallèle (moins de latence à l’ouverture fiche propriété)
       const [calculatedRating, mappedAmenities] = await Promise.all([
@@ -1074,8 +1074,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       // Récupérer les location_ids à filtrer
       let locationIds: string[] | null = null;
       
-      // Recherche par ville
-      if (filters?.city) {
+      // Recherche par ville (ignorée pour « Près de moi »)
+      if (filters?.city && !filters.nearbySearch) {
         const searchTerm = filters.city.trim();
         const { data: cityData } = await supabase
           .from('locations')
@@ -1228,14 +1228,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
 
           // Traiter les photos catégorisées
           const categorizedPhotos = property.property_photos || [];
-          const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
-          
-          // Créer un tableau d'images pour la compatibilité avec l'ancien système
-          const imageUrls = sortedPhotos.map((photo: any) => photo.url);
-          
-          // Si pas de photos catégorisées, utiliser l'ancien système
-          const fallbackImages = property.images || [];
-          const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+          const sortedPhotos = sortPropertyPhotosMainFirst(categorizedPhotos);
+          const finalImages = buildPropertyImageUrls(sortedPhotos, property.images || []);
 
           // Debug pour la propriété "haut standing" dans refreshProperties
           if (property.title && property.title.toLowerCase().includes('haut standing')) {
@@ -1245,10 +1239,6 @@ export const useProperties = (options?: UsePropertiesOptions) => {
               categorizedPhotosLength: categorizedPhotos.length,
               sortedPhotos: sortedPhotos,
               sortedPhotosLength: sortedPhotos.length,
-              imageUrls: imageUrls,
-              imageUrlsLength: imageUrls.length,
-              fallbackImages: fallbackImages,
-              fallbackImagesLength: fallbackImages.length,
               finalImages: finalImages,
               finalImagesLength: finalImages.length
             });

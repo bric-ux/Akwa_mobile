@@ -8,6 +8,20 @@ import { getAmenityIcon } from '../utils/amenityIcons';
 import { logError } from '../utils/logger';
 import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
 import {
+  EXPLORE_HOME_CACHE_TTL_MS,
+  getExploreHomeCache,
+  setExploreHomeCache,
+} from '../utils/exploreHomeCache';
+import {
+  buildPropertyImageUrls,
+  sortPropertyPhotosMainFirst,
+} from '../utils/propertyPhotoUtils';
+import {
+  loadPersistedExploreHomeSections,
+  persistExploreHomeSections,
+} from '../utils/exploreHomeStorage';
+import { prefetchExploreHomeSectionCovers } from '../utils/prefetchExploreShelfCovers';
+import {
   buildLayoutSections,
   cityLabel,
   sortByHomeFeatured,
@@ -18,12 +32,6 @@ import {
   PER_CITY_LIMIT,
 } from '../utils/exploreCityLayout';
 import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
-
-const EXPLORE_HOME_CACHE_TTL_MS = 2 * 60 * 1000;
-let exploreHomeCache: {
-  sections: ExploreCitySection[];
-  at: number;
-} | null = null;
 
 function getRefDateStrForListPricing(filters?: SearchFilters): string {
   if (filters?.checkIn) {
@@ -164,12 +172,8 @@ async function transformRowsToProperties(rows: any[]): Promise<Property[]> {
       const finalReviewCount = calculatedRating.review_count || property.review_count || 0;
 
       const categorizedPhotos = property.property_photos || [];
-      const sortedPhotos = categorizedPhotos.sort(
-        (a: any, b: any) => (a.display_order || 0) - (b.display_order || 0),
-      );
-      const imageUrls = sortedPhotos.map((photo: any) => photo.url);
-      const fallbackImages = property.images || [];
-      const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+      const sortedPhotos = sortPropertyPhotosMainFirst(categorizedPhotos);
+      const finalImages = buildPropertyImageUrls(sortedPhotos, property.images || []);
 
       const location = (property as any).locations;
       const latitude = location?.latitude || property.latitude;
@@ -267,12 +271,8 @@ async function transformRowsToPropertiesLight(rows: any[]): Promise<Property[]> 
     const allAmenities = [...mappedAmenities, ...customAmenitiesList];
 
     const categorizedPhotos = property.property_photos || [];
-    const sortedPhotos = categorizedPhotos.sort(
-      (a: any, b: any) => (a.display_order || 0) - (b.display_order || 0),
-    );
-    const imageUrls = sortedPhotos.map((photo: any) => photo.url);
-    const fallbackImages = property.images || [];
-    const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
+    const sortedPhotos = sortPropertyPhotosMainFirst(categorizedPhotos);
+    const finalImages = buildPropertyImageUrls(sortedPhotos, property.images || []);
 
     const location = (property as any).locations;
     const latitude = location?.latitude || property.latitude;
@@ -422,24 +422,32 @@ export function useExploreCityHome() {
       }));
       const lightSections = buildLayoutSections(lightGroups);
       setLayoutSections(lightSections);
-      exploreHomeCache = { sections: lightSections, at: Date.now() };
+      setExploreHomeCache(lightSections);
+      persistExploreHomeSections(lightSections);
+      prefetchExploreHomeSectionCovers(lightSections);
+      if (!background) {
+        setLoading(false);
+      }
 
-      // Enrichissement différé (prix dynamiques + ratings batch) sans bloquer le 1er scroll.
-      await new Promise<void>((resolve) => {
-        InteractionManager.runAfterInteractions(() => resolve());
-      });
-      const enrichedList = await transformRowsToProperties(uniqueRows);
-      const enrichedById = new Map(enrichedList.map((p) => [p.id, p]));
-      const enrichedGroups: CityGroup<Property>[] = rawGroups.map((g) => ({
-        ...g,
-        properties: g.properties
-          .map((raw) => enrichedById.get(raw.id))
-          .filter(Boolean) as Property[],
-      }));
+      void (async () => {
+        await new Promise<void>((resolve) => {
+          InteractionManager.runAfterInteractions(() => resolve());
+        });
+        const enrichedList = await transformRowsToProperties(uniqueRows);
+        const enrichedById = new Map(enrichedList.map((p) => [p.id, p]));
+        const enrichedGroups: CityGroup<Property>[] = rawGroups.map((g) => ({
+          ...g,
+          properties: g.properties
+            .map((raw) => enrichedById.get(raw.id))
+            .filter(Boolean) as Property[],
+        }));
 
-      const enrichedSections = buildLayoutSections(enrichedGroups);
-      setLayoutSections(enrichedSections);
-      exploreHomeCache = { sections: enrichedSections, at: Date.now() };
+        const enrichedSections = buildLayoutSections(enrichedGroups);
+        setLayoutSections(enrichedSections);
+        setExploreHomeCache(enrichedSections);
+        persistExploreHomeSections(enrichedSections);
+        prefetchExploreHomeSectionCovers(enrichedSections);
+      })();
     } catch (e) {
       logError('[useExploreCityHome] load', e);
       setError('Erreur lors du chargement des annonces');
@@ -454,16 +462,35 @@ export function useExploreCityHome() {
   }, []);
 
   useEffect(() => {
-    const now = Date.now();
-    const hasWarmCache =
-      !!exploreHomeCache && now - exploreHomeCache.at < EXPLORE_HOME_CACHE_TTL_MS;
-    if (hasWarmCache && exploreHomeCache) {
-      setLayoutSections(exploreHomeCache.sections);
-      setLoading(false);
-      load({ background: true });
-      return;
-    }
-    load();
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      const now = Date.now();
+      const memoryCache = getExploreHomeCache();
+      if (memoryCache && now - memoryCache.at < EXPLORE_HOME_CACHE_TTL_MS) {
+        setLayoutSections(memoryCache.sections);
+        prefetchExploreHomeSectionCovers(memoryCache.sections);
+        setLoading(false);
+        void load({ background: true });
+        return;
+      }
+
+      const persisted = await loadPersistedExploreHomeSections();
+      if (!cancelled && persisted && persisted.length > 0) {
+        setLayoutSections(persisted);
+        prefetchExploreHomeSectionCovers(persisted);
+        setLoading(false);
+      }
+
+      if (!cancelled) {
+        await load({ background: !!(persisted && persisted.length > 0) });
+      }
+    };
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
 
   useFocusEffect(

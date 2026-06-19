@@ -198,7 +198,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               fitWholeImage={!isHomeShelf}
               isVideo={isVideoUrl(uri)}
               priority={isHomeShelf ? 'high' : 'low'}
-              recyclingKey={`${property.id}-${recyclingSuffix}`}
+              recyclingKey={`${property.id}-${recyclingSuffix}-${uri}`}
             />
           }
         />

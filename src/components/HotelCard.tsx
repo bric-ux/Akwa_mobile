@@ -102,11 +102,6 @@ const HotelCard: React.FC<HotelCardProps> = ({
           contentFit="cover"
           transition={200}
         />
-        <View style={styles.typeBadge}>
-          <Text style={styles.typeBadgeText}>
-            {getEstablishmentTypeLabel(establishment.establishment_type)}
-          </Text>
-        </View>
         {minPrice != null && (
           <View style={styles.priceBadge}>
             <Text style={styles.priceText}>
@@ -186,20 +181,6 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-  },
-  typeBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: HOTEL_COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  typeBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
   },
   priceBadge: {
     position: 'absolute',

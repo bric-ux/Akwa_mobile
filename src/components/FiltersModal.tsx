@@ -194,6 +194,9 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       radiusKm: undefined,
       centerLat: undefined,
       centerLng: undefined,
+      nearbySearch: undefined,
+      centerLat: undefined,
+      centerLng: undefined,
     };
 
     if (effectiveContext === 'monthly') {

@@ -4,6 +4,7 @@ import type { HotelEstablishment, HotelFilters } from '../types';
 import { getActiveRoomTypes, getMinRoomPrice } from '../lib/hotelUtils';
 import { getCachedHotels, setCachedHotels } from '../services/searchCatalogCache';
 import { LOCATION_WITH_PARENT_SELECT } from '../utils/locationLabel';
+import { isWithinRadius } from '../utils/distance';
 
 const ESTABLISHMENT_SELECT = `
   id,
@@ -78,7 +79,20 @@ function matchesFilters(establishment: HotelEstablishment, filters?: HotelFilter
     return false;
   }
 
-  if (filters.search?.trim()) {
+  if (
+    filters.nearbySearch &&
+    filters.centerLat != null &&
+    filters.centerLng != null &&
+    filters.radiusKm != null &&
+    filters.radiusKm > 0
+  ) {
+    const lat = establishment.latitude ?? establishment.locations?.latitude;
+    const lng = establishment.longitude ?? establishment.locations?.longitude;
+    if (lat == null || lng == null) return false;
+    if (!isWithinRadius(filters.centerLat, filters.centerLng, lat, lng, filters.radiusKm)) {
+      return false;
+    }
+  } else if (filters.search?.trim()) {
     const q = filters.search.trim().toLowerCase();
     const location = establishment.locations?.name?.toLowerCase() ?? '';
     const address = establishment.address?.toLowerCase() ?? '';

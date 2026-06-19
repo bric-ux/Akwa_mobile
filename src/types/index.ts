@@ -214,6 +214,8 @@ export interface SearchFilters {
   centerLat?: number; // Latitude du centre de recherche
   centerLng?: number; // Longitude du centre de recherche
   radiusKm?: number; // Rayon de recherche en kilomètres
+  /** Recherche GPS « Près de moi » — ignore le filtre ville. */
+  nearbySearch?: boolean;
   // Tri des résultats
   sortBy?: 'popular' | 'price_asc' | 'price_desc' | 'rating_desc' | 'recent' | '';
   // Type de logement : résidence meublée (court séjour) ou location longue durée
@@ -552,6 +554,10 @@ export interface HotelFilters {
   guests?: number;
   starRatingMin?: number;
   amenities?: string[];
+  centerLat?: number;
+  centerLng?: number;
+  radiusKm?: number;
+  nearbySearch?: boolean;
 }
 
 export interface Vehicle {

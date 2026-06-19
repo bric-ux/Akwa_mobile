@@ -33,18 +33,25 @@ import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { HOTEL_COLORS } from '../constants/colors';
 import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
+import { requestDeviceLocation } from '../utils/getDeviceLocation';
+import { DEFAULT_NEARBY_RADIUS_KM, NEARBY_SEARCH_LABEL } from '../constants/nearbySearch';
 
 const SEARCH_LIST_PAGE_SIZE = 30;
 
 function buildHotelSearchFilters(filters: SearchFilters, query: string): HotelFilters {
+  const nearby = Boolean(filters.nearbySearch);
   return {
-    search: (query || filters.city || '').trim() || undefined,
+    search: nearby ? undefined : (query || filters.city || '').trim() || undefined,
     priceMin: filters.priceMin,
     priceMax: filters.priceMax,
     guests: filters.guests,
     establishmentType: filters.establishmentType,
     starRatingMin: filters.starRatingMin,
     amenities: filters.amenities,
+    centerLat: filters.centerLat,
+    centerLng: filters.centerLng,
+    radiusKm: filters.radiusKm,
+    nearbySearch: filters.nearbySearch,
   };
 }
 
@@ -234,12 +241,16 @@ const SearchScreen: React.FC = () => {
   const fetchShortTermResults = useCallback(
     async (searchFilters: SearchFilters, query: string) => {
       const acc = searchFilters.accommodationType ?? 'all';
+      const cityQuery = searchFilters.nearbySearch ? '' : query;
+      const propertyFilters = searchFilters.nearbySearch
+        ? { ...searchFilters, city: undefined }
+        : { ...searchFilters, city: query };
       const tasks: Promise<unknown>[] = [];
       if (acc === 'all' || acc === 'property') {
-        tasks.push(fetchProperties({ ...searchFilters, city: query }));
+        tasks.push(fetchProperties(propertyFilters));
       }
       if (acc === 'all' || acc === 'hotel') {
-        tasks.push(fetchEstablishments(buildHotelSearchFilters(searchFilters, query)));
+        tasks.push(fetchEstablishments(buildHotelSearchFilters(searchFilters, cityQuery)));
       }
       await Promise.all(tasks);
     },
@@ -280,6 +291,10 @@ const SearchScreen: React.FC = () => {
 
   useEffect(() => {
     if (!hasSubmittedSearch || rentalType !== 'short_term') return;
+    if (filters.nearbySearch) {
+      void fetchShortTermResults(filters, '');
+      return;
+    }
     if (shortTermSearchQuery) {
       void fetchShortTermResults({ ...filters, city: shortTermSearchQuery }, shortTermSearchQuery);
     } else {
@@ -297,7 +312,10 @@ const SearchScreen: React.FC = () => {
       }
       if (v > lastHandledCatalogVersionRef.current) {
         lastHandledCatalogVersionRef.current = v;
-        if (shortTermSearchQuery) {
+        if (filters.nearbySearch) {
+          void refreshProperties({ ...filters, city: undefined });
+          if (showHotels) void refetchHotels();
+        } else if (shortTermSearchQuery) {
           void refreshProperties({ ...filters, city: shortTermSearchQuery });
           if (showHotels) void refetchHotels();
         } else {
@@ -312,7 +330,9 @@ const SearchScreen: React.FC = () => {
     if (!hasSubmittedSearch || rentalType !== 'short_term') return;
     setRefreshing(true);
     try {
-      if (shortTermSearchQuery) {
+      if (filters.nearbySearch) {
+        await fetchShortTermResults(filters, '');
+      } else if (shortTermSearchQuery) {
         await fetchShortTermResults({ ...filters, city: shortTermSearchQuery }, shortTermSearchQuery);
       } else {
         await fetchShortTermResults(filters, '');
@@ -333,11 +353,98 @@ const SearchScreen: React.FC = () => {
     setRecentSearches(['Abidjan', 'Yamoussoukro', 'Grand-Bassam']);
   }, []);
 
+  const handleNearbySearch = useCallback(async () => {
+    if (rentalType === 'monthly') {
+      Alert.alert(
+        'Court séjour uniquement',
+        'La recherche autour de vous est disponible pour les résidences et hôtels (court séjour).',
+      );
+      return;
+    }
+
+    Keyboard.dismiss();
+    setIsSearching(true);
+
+    try {
+      const coords = await requestDeviceLocation();
+      if (!coords) return;
+
+      const nearbyFilters: SearchFilters = {
+        ...filters,
+        rentalType: 'short_term',
+        nearbySearch: true,
+        centerLat: coords.latitude,
+        centerLng: coords.longitude,
+        radiusKm: DEFAULT_NEARBY_RADIUS_KM,
+        city: undefined,
+        checkIn,
+        checkOut,
+        adults,
+        children,
+        babies,
+        guests: adults + children + babies,
+      };
+
+      setShortTermSearchQuery(NEARBY_SEARCH_LABEL);
+      setSelectedLocation({ lat: coords.latitude, lng: coords.longitude });
+      setFilters(nearbyFilters);
+      setHasSubmittedSearch(true);
+      setShowSearchForm(false);
+      await fetchShortTermResults(nearbyFilters, '');
+    } catch (err) {
+      console.error('Erreur recherche autour de moi:', err);
+      Alert.alert(
+        'Position indisponible',
+        'Impossible d’obtenir votre position. Réessayez ou choisissez une ville.',
+      );
+    } finally {
+      setIsSearching(false);
+    }
+  }, [
+    rentalType,
+    filters,
+    checkIn,
+    checkOut,
+    adults,
+    children,
+    babies,
+    fetchShortTermResults,
+  ]);
+
   const handleSearch = async (query: string, options?: { forceFetch?: boolean }) => {
     if (rentalType === 'monthly') {
       setMonthlySearchQuery(query);
     } else {
       setShortTermSearchQuery(query);
+    }
+
+    if (
+      rentalType !== 'monthly' &&
+      filters.nearbySearch &&
+      filters.centerLat &&
+      filters.centerLng &&
+      query === NEARBY_SEARCH_LABEL
+    ) {
+      if (!hasSubmittedSearch && !options?.forceFetch) return;
+      setIsSearching(true);
+      try {
+        const searchFilters: SearchFilters = {
+          ...filters,
+          city: undefined,
+          checkIn,
+          checkOut,
+          adults,
+          children,
+          babies,
+          guests: adults + children + babies,
+          radiusKm: filters.radiusKm ?? DEFAULT_NEARBY_RADIUS_KM,
+          nearbySearch: true,
+        };
+        await fetchShortTermResults(searchFilters, '');
+      } finally {
+        setIsSearching(false);
+      }
+      return;
     }
 
     if (!query.trim()) {
@@ -349,7 +456,14 @@ const SearchScreen: React.FC = () => {
           await fetchMonthlyListings({});
         } else {
           await fetchShortTermResults(
-            { ...filters, city: '', centerLat: undefined, centerLng: undefined },
+            {
+              ...filters,
+              city: '',
+              centerLat: undefined,
+              centerLng: undefined,
+              radiusKm: undefined,
+              nearbySearch: undefined,
+            },
             '',
           );
         }
@@ -386,62 +500,23 @@ const SearchScreen: React.FC = () => {
       }
       
       try {
-        // Si un rayon est spécifié, récupérer les coordonnées de la localisation
-        let centerLat: number | undefined = filters.centerLat;
-        let centerLng: number | undefined = filters.centerLng;
-        
-        // Si un rayon est défini mais pas de coordonnées, les récupérer
-        if (filters.radiusKm && filters.radiusKm > 0 && (!centerLat || !centerLng)) {
-          try {
-            // Chercher la localisation dans la base de données
-            const { data: locationData } = await supabase
-              .from('locations')
-              .select('id, name, latitude, longitude, type')
-              .or(`name.ilike.%${query.trim()}%,name.eq.${query.trim()}`)
-              .limit(1)
-              .single();
-            
-            if (locationData?.latitude && locationData?.longitude) {
-              centerLat = locationData.latitude;
-              centerLng = locationData.longitude;
-              setSelectedLocation({ lat: centerLat, lng: centerLng });
-              console.log(`📍 Coordonnées trouvées pour "${query}": [${centerLat}, ${centerLng}]`);
-            } else {
-              // Si pas trouvé, chercher dans les villes, communes, quartiers
-              const { data: locations } = await supabase
-                .from('locations')
-                .select('latitude, longitude')
-                .or(`name.ilike.%${query.trim()}%`)
-                .limit(1)
-                .single();
-              
-              if (locations?.latitude && locations?.longitude) {
-                centerLat = locations.latitude;
-                centerLng = locations.longitude;
-                setSelectedLocation({ lat: centerLat, lng: centerLng });
-                console.log(`📍 Coordonnées trouvées (recherche large) pour "${query}": [${centerLat}, ${centerLng}]`);
-              }
-            }
-          } catch (err) {
-            console.error('Erreur lors de la récupération des coordonnées:', err);
-            // Continuer sans coordonnées si erreur
-          }
-        }
-        
         // Construire les filtres de recherche
         const searchFilters: SearchFilters = {
           ...filters,
           city: query,
+          nearbySearch: false,
+          centerLat: undefined,
+          centerLng: undefined,
+          radiusKm: undefined,
           checkIn,
           checkOut,
           adults,
           children,
           babies,
           guests: adults + children + babies,
-          // Ajouter les coordonnées si trouvées et qu'un rayon est défini
-          centerLat: filters.radiusKm && filters.radiusKm > 0 ? centerLat : undefined,
-          centerLng: filters.radiusKm && filters.radiusKm > 0 ? centerLng : undefined,
         };
+        setFilters(searchFilters);
+        setSelectedLocation(null);
         
         if (rentalType === 'monthly') {
           await fetchMonthlyListings({ city: query || undefined });
@@ -469,7 +544,7 @@ const SearchScreen: React.FC = () => {
       centerLat = suggestion.latitude;
       centerLng = suggestion.longitude;
       setSelectedLocation({ lat: centerLat, lng: centerLng });
-    } else if (suggestion.id) {
+    } else if (suggestion.id && !suggestion.id.startsWith('nearby_')) {
       // Si on a un ID mais pas de coordonnées, les récupérer depuis la base
       try {
         const { data } = await supabase
@@ -492,16 +567,16 @@ const SearchScreen: React.FC = () => {
     const newFilters: SearchFilters = {
       ...filters,
       city: suggestion.text,
+      nearbySearch: false,
+      centerLat: undefined,
+      centerLng: undefined,
+      radiusKm: undefined,
       checkIn,
       checkOut,
       adults,
       children,
       babies,
       guests: adults + children + babies,
-      centerLat,
-      centerLng,
-      // Garder le rayon si déjà défini
-      radiusKm: filters.radiusKm
     };
     setFilters(newFilters);
   };
@@ -584,7 +659,7 @@ const SearchScreen: React.FC = () => {
     }
     const searchFilters = {
       ...newFilters,
-      city: shortTermSearchQuery,
+      city: newFilters.nearbySearch ? undefined : shortTermSearchQuery,
       checkIn,
       checkOut,
       adults,
@@ -592,7 +667,10 @@ const SearchScreen: React.FC = () => {
       babies,
       guests: adults + children + babies,
     };
-    void fetchShortTermResults(searchFilters, shortTermSearchQuery);
+    void fetchShortTermResults(
+      searchFilters,
+      newFilters.nearbySearch ? '' : shortTermSearchQuery,
+    );
   };
 
 
@@ -608,11 +686,16 @@ const SearchScreen: React.FC = () => {
       setMonthlySearchQuery('');
       fetchMonthlyListings({});
     } else {
-      setShortTermSearchQuery(''); // Effacer aussi la ville de recherche
+      setShortTermSearchQuery('');
+      setSelectedLocation(null);
       void fetchShortTermResults(
         {
           ...clearedFilters,
           city: '',
+          centerLat: undefined,
+          centerLng: undefined,
+          radiusKm: undefined,
+          nearbySearch: undefined,
           checkIn,
           checkOut,
           adults,
@@ -635,10 +718,18 @@ const SearchScreen: React.FC = () => {
 
     if (!query) {
       Alert.alert(
-        'Ville requise',
-        'Veuillez choisir une ville ou un quartier pour effectuer la recherche.',
+        'Destination requise',
+        'Choisissez une ville, un quartier ou utilisez « Près de moi ».',
         [{ text: 'OK' }]
       );
+      return;
+    }
+
+    if (query === NEARBY_SEARCH_LABEL && filters.nearbySearch) {
+      Keyboard.dismiss();
+      setHasSubmittedSearch(true);
+      setShowSearchForm(false);
+      await handleSearch(query, { forceFetch: true });
       return;
     }
 
@@ -690,8 +781,11 @@ const SearchScreen: React.FC = () => {
     setFilters(newFilters);
     if (hasSubmittedSearch) {
       void fetchShortTermResults(
-        { ...newFilters, city: shortTermSearchQuery },
-        shortTermSearchQuery,
+        {
+          ...newFilters,
+          city: newFilters.nearbySearch ? undefined : shortTermSearchQuery,
+        },
+        newFilters.nearbySearch ? '' : shortTermSearchQuery,
       );
     }
   };
@@ -926,12 +1020,18 @@ const SearchScreen: React.FC = () => {
         <View style={styles.noResultsContainer}>
           <Ionicons name="search" size={64} color="#ccc" />
           <Text style={styles.noResultsTitle}>
-            {shortTermSearchQuery ? `Aucun hébergement trouvé à ${shortTermSearchQuery}` : 'Aucun résultat trouvé'}
+            {filters.nearbySearch
+              ? `Aucun hébergement dans un rayon de ${filters.radiusKm ?? DEFAULT_NEARBY_RADIUS_KM} km`
+              : shortTermSearchQuery
+                ? `Aucun hébergement trouvé à ${shortTermSearchQuery}`
+                : 'Aucun résultat trouvé'}
           </Text>
           <Text style={styles.noResultsSubtitle}>
-            {shortTermSearchQuery
-              ? 'Essayez une autre ville, changez le type (hôtel / résidence) ou ajustez vos filtres.'
-              : 'Commencez par rechercher une ville ou un quartier.'}
+            {filters.nearbySearch
+              ? 'Élargissez la zone, changez le type (hôtel / résidence) ou ajustez vos filtres.'
+              : shortTermSearchQuery
+                ? 'Essayez une autre ville, changez le type (hôtel / résidence) ou ajustez vos filtres.'
+                : 'Commencez par rechercher une ville, un quartier ou utilisez « Près de moi ».'}
           </Text>
           <View style={styles.suggestionsContainer}>
             <Text style={styles.suggestionsTitle}>Villes et quartiers disponibles :</Text>
@@ -1030,6 +1130,8 @@ const SearchScreen: React.FC = () => {
         onDateGuestsChange={handleDateGuestsChange}
         onSearchPress={handleSearchButtonPress}
         isSearching={isSearching}
+        onNearbyPress={handleNearbySearch}
+        nearbyLoading={isSearching}
       />
 
       <FiltersModal
