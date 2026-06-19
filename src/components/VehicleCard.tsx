@@ -129,12 +129,6 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
                   resizeMode="cover"
                   isVideo={isVideoUrl(coverUri)}
                 />
-                {hasMultipleImages && (
-                  <View style={styles.imageCountBadge}>
-                    <Ionicons name="images-outline" size={14} color="#fff" />
-                    <Text style={styles.imageCountText}>{vehicleImages.length}</Text>
-                  </View>
-                )}
               </View>
             ) : (
               // En mode grille, l'image est cliquable pour ouvrir la galerie
@@ -149,12 +143,6 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
                   resizeMode="cover"
                   isVideo={isVideoUrl(coverUri)}
                 />
-                {hasMultipleImages && (
-                  <View style={styles.imageCountBadge}>
-                    <Ionicons name="images-outline" size={14} color="#fff" />
-                    <Text style={styles.imageCountText}>{vehicleImages.length}</Text>
-                  </View>
-                )}
               </TouchableOpacity>
             )}
             
@@ -178,8 +166,8 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
             >
               <Ionicons
                 name={isFavorited ? 'heart' : 'heart-outline'}
-                size={22}
-                color={isFavorited ? '#ef4444' : '#fff'}
+                size={18}
+                color={isFavorited ? '#e74c3c' : '#fff'}
               />
             </TouchableOpacity>
           </View>
@@ -372,23 +360,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 220,
   },
-  imageCountBadge: {
-    position: 'absolute',
-    bottom: 26,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
-  },
-  imageCountText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
   priceOverlay: {
     position: 'absolute',
     top: 12,
@@ -412,20 +383,17 @@ const styles = StyleSheet.create({
   },
   favoriteButton: {
     position: 'absolute',
-    bottom: 26,
-    right: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    top: 12,
+    left: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
     zIndex: 4,
   },
   favoriteButtonActive: {
-    borderColor: '#ef4444',
     backgroundColor: 'rgba(239, 68, 68, 0.2)',
   },
   cardContentList: {
