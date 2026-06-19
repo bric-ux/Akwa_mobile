@@ -9,12 +9,14 @@ interface MonthlyRentalListingCardProps {
   listing: MonthlyRentalListing;
   onPress: (listing: MonthlyRentalListing) => void;
   variant?: 'grid' | 'list';
+  horizontalShelf?: boolean;
 }
 
 const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
   listing,
   onPress,
   variant = 'list',
+  horizontalShelf = false,
 }) => {
   const { formatPrice } = useCurrency();
   const imageUri = Array.isArray(listing.images) && listing.images.length > 0
@@ -23,7 +25,11 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.container, variant === 'list' && styles.listContainer]}
+      style={[
+        styles.container,
+        variant === 'list' && styles.listContainer,
+        horizontalShelf && styles.listContainerShelf,
+      ]}
       onPress={() => onPress(listing)}
       activeOpacity={0.8}
     >
@@ -66,6 +72,7 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
 const styles = StyleSheet.create({
   container: { marginHorizontal: 20, marginBottom: 16 },
   listContainer: {},
+  listContainerShelf: { marginHorizontal: 0, marginBottom: 0 },
   cardLayout: {
     backgroundColor: '#fff',
     borderRadius: 12,

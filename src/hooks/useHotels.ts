@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { supabase } from '../services/supabase';
 import type { HotelEstablishment, HotelFilters } from '../types';
 import { getActiveRoomTypes, getMinRoomPrice } from '../lib/hotelUtils';
+import { getCachedHotels, setCachedHotels } from '../services/searchCatalogCache';
 
 const ESTABLISHMENT_SELECT = `
   id,
@@ -95,6 +96,11 @@ function matchesFilters(establishment: HotelEstablishment, filters?: HotelFilter
     if (!fits) return false;
   }
 
+  if (filters.starRatingMin != null && filters.starRatingMin > 0) {
+    const stars = establishment.star_rating ?? 0;
+    if (stars < filters.starRatingMin) return false;
+  }
+
   return (establishment.hotel_room_types?.length ?? 0) > 0;
 }
 
@@ -109,6 +115,14 @@ export function useHotels() {
       setLastFilters(filters);
     }
     try {
+      const cachedAll = getCachedHotels();
+      if (cachedAll) {
+        const filtered = cachedAll.filter((e) => matchesFilters(e, filters));
+        setEstablishments(filtered);
+        setLoading(false);
+        return filtered;
+      }
+
       setLoading(true);
       setError(null);
 
@@ -123,11 +137,13 @@ export function useHotels() {
       if (fetchError) throw fetchError;
 
       const enriched = (data ?? [])
-        .map((row) => enrichEstablishment(row as HotelEstablishment))
-        .filter((e) => matchesFilters(e, filters));
+        .map((row) => enrichEstablishment(row as HotelEstablishment));
 
-      setEstablishments(enriched);
-      return enriched;
+      setCachedHotels(enriched);
+
+      const filtered = enriched.filter((e) => matchesFilters(e, filters));
+      setEstablishments(filtered);
+      return filtered;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Impossible de charger les hôtels';
       setError(message);

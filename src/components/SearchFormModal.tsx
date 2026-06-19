@@ -14,7 +14,6 @@ import { Ionicons } from '@expo/vector-icons';
 import DestinationSearchModal, { DestinationSuggestion } from './DestinationSearchModal';
 import DateGuestsSelector from './DateGuestsSelector';
 import SearchButton from './SearchButton';
-import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
 type Props = {
   visible: boolean;
@@ -23,7 +22,6 @@ type Props = {
   onBack: () => void;
   onOpenFilters: () => void;
   rentalType: 'short_term' | 'monthly';
-  onRentalModeSwitch: (type: 'short_term' | 'monthly') => void;
   currentSearchQuery: string;
   onSearch: (query: string) => void;
   onSuggestionSelect: (suggestion: DestinationSuggestion) => void;
@@ -47,7 +45,6 @@ const SearchFormModal: React.FC<Props> = ({
   onBack,
   onOpenFilters,
   rentalType,
-  onRentalModeSwitch,
   currentSearchQuery,
   onSearch,
   onSuggestionSelect,
@@ -122,47 +119,6 @@ const SearchFormModal: React.FC<Props> = ({
               </Text>
             </View>
           )}
-
-          {FEATURE_MONTHLY_RENTAL ? (
-            <View style={styles.modeSwitch}>
-              <TouchableOpacity
-                style={[styles.modeChip, rentalType === 'short_term' && styles.modeChipActive]}
-                onPress={() => onRentalModeSwitch('short_term')}
-              >
-                <Ionicons
-                  name="home-outline"
-                  size={16}
-                  color={rentalType === 'short_term' ? '#fff' : '#2E7D32'}
-                />
-                <Text style={[styles.modeChipText, rentalType === 'short_term' && styles.modeChipTextActive]}>
-                  Résidence meublée
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modeChip,
-                  styles.modeChipMonthly,
-                  rentalType === 'monthly' && styles.modeChipMonthlyActive,
-                ]}
-                onPress={() => onRentalModeSwitch('monthly')}
-              >
-                <Ionicons
-                  name="business-outline"
-                  size={16}
-                  color={rentalType === 'monthly' ? '#fff' : '#0d9488'}
-                />
-                <Text
-                  style={[
-                    styles.modeChipText,
-                    styles.modeChipTextMonthly,
-                    rentalType === 'monthly' && styles.modeChipTextActive,
-                  ]}
-                >
-                  Location mensuelle
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
 
           <View style={styles.formCard}>
             <Text style={styles.fieldLabel}>Destination</Text>
@@ -301,46 +257,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: '#4b5563',
-  },
-  modeSwitch: {
-    flexDirection: 'row',
-    gap: 10,
-    marginHorizontal: 20,
-    marginBottom: 16,
-  },
-  modeChip: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#fff',
-  },
-  modeChipActive: {
-    backgroundColor: '#2E7D32',
-    borderColor: '#2E7D32',
-  },
-  modeChipMonthly: {
-    borderColor: '#99f6e4',
-  },
-  modeChipMonthlyActive: {
-    backgroundColor: '#0d9488',
-    borderColor: '#0d9488',
-  },
-  modeChipText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#2E7D32',
-  },
-  modeChipTextMonthly: {
-    color: '#0d9488',
-  },
-  modeChipTextActive: {
-    color: '#fff',
   },
   formCard: {
     marginHorizontal: 20,

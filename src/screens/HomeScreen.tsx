@@ -33,12 +33,18 @@ import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
 import ZipDailyCard from '../components/zip/ZipDailyCard';
 import MatchPredictionBanner from '../components/MatchPredictionBanner';
 import TeddyExploreFab from '../components/TeddyExploreFab';
+import HomeCategoryPills, { HomeCategoryId } from '../components/HomeCategoryPills';
+import SearchCatalogWarmer from '../components/SearchCatalogWarmer';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNetwork } from '../contexts/NetworkContext';
 import LoadErrorCard from '../components/LoadErrorCard';
 import type { LoadFailureKind } from '../utils/loadError';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
-import { HOTEL_COLORS } from '../constants/colors';
+import { HOTEL_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { useApprovedMonthlyRentalListings } from '../hooks/useApprovedMonthlyRentalListings';
+import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
+import type { MonthlyRentalListing } from '../types';
 
 const SCREEN_W = Dimensions.get('window').width;
 /** Titres explore + première carte : alignés sur le carrousel « trésors CI » ; carte suivante visible */
@@ -87,6 +93,11 @@ const HomeScreen: React.FC = () => {
     loading: exploreHotelsLoading,
     refreshExploreHotelsHome,
   } = useExploreHotelsHome();
+  const {
+    listings: exploreMonthlyListings,
+    loading: exploreMonthlyLoading,
+    fetchListings: fetchExploreMonthlyListings,
+  } = useApprovedMonthlyRentalListings();
 
   const [refreshing, setRefreshing] = useState(false);
   const lastScrollY = useRef(0);
@@ -95,6 +106,12 @@ const HomeScreen: React.FC = () => {
   const [carouselBannerVisible, setCarouselBannerVisible] = useState(true);
   const carouselBannerVisibleRef = useRef(true);
   const [showDeferredHeaderContent, setShowDeferredHeaderContent] = useState(false);
+
+  useEffect(() => {
+    if (FEATURE_MONTHLY_RENTAL) {
+      void fetchExploreMonthlyListings();
+    }
+  }, [fetchExploreMonthlyListings]);
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
@@ -136,11 +153,15 @@ const HomeScreen: React.FC = () => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refreshExploreCityHome(), refreshExploreHotelsHome()]);
+      await Promise.all([
+        refreshExploreCityHome(),
+        refreshExploreHotelsHome(),
+        FEATURE_MONTHLY_RENTAL ? fetchExploreMonthlyListings() : Promise.resolve(),
+      ]);
     } finally {
       setRefreshing(false);
     }
-  }, [refreshExploreCityHome, refreshExploreHotelsHome]);
+  }, [refreshExploreCityHome, refreshExploreHotelsHome, fetchExploreMonthlyListings]);
 
   const handlePropertyPress = useCallback((property: Property) => {
     navigation.navigate('PropertyDetails', { propertyId: property.id });
@@ -150,9 +171,25 @@ const HomeScreen: React.FC = () => {
     navigation.navigate('HotelDetails', { establishmentId: establishment.id });
   }, [navigation]);
 
+  const navigateSearch = useCallback(
+    (
+      rentalType: 'short_term' | 'monthly' = 'short_term',
+      destination?: string,
+      options?: { openResults?: boolean; accommodationType?: 'all' | 'property' | 'hotel' },
+    ) => {
+      (navigation as any).navigate('Search', {
+        destination,
+        initialRentalType: rentalType,
+        initialAccommodationType: options?.accommodationType,
+        openResults: options?.openResults ?? false,
+      });
+    },
+    [navigation],
+  );
+
   const navigateSearchHotels = useCallback(() => {
-    (navigation as any).navigate('Search', { initialAccommodationType: 'hotel' });
-  }, [navigation]);
+    navigateSearch('short_term', undefined, { openResults: true, accommodationType: 'hotel' });
+  }, [navigateSearch]);
 
   const explorePropertiesTotal = useMemo(() => {
     return exploreSections.reduce((sum, section) => {
@@ -162,14 +199,53 @@ const HomeScreen: React.FC = () => {
   }, [exploreSections]);
 
   const handleSearchPress = useCallback(() => {
-    (navigation as any).navigate('Search');
-  }, [navigation]);
+    navigateSearch('short_term');
+  }, [navigateSearch]);
+
+  const handleCategoryPress = useCallback(
+    (category: HomeCategoryId) => {
+      switch (category) {
+        case 'residence':
+          navigateSearch('short_term', undefined, {
+            openResults: true,
+            accommodationType: 'property',
+          });
+          break;
+        case 'hotel':
+          navigateSearch('short_term', undefined, {
+            openResults: true,
+            accommodationType: 'hotel',
+          });
+          break;
+        case 'monthly':
+          navigateSearch('monthly', undefined, { openResults: true });
+          break;
+        case 'vehicle':
+          (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' });
+          break;
+        default:
+          break;
+      }
+    },
+    [navigateSearch, navigation],
+  );
+
+  const handleMonthlyListingPress = useCallback(
+    (listing: MonthlyRentalListing) => {
+      navigation.navigate('MonthlyRentalListingDetail' as never, { listingId: listing.id });
+    },
+    [navigation],
+  );
+
+  const navigateSearchMonthly = useCallback(() => {
+    navigateSearch('monthly', undefined, { openResults: true });
+  }, [navigateSearch]);
 
   const navigateSearchCity = useCallback(
     (cityName: string) => {
-      (navigation as any).navigate('Search', { destination: cityName });
+      navigateSearch('short_term', cityName, { openResults: true, accommodationType: 'property' });
     },
-    [navigation],
+    [navigateSearch],
   );
 
   const openKeyboxWhatsApp = useCallback(() => {
@@ -224,6 +300,74 @@ const HomeScreen: React.FC = () => {
     ),
     [handleHotelPress],
   );
+
+  const renderExploreMonthlyRow = useCallback(
+    (listings: MonthlyRentalListing[]) => (
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.exploreRowContent}
+      >
+        {listings.map((listing) => (
+          <View key={listing.id} style={[styles.exploreCardWrap, { width: EXPLORE_CARD_WIDTH }]}>
+            <MonthlyRentalListingCard
+              listing={listing}
+              onPress={handleMonthlyListingPress}
+              variant="list"
+              horizontalShelf
+            />
+          </View>
+        ))}
+      </ScrollView>
+    ),
+    [handleMonthlyListingPress],
+  );
+
+  const exploreMonthlySection = useMemo(() => {
+    if (!FEATURE_MONTHLY_RENTAL) return null;
+    if (exploreMonthlyLoading && exploreMonthlyListings.length === 0) {
+      return (
+        <View style={styles.exploreHotelsWarmup}>
+          <View style={styles.exploreHotelsWarmupCard} />
+          <View style={styles.exploreHotelsWarmupCard} />
+        </View>
+      );
+    }
+    if (exploreMonthlyListings.length === 0) return null;
+
+    const count = exploreMonthlyListings.length;
+    const subtitle = `${count} logement${count > 1 ? 's' : ''} disponible${count > 1 ? 's' : ''}`;
+
+    return (
+      <View style={styles.exploreSection}>
+        <View style={styles.exploreSectionHeader}>
+          <View style={styles.exploreSectionTitles}>
+            <View style={styles.exploreHotelsTitleRow}>
+              <Ionicons name="calendar" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
+              <Text style={styles.exploreCityTitle}>Location longue durée</Text>
+            </View>
+            <Text style={styles.exploreCitySubtitle}>{subtitle}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.exploreVoirTout}
+            onPress={navigateSearchMonthly}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.exploreVoirToutText}>Voir tout</Text>
+            <Ionicons name="chevron-forward" size={16} color="#475569" />
+          </TouchableOpacity>
+        </View>
+        {renderExploreMonthlyRow(exploreMonthlyListings.slice(0, 8))}
+      </View>
+    );
+  }, [
+    exploreMonthlyListings,
+    exploreMonthlyLoading,
+    navigateSearchMonthly,
+    renderExploreMonthlyRow,
+  ]);
 
   const exploreHotelsSection = useMemo(() => {
     if (exploreHotelsLoading && exploreHotels.length === 0) {
@@ -350,6 +494,8 @@ const HomeScreen: React.FC = () => {
     <>
       <HeroSection onSearchPress={handleSearchPress} />
 
+      <HomeCategoryPills onCategoryPress={handleCategoryPress} />
+
       {showDeferredHeaderContent ? (
         <>
           <WeatherDateTimeWidget />
@@ -366,6 +512,7 @@ const HomeScreen: React.FC = () => {
 
       <View style={styles.section}>
         {exploreErrorCard}
+        {exploreMonthlySection}
         {exploreHotelsSection}
         {explorePropertiesTotal > 0 || exploreLoading ? (
           <View style={[styles.exploreSection, styles.explorePropertiesIntro]}>
@@ -377,7 +524,7 @@ const HomeScreen: React.FC = () => {
         ) : null}
       </View>
     </>
-  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, exploreHotelsSection, explorePropertiesTotal, exploreLoading]);
+  ), [handleSearchPress, handleCategoryPress, showDeferredHeaderContent, exploreErrorCard, exploreMonthlySection, exploreHotelsSection, explorePropertiesTotal, exploreLoading]);
 
   const listFooter = useMemo(
     () => (
@@ -634,6 +781,7 @@ const HomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SearchCatalogWarmer />
       <View style={styles.container}>
         <Header />
         <InfoBanner showCarousel={carouselBannerVisible} />
@@ -732,39 +880,6 @@ const styles = StyleSheet.create({
     minWidth: 170,
     borderRadius: 14,
     backgroundColor: '#eef2f7',
-  },
-  rentalTypePills: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 8,
-    gap: 10,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 24,
-    backgroundColor: '#f0f0f0',
-    gap: 6,
-  },
-  pillActive: {
-    backgroundColor: '#e67e22',
-  },
-  pillActiveMonthly: {
-    backgroundColor: '#0d9488',
-  },
-  pillText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  pillTextActive: {
-    color: '#fff',
-  },
-  pillTextActiveMonthly: {
-    color: '#fff',
   },
   section: {
     marginVertical: 20,

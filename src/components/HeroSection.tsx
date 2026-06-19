@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   container: {
     marginTop: 0,
     paddingTop: 0,
-    marginBottom: 10,
+    marginBottom: 4,
     paddingBottom: 0,
     position: 'relative',
     backgroundColor: '#1e293b',

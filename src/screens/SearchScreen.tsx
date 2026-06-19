@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -18,13 +18,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useProperties } from '../hooks/useProperties';
 import { useHotels } from '../hooks/useHotels';
 import { usePropertySorting, SortOption } from '../hooks/usePropertySorting';
-import { useApprovedMonthlyRentalListings } from '../hooks/useApprovedMonthlyRentalListings';
+import { useApprovedMonthlyRentalListings, ApprovedMonthlyFilters } from '../hooks/useApprovedMonthlyRentalListings';
 import { Property, SearchFilters, RootStackParamList, HotelEstablishment, HotelFilters } from '../types';
 import type { MonthlyRentalListing } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import HotelCard from '../components/HotelCard';
 import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
-import FiltersModal from '../components/FiltersModal';
+import FiltersModal, { SearchFilterContext } from '../components/FiltersModal';
 import SearchResultsHeader from '../components/SearchResultsHeader';
 import SearchFormModal from '../components/SearchFormModal';
 import SearchResultsView from '../components/SearchResultsView';
@@ -42,6 +42,24 @@ function buildHotelSearchFilters(filters: SearchFilters, query: string): HotelFi
     priceMin: filters.priceMin,
     priceMax: filters.priceMax,
     guests: filters.guests,
+    establishmentType: filters.establishmentType,
+    starRatingMin: filters.starRatingMin,
+  };
+}
+
+function buildMonthlySearchFilters(
+  filters: SearchFilters,
+  query: string,
+): ApprovedMonthlyFilters {
+  return {
+    city: query || undefined,
+    propertyType: filters.monthlyPropertyType,
+    priceMin: filters.priceMin,
+    priceMax: filters.priceMax,
+    isFurnished: filters.isFurnished,
+    chargesIncluded: filters.chargesIncluded,
+    minSurfaceM2: filters.minSurfaceM2,
+    minBedrooms: filters.minBedrooms,
   };
 }
 
@@ -72,6 +90,8 @@ const SearchScreen: React.FC = () => {
   const route = useRoute<SearchScreenRouteProp>();
   const navigation = useNavigation();
   
+  const openResultsOnMount = route.params?.openResults === true;
+
   const [shortTermSearchQuery, setShortTermSearchQuery] = useState(route.params?.destination || '');
   const [monthlySearchQuery, setMonthlySearchQuery] = useState(route.params?.destination || '');
   const [filters, setFilters] = useState<SearchFilters>(() => {
@@ -87,13 +107,12 @@ const SearchScreen: React.FC = () => {
   });
   const initialRentalTypeApplied = useRef(false);
   const [showFilters, setShowFilters] = useState(false);
-  const resumeSearchFormAfterFiltersRef = useRef(false);
   // Utiliser sortBy des filtres, avec fallback sur 'popular'
   const sortBy = (filters.sortBy || 'popular') as SortOption;
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [hasSubmittedSearch, setHasSubmittedSearch] = useState(false);
-  const [showSearchForm, setShowSearchForm] = useState(true);
+  const [hasSubmittedSearch, setHasSubmittedSearch] = useState(openResultsOnMount);
+  const [showSearchForm, setShowSearchForm] = useState(!openResultsOnMount);
   const [isMapView, setIsMapView] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -197,6 +216,14 @@ const SearchScreen: React.FC = () => {
 
   const rentalType = filters.rentalType ?? 'short_term';
   const accommodationType = filters.accommodationType ?? 'all';
+
+  const filterContext: SearchFilterContext = useMemo(() => {
+    if (rentalType === 'monthly') return 'monthly';
+    if (accommodationType === 'hotel') return 'hotel';
+    if (accommodationType === 'property') return 'residence';
+    return 'mixed';
+  }, [rentalType, accommodationType]);
+
   const showHotels =
     rentalType === 'short_term' && (accommodationType === 'all' || accommodationType === 'hotel');
   const showProperties =
@@ -225,6 +252,30 @@ const SearchScreen: React.FC = () => {
 
   const totalShortTermResults =
     (showProperties ? sortedProperties.length : 0) + (showHotels ? sortedHotels.length : 0);
+
+  const resultsStillLoading =
+    rentalType === 'monthly'
+      ? monthlyLoading && monthlyListings.length === 0
+      : (loading || (showHotels && hotelsLoading)) && totalShortTermResults === 0;
+
+  const openResultsFetchedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!openResultsOnMount || openResultsFetchedRef.current) return;
+    openResultsFetchedRef.current = true;
+    if (rentalType === 'monthly') {
+      void fetchMonthlyListings({});
+      return;
+    }
+    void fetchShortTermResults(filters, shortTermSearchQuery);
+  }, [
+    openResultsOnMount,
+    rentalType,
+    filters,
+    shortTermSearchQuery,
+    fetchMonthlyListings,
+    fetchShortTermResults,
+  ]);
 
   useEffect(() => {
     if (!hasSubmittedSearch || rentalType !== 'short_term') return;
@@ -272,8 +323,8 @@ const SearchScreen: React.FC = () => {
 
   useEffect(() => {
     if (!hasSubmittedSearch || rentalType !== 'monthly') return;
-    fetchMonthlyListings({ city: monthlySearchQuery || undefined });
-  }, [hasSubmittedSearch, rentalType, monthlySearchQuery, fetchMonthlyListings]);
+    fetchMonthlyListings(buildMonthlySearchFilters(filters, monthlySearchQuery));
+  }, [hasSubmittedSearch, rentalType, monthlySearchQuery, filters, fetchMonthlyListings]);
 
   // Charger les recherches récentes
   useEffect(() => {
@@ -516,38 +567,31 @@ const SearchScreen: React.FC = () => {
 
   const closeFilters = () => {
     setShowFilters(false);
-    if (resumeSearchFormAfterFiltersRef.current) {
-      resumeSearchFormAfterFiltersRef.current = false;
-      setShowSearchForm(true);
-    }
   };
 
   const openFiltersFromSearchForm = () => {
-    resumeSearchFormAfterFiltersRef.current = true;
-    setShowSearchForm(false);
     setShowFilters(true);
   };
 
   const handleFilterChange = (newFilters: SearchFilters) => {
     setFilters(newFilters);
     if (!hasSubmittedSearch) return;
-    const searchFilters = { 
-      ...newFilters, 
+    const rt = newFilters.rentalType ?? 'short_term';
+    if (rt === 'monthly') {
+      fetchMonthlyListings(buildMonthlySearchFilters(newFilters, monthlySearchQuery));
+      return;
+    }
+    const searchFilters = {
+      ...newFilters,
       city: shortTermSearchQuery,
       checkIn,
       checkOut,
       adults,
       children,
       babies,
-      guests: adults + children + babies
+      guests: adults + children + babies,
     };
-    const rt = newFilters.rentalType ?? 'short_term';
-    if (rt === 'short_term') {
-      void fetchShortTermResults(searchFilters, shortTermSearchQuery);
-    }
-    if (rt === 'monthly') {
-      fetchMonthlyListings({ city: monthlySearchQuery || undefined });
-    }
+    void fetchShortTermResults(searchFilters, shortTermSearchQuery);
   };
 
 
@@ -557,7 +601,7 @@ const SearchScreen: React.FC = () => {
     const clearedFilters: SearchFilters =
       rentalType === 'monthly'
         ? { rentalType: 'monthly' }
-        : { rentalType: 'short_term', accommodationType: 'all' };
+        : { rentalType: 'short_term', accommodationType: filters.accommodationType ?? 'all' };
     setFilters(clearedFilters);
     if (rentalType === 'monthly') {
       setMonthlySearchQuery('');
@@ -662,19 +706,19 @@ const SearchScreen: React.FC = () => {
     setIsMapView((prev) => !prev);
   };
 
-  const handleRentalModeSwitch = (nextType: 'short_term' | 'monthly') => {
-    if (nextType === rentalType) return;
-    setIsMapView(false);
-    setFilters((prev) => ({ ...prev, rentalType: nextType }));
-  };
-
   const getActiveFiltersCount = (): number => {
     let count = 0;
-    if (filters.rentalType && filters.rentalType !== 'short_term') count++;
-    if (filters.accommodationType && filters.accommodationType !== 'all') count++;
     if (filters.priceMin || filters.priceMax) count++;
-    if (filters.propertyType) count++;
     if (filters.guests) count++;
+    if (filters.propertyType) count++;
+    if (filters.establishmentType) count++;
+    if (filters.starRatingMin) count++;
+    if (filters.monthlyPropertyType) count++;
+    if (filters.isFurnished !== undefined) count++;
+    if (filters.chargesIncluded === true) count++;
+    if (filters.minSurfaceM2) count++;
+    if (filters.minBedrooms) count++;
+    if (filters.amenities && filters.amenities.length > 0) count++;
     if (filters.wifi || filters.parking || filters.pool || filters.airConditioning) count++;
     return count;
   };
@@ -821,7 +865,7 @@ const SearchScreen: React.FC = () => {
       )}
 
       {/* Résultats (affichés seulement après validation) */}
-      {hasSubmittedSearch && !showSearchForm && ((rentalType === 'monthly' ? monthlyLoading : loading || (showHotels && hotelsLoading)) ? (
+      {hasSubmittedSearch && !showSearchForm && (resultsStillLoading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={rentalType === 'monthly' ? '#0d9488' : '#2E7D32'} />
           <Text style={styles.loadingText}>Recherche en cours...</Text>
@@ -840,12 +884,7 @@ const SearchScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       ) : rentalType === 'monthly' ? (
-        monthlyLoading ? (
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#0d9488" />
-            <Text style={styles.loadingText}>Recherche en cours...</Text>
-          </View>
-        ) : monthlyListings.length === 0 ? (
+        monthlyListings.length === 0 ? (
           <View style={styles.noResultsContainer}>
             <Ionicons name="business-outline" size={64} color="#ccc" />
             <Text style={styles.noResultsTitle}>
@@ -963,22 +1002,13 @@ const SearchScreen: React.FC = () => {
         </TouchableOpacity>
       )}
 
-      <FiltersModal
-        visible={showFilters}
-        onClose={closeFilters}
-        onApply={handleFilterChange}
-        initialFilters={filters}
-        lockedRentalType={FEATURE_MONTHLY_RENTAL ? (rentalType === 'monthly' ? 'monthly' : undefined) : 'short_term'}
-      />
-
       <SearchFormModal
-        visible={showSearchForm}
+        visible={showSearchForm && !showFilters}
         canDismissToResults={hasSubmittedSearch}
         onClose={closeSearchFormToResults}
         onBack={() => navigation.goBack()}
         onOpenFilters={openFiltersFromSearchForm}
         rentalType={rentalType}
-        onRentalModeSwitch={handleRentalModeSwitch}
         currentSearchQuery={currentSearchQuery}
         onSearch={handleSearch}
         onSuggestionSelect={handleSuggestionSelect}
@@ -990,6 +1020,14 @@ const SearchScreen: React.FC = () => {
         onDateGuestsChange={handleDateGuestsChange}
         onSearchPress={handleSearchButtonPress}
         isSearching={isSearching}
+      />
+
+      <FiltersModal
+        visible={showFilters}
+        onClose={closeFilters}
+        onApply={handleFilterChange}
+        initialFilters={filters}
+        filterContext={filterContext}
       />
 
     </SafeAreaView>

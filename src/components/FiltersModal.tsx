@@ -10,131 +10,298 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SearchFilters } from '../types';
+import { SearchFilters, HotelEstablishmentType } from '../types';
 import { useAmenities } from '../hooks/useAmenities';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { getAmenityIonicIcon } from '../utils/amenityIcons';
+import { HOST_COLORS, HOTEL_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
+
+export type SearchFilterContext = 'residence' | 'hotel' | 'monthly' | 'mixed';
+export type SearchServiceType = 'residence' | 'hotel' | 'monthly';
 
 interface FiltersModalProps {
   visible: boolean;
   onClose: () => void;
   onApply: (filters: SearchFilters) => void;
   initialFilters?: SearchFilters;
-  lockedRentalType?: 'short_term' | 'monthly';
+  filterContext: SearchFilterContext;
 }
+
+const RESIDENCE_PROPERTY_TYPES = [
+  { key: 'apartment', label: 'Appartement' },
+  { key: 'house', label: 'Maison' },
+  { key: 'villa', label: 'Villa' },
+  { key: 'eco_lodge', label: 'Éco-lodge' },
+  { key: 'other', label: 'Autre' },
+] as const;
+
+const MONTHLY_PROPERTY_TYPES = [
+  { key: 'apartment', label: 'Appartement' },
+  { key: 'house', label: 'Maison' },
+  { key: 'villa', label: 'Villa' },
+  { key: 'studio', label: 'Studio' },
+] as const;
+
+const HOTEL_ESTABLISHMENT_TYPES: { key: HotelEstablishmentType; label: string }[] = [
+  { key: 'hotel', label: 'Hôtel' },
+  { key: 'aparthotel', label: "Appart'hôtel" },
+  { key: 'guesthouse', label: "Maison d'hôtes" },
+  { key: 'residence', label: 'Résidence hôtelière' },
+];
+
+const STAR_OPTIONS = [1, 2, 3, 4, 5];
+
+const SERVICE_OPTIONS: {
+  key: SearchServiceType;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+}[] = [
+  { key: 'residence', label: 'Résidence meublée', icon: 'home', color: HOST_COLORS.primary },
+  { key: 'hotel', label: 'Hôtel', icon: 'bed', color: HOTEL_COLORS.primary },
+  { key: 'monthly', label: 'Location longue durée', icon: 'calendar', color: MONTHLY_RENTAL_COLORS.primary },
+];
+
+function deriveServiceType(
+  initialFilters: SearchFilters,
+  filterContext: SearchFilterContext,
+): SearchServiceType {
+  if (filterContext !== 'mixed') return filterContext;
+  if (initialFilters.rentalType === 'monthly') return 'monthly';
+  if (initialFilters.accommodationType === 'hotel') return 'hotel';
+  return 'residence';
+}
+
+const CONTEXT_META: Record<
+  SearchFilterContext,
+  { title: string; color: string; priceLabel: string; priceMax: number }
+> = {
+  residence: {
+    title: 'Résidences meublées',
+    color: HOST_COLORS.primary,
+    priceLabel: 'Prix par nuit',
+    priceMax: 200000,
+  },
+  hotel: {
+    title: 'Hôtels',
+    color: HOTEL_COLORS.primary,
+    priceLabel: 'Prix par nuit',
+    priceMax: 300000,
+  },
+  monthly: {
+    title: 'Location longue durée',
+    color: MONTHLY_RENTAL_COLORS.primary,
+    priceLabel: 'Loyer mensuel',
+    priceMax: 2000000,
+  },
+  mixed: {
+    title: 'Tous les hébergements',
+    color: HOST_COLORS.primary,
+    priceLabel: 'Prix par nuit',
+    priceMax: 200000,
+  },
+};
 
 const FiltersModal: React.FC<FiltersModalProps> = ({
   visible,
   onClose,
   onApply,
   initialFilters = {},
-  lockedRentalType,
+  filterContext,
 }) => {
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
+  const [selectedService, setSelectedService] = useState<SearchServiceType>(() =>
+    deriveServiceType(initialFilters, filterContext),
+  );
   const { amenities, loading: amenitiesLoading } = useAmenities();
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<string>(initialFilters.sortBy || '');
-  const [rentalType, setRentalType] = useState<'short_term' | 'monthly'>(
-    lockedRentalType ?? (initialFilters.rentalType === 'monthly' ? 'monthly' : 'short_term')
-  );
-  const accommodationType = filters.accommodationType ?? 'all';
   const [minPriceInput, setMinPriceInput] = useState<string>(initialFilters.priceMin?.toString() || '');
   const [maxPriceInput, setMaxPriceInput] = useState<string>(initialFilters.priceMax?.toString() || '');
+  const [minSurfaceInput, setMinSurfaceInput] = useState<string>(
+    initialFilters.minSurfaceM2?.toString() || '',
+  );
+  const [guestsInput, setGuestsInput] = useState<string>(
+    initialFilters.guests ? String(initialFilters.guests) : '',
+  );
 
-  const propertyTypes = [
-    { key: 'apartment', label: 'Appartement' },
-    { key: 'house', label: 'Maison' },
-    { key: 'villa', label: 'Villa' },
-    { key: 'eco_lodge', label: 'Éco-lodge' },
-    { key: 'other', label: 'Autre' },
-  ];
+  const effectiveContext: SearchServiceType = selectedService;
+  const effectiveMeta = CONTEXT_META[effectiveContext];
 
-  // Gammes de prix rapides améliorées (alignées avec le site web)
-  const quickPriceRanges = [
-    { label: 'Économique', min: 0, max: 25000 },
-    { label: 'Moyen', min: 25000, max: 50000 },
-    { label: 'Confort', min: 50000, max: 100000 },
-    { label: 'Premium', min: 100000, max: 200000 },
-  ];
-
-  // Options de tri (alignées avec le site web)
-  const sortOptions = [
-    { value: '', label: 'Par défaut' },
-    { value: 'price_asc', label: 'Prix croissant' },
-    { value: 'price_desc', label: 'Prix décroissant' },
-    { value: 'recent', label: 'Plus récents' },
-    { value: 'rating_desc', label: 'Meilleures notes' },
-    { value: 'popular', label: 'Plus populaires' },
-  ];
-
-  // Initialiser les filtres depuis initialFilters
   useEffect(() => {
-    if (initialFilters.amenities) {
-      setSelectedAmenities(initialFilters.amenities);
-    }
-    if (initialFilters.sortBy) {
-      setSortBy(initialFilters.sortBy);
-    }
-    if (lockedRentalType) {
-      setRentalType(lockedRentalType);
-    } else if (initialFilters.rentalType !== undefined) {
-      setRentalType(initialFilters.rentalType);
-    }
-    if (initialFilters.priceMin !== undefined) {
-      setMinPriceInput(initialFilters.priceMin.toString());
-    }
-    if (initialFilters.priceMax !== undefined) {
-      setMaxPriceInput(initialFilters.priceMax.toString());
-    }
-    if (initialFilters.accommodationType !== undefined) {
-      setFilters((prev) => ({ ...prev, accommodationType: initialFilters.accommodationType }));
-    }
-  }, [initialFilters, lockedRentalType]);
+    if (!visible) return;
+    setFilters(initialFilters);
+    setSelectedService(deriveServiceType(initialFilters, filterContext));
+    setSelectedAmenities(initialFilters.amenities ?? []);
+    setMinPriceInput(initialFilters.priceMin?.toString() || '');
+    setMaxPriceInput(initialFilters.priceMax?.toString() || '');
+    setMinSurfaceInput(initialFilters.minSurfaceM2?.toString() || '');
+    setGuestsInput(initialFilters.guests ? String(initialFilters.guests) : '');
+  }, [initialFilters, filterContext, visible]);
+
+  const handleServiceChange = (service: SearchServiceType) => {
+    setSelectedService(service);
+    setFilters((prev) => ({
+      rentalType: service === 'monthly' ? 'monthly' : 'short_term',
+      accommodationType:
+        service === 'hotel' ? 'hotel' : service === 'residence' ? 'property' : undefined,
+      sortBy: prev.sortBy,
+    }));
+    setSelectedAmenities([]);
+    setMinSurfaceInput('');
+  };
 
   const handleApply = () => {
-    const priceMin = minPriceInput ? parseInt(minPriceInput) : undefined;
-    const priceMax = maxPriceInput ? parseInt(maxPriceInput) : undefined;
-    
-    onApply({
+    const priceMin = minPriceInput ? parseInt(minPriceInput, 10) : undefined;
+    const priceMax = maxPriceInput ? parseInt(maxPriceInput, 10) : undefined;
+    const guests = guestsInput ? parseInt(guestsInput, 10) : undefined;
+    const minSurfaceM2 = minSurfaceInput ? parseInt(minSurfaceInput, 10) : undefined;
+
+    const base: SearchFilters = {
       ...filters,
       priceMin,
       priceMax,
-      amenities: selectedAmenities.length > 0 ? selectedAmenities : undefined,
-      sortBy: sortBy || undefined,
-      rentalType: lockedRentalType ?? rentalType,
-      accommodationType: rentalType === 'monthly' ? undefined : (filters.accommodationType ?? 'all'),
-    });
+      guests: guests && guests > 0 ? guests : undefined,
+      sortBy: initialFilters.sortBy,
+      radiusKm: undefined,
+      centerLat: undefined,
+      centerLng: undefined,
+    };
+
+    if (effectiveContext === 'monthly') {
+      onApply({
+        ...base,
+        rentalType: 'monthly',
+        accommodationType: undefined,
+        monthlyPropertyType: filters.monthlyPropertyType,
+        isFurnished: filters.isFurnished,
+        chargesIncluded: filters.chargesIncluded,
+        minSurfaceM2: minSurfaceM2 && minSurfaceM2 > 0 ? minSurfaceM2 : undefined,
+        minBedrooms: filters.minBedrooms,
+        propertyType: undefined,
+        amenities: undefined,
+        establishmentType: undefined,
+        starRatingMin: undefined,
+      });
+    } else if (effectiveContext === 'hotel') {
+      onApply({
+        ...base,
+        rentalType: 'short_term',
+        accommodationType: 'hotel',
+        establishmentType: filters.establishmentType,
+        starRatingMin: filters.starRatingMin,
+        amenities: undefined,
+        propertyType: undefined,
+        monthlyPropertyType: undefined,
+        isFurnished: undefined,
+        chargesIncluded: undefined,
+        minSurfaceM2: undefined,
+        minBedrooms: undefined,
+      });
+    } else if (effectiveContext === 'residence') {
+      onApply({
+        ...base,
+        rentalType: 'short_term',
+        accommodationType: 'property',
+        propertyType: filters.propertyType,
+        amenities: selectedAmenities.length > 0 ? selectedAmenities : undefined,
+        establishmentType: undefined,
+        starRatingMin: undefined,
+        monthlyPropertyType: undefined,
+        isFurnished: undefined,
+        chargesIncluded: undefined,
+        minSurfaceM2: undefined,
+        minBedrooms: undefined,
+      });
+    } else {
+      onApply({
+        ...base,
+        rentalType: 'short_term',
+        accommodationType: 'all',
+        amenities: undefined,
+        propertyType: undefined,
+        establishmentType: undefined,
+        starRatingMin: undefined,
+        monthlyPropertyType: undefined,
+        isFurnished: undefined,
+        chargesIncluded: undefined,
+        minSurfaceM2: undefined,
+        minBedrooms: undefined,
+      });
+    }
     onClose();
   };
 
-  const handlePriceRangeSelect = (range: { min: number; max: number }) => {
-    setMinPriceInput(range.min.toString());
-    setMaxPriceInput(range.max.toString());
-    setFilters({
-      ...filters,
-      priceMin: range.min,
-      priceMax: range.max,
-    });
-  };
-
   const clearFilters = () => {
-    setFilters({ accommodationType: 'all' });
+    const service = deriveServiceType(initialFilters, filterContext);
+    setSelectedService(service);
+    setFilters({
+      rentalType: service === 'monthly' ? 'monthly' : 'short_term',
+      accommodationType:
+        service === 'hotel' ? 'hotel' : service === 'residence' ? 'property' : undefined,
+      sortBy: initialFilters.sortBy,
+    });
     setSelectedAmenities([]);
-    setSortBy('');
-    setRentalType(lockedRentalType ?? 'short_term');
     setMinPriceInput('');
     setMaxPriceInput('');
+    setMinSurfaceInput('');
+    setGuestsInput('');
   };
 
   const toggleAmenity = (amenityName: string) => {
-    if (selectedAmenities.includes(amenityName)) {
-      setSelectedAmenities(selectedAmenities.filter(a => a !== amenityName));
-    } else {
-      setSelectedAmenities([...selectedAmenities, amenityName]);
-    }
+    setSelectedAmenities((prev) =>
+      prev.includes(amenityName) ? prev.filter((a) => a !== amenityName) : [...prev, amenityName],
+    );
   };
 
-  // Équipements essentiels prioritaires (affichés en premier)
+  const renderChip = (
+    label: string,
+    active: boolean,
+    onPress: () => void,
+    color = effectiveMeta.color,
+  ) => (
+    <TouchableOpacity
+      key={label}
+      style={[styles.chip, active && { backgroundColor: color, borderColor: color }]}
+      onPress={onPress}
+    >
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderPriceSection = () => (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Ionicons name="cash" size={18} color={effectiveMeta.color} />
+        <Text style={styles.sectionTitle}>{effectiveMeta.priceLabel}</Text>
+      </View>
+      <View style={styles.priceRow}>
+        <View style={styles.priceInputContainer}>
+          <Text style={styles.priceLabel}>Minimum</Text>
+          <TextInput
+            style={styles.priceInput}
+            placeholder="0"
+            value={minPriceInput}
+            onChangeText={setMinPriceInput}
+            keyboardType="numeric"
+          />
+          <Text style={styles.priceUnit}>FCFA</Text>
+        </View>
+        <Text style={styles.priceSeparator}>-</Text>
+        <View style={styles.priceInputContainer}>
+          <Text style={styles.priceLabel}>Maximum</Text>
+          <TextInput
+            style={styles.priceInput}
+            placeholder={String(effectiveMeta.priceMax)}
+            value={maxPriceInput}
+            onChangeText={setMaxPriceInput}
+            keyboardType="numeric"
+          />
+          <Text style={styles.priceUnit}>FCFA</Text>
+        </View>
+      </View>
+    </View>
+  );
+
   const essentialAmenities = [
     'WiFi gratuit',
     'Eau chaude',
@@ -146,12 +313,11 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     'Ascenseur',
   ];
 
-  // Trier les équipements : essentiels d'abord, puis les autres
   const sortedAmenities = [...amenities].sort((a, b) => {
-    const aIsEssential = essentialAmenities.includes(a.name);
-    const bIsEssential = essentialAmenities.includes(b.name);
-    if (aIsEssential && !bIsEssential) return -1;
-    if (!aIsEssential && bIsEssential) return 1;
+    const aEss = essentialAmenities.includes(a.name);
+    const bEss = essentialAmenities.includes(b.name);
+    if (aEss && !bEss) return -1;
+    if (!aEss && bEss) return 1;
     return a.name.localeCompare(b.name);
   });
 
@@ -169,183 +335,39 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
           </TouchableOpacity>
           <Text style={styles.modalTitle}>Filtres</Text>
           <TouchableOpacity onPress={handleApply}>
-            <Text style={styles.applyText}>Appliquer</Text>
+            <Text style={[styles.applyText, { color: effectiveMeta.color }]}>Appliquer</Text>
           </TouchableOpacity>
         </View>
 
+        <View style={[styles.contextBanner, { borderLeftColor: effectiveMeta.color }]}>
+          <Text style={[styles.contextBannerText, { color: effectiveMeta.color }]}>
+            {effectiveMeta.title}
+          </Text>
+        </View>
+
         <ScrollView style={styles.modalContent}>
-          {FEATURE_MONTHLY_RENTAL && !lockedRentalType && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="home" size={18} color="#2E7D32" />
-                <Text style={styles.sectionTitle}>Type de logement</Text>
-              </View>
-              <View style={styles.sortContainer}>
-                <TouchableOpacity
-                  style={[styles.sortOption, rentalType === 'short_term' && styles.sortOptionActive]}
-                  onPress={() => setRentalType('short_term')}
-                >
-                  <Text style={[styles.sortOptionText, rentalType === 'short_term' && styles.sortOptionTextActive]}>Résidence meublée</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.sortOption, rentalType === 'monthly' && styles.sortOptionActive]}
-                  onPress={() => setRentalType('monthly')}
-                >
-                  <Text style={[styles.sortOptionText, rentalType === 'monthly' && styles.sortOptionTextActive]}>Location longue durée</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {rentalType !== 'monthly' && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="bed" size={18} color="#2E7D32" />
-                <Text style={styles.sectionTitle}>Type d&apos;hébergement</Text>
-              </View>
-              <View style={styles.sortContainer}>
-                {([
-                  { key: 'all', label: 'Tout' },
-                  { key: 'property', label: 'Résidences meublées' },
-                  { key: 'hotel', label: 'Hôtels' },
-                ] as const).map((option) => (
-                  <TouchableOpacity
-                    key={option.key}
-                    style={[
-                      styles.sortOption,
-                      accommodationType === option.key && styles.sortOptionActive,
-                    ]}
-                    onPress={() => setFilters({ ...filters, accommodationType: option.key })}
-                  >
-                    <Text
-                      style={[
-                        styles.sortOptionText,
-                        accommodationType === option.key && styles.sortOptionTextActive,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Tri */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="sparkles" size={18} color="#2E7D32" />
-              <Text style={styles.sectionTitle}>Trier par</Text>
+              <Ionicons name="grid" size={18} color={effectiveMeta.color} />
+              <Text style={styles.sectionTitle}>Type de service</Text>
             </View>
-            <View style={styles.sortContainer}>
-              {sortOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value || 'default'}
-                  style={[
-                    styles.sortOption,
-                    sortBy === option.value && styles.sortOptionActive,
-                  ]}
-                  onPress={() => setSortBy(option.value)}
-                >
-                  <Text
-                    style={[
-                      styles.sortOptionText,
-                      sortBy === option.value && styles.sortOptionTextActive,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Prix */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="cash" size={18} color="#2E7D32" />
-              <Text style={styles.sectionTitle}>
-                {rentalType === 'monthly' ? 'Loyer mensuel' : 'Prix par nuit'}
-              </Text>
-            </View>
-            <View style={styles.priceRange}>
-              <View style={styles.priceInputContainer}>
-                <Text style={styles.priceLabel}>Minimum</Text>
-                <TextInput
-                  style={styles.priceInput}
-                  placeholder="0"
-                  value={minPriceInput}
-                  onChangeText={(text) => {
-                    setMinPriceInput(text);
-                    const value = parseInt(text) || 0;
-                    const maxValue = parseInt(maxPriceInput) || 200000;
-                    const clamped = Math.min(Math.max(value, 0), maxValue);
-                    if (text === '' || !isNaN(clamped)) {
-                      setFilters({ ...filters, priceMin: text === '' ? undefined : clamped });
-                    }
-                  }}
-                  onBlur={() => {
-                    const value = parseInt(minPriceInput) || 0;
-                    const maxValue = parseInt(maxPriceInput) || 200000;
-                    const clamped = Math.min(Math.max(value, 0), maxValue);
-                    setMinPriceInput(clamped.toString());
-                    setFilters({ ...filters, priceMin: clamped });
-                  }}
-                  keyboardType="numeric"
-                />
-                <Text style={styles.priceUnit}>FCFA</Text>
-              </View>
-              <Text style={styles.priceSeparator}>-</Text>
-              <View style={styles.priceInputContainer}>
-                <Text style={styles.priceLabel}>Maximum</Text>
-                <TextInput
-                  style={styles.priceInput}
-                  placeholder="200000"
-                  value={maxPriceInput}
-                  onChangeText={(text) => {
-                    setMaxPriceInput(text);
-                    const value = parseInt(text) || 200000;
-                    const minValue = parseInt(minPriceInput) || 0;
-                    const clamped = Math.max(Math.min(value, 200000), minValue);
-                    if (text === '' || !isNaN(clamped)) {
-                      setFilters({ ...filters, priceMax: text === '' ? undefined : clamped });
-                    }
-                  }}
-                  onBlur={() => {
-                    const value = parseInt(maxPriceInput) || 200000;
-                    const minValue = parseInt(minPriceInput) || 0;
-                    const clamped = Math.max(Math.min(value, 200000), minValue);
-                    setMaxPriceInput(clamped.toString());
-                    setFilters({ ...filters, priceMax: clamped });
-                  }}
-                  keyboardType="numeric"
-                />
-                <Text style={styles.priceUnit}>FCFA</Text>
-              </View>
-            </View>
-            
-            {/* Gammes de prix rapides améliorées */}
-            <View style={styles.priceRanges}>
-              {quickPriceRanges.map((range, index) => {
-                const isActive = 
-                  (filters.priceMin === range.min || parseInt(minPriceInput) === range.min) &&
-                  (filters.priceMax === range.max || parseInt(maxPriceInput) === range.max);
+            <View style={styles.serviceRow}>
+              {SERVICE_OPTIONS.filter(
+                (opt) => opt.key !== 'monthly' || FEATURE_MONTHLY_RENTAL,
+              ).map((opt) => {
+                const active = selectedService === opt.key;
                 return (
                   <TouchableOpacity
-                    key={index}
+                    key={opt.key}
                     style={[
-                      styles.priceRangeButton,
-                      isActive && styles.priceRangeButtonActive,
+                      styles.serviceChip,
+                      active && { backgroundColor: opt.color, borderColor: opt.color },
                     ]}
-                    onPress={() => handlePriceRangeSelect(range)}
+                    onPress={() => handleServiceChange(opt.key)}
                   >
-                    <Text
-                      style={[
-                        styles.priceRangeText,
-                        isActive && styles.priceRangeTextActive,
-                      ]}
-                    >
-                      {range.label}
+                    <Ionicons name={opt.icon} size={16} color={active ? '#fff' : opt.color} />
+                    <Text style={[styles.serviceChipText, active && styles.serviceChipTextActive]}>
+                      {opt.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -353,108 +375,212 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
             </View>
           </View>
 
-          {/* Catégorie de résidence */}
-          {rentalType !== 'monthly' && accommodationType !== 'hotel' && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="home" size={18} color="#2E7D32" />
-              <Text style={styles.sectionTitle}>Catégorie de résidence</Text>
-            </View>
-            <View style={styles.propertyTypes}>
-              {propertyTypes.map((type) => (
-                <TouchableOpacity
-                  key={type.key}
-                  style={[
-                    styles.propertyTypeButton,
-                    filters.propertyType === type.key && styles.propertyTypeButtonActive,
-                  ]}
-                  onPress={() => setFilters({ ...filters, propertyType: type.key })}
-                >
-                  <Text
-                    style={[
-                      styles.propertyTypeText,
-                      filters.propertyType === type.key && styles.propertyTypeTextActive,
-                    ]}
-                  >
-                    {type.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-          )}
+          {renderPriceSection()}
 
+          {effectiveContext === 'hotel' && (
+            <>
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="bed" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Type d&apos;établissement</Text>
+                </View>
+                <View style={styles.chipRow}>
+                  {renderChip('Tous', !filters.establishmentType, () =>
+                    setFilters({ ...filters, establishmentType: undefined }),
+                  )}
+                  {HOTEL_ESTABLISHMENT_TYPES.map((t) =>
+                    renderChip(t.label, filters.establishmentType === t.key, () =>
+                      setFilters({ ...filters, establishmentType: t.key }),
+                    ),
+                  )}
+                </View>
+              </View>
 
-          {rentalType !== 'monthly' && accommodationType !== 'hotel' && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Recherche par rayon</Text>
-              <Text style={styles.helpText}>
-                Rechercher les logements dans un rayon autour du lieu sélectionné
-              </Text>
-              <View style={styles.radiusInputContainer}>
-                <Text style={styles.radiusLabel}>Rayon (km)</Text>
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="star" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Étoiles minimum</Text>
+                </View>
+                <View style={styles.chipRow}>
+                  {renderChip('Toutes', !filters.starRatingMin, () =>
+                    setFilters({ ...filters, starRatingMin: undefined }),
+                  )}
+                  {STAR_OPTIONS.map((n) =>
+                    renderChip(`${n}+`, filters.starRatingMin === n, () =>
+                      setFilters({ ...filters, starRatingMin: n }),
+                    ),
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="people" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Voyageurs</Text>
+                </View>
                 <TextInput
-                  style={styles.radiusInput}
-                  placeholder="Ex: 5, 10, 20"
-                  value={filters.radiusKm?.toString() || ''}
-                  onChangeText={(text) => {
-                    const value = text ? parseFloat(text) : undefined;
-                    setFilters({ ...filters, radiusKm: value && value > 0 ? value : undefined });
-                  }}
+                  style={styles.singleInput}
+                  placeholder="Nombre de personnes"
+                  value={guestsInput}
+                  onChangeText={setGuestsInput}
                   keyboardType="numeric"
-                  placeholderTextColor="#999"
                 />
               </View>
-              {filters.radiusKm && filters.radiusKm > 0 && (
-                <Text style={styles.radiusInfo}>
-                  Afficher les logements dans un rayon de {filters.radiusKm} km
-                </Text>
-              )}
-            </View>
+            </>
           )}
 
-          {/* Équipements */}
-          {rentalType !== 'monthly' && accommodationType !== 'hotel' && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="options" size={18} color="#2E7D32" />
-              <Text style={styles.sectionTitle}>Équipements</Text>
-            </View>
-            {amenitiesLoading ? (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Chargement des équipements...</Text>
+          {effectiveContext === 'residence' && (
+            <>
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="business" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Type de bien</Text>
+                </View>
+                <View style={styles.chipRow}>
+                  {renderChip('Tous', !filters.propertyType, () =>
+                    setFilters({ ...filters, propertyType: undefined }),
+                  )}
+                  {RESIDENCE_PROPERTY_TYPES.map((t) =>
+                    renderChip(t.label, filters.propertyType === t.key, () =>
+                      setFilters({ ...filters, propertyType: t.key }),
+                    ),
+                  )}
+                </View>
               </View>
-            ) : (
-              <View style={styles.amenities}>
-                {sortedAmenities.map((amenity) => {
-                  const isSelected = selectedAmenities.includes(amenity.name);
-                  const iconName = getAmenityIonicIcon(amenity.name) as any;
-                  return (
-                    <TouchableOpacity
-                      key={amenity.id}
-                      style={[
-                        styles.amenityButton,
-                        isSelected && styles.amenityButtonActive,
-                      ]}
-                      onPress={() => toggleAmenity(amenity.name)}
-                    >
-                      <Ionicons 
-                        name={iconName} 
-                        size={20} 
-                        color={isSelected ? '#fff' : '#666'} 
-                      />
-                      <Text style={[styles.amenityText, isSelected && styles.amenityTextActive]}>
-                        {amenity.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="people" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Voyageurs</Text>
+                </View>
+                <TextInput
+                  style={styles.singleInput}
+                  placeholder="Nombre de personnes"
+                  value={guestsInput}
+                  onChangeText={setGuestsInput}
+                  keyboardType="numeric"
+                />
               </View>
-            )}
-          </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="options" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Équipements</Text>
+                </View>
+                {amenitiesLoading ? (
+                  <Text style={styles.loadingText}>Chargement...</Text>
+                ) : (
+                  <View style={styles.amenities}>
+                    {sortedAmenities.map((amenity) => {
+                      const isSelected = selectedAmenities.includes(amenity.name);
+                      const iconName = getAmenityIonicIcon(amenity.name) as keyof typeof Ionicons.glyphMap;
+                      return (
+                        <TouchableOpacity
+                          key={amenity.id}
+                          style={[
+                            styles.amenityButton,
+                            isSelected && { backgroundColor: effectiveMeta.color, borderColor: effectiveMeta.color },
+                          ]}
+                          onPress={() => toggleAmenity(amenity.name)}
+                        >
+                          <Ionicons name={iconName} size={18} color={isSelected ? '#fff' : '#666'} />
+                          <Text style={[styles.amenityText, isSelected && styles.amenityTextActive]}>
+                            {amenity.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            </>
           )}
 
-          {/* Bouton effacer */}
+          {effectiveContext === 'monthly' && (
+            <>
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="business" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Type de bien</Text>
+                </View>
+                <View style={styles.chipRow}>
+                  {renderChip('Tous', !filters.monthlyPropertyType, () =>
+                    setFilters({ ...filters, monthlyPropertyType: undefined }),
+                  )}
+                  {MONTHLY_PROPERTY_TYPES.map((t) =>
+                    renderChip(t.label, filters.monthlyPropertyType === t.key, () =>
+                      setFilters({ ...filters, monthlyPropertyType: t.key }),
+                    ),
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="home" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Meublé</Text>
+                </View>
+                <View style={styles.chipRow}>
+                  {renderChip('Tous', filters.isFurnished === undefined, () =>
+                    setFilters({ ...filters, isFurnished: undefined }),
+                  )}
+                  {renderChip('Meublé', filters.isFurnished === true, () =>
+                    setFilters({ ...filters, isFurnished: true }),
+                  )}
+                  {renderChip('Non meublé', filters.isFurnished === false, () =>
+                    setFilters({ ...filters, isFurnished: false }),
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="receipt" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Charges</Text>
+                </View>
+                <View style={styles.chipRow}>
+                  {renderChip('Indifférent', filters.chargesIncluded !== true, () =>
+                    setFilters({ ...filters, chargesIncluded: undefined }),
+                  )}
+                  {renderChip('Charges comprises', filters.chargesIncluded === true, () =>
+                    setFilters({ ...filters, chargesIncluded: true }),
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="resize" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Surface minimum</Text>
+                </View>
+                <TextInput
+                  style={styles.singleInput}
+                  placeholder="Ex : 50 m²"
+                  value={minSurfaceInput}
+                  onChangeText={setMinSurfaceInput}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="bed" size={18} color={effectiveMeta.color} />
+                  <Text style={styles.sectionTitle}>Chambres minimum</Text>
+                </View>
+                <View style={styles.chipRow}>
+                  {renderChip('Toutes', !filters.minBedrooms, () =>
+                    setFilters({ ...filters, minBedrooms: undefined }),
+                  )}
+                  {[1, 2, 3, 4, 5].map((n) =>
+                    renderChip(`${n}+`, filters.minBedrooms === n, () =>
+                      setFilters({ ...filters, minBedrooms: n }),
+                    ),
+                  )}
+                </View>
+              </View>
+            </>
+          )}
+
           <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
             <Text style={styles.clearButtonText}>Effacer tous les filtres</Text>
           </TouchableOpacity>
@@ -465,10 +591,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  modalContainer: { flex: 1, backgroundColor: '#fff' },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -477,151 +600,75 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
   },
-  cancelText: {
-    fontSize: 16,
-    color: '#6c757d',
+  cancelText: { fontSize: 16, color: '#6c757d' },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#2c3e50' },
+  applyText: { fontSize: 16, fontWeight: '600' },
+  contextBanner: {
+    marginHorizontal: 15,
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderLeftWidth: 4,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-  },
-  applyText: {
-    fontSize: 16,
-    color: '#2E7D32',
-    fontWeight: '600',
-  },
-  modalContent: {
-    flex: 1,
-    padding: 15,
-  },
-  section: {
-    marginBottom: 25,
-  },
+  contextBannerText: { fontSize: 14, fontWeight: '700' },
+  modalContent: { flex: 1, padding: 15 },
+  section: { marginBottom: 22 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 15,
+    marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-  },
-  sortContainer: {
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#2c3e50' },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  serviceRow: { gap: 8 },
+  serviceChip: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    backgroundColor: '#fff',
   },
-  sortOption: {
-    paddingHorizontal: 15,
+  serviceChipText: { flex: 1, fontSize: 14, color: '#2c3e50', fontWeight: '500' },
+  serviceChipTextActive: { color: '#fff', fontWeight: '600' },
+  chip: {
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#e9ecef',
     backgroundColor: '#fff',
   },
-  sortOptionActive: {
-    backgroundColor: '#2E7D32',
-    borderColor: '#2E7D32',
-  },
-  sortOptionText: {
-    fontSize: 14,
-    color: '#6c757d',
-  },
-  sortOptionTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  priceInputContainer: {
-    flex: 1,
-  },
-  priceLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 5,
-  },
+  chipText: { fontSize: 13, color: '#6c757d' },
+  chipTextActive: { color: '#fff', fontWeight: '600' },
+  priceInputContainer: { flex: 1 },
+  priceLabel: { fontSize: 12, color: '#666', marginBottom: 5 },
   priceUnit: {
     position: 'absolute',
     right: 8,
     top: 28,
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
     fontWeight: '500',
   },
-  priceRange: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
-    marginBottom: 15,
-  },
+  priceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
   priceInput: {
-    flex: 1,
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
     padding: 12,
-    paddingRight: 50,
+    paddingRight: 48,
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#e9ecef',
   },
-  priceSeparator: {
-    marginHorizontal: 10,
-    fontSize: 16,
-    color: '#6c757d',
-  },
-  priceRanges: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  priceRangeButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    backgroundColor: '#fff',
-  },
-  priceRangeButtonActive: {
-    backgroundColor: '#2E7D32',
-    borderColor: '#2E7D32',
-  },
-  priceRangeText: {
-    fontSize: 14,
-    color: '#6c757d',
-  },
-  priceRangeTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  propertyTypes: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  propertyTypeButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    backgroundColor: '#fff',
-  },
-  propertyTypeButtonActive: {
-    backgroundColor: '#2E7D32',
-    borderColor: '#2E7D32',
-  },
-  propertyTypeText: {
-    fontSize: 14,
-    color: '#6c757d',
-  },
-  propertyTypeTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  input: {
+  priceSeparator: { marginHorizontal: 4, fontSize: 16, color: '#6c757d' },
+  singleInput: {
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
     padding: 12,
@@ -629,83 +676,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e9ecef',
   },
-  amenities: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
+  amenities: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   amenityButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#e9ecef',
     backgroundColor: '#fff',
+    gap: 6,
   },
-  amenityButtonActive: {
-    backgroundColor: '#2E7D32',
-    borderColor: '#2E7D32',
-  },
-  amenityText: {
-    fontSize: 14,
-    color: '#6c757d',
-    marginLeft: 8,
-  },
-  amenityTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  amenityText: { fontSize: 13, color: '#6c757d' },
+  amenityTextActive: { color: '#fff', fontWeight: '600' },
   clearButton: {
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
     padding: 15,
     alignItems: 'center',
-    marginTop: 20,
-  },
-  clearButtonText: {
-    fontSize: 16,
-    color: '#dc3545',
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  radiusInputContainer: {
-    marginTop: 10,
-  },
-  radiusLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  radiusInput: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-  radiusInfo: {
-    fontSize: 12,
-    color: '#4CAF50',
     marginTop: 8,
-    fontStyle: 'italic',
+    marginBottom: 24,
   },
-  helpText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 10,
-  },
+  clearButtonText: { fontSize: 16, color: '#dc3545', fontWeight: '600' },
+  loadingText: { fontSize: 14, color: '#666', paddingVertical: 8 },
 });
 
 export default FiltersModal;
-

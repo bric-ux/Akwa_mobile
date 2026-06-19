@@ -24,6 +24,11 @@ import { getAmenityIcon } from '../utils/amenityIcons';
 import { calculateDistance, isWithinRadius } from '../utils/distance';
 import { log, logError, logWarn } from '../utils/logger';
 import { getPricesForDateBatch } from '../utils/priceCalculator';
+import {
+  getCachedProperties,
+  propertyCatalogKey,
+  setCachedProperties,
+} from '../services/searchCatalogCache';
 
 const AMENITY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -192,7 +197,7 @@ type UsePropertiesOptions = { source?: 'home' | 'search' };
 export const useProperties = (options?: UsePropertiesOptions) => {
   const source: 'home' | 'search' = options?.source ?? 'search';
   const [properties, setProperties] = useState<Property[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Cache simple pour éviter les requêtes répétées
@@ -374,11 +379,17 @@ export const useProperties = (options?: UsePropertiesOptions) => {
 
   const fetchProperties = useCallback(async (filters?: SearchFilters) => {
     try {
-      setLoading(true);
-      setError(null);
-
       // Créer une clé de cache basée sur les filtres
       const cacheKey = JSON.stringify({ source, filters: filters || {} });
+      const catalogKey = propertyCatalogKey(source, filters || {});
+
+      const globalCached = getCachedProperties(catalogKey);
+      if (globalCached) {
+        setProperties(globalCached);
+        setCache((prev) => new Map(prev).set(cacheKey, globalCached));
+        setLoading(false);
+        return;
+      }
       
       // Vérifier le cache d'abord
       if (cache.has(cacheKey)) {
@@ -386,6 +397,9 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         setLoading(false);
         return;
       }
+
+      setLoading(true);
+      setError(null);
 
       // Récupérer les location_ids à filtrer
       let locationIds: string[] | null = null;
@@ -837,6 +851,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
 
       // Mettre en cache les résultats
       setCache(prev => new Map(prev).set(cacheKey, withDynamic));
+      setCachedProperties(catalogKey, withDynamic);
       
     } catch (err) {
       console.error('Erreur lors du chargement des propriétés:', err);

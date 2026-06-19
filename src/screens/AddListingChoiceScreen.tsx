@@ -3,35 +3,61 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { HOST_COLORS, VEHICLE_COLORS, HOTEL_COLORS } from '../constants/colors';
+import { HOST_COLORS, VEHICLE_COLORS, HOTEL_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
-const LISTING_OPTIONS = [
+type ListingOption = {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  light: string;
+  route: string;
+  params?: Record<string, unknown>;
+};
+
+const LISTING_OPTIONS: ListingOption[] = [
   {
     id: 'property',
     title: 'Résidence meublée',
     subtitle: 'Appartement, maison, villa — court séjour',
-    icon: 'home-outline' as const,
+    icon: 'home-outline',
     color: HOST_COLORS.primary,
     light: HOST_COLORS.light,
-    route: 'BecomeHost' as const,
+    route: 'BecomeHost',
+    params: { listingType: 'short_term' },
   },
+  ...(FEATURE_MONTHLY_RENTAL
+    ? [
+        {
+          id: 'monthly_rental',
+          title: 'Location longue durée',
+          subtitle: 'Appartement, maison, studio — loyer au mois',
+          icon: 'calendar-outline' as const,
+          color: MONTHLY_RENTAL_COLORS.primary,
+          light: MONTHLY_RENTAL_COLORS.light,
+          route: 'AddMonthlyRentalListing',
+        },
+      ]
+    : []),
   {
     id: 'vehicle',
     title: 'Véhicule',
     subtitle: 'Voiture, SUV, van — location à la journée',
-    icon: 'car-outline' as const,
+    icon: 'car-outline',
     color: VEHICLE_COLORS.primary,
     light: VEHICLE_COLORS.light,
-    route: 'AddVehicle' as const,
+    route: 'AddVehicle',
   },
   {
     id: 'hotel',
     title: 'Hôtel & Appart\'hôtel',
     subtitle: 'Établissement multi-chambres avec inventaire',
-    icon: 'bed-outline' as const,
+    icon: 'bed-outline',
     color: HOTEL_COLORS.primary,
     light: HOTEL_COLORS.light,
-    route: 'AddHotelEstablishment' as const,
+    route: 'AddHotelEstablishment',
   },
 ];
 
@@ -56,7 +82,7 @@ const AddListingChoiceScreen: React.FC = () => {
           <TouchableOpacity
             key={option.id}
             style={[styles.card, { borderColor: option.color }]}
-            onPress={() => navigation.navigate(option.route)}
+            onPress={() => navigation.navigate(option.route, option.params)}
             activeOpacity={0.85}
           >
             <View style={[styles.iconWrap, { backgroundColor: option.light }]}>

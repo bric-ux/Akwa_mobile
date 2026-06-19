@@ -129,8 +129,14 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [referrerName, setReferrerName] = useState<string>('');
   const [isReferred, setIsReferred] = useState(false);
   /** Type d'annonce : pour l’instant seule la résidence meublée (court séjour) — pas d’écran de choix */
-  const [listingType, setListingType] = useState<'short_term' | 'monthly' | null>('short_term');
-  const [listingTypeConfirmed, setListingTypeConfirmed] = useState(true);
+  const preselectedListingType = route?.params?.listingType as 'short_term' | 'monthly' | undefined;
+  const isEditModeFromRoute = !!route?.params?.editApplicationId;
+  const [listingType, setListingType] = useState<'short_term' | 'monthly' | null>(
+    preselectedListingType ?? (FEATURE_MONTHLY_RENTAL && !isEditModeFromRoute ? null : 'short_term')
+  );
+  const [listingTypeConfirmed, setListingTypeConfirmed] = useState(
+    !!preselectedListingType || !FEATURE_MONTHLY_RENTAL || isEditModeFromRoute
+  );
   /** Empêche les doubles envois (loading du hook ne couvre pas fetchPaymentInfo + validations avant insert). */
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitInFlightRef = useRef(false);

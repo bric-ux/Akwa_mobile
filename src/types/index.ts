@@ -220,6 +220,20 @@ export interface SearchFilters {
   rentalType?: 'short_term' | 'monthly' | 'all';
   /** Court séjour : tout, résidences meublées seules, ou hôtels seuls */
   accommodationType?: 'all' | 'property' | 'hotel';
+  /** Hôtel : type d'établissement */
+  establishmentType?: HotelEstablishmentType;
+  /** Hôtel : nombre d'étoiles minimum */
+  starRatingMin?: number;
+  /** Location mensuelle : type de bien */
+  monthlyPropertyType?: 'apartment' | 'house' | 'villa' | 'studio';
+  /** Location mensuelle : meublé uniquement si true, non meublé si false */
+  isFurnished?: boolean;
+  /** Location mensuelle : charges comprises */
+  chargesIncluded?: boolean;
+  /** Location mensuelle : surface habitable minimum (m²) */
+  minSurfaceM2?: number;
+  /** Location mensuelle : nombre de chambres minimum */
+  minBedrooms?: number;
 }
 
 // Types de navigation
@@ -242,6 +256,8 @@ export type RootStackParamList = {
     destination?: string;
     initialRentalType?: 'short_term' | 'monthly' | 'all';
     initialAccommodationType?: 'all' | 'property' | 'hotel';
+    /** Ouvre directement les résultats (sans la popup de recherche) */
+    openResults?: boolean;
   };
   PropertyDetails: { 
     propertyId: string;
@@ -272,7 +288,7 @@ export type RootStackParamList = {
   ZipLeaderboard: undefined;
   MatchPrediction: undefined;
   EditProfile: undefined;
-  BecomeHost: undefined;
+  BecomeHost: { listingType?: 'short_term' | 'monthly'; editApplicationId?: string } | undefined;
   /** Assistant IA (questions / réponses) — réservé usage futur */
   HostOnboardingAssistant: undefined;
   MyHostApplications: undefined;
@@ -528,6 +544,7 @@ export interface HotelFilters {
   priceMin?: number;
   priceMax?: number;
   guests?: number;
+  starRatingMin?: number;
 }
 
 export interface Vehicle {
