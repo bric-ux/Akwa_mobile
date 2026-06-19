@@ -22,7 +22,7 @@ import MediaThumb from './MediaThumb';
 import { getPropertyCoverUrl, getPropertyGalleryUrls, isVideoUrl } from '../utils/media';
 import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 import { getPropertyTypeLabel } from '../utils/propertyTypeLabel';
-import { EXPLORE_SHELF_IMAGE_HEIGHT, formatExploreShelfHeadline, formatExploreShelfRatingSubtitle } from '../constants/exploreShelfCard';
+import { EXPLORE_SHELF_IMAGE_HEIGHT, formatExploreShelfHeadline, formatExploreShelfRatingSubtitle, LIST_CARD_IMAGE_HEIGHT } from '../constants/exploreShelfCard';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
 const CAROUSEL_HEIGHT = 220;
@@ -195,6 +195,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               resizeMode="cover"
               contentPosition={isHomeShelf ? 'top' : 'center'}
               preferOriginal={isHomeShelf}
+              fitWholeImage={!isHomeShelf}
               isVideo={isVideoUrl(uri)}
               priority={isHomeShelf ? 'high' : 'low'}
               recyclingKey={`${property.id}-${recyclingSuffix}`}
@@ -215,7 +216,12 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
   }
 
   if (variant === 'list') {
-    return renderExploreListCard(CAROUSEL_HEIGHT, styles.listContainer, 'list-cover', false);
+    return renderExploreListCard(
+      LIST_CARD_IMAGE_HEIGHT,
+      styles.listContainer,
+      'list-cover',
+      false,
+    );
   }
 
   return (

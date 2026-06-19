@@ -224,6 +224,31 @@ export function getGalleryThumbUrl(url: string): string {
   );
 }
 
+/** Cartes résultats : image entière dans l'encart (pas de recadrage CDN). */
+export function getListCardImageUrl(url: string): string {
+  if (!url || url.includes('placeholder')) return url;
+
+  if (url.includes('images.unsplash.com')) {
+    try {
+      const u = new URL(url);
+      u.searchParams.set('auto', 'format');
+      u.searchParams.set('fit', 'max');
+      u.searchParams.set('w', '1200');
+      u.searchParams.delete('h');
+      u.searchParams.delete('crop');
+      return u.toString();
+    } catch {
+      return url;
+    }
+  }
+
+  return getOptimizedSupabaseImageUrl(
+    url,
+    { width: 1200, height: 900, quality: 84, resize: 'contain' },
+    isHeicUrl(url) || isSupabasePublicStorageUrl(url),
+  );
+}
+
 /** Lightbox plein écran — évite de charger l'original multi‑Mo */
 export function getGalleryViewerUrl(url: string): string {
   return getOptimizedSupabaseImageUrl(

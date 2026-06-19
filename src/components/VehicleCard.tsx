@@ -26,9 +26,8 @@ import { formatCardLocationLabel } from '../utils/locationLabel';
 import {
   formatExploreShelfHeadline,
   formatExploreShelfRatingSubtitle,
+  LIST_CARD_IMAGE_HEIGHT,
 } from '../constants/exploreShelfCard';
-
-const LIST_IMAGE_HEIGHT = 220;
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -139,12 +138,13 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
           priceLabel={`${formatPrice(vehicle.price_per_day)}/jour`}
           onFavoritePress={handleFavoritePress}
           isFavorited={isFavorited}
-          imageHeight={LIST_IMAGE_HEIGHT}
+          imageHeight={LIST_CARD_IMAGE_HEIGHT}
           image={
             <MediaThumb
               uri={coverUri}
-              style={{ width: '100%', height: LIST_IMAGE_HEIGHT }}
+              style={{ width: '100%', height: LIST_CARD_IMAGE_HEIGHT }}
               resizeMode="cover"
+              fitWholeImage
               contentPosition="center"
               isVideo={isVideoUrl(coverUri)}
               priority="low"

@@ -6,8 +6,14 @@ import type { MonthlyRentalListing } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { formatCardLocationLabel } from '../utils/locationLabel';
 import { getPropertyTypeLabel } from '../utils/propertyTypeLabel';
-import { EXPLORE_SHELF_IMAGE_HEIGHT, formatExploreShelfHeadline } from '../constants/exploreShelfCard';
+import {
+  EXPLORE_SHELF_IMAGE_HEIGHT,
+  formatExploreShelfHeadline,
+  LIST_CARD_IMAGE_HEIGHT,
+} from '../constants/exploreShelfCard';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
+import MediaThumb from './MediaThumb';
+import { isVideoUrl } from '../utils/media';
 
 interface MonthlyRentalListingCardProps {
   listing: MonthlyRentalListing;
@@ -53,12 +59,48 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
     );
   }
 
+  if (variant === 'list') {
+    const metaSubtitle = [
+      `${listing.surface_m2} m²`,
+      `${listing.number_of_rooms} pièces`,
+      `${listing.bedrooms} ch.`,
+      listing.is_furnished ? 'Meublé' : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    return (
+      <View style={styles.listContainer}>
+        <ExploreShelfPhotoCard
+          onPress={() => onPress(listing)}
+          title={formatExploreShelfHeadline({
+            title: listing.title,
+            typeLabel: getPropertyTypeLabel(listing.property_type),
+          })}
+          location={locationLabel || undefined}
+          subtitle={metaSubtitle}
+          priceLabel={`${formatPrice(listing.monthly_rent_price)}/mois`}
+          imageHeight={LIST_CARD_IMAGE_HEIGHT}
+          image={
+            <MediaThumb
+              uri={imageUri}
+              style={{ width: '100%', height: LIST_CARD_IMAGE_HEIGHT }}
+              resizeMode="cover"
+              fitWholeImage
+              contentPosition="center"
+              isVideo={isVideoUrl(imageUri)}
+              priority="low"
+              recyclingKey={`${listing.id}-list-cover`}
+            />
+          }
+        />
+      </View>
+    );
+  }
+
   return (
     <TouchableOpacity
-      style={[
-        styles.container,
-        variant === 'list' && styles.listContainer,
-      ]}
+      style={styles.container}
       onPress={() => onPress(listing)}
       activeOpacity={0.8}
     >
@@ -106,7 +148,10 @@ const styles = StyleSheet.create({
     height: EXPLORE_SHELF_IMAGE_HEIGHT,
   },
   container: { marginHorizontal: 20, marginBottom: 16 },
-  listContainer: {},
+  listContainer: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
   cardLayout: {
     backgroundColor: '#fff',
     borderRadius: 16,

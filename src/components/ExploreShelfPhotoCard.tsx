@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: EXPLORE_SHELF_IMAGE_RADIUS,
     overflow: 'hidden',
-    backgroundColor: '#cbd5e1',
+    backgroundColor: '#ffffff',
     shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.22,

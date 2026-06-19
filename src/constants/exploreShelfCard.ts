@@ -12,6 +12,14 @@ export const EXPLORE_SHELF_IMAGE_HEIGHT = Math.round(EXPLORE_SHELF_CARD_WIDTH * 
 
 export const EXPLORE_SHELF_IMAGE_RADIUS = 26;
 
+/** Marge horizontale standard des cartes liste (20 + 20). */
+const LIST_CARD_SIDE_MARGIN = 40;
+
+/** Format uniforme 4:3 pour tous les encarts liste recherche. */
+export const LIST_CARD_IMAGE_HEIGHT = Math.round(
+  (SCREEN_W - LIST_CARD_SIDE_MARGIN) * (3 / 4),
+);
+
 /** Titre court sur une ligne (avec note à droite sur la carte). */
 export const EXPLORE_SHELF_TITLE_ONE_LINE_MAX = 26;
 

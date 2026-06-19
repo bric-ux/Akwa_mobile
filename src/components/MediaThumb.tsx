@@ -3,7 +3,7 @@ import { View, StyleSheet, StyleProp, ViewStyle, ImageStyle } from 'react-native
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { getGalleryThumbUrl, isVideoUrl } from '../utils/media';
+import { getGalleryThumbUrl, getListCardImageUrl, isVideoUrl } from '../utils/media';
 
 type MediaThumbProps = {
   uri: string;
@@ -18,8 +18,10 @@ type MediaThumbProps = {
   priority?: 'low' | 'normal' | 'high';
   /** Stabilise le recyclage des vues (listes) — ex. `${propertyId}-${index}` */
   recyclingKey?: string;
-  /** Accueil : charge l'URL source (évite le recadrage des miniatures liste). */
+  /** Accueil carrousel : URL source + recadrage cover. */
   preferOriginal?: boolean;
+  /** Résultats recherche : image uploadée visible en entier dans l'encart. */
+  fitWholeImage?: boolean;
   contentPosition?: 'center' | 'top' | 'bottom';
 };
 
@@ -35,6 +37,7 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
   priority = 'normal',
   recyclingKey,
   preferOriginal = false,
+  fitWholeImage = false,
   contentPosition = 'center',
 }) => {
   const [videoError, setVideoError] = useState(false);
@@ -77,13 +80,19 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
   }
 
   const [useOriginal, setUseOriginal] = useState(preferOriginal);
-  const displayUri = useOriginal ? uri : getGalleryThumbUrl(uri);
+  const optimizedUri = useOriginal
+    ? uri
+    : fitWholeImage
+      ? getListCardImageUrl(uri)
+      : getGalleryThumbUrl(uri);
+  const displayUri = useOriginal ? uri : optimizedUri;
+  const contentFit = resizeMode === 'cover' ? 'cover' : 'contain';
 
   return (
     <Image
       source={displayUri}
       style={style as ImageStyle}
-      contentFit={resizeMode === 'cover' ? 'cover' : 'contain'}
+      contentFit={contentFit}
       contentPosition={contentPosition}
       cachePolicy="memory-disk"
       priority={priority}
