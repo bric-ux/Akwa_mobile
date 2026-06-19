@@ -12,8 +12,19 @@ const propertiesCache = new Map<string, CacheEntry<Property[]>>();
 let hotelsCache: CacheEntry<HotelEstablishment[]> | null = null;
 const monthlyCache = new Map<string, CacheEntry<MonthlyRentalListing[]>>();
 
+function normalizeFilters(filters?: object | null): Record<string, unknown> {
+  if (filters == null || typeof filters !== 'object') return {};
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === null || value === '') continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
 export function propertyCatalogKey(source: string, filters?: object): string {
-  return JSON.stringify({ source, filters: filters ?? {} });
+  return JSON.stringify({ source, filters: normalizeFilters(filters) });
 }
 
 export function getCachedProperties(key: string): Property[] | null {
@@ -34,7 +45,7 @@ export function setCachedHotels(data: HotelEstablishment[]): void {
 }
 
 export function monthlyCatalogKey(filters?: object): string {
-  return JSON.stringify(filters ?? {});
+  return JSON.stringify(normalizeFilters(filters));
 }
 
 export function getCachedMonthly(key: string): MonthlyRentalListing[] | null {

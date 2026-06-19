@@ -64,6 +64,12 @@ function enrichEstablishment(row: HotelEstablishment): HotelEstablishment {
   };
 }
 
+function collectEstablishmentAmenities(establishment: HotelEstablishment): string[] {
+  const fromEstablishment = establishment.amenities ?? [];
+  const fromRooms = (establishment.hotel_room_types ?? []).flatMap((rt) => rt.amenities ?? []);
+  return [...fromEstablishment, ...fromRooms];
+}
+
 function matchesFilters(establishment: HotelEstablishment, filters?: HotelFilters): boolean {
   if (!filters) return true;
 
@@ -99,6 +105,14 @@ function matchesFilters(establishment: HotelEstablishment, filters?: HotelFilter
   if (filters.starRatingMin != null && filters.starRatingMin > 0) {
     const stars = establishment.star_rating ?? 0;
     if (stars < filters.starRatingMin) return false;
+  }
+
+  if (filters.amenities && filters.amenities.length > 0) {
+    const available = collectEstablishmentAmenities(establishment).map((a) => a.toLowerCase());
+    const hasAll = filters.amenities.every((required) =>
+      available.some((a) => a === required.toLowerCase()),
+    );
+    if (!hasAll) return false;
   }
 
   return (establishment.hotel_room_types?.length ?? 0) > 0;

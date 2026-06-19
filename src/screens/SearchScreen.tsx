@@ -24,7 +24,7 @@ import type { MonthlyRentalListing } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import HotelCard from '../components/HotelCard';
 import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
-import FiltersModal, { SearchFilterContext } from '../components/FiltersModal';
+import FiltersModal, { FiltersPanel, SearchFilterContext } from '../components/FiltersModal';
 import SearchResultsHeader from '../components/SearchResultsHeader';
 import SearchFormModal from '../components/SearchFormModal';
 import SearchResultsView from '../components/SearchResultsView';
@@ -44,6 +44,7 @@ function buildHotelSearchFilters(filters: SearchFilters, query: string): HotelFi
     guests: filters.guests,
     establishmentType: filters.establishmentType,
     starRatingMin: filters.starRatingMin,
+    amenities: filters.amenities,
   };
 }
 
@@ -709,7 +710,6 @@ const SearchScreen: React.FC = () => {
   const getActiveFiltersCount = (): number => {
     let count = 0;
     if (filters.priceMin || filters.priceMax) count++;
-    if (filters.guests) count++;
     if (filters.propertyType) count++;
     if (filters.establishmentType) count++;
     if (filters.starRatingMin) count++;
@@ -1003,11 +1003,21 @@ const SearchScreen: React.FC = () => {
       )}
 
       <SearchFormModal
-        visible={showSearchForm && !showFilters}
+        visible={showSearchForm}
         canDismissToResults={hasSubmittedSearch}
         onClose={closeSearchFormToResults}
         onBack={() => navigation.goBack()}
         onOpenFilters={openFiltersFromSearchForm}
+        showFiltersPanel={showFilters}
+        filtersPanel={
+          <FiltersPanel
+            active={showFilters}
+            onClose={closeFilters}
+            onApply={handleFilterChange}
+            initialFilters={filters}
+            filterContext={filterContext}
+          />
+        }
         rentalType={rentalType}
         currentSearchQuery={currentSearchQuery}
         onSearch={handleSearch}
@@ -1023,7 +1033,7 @@ const SearchScreen: React.FC = () => {
       />
 
       <FiltersModal
-        visible={showFilters}
+        visible={showFilters && !showSearchForm}
         onClose={closeFilters}
         onApply={handleFilterChange}
         initialFilters={filters}

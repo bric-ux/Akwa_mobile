@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  Animated,
+  Dimensions,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,12 +18,16 @@ import DestinationSearchModal, { DestinationSuggestion } from './DestinationSear
 import DateGuestsSelector from './DateGuestsSelector';
 import SearchButton from './SearchButton';
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
 type Props = {
   visible: boolean;
   canDismissToResults: boolean;
   onClose: () => void;
   onBack: () => void;
   onOpenFilters: () => void;
+  showFiltersPanel?: boolean;
+  filtersPanel?: React.ReactNode;
   rentalType: 'short_term' | 'monthly';
   currentSearchQuery: string;
   onSearch: (query: string) => void;
@@ -44,6 +51,8 @@ const SearchFormModal: React.FC<Props> = ({
   onClose,
   onBack,
   onOpenFilters,
+  showFiltersPanel = false,
+  filtersPanel,
   rentalType,
   currentSearchQuery,
   onSearch,
@@ -59,10 +68,20 @@ const SearchFormModal: React.FC<Props> = ({
 }) => {
   const [showDestinationModal, setShowDestinationModal] = useState(false);
   const [destinationQuery, setDestinationQuery] = useState(currentSearchQuery);
+  const filtersSlide = useRef(new Animated.Value(SCREEN_WIDTH)).current;
 
   useEffect(() => {
     setDestinationQuery(currentSearchQuery);
   }, [currentSearchQuery]);
+
+  useEffect(() => {
+    Animated.timing(filtersSlide, {
+      toValue: showFiltersPanel ? 0 : SCREEN_WIDTH,
+      duration: showFiltersPanel ? 280 : 220,
+      easing: showFiltersPanel ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [showFiltersPanel, filtersSlide]);
 
   const hasDestination = destinationQuery.trim().length > 0;
 
@@ -95,10 +114,12 @@ const SearchFormModal: React.FC<Props> = ({
           </TouchableOpacity>
         </View>
 
+        <View style={styles.contentShell}>
         <KeyboardAvoidingView
           style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          pointerEvents={showFiltersPanel ? 'none' : 'auto'}
         >
         <ScrollView
           style={styles.scroll}
@@ -170,6 +191,16 @@ const SearchFormModal: React.FC<Props> = ({
           />
         </ScrollView>
         </KeyboardAvoidingView>
+
+        {filtersPanel ? (
+          <Animated.View
+            style={[styles.filtersOverlay, { transform: [{ translateX: filtersSlide }] }]}
+            pointerEvents={showFiltersPanel ? 'auto' : 'none'}
+          >
+            {filtersPanel}
+          </Animated.View>
+        ) : null}
+        </View>
       </SafeAreaView>
 
       <DestinationSearchModal
@@ -192,6 +223,15 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: '#f4f7f5',
+  },
+  contentShell: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  filtersOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#fff',
+    zIndex: 20,
   },
   topBar: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,79 +6,93 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
+  ImageSourcePropType,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { prefetchHomeCategory } from '../services/searchCatalogPrefetch';
 import {
   HOST_COLORS,
   HOTEL_COLORS,
   MONTHLY_RENTAL_COLORS,
   VEHICLE_COLORS,
 } from '../constants/colors';
+import type { HomeCategoryId } from '../types/homeCategory';
 
-export type HomeCategoryId = 'residence' | 'hotel' | 'monthly' | 'vehicle';
+export type { HomeCategoryId };
 
 type CategoryDef = {
   id: HomeCategoryId;
   label: string;
-  image: number;
+  fallbackImage: number;
   color: string;
 };
 
-const CATEGORIES: CategoryDef[] = [
+const FALLBACK_IMAGES: Record<HomeCategoryId, number> = {
+  residence: require('../../assets/images/plages-assinie.jpg'),
+  hotel: require('../../assets/images/abidjan.jpg'),
+  monthly: require('../../assets/images/culture.jpg'),
+  vehicle: require('../../assets/images/vehicles-suv.jpg'),
+};
+
+const BASE_CATEGORIES: CategoryDef[] = [
   {
     id: 'residence',
     label: 'Résidences meublées',
-    image: require('../../assets/images/plages-assinie.jpg'),
+    fallbackImage: FALLBACK_IMAGES.residence,
     color: HOST_COLORS.primary,
   },
   {
     id: 'hotel',
     label: 'Hôtels',
-    image: require('../../assets/images/abidjan.jpg'),
+    fallbackImage: FALLBACK_IMAGES.hotel,
     color: HOTEL_COLORS.primary,
   },
-  ...(FEATURE_MONTHLY_RENTAL
-    ? [
-        {
-          id: 'monthly' as const,
-          label: 'Location',
-          image: require('../../assets/images/culture.jpg'),
-          color: MONTHLY_RENTAL_COLORS.primary,
-        },
-      ]
-    : []),
   {
     id: 'vehicle',
     label: 'Véhicules',
-    image: require('../../assets/images/vehicles-suv.jpg'),
+    fallbackImage: FALLBACK_IMAGES.vehicle,
     color: VEHICLE_COLORS.primary,
   },
 ];
 
+const MONTHLY_CATEGORY: CategoryDef = {
+  id: 'monthly',
+  label: 'Location',
+  fallbackImage: FALLBACK_IMAGES.monthly,
+  color: MONTHLY_RENTAL_COLORS.primary,
+};
+
 type Props = {
   onCategoryPress: (id: HomeCategoryId) => void;
+  categoryImages?: Partial<Record<HomeCategoryId, string>>;
 };
 
 function CategoryPill({
   item,
+  imageUri,
   onPress,
 }: {
   item: CategoryDef;
+  imageUri?: string;
   onPress: () => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const imageSource: ImageSourcePropType = imageUri
+    ? { uri: imageUri }
+    : item.fallbackImage;
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <TouchableOpacity
-        onPress={onPress}
         onPressIn={() => {
+          prefetchHomeCategory(item.id);
           Animated.spring(scale, { toValue: 0.95, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
         }}
         onPressOut={() => {
           Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
         }}
+        onPress={onPress}
         activeOpacity={0.92}
         accessibilityRole="button"
         accessibilityLabel={item.label}
@@ -86,11 +100,11 @@ function CategoryPill({
       >
         <View style={[styles.thumbRing, { borderColor: `${item.color}33` }]}>
           <Image
-            source={item.image}
+            source={imageSource}
             style={styles.thumb}
             contentFit="cover"
             cachePolicy="memory-disk"
-            transition={0}
+            transition={imageUri ? 150 : 0}
           />
         </View>
         <Text style={[styles.pillLabel, { color: item.color }]}>{item.label}</Text>
@@ -99,7 +113,15 @@ function CategoryPill({
   );
 }
 
-const HomeCategoryPills: React.FC<Props> = ({ onCategoryPress }) => {
+const HomeCategoryPills: React.FC<Props> = ({ onCategoryPress, categoryImages }) => {
+  const categories = useMemo(() => {
+    const list = [...BASE_CATEGORIES];
+    if (FEATURE_MONTHLY_RENTAL) {
+      list.splice(2, 0, MONTHLY_CATEGORY);
+    }
+    return list;
+  }, []);
+
   const handlePress = useCallback(
     (id: HomeCategoryId) => {
       onCategoryPress(id);
@@ -116,8 +138,13 @@ const HomeCategoryPills: React.FC<Props> = ({ onCategoryPress }) => {
       keyboardShouldPersistTaps="handled"
       style={styles.scroll}
     >
-      {CATEGORIES.map((item) => (
-        <CategoryPill key={item.id} item={item} onPress={() => handlePress(item.id)} />
+      {categories.map((item) => (
+        <CategoryPill
+          key={item.id}
+          item={item}
+          imageUri={categoryImages?.[item.id]}
+          onPress={() => handlePress(item.id)}
+        />
       ))}
     </ScrollView>
   );

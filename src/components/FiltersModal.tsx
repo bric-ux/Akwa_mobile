@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,23 +8,29 @@ import {
   ScrollView,
   TextInput,
   Platform,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SearchFilters, HotelEstablishmentType } from '../types';
 import { useAmenities } from '../hooks/useAmenities';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
-import { getAmenityIonicIcon } from '../utils/amenityIcons';
+import AmenityFilterPicker from './AmenityFilterPicker';
 import { HOST_COLORS, HOTEL_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
 
 export type SearchFilterContext = 'residence' | 'hotel' | 'monthly' | 'mixed';
 export type SearchServiceType = 'residence' | 'hotel' | 'monthly';
 
-interface FiltersModalProps {
-  visible: boolean;
+interface FiltersPanelProps {
+  active: boolean;
   onClose: () => void;
   onApply: (filters: SearchFilters) => void;
   initialFilters?: SearchFilters;
   filterContext: SearchFilterContext;
+}
+
+interface FiltersModalProps extends FiltersPanelProps {
+  visible: boolean;
 }
 
 const RESIDENCE_PROPERTY_TYPES = [
@@ -102,8 +108,8 @@ const CONTEXT_META: Record<
   },
 };
 
-const FiltersModal: React.FC<FiltersModalProps> = ({
-  visible,
+const FiltersPanel: React.FC<FiltersPanelProps> = ({
+  active,
   onClose,
   onApply,
   initialFilters = {},
@@ -120,23 +126,47 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   const [minSurfaceInput, setMinSurfaceInput] = useState<string>(
     initialFilters.minSurfaceM2?.toString() || '',
   );
-  const [guestsInput, setGuestsInput] = useState<string>(
-    initialFilters.guests ? String(initialFilters.guests) : '',
-  );
+  const scrollRef = useRef<ScrollView>(null);
+  const amenitiesSectionY = useRef(0);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardInset(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardInset(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const scrollToAmenitiesSearch = () => {
+    const delay = Platform.OS === 'ios' ? 80 : 200;
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, amenitiesSectionY.current - 12),
+        animated: true,
+      });
+    }, delay);
+  };
 
   const effectiveContext: SearchServiceType = selectedService;
   const effectiveMeta = CONTEXT_META[effectiveContext];
 
   useEffect(() => {
-    if (!visible) return;
+    if (!active) return;
     setFilters(initialFilters);
     setSelectedService(deriveServiceType(initialFilters, filterContext));
     setSelectedAmenities(initialFilters.amenities ?? []);
     setMinPriceInput(initialFilters.priceMin?.toString() || '');
     setMaxPriceInput(initialFilters.priceMax?.toString() || '');
     setMinSurfaceInput(initialFilters.minSurfaceM2?.toString() || '');
-    setGuestsInput(initialFilters.guests ? String(initialFilters.guests) : '');
-  }, [initialFilters, filterContext, visible]);
+  }, [initialFilters, filterContext, active]);
 
   const handleServiceChange = (service: SearchServiceType) => {
     setSelectedService(service);
@@ -153,14 +183,13 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   const handleApply = () => {
     const priceMin = minPriceInput ? parseInt(minPriceInput, 10) : undefined;
     const priceMax = maxPriceInput ? parseInt(maxPriceInput, 10) : undefined;
-    const guests = guestsInput ? parseInt(guestsInput, 10) : undefined;
     const minSurfaceM2 = minSurfaceInput ? parseInt(minSurfaceInput, 10) : undefined;
 
     const base: SearchFilters = {
       ...filters,
       priceMin,
       priceMax,
-      guests: guests && guests > 0 ? guests : undefined,
+      guests: initialFilters.guests,
       sortBy: initialFilters.sortBy,
       radiusKm: undefined,
       centerLat: undefined,
@@ -189,7 +218,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
         accommodationType: 'hotel',
         establishmentType: filters.establishmentType,
         starRatingMin: filters.starRatingMin,
-        amenities: undefined,
+        amenities: selectedAmenities.length > 0 ? selectedAmenities : undefined,
         propertyType: undefined,
         monthlyPropertyType: undefined,
         isFurnished: undefined,
@@ -244,7 +273,6 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     setMinPriceInput('');
     setMaxPriceInput('');
     setMinSurfaceInput('');
-    setGuestsInput('');
   };
 
   const toggleAmenity = (amenityName: string) => {
@@ -302,33 +330,30 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     </View>
   );
 
-  const essentialAmenities = [
-    'WiFi gratuit',
-    'Eau chaude',
-    'Climatisation',
-    'Parking gratuit',
-    'Piscine',
-    'Jacuzzi',
-    'Sauna',
-    'Ascenseur',
-  ];
-
-  const sortedAmenities = [...amenities].sort((a, b) => {
-    const aEss = essentialAmenities.includes(a.name);
-    const bEss = essentialAmenities.includes(b.name);
-    if (aEss && !bEss) return -1;
-    if (!aEss && bEss) return 1;
-    return a.name.localeCompare(b.name);
-  });
+  const renderAmenitiesSection = () => (
+    <View
+      style={styles.section}
+      onLayout={(event) => {
+        amenitiesSectionY.current = event.nativeEvent.layout.y;
+      }}
+    >
+      <View style={styles.sectionHeader}>
+        <Ionicons name="options" size={18} color={effectiveMeta.color} />
+        <Text style={styles.sectionTitle}>Équipements</Text>
+      </View>
+      <AmenityFilterPicker
+        amenities={amenities}
+        loading={amenitiesLoading}
+        selected={selectedAmenities}
+        onToggle={toggleAmenity}
+        accentColor={effectiveMeta.color}
+        onSearchFocus={scrollToAmenitiesSearch}
+      />
+    </View>
+  );
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalContainer}>
+    <View style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <TouchableOpacity onPress={onClose}>
             <Text style={styles.cancelText}>Annuler</Text>
@@ -345,7 +370,25 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
           </Text>
         </View>
 
-        <ScrollView style={styles.modalContent}>
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoid}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        >
+          <ScrollView
+            ref={scrollRef}
+            style={styles.modalContent}
+            contentContainerStyle={[
+              styles.modalContentContainer,
+              keyboardInset > 0 && Platform.OS === 'android'
+                ? { paddingBottom: keyboardInset + 24 }
+                : null,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            automaticallyAdjustKeyboardInsets
+            showsVerticalScrollIndicator={false}
+          >
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="grid" size={18} color={effectiveMeta.color} />
@@ -413,19 +456,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
                 </View>
               </View>
 
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Ionicons name="people" size={18} color={effectiveMeta.color} />
-                  <Text style={styles.sectionTitle}>Voyageurs</Text>
-                </View>
-                <TextInput
-                  style={styles.singleInput}
-                  placeholder="Nombre de personnes"
-                  value={guestsInput}
-                  onChangeText={setGuestsInput}
-                  keyboardType="numeric"
-                />
-              </View>
+              {renderAmenitiesSection()}
             </>
           )}
 
@@ -448,51 +479,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
                 </View>
               </View>
 
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Ionicons name="people" size={18} color={effectiveMeta.color} />
-                  <Text style={styles.sectionTitle}>Voyageurs</Text>
-                </View>
-                <TextInput
-                  style={styles.singleInput}
-                  placeholder="Nombre de personnes"
-                  value={guestsInput}
-                  onChangeText={setGuestsInput}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Ionicons name="options" size={18} color={effectiveMeta.color} />
-                  <Text style={styles.sectionTitle}>Équipements</Text>
-                </View>
-                {amenitiesLoading ? (
-                  <Text style={styles.loadingText}>Chargement...</Text>
-                ) : (
-                  <View style={styles.amenities}>
-                    {sortedAmenities.map((amenity) => {
-                      const isSelected = selectedAmenities.includes(amenity.name);
-                      const iconName = getAmenityIonicIcon(amenity.name) as keyof typeof Ionicons.glyphMap;
-                      return (
-                        <TouchableOpacity
-                          key={amenity.id}
-                          style={[
-                            styles.amenityButton,
-                            isSelected && { backgroundColor: effectiveMeta.color, borderColor: effectiveMeta.color },
-                          ]}
-                          onPress={() => toggleAmenity(amenity.name)}
-                        >
-                          <Ionicons name={iconName} size={18} color={isSelected ? '#fff' : '#666'} />
-                          <Text style={[styles.amenityText, isSelected && styles.amenityTextActive]}>
-                            {amenity.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
+              {renderAmenitiesSection()}
             </>
           )}
 
@@ -584,11 +571,36 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
           <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
             <Text style={styles.clearButtonText}>Effacer tous les filtres</Text>
           </TouchableOpacity>
-        </ScrollView>
-      </View>
-    </Modal>
+          </ScrollView>
+        </KeyboardAvoidingView>
+    </View>
   );
 };
+
+const FiltersModal: React.FC<FiltersModalProps> = ({
+  visible,
+  onClose,
+  onApply,
+  initialFilters,
+  filterContext,
+}) => (
+  <Modal
+    visible={visible}
+    animationType="fade"
+    presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
+    onRequestClose={onClose}
+  >
+    <FiltersPanel
+      active={visible}
+      onClose={onClose}
+      onApply={onApply}
+      initialFilters={initialFilters}
+      filterContext={filterContext}
+    />
+  </Modal>
+);
+
+export { FiltersPanel };
 
 const styles = StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: '#fff' },
@@ -613,7 +625,9 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
   },
   contextBannerText: { fontSize: 14, fontWeight: '700' },
-  modalContent: { flex: 1, padding: 15 },
+  keyboardAvoid: { flex: 1 },
+  modalContent: { flex: 1 },
+  modalContentContainer: { padding: 15, paddingBottom: 32 },
   section: { marginBottom: 22 },
   sectionHeader: {
     flexDirection: 'row',
@@ -676,20 +690,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e9ecef',
   },
-  amenities: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  amenityButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    backgroundColor: '#fff',
-    gap: 6,
-  },
-  amenityText: { fontSize: 13, color: '#6c757d' },
-  amenityTextActive: { color: '#fff', fontWeight: '600' },
   clearButton: {
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
@@ -699,7 +699,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   clearButtonText: { fontSize: 16, color: '#dc3545', fontWeight: '600' },
-  loadingText: { fontSize: 14, color: '#666', paddingVertical: 8 },
 });
 
 export default FiltersModal;

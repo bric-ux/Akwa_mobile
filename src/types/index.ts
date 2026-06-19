@@ -545,6 +545,7 @@ export interface HotelFilters {
   priceMax?: number;
   guests?: number;
   starRatingMin?: number;
+  amenities?: string[];
 }
 
 export interface Vehicle {
