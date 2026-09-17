@@ -5,6 +5,8 @@ import type { MonthlyRentalListing } from '../types';
 export interface ApprovedMonthlyFilters {
   city?: string;
   location?: string;
+  /** Minimum de chambres */
+  bedrooms?: number;
 }
 
 /** Hook pour récupérer les annonces location longue durée approuvées (côté voyageur, public). */
@@ -27,6 +29,10 @@ export const useApprovedMonthlyRentalListings = () => {
         const city = filters?.city ?? filters?.location;
         if (city && city.trim()) {
           query = query.ilike('location', `%${city.trim()}%`);
+        }
+
+        if (filters?.bedrooms && filters.bedrooms > 0) {
+          query = query.gte('bedrooms', filters.bedrooms);
         }
 
         const { data, error: err } = await query;

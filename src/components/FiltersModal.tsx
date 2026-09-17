@@ -48,6 +48,15 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     { key: 'other', label: 'Autre' },
   ];
 
+  const bedroomOptions = [
+    { value: 1, label: '1+' },
+    { value: 2, label: '2+' },
+    { value: 3, label: '3+' },
+    { value: 4, label: '4+' },
+    { value: 5, label: '5+' },
+    { value: 6, label: '6+' },
+  ];
+
   // Gammes de prix rapides améliorées (alignées avec le site web)
   const quickPriceRanges = [
     { label: 'Économique', min: 0, max: 25000 },
@@ -328,7 +337,15 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
                     styles.propertyTypeButton,
                     filters.propertyType === type.key && styles.propertyTypeButtonActive,
                   ]}
-                  onPress={() => setFilters({ ...filters, propertyType: type.key })}
+                  onPress={() =>
+                    setFilters({
+                      ...filters,
+                      propertyType:
+                        filters.propertyType === type.key
+                          ? undefined
+                          : (type.key as SearchFilters['propertyType']),
+                    })
+                  }
                 >
                   <Text
                     style={[
@@ -343,6 +360,43 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
             </View>
           </View>
 
+          {/* Nombre de chambres */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="bed" size={18} color="#2E7D32" />
+              <Text style={styles.sectionTitle}>Nombre de chambres</Text>
+            </View>
+            <Text style={styles.helpText}>Au moins</Text>
+            <View style={styles.propertyTypes}>
+              {bedroomOptions.map((option) => {
+                const isActive = filters.bedrooms === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.propertyTypeButton,
+                      isActive && styles.propertyTypeButtonActive,
+                    ]}
+                    onPress={() =>
+                      setFilters({
+                        ...filters,
+                        bedrooms: isActive ? undefined : option.value,
+                      })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.propertyTypeText,
+                        isActive && styles.propertyTypeTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
 
           {rentalType !== 'monthly' && (
             <View style={styles.section}>

@@ -197,8 +197,11 @@ const SearchScreen: React.FC = () => {
 
   useEffect(() => {
     if (!hasSubmittedSearch || rentalType !== 'monthly') return;
-    fetchMonthlyListings({ city: monthlySearchQuery || undefined });
-  }, [hasSubmittedSearch, rentalType, monthlySearchQuery, fetchMonthlyListings]);
+    fetchMonthlyListings({
+      city: monthlySearchQuery || undefined,
+      bedrooms: filters.bedrooms,
+    });
+  }, [hasSubmittedSearch, rentalType, monthlySearchQuery, filters.bedrooms, fetchMonthlyListings]);
 
   // Charger les recherches récentes
   useEffect(() => {
@@ -219,7 +222,7 @@ const SearchScreen: React.FC = () => {
       setIsSearching(true);
       try {
         if (rentalType === 'monthly') {
-          await fetchMonthlyListings({});
+          await fetchMonthlyListings({ bedrooms: filters.bedrooms });
         } else {
           await fetchProperties({
             ...filters,
@@ -244,9 +247,12 @@ const SearchScreen: React.FC = () => {
           if (!recentSearches.includes(query)) {
             setRecentSearches(prev => [query, ...prev.slice(0, 4)]);
           }
-          await fetchMonthlyListings({ city: query || undefined });
+          await fetchMonthlyListings({
+            city: query || undefined,
+            bedrooms: filters.bedrooms,
+          });
         } else {
-          await fetchMonthlyListings({});
+          await fetchMonthlyListings({ bedrooms: filters.bedrooms });
         }
       } finally {
         setIsSearching(false);
@@ -319,7 +325,10 @@ const SearchScreen: React.FC = () => {
         };
         
         if (rentalType === 'monthly') {
-          await fetchMonthlyListings({ city: query || undefined });
+          await fetchMonthlyListings({
+            city: query || undefined,
+            bedrooms: filters.bedrooms,
+          });
         } else {
           await fetchProperties(searchFilters);
         }
@@ -461,7 +470,10 @@ const SearchScreen: React.FC = () => {
       fetchProperties(searchFilters);
     }
     if (rt === 'monthly') {
-      fetchMonthlyListings({ city: monthlySearchQuery || undefined });
+      fetchMonthlyListings({
+        city: monthlySearchQuery || undefined,
+        bedrooms: newFilters.bedrooms,
+      });
     }
   };
 
@@ -583,6 +595,7 @@ const SearchScreen: React.FC = () => {
     if (filters.rentalType && filters.rentalType !== 'short_term') count++;
     if (filters.priceMin || filters.priceMax) count++;
     if (filters.propertyType) count++;
+    if (filters.bedrooms) count++;
     if (filters.guests) count++;
     if (filters.wifi || filters.parking || filters.pool || filters.airConditioning) count++;
     return count;

@@ -18,7 +18,7 @@ import { CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
 import AppVideo, { AppVideoHandle } from './AppVideo';
 import MediaThumb from './MediaThumb';
-import { getGalleryThumbUrl, getGalleryViewerUrl, isVideoUrl } from '../utils/media';
+import { getGalleryThumbUrl, getGalleryViewerUrl, isMediaRowVideo, isVideoUrl } from '../utils/media';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -100,7 +100,7 @@ function LightboxMedia({ uri, style, active = false }: { uri: string; style: obj
 
   if (isVideoUrl(uri) && !videoFailed) {
     return (
-      <View style={style as any}>
+      <View style={[style as any, styles.lightboxVideoRoot]}>
         <AppVideo
           ref={videoRef}
           source={{ uri }}
@@ -178,8 +178,8 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
   const lightboxOpenIndexRef = useRef(0);
   const fullGalleryOpenIndexRef = useRef(0);
   
-  // Limiter l'affichage initial à 3 photos en vue grille
-  const MAX_PHOTOS_GRID = 3;
+  // Limiter l'affichage initial à 6 photos en vue grille
+  const MAX_PHOTOS_GRID = 6;
 
   const prefetchMediaAround = useCallback((items: { url: string }[], centerIndex: number, radius = 2) => {
     const start = Math.max(0, centerIndex - radius);
@@ -211,9 +211,18 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
 
   const categories = useMemo(() => Object.keys(photosByCategory).sort(), [photosByCategory]);
   
-  // Photos limitées pour la vue grille (7 premières)
+  // Photos limitées pour la vue grille (6 premières)
   const limitedPhotosGrid = allPhotosFlat.slice(0, MAX_PHOTOS_GRID);
   const hasMorePhotosGrid = photos.length > MAX_PHOTOS_GRID;
+  /** Fond « Voir plus » = une image déjà dans la grille (même rendu que les autres vignettes) */
+  const seeMoreBackgroundUri = useMemo(() => {
+    const isImage = (p: (typeof allPhotosFlat)[0]) =>
+      !!p.url && !isMediaRowVideo({ url: p.url, category: p.category });
+    const fromRest = allPhotosFlat.slice(MAX_PHOTOS_GRID).find(isImage)?.url;
+    const fromVisible = [...limitedPhotosGrid].reverse().find(isImage)?.url;
+    const anyImage = allPhotosFlat.find(isImage)?.url;
+    return fromRest || fromVisible || anyImage || limitedPhotosGrid[0]?.url;
+  }, [allPhotosFlat, limitedPhotosGrid]);
 
   useEffect(() => {
     // Pré-charger un petit lot initial pour éviter le lag au premier clic lightbox.
@@ -413,7 +422,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
       {/* Grille des photos */}
       <View style={styles.photosContainer} key={`photos-${viewMode}`}>
         {viewMode === 'grid' ? (
-          // Vue grille : afficher les 3 premières photos
+          // Vue grille : 6 premières photos + « Voir plus »
           <View style={styles.gridContainer}>
             {limitedPhotosGrid.length === 0 ? (
               <View style={styles.noPhotosContainer}>
@@ -423,16 +432,11 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
             ) : (
               <View style={styles.photoGrid}>
                 {limitedPhotosGrid.map((photo, index) => {
-                  const isLastInRow = (index + 1) % 3 === 0;
                   const vid = isVideoUrl(photo.url);
                   return (
                   <TouchableOpacity
                     key={photo.id}
-                    style={[
-                      styles.photoItem,
-                      // Ajouter marge à droite seulement si ce n'est pas la dernière photo de la ligne
-                      !isLastInRow && styles.photoItemWithMargin
-                    ]}
+                    style={styles.photoItem}
                     onPress={() => {
                       const photoIndex = allPhotosFlat.findIndex(p => p.id === photo.id);
                       openFullGallery(photoIndex >= 0 ? photoIndex : index);
@@ -490,22 +494,21 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                 </TouchableOpacity>
                   );
                 })}
-                {hasMorePhotosGrid && allPhotosFlat[MAX_PHOTOS_GRID] && (
+                {hasMorePhotosGrid && seeMoreBackgroundUri ? (
                     <TouchableOpacity
                       key="__view_more__"
-                      style={[
-                        styles.photoItem,
-                        (limitedPhotosGrid.length + 1) % 3 !== 0 && styles.photoItemWithMargin,
-                      ]}
+                      style={styles.photoItem}
                       onPress={() => setShowAllPhotos(true)}
                       activeOpacity={0.9}
                     >
                       <MediaThumb
-                        uri={allPhotosFlat[MAX_PHOTOS_GRID].url}
-                        style={styles.photoMoreBackground}
+                        uri={seeMoreBackgroundUri}
+                        style={styles.photoImage}
                         resizeMode="cover"
+                        isVideo={false}
+                        priority="high"
+                        recyclingKey={`see-more-${seeMoreBackgroundUri}`}
                       />
-                      <View style={styles.photoMoreOverlay} />
                       <View style={styles.photoMoreContent} pointerEvents="none">
                         <Ionicons name="images-outline" size={22} color="#fff" />
                         <Text style={styles.photoMoreTileTitle}>Voir plus</Text>
@@ -516,7 +519,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
                         </Text>
                       </View>
                     </TouchableOpacity>
-                  )}
+                  ) : null}
               </View>
             )}
           </View>
@@ -929,10 +932,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   videoPlayOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.14)',
+    zIndex: 2,
+  },
+  lightboxVideoRoot: {
+    position: 'relative',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   container: {
     backgroundColor: '#fff',
@@ -1031,15 +1044,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '600',
   },
-  photoMoreBackground: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  photoMoreOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
   photoMoreContent: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
@@ -1050,19 +1060,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 6,
     textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowColor: 'rgba(0,0,0,0.85)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 5,
   },
   photoMoreTileCount: {
     fontSize: 11,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.95)',
+    color: '#fff',
     marginTop: 2,
     textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowColor: 'rgba(0,0,0,0.85)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 5,
   },
   categoryTabs: {
     maxHeight: 60,
@@ -1133,13 +1143,14 @@ const styles = StyleSheet.create({
   photoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: PHOTO_GRID_GAP,
   },
   photoItem: {
     width: PHOTO_TILE_SIZE,
     height: PHOTO_TILE_SIZE,
-    marginBottom: PHOTO_GRID_GAP + 4,
     borderRadius: 8,
     overflow: 'hidden',
+    position: 'relative',
   },
   photoItemWithMargin: {
     marginRight: PHOTO_GRID_GAP,

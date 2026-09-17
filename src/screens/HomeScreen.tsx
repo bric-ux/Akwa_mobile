@@ -296,14 +296,16 @@ const HomeScreen: React.FC = () => {
               contentFit="cover"
               contentPosition="center"
               cachePolicy="memory-disk"
+              recyclingKey="home-vehicles-promo"
               priority="high"
-              transition={200}
+              transition={0}
             />
             <View
               style={[
                 styles.vehiclesPromoOverlay,
                 vehiclesPromoNarrow && styles.vehiclesPromoOverlayNarrow,
               ]}
+              pointerEvents="box-none"
             >
               <View
                 style={[
@@ -776,17 +778,22 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: '#1e293b',
+    backgroundColor: '#0f172a',
   },
   vehiclesPromoBackgroundNarrow: {
     minHeight: 280,
   },
   vehiclesPromoBgImage: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 16,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
   },
   vehiclesPromoOverlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(7, 16, 24, 0.55)',
     padding: 20,
     borderRadius: 16,
     minHeight: 220,

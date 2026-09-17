@@ -78,8 +78,19 @@ const AppVideo = forwardRef<AppVideoHandle, AppVideoProps>(function AppVideo(
   }, [isLooping, player]);
 
   useEffect(() => {
-    if (shouldPlay) player.play();
-    else player.pause();
+    if (shouldPlay) {
+      player.play();
+      return;
+    }
+    player.pause();
+    // Force une frame visible quand la vidéo est en pause (preview)
+    try {
+      if (player.currentTime < 0.05) {
+        player.currentTime = 0.1;
+      }
+    } catch {
+      // ignore
+    }
   }, [shouldPlay, player]);
 
   const { isPlaying } = useEvent(player, 'playingChange', {
@@ -105,6 +116,7 @@ const AppVideo = forwardRef<AppVideoHandle, AppVideoProps>(function AppVideo(
       style={style}
       contentFit={contentFit}
       nativeControls={nativeControls}
+      useExoShutter={false}
     />
   );
 });

@@ -45,7 +45,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const floatAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const iconScale = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
   const hintOpacity = useRef(new Animated.Value(1)).current;
   const hintTranslate = useRef(new Animated.Value(0)).current;
 
@@ -107,35 +106,16 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       ]),
     );
 
-    const glowLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 1,
-          duration: 1800,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: false,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0,
-          duration: 1800,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: false,
-        }),
-      ]),
-    );
-
     floatLoop.start();
     shimmerLoop.start();
     iconLoop.start();
-    glowLoop.start();
 
     return () => {
       floatLoop.stop();
       shimmerLoop.stop();
       iconLoop.stop();
-      glowLoop.stop();
     };
-  }, [floatAnim, shimmerAnim, iconScale, glowAnim, reduceMotion]);
+  }, [floatAnim, shimmerAnim, iconScale, reduceMotion]);
 
   useEffect(() => {
     if (reduceMotion || destination?.trim()) return;
@@ -205,16 +185,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     outputRange: [-220, 220],
   });
 
-  const glowShadow = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [8, 18],
-  });
-
-  const glowOpacity = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.22, 0.42],
-  });
-
   return (
     <View style={[styles.container, { height: heroMinHeight }]} collapsable={false}>
       <View style={[styles.imageClip, { height: heroMinHeight }]} collapsable={false}>
@@ -277,16 +247,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               !reduceMotion && { transform: [{ translateY: floatAnim }] },
             ]}
           >
-            <Animated.View
-              style={[
-                styles.searchPillGlow,
-                !reduceMotion && {
-                  shadowRadius: glowShadow,
-                  shadowOpacity: glowOpacity,
-                },
-              ]}
-            />
-
             <TouchableOpacity
               style={styles.searchPillTouchable}
               onPress={onSearchPress}
@@ -432,26 +392,6 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 12,
     position: 'relative',
-  },
-  searchPillGlow: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-    margin: -3,
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: 'rgba(45, 212, 191, 0.65)',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 0 },
-    ...Platform.select({
-      ios: {
-        shadowOpacity: 0.35,
-        shadowRadius: 14,
-      },
-      android: {
-        elevation: 6,
-      },
-      default: {},
-    }),
   },
   searchPillTouchable: {
     width: '100%',

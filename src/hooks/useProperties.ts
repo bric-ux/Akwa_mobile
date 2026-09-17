@@ -517,6 +517,10 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         query = query.gte('max_guests', filters.guests);
       }
 
+      if (filters?.bedrooms && filters.bedrooms > 0) {
+        query = query.gte('bedrooms', filters.bedrooms);
+      }
+
       if (filters?.priceMin) {
         query = query.gte('price_per_night', filters.priceMin);
       }

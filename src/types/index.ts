@@ -202,6 +202,8 @@ export interface SearchFilters {
   babies?: number;
   priceMin?: number;
   priceMax?: number;
+  /** Minimum de chambres (filtre « au moins N ») */
+  bedrooms?: number;
   propertyType?: 'apartment' | 'house' | 'villa' | 'eco_lodge' | 'other';
   checkIn?: string;
   checkOut?: string;
