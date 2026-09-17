@@ -30,6 +30,7 @@
         "NSCameraUsageDescription": "AkwaHome uses the camera so you can take photos or videos—for example to update your profile picture or add images to your property and vehicle listings.",
         "NSPhotoLibraryUsageDescription": "AkwaHome needs access to your photo library so you can update your profile picture and choose photos or videos for your listings. Only what you select is used.",
         "NSMicrophoneUsageDescription": "AkwaHome uses the microphone when you record video with sound or send a voice message. Audio is only captured while you record.",
+        "NSLocationWhenInUseUsageDescription": "AkwaHome utilise votre position pour placer précisément votre logement sur la carte lors de l’ajout d’une annonce.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -153,7 +154,15 @@
       "@react-native-community/datetimepicker",
       "expo-image",
       "expo-sharing",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-video",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "AkwaHome utilise votre position pour placer précisément votre logement sur la carte."
+        }
+      ]
     ],
     "extra": {
       "eas": {

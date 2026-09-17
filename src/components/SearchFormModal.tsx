@@ -218,10 +218,12 @@ const SearchFormModal: React.FC<Props> = ({
 
       <DestinationSearchModal
         visible={showDestinationModal}
-        embedded
         initialQuery={destinationQuery}
         onClose={() => setShowDestinationModal(false)}
-        onSelect={handleDestinationSelect}
+        onSelect={(suggestion) => {
+          handleDestinationSelect(suggestion);
+          setShowDestinationModal(false);
+        }}
       />
       </View>
     </Modal>

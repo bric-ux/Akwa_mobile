@@ -28,7 +28,7 @@ import { safeGoBack } from '../utils/navigation';
 import { VEHICLE_COLORS } from '../constants/colors';
 import { getCancellationPolicyText } from '../utils/cancellationPolicy';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
-import { Video, ResizeMode } from 'expo-av';
+import AppVideo from '../components/AppVideo';
 import { getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
 import { getVehiclePublicWebUrl, shareListingLink } from '../utils/shareListingLink';
 import { useNetwork } from '../contexts/NetworkContext';
@@ -299,11 +299,11 @@ const VehicleDetailsScreen: React.FC = () => {
               renderItem={({ item: imageUrl, index }) => (
                 <View style={{ width, height: 280 }}>
                   {isVideoUrl(imageUrl) ? (
-                    <Video
+                    <AppVideo
                       source={{ uri: imageUrl }}
                       style={styles.mainImage}
-                      resizeMode={ResizeMode.COVER}
-                      useNativeControls
+                      contentFit="cover"
+                      nativeControls
                       shouldPlay={false}
                     />
                   ) : (

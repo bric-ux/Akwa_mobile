@@ -53,6 +53,8 @@ export type BecomeHostGuidedFlowProps = {
   formData: Record<string, any>;
   handleInputChange: (field: string, value: string | boolean) => void;
   handleLocationSelect: (result: any) => void;
+  /** Carte GPS / pin — test UI sans écriture DB des coords */
+  locationPickerSection?: React.ReactNode;
   shouldShowField: (field: string) => boolean;
   /** Teddy IA */
   aiTitleSuggestions: string[];
@@ -125,6 +127,7 @@ export default function BecomeHostGuidedFlow(props: BecomeHostGuidedFlowProps) {
     formData,
     handleInputChange,
     handleLocationSelect,
+    locationPickerSection,
     shouldShowField,
     aiTitleSuggestions,
     aiDraftDescription,
@@ -303,6 +306,7 @@ export default function BecomeHostGuidedFlow(props: BecomeHostGuidedFlowProps) {
                       onChange={handleLocationSelect}
                       placeholder="Rechercher ville, commune ou quartier..."
                     />
+                    {locationPickerSection}
                   </View>
                 )}
                 {(!isEditMode || shouldShowField('max_guests')) && (

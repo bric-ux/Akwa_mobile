@@ -81,8 +81,14 @@ export function mapHostApplicationDiscounts(data: {
 
 export function friendlyHostApplicationDbError(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes('check_host_app_discount_percentage') || m.includes('discount_percentage')) {
-    return 'Le pourcentage de réduction doit être entre 1 et 100 %, avec un nombre de nuits minimum valide.';
+  if (
+    m.includes('check_discount_configuration') ||
+    m.includes('check_host_app_discount') ||
+    m.includes('check_discount_percentage') ||
+    m.includes('check_discount_min_nights') ||
+    m.includes('discount_percentage')
+  ) {
+    return 'Réduction invalide : activez une réduction seulement avec un nombre de nuits (≥ 1) et un pourcentage entre 1 et 100 %.';
   }
   if (m.includes('numeric field overflow')) {
     return 'Un montant ou un pourcentage est trop élevé. Vérifiez le prix, le loyer mensuel, les frais et les réductions (max. 100 %).';

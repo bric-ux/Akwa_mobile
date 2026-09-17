@@ -13,10 +13,10 @@ import {
   Platform,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
+import AppVideo, { AppVideoHandle } from './AppVideo';
 import MediaThumb from './MediaThumb';
 import { getGalleryThumbUrl, getGalleryViewerUrl, isVideoUrl } from '../utils/media';
 
@@ -76,7 +76,7 @@ function LightboxMedia({ uri, style, active = false }: { uri: string; style: obj
   const [isPlaying, setIsPlaying] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [useOriginalFallback, setUseOriginalFallback] = useState(false);
-  const videoRef = useRef<Video | null>(null);
+  const videoRef = useRef<AppVideoHandle | null>(null);
   const optimizedUri = getGalleryViewerUrl(uri);
   const imageUri = useOriginalFallback || optimizedUri === uri ? uri : optimizedUri;
 
@@ -101,16 +101,16 @@ function LightboxMedia({ uri, style, active = false }: { uri: string; style: obj
   if (isVideoUrl(uri) && !videoFailed) {
     return (
       <View style={style as any}>
-        <Video
+        <AppVideo
           ref={videoRef}
           source={{ uri }}
           style={StyleSheet.absoluteFill}
-          resizeMode={ResizeMode.CONTAIN}
-          useNativeControls
+          contentFit="contain"
+          nativeControls
           shouldPlay={false}
           isMuted={!active}
           isLooping={false}
-          onPlaybackStatusUpdate={(status: any) => {
+          onPlaybackStatusUpdate={(status) => {
             setIsPlaying(!!status?.isPlaying);
           }}
           onError={() => setVideoFailed(true)}
@@ -411,7 +411,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
       )}
 
       {/* Grille des photos */}
-      <ScrollView style={styles.photosContainer} key={`photos-${viewMode}`}>
+      <View style={styles.photosContainer} key={`photos-${viewMode}`}>
         {viewMode === 'grid' ? (
           // Vue grille : afficher les 3 premières photos
           <View style={styles.gridContainer}>
@@ -656,7 +656,7 @@ const PhotoCategoryDisplay: React.FC<PhotoCategoryDisplayProps> = ({
             ))}
           </View>
         )}
-      </ScrollView>
+      </View>
 
       {/* Modal Lightbox */}
       <Modal
@@ -935,7 +935,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.14)',
   },
   container: {
-    flex: 1,
     backgroundColor: '#fff',
   },
   header: {
@@ -1097,7 +1096,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   photosContainer: {
-    flex: 1,
+    width: '100%',
   },
   allPhotosContainer: {
     padding: 16,

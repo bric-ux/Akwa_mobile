@@ -10,7 +10,7 @@ import {
   Dimensions,
   FlatList,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import AppVideo from './AppVideo';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MediaThumb from './MediaThumb';
@@ -29,14 +29,13 @@ function GallerySlide({
   contain?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
-  const vm = contain ? ResizeMode.CONTAIN : ResizeMode.COVER;
   if (isVideoUrl(url) && !failed) {
     return (
-      <Video
+      <AppVideo
         source={{ uri: url }}
         style={style as any}
-        resizeMode={vm}
-        useNativeControls
+        contentFit={contain ? 'contain' : 'cover'}
+        nativeControls
         shouldPlay={false}
         onError={() => setFailed(true)}
       />

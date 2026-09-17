@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { Video, ResizeMode } from 'expo-av';
+import AppVideo from '../components/AppVideo';
 import { useProperties } from '../hooks/useProperties';
 import { Property, CategorizedPhoto } from '../types';
 import { supabase } from '../services/supabase';
@@ -27,6 +27,10 @@ import { useHostApplications } from '../hooks/useHostApplications';
 import CitySearchInputModal from '../components/CitySearchInputModal';
 import MediaThumb from '../components/MediaThumb';
 import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
+import {
+  friendlyHostApplicationDbError,
+  mapHostApplicationDiscounts,
+} from '../utils/hostApplicationNumbers';
 import { isVideoUrl, normalizePropertyPhotoRows } from '../utils/media';
 import { normalizeVirtualTourUrl } from '../utils/virtualTourUrl';
 
@@ -252,6 +256,16 @@ const EditPropertyScreen: React.FC = () => {
       }
 
       // Préparer les données pour la mise à jour
+      const discounts = mapHostApplicationDiscounts({
+        discountEnabled: formData.discount_enabled,
+        discountMinNights: formData.discount_min_nights
+          ? Number(formData.discount_min_nights)
+          : null,
+        discountPercentage: formData.discount_percentage
+          ? Number(formData.discount_percentage)
+          : null,
+      });
+
       const updateData: any = {
         title: formData.title.trim(),
         description: formData.description.trim(),
@@ -270,9 +284,7 @@ const EditPropertyScreen: React.FC = () => {
           : null,
         auto_booking: formData.auto_booking,
         allow_partial_payment: formData.allow_partial_payment,
-        discount_enabled: formData.discount_enabled,
-        discount_min_nights: formData.discount_min_nights ? Number(formData.discount_min_nights) : null,
-        discount_percentage: formData.discount_percentage ? Number(formData.discount_percentage) : null,
+        ...discounts,
         cancellation_policy: formData.cancellation_policy || 'flexible',
         virtual_tour_url: normalizedTour,
         updated_at: new Date().toISOString(),
@@ -363,9 +375,12 @@ const EditPropertyScreen: React.FC = () => {
         ]
       );
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
-      Alert.alert('Erreur', 'Impossible de sauvegarder les modifications');
+      Alert.alert(
+        'Erreur',
+        friendlyHostApplicationDbError(error?.message || 'Impossible de sauvegarder les modifications'),
+      );
     } finally {
       setSaving(false);
     }
@@ -727,11 +742,11 @@ const EditPropertyScreen: React.FC = () => {
             {photos.map((photo, index) => (
               <View key={photo.id || index} style={styles.galleryImageWrapper}>
                 {isVideoUrl(photo.url) ? (
-                  <Video
+                  <AppVideo
                     source={{ uri: photo.url }}
                     style={styles.galleryImage}
-                    resizeMode={ResizeMode.CONTAIN}
-                    useNativeControls
+                    contentFit="contain"
+                    nativeControls
                     shouldPlay={false}
                   />
                 ) : (
@@ -1044,17 +1059,37 @@ const EditPropertyScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Tarification de base */}
+        {/* Tarification de base — prix détaillé dans Options tarifaires (Tarification) */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tarification de base</Text>
-          
-          {renderInputField(
-            'Prix par nuit (CFA) *',
-            'price_per_night',
-            formData.price_per_night,
-            'Prix par nuit en francs CFA',
-            'numeric'
-          )}
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Prix par nuit (CFA)</Text>
+            <Text style={[styles.input, { paddingVertical: 14, color: '#334155' }]}>
+              {formData.price_per_night
+                ? `${Number(formData.price_per_night).toLocaleString('fr-FR')} FCFA`
+                : 'Non défini'}
+            </Text>
+            <TouchableOpacity
+              style={{
+                marginTop: 10,
+                backgroundColor: '#2563eb',
+                borderRadius: 10,
+                paddingVertical: 12,
+                alignItems: 'center',
+              }}
+              onPress={() =>
+                (navigation as any).navigate('PropertyPricing', { propertyId })
+              }
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>
+                Modifier dans Options tarifaires
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.helpText}>
+              Le prix par nuit et les réductions se modifient uniquement dans Tarification.
+            </Text>
+          </View>
           
           {renderInputField(
             'Frais de ménage (CFA)',

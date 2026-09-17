@@ -31,6 +31,9 @@ import { useHostPaymentInfo } from '../hooks/useHostPaymentInfo';
 import { useReferrals } from '../hooks/useReferrals';
 import { useLanguage } from '../contexts/LanguageContext';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+import PropertyLocationPicker, {
+  type PropertyLocationPickerValue,
+} from '../components/PropertyLocationPicker';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
@@ -216,6 +219,12 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [identityUploadedInSession, setIdentityUploadedInSession] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
+  /** Test géoloc UI : coords en mémoire uniquement — non envoyées en base tant que migration non appliquée */
+  const [preciseLocation, setPreciseLocation] = useState<PropertyLocationPickerValue>({
+    coords: null,
+    locationLabel: '',
+    matchedLocation: null,
+  });
   const [selectedImages, setSelectedImages] = useState<
     Array<{ uri: string; category: string; displayOrder: number; isMain?: boolean; isVideo?: boolean }>
   >([]);
@@ -937,6 +946,26 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     if (result) {
       console.log('📍 Nom de la localisation:', result.name);
       handleInputChange('location', result.name);
+      const lat = result.latitude != null ? Number(result.latitude) : NaN;
+      const lng = result.longitude != null ? Number(result.longitude) : NaN;
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        setPreciseLocation((prev) => ({
+          ...prev,
+          coords: { latitude: lat, longitude: lng },
+          locationLabel: result.name,
+          matchedLocation: {
+            id: result.id,
+            name: result.name,
+            type: result.type,
+            parent_id: result.parent_id,
+            latitude: lat,
+            longitude: lng,
+            region: result.region,
+            commune: result.commune,
+            city_id: result.city_id,
+          },
+        }));
+      }
       
       // Passer au champ suivant (invités en court séjour, surface en location mensuelle)
       setTimeout(() => {
@@ -946,8 +975,50 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     } else {
       console.log('📍 Localisation effacée');
       handleInputChange('location', '');
+      setPreciseLocation({ coords: null, locationLabel: '', matchedLocation: null });
     }
   };
+
+  const handlePreciseLocationChange = (next: PropertyLocationPickerValue) => {
+    setPreciseLocation(next);
+    if (next.matchedLocation) {
+      setSelectedLocation(next.matchedLocation);
+      handleInputChange('location', next.matchedLocation.name);
+    } else if (next.locationLabel?.trim()) {
+      handleInputChange('location', next.locationLabel.trim());
+    }
+    if (next.addressDetailsSuggestion?.trim() && !formData.addressDetails?.trim()) {
+      handleInputChange('addressDetails', next.addressDetailsSuggestion.trim());
+    }
+  };
+
+  const renderLocationPickerTestSection = () => (
+    <View style={{ marginTop: 12 }}>
+      <View
+        style={{
+          backgroundColor: '#fff7ed',
+          borderColor: '#fdba74',
+          borderWidth: 1,
+          borderRadius: 10,
+          padding: 10,
+          marginBottom: 8,
+        }}
+      >
+        <Text style={{ fontSize: 12, color: '#9a3412', fontWeight: '600', lineHeight: 17 }}>
+          Test géolocalisation — la carte et le GPS marchent ici. Les coordonnées ne sont pas
+          enregistrées en base tant que la migration n’est pas appliquée.
+        </Text>
+      </View>
+      <PropertyLocationPicker
+        value={preciseLocation}
+        onChange={handlePreciseLocationChange}
+        onLocationLabelChange={(label) => {
+          if (label?.trim()) handleInputChange('location', label.trim());
+        }}
+        height={240}
+      />
+    </View>
+  );
 
   const getNextField = (currentField: string): string | undefined => {
     const shortTermOrder = [
@@ -1983,6 +2054,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             onChange={handleLocationSelect}
             placeholder="Rechercher ville, commune ou quartier..."
           />
+          {renderLocationPickerTestSection()}
           <Text style={styles.helpText}>
             Recherchez votre ville, commune ou quartier avec autocomplétion
           </Text>
@@ -2990,6 +3062,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             formData={formData}
             handleInputChange={handleInputChange}
             handleLocationSelect={handleLocationSelect}
+            locationPickerSection={renderLocationPickerTestSection()}
             shouldShowField={shouldShowField}
             aiTitleSuggestions={aiTitleSuggestions}
             aiDraftDescription={aiDraftDescription}

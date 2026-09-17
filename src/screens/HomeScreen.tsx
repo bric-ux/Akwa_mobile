@@ -6,10 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  Platform,
   ActivityIndicator,
   ScrollView,
-  Dimensions,
   useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
@@ -36,11 +34,10 @@ import { useNetwork } from '../contexts/NetworkContext';
 import LoadErrorCard from '../components/LoadErrorCard';
 import type { LoadFailureKind } from '../utils/loadError';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
+import { EXPLORE_SHELF_CARD_WIDTH } from '../constants/exploreShelfCard';
 
-const SCREEN_W = Dimensions.get('window').width;
-/** Titres explore + première carte : alignés sur le carrousel « trésors CI » ; carte suivante visible */
+/** Titres explore + première carte : alignés sur le carrousel « trésors CI » */
 const EXPLORE_GUTTER = HOME_EXPLORE_HORIZONTAL_GUTTER;
-const NEXT_CARD_PEEK = 46;
 
 const KEYBOX_WHATSAPP_URL =
   'https://wa.me/33667672022?text=' +
@@ -48,10 +45,8 @@ const KEYBOX_WHATSAPP_URL =
     "Bonjour, je suis propriétaire d'une résidence meublée et je souhaite des informations sur l'installation de boîtes à clés AkwaHome.",
   );
 
-const EXPLORE_CARD_WIDTH = Math.max(
-  244,
-  Math.round(SCREEN_W - EXPLORE_GUTTER - NEXT_CARD_PEEK),
-);
+/** Largeur portrait des cartes carrousel (format ExploreShelf). */
+const EXPLORE_CARD_WIDTH = EXPLORE_SHELF_CARD_WIDTH;
 
 // Données du carrousel en dehors du composant pour éviter re-création à chaque rendu
 const CAROUSEL_IMAGES = [
@@ -563,7 +558,7 @@ const HomeScreen: React.FC = () => {
           }
           onScroll={onExploreScroll}
           scrollEventThrottle={32}
-          removeClippedSubviews={Platform.OS === 'android'}
+          removeClippedSubviews={false}
           maxToRenderPerBatch={6}
           windowSize={9}
           initialNumToRender={5}
@@ -726,11 +721,11 @@ const styles = StyleSheet.create({
   },
   exploreRowContent: {
     paddingLeft: EXPLORE_GUTTER,
-    paddingRight: NEXT_CARD_PEEK,
+    paddingRight: EXPLORE_GUTTER,
     paddingBottom: 4,
   },
   exploreCardWrap: {
-    marginRight: 10,
+    marginRight: 12,
   },
   emptyContainer: {
     padding: 40,

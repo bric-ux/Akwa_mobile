@@ -25,7 +25,7 @@ import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import { useEmailService } from '../hooks/useEmailService';
-import { Video, ResizeMode } from 'expo-av';
+import AppVideo from '../components/AppVideo';
 import MediaThumb from '../components/MediaThumb';
 import { getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
 
@@ -579,11 +579,11 @@ const VehicleManagementScreen: React.FC = () => {
                   {galleryUrls.map((url, index) => (
                     <View key={index} style={styles.galleryImageWrapper}>
                       {isVideoUrl(url) ? (
-                        <Video
+                        <AppVideo
                           source={{ uri: url }}
                           style={styles.galleryImage}
-                          resizeMode={ResizeMode.CONTAIN}
-                          useNativeControls
+                          contentFit="contain"
+                          nativeControls
                           shouldPlay={false}
                         />
                       ) : (

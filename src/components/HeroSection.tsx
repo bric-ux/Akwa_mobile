@@ -216,11 +216,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   });
 
   return (
-    <View style={[styles.container, { minHeight: heroMinHeight }]}>
-      <View style={styles.imageClip}>
+    <View style={[styles.container, { height: heroMinHeight }]} collapsable={false}>
+      <View style={[styles.imageClip, { height: heroMinHeight }]} collapsable={false}>
         <Image
           source={HERO_SOURCE}
-          style={styles.backgroundImage}
+          style={{ width: '100%', height: heroMinHeight }}
           contentFit="cover"
           cachePolicy="memory-disk"
           priority="high"
@@ -362,11 +362,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b',
   },
   imageClip: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     overflow: 'hidden',
   },
   backgroundImage: {
-    ...StyleSheet.absoluteFillObject,
+    width: '100%',
   },
   overlay: {
     justifyContent: 'center',

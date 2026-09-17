@@ -20,6 +20,14 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import MediaThumb from './MediaThumb';
 import { getPropertyCoverUrl, getPropertyGalleryUrls, isVideoUrl } from '../utils/media';
+import { getPropertyCardLocationLabel } from '../utils/locationLabel';
+import { getPropertyTypeLabel } from '../utils/propertyTypeLabel';
+import {
+  EXPLORE_SHELF_IMAGE_HEIGHT,
+  formatExploreShelfHeadline,
+  formatExploreShelfRatingSubtitle,
+} from '../constants/exploreShelfCard';
+import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
 const CAROUSEL_HEIGHT = 200;
 const SCREEN_W = Dimensions.get('window').width;
@@ -95,8 +103,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
 
   const reviewCount = Number(property.review_count) || 0;
   const hasReviews = reviewCount > 0;
-  const locationLabel =
-    property.location?.name || property.locations?.name || property.location;
+  const locationLabel = getPropertyCardLocationLabel(property);
   const coverUri = getPropertyCoverUrl(property);
   const galleryRaw = getPropertyGalleryUrls(property);
   const galleryUrls = galleryRaw.length > 0 ? galleryRaw : [coverUri];
@@ -174,15 +181,49 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
     </View>
   );
 
+  if (variant === 'list' && horizontalShelf) {
+    const uri = coverUri || galleryUrls[0];
+    return (
+      <View style={styles.listContainerShelf}>
+        <ExploreShelfPhotoCard
+          onPress={handlePropertyPress}
+          title={formatExploreShelfHeadline({
+            title: property.title,
+            typeLabel: getPropertyTypeLabel(property.property_type),
+          })}
+          location={locationLabel || undefined}
+          priceLabel={`${formatPrice(effectiveNightPrice)}/nuit`}
+          promoLabel={
+            property.discount_enabled && property.discount_percentage && property.discount_min_nights
+              ? `-${property.discount_percentage}% dès ${property.discount_min_nights} nuits`
+              : undefined
+          }
+          subtitle={formatExploreShelfRatingSubtitle(property.rating, reviewCount)}
+          onFavoritePress={handleFavoritePress}
+          isFavorited={isFavorited}
+          favoriteLoading={favoriteLoading}
+          imageHeight={EXPLORE_SHELF_IMAGE_HEIGHT}
+          image={
+            <MediaThumb
+              uri={uri}
+              style={{ width: '100%', height: EXPLORE_SHELF_IMAGE_HEIGHT }}
+              resizeMode="cover"
+              contentPosition="top"
+              preferOriginal
+              isVideo={isVideoUrl(uri)}
+              priority="high"
+              recyclingKey={`${property.id}-shelf-cover-${uri}`}
+            />
+          }
+        />
+      </View>
+    );
+  }
+
   if (variant === 'list') {
     return (
-      <View
-        style={[
-          styles.container,
-          horizontalShelf ? styles.listContainerShelf : styles.listContainer,
-        ]}
-      >
-        <View style={[styles.cardLayout, horizontalShelf && styles.cardLayoutShelf]}>
+      <View style={[styles.container, styles.listContainer]}>
+        <View style={styles.cardLayout}>
           <TouchableOpacity onPress={handlePropertyPress} activeOpacity={0.8}>
             <View style={styles.imageArea}>
               {renderListCoverImage(CAROUSEL_HEIGHT)}
@@ -200,7 +241,7 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               </View>
             </View>
 
-            <View style={[styles.cardContent, horizontalShelf && styles.cardContentShelf]}>
+            <View style={styles.cardContent}>
             <Text style={styles.cardTitle} numberOfLines={1}>
               {property.title}
             </Text>
@@ -214,20 +255,18 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
               </View>
             ) : null}
             
-            <View style={[styles.cardRatingSlot, horizontalShelf && styles.cardRatingSlotShelf]}>
+            <View style={styles.cardRatingSlot}>
               {hasReviews ? (
-                <Text style={[styles.cardRating, horizontalShelf && styles.cardRatingInShelf]}>
+                <Text style={styles.cardRating}>
                   ⭐ {(Number(property.rating) || 0).toFixed(1)} ({reviewCount} {t('property.reviews')})
                 </Text>
-              ) : horizontalShelf ? (
-                <Text style={styles.cardRatingPlaceholder}> </Text>
               ) : null}
             </View>
             
             {property.amenities && property.amenities.length > 0 ? (
-              <View style={[styles.cardAmenities, horizontalShelf && styles.cardAmenitiesShelf]}>
+              <View style={styles.cardAmenities}>
                 {property.amenities.slice(0, 3).map((amenity, index) => (
-                  <Text key={index} style={[styles.amenityTag, horizontalShelf && styles.amenityTagShelf]} numberOfLines={1}>
+                  <Text key={index} style={styles.amenityTag} numberOfLines={1}>
                     {amenity.name}
                   </Text>
                 ))}
@@ -237,8 +276,6 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
                   </Text>
                 )}
               </View>
-            ) : horizontalShelf ? (
-              <View style={styles.cardAmenitiesShelfPlaceholder} />
             ) : null}
             </View>
           </TouchableOpacity>

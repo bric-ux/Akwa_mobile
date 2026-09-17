@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator, Image, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -19,6 +21,23 @@ const queryClient = new QueryClient();
 const SPLASH_MIN_DURATION_MS = 400;
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    ...Ionicons.font,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.splashContainer}>
+        <Image
+          source={require('./assets/icon.png')}
+          style={styles.splashLogo}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color="#e67e22" style={styles.splashSpinner} />
+      </View>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={styles.gestureRoot}>
       <StatusBar style="dark" {...(Platform.OS === 'android' ? { backgroundColor: '#ffffff', translucent: false } : {})} />

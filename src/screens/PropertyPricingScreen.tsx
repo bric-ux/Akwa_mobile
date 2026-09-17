@@ -20,6 +20,11 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
 import { useDynamicPricing } from '../hooks/useDynamicPricing';
+import {
+  clampHostMoney,
+  friendlyHostApplicationDbError,
+  mapHostApplicationDiscounts,
+} from '../utils/hostApplicationNumbers';
 
 type PropertyPricingRouteProp = RouteProp<RootStackParamList, 'PropertyPricing'>;
 
@@ -391,28 +396,57 @@ const PropertyPricingScreen: React.FC = () => {
     try {
       setSaving(true);
 
-      const updates: any = {
-        price_per_night: basePrice ? parseInt(basePrice) : null,
-        taxes: 0,
-        discount_enabled: discountEnabled,
-        discount_min_nights: discountMinNights ? parseInt(discountMinNights) : null,
-        discount_percentage: discountPercentage ? parseFloat(discountPercentage) : null,
-      };
-
-      // Si réduction séjour long activée, utiliser les champs corrects
-      if (longStayDiscountEnabled) {
-        try {
-          updates.long_stay_discount_enabled = true;
-          updates.long_stay_discount_min_nights = parseInt(longStayDays);
-          updates.long_stay_discount_percentage = parseFloat(longStayDiscountPercentage);
-        } catch (e) {
-          console.log('Les champs de réduction séjour long ne sont pas disponibles');
-        }
-      } else {
-        updates.long_stay_discount_enabled = false;
-        updates.long_stay_discount_min_nights = null;
-        updates.long_stay_discount_percentage = null;
+      const parsedBase = basePrice.trim() ? parseInt(basePrice.replace(/\s/g, ''), 10) : NaN;
+      const safeBase = clampHostMoney(parsedBase);
+      if (safeBase == null || safeBase < 1000) {
+        Alert.alert('Prix invalide', 'Le prix par nuit doit être d’au moins 1 000 FCFA.');
+        return;
       }
+
+      if (discountEnabled) {
+        const minN = discountMinNights.trim() ? parseInt(discountMinNights, 10) : NaN;
+        const pct = discountPercentage.trim() ? parseFloat(discountPercentage) : NaN;
+        if (!Number.isFinite(minN) || minN < 1 || !Number.isFinite(pct) || pct < 1 || pct > 100) {
+          Alert.alert(
+            'Réduction incomplète',
+            'Si la réduction est activée, indiquez un nombre de nuits minimum (≥ 1) et un pourcentage entre 1 et 100.',
+          );
+          return;
+        }
+      }
+
+      if (longStayDiscountEnabled) {
+        const minN = longStayDays.trim() ? parseInt(longStayDays, 10) : NaN;
+        const pct = longStayDiscountPercentage.trim()
+          ? parseFloat(longStayDiscountPercentage)
+          : NaN;
+        if (!Number.isFinite(minN) || minN < 1 || !Number.isFinite(pct) || pct < 1 || pct > 100) {
+          Alert.alert(
+            'Réduction long séjour incomplète',
+            'Si la réduction long séjour est activée, indiquez un nombre de nuits minimum (≥ 1) et un pourcentage entre 1 et 100.',
+          );
+          return;
+        }
+      }
+
+      const discounts = mapHostApplicationDiscounts({
+        discountEnabled,
+        discountMinNights: discountMinNights.trim() ? parseInt(discountMinNights, 10) : null,
+        discountPercentage: discountPercentage.trim()
+          ? parseFloat(discountPercentage)
+          : null,
+        longStayDiscountEnabled,
+        longStayDiscountMinNights: longStayDays.trim() ? parseInt(longStayDays, 10) : null,
+        longStayDiscountPercentage: longStayDiscountPercentage.trim()
+          ? parseFloat(longStayDiscountPercentage)
+          : null,
+      });
+
+      const updates = {
+        price_per_night: safeBase,
+        taxes: 0,
+        ...discounts,
+      };
 
       const { error } = await supabase
         .from('properties')
@@ -420,31 +454,15 @@ const PropertyPricingScreen: React.FC = () => {
         .eq('id', propertyId);
 
       if (error) {
-        // Si l'erreur concerne des colonnes inexistantes, on ignore ces champs
-        if (error.message.includes('column') && error.message.includes('does not exist')) {
-          console.log('Certaines colonnes n\'existent pas encore, sauvegarde des champs disponibles uniquement');
-          // Réessayer sans les champs qui n'existent pas
-          const safeUpdates: any = {
-            discount_enabled: discountEnabled,
-            discount_min_nights: discountMinNights ? parseInt(discountMinNights) : null,
-            discount_percentage: discountPercentage ? parseFloat(discountPercentage) : null,
-          };
-          const { error: retryError } = await supabase
-            .from('properties')
-            .update(safeUpdates)
-            .eq('id', propertyId);
-          
-          if (retryError) throw retryError;
-        } else {
-          throw error;
-        }
+        throw error;
       }
 
       Alert.alert('Succès', 'Les modifications ont été enregistrées');
       navigation.goBack();
     } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de sauvegarder les modifications');
+      const raw = error?.message || 'Impossible de sauvegarder les modifications';
+      Alert.alert('Erreur', friendlyHostApplicationDbError(raw));
     } finally {
       setSaving(false);
     }

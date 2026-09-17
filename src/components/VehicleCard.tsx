@@ -11,7 +11,7 @@ import {
   InteractionManager,
   Alert,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import AppVideo from './AppVideo';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Vehicle } from '../types';
@@ -296,11 +296,11 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
             {vehicleImages.map((imageUrl, index) => (
               <View key={index} style={styles.galleryImageWrapper}>
                 {isVideoUrl(imageUrl) ? (
-                  <Video
+                  <AppVideo
                     source={{ uri: imageUrl }}
                     style={styles.galleryImage}
-                    resizeMode={ResizeMode.CONTAIN}
-                    useNativeControls
+                    contentFit="contain"
+                    nativeControls
                     shouldPlay={false}
                   />
                 ) : (

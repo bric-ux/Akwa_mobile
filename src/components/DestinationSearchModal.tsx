@@ -12,10 +12,12 @@ import {
   Platform,
   Keyboard,
   BackHandler,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
+import { resolvePreciseLocationFromDevice } from '../lib/geolocation';
 
 export interface DestinationSuggestion {
   id: string;
@@ -47,13 +49,19 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<DestinationSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
   const [recentSearches] = useState<string[]>(['Abidjan', 'Yamoussoukro', 'Grand-Bassam', 'San-Pédro']);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (visible) {
       setQuery(initialQuery);
       setResults(buildDefaultSuggestions(initialQuery));
+      const t = setTimeout(() => {
+        inputRef.current?.focus();
+      }, Platform.OS === 'android' ? 350 : 100);
+      return () => clearTimeout(t);
     }
   }, [visible, initialQuery]);
 
@@ -220,6 +228,43 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
     onClose();
   };
 
+  const handleGeolocate = async () => {
+    try {
+      setGeoLoading(true);
+      Keyboard.dismiss();
+      const result = await resolvePreciseLocationFromDevice();
+      const matched = result.matchedLocation;
+      const label = matched?.name || result.addressLabel;
+      if (!label?.trim()) {
+        Alert.alert('Localisation', 'Impossible de déterminer une destination près de vous.');
+        return;
+      }
+      const type =
+        matched?.type === 'neighborhood' ||
+        matched?.type === 'commune' ||
+        matched?.type === 'city'
+          ? matched.type
+          : 'city';
+      handleSelect({
+        id: matched?.id ? `geo_${matched.id}` : `geo_${result.coords.latitude}_${result.coords.longitude}`,
+        text: label.trim(),
+        type,
+        subtitle: 'Autour de moi',
+        latitude: result.coords.latitude,
+        longitude: result.coords.longitude,
+      });
+    } catch (e) {
+      Alert.alert(
+        'Localisation',
+        e instanceof Error
+          ? e.message
+          : 'Impossible d’obtenir votre position. Vérifiez les autorisations GPS.',
+      );
+    } finally {
+      setGeoLoading(false);
+    }
+  };
+
   const iconForType = (type: DestinationSuggestion['type']) => {
     switch (type) {
       case 'recent': return 'time-outline';
@@ -276,15 +321,18 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
           <View style={styles.searchBar}>
             <Ionicons name="search" size={20} color="#6b7280" />
             <TextInput
+              ref={inputRef}
               style={styles.searchInput}
               placeholder="Ville, commune ou quartier"
               placeholderTextColor="#9ca3af"
               value={query}
               onChangeText={handleQueryChange}
-              autoFocus
+              autoFocus={!embedded}
+              showSoftInputOnFocus
               autoCorrect={false}
               autoCapitalize="words"
               returnKeyType="search"
+              blurOnSubmit={false}
             />
             {query.length > 0 && (
               <TouchableOpacity onPress={() => handleQueryChange('')}>
@@ -292,6 +340,24 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
               </TouchableOpacity>
             )}
           </View>
+
+          <TouchableOpacity
+            style={styles.geoBtn}
+            onPress={handleGeolocate}
+            disabled={geoLoading || loading}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Autour de moi"
+          >
+            {geoLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="navigate" size={18} color="#fff" />
+                <Text style={styles.geoBtnText}>Autour de moi</Text>
+              </>
+            )}
+          </TouchableOpacity>
 
           {loading && (
             <View style={styles.loadingRow}>
@@ -309,7 +375,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
             data={results}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             keyboardDismissMode={Platform.OS === 'android' ? 'on-drag' : 'none'}
             nestedScrollEnabled
             showsVerticalScrollIndicator={false}
@@ -396,11 +462,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
+  geoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: '#2563eb',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  geoBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
   searchInput: {
     flex: 1,
     fontSize: 16,
     color: '#1f2937',
-    padding: 0,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    paddingHorizontal: 4,
+    minHeight: 44,
   },
   loadingRow: {
     flexDirection: 'row',

@@ -1,9 +1,17 @@
 import React, { useState, memo } from 'react';
 import { View, StyleSheet, StyleProp, ViewStyle, ImageStyle } from 'react-native';
 import { Image } from 'expo-image';
-import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { getGalleryThumbUrl, isVideoUrl } from '../utils/media';
+import {
+  EXPLORE_SHELF_IMAGE_HEIGHT,
+  EXPLORE_SHELF_CARD_WIDTH,
+} from '../constants/exploreShelfCard';
+import {
+  getGalleryThumbUrl,
+  getHomeShelfImageUrl,
+  getListCardImageUrl,
+  isVideoUrl,
+} from '../utils/media';
 
 type MediaThumbProps = {
   uri: string;
@@ -18,11 +26,16 @@ type MediaThumbProps = {
   priority?: 'low' | 'normal' | 'high';
   /** Stabilise le recyclage des vues (listes) — ex. `${propertyId}-${index}` */
   recyclingKey?: string;
+  /** Accueil carrousel : recadrage portrait optimisé pour remplir l'encart. */
+  preferOriginal?: boolean;
+  /** Résultats recherche : image uploadée sans crop agressif côté CDN. */
+  fitWholeImage?: boolean;
+  contentPosition?: 'center' | 'top' | 'bottom';
 };
 
 /**
- * Vignette image ou courte preview vidéo (muet, pas de lecture auto prolongée).
- * Images distantes : expo-image (cache disque + mémoire, meilleures perfs que Image RN).
+ * Vignette image ou placeholder vidéo (pas de player natif en liste).
+ * Images distantes : expo-image (cache disque + mémoire).
  */
 const MediaThumbInner: React.FC<MediaThumbProps> = ({
   uri,
@@ -31,8 +44,11 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
   isVideo: isVideoProp,
   priority = 'normal',
   recyclingKey,
+  preferOriginal = false,
+  fitWholeImage = false,
+  contentPosition = 'center',
 }) => {
-  const [videoError, setVideoError] = useState(false);
+  const [useOriginal, setUseOriginal] = useState(false);
   const video = isVideoProp ?? isVideoUrl(uri);
 
   if (!uri) {
@@ -43,19 +59,12 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
     );
   }
 
-  if (video && !videoError) {
+  if (video) {
     return (
-      <View style={[styles.wrap, style as ViewStyle]}>
-        <Video
-          source={{ uri }}
-          style={StyleSheet.absoluteFill}
-          resizeMode={resizeMode === 'cover' ? ResizeMode.COVER : ResizeMode.CONTAIN}
-          shouldPlay={false}
-          isMuted
-          isLooping={false}
-          useNativeControls={false}
-          onError={() => setVideoError(true)}
-        />
+      <View style={[preferOriginal ? styles.shelfWrap : styles.wrap, style as ViewStyle]}>
+        <View style={styles.videoPlaceholder}>
+          <Ionicons name="videocam" size={28} color="rgba(255,255,255,0.85)" />
+        </View>
         <View style={styles.playBadge} pointerEvents="none">
           <Ionicons name="play-circle" size={28} color="rgba(255,255,255,0.92)" />
         </View>
@@ -63,22 +72,43 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
     );
   }
 
-  if (video && videoError) {
+  const optimizedUri = useOriginal
+    ? uri
+    : fitWholeImage
+      ? getListCardImageUrl(uri)
+      : preferOriginal
+        ? getHomeShelfImageUrl(uri, EXPLORE_SHELF_CARD_WIDTH, EXPLORE_SHELF_IMAGE_HEIGHT)
+        : getGalleryThumbUrl(uri);
+  const displayUri = useOriginal ? uri : optimizedUri;
+  const contentFit = resizeMode === 'cover' ? 'cover' : 'contain';
+
+  if (preferOriginal) {
     return (
-      <View style={[styles.placeholder, style as ViewStyle]}>
-        <Ionicons name="videocam-outline" size={36} color="#64748b" />
+      <View style={[styles.shelfWrap, style as ViewStyle]}>
+        <Image
+          source={displayUri}
+          style={styles.shelfMedia}
+          contentFit={contentFit}
+          contentPosition={contentPosition}
+          cachePolicy="memory-disk"
+          priority={priority}
+          recyclingKey={recyclingKey ?? uri}
+          transition={120}
+          allowDownscaling
+          onError={() => {
+            if (!useOriginal && displayUri !== uri) setUseOriginal(true);
+          }}
+        />
       </View>
     );
   }
-
-  const [useOriginal, setUseOriginal] = useState(false);
-  const displayUri = useOriginal ? uri : getGalleryThumbUrl(uri);
 
   return (
     <Image
       source={displayUri}
       style={style as ImageStyle}
-      contentFit={resizeMode === 'cover' ? 'cover' : 'contain'}
+      contentFit={contentFit}
+      contentPosition={contentPosition}
       cachePolicy="memory-disk"
       priority={priority}
       recyclingKey={recyclingKey ?? uri}
@@ -94,7 +124,22 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
 const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
-    backgroundColor: '#0f172a',
+    backgroundColor: '#e2e8f0',
+  },
+  shelfWrap: {
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+  },
+  shelfMedia: {
+    width: '100%',
+    height: '100%',
+    transform: [{ scale: 1.08 }],
+  },
+  videoPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#1e293b',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   placeholder: {
     backgroundColor: '#f1f5f9',
