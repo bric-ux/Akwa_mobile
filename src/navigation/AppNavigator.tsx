@@ -213,6 +213,7 @@ const HostTabNavigator = () => {
 
           if (route.name === 'HostPropertiesTab') {
             iconName = focused ? 'home' : 'home-outline';
+            badgeCount = badges.hostPropertyBookings;
           } else if (route.name === 'HostBookingsTab') {
             iconName = focused ? 'calendar' : 'calendar-outline';
             badgeCount = badges.hostPropertyBookings;
@@ -292,6 +293,7 @@ const VehicleOwnerTabNavigator = () => {
 
           if (route.name === 'VehicleOwnerVehiclesTab') {
             iconName = focused ? 'car' : 'car-outline';
+            badgeCount = badges.hostVehicleBookings;
           } else if (route.name === 'VehicleOwnerBookingsTab') {
             iconName = focused ? 'calendar' : 'calendar-outline';
             badgeCount = badges.hostVehicleBookings;

@@ -74,7 +74,8 @@ const HostBookingsScreen: React.FC = () => {
       isHost: boolean;
     };
   } | null>(null);
-  const { markHostPropertyBookingsViewed } = useTabNotificationBadges();
+  const { markHostPropertyBookingsViewedForProperty, hasUnseenProperty, unseenPropertyCounts } =
+    useTabNotificationBadges();
   const { getPendingRequestsForHost } = useBookingModifications();
   const [modificationRequests, setModificationRequests] = useState<BookingModificationRequest[]>([]);
   const [financialOverview, setFinancialOverview] = useState<HostFinancialOverview>({
@@ -143,14 +144,13 @@ const HostBookingsScreen: React.FC = () => {
     await loadData();
   };
 
-  // Charger les données quand l'écran devient actif
+  // Charger les données quand l'écran devient actif (ne pas tout marquer vu ici)
   useFocusEffect(
     React.useCallback(() => {
       if (user) {
         loadData();
-        markHostPropertyBookingsViewed();
       }
-    }, [user, markHostPropertyBookingsViewed])
+    }, [user])
   );
 
   const handleRefresh = async () => {
@@ -362,8 +362,12 @@ const HostBookingsScreen: React.FC = () => {
       };
     });
 
-    // Trier : d'abord les occupées, puis celles avec réservations, puis les disponibles
+    // Trier : demandes non vues / pending d'abord, puis occupées, puis avec réservations
     const sorted = propertiesWithStats.sort((a, b) => {
+      const aUnseen = unseenPropertyCounts[a.property.id] || 0;
+      const bUnseen = unseenPropertyCounts[b.property.id] || 0;
+      if (aUnseen !== bUnseen) return bUnseen - aUnseen;
+      if (a.stats.pending !== b.stats.pending) return b.stats.pending - a.stats.pending;
       if (a.isCurrentlyOccupied && !b.isCurrentlyOccupied) return -1;
       if (!a.isCurrentlyOccupied && b.isCurrentlyOccupied) return 1;
       if (a.stats.total > 0 && b.stats.total === 0) return -1;
@@ -387,10 +391,21 @@ const HostBookingsScreen: React.FC = () => {
     
     const propertyBookings = bookings.filter(b => b.properties?.id === selectedPropertyId);
     
-    return propertyBookings.filter(booking => {
+    const filtered = propertyBookings.filter(booking => {
       if (selectedFilter === 'all') return true;
       if (selectedFilter === 'in_progress') return isBookingInProgress(booking);
       return booking.status === selectedFilter;
+    });
+
+    // Demandes pending (surtout non vues) en premier, puis plus récentes
+    return [...filtered].sort((a, b) => {
+      const aPending = a.status === 'pending' ? 1 : 0;
+      const bPending = b.status === 'pending' ? 1 : 0;
+      if (aPending !== bPending) return bPending - aPending;
+      const aUnseen = a.status === 'pending' && !(a as any).host_viewed_at ? 1 : 0;
+      const bUnseen = b.status === 'pending' && !(b as any).host_viewed_at ? 1 : 0;
+      if (aUnseen !== bUnseen) return bUnseen - aUnseen;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
   };
 
@@ -852,13 +867,18 @@ const HostBookingsScreen: React.FC = () => {
               keyExtractor={(item, index) => item.property?.id ? `${item.property.id}-${index}` : `property-${index}`}
               renderItem={({ item }) => {
                 const listCoverUri = getHostPropertyCoverUri(item.property);
+                const showDot = item.property?.id ? hasUnseenProperty(item.property.id) : false;
                 return (
                 <TouchableOpacity
                   style={[
                     styles.propertyCard,
                     item.isCurrentlyOccupied && styles.propertyCardOccupied
                   ]}
-                  onPress={() => setSelectedPropertyId(item.property?.id || null)}
+                  onPress={() => {
+                    const id = item.property?.id || null;
+                    setSelectedPropertyId(id);
+                    if (id) void markHostPropertyBookingsViewedForProperty(id);
+                  }}
                 >
                   <View style={styles.propertyCardImageContainer}>
                     <MediaThumb
@@ -867,13 +887,24 @@ const HostBookingsScreen: React.FC = () => {
                       resizeMode="cover"
                       isVideo={isVideoUrl(listCoverUri)}
                     />
+                    {showDot ? <View style={styles.unseenDot} /> : null}
                   </View>
                   <View style={styles.propertyCardContent}>
                     <View style={styles.propertyCardHeader}>
-                      <Text style={styles.propertyCardTitle} numberOfLines={2}>
-                        {item.property?.title || t('messages.property')}
-                      </Text>
+                      <View style={styles.propertyCardTitleRow}>
+                        <Text style={styles.propertyCardTitle} numberOfLines={2}>
+                          {item.property?.title || t('messages.property')}
+                        </Text>
+                        {showDot ? <View style={styles.unseenDotInline} /> : null}
+                      </View>
                       <View style={styles.propertyCardBadges}>
+                        {item.stats.pending > 0 && (
+                          <View style={styles.pendingBadgeSmall}>
+                            <Text style={styles.pendingBadgeSmallText}>
+                              {item.stats.pending} demande{item.stats.pending > 1 ? 's' : ''}
+                            </Text>
+                          </View>
+                        )}
                         {item.stats.upcoming > 0 && (
                           <View style={styles.upcomingBadgeSmall}>
                             <Ionicons name="calendar-outline" size={12} color="#fff" />
@@ -1557,6 +1588,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     borderRadius: 8,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  unseenDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ef4444',
+    borderWidth: 2,
+    borderColor: '#fff',
+    zIndex: 2,
   },
   propertyCardImage: {
     width: '100%',
@@ -1573,6 +1617,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     gap: 8,
   },
+  propertyCardTitleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginRight: 8,
+  },
+  unseenDotInline: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+  },
   propertyCardTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -1585,6 +1642,17 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 4,
     maxWidth: '45%',
+  },
+  pendingBadgeSmall: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  pendingBadgeSmallText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
   },
   upcomingBadgeSmall: {
     flexDirection: 'row',

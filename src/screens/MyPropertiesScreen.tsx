@@ -22,6 +22,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import MediaThumb from '../components/MediaThumb';
 import { getPropertyCoverUrl, isVideoUrl } from '../utils/media';
 import { getPropertyPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
+import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 type TabType = 'applications' | 'properties';
 
@@ -31,6 +32,8 @@ const MyPropertiesScreen: React.FC = () => {
   const { user } = useAuth();
   const { getMyProperties, hideProperty, showProperty, deleteProperty, loading } = useMyProperties();
   const { getApplications, loading: applicationsLoading } = useHostApplications();
+  const { hasUnseenProperty, markHostPropertyBookingsViewedForProperty, unseenPropertyCounts } =
+    useTabNotificationBadges();
   const [activeTab, setActiveTab] = useState<TabType>('properties');
   const [properties, setProperties] = useState<Property[]>([]);
   const [applications, setApplications] = useState<HostApplication[]>([]);
@@ -153,8 +156,17 @@ const MyPropertiesScreen: React.FC = () => {
   };
 
   const handleViewProperty = (propertyId: string) => {
+    void markHostPropertyBookingsViewedForProperty(propertyId);
     navigation.navigate('PropertyManagement', { propertyId } as never);
   };
+
+  const sortedProperties = [...properties].sort((a, b) => {
+    const aUnseen = unseenPropertyCounts[a.id] || 0;
+    const bUnseen = unseenPropertyCounts[b.id] || 0;
+    if (aUnseen !== bUnseen) return bUnseen - aUnseen;
+    if (a.is_active === b.is_active) return 0;
+    return a.is_active ? -1 : 1;
+  });
 
   const handleSharePropertyLink = useCallback(
     (property: Property) => {
@@ -181,6 +193,7 @@ const MyPropertiesScreen: React.FC = () => {
 
   const renderPropertyItem = ({ item: property }: { item: Property }) => {
     const coverUri = getHostPropertyCoverUri(property);
+    const showDot = hasUnseenProperty(property.id);
     return (
     <TouchableOpacity
       style={styles.propertyCard}
@@ -188,14 +201,20 @@ const MyPropertiesScreen: React.FC = () => {
       activeOpacity={0.7}
     >
       <View style={styles.propertyInfo}>
-        <MediaThumb
-          uri={coverUri}
-          style={styles.propertyImage}
-          resizeMode="cover"
-          isVideo={isVideoUrl(coverUri)}
-        />
+        <View style={styles.propertyImageWrap}>
+          <MediaThumb
+            uri={coverUri}
+            style={styles.propertyImage}
+            resizeMode="cover"
+            isVideo={isVideoUrl(coverUri)}
+          />
+          {showDot ? <View style={styles.unseenDot} /> : null}
+        </View>
         <View style={styles.propertyDetails}>
-          <Text style={styles.propertyTitle} numberOfLines={1}>{property.title}</Text>
+          <View style={styles.propertyTitleRow}>
+            <Text style={styles.propertyTitle} numberOfLines={1}>{property.title}</Text>
+            {showDot ? <View style={styles.unseenDotInline} /> : null}
+          </View>
           <Text style={styles.propertyLocation} numberOfLines={1}>
             📍 {property.location?.name || property.locations?.name || t('common.unknown')}
           </Text>
@@ -420,7 +439,7 @@ const MyPropertiesScreen: React.FC = () => {
           renderEmptyState()
         ) : (
           <FlatList
-            data={properties}
+            data={sortedProperties}
             keyExtractor={(item) => item.id}
             renderItem={renderPropertyItem}
             contentContainerStyle={styles.listContainer}
@@ -508,20 +527,46 @@ const styles = StyleSheet.create({
   propertyInfo: {
     flexDirection: 'row',
   },
+  propertyImageWrap: {
+    position: 'relative',
+    marginRight: 15,
+  },
   propertyImage: {
     width: 80,
     height: 80,
     borderRadius: 8,
-    marginRight: 15,
+  },
+  unseenDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ef4444',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  propertyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  unseenDotInline: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
   },
   propertyDetails: {
     flex: 1,
   },
   propertyTitle: {
+    flex: 1,
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
   },
   propertyLocation: {
     fontSize: 14,

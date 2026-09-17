@@ -25,6 +25,7 @@ import { VEHICLE_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
 import MediaThumb from '../components/MediaThumb';
 import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
+import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -35,6 +36,8 @@ const MyVehiclesScreen: React.FC = () => {
   const { t } = useLanguage();
   const { formatPrice } = useCurrency();
   const { getMyVehicles, deleteVehicle, loading } = useVehicles();
+  const { hasUnseenVehicle, markHostVehicleBookingsViewedForVehicle, unseenVehicleCounts } =
+    useTabNotificationBadges();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('vehicles');
@@ -111,7 +114,15 @@ const MyVehiclesScreen: React.FC = () => {
 
   console.log(`📊 [MyVehiclesScreen] Total: ${vehicles.length}, Approuvés: ${approvedVehicles.length}, Candidatures: ${pendingVehicles.length}`);
 
-  const currentVehicles = activeTab === 'vehicles' ? approvedVehicles : pendingVehicles;
+  const currentVehiclesRaw = activeTab === 'vehicles' ? approvedVehicles : pendingVehicles;
+  const currentVehicles =
+    activeTab === 'vehicles'
+      ? [...currentVehiclesRaw].sort((a, b) => {
+          const aU = unseenVehicleCounts[a.id] || 0;
+          const bU = unseenVehicleCounts[b.id] || 0;
+          return bU - aU;
+        })
+      : currentVehiclesRaw;
 
   const handleImagePress = (e: any, vehicle: Vehicle) => {
     e.stopPropagation();
@@ -147,16 +158,16 @@ const MyVehiclesScreen: React.FC = () => {
     const statusText = getStatusText(item);
     const vehicleImages = item.images || item.photos?.map((p: any) => p.url) || [];
     const hasMultipleImages = vehicleImages.length > 1;
+    const showDot = hasUnseenVehicle(item.id);
 
     return (
       <TouchableOpacity
         style={styles.vehicleCard}
         onPress={() => {
           if (activeTab === 'vehicles') {
-            // Navigation vers la page de gestion pour les véhicules actifs (comme sur le site web)
+            void markHostVehicleBookingsViewedForVehicle(item.id);
             navigation.navigate('VehicleManagement' as never, { vehicleId: item.id } as never);
           }
-          // Les candidatures ne sont pas cliquables (comme sur le site web)
         }}
         activeOpacity={activeTab === 'vehicles' ? 0.7 : 1}
         disabled={activeTab === 'applications'}
@@ -176,6 +187,7 @@ const MyVehiclesScreen: React.FC = () => {
                   resizeMode="cover"
                   isVideo={isVideoUrl(coverUri)}
                 />
+                {showDot ? <View style={styles.unseenDot} /> : null}
                 {hasMultipleImages && (
                   <View style={styles.imageCountBadge}>
                     <Ionicons name="images-outline" size={12} color="#fff" />
@@ -186,14 +198,18 @@ const MyVehiclesScreen: React.FC = () => {
             ) : (
               <View style={styles.imagePlaceholder}>
                 <Ionicons name="car-outline" size={activeTab === 'vehicles' ? 32 : 40} color="#9ca3af" />
+                {showDot ? <View style={styles.unseenDot} /> : null}
               </View>
             )}
           </TouchableOpacity>
 
           <View style={styles.vehicleInfo}>
-            <Text style={styles.vehicleTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
+            <View style={styles.vehicleTitleRow}>
+              <Text style={styles.vehicleTitle} numberOfLines={1}>
+                {item.title}
+              </Text>
+              {showDot ? <View style={styles.unseenDotInline} /> : null}
+            </View>
             <Text style={styles.vehicleDetails}>
               {item.brand} {item.model} • {item.year}
             </Text>
@@ -481,6 +497,30 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'cover',
   },
+  unseenDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ef4444',
+    borderWidth: 2,
+    borderColor: '#fff',
+    zIndex: 2,
+  },
+  vehicleTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  unseenDotInline: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+  },
   imagePlaceholder: {
     width: '100%',
     height: '100%',
@@ -593,10 +633,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   vehicleTitle: {
+    flex: 1,
     fontSize: 16,
     fontWeight: 'bold',
     color: '#1e293b',
-    marginBottom: 4,
   },
   vehicleDetails: {
     fontSize: 14,

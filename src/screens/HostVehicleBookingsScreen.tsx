@@ -55,7 +55,8 @@ const HostVehicleBookingsScreen: React.FC = () => {
   const { getMyVehicles } = useVehicles();
   const { canReviewBooking } = useVehicleRenterReviews();
   const { user } = useAuth();
-  const { markHostVehicleBookingsViewed } = useTabNotificationBadges();
+  const { markHostVehicleBookingsViewedForVehicle, hasUnseenVehicle, unseenVehicleCounts } =
+    useTabNotificationBadges();
   const { getPendingRequestsForOwner } = useVehicleBookingModifications();
   const [bookings, setBookings] = useState<VehicleBooking[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -136,8 +137,7 @@ const HostVehicleBookingsScreen: React.FC = () => {
   useFocusEffect(
     React.useCallback(() => {
       loadBookings();
-      markHostVehicleBookingsViewed();
-    }, [selectedVehicleId, markHostVehicleBookingsViewed])
+    }, [selectedVehicleId])
   );
 
   const handleRefresh = async () => {
@@ -282,14 +282,24 @@ const HostVehicleBookingsScreen: React.FC = () => {
     return `${Math.round(amountXof).toLocaleString('fr-FR')} FCFA`;
   };
 
-  const filteredBookings = bookings.filter(booking => {
-    if (selectedFilter === 'all') return true;
-    if (selectedFilter === 'in_progress') return isBookingInProgress(booking);
-    if (selectedFilter === 'completed') {
-      return isBookingCompleted(booking) && booking.status !== 'cancelled';
-    }
-    return booking.status === selectedFilter;
-  });
+  const filteredBookings = [...bookings]
+    .filter((booking) => {
+      if (selectedFilter === 'all') return true;
+      if (selectedFilter === 'in_progress') return isBookingInProgress(booking);
+      if (selectedFilter === 'completed') {
+        return isBookingCompleted(booking) && booking.status !== 'cancelled';
+      }
+      return booking.status === selectedFilter;
+    })
+    .sort((a, b) => {
+      const aPending = a.status === 'pending' ? 1 : 0;
+      const bPending = b.status === 'pending' ? 1 : 0;
+      if (aPending !== bPending) return bPending - aPending;
+      const aUnseen = a.status === 'pending' && !(a as any).owner_viewed_at ? 1 : 0;
+      const bUnseen = b.status === 'pending' && !(b as any).owner_viewed_at ? 1 : 0;
+      if (aUnseen !== bUnseen) return bUnseen - aUnseen;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   // Obtenir les véhicules avec leurs réservations et statistiques
   const getVehiclesWithBookings = () => {
@@ -395,6 +405,10 @@ const HostVehicleBookingsScreen: React.FC = () => {
     });
 
     return vehiclesWithStats.sort((a, b) => {
+      const aUnseen = unseenVehicleCounts[a.vehicle.id] || 0;
+      const bUnseen = unseenVehicleCounts[b.vehicle.id] || 0;
+      if (aUnseen !== bUnseen) return bUnseen - aUnseen;
+      if (a.stats.pending !== b.stats.pending) return b.stats.pending - a.stats.pending;
       if (a.isCurrentlyRented && !b.isCurrentlyRented) return -1;
       if (!a.isCurrentlyRented && b.isCurrentlyRented) return 1;
       if (a.stats.total > 0 && b.stats.total === 0) return -1;
@@ -705,31 +719,41 @@ const HostVehicleBookingsScreen: React.FC = () => {
               keyExtractor={(item) => item.vehicle.id}
               renderItem={({ item }) => {
                 const listCoverUri = getVehicleCoverUrl(item.vehicle);
+                const showDot = hasUnseenVehicle(item.vehicle.id);
                 return (
                 <TouchableOpacity
                   style={[
                     styles.vehicleCard,
                     item.isCurrentlyRented && styles.vehicleCardRented
                   ]}
-                  onPress={() => setSelectedVehicleId(item.vehicle.id)}
+                  onPress={() => {
+                    setSelectedVehicleId(item.vehicle.id);
+                    void markHostVehicleBookingsViewedForVehicle(item.vehicle.id);
+                  }}
                 >
-                  {listCoverUri ? (
-                    <MediaThumb
-                      uri={listCoverUri}
-                      style={styles.vehicleCardImage}
-                      resizeMode="cover"
-                      isVideo={isVideoUrl(listCoverUri)}
-                    />
-                  ) : (
-                    <View style={[styles.vehicleCardImage, styles.vehicleCardImagePlaceholder]}>
-                      <Ionicons name="car-outline" size={32} color="#9ca3af" />
-                    </View>
-                  )}
+                  <View style={styles.vehicleCardImageWrap}>
+                    {listCoverUri ? (
+                      <MediaThumb
+                        uri={listCoverUri}
+                        style={styles.vehicleCardImage}
+                        resizeMode="cover"
+                        isVideo={isVideoUrl(listCoverUri)}
+                      />
+                    ) : (
+                      <View style={[styles.vehicleCardImage, styles.vehicleCardImagePlaceholder]}>
+                        <Ionicons name="car-outline" size={32} color="#9ca3af" />
+                      </View>
+                    )}
+                    {showDot ? <View style={styles.unseenDot} /> : null}
+                  </View>
                   <View style={styles.vehicleCardContent}>
                     <View style={styles.vehicleCardHeader}>
-                      <Text style={styles.vehicleCardTitle} numberOfLines={2}>
-                        {item.vehicle.brand} {item.vehicle.model}
-                      </Text>
+                      <View style={styles.vehicleCardTitleRow}>
+                        <Text style={styles.vehicleCardTitle} numberOfLines={2}>
+                          {item.vehicle.brand} {item.vehicle.model}
+                        </Text>
+                        {showDot ? <View style={styles.unseenDotInline} /> : null}
+                      </View>
                       <View style={styles.vehicleCardBadges}>
                         {item.isCurrentlyRented ? (
                           <View style={styles.rentedBadge}>
@@ -1308,6 +1332,38 @@ const styles = StyleSheet.create({
     height: 80,
     backgroundColor: '#f0f0f0',
     borderRadius: 12,
+  },
+  vehicleCardImageWrap: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  unseenDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ef4444',
+    borderWidth: 2,
+    borderColor: '#fff',
+    zIndex: 2,
+  },
+  vehicleCardTitleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginRight: 8,
+  },
+  unseenDotInline: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
   },
   vehicleCardImagePlaceholder: {
     justifyContent: 'center',

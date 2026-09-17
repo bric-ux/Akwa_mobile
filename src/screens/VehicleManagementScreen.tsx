@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
 import { Vehicle } from '../types';
 import { VEHICLE_COLORS } from '../constants/colors';
@@ -28,6 +28,7 @@ import { useEmailService } from '../hooks/useEmailService';
 import AppVideo from '../components/AppVideo';
 import MediaThumb from '../components/MediaThumb';
 import { getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
+import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -62,6 +63,7 @@ const VehicleManagementScreen: React.FC = () => {
   const route = useRoute<VehicleManagementRouteProp>();
   const { vehicleId } = route.params;
   const { user } = useAuth();
+  const { markHostVehicleBookingsViewedForVehicle } = useTabNotificationBadges();
   const { getVehicleById, updateVehicle, deleteVehicle, loading } = useVehicles();
   const { sendNewVehicleReviewResponse } = useEmailService();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
@@ -96,6 +98,14 @@ const VehicleManagementScreen: React.FC = () => {
   useEffect(() => {
     loadVehicle();
   }, [vehicleId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (vehicleId) {
+        void markHostVehicleBookingsViewedForVehicle(vehicleId);
+      }
+    }, [vehicleId, markHostVehicleBookingsViewedForVehicle])
+  );
 
   const loadVehicle = async () => {
     try {

@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import { supabase } from '../services/supabase';
 import { Property } from '../hooks/useProperties';
@@ -24,6 +24,7 @@ import { CategorizedPhoto } from '../types';
 import { useMyProperties } from '../hooks/useMyProperties';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getPropertyPublicWebUrl, shareListingLink } from '../utils/shareListingLink';
+import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
 
 type PropertyManagementRouteProp = RouteProp<RootStackParamList, 'PropertyManagement'>;
 
@@ -36,6 +37,7 @@ const PropertyManagementScreen: React.FC = () => {
   const { t } = useLanguage();
 
   const { hideProperty, showProperty, deleteProperty } = useMyProperties();
+  const { markHostPropertyBookingsViewedForProperty } = useTabNotificationBadges();
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,6 +48,14 @@ const PropertyManagementScreen: React.FC = () => {
   useEffect(() => {
     loadProperty();
   }, [propertyId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (propertyId) {
+        void markHostPropertyBookingsViewedForProperty(propertyId);
+      }
+    }, [propertyId, markHostPropertyBookingsViewedForProperty])
+  );
 
   const loadProperty = async () => {
     try {
