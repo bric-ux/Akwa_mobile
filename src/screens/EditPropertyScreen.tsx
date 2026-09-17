@@ -25,6 +25,9 @@ import { supabase } from '../services/supabase';
 import { useAmenities } from '../hooks/useAmenities';
 import { useHostApplications } from '../hooks/useHostApplications';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+import PropertyLocationPicker, {
+  type PropertyLocationPickerValue,
+} from '../components/PropertyLocationPicker';
 import MediaThumb from '../components/MediaThumb';
 import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
 import {
@@ -57,6 +60,11 @@ const EditPropertyScreen: React.FC = () => {
   const [customAmenities, setCustomAmenities] = useState<string>('');
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
   const [locationDisplay, setLocationDisplay] = useState<string>('');
+  const [preciseLocation, setPreciseLocation] = useState<PropertyLocationPickerValue>({
+    coords: null,
+    locationLabel: '',
+    matchedLocation: null,
+  });
   
   // États du formulaire
   const [formData, setFormData] = useState({
@@ -206,21 +214,57 @@ const EditPropertyScreen: React.FC = () => {
           setCustomAmenities(propertyData.custom_amenities);
         }
         
-        // Charger la localisation
-        if (propertyData.location_id && propertyData.location) {
-          setSelectedLocation(propertyData.location);
-          setLocationDisplay(
-            typeof propertyData.location === 'object' && propertyData.location !== null
-              ? propertyData.location.name
-              : propertyData.location || ''
-          );
-        } else if (propertyData.location) {
-          // Ancien format (string)
-          setLocationDisplay(
-            typeof propertyData.location === 'string' 
-              ? propertyData.location 
-              : (propertyData.location as any)?.name || ''
-          );
+        // Charger la localisation + pin GPS
+        const locObj =
+          propertyData.location && typeof propertyData.location === 'object'
+            ? propertyData.location
+            : (propertyData as any).locations && typeof (propertyData as any).locations === 'object'
+              ? (propertyData as any).locations
+              : null;
+        const locName =
+          locObj?.name ||
+          (typeof propertyData.location === 'string' ? propertyData.location : '') ||
+          '';
+        const locId = propertyData.location_id || locObj?.id || null;
+
+        if (locObj || locName) {
+          if (locObj) setSelectedLocation(locObj);
+          setLocationDisplay(locName);
+        }
+
+        const propLat = Number(
+          propertyData.latitude ?? locObj?.latitude
+        );
+        const propLng = Number(
+          propertyData.longitude ?? locObj?.longitude
+        );
+        if (Number.isFinite(propLat) && Number.isFinite(propLng)) {
+          const matched = locId
+            ? {
+                id: String(locId),
+                name: locName || 'Localisation',
+                type: (locObj?.type || 'neighborhood') as any,
+                parent_id: locObj?.parent_id ?? null,
+                latitude: propLat,
+                longitude: propLng,
+                region: locObj?.region,
+                commune: locObj?.commune,
+                city_id: locObj?.city_id,
+              }
+            : null;
+          setPreciseLocation({
+            coords: { latitude: propLat, longitude: propLng },
+            locationLabel: locName,
+            matchedLocation: matched,
+          });
+          if (locId && !locObj) {
+            setSelectedLocation({
+              id: locId,
+              name: locName,
+              latitude: propLat,
+              longitude: propLng,
+            });
+          }
         }
       }
     } catch (error) {
@@ -290,13 +334,20 @@ const EditPropertyScreen: React.FC = () => {
         updated_at: new Date().toISOString(),
       };
       
-      // Mettre à jour la localisation si elle a été modifiée
-      if (selectedLocation) {
-        if (selectedLocation.id) {
-          updateData.location_id = selectedLocation.id;
-        }
-        // Note: La colonne 'location' n'existe pas dans la table properties
-        // Seul location_id est utilisé pour référencer la table locations
+      // Mettre à jour la localisation (ville/quartier + coords précises)
+      if (selectedLocation?.id) {
+        updateData.location_id = selectedLocation.id;
+      } else if (preciseLocation.matchedLocation?.id) {
+        updateData.location_id = preciseLocation.matchedLocation.id;
+      }
+
+      if (
+        preciseLocation.coords &&
+        Number.isFinite(preciseLocation.coords.latitude) &&
+        Number.isFinite(preciseLocation.coords.longitude)
+      ) {
+        updateData.latitude = preciseLocation.coords.latitude;
+        updateData.longitude = preciseLocation.coords.longitude;
       }
 
       // Mettre à jour la propriété
@@ -969,16 +1020,68 @@ const EditPropertyScreen: React.FC = () => {
                 if (result) {
                   setSelectedLocation(result);
                   setLocationDisplay(result.name);
+                  const lat = result.latitude != null ? Number(result.latitude) : NaN;
+                  const lng = result.longitude != null ? Number(result.longitude) : NaN;
+                  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    setPreciseLocation({
+                      coords: { latitude: lat, longitude: lng },
+                      locationLabel: result.name,
+                      matchedLocation: {
+                        id: result.id,
+                        name: result.name,
+                        type: result.type,
+                        parent_id: result.parent_id,
+                        latitude: lat,
+                        longitude: lng,
+                        region: result.region,
+                        commune: result.commune,
+                        city_id: result.city_id,
+                      },
+                    });
+                  }
                 } else {
                   setSelectedLocation(null);
                   setLocationDisplay('');
+                  setPreciseLocation({
+                    coords: null,
+                    locationLabel: '',
+                    matchedLocation: null,
+                  });
                 }
               }}
               placeholder="Rechercher ville, commune ou quartier..."
             />
             <Text style={styles.helpText}>
-              Recherchez votre ville, commune ou quartier avec autocomplétion
+              Recherchez votre ville, commune ou quartier, puis affinez avec le GPS ou le pin.
             </Text>
+            <View style={{ marginTop: 12 }}>
+              <PropertyLocationPicker
+                value={preciseLocation}
+                onChange={(next) => {
+                  setPreciseLocation(next);
+                  if (next.matchedLocation) {
+                    setSelectedLocation({
+                      id: next.matchedLocation.id,
+                      name: next.matchedLocation.name,
+                      type: next.matchedLocation.type,
+                      parent_id: next.matchedLocation.parent_id,
+                      latitude: next.matchedLocation.latitude,
+                      longitude: next.matchedLocation.longitude,
+                      region: next.matchedLocation.region,
+                      commune: next.matchedLocation.commune,
+                      city_id: next.matchedLocation.city_id,
+                    });
+                  }
+                  if (next.locationLabel?.trim()) {
+                    setLocationDisplay(next.locationLabel.trim());
+                  }
+                }}
+                onLocationLabelChange={(label) => {
+                  if (label?.trim()) setLocationDisplay(label.trim());
+                }}
+                height={240}
+              />
+            </View>
           </View>
         </View>
 

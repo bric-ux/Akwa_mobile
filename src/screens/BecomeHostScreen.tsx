@@ -219,7 +219,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
   const [identityUploadedInSession, setIdentityUploadedInSession] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<any>(null);
-  /** Test géoloc UI : coords en mémoire uniquement — non envoyées en base tant que migration non appliquée */
+  /** Localisation précise (GPS / pin) — enregistrée en base (latitude, longitude, location_id) */
   const [preciseLocation, setPreciseLocation] = useState<PropertyLocationPickerValue>({
     coords: null,
     locationLabel: '',
@@ -403,6 +403,71 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       });
       setListingType((application as any).is_monthly_rental ? 'monthly' : 'short_term');
       setListingTypeConfirmed(true);
+
+      // Hydrater la géoloc précise (GPS / pin)
+      const appLat = Number((application as any).latitude);
+      const appLng = Number((application as any).longitude);
+      const appLocationId =
+        typeof (application as any).location_id === 'string'
+          ? ((application as any).location_id as string)
+          : null;
+      if (Number.isFinite(appLat) && Number.isFinite(appLng)) {
+        let matched: PropertyLocationPickerValue['matchedLocation'] = null;
+        if (appLocationId) {
+          try {
+            const { data: locRow } = await supabase
+              .from('locations')
+              .select('id, name, type, parent_id, latitude, longitude')
+              .eq('id', appLocationId)
+              .maybeSingle();
+            if (locRow) {
+              matched = {
+                id: locRow.id,
+                name: locRow.name,
+                type: locRow.type as any,
+                parent_id: locRow.parent_id,
+                latitude: locRow.latitude != null ? Number(locRow.latitude) : appLat,
+                longitude: locRow.longitude != null ? Number(locRow.longitude) : appLng,
+              };
+              setSelectedLocation({
+                id: locRow.id,
+                name: locRow.name,
+                type: locRow.type,
+                parent_id: locRow.parent_id,
+                latitude: locRow.latitude,
+                longitude: locRow.longitude,
+              });
+            } else {
+              setSelectedLocation({
+                id: appLocationId,
+                name: locationStr,
+                latitude: appLat,
+                longitude: appLng,
+              });
+              matched = {
+                id: appLocationId,
+                name: locationStr || 'Localisation',
+                type: 'neighborhood',
+                latitude: appLat,
+                longitude: appLng,
+              };
+            }
+          } catch {
+            matched = {
+              id: appLocationId,
+              name: locationStr || 'Localisation',
+              type: 'neighborhood',
+              latitude: appLat,
+              longitude: appLng,
+            };
+          }
+        }
+        setPreciseLocation({
+          coords: { latitude: appLat, longitude: appLng },
+          locationLabel: locationStr || matched?.name || '',
+          matchedLocation: matched,
+        });
+      }
       
       // Charger les équipements
         setSelectedAmenities(application.amenities || []);
@@ -992,23 +1057,8 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     }
   };
 
-  const renderLocationPickerTestSection = () => (
+  const renderLocationPickerSection = () => (
     <View style={{ marginTop: 12 }}>
-      <View
-        style={{
-          backgroundColor: '#fff7ed',
-          borderColor: '#fdba74',
-          borderWidth: 1,
-          borderRadius: 10,
-          padding: 10,
-          marginBottom: 8,
-        }}
-      >
-        <Text style={{ fontSize: 12, color: '#9a3412', fontWeight: '600', lineHeight: 17 }}>
-          Test géolocalisation — la carte et le GPS marchent ici. Les coordonnées ne sont pas
-          enregistrées en base tant que la migration n’est pas appliquée.
-        </Text>
-      </View>
       <PropertyLocationPicker
         value={preciseLocation}
         onChange={handlePreciseLocationChange}
@@ -1488,6 +1538,11 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       cleaningFee: parseInt(formData.cleaningFee) || 0,
       taxes: parseInt(formData.taxes) || 0,
       freeCleaningMinDays: formData.freeCleaningMinDays ? parseInt(formData.freeCleaningMinDays) || undefined : undefined,
+      latitude: preciseLocation.coords?.latitude ?? null,
+      longitude: preciseLocation.coords?.longitude ?? null,
+      locationId:
+        preciseLocation.matchedLocation?.id ??
+        (typeof selectedLocation?.id === 'string' ? selectedLocation.id : null),
       ...(!isEditMode &&
         isReferred &&
         enteredReferralCode &&
@@ -1558,6 +1613,9 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             cleaning_fee: applicationPayload.cleaningFee,
             taxes: applicationPayload.taxes,
             free_cleaning_min_days: applicationPayload.freeCleaningMinDays,
+            latitude: applicationPayload.latitude ?? null,
+            longitude: applicationPayload.longitude ?? null,
+            location_id: applicationPayload.locationId ?? null,
             created_by_admin_id: user.id,
             created_for_user_id: adminTargetUser.user_id,
           } as any)
@@ -2054,7 +2112,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             onChange={handleLocationSelect}
             placeholder="Rechercher ville, commune ou quartier..."
           />
-          {renderLocationPickerTestSection()}
+          {renderLocationPickerSection()}
           <Text style={styles.helpText}>
             Recherchez votre ville, commune ou quartier avec autocomplétion
           </Text>
@@ -3062,7 +3120,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
             formData={formData}
             handleInputChange={handleInputChange}
             handleLocationSelect={handleLocationSelect}
-            locationPickerSection={renderLocationPickerTestSection()}
+            locationPickerSection={renderLocationPickerSection()}
             shouldShowField={shouldShowField}
             aiTitleSuggestions={aiTitleSuggestions}
             aiDraftDescription={aiDraftDescription}

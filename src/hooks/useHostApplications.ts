@@ -51,6 +51,11 @@ export interface HostApplicationData {
   customAmenities?: string[];
   /** Code parrain pour cette candidature (nouvelle propriété) */
   referralCodeSubmitted?: string | null;
+  /** Coords précises (GPS / pin carte) */
+  latitude?: number | null;
+  longitude?: number | null;
+  /** Lien vers public.locations */
+  locationId?: string | null;
 }
 
 export interface HostApplication {
@@ -58,6 +63,9 @@ export interface HostApplication {
   user_id: string;
   property_type: string;
   location: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_id?: string | null;
   max_guests: number;
   bedrooms: number;
   bathrooms: number;
@@ -125,6 +133,9 @@ export const useHostApplications = () => {
       console.log('📝 Données de candidature à soumettre:', {
         propertyType: applicationData.propertyType,
         location: applicationData.location,
+        latitude: applicationData.latitude,
+        longitude: applicationData.longitude,
+        locationId: applicationData.locationId,
         maxGuests: applicationData.maxGuests,
         bedrooms: applicationData.bedrooms,
         bathrooms: applicationData.bathrooms,
@@ -169,6 +180,15 @@ export const useHostApplications = () => {
           user_id: user.id,
           property_type: applicationData.propertyType,
           location: applicationData.location.trim(), // Nettoyer les espaces
+          latitude:
+            applicationData.latitude != null && Number.isFinite(applicationData.latitude)
+              ? applicationData.latitude
+              : null,
+          longitude:
+            applicationData.longitude != null && Number.isFinite(applicationData.longitude)
+              ? applicationData.longitude
+              : null,
+          location_id: applicationData.locationId || null,
           max_guests: applicationData.maxGuests,
           bedrooms: applicationData.bedrooms,
           bathrooms: applicationData.bathrooms,
@@ -377,6 +397,15 @@ export const useHostApplications = () => {
         .update({
           property_type: applicationData.propertyType,
           location: applicationData.location,
+          latitude:
+            applicationData.latitude != null && Number.isFinite(applicationData.latitude)
+              ? applicationData.latitude
+              : null,
+          longitude:
+            applicationData.longitude != null && Number.isFinite(applicationData.longitude)
+              ? applicationData.longitude
+              : null,
+          location_id: applicationData.locationId || null,
           max_guests: applicationData.maxGuests,
           bedrooms: applicationData.bedrooms,
           bathrooms: applicationData.bathrooms,
