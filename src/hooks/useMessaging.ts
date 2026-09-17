@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { Conversation, Message } from '../types';
 import { log, logError, logWarn } from '../utils/logger';
+import { sendPushToUser } from '../services/pushNotificationService';
+import { PUSH_TYPE_MESSAGE } from '../services/pushNavigation';
 
 export const useMessaging = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -336,56 +338,71 @@ export const useMessaging = () => {
         })
         .eq('id', conversationId);
 
-      // Email + SMS Twilio uniquement sur le 1er message (push/in-app via trigger DB)
-      if (isFirstMessage) {
-        setTimeout(async () => {
-          try {
-            const { data: conversation } = await supabase
-              .from('conversations')
-              .select('host_id, guest_id, property_id, vehicle_id, properties(title), vehicles(title)')
-              .eq('id', conversationId)
-              .single();
-            if (!conversation) return;
+      // Push Expo à chaque message + email/SMS uniquement au 1er
+      setTimeout(async () => {
+        try {
+          const { data: conversation } = await supabase
+            .from('conversations')
+            .select('host_id, guest_id, property_id, vehicle_id, properties(title), vehicles(title)')
+            .eq('id', conversationId)
+            .single();
+          if (!conversation) return;
 
-            const recipientId =
-              senderId === conversation.host_id ? conversation.guest_id : conversation.host_id;
-            if (!recipientId || recipientId === senderId) return;
+          const recipientId =
+            senderId === conversation.host_id ? conversation.guest_id : conversation.host_id;
+          if (!recipientId || recipientId === senderId) return;
 
-            const { data: recipientProfile } = await supabase
-              .from('profiles')
-              .select('email, first_name, last_name')
-              .eq('user_id', recipientId)
-              .single();
-            if (!recipientProfile?.email) return;
+          const senderName = data.sender_profile
+            ? `${data.sender_profile.first_name} ${data.sender_profile.last_name}`.trim()
+            : 'Utilisateur';
+          const itemTitle =
+            (conversation as { properties?: { title?: string } | null }).properties?.title ||
+            (conversation as { vehicles?: { title?: string } | null }).vehicles?.title ||
+            'votre annonce';
+          const preview =
+            message.trim().length > 120 ? `${message.trim().slice(0, 117)}…` : message.trim();
 
-            const senderName = data.sender_profile
-              ? `${data.sender_profile.first_name} ${data.sender_profile.last_name}`.trim()
-              : 'Utilisateur';
-            const itemTitle =
-              (conversation as { properties?: { title?: string } | null }).properties?.title ||
-              (conversation as { vehicles?: { title?: string } | null }).vehicles?.title ||
-              'votre annonce';
+          await sendPushToUser(
+            recipientId,
+            'Nouveau message',
+            `${senderName} : ${preview}`,
+            {
+              type: PUSH_TYPE_MESSAGE,
+              conversationId,
+              propertyId: conversation.property_id,
+              vehicleId: conversation.vehicle_id,
+            },
+          );
+          log('✅ [useMessaging] Push message envoyée');
 
-            await supabase.functions.invoke('send-email', {
-              body: {
-                type: 'new_message',
-                to: recipientProfile.email,
-                userId: recipientId,
-                data: {
-                  recipientName: `${recipientProfile.first_name ?? ''} ${recipientProfile.last_name ?? ''}`.trim(),
-                  senderName,
-                  propertyTitle: itemTitle,
-                  message: message.trim(),
-                  conversationId,
-                },
+          if (!isFirstMessage) return;
+
+          const { data: recipientProfile } = await supabase
+            .from('profiles')
+            .select('email, first_name, last_name')
+            .eq('user_id', recipientId)
+            .single();
+          if (!recipientProfile?.email) return;
+
+          await supabase.functions.invoke('send-email', {
+            body: {
+              type: 'new_message',
+              to: recipientProfile.email,
+              userId: recipientId,
+              data: {
+                recipientName: `${recipientProfile.first_name ?? ''} ${recipientProfile.last_name ?? ''}`.trim(),
+                senderName,
+                propertyTitle: itemTitle,
+                message: message.trim(),
+                conversationId,
               },
-            });
-            log('✅ [useMessaging] Notification premier message (email/SMS) envoyée');
-          } catch (notifErr) {
-            logError('❌ [useMessaging] Notification premier message échouée:', notifErr);
-          }
-        }, 0);
-      }
+            },
+          });
+          log('✅ [useMessaging] Notification premier message (email/SMS) envoyée');
+        } catch (notifErr) {
+          logError('❌ [useMessaging] Notification message échouée:', notifErr);
+        }
+      }, 0);
 
       return newMessage;
     } catch (err) {

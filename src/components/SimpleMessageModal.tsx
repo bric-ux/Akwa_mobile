@@ -15,6 +15,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { sendPushToUser } from '../services/pushNotificationService';
+import { PUSH_TYPE_MESSAGE } from '../services/pushNavigation';
 
 interface SimpleMessage {
   id: string;
@@ -195,13 +197,36 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
 
       await supabase
         .from('conversations')
-        .update({ updated_at: new Date().toISOString() })
+        .update({
+          updated_at: new Date().toISOString(),
+          last_message: messageText,
+        })
         .eq('id', conversationId);
 
       setMessages((prev) => {
         if (prev.some((msg) => msg.id === data.id)) return prev;
         return [...prev, data];
       });
+
+      if (otherParticipant?.id && otherParticipant.id !== user.id) {
+        const preview =
+          messageText.length > 120 ? `${messageText.slice(0, 117)}…` : messageText;
+        const meta = (user as { user_metadata?: { first_name?: string; last_name?: string } })
+          .user_metadata;
+        const senderLabel =
+          `${meta?.first_name ?? ''} ${meta?.last_name ?? ''}`.trim() || 'Quelqu\'un';
+        sendPushToUser(
+          otherParticipant.id,
+          'Nouveau message',
+          `${senderLabel} : ${preview}`,
+          {
+            type: PUSH_TYPE_MESSAGE,
+            conversationId,
+            propertyId: propertyId ?? undefined,
+            vehicleId: vehicleId ?? undefined,
+          },
+        ).catch(() => {});
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       Alert.alert('Erreur', 'Impossible d\'envoyer le message.');

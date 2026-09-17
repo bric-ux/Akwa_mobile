@@ -1,9 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
-import { normalizePhoneE164, phoneE164ForSms } from "../_shared/normalizePhone.ts";
-import { isAllowedSignupPhone } from "../_shared/signupPhone.ts";
-import { sendSmsSmart, isAfricanE164 } from "../_shared/sms.ts";
-import { termiiErrorToUserMessage, twilioErrorToUserMessage } from "../_shared/smsUserError.ts";
+import { normalizePhoneE164, phoneE164ForSms } from "../_shared/normalizePhone.js";
+import { isAllowedSignupPhone } from "../_shared/signupPhone.js";
+import { sendSmsSmart, isAfricanE164 } from "../_shared/sms.js";
+import { termiiErrorToUserMessage, twilioErrorToUserMessage } from "../_shared/smsUserError.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

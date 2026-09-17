@@ -350,7 +350,7 @@ export const useBookingModifications = () => {
         percentage: request.booking.properties.long_stay_discount_percentage ?? null,
       } : undefined;
 
-      const { calculateTotalPrice } = await import('../hooks/usePricing');
+      const { calculateTotalPrice } = await import('./usePricing');
       const newNightsPricing = calculateTotalPrice(pricePerNight, nights, discountConfig, longStayConfig);
       const newDiscountAmount = newNightsPricing.discountAmount || 0;
       const newDiscountApplied = newNightsPricing.discountApplied || false;

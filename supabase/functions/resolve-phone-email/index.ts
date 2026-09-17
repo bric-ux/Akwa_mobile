@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
-import { normalizePhoneE164 } from "../_shared/normalizePhone.ts";
+import { normalizePhoneE164 } from "../_shared/normalizePhone.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

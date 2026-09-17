@@ -1,4 +1,4 @@
-import { isAfricanE164 } from "./sms.ts";
+import { isAfricanE164 } from "./sms.js";
 
 /** Indicatifs autorisés à l'inscription par téléphone (hors CI). */
 const EUROPE_SIGNUP_DIAL_PREFIXES = [
