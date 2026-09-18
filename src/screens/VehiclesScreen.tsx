@@ -30,6 +30,7 @@ import VehicleTypeModal from '../components/VehicleTypeModal';
 import RentalModeModal from '../components/RentalModeModal';
 import { supabase } from '../services/supabase';
 import { LocationResult, useLocationSearch } from '../hooks/useLocationSearch';
+import { loadRecentSearches, pushRecentSearch } from '../lib/recentSearches';
 import { useCurrency } from '../hooks/useCurrency';
 import DateGuestsSelector from '../components/DateGuestsSelector';
 import { VehicleDateTimeSelector } from '../components/VehicleDateTimeSelector';
@@ -379,12 +380,29 @@ const VehiclesScreen: React.FC = () => {
 
   const handleLocationSelect = (location: LocationResult) => {
     setSelectedLocationName(location.name);
+    void pushRecentSearch(location.name);
     
+    const isMapPlace =
+      Boolean(location.fromMap) || String(location.id || '').startsWith('osm_');
     const newFilters: VehicleFilters = {
       ...filters,
-      locationName: location.name, // Utiliser le nom pour la recherche hiérarchique
-      locationId: undefined, // Ne plus utiliser locationId pour la recherche hiérarchique
+      locationName: location.name,
+      locationId: undefined,
       search: searchQuery.trim() || undefined,
+      centerLat:
+        location.latitude != null && Number.isFinite(Number(location.latitude))
+          ? Number(location.latitude)
+          : undefined,
+      centerLng:
+        location.longitude != null && Number.isFinite(Number(location.longitude))
+          ? Number(location.longitude)
+          : undefined,
+      radiusKm:
+        isMapPlace && location.latitude != null && location.longitude != null
+          ? filters.radiusKm && filters.radiusKm > 0
+            ? filters.radiusKm
+            : 12
+          : filters.radiusKm,
     };
     
     // Inclure les dates si elles sont définies
@@ -412,16 +430,34 @@ const VehiclesScreen: React.FC = () => {
     fetchVehicles(cleanedFilters);
   };
 
-  // Charger les villes populaires quand la modal s'ouvre
+  // Charger les villes populaires / historiques quand la modal s'ouvre
   useEffect(() => {
     if (showSearchModal && locationSearchQuery.length === 0) {
       setIsSearchingLocation(true);
-      getPopularLocations().then((results) => {
-        setLocationSearchResults(results);
-        setIsSearchingLocation(false);
-      }).catch(() => {
-        setIsSearchingLocation(false);
-      });
+      (async () => {
+        try {
+          const [recents, popular] = await Promise.all([
+            loadRecentSearches(),
+            getPopularLocations(),
+          ]);
+          const recentAsResults: LocationResult[] = recents.slice(0, 6).map((name, i) => ({
+            id: `recent_${i}_${name}`,
+            name,
+            type: 'city' as const,
+          }));
+          const merged: LocationResult[] = [...recentAsResults];
+          for (const p of popular) {
+            if (!merged.some((m) => m.name.toLowerCase() === p.name.toLowerCase())) {
+              merged.push(p);
+            }
+          }
+          setLocationSearchResults(merged.slice(0, 12));
+        } catch {
+          setLocationSearchResults([]);
+        } finally {
+          setIsSearchingLocation(false);
+        }
+      })();
       
       // Délai avant de focuser pour éviter le conflit avec la barre de statut
       setTimeout(() => {
@@ -455,14 +491,32 @@ const VehiclesScreen: React.FC = () => {
         }
       }, 300);
     } else if (locationSearchQuery.length === 0) {
-      // Recharger les villes populaires si le champ est vidé
+      // Recharger historiques + populaires si le champ est vidé
       setIsSearchingLocation(true);
-      getPopularLocations().then((results) => {
-        setLocationSearchResults(results);
-        setIsSearchingLocation(false);
-      }).catch(() => {
-        setIsSearchingLocation(false);
-      });
+      (async () => {
+        try {
+          const [recents, popular] = await Promise.all([
+            loadRecentSearches(),
+            getPopularLocations(),
+          ]);
+          const recentAsResults: LocationResult[] = recents.slice(0, 6).map((name, i) => ({
+            id: `recent_${i}_${name}`,
+            name,
+            type: 'city' as const,
+          }));
+          const merged: LocationResult[] = [...recentAsResults];
+          for (const p of popular) {
+            if (!merged.some((m) => m.name.toLowerCase() === p.name.toLowerCase())) {
+              merged.push(p);
+            }
+          }
+          setLocationSearchResults(merged.slice(0, 12));
+        } catch {
+          setLocationSearchResults([]);
+        } finally {
+          setIsSearchingLocation(false);
+        }
+      })();
     } else {
       setLocationSearchResults([]);
       setIsSearchingLocation(false);
@@ -1383,21 +1437,45 @@ const VehiclesScreen: React.FC = () => {
                       >
                         <View style={styles.locationResultIconContainer}>
                           <Ionicons
-                            name={item.type === 'city' ? 'location' : item.type === 'commune' ? 'map' : 'home'}
+                            name={
+                              item.fromMap
+                                ? 'map'
+                                : String(item.id).startsWith('recent_')
+                                  ? 'time-outline'
+                                  : item.type === 'city'
+                                    ? 'location'
+                                    : item.type === 'commune'
+                                      ? 'map'
+                                      : 'home'
+                            }
                             size={22}
-                            color={item.type === 'city' ? '#2563eb' : item.type === 'commune' ? '#10b981' : '#64748b'}
+                            color={
+                              item.fromMap
+                                ? '#0ea5e9'
+                                : item.type === 'city'
+                                  ? '#2563eb'
+                                  : item.type === 'commune'
+                                    ? '#10b981'
+                                    : '#64748b'
+                            }
                           />
                         </View>
                         <View style={styles.locationResultContent}>
                           <Text style={styles.locationResultName}>{item.name}</Text>
                           <View style={styles.locationResultMeta}>
-                            {item.type === 'city' && (
+                            {item.fromMap && (
+                              <Text style={styles.locationResultType}>Sur la carte</Text>
+                            )}
+                            {!item.fromMap && String(item.id).startsWith('recent_') && (
+                              <Text style={styles.locationResultType}>Recherche récente</Text>
+                            )}
+                            {!item.fromMap && !String(item.id).startsWith('recent_') && item.type === 'city' && (
                               <Text style={styles.locationResultType}>Ville</Text>
                             )}
-                            {item.type === 'commune' && (
+                            {!item.fromMap && item.type === 'commune' && (
                               <Text style={styles.locationResultType}>Commune</Text>
                             )}
-                            {item.type === 'neighborhood' && item.commune && (
+                            {!item.fromMap && item.type === 'neighborhood' && item.commune && (
                               <Text style={styles.locationResultType}>{item.commune} • Quartier</Text>
                             )}
                           </View>

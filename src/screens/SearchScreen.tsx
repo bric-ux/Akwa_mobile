@@ -201,8 +201,11 @@ const SearchScreen: React.FC = () => {
     fetchMonthlyListings({
       city: monthlySearchQuery || undefined,
       bedrooms: filters.bedrooms,
+      centerLat: filters.centerLat,
+      centerLng: filters.centerLng,
+      radiusKm: filters.radiusKm,
     });
-  }, [hasSubmittedSearch, rentalType, monthlySearchQuery, filters.bedrooms, fetchMonthlyListings]);
+  }, [hasSubmittedSearch, rentalType, monthlySearchQuery, filters.bedrooms, filters.centerLat, filters.centerLng, filters.radiusKm, fetchMonthlyListings]);
 
   // Charger l’historique des destinations (AsyncStorage)
   useEffect(() => {
@@ -262,6 +265,9 @@ const SearchScreen: React.FC = () => {
           await fetchMonthlyListings({
             city: query || undefined,
             bedrooms: filters.bedrooms,
+            centerLat: filters.centerLat,
+            centerLng: filters.centerLng,
+            radiusKm: filters.radiusKm,
           });
         } else {
           await fetchMonthlyListings({ bedrooms: filters.bedrooms });
@@ -348,29 +354,22 @@ const SearchScreen: React.FC = () => {
   };
 
   const handleSuggestionSelect = async (suggestion: any) => {
-    if (rentalType === 'monthly') {
-      setMonthlySearchQuery(suggestion.text);
-      return;
-    }
-    setShortTermSearchQuery(suggestion.text);
-    
     // Récupérer les coordonnées du lieu sélectionné si disponible
     let centerLat: number | undefined;
     let centerLng: number | undefined;
-    
+
     if (suggestion.latitude && suggestion.longitude) {
       centerLat = suggestion.latitude;
       centerLng = suggestion.longitude;
       setSelectedLocation({ lat: centerLat, lng: centerLng });
-    } else if (suggestion.id) {
-      // Si on a un ID mais pas de coordonnées, les récupérer depuis la base
+    } else if (suggestion.id && !String(suggestion.id).startsWith('osm_') && !String(suggestion.id).startsWith('recent_')) {
       try {
         const { data } = await supabase
           .from('locations')
           .select('latitude, longitude')
           .eq('id', suggestion.id)
           .single();
-        
+
         if (data?.latitude && data?.longitude) {
           centerLat = data.latitude;
           centerLng = data.longitude;
@@ -380,11 +379,30 @@ const SearchScreen: React.FC = () => {
         console.error('Erreur lors de la récupération des coordonnées:', err);
       }
     }
-    
-    // Mettre à jour les filtres avec la nouvelle ville sélectionnée et les coordonnées
+
     const isMapPlace =
       Boolean(suggestion.fromMap) || String(suggestion.id || '').startsWith('osm_');
     const defaultRadiusKm = 12;
+
+    if (rentalType === 'monthly') {
+      setMonthlySearchQuery(suggestion.text);
+      setFilters((prev) => ({
+        ...prev,
+        city: suggestion.text,
+        centerLat,
+        centerLng,
+        radiusKm:
+          prev.radiusKm && prev.radiusKm > 0
+            ? prev.radiusKm
+            : isMapPlace && centerLat != null && centerLng != null
+              ? defaultRadiusKm
+              : prev.radiusKm,
+      }));
+      return;
+    }
+    setShortTermSearchQuery(suggestion.text);
+    
+    // Mettre à jour les filtres avec la nouvelle ville sélectionnée et les coordonnées
     const newFilters: SearchFilters = {
       ...filters,
       city: suggestion.text,

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useCities } from './useCities';
 import { useNeighborhoods } from './useNeighborhoods';
+import { forwardGeocodeNominatim } from '../lib/geolocation';
 
 export interface LocationResult {
   id: string;
@@ -10,8 +11,11 @@ export interface LocationResult {
   region?: string;
   commune?: string;
   city_id?: string;
+  cityName?: string;
   latitude?: number;
   longitude?: number;
+  /** Suggestion OpenStreetMap (hors table locations) */
+  fromMap?: boolean;
 }
 
 export const useLocationSearch = () => {
@@ -147,12 +151,14 @@ export const useLocationSearch = () => {
         const parentIds = neighborhoodsData.map(n => n.parent_id).filter(Boolean) as string[];
         let parentNames: { [key: string]: string } = {};
         let parentParentIds: string[] = [];
+        let parents: { id: string; name: string; type?: string; parent_id?: string | null }[] = [];
         if (parentIds.length > 0) {
-          const { data: parents } = await supabase
+          const { data: parentsData } = await supabase
             .from('locations')
             .select('id, name, type, parent_id')
             .in('id', parentIds);
-          if (parents) {
+          if (parentsData) {
+            parents = parentsData;
             parentNames = parents.reduce((acc, p) => {
               acc[p.id] = p.name;
               return acc;
@@ -169,8 +175,8 @@ export const useLocationSearch = () => {
           if (cityRows) cityNames = cityRows.reduce((acc, r) => { acc[r.id] = r.name; return acc; }, {} as Record<string, string>);
         }
 
-        const communeToCityId = parentIds.length > 0 && parents
-          ? (parents as { id: string; parent_id?: string }[]).reduce((acc, p) => {
+        const communeToCityId = parents.length > 0
+          ? parents.reduce((acc, p) => {
               if (p.parent_id) acc[p.id] = p.parent_id;
               return acc;
             }, {} as Record<string, string>)
@@ -215,7 +221,36 @@ export const useLocationSearch = () => {
       });
 
       // Supprimer le score des résultats finaux
-      const finalResults = results.map(({ score, ...result }) => result);
+      let finalResults = results.map(({ score, ...result }) => result);
+
+      // Secours OpenStreetMap si peu de résultats en base
+      if (finalResults.length < 5) {
+        try {
+          const osmHits = await forwardGeocodeNominatim(query.trim(), { limit: 6 });
+          const normalize = (s: string) =>
+            s
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .trim();
+          for (const hit of osmHits) {
+            const already = finalResults.some(
+              (r) => normalize(r.name) === normalize(hit.shortName),
+            );
+            if (already) continue;
+            finalResults.push({
+              id: `osm_${hit.placeId}`,
+              name: hit.shortName,
+              type: hit.typeHint,
+              latitude: hit.latitude,
+              longitude: hit.longitude,
+              fromMap: true,
+            });
+          }
+        } catch (e) {
+          console.warn('[useLocationSearch] Nominatim:', e);
+        }
+      }
 
       console.log('✅ [useLocationSearch] Résultats trouvés:', finalResults.length);
       console.log('📋 [useLocationSearch] Premiers résultats:', finalResults.slice(0, 5).map(r => `${r.name} (${r.type})`));

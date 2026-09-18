@@ -228,7 +228,7 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
 
       if (!propertiesError && properties) {
         properties.forEach((property) => {
-          const location = property.locations;
+          const location = property.locations as { name?: string } | { name?: string }[] | null;
           const locationName = Array.isArray(location) ? location[0]?.name : location?.name;
           suggestions.push({
             id: `property_${property.id}`,

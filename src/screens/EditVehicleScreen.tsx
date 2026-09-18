@@ -20,6 +20,7 @@ import { useVehicles } from '../hooks/useVehicles';
 import { useAuth } from '../services/AuthContext';
 import { VehicleType, TransmissionType, FuelType, Vehicle } from '../types';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+import { isLocationUuid, matchLocationNearCoords } from '../lib/geolocation';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
 import MediaThumb from '../components/MediaThumb';
@@ -353,10 +354,38 @@ const EditVehicleScreen: React.FC = () => {
     }));
   };
 
-  const handleLocationSelect = (location: { id: string; name: string }) => {
-    setFormData(prev => ({
+  const handleLocationSelect = async (location: {
+    id: string;
+    name: string;
+    latitude?: number;
+    longitude?: number;
+    fromMap?: boolean;
+  }) => {
+    let locationId = isLocationUuid(location.id) ? location.id : '';
+
+    if (
+      !locationId &&
+      location.latitude != null &&
+      location.longitude != null &&
+      Number.isFinite(Number(location.latitude)) &&
+      Number.isFinite(Number(location.longitude))
+    ) {
+      try {
+        const matched = await matchLocationNearCoords({
+          latitude: Number(location.latitude),
+          longitude: Number(location.longitude),
+        });
+        if (matched?.id && isLocationUuid(matched.id)) {
+          locationId = matched.id;
+        }
+      } catch {
+        // garder le nom
+      }
+    }
+
+    setFormData((prev) => ({
       ...prev,
-      location_id: location.id,
+      location_id: locationId,
       location_name: location.name,
     }));
     setShowLocationModal(false);

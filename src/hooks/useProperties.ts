@@ -24,166 +24,9 @@ import { getAmenityIcon } from '../utils/amenityIcons';
 import { calculateDistance, isWithinRadius } from '../utils/distance';
 import { log, logError, logWarn } from '../utils/logger';
 import { getPricesForDateBatch } from '../utils/priceCalculator';
-import {
-  forwardGeocodeNominatim,
-  matchLocationNearCoords,
-  reverseGeocodeNominatim,
-  type MatchedLocation,
-  type ReverseGeocodeResult,
-} from '../lib/geolocation';
+import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
 
 const AMENITY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Élargit une location (ville / commune / quartier) à toute sa sous-arborescence
- * pour la recherche propriétés. Un quartier hors base (ex. Kennedy) → commune/ville parente.
- */
-async function expandLocationIdsForMatch(matched: MatchedLocation): Promise<string[]> {
-  let root = matched;
-
-  // Quartier → remonter à la commune pour ne pas renvoyer 0–1 annonces
-  if (matched.type === 'neighborhood' && matched.parent_id) {
-    const { data: parent } = await supabase
-      .from('locations')
-      .select('id, name, type, parent_id, latitude, longitude')
-      .eq('id', matched.parent_id)
-      .maybeSingle();
-    if (parent?.id) {
-      root = parent as MatchedLocation;
-    }
-  }
-
-  if (root.type === 'city') {
-    const cityIds = [root.id];
-    const { data: communes } = await supabase
-      .from('locations')
-      .select('id')
-      .in('parent_id', cityIds)
-      .eq('type', 'commune');
-    const communeIds = (communes || []).map((l) => l.id);
-    let neighborhoodIds: string[] = [];
-    if (communeIds.length > 0) {
-      const { data: neighborhoods } = await supabase
-        .from('locations')
-        .select('id')
-        .in('parent_id', communeIds)
-        .eq('type', 'neighborhood');
-      neighborhoodIds = (neighborhoods || []).map((l) => l.id);
-    }
-    return [...cityIds, ...communeIds, ...neighborhoodIds];
-  }
-
-  if (root.type === 'commune') {
-    const communeIds = [root.id];
-    const { data: neighborhoods } = await supabase
-      .from('locations')
-      .select('id')
-      .in('parent_id', communeIds)
-      .eq('type', 'neighborhood');
-    const neighborhoodIds = (neighborhoods || []).map((l) => l.id);
-    return [...communeIds, ...neighborhoodIds];
-  }
-
-  return [root.id];
-}
-
-type ResolvedSearchLocations = {
-  locationIds: string[] | null;
-  /** true = lieu hors catalogue rattaché via carte ; tri distance soft, pas d’exclusion stricte */
-  geoSoftMatch: boolean;
-  centerLat?: number;
-  centerLng?: number;
-};
-
-/**
- * Si le nom n’est pas en base (ex. « Kennedy »), géocode + rattache Abobo / Bouaké, etc.
- */
-async function resolveOffCatalogLocationIds(
-  searchTerm: string,
-  filters?: SearchFilters,
-): Promise<ResolvedSearchLocations> {
-  let centerLat =
-    filters?.centerLat != null && Number.isFinite(filters.centerLat)
-      ? Number(filters.centerLat)
-      : undefined;
-  let centerLng =
-    filters?.centerLng != null && Number.isFinite(filters.centerLng)
-      ? Number(filters.centerLng)
-      : undefined;
-  let reverseHint: ReverseGeocodeResult | null = null;
-
-  if (centerLat == null || centerLng == null) {
-    const hits = await forwardGeocodeNominatim(searchTerm, { limit: 1 });
-    if (hits[0]) {
-      centerLat = hits[0].latitude;
-      centerLng = hits[0].longitude;
-      const nameParts = hits[0].displayName
-        .split(',')
-        .map((p) => p.trim())
-        .filter(Boolean);
-      reverseHint = {
-        displayName: hits[0].displayName,
-        neighbourhood: hits[0].shortName,
-        suburb: nameParts[1],
-        city:
-          nameParts.find((p) =>
-            /abidjan|bouaké|bouake|yamoussoukro|bassam|san[-\s]?p[eé]dro/i.test(p),
-          ) || nameParts[2],
-        town: nameParts[2],
-        county: nameParts[1],
-        state: nameParts[nameParts.length - 2],
-        country: nameParts[nameParts.length - 1],
-        raw: {},
-      };
-    }
-  } else {
-    reverseHint = await reverseGeocodeNominatim({
-      latitude: centerLat,
-      longitude: centerLng,
-    });
-  }
-
-  if (centerLat == null || centerLng == null) {
-    return { locationIds: null, geoSoftMatch: false };
-  }
-
-  const matched = await matchLocationNearCoords(
-    { latitude: centerLat, longitude: centerLng },
-    reverseHint,
-  );
-
-  if (matched?.id) {
-    const locationIds = await expandLocationIdsForMatch(matched);
-    if (__DEV__) {
-      console.log(
-        `📍 Lieu "${searchTerm}" hors base → rattaché à ${matched.name} (${matched.type}), ${locationIds.length} location(s)`,
-      );
-    }
-    return {
-      locationIds,
-      geoSoftMatch: true,
-      centerLat,
-      centerLng,
-    };
-  }
-
-  // Aucun parent DB : garder le filtre rayon pur si fourni
-  if (filters?.radiusKm != null && filters.radiusKm > 0) {
-    if (__DEV__) {
-      console.log(
-        `📍 Lieu "${searchTerm}" hors base → filtre rayon seul ${filters.radiusKm} km`,
-      );
-    }
-    return {
-      locationIds: null,
-      geoSoftMatch: false,
-      centerLat,
-      centerLng,
-    };
-  }
-
-  return { locationIds: null, geoSoftMatch: false, centerLat, centerLng };
-}
 
 function propertySearchCoords(property: {
   latitude?: number | null;
@@ -574,151 +417,44 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       let effectiveCenterLng = filters?.centerLng;
       let effectiveRadiusKm = filters?.radiusKm;
       
-      // Recherche par ville
+      // Recherche par ville / commune / quartier (+ secours OSM)
       if (filters?.city) {
         const searchTerm = filters.city.trim();
-        const { data: cityData } = await supabase
-          .from('locations')
-          .select('id')
-          .eq('type', 'city')
-          .ilike('name', `%${searchTerm}%`);
-        
-        if (cityData && cityData.length > 0) {
-          // C'est une ville, récupérer tous les enfants (communes, quartiers)
-          const cityIds = cityData.map(c => c.id);
-          
-          // Étape 1: Récupérer les communes (enfants directs de la ville)
-          const { data: communeLocations } = await supabase
-            .from('locations')
-            .select('id')
-            .in('parent_id', cityIds)
-            .eq('type', 'commune');
-          
-          const communeIds = (communeLocations || []).map(l => l.id);
-          
-          // Étape 2: Récupérer les quartiers (enfants des communes)
-          let neighborhoodIds: string[] = [];
-          if (communeIds.length > 0) {
-            const { data: neighborhoodLocations } = await supabase
-              .from('locations')
-              .select('id')
-              .in('parent_id', communeIds)
-              .eq('type', 'neighborhood');
-            
-            neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
-          }
-          
-          // Inclure les villes, les communes ET les quartiers
-          locationIds = [...cityIds, ...communeIds, ...neighborhoodIds];
-          
-          console.log(`✅ Ville trouvée: ${cityIds.length} ville(s), ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
-        } else {
-          // Chercher dans les communes
-          const { data: communeData } = await supabase
-            .from('locations')
-            .select('id, type, parent_id')
-            .eq('type', 'commune')
-            .ilike('name', `%${searchTerm}%`);
-          
-          if (communeData && communeData.length > 0) {
-            // C'est une commune, récupérer la commune ET tous ses quartiers
-            const communeIds = communeData.map(c => c.id);
-            
-            const { data: neighborhoodLocations } = await supabase
-              .from('locations')
-              .select('id')
-              .in('parent_id', communeIds)
-              .eq('type', 'neighborhood');
-            
-            const neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
-            
-            // Inclure les communes ET les quartiers
-            locationIds = [...communeIds, ...neighborhoodIds];
-            
-            console.log(`✅ Commune trouvée: ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
-          } else {
-            // Chercher dans les quartiers — élargir à la commune parente
-            // (sinon un « Kennedy » vide en base masque Abobo/Bouaké)
-            const { data: neighborhoodData } = await supabase
-              .from('locations')
-              .select('id, name, type, parent_id, latitude, longitude')
-              .eq('type', 'neighborhood')
-              .ilike('name', `%${searchTerm}%`);
+        const resolved = await resolveLocationIdsForSearchTerm(searchTerm, {
+          centerLat: filters.centerLat,
+          centerLng: filters.centerLng,
+          radiusKm: filters.radiusKm,
+        });
 
-            if (neighborhoodData && neighborhoodData.length > 0) {
-              let candidates = neighborhoodData;
-              const hasCenter =
-                effectiveCenterLat != null &&
-                effectiveCenterLng != null &&
-                Number.isFinite(Number(effectiveCenterLat)) &&
-                Number.isFinite(Number(effectiveCenterLng));
-
-              if (hasCenter) {
-                const near = candidates.filter((n) => {
-                  if (n.latitude == null || n.longitude == null) return false;
-                  return (
-                    calculateDistance(
-                      Number(effectiveCenterLat),
-                      Number(effectiveCenterLng),
-                      Number(n.latitude),
-                      Number(n.longitude),
-                    ) <= 40
-                  );
-                });
-                // Ex. Kennedy Abobo en base + pin Bouaké OSM → ignorer le match DB
-                candidates = near;
-              }
-
-              if (candidates.length > 0) {
-                const expanded = await Promise.all(
-                  candidates.map((row) =>
-                    expandLocationIdsForMatch(row as MatchedLocation),
-                  ),
-                );
-                locationIds = [...new Set(expanded.flat())];
-                geoSoftMatch = true;
-                if (!(effectiveRadiusKm && effectiveRadiusKm > 0) && hasCenter) {
-                  effectiveRadiusKm = 12;
-                }
-                console.log(
-                  `✅ Quartier "${searchTerm}" → zone élargie (${locationIds.length} location(s), ${candidates.length} match)`,
-                );
-              } else {
-                console.log(
-                  `📍 Quartier "${searchTerm}" en base trop loin du point choisi → secours carte`,
-                );
-              }
-            }
-          }
-        }
-        
-        if (!locationIds || locationIds.length === 0) {
-          const resolved = await resolveOffCatalogLocationIds(searchTerm, filters);
-          if (resolved.locationIds && resolved.locationIds.length > 0) {
-            locationIds = resolved.locationIds;
-            geoSoftMatch = true;
-            if (resolved.centerLat != null && resolved.centerLng != null) {
-              effectiveCenterLat = resolved.centerLat;
-              effectiveCenterLng = resolved.centerLng;
-              if (!(effectiveRadiusKm && effectiveRadiusKm > 0)) {
-                effectiveRadiusKm = 12;
-              }
-            }
-          } else if (
-            resolved.centerLat != null &&
-            resolved.centerLng != null &&
-            filters?.radiusKm != null &&
-            filters.radiusKm > 0
-          ) {
+        if (resolved.locationIds && resolved.locationIds.length > 0) {
+          locationIds = resolved.locationIds;
+          geoSoftMatch = resolved.geoSoftMatch;
+          if (resolved.centerLat != null && resolved.centerLng != null) {
             effectiveCenterLat = resolved.centerLat;
             effectiveCenterLng = resolved.centerLng;
-            locationIds = null;
-          } else {
-            console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
-            setProperties([]);
-            setLoading(false);
-            return;
           }
+          if (geoSoftMatch && !(effectiveRadiusKm && effectiveRadiusKm > 0)) {
+            effectiveRadiusKm = 12;
+          }
+          if (__DEV__) {
+            console.log(
+              `✅ Localisations pour "${searchTerm}": ${locationIds.length} (soft=${geoSoftMatch})`,
+            );
+          }
+        } else if (
+          resolved.centerLat != null &&
+          resolved.centerLng != null &&
+          filters?.radiusKm != null &&
+          filters.radiusKm > 0
+        ) {
+          effectiveCenterLat = resolved.centerLat;
+          effectiveCenterLng = resolved.centerLng;
+          locationIds = null;
+        } else {
+          console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
+          setProperties([]);
+          setLoading(false);
+          return;
         }
       }
 
@@ -1345,132 +1081,27 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       // Récupérer les location_ids à filtrer
       let locationIds: string[] | null = null;
       
-      // Recherche par ville
       if (filters?.city) {
         const searchTerm = filters.city.trim();
-        const { data: cityData } = await supabase
-          .from('locations')
-          .select('id')
-          .eq('type', 'city')
-          .ilike('name', `%${searchTerm}%`);
-        
-        if (cityData && cityData.length > 0) {
-          // C'est une ville, récupérer tous les enfants (communes, quartiers)
-          const cityIds = cityData.map(c => c.id);
-          
-          // Étape 1: Récupérer les communes (enfants directs de la ville)
-          const { data: communeLocations } = await supabase
-            .from('locations')
-            .select('id')
-            .in('parent_id', cityIds)
-            .eq('type', 'commune');
-          
-          const communeIds = (communeLocations || []).map(l => l.id);
-          
-          // Étape 2: Récupérer les quartiers (enfants des communes)
-          let neighborhoodIds: string[] = [];
-          if (communeIds.length > 0) {
-            const { data: neighborhoodLocations } = await supabase
-              .from('locations')
-              .select('id')
-              .in('parent_id', communeIds)
-              .eq('type', 'neighborhood');
-            
-            neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
-          }
-          
-          // Inclure les villes, les communes ET les quartiers
-          locationIds = [...cityIds, ...communeIds, ...neighborhoodIds];
-          
-          console.log(`✅ Ville trouvée: ${cityIds.length} ville(s), ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
+        const resolved = await resolveLocationIdsForSearchTerm(searchTerm, {
+          centerLat: filters.centerLat,
+          centerLng: filters.centerLng,
+          radiusKm: filters.radiusKm,
+        });
+        if (resolved.locationIds && resolved.locationIds.length > 0) {
+          locationIds = resolved.locationIds;
+        } else if (
+          resolved.centerLat != null &&
+          resolved.centerLng != null &&
+          filters?.radiusKm != null &&
+          filters.radiusKm > 0
+        ) {
+          locationIds = null;
         } else {
-          // Chercher dans les communes
-          const { data: communeData } = await supabase
-            .from('locations')
-            .select('id, type, parent_id')
-            .eq('type', 'commune')
-            .ilike('name', `%${searchTerm}%`);
-          
-          if (communeData && communeData.length > 0) {
-            // C'est une commune, récupérer la commune ET tous ses quartiers
-            const communeIds = communeData.map(c => c.id);
-            
-            const { data: neighborhoodLocations } = await supabase
-              .from('locations')
-              .select('id')
-              .in('parent_id', communeIds)
-              .eq('type', 'neighborhood');
-            
-            const neighborhoodIds = (neighborhoodLocations || []).map(l => l.id);
-            
-            // Inclure les communes ET les quartiers
-            locationIds = [...communeIds, ...neighborhoodIds];
-            
-            console.log(`✅ Commune trouvée: ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
-          } else {
-            // Chercher dans les quartiers — élargir à la commune parente
-            const { data: neighborhoodData } = await supabase
-              .from('locations')
-              .select('id, name, type, parent_id, latitude, longitude')
-              .eq('type', 'neighborhood')
-              .ilike('name', `%${searchTerm}%`);
-
-            if (neighborhoodData && neighborhoodData.length > 0) {
-              let candidates = neighborhoodData;
-              const cLat = filters?.centerLat;
-              const cLng = filters?.centerLng;
-              const hasCenter =
-                cLat != null &&
-                cLng != null &&
-                Number.isFinite(Number(cLat)) &&
-                Number.isFinite(Number(cLng));
-
-              if (hasCenter) {
-                candidates = candidates.filter((n) => {
-                  if (n.latitude == null || n.longitude == null) return false;
-                  return (
-                    calculateDistance(
-                      Number(cLat),
-                      Number(cLng),
-                      Number(n.latitude),
-                      Number(n.longitude),
-                    ) <= 40
-                  );
-                });
-              }
-
-              if (candidates.length > 0) {
-                const expanded = await Promise.all(
-                  candidates.map((row) =>
-                    expandLocationIdsForMatch(row as MatchedLocation),
-                  ),
-                );
-                locationIds = [...new Set(expanded.flat())];
-                console.log(
-                  `✅ Quartier "${searchTerm}" → zone élargie (${locationIds.length} location(s))`,
-                );
-              }
-            }
-          }
-        }
-        
-        if (!locationIds || locationIds.length === 0) {
-          const resolved = await resolveOffCatalogLocationIds(searchTerm, filters);
-          if (resolved.locationIds && resolved.locationIds.length > 0) {
-            locationIds = resolved.locationIds;
-          } else if (
-            resolved.centerLat != null &&
-            resolved.centerLng != null &&
-            filters?.radiusKm != null &&
-            filters.radiusKm > 0
-          ) {
-            locationIds = null;
-          } else {
-            console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
-            setProperties([]);
-            setLoading(false);
-            return;
-          }
+          console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
+          setProperties([]);
+          setLoading(false);
+          return;
         }
       }
 

@@ -603,6 +603,9 @@ export interface VehicleFilters {
   seats?: number;
   locationId?: string;
   locationName?: string; // Nom de la localisation pour recherche hiérarchique
+  centerLat?: number;
+  centerLng?: number;
+  radiusKm?: number;
   startDate?: string;
   endDate?: string;
   startDateTime?: string; // Date et heure de début pour recherche par heure

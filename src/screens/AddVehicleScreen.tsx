@@ -23,6 +23,7 @@ import { useVehicles } from '../hooks/useVehicles';
 import { useAuth } from '../services/AuthContext';
 import { VehicleType, TransmissionType, FuelType } from '../types';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+import { isLocationUuid, matchLocationNearCoords } from '../lib/geolocation';
 import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -462,18 +463,60 @@ const AddVehicleScreen: React.FC = () => {
     }));
   };
 
-  const handleLocationSelect = (location: { id: string; name: string; type?: string; city_id?: string; commune?: string }) => {
-    setFormData(prev => ({
+  const handleLocationSelect = async (location: {
+    id: string;
+    name: string;
+    type?: string;
+    city_id?: string;
+    commune?: string;
+    latitude?: number;
+    longitude?: number;
+    fromMap?: boolean;
+  }) => {
+    let locationId = isLocationUuid(location.id) ? location.id : '';
+
+    if (
+      !locationId &&
+      location.latitude != null &&
+      location.longitude != null &&
+      Number.isFinite(Number(location.latitude)) &&
+      Number.isFinite(Number(location.longitude))
+    ) {
+      try {
+        const matched = await matchLocationNearCoords({
+          latitude: Number(location.latitude),
+          longitude: Number(location.longitude),
+        });
+        if (matched?.id && isLocationUuid(matched.id)) {
+          locationId = matched.id;
+        }
+      } catch {
+        // garder le nom même sans location_id
+      }
+    }
+
+    setFormData((prev) => ({
       ...prev,
-      location_id: location.id,
+      location_id: locationId,
       location_name: location.name,
     }));
     setShowLocationModal(false);
   };
 
-  const handleLocationChange = (location: { id: string; name: string; type?: string; city_id?: string; commune?: string } | null) => {
+  const handleLocationChange = (
+    location: {
+      id: string;
+      name: string;
+      type?: string;
+      city_id?: string;
+      commune?: string;
+      latitude?: number;
+      longitude?: number;
+      fromMap?: boolean;
+    } | null,
+  ) => {
     if (location) {
-      handleLocationSelect(location);
+      void handleLocationSelect(location);
     }
   };
 

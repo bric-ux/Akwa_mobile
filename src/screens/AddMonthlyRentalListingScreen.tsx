@@ -20,6 +20,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useMonthlyRentalListings } from '../hooks/useMonthlyRentalListings';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+import { isLocationUuid, matchLocationNearCoords } from '../lib/geolocation';
 import { supabase } from '../services/supabase';
 
 const PROPERTY_TYPES = [
@@ -34,6 +35,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
   const { user } = useAuth();
   const { createListing, loading } = useMonthlyRentalListings(user?.id);
   const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
+  const [locationId, setLocationId] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -144,6 +146,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
       title: form.title.trim(),
       description: form.description.trim() || null,
       location: form.location.trim(),
+      location_id: locationId,
       property_type: form.property_type || null,
       surface_m2: surface,
       number_of_rooms: rooms,
@@ -211,7 +214,35 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
             <Text style={styles.label}>Localisation *</Text>
             <CitySearchInputModal
               value={typeof form.location === 'string' ? form.location : ''}
-              onChange={(result) => set('location', result?.name ?? '')}
+              onChange={async (result) => {
+                if (!result) {
+                  set('location', '');
+                  setLocationId(null);
+                  return;
+                }
+                set('location', result.name);
+                let locId = isLocationUuid(result.id) ? result.id : null;
+                if (
+                  !locId &&
+                  result.latitude != null &&
+                  result.longitude != null &&
+                  Number.isFinite(Number(result.latitude)) &&
+                  Number.isFinite(Number(result.longitude))
+                ) {
+                  try {
+                    const matched = await matchLocationNearCoords({
+                      latitude: Number(result.latitude),
+                      longitude: Number(result.longitude),
+                    });
+                    if (matched?.id && isLocationUuid(matched.id)) {
+                      locId = matched.id;
+                    }
+                  } catch {
+                    // garder le nom
+                  }
+                }
+                setLocationId(locId);
+              }}
               placeholder="Ville, commune ou quartier..."
             />
           </View>
