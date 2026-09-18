@@ -28,6 +28,7 @@ import CitySearchInputModal from '../components/CitySearchInputModal';
 import PropertyLocationPicker, {
   type PropertyLocationPickerValue,
 } from '../components/PropertyLocationPicker';
+import { isLocationUuid } from '../lib/geolocation';
 import MediaThumb from '../components/MediaThumb';
 import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
 import {
@@ -335,10 +336,14 @@ const EditPropertyScreen: React.FC = () => {
       };
       
       // Mettre à jour la localisation (ville/quartier + coords précises)
-      if (selectedLocation?.id) {
-        updateData.location_id = selectedLocation.id;
-      } else if (preciseLocation.matchedLocation?.id) {
-        updateData.location_id = preciseLocation.matchedLocation.id;
+      // Ne jamais envoyer un id OSM (`osm_…`) comme location_id UUID
+      const locCandidate =
+        (isLocationUuid(selectedLocation?.id) ? selectedLocation.id : null) ??
+        (isLocationUuid(preciseLocation.matchedLocation?.id)
+          ? preciseLocation.matchedLocation!.id
+          : null);
+      if (locCandidate) {
+        updateData.location_id = locCandidate;
       }
 
       if (
@@ -1026,17 +1031,19 @@ const EditPropertyScreen: React.FC = () => {
                     setPreciseLocation({
                       coords: { latitude: lat, longitude: lng },
                       locationLabel: result.name,
-                      matchedLocation: {
-                        id: result.id,
-                        name: result.name,
-                        type: result.type,
-                        parent_id: result.parent_id,
-                        latitude: lat,
-                        longitude: lng,
-                        region: result.region,
-                        commune: result.commune,
-                        city_id: result.city_id,
-                      },
+                      matchedLocation: isLocationUuid(result.id)
+                        ? {
+                            id: result.id,
+                            name: result.name,
+                            type: result.type,
+                            parent_id: result.parent_id,
+                            latitude: lat,
+                            longitude: lng,
+                            region: result.region,
+                            commune: result.commune,
+                            city_id: result.city_id,
+                          }
+                        : null,
                     });
                   }
                 } else {

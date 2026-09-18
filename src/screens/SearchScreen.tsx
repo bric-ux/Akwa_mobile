@@ -28,6 +28,7 @@ import SearchFormModal from '../components/SearchFormModal';
 import SearchResultsView from '../components/SearchResultsView';
 import { supabase } from '../services/supabase';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
+import { loadRecentSearches, pushRecentSearch } from '../lib/recentSearches';
 import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion';
 
@@ -203,10 +204,23 @@ const SearchScreen: React.FC = () => {
     });
   }, [hasSubmittedSearch, rentalType, monthlySearchQuery, filters.bedrooms, fetchMonthlyListings]);
 
-  // Charger les recherches récentes
+  // Charger l’historique des destinations (AsyncStorage)
   useEffect(() => {
-    // Simuler le chargement des recherches récentes depuis le stockage local
-    setRecentSearches(['Abidjan', 'Yamoussoukro', 'Grand-Bassam']);
+    let cancelled = false;
+    (async () => {
+      const list = await loadRecentSearches();
+      if (!cancelled) setRecentSearches(list);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const rememberSearch = useCallback(async (query: string) => {
+    const term = query.trim();
+    if (!term) return;
+    const next = await pushRecentSearch(term);
+    setRecentSearches(next);
   }, []);
 
   const handleSearch = async (query: string, options?: { forceFetch?: boolean }) => {
@@ -244,9 +258,7 @@ const SearchScreen: React.FC = () => {
     if (rentalType === 'monthly') {
       try {
         if (query.trim()) {
-          if (!recentSearches.includes(query)) {
-            setRecentSearches(prev => [query, ...prev.slice(0, 4)]);
-          }
+          await rememberSearch(query);
           await fetchMonthlyListings({
             city: query || undefined,
             bedrooms: filters.bedrooms,
@@ -261,10 +273,7 @@ const SearchScreen: React.FC = () => {
     }
 
     if (query.trim()) {
-      // Ajouter à l'historique des recherches
-      if (!recentSearches.includes(query)) {
-        setRecentSearches(prev => [query, ...prev.slice(0, 4)]);
-      }
+      await rememberSearch(query);
       
       try {
         // Si un rayon est spécifié, récupérer les coordonnées de la localisation
@@ -373,6 +382,9 @@ const SearchScreen: React.FC = () => {
     }
     
     // Mettre à jour les filtres avec la nouvelle ville sélectionnée et les coordonnées
+    const isMapPlace =
+      Boolean(suggestion.fromMap) || String(suggestion.id || '').startsWith('osm_');
+    const defaultRadiusKm = 12;
     const newFilters: SearchFilters = {
       ...filters,
       city: suggestion.text,
@@ -384,8 +396,13 @@ const SearchScreen: React.FC = () => {
       guests: adults + children + babies,
       centerLat,
       centerLng,
-      // Garder le rayon si déjà défini
-      radiusKm: filters.radiusKm
+      // Lieu hors base : forcer un rayon pour trouver les logements proches
+      radiusKm:
+        filters.radiusKm && filters.radiusKm > 0
+          ? filters.radiusKm
+          : isMapPlace && centerLat != null && centerLng != null
+            ? defaultRadiusKm
+            : filters.radiusKm,
     };
     setFilters(newFilters);
   };

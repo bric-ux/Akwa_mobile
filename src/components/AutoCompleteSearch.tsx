@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
+import { loadRecentSearches, pushRecentSearch, removeRecentSearch } from '../lib/recentSearches';
 
 interface SearchSuggestion {
   id: string;
@@ -73,10 +74,16 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
     blur: () => textInputRef.current?.blur(),
   }));
 
-  // Charger les recherches récentes
+  // Charger les recherches récentes depuis le stockage local
   useEffect(() => {
-    // Simuler le chargement des recherches récentes depuis le stockage local
-    setRecentSearches(['Abidjan', 'Yamoussoukro', 'Grand-Bassam', 'San-Pédro']);
+    let cancelled = false;
+    (async () => {
+      const list = await loadRecentSearches();
+      if (!cancelled) setRecentSearches(list);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => () => cancelBlurHide(), []);
@@ -261,9 +268,7 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
     setSuggestions([]); // Vider les suggestions immédiatement
     
     // Ajouter à l'historique
-    if (!recentSearches.includes(suggestion.text)) {
-      setRecentSearches(prev => [suggestion.text, ...prev.slice(0, 4)]);
-    }
+    void pushRecentSearch(suggestion.text).then(setRecentSearches);
     
     // Fermer le clavier
     textInputRef.current?.blur();
@@ -285,8 +290,8 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
   const handleSearch = () => {
     if (query.trim()) {
       setShowSuggestions(false);
-      // Fermer le clavier
       textInputRef.current?.blur();
+      void pushRecentSearch(query.trim()).then(setRecentSearches);
       onSearch(query.trim());
     }
   };
@@ -334,8 +339,7 @@ const AutoCompleteSearch = forwardRef<AutoCompleteSearchHandle, AutoCompleteSear
       {item.type === 'recent' && (
         <TouchableOpacity
           onPress={() => {
-            const newRecentSearches = recentSearches.filter(s => s !== item.text);
-            setRecentSearches(newRecentSearches);
+            void removeRecentSearch(item.text).then(setRecentSearches);
           }}
         >
           <Ionicons name="close" size={16} color="#ccc" />

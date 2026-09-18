@@ -34,6 +34,7 @@ import CitySearchInputModal from '../components/CitySearchInputModal';
 import PropertyLocationPicker, {
   type PropertyLocationPickerValue,
 } from '../components/PropertyLocationPicker';
+import { isLocationUuid } from '../lib/geolocation';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
@@ -1018,17 +1019,19 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           ...prev,
           coords: { latitude: lat, longitude: lng },
           locationLabel: result.name,
-          matchedLocation: {
-            id: result.id,
-            name: result.name,
-            type: result.type,
-            parent_id: result.parent_id,
-            latitude: lat,
-            longitude: lng,
-            region: result.region,
-            commune: result.commune,
-            city_id: result.city_id,
-          },
+          matchedLocation: isLocationUuid(result.id)
+            ? {
+                id: result.id,
+                name: result.name,
+                type: result.type,
+                parent_id: result.parent_id,
+                latitude: lat,
+                longitude: lng,
+                region: result.region,
+                commune: result.commune,
+                city_id: result.city_id,
+              }
+            : null,
         }));
       }
       
@@ -1540,9 +1543,12 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
       freeCleaningMinDays: formData.freeCleaningMinDays ? parseInt(formData.freeCleaningMinDays) || undefined : undefined,
       latitude: preciseLocation.coords?.latitude ?? null,
       longitude: preciseLocation.coords?.longitude ?? null,
-      locationId:
-        preciseLocation.matchedLocation?.id ??
-        (typeof selectedLocation?.id === 'string' ? selectedLocation.id : null),
+      locationId: (() => {
+        const raw =
+          preciseLocation.matchedLocation?.id ??
+          (typeof selectedLocation?.id === 'string' ? selectedLocation.id : null);
+        return isLocationUuid(raw) ? raw : null;
+      })(),
       ...(!isEditMode &&
         isReferred &&
         enteredReferralCode &&

@@ -24,8 +24,188 @@ import { getAmenityIcon } from '../utils/amenityIcons';
 import { calculateDistance, isWithinRadius } from '../utils/distance';
 import { log, logError, logWarn } from '../utils/logger';
 import { getPricesForDateBatch } from '../utils/priceCalculator';
+import {
+  forwardGeocodeNominatim,
+  matchLocationNearCoords,
+  reverseGeocodeNominatim,
+  type MatchedLocation,
+  type ReverseGeocodeResult,
+} from '../lib/geolocation';
 
 const AMENITY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Élargit une location (ville / commune / quartier) à toute sa sous-arborescence
+ * pour la recherche propriétés. Un quartier hors base (ex. Kennedy) → commune/ville parente.
+ */
+async function expandLocationIdsForMatch(matched: MatchedLocation): Promise<string[]> {
+  let root = matched;
+
+  // Quartier → remonter à la commune pour ne pas renvoyer 0–1 annonces
+  if (matched.type === 'neighborhood' && matched.parent_id) {
+    const { data: parent } = await supabase
+      .from('locations')
+      .select('id, name, type, parent_id, latitude, longitude')
+      .eq('id', matched.parent_id)
+      .maybeSingle();
+    if (parent?.id) {
+      root = parent as MatchedLocation;
+    }
+  }
+
+  if (root.type === 'city') {
+    const cityIds = [root.id];
+    const { data: communes } = await supabase
+      .from('locations')
+      .select('id')
+      .in('parent_id', cityIds)
+      .eq('type', 'commune');
+    const communeIds = (communes || []).map((l) => l.id);
+    let neighborhoodIds: string[] = [];
+    if (communeIds.length > 0) {
+      const { data: neighborhoods } = await supabase
+        .from('locations')
+        .select('id')
+        .in('parent_id', communeIds)
+        .eq('type', 'neighborhood');
+      neighborhoodIds = (neighborhoods || []).map((l) => l.id);
+    }
+    return [...cityIds, ...communeIds, ...neighborhoodIds];
+  }
+
+  if (root.type === 'commune') {
+    const communeIds = [root.id];
+    const { data: neighborhoods } = await supabase
+      .from('locations')
+      .select('id')
+      .in('parent_id', communeIds)
+      .eq('type', 'neighborhood');
+    const neighborhoodIds = (neighborhoods || []).map((l) => l.id);
+    return [...communeIds, ...neighborhoodIds];
+  }
+
+  return [root.id];
+}
+
+type ResolvedSearchLocations = {
+  locationIds: string[] | null;
+  /** true = lieu hors catalogue rattaché via carte ; tri distance soft, pas d’exclusion stricte */
+  geoSoftMatch: boolean;
+  centerLat?: number;
+  centerLng?: number;
+};
+
+/**
+ * Si le nom n’est pas en base (ex. « Kennedy »), géocode + rattache Abobo / Bouaké, etc.
+ */
+async function resolveOffCatalogLocationIds(
+  searchTerm: string,
+  filters?: SearchFilters,
+): Promise<ResolvedSearchLocations> {
+  let centerLat =
+    filters?.centerLat != null && Number.isFinite(filters.centerLat)
+      ? Number(filters.centerLat)
+      : undefined;
+  let centerLng =
+    filters?.centerLng != null && Number.isFinite(filters.centerLng)
+      ? Number(filters.centerLng)
+      : undefined;
+  let reverseHint: ReverseGeocodeResult | null = null;
+
+  if (centerLat == null || centerLng == null) {
+    const hits = await forwardGeocodeNominatim(searchTerm, { limit: 1 });
+    if (hits[0]) {
+      centerLat = hits[0].latitude;
+      centerLng = hits[0].longitude;
+      const nameParts = hits[0].displayName
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
+      reverseHint = {
+        displayName: hits[0].displayName,
+        neighbourhood: hits[0].shortName,
+        suburb: nameParts[1],
+        city:
+          nameParts.find((p) =>
+            /abidjan|bouaké|bouake|yamoussoukro|bassam|san[-\s]?p[eé]dro/i.test(p),
+          ) || nameParts[2],
+        town: nameParts[2],
+        county: nameParts[1],
+        state: nameParts[nameParts.length - 2],
+        country: nameParts[nameParts.length - 1],
+        raw: {},
+      };
+    }
+  } else {
+    reverseHint = await reverseGeocodeNominatim({
+      latitude: centerLat,
+      longitude: centerLng,
+    });
+  }
+
+  if (centerLat == null || centerLng == null) {
+    return { locationIds: null, geoSoftMatch: false };
+  }
+
+  const matched = await matchLocationNearCoords(
+    { latitude: centerLat, longitude: centerLng },
+    reverseHint,
+  );
+
+  if (matched?.id) {
+    const locationIds = await expandLocationIdsForMatch(matched);
+    if (__DEV__) {
+      console.log(
+        `📍 Lieu "${searchTerm}" hors base → rattaché à ${matched.name} (${matched.type}), ${locationIds.length} location(s)`,
+      );
+    }
+    return {
+      locationIds,
+      geoSoftMatch: true,
+      centerLat,
+      centerLng,
+    };
+  }
+
+  // Aucun parent DB : garder le filtre rayon pur si fourni
+  if (filters?.radiusKm != null && filters.radiusKm > 0) {
+    if (__DEV__) {
+      console.log(
+        `📍 Lieu "${searchTerm}" hors base → filtre rayon seul ${filters.radiusKm} km`,
+      );
+    }
+    return {
+      locationIds: null,
+      geoSoftMatch: false,
+      centerLat,
+      centerLng,
+    };
+  }
+
+  return { locationIds: null, geoSoftMatch: false, centerLat, centerLng };
+}
+
+function propertySearchCoords(property: {
+  latitude?: number | null;
+  longitude?: number | null;
+  locations?: { latitude?: number | null; longitude?: number | null } | null;
+}): { lat: number; lng: number } | null {
+  const location = property.locations;
+  const lat =
+    property.latitude != null && Number.isFinite(Number(property.latitude))
+      ? Number(property.latitude)
+      : location?.latitude != null && Number.isFinite(Number(location.latitude))
+        ? Number(location.latitude)
+        : NaN;
+  const lng =
+    property.longitude != null && Number.isFinite(Number(property.longitude))
+      ? Number(property.longitude)
+      : location?.longitude != null && Number.isFinite(Number(location.longitude))
+        ? Number(location.longitude)
+        : NaN;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
 
 /** Lookup synchrone pour la liste recherche (évite N awaits dans Promise.all). */
 function mapAmenitiesFromCache(
@@ -389,6 +569,10 @@ export const useProperties = (options?: UsePropertiesOptions) => {
 
       // Récupérer les location_ids à filtrer
       let locationIds: string[] | null = null;
+      let geoSoftMatch = false;
+      let effectiveCenterLat = filters?.centerLat;
+      let effectiveCenterLng = filters?.centerLng;
+      let effectiveRadiusKm = filters?.radiusKm;
       
       // Recherche par ville
       if (filters?.city) {
@@ -453,25 +637,88 @@ export const useProperties = (options?: UsePropertiesOptions) => {
             
             console.log(`✅ Commune trouvée: ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
           } else {
-            // Chercher dans les quartiers
+            // Chercher dans les quartiers — élargir à la commune parente
+            // (sinon un « Kennedy » vide en base masque Abobo/Bouaké)
             const { data: neighborhoodData } = await supabase
               .from('locations')
-              .select('id')
+              .select('id, name, type, parent_id, latitude, longitude')
               .eq('type', 'neighborhood')
               .ilike('name', `%${searchTerm}%`);
-            
+
             if (neighborhoodData && neighborhoodData.length > 0) {
-              locationIds = neighborhoodData.map(l => l.id);
-              console.log(`✅ Quartier trouvé: ${locationIds.length} quartier(s) pour "${searchTerm}"`);
+              let candidates = neighborhoodData;
+              const hasCenter =
+                effectiveCenterLat != null &&
+                effectiveCenterLng != null &&
+                Number.isFinite(Number(effectiveCenterLat)) &&
+                Number.isFinite(Number(effectiveCenterLng));
+
+              if (hasCenter) {
+                const near = candidates.filter((n) => {
+                  if (n.latitude == null || n.longitude == null) return false;
+                  return (
+                    calculateDistance(
+                      Number(effectiveCenterLat),
+                      Number(effectiveCenterLng),
+                      Number(n.latitude),
+                      Number(n.longitude),
+                    ) <= 40
+                  );
+                });
+                // Ex. Kennedy Abobo en base + pin Bouaké OSM → ignorer le match DB
+                candidates = near;
+              }
+
+              if (candidates.length > 0) {
+                const expanded = await Promise.all(
+                  candidates.map((row) =>
+                    expandLocationIdsForMatch(row as MatchedLocation),
+                  ),
+                );
+                locationIds = [...new Set(expanded.flat())];
+                geoSoftMatch = true;
+                if (!(effectiveRadiusKm && effectiveRadiusKm > 0) && hasCenter) {
+                  effectiveRadiusKm = 12;
+                }
+                console.log(
+                  `✅ Quartier "${searchTerm}" → zone élargie (${locationIds.length} location(s), ${candidates.length} match)`,
+                );
+              } else {
+                console.log(
+                  `📍 Quartier "${searchTerm}" en base trop loin du point choisi → secours carte`,
+                );
+              }
             }
           }
         }
         
         if (!locationIds || locationIds.length === 0) {
-          console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
-          setProperties([]);
-          setLoading(false);
-          return;
+          const resolved = await resolveOffCatalogLocationIds(searchTerm, filters);
+          if (resolved.locationIds && resolved.locationIds.length > 0) {
+            locationIds = resolved.locationIds;
+            geoSoftMatch = true;
+            if (resolved.centerLat != null && resolved.centerLng != null) {
+              effectiveCenterLat = resolved.centerLat;
+              effectiveCenterLng = resolved.centerLng;
+              if (!(effectiveRadiusKm && effectiveRadiusKm > 0)) {
+                effectiveRadiusKm = 12;
+              }
+            }
+          } else if (
+            resolved.centerLat != null &&
+            resolved.centerLng != null &&
+            filters?.radiusKm != null &&
+            filters.radiusKm > 0
+          ) {
+            effectiveCenterLat = resolved.centerLat;
+            effectiveCenterLng = resolved.centerLng;
+            locationIds = null;
+          } else {
+            console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
+            setProperties([]);
+            setLoading(false);
+            return;
+          }
         }
       }
 
@@ -511,6 +758,15 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         query = query
           .in('location_id', locationIds)
           .not('location_id', 'is', null);
+      } else if (
+        !geoSoftMatch &&
+        effectiveCenterLat != null &&
+        effectiveCenterLng != null &&
+        effectiveRadiusKm != null &&
+        effectiveRadiusKm > 0
+      ) {
+        // Rayon pur sans zone DB : privilégier les annonces géolocalisées
+        query = query.not('latitude', 'is', null).not('longitude', 'is', null);
       }
 
       if (filters?.guests) {
@@ -581,42 +837,50 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         }
       }
 
-      // Filtrer et calculer les distances si recherche par rayon
+      // Filtrer et calculer les distances si recherche par rayon / lieu carte
       let propertiesWithDistance = filteredData;
-      if (filters?.centerLat && filters?.centerLng && filters?.radiusKm) {
-        
+      if (
+        effectiveCenterLat != null &&
+        effectiveCenterLng != null &&
+        effectiveRadiusKm != null &&
+        effectiveRadiusKm > 0
+      ) {
         propertiesWithDistance = filteredData
           .map((property) => {
-            const location = (property as any).locations;
-            const propertyLat = location?.latitude || property.latitude;
-            const propertyLng = location?.longitude || property.longitude;
-            
-            if (!propertyLat || !propertyLng) {
-              return null; // Propriété sans coordonnées
+            const coords = propertySearchCoords(property as any);
+            if (!coords) {
+              // Soft match (ex. Kennedy → Abobo) : garder les annonces de la zone même sans pin
+              return geoSoftMatch ? { ...property, distance: Number.POSITIVE_INFINITY } : null;
             }
-            
+
             const distance = calculateDistance(
-              filters.centerLat!,
-              filters.centerLng!,
-              propertyLat,
-              propertyLng
+              effectiveCenterLat!,
+              effectiveCenterLng!,
+              coords.lat,
+              coords.lng,
             );
-            
+
+            if (geoSoftMatch) {
+              return { ...property, distance };
+            }
+
             const withinRadius = isWithinRadius(
-              filters.centerLat!,
-              filters.centerLng!,
-              propertyLat,
-              propertyLng,
-              filters.radiusKm!
+              effectiveCenterLat!,
+              effectiveCenterLng!,
+              coords.lat,
+              coords.lng,
+              effectiveRadiusKm!,
             );
-            
+
             return withinRadius ? { ...property, distance } : null;
           })
           .filter((p): p is NonNullable<typeof p> => p !== null)
-          .sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity)); // Trier par distance croissante
-        
+          .sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+
         if (__DEV__) {
-          console.log(`📍 Filtrage par rayon ${filters.radiusKm}km: ${filteredData.length} → ${propertiesWithDistance.length} propriétés`);
+          console.log(
+            `📍 ${geoSoftMatch ? 'Tri' : 'Filtrage'} par rayon ${effectiveRadiusKm}km: ${filteredData.length} → ${propertiesWithDistance.length} propriétés`,
+          );
         }
       }
       
@@ -1144,25 +1408,69 @@ export const useProperties = (options?: UsePropertiesOptions) => {
             
             console.log(`✅ Commune trouvée: ${communeIds.length} commune(s), ${neighborhoodIds.length} quartier(s) (total: ${locationIds.length} locations) pour "${searchTerm}"`);
           } else {
-            // Chercher dans les quartiers
+            // Chercher dans les quartiers — élargir à la commune parente
             const { data: neighborhoodData } = await supabase
               .from('locations')
-              .select('id')
+              .select('id, name, type, parent_id, latitude, longitude')
               .eq('type', 'neighborhood')
               .ilike('name', `%${searchTerm}%`);
-            
+
             if (neighborhoodData && neighborhoodData.length > 0) {
-              locationIds = neighborhoodData.map(l => l.id);
-              console.log(`✅ Quartier trouvé: ${locationIds.length} quartier(s) pour "${searchTerm}"`);
+              let candidates = neighborhoodData;
+              const cLat = filters?.centerLat;
+              const cLng = filters?.centerLng;
+              const hasCenter =
+                cLat != null &&
+                cLng != null &&
+                Number.isFinite(Number(cLat)) &&
+                Number.isFinite(Number(cLng));
+
+              if (hasCenter) {
+                candidates = candidates.filter((n) => {
+                  if (n.latitude == null || n.longitude == null) return false;
+                  return (
+                    calculateDistance(
+                      Number(cLat),
+                      Number(cLng),
+                      Number(n.latitude),
+                      Number(n.longitude),
+                    ) <= 40
+                  );
+                });
+              }
+
+              if (candidates.length > 0) {
+                const expanded = await Promise.all(
+                  candidates.map((row) =>
+                    expandLocationIdsForMatch(row as MatchedLocation),
+                  ),
+                );
+                locationIds = [...new Set(expanded.flat())];
+                console.log(
+                  `✅ Quartier "${searchTerm}" → zone élargie (${locationIds.length} location(s))`,
+                );
+              }
             }
           }
         }
         
         if (!locationIds || locationIds.length === 0) {
-          console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
-          setProperties([]);
-          setLoading(false);
-          return;
+          const resolved = await resolveOffCatalogLocationIds(searchTerm, filters);
+          if (resolved.locationIds && resolved.locationIds.length > 0) {
+            locationIds = resolved.locationIds;
+          } else if (
+            resolved.centerLat != null &&
+            resolved.centerLng != null &&
+            filters?.radiusKm != null &&
+            filters.radiusKm > 0
+          ) {
+            locationIds = null;
+          } else {
+            console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
+            setProperties([]);
+            setLoading(false);
+            return;
+          }
         }
       }
 

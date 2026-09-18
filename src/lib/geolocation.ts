@@ -148,6 +148,133 @@ export async function reverseGeocodeNominatim(
   }
 }
 
+export type ForwardGeocodeHit = {
+  placeId: string;
+  displayName: string;
+  shortName: string;
+  latitude: number;
+  longitude: number;
+  typeHint: 'city' | 'commune' | 'neighborhood';
+};
+
+/**
+ * Recherche texte → suggestions OpenStreetMap (Nominatim), limitée à la Côte d'Ivoire.
+ * Sert de secours quand un quartier / lieu n’est pas dans `locations`.
+ */
+export async function forwardGeocodeNominatim(
+  query: string,
+  options?: { limit?: number; countryCodes?: string },
+): Promise<ForwardGeocodeHit[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const limit = options?.limit ?? 6;
+  const country = options?.countryCodes ?? 'ci';
+  const searchQ = /côte\s*d['’]?ivoire|ivory\s*coast|\bci\b/i.test(q)
+    ? q
+    : `${q}, Côte d'Ivoire`;
+
+  const url =
+    `https://nominatim.openstreetmap.org/search?format=jsonv2` +
+    `&q=${encodeURIComponent(searchQ)}` +
+    `&countrycodes=${country}` +
+    `&accept-language=fr&addressdetails=1&limit=${limit}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': NOMINATIM_UA,
+      },
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as Array<{
+      place_id?: number | string;
+      display_name?: string;
+      lat?: string;
+      lon?: string;
+      type?: string;
+      class?: string;
+      address?: Record<string, string>;
+      name?: string;
+    }>;
+
+    if (!Array.isArray(json)) return [];
+
+    const hits: ForwardGeocodeHit[] = [];
+    for (const row of json) {
+      const lat = Number(row.lat);
+      const lng = Number(row.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+      const addr = row.address || {};
+      const shortName =
+        row.name ||
+        addr.neighbourhood ||
+        addr.suburb ||
+        addr.quarter ||
+        addr.village ||
+        addr.town ||
+        addr.city ||
+        addr.municipality ||
+        addr.county ||
+        String(row.display_name || '')
+          .split(',')[0]
+          ?.trim() ||
+        q;
+
+      const typeHint = inferForwardTypeHint(row.type, row.class, addr);
+      hits.push({
+        placeId: String(row.place_id ?? `${lat}_${lng}`),
+        displayName: String(row.display_name || shortName),
+        shortName: String(shortName).trim(),
+        latitude: lat,
+        longitude: lng,
+        typeHint,
+      });
+    }
+    return hits;
+  } catch {
+    return [];
+  }
+}
+
+function inferForwardTypeHint(
+  type?: string,
+  klass?: string,
+  addr?: Record<string, string>,
+): 'city' | 'commune' | 'neighborhood' {
+  const t = `${type || ''} ${klass || ''}`.toLowerCase();
+  if (
+    addr?.neighbourhood ||
+    addr?.suburb ||
+    addr?.quarter ||
+    addr?.residential ||
+    t.includes('suburb') ||
+    t.includes('neighbourhood') ||
+    t.includes('quarter')
+  ) {
+    return 'neighborhood';
+  }
+  if (
+    t.includes('city') ||
+    t.includes('town') ||
+    addr?.city ||
+    addr?.town
+  ) {
+    return 'city';
+  }
+  return 'commune';
+}
+
+/** UUID v4-ish — pour ne pas envoyer un id OSM comme location_id */
+export function isLocationUuid(id: string | null | undefined): boolean {
+  if (!id || typeof id !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    id.trim(),
+  );
+}
+
 function normalizeName(s: string): string {
   return s
     .toLowerCase()

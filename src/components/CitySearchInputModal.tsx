@@ -17,6 +17,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCities } from '../hooks/useCities';
 import { useNeighborhoods } from '../hooks/useNeighborhoods';
+import {
+  forwardGeocodeNominatim,
+  matchLocationNearCoords,
+} from '../lib/geolocation';
 
 interface SearchResult {
   id: string;
@@ -25,6 +29,11 @@ interface SearchResult {
   region?: string;
   commune?: string;
   city_id?: string;
+  latitude?: number;
+  longitude?: number;
+  parent_id?: string;
+  /** Suggestion OpenStreetMap (hors table locations) */
+  fromMap?: boolean;
 }
 
 interface CitySearchInputProps {
@@ -59,6 +68,8 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [mapLoading, setMapLoading] = useState(false);
+  const osmTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const { cities, loading: citiesLoading } = useCities();
   const { neighborhoods, loading: neighborhoodsLoading } = useNeighborhoods();
@@ -95,41 +106,49 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
     }
   }, [externalVisible]);
 
-  // Recherche et filtrage
+  // Recherche DB + secours OpenStreetMap
   useEffect(() => {
+    if (osmTimeoutRef.current) {
+      clearTimeout(osmTimeoutRef.current);
+      osmTimeoutRef.current = null;
+    }
+
     if (!searchQuery.trim() || searchQuery.length < 2) {
       setResults([]);
+      setMapLoading(false);
       return;
     }
 
     const searchTerm = searchQuery.toLowerCase();
     const filteredResults: SearchResult[] = [];
 
-    // Rechercher dans les villes
-    cities.forEach(city => {
+    cities.forEach((city) => {
       if (city.name.toLowerCase().includes(searchTerm)) {
         filteredResults.push({
           id: city.id,
           name: city.name,
-          type: 'city'
+          type: 'city',
+          latitude: city.latitude,
+          longitude: city.longitude,
         });
       }
     });
 
-    // Rechercher dans les quartiers et communes
-    neighborhoods.forEach(neighborhood => {
+    neighborhoods.forEach((neighborhood) => {
       if (neighborhood.name.toLowerCase().includes(searchTerm)) {
         filteredResults.push({
           id: neighborhood.id,
           name: neighborhood.name,
           type: neighborhood.type === 'commune' ? 'commune' : 'neighborhood',
           commune: neighborhood.type === 'commune' ? neighborhood.name : undefined,
-          city_id: neighborhood.parent_id
+          city_id: neighborhood.parent_id,
+          parent_id: neighborhood.parent_id,
+          latitude: neighborhood.latitude,
+          longitude: neighborhood.longitude,
         });
       }
     });
 
-    // Trier les résultats
     filteredResults.sort((a, b) => {
       const typeOrder = { commune: 0, neighborhood: 1, city: 2 };
       if (a.type !== b.type) {
@@ -138,32 +157,121 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
       return a.name.localeCompare(b.name);
     });
 
-    // Filtrer les doublons par ID avant de limiter les résultats
     const uniqueResults = Array.from(
-      new Map(filteredResults.map(item => [item.id, item])).values()
+      new Map(filteredResults.map((item) => [item.id, item])).values(),
     );
-    
-    const finalResults = uniqueResults.slice(0, 15);
-    console.log('🔍 Résultats filtrés:', finalResults.length);
-    console.log('🔍 Premiers résultats:', finalResults.slice(0, 3).map(r => r.name));
-    setResults(finalResults);
+    const dbResults = uniqueResults.slice(0, 12);
+    setResults(dbResults);
+
+    // Secours carte si peu / aucun résultat en base
+    if (dbResults.length < 4) {
+      setMapLoading(true);
+      osmTimeoutRef.current = setTimeout(async () => {
+        try {
+          const osmHits = await forwardGeocodeNominatim(searchQuery.trim(), { limit: 6 });
+          const normalize = (s: string) =>
+            s
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .trim();
+          const osmResults: SearchResult[] = [];
+          for (const hit of osmHits) {
+            const already = dbResults.some((r) => normalize(r.name) === normalize(hit.shortName));
+            if (already) continue;
+            osmResults.push({
+              id: `osm_${hit.placeId}`,
+              name: hit.shortName,
+              type: hit.typeHint,
+              latitude: hit.latitude,
+              longitude: hit.longitude,
+              fromMap: true,
+            });
+          }
+          setResults([...dbResults, ...osmResults].slice(0, 15));
+        } catch (e) {
+          console.warn('Recherche carte (Nominatim):', e);
+        } finally {
+          setMapLoading(false);
+        }
+      }, 350);
+    } else {
+      setMapLoading(false);
+    }
+
+    return () => {
+      if (osmTimeoutRef.current) {
+        clearTimeout(osmTimeoutRef.current);
+        osmTimeoutRef.current = null;
+      }
+    };
   }, [searchQuery, cities, neighborhoods]);
 
-  // Ouvrir le modal
+  // Gérer la sélection
+  const handleSelect = async (result: SearchResult) => {
+    console.log('✅ === SÉLECTION MODAL ===', result.name);
+
+    if (isKeyboardVisible) {
+      Keyboard.dismiss();
+    }
+
+    setIsSelecting(true);
+    setInputValue(result.name);
+    setShowModal(false);
+
+    let finalResult: SearchResult = result;
+
+    // Lieu carte : tenter un rattachement locations + garder les coords précises
+    if (
+      result.fromMap &&
+      result.latitude != null &&
+      result.longitude != null &&
+      Number.isFinite(result.latitude) &&
+      Number.isFinite(result.longitude)
+    ) {
+      try {
+        const matched = await matchLocationNearCoords({
+          latitude: result.latitude,
+          longitude: result.longitude,
+        });
+        if (matched?.id) {
+          finalResult = {
+            ...result,
+            id: matched.id,
+            name: result.name,
+            type:
+              matched.type === 'city' || matched.type === 'commune' || matched.type === 'neighborhood'
+                ? matched.type
+                : result.type,
+            parent_id: matched.parent_id ?? undefined,
+            latitude: result.latitude,
+            longitude: result.longitude,
+            fromMap: true,
+          };
+        }
+      } catch {
+        // garder le résultat OSM tel quel
+      }
+    }
+
+    onChange(finalResult);
+    if (onSelect) {
+      onSelect(finalResult);
+    }
+
+    setTimeout(() => {
+      setIsSelecting(false);
+    }, 500);
+  };
+
   const openModal = () => {
-    console.log('🚀 OUVERTURE MODAL - isSelecting:', isSelecting);
     if (!isSelecting) {
-      console.log('🚀 Ouverture du modal autorisée');
       setShowModal(true);
       setSearchQuery(inputValue);
-    } else {
-      console.log('🚀 Ouverture du modal bloquée car sélection en cours');
     }
   };
 
-  // Fermer le modal
   const closeModal = () => {
-    console.log('❌ FERMETURE MODAL');
     setShowModal(false);
     setSearchQuery('');
     if (onClose) {
@@ -171,46 +279,9 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
     }
   };
 
-  // Gérer la sélection
-  const handleSelect = (result: SearchResult) => {
-    console.log('✅ === SÉLECTION MODAL ===');
-    console.log('✅ Résultat sélectionné:', result);
-    console.log('✅ Nom:', result.name);
-    console.log('✅ Clavier visible:', isKeyboardVisible);
-    
-    // Fermer le clavier d'abord
-    if (isKeyboardVisible) {
-      console.log('⌨️ Fermeture du clavier avant sélection');
-      Keyboard.dismiss();
-    }
-    
-    // Marquer qu'on est en train de sélectionner
-    setIsSelecting(true);
-    
-    // Mettre à jour l'input
-    setInputValue(result.name);
-    
-    // Fermer le modal
-    setShowModal(false);
-    
-    // Notifier le parent
-    onChange(result);
-    if (onSelect) {
-      onSelect(result);
-    }
-    
-    // Réinitialiser l'état de sélection après un délai
-    setTimeout(() => {
-      setIsSelecting(false);
-    }, 500);
-    
-    console.log('✅ === FIN SÉLECTION MODAL ===');
-  };
-
   // Gérer le changement de texte dans l'input principal (maintenant non-éditable)
   const handleTextChange = (text: string) => {
     console.log('📝 CHANGEMENT TEXTE PRINCIPAL (non-éditable):', text);
-    // Le champ n'est plus éditable, cette fonction ne devrait plus être appelée
   };
 
   // Effacer
@@ -290,7 +361,7 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
                 autoFocus
                 placeholderTextColor="#999"
               />
-              {citiesLoading || neighborhoodsLoading ? (
+              {citiesLoading || neighborhoodsLoading || mapLoading ? (
                 <ActivityIndicator size="small" color="#007bff" />
               ) : null}
             </View>
@@ -309,35 +380,67 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
                     >
                       <View style={styles.resultContent}>
                         <Ionicons
-                          name={item.type === 'city' ? 'location' : item.type === 'commune' ? 'business' : 'home'}
+                          name={
+                            item.fromMap
+                              ? 'map'
+                              : item.type === 'city'
+                                ? 'location'
+                                : item.type === 'commune'
+                                  ? 'business'
+                                  : 'home'
+                          }
                           size={20}
-                          color={item.type === 'city' ? '#3b82f6' : item.type === 'commune' ? '#8b5cf6' : '#10b981'}
+                          color={
+                            item.fromMap
+                              ? '#0ea5e9'
+                              : item.type === 'city'
+                                ? '#3b82f6'
+                                : item.type === 'commune'
+                                  ? '#8b5cf6'
+                                  : '#10b981'
+                          }
                         />
                         <View style={styles.resultText}>
                           <Text style={styles.resultName}>{item.name}</Text>
                           <Text style={styles.resultSubtitle}>
-                            {item.type === 'city' 
-                              ? 'Côte d\'Ivoire'
-                              : item.type === 'commune'
-                              ? 'Commune'
-                              : item.commune ? `${item.commune} - Abidjan` : 'Quartier'
-                            }
+                            {item.fromMap
+                              ? 'Sur la carte'
+                              : item.type === 'city'
+                                ? "Côte d'Ivoire"
+                                : item.type === 'commune'
+                                  ? 'Commune'
+                                  : item.commune
+                                    ? `${item.commune} - Abidjan`
+                                    : 'Quartier'}
                           </Text>
                         </View>
                         <View style={[
                           styles.resultType,
-                          item.type === 'city' ? styles.resultTypeCity : 
-                          item.type === 'commune' ? styles.resultTypeCommune : 
-                          styles.resultTypeNeighborhood
+                          item.fromMap
+                            ? styles.resultTypeMap
+                            : item.type === 'city'
+                              ? styles.resultTypeCity
+                              : item.type === 'commune'
+                                ? styles.resultTypeCommune
+                                : styles.resultTypeNeighborhood
                         ]}>
                           <Text style={[
                             styles.resultTypeText,
-                            item.type === 'city' ? styles.resultTypeTextCity : 
-                            item.type === 'commune' ? styles.resultTypeTextCommune : 
-                            styles.resultTypeTextNeighborhood
+                            item.fromMap
+                              ? styles.resultTypeTextMap
+                              : item.type === 'city'
+                                ? styles.resultTypeTextCity
+                                : item.type === 'commune'
+                                  ? styles.resultTypeTextCommune
+                                  : styles.resultTypeTextNeighborhood
                           ]}>
-                            {item.type === 'city' ? 'Ville' : 
-                             item.type === 'commune' ? 'Commune' : 'Quartier'}
+                            {item.fromMap
+                              ? 'Carte'
+                              : item.type === 'city'
+                                ? 'Ville'
+                                : item.type === 'commune'
+                                  ? 'Commune'
+                                  : 'Quartier'}
                           </Text>
                         </View>
                       </View>
@@ -346,12 +449,17 @@ const CitySearchInputModal: React.FC<CitySearchInputProps> = ({
                   showsVerticalScrollIndicator={false}
                   keyboardShouldPersistTaps="always"
                 />
-              ) : searchQuery.length >= 2 ? (
+              ) : searchQuery.length >= 2 && !mapLoading ? (
                 <View style={styles.emptyContainer}>
                   <Ionicons name="search" size={48} color="#ccc" />
                   <Text style={styles.emptyText}>
                     Aucun résultat trouvé pour "{searchQuery}"
                   </Text>
+                </View>
+              ) : searchQuery.length >= 2 && mapLoading ? (
+                <View style={styles.emptyContainer}>
+                  <ActivityIndicator size="large" color="#0ea5e9" />
+                  <Text style={styles.emptyText}>Recherche sur la carte…</Text>
                 </View>
               ) : (
                 <View style={styles.emptyContainer}>
@@ -487,6 +595,9 @@ const styles = StyleSheet.create({
   resultTypeNeighborhood: {
     backgroundColor: '#d1fae5',
   },
+  resultTypeMap: {
+    backgroundColor: '#e0f2fe',
+  },
   resultTypeText: {
     fontSize: 12,
     fontWeight: '500',
@@ -499,6 +610,9 @@ const styles = StyleSheet.create({
   },
   resultTypeTextNeighborhood: {
     color: '#065f46',
+  },
+  resultTypeTextMap: {
+    color: '#0369a1',
   },
   emptyContainer: {
     flex: 1,

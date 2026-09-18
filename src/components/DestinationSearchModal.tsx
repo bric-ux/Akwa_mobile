@@ -17,18 +17,58 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
-import { resolvePreciseLocationFromDevice } from '../lib/geolocation';
+import {
+  forwardGeocodeNominatim,
+  resolvePreciseLocationFromDevice,
+} from '../lib/geolocation';
+import { loadRecentSearches, pushRecentSearch } from '../lib/recentSearches';
 
 export interface DestinationSuggestion {
   id: string;
   text: string;
-  type: 'city' | 'neighborhood' | 'commune' | 'property' | 'recent' | 'popular';
+  type: 'city' | 'neighborhood' | 'commune' | 'property' | 'recent' | 'popular' | 'map';
   subtitle?: string;
   latitude?: number;
   longitude?: number;
+  /** Suggestion OpenStreetMap (hors table locations) */
+  fromMap?: boolean;
 }
 
 const POPULAR_DESTINATIONS = ['Abidjan', 'Yamoussoukro', 'Grand-Bassam', 'San-Pédro', 'Bouaké'];
+
+function buildDefaultSuggestionsFrom(
+  recents: string[],
+  filter = '',
+): DestinationSuggestion[] {
+  const term = filter.trim().toLowerCase();
+  const items: DestinationSuggestion[] = [];
+
+  recents.forEach((search, index) => {
+    if (!term || search.toLowerCase().includes(term)) {
+      items.push({
+        id: `recent_${index}`,
+        text: search,
+        type: 'recent',
+        subtitle: 'Recherche récente',
+      });
+    }
+  });
+
+  POPULAR_DESTINATIONS.forEach((city, index) => {
+    if (!term || city.toLowerCase().includes(term)) {
+      if (!items.some((i) => i.text === city)) {
+        items.push({
+          id: `popular_${index}`,
+          text: city,
+          type: 'popular',
+          subtitle: 'Destination populaire',
+        });
+      }
+    }
+  });
+
+  return items.slice(0, 10);
+}
 
 interface DestinationSearchModalProps {
   visible: boolean;
@@ -50,19 +90,43 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
   const [results, setResults] = useState<DestinationSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
-  const [recentSearches] = useState<string[]>(['Abidjan', 'Yamoussoukro', 'Grand-Bassam', 'San-Pédro']);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const recentSearchesRef = useRef<string[]>([]);
 
   useEffect(() => {
-    if (visible) {
+    recentSearchesRef.current = recentSearches;
+  }, [recentSearches]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await loadRecentSearches();
+      if (!cancelled) setRecentSearches(list);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    (async () => {
+      const list = await loadRecentSearches();
+      if (cancelled) return;
+      setRecentSearches(list);
       setQuery(initialQuery);
-      setResults(buildDefaultSuggestions(initialQuery));
-      const t = setTimeout(() => {
-        inputRef.current?.focus();
-      }, Platform.OS === 'android' ? 350 : 100);
-      return () => clearTimeout(t);
-    }
+      setResults(buildDefaultSuggestionsFrom(list, initialQuery));
+    })();
+    const t = setTimeout(() => {
+      inputRef.current?.focus();
+    }, Platform.OS === 'android' ? 350 : 100);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [visible, initialQuery]);
 
   useEffect(() => () => {
@@ -79,36 +143,8 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
     return () => sub.remove();
   }, [visible, embedded, onClose]);
 
-  const buildDefaultSuggestions = (filter = ''): DestinationSuggestion[] => {
-    const term = filter.trim().toLowerCase();
-    const items: DestinationSuggestion[] = [];
-
-    recentSearches.forEach((search, index) => {
-      if (!term || search.toLowerCase().includes(term)) {
-        items.push({
-          id: `recent_${index}`,
-          text: search,
-          type: 'recent',
-          subtitle: 'Recherche récente',
-        });
-      }
-    });
-
-    POPULAR_DESTINATIONS.forEach((city, index) => {
-      if (!term || city.toLowerCase().includes(term)) {
-        if (!items.some((i) => i.text === city)) {
-          items.push({
-            id: `popular_${index}`,
-            text: city,
-            type: 'popular',
-            subtitle: 'Destination populaire',
-          });
-        }
-      }
-    });
-
-    return items.slice(0, 10);
-  };
+  const buildDefaultSuggestions = (filter = ''): DestinationSuggestion[] =>
+    buildDefaultSuggestionsFrom(recentSearchesRef.current, filter);
 
   const searchDestinations = useCallback(async (searchQuery: string) => {
     const trimmed = searchQuery.trim();
@@ -122,7 +158,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
     try {
       const suggestions: DestinationSuggestion[] = [];
 
-      recentSearches.forEach((search, index) => {
+      recentSearchesRef.current.forEach((search, index) => {
         if (search.toLowerCase().includes(trimmed.toLowerCase())) {
           suggestions.push({
             id: `recent_${index}`,
@@ -199,14 +235,49 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
         });
       }
 
-      setResults(suggestions.slice(0, 12));
+      // Secours OpenStreetMap : quartiers / lieux absents de la base
+      const dbPlaceCount = suggestions.filter((s) =>
+        s.type === 'city' || s.type === 'commune' || s.type === 'neighborhood'
+      ).length;
+      if (dbPlaceCount < 5) {
+        const osmHits = await forwardGeocodeNominatim(trimmed, { limit: 6 });
+        const normalize = (s: string) =>
+          s
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+        for (const hit of osmHits) {
+          const already = suggestions.some(
+            (s) => normalize(s.text) === normalize(hit.shortName),
+          );
+          if (already) continue;
+          const areaHint = hit.displayName
+            .split(',')
+            .slice(1, 3)
+            .map((p) => p.trim())
+            .filter(Boolean)
+            .join(' · ');
+          suggestions.push({
+            id: `osm_${hit.placeId}`,
+            text: hit.shortName,
+            type: hit.typeHint === 'neighborhood' ? 'neighborhood' : hit.typeHint,
+            subtitle: areaHint ? `Carte · ${areaHint}` : 'Sur la carte',
+            latitude: hit.latitude,
+            longitude: hit.longitude,
+            fromMap: true,
+          });
+        }
+      }
+
+      setResults(suggestions.slice(0, 14));
     } catch (error) {
       console.error('Erreur recherche destination:', error);
       setResults([]);
     } finally {
       setLoading(false);
     }
-  }, [recentSearches]);
+  }, []);
 
   const handleQueryChange = (text: string) => {
     setQuery(text);
@@ -224,6 +295,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
 
   const handleSelect = (item: DestinationSuggestion) => {
     Keyboard.dismiss();
+    void pushRecentSearch(item.text).then(setRecentSearches);
     onSelect(item);
     onClose();
   };
@@ -272,6 +344,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
       case 'commune': return 'business-outline';
       case 'neighborhood': return 'home-outline';
       case 'property': return 'home-outline';
+      case 'map': return 'map-outline';
       default: return 'location-outline';
     }
   };
@@ -282,6 +355,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
       case 'popular': return '#e67e22';
       case 'commune': return '#8b5cf6';
       case 'neighborhood': return '#10b981';
+      case 'map': return '#0ea5e9';
       default: return '#2563eb';
     }
   };
@@ -292,7 +366,11 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
       onPress={() => handleSelect(item)}
       activeOpacity={0.7}
     >
-      <Ionicons name={iconForType(item.type)} size={22} color={colorForType(item.type)} />
+      <Ionicons
+        name={item.fromMap ? 'map-outline' : iconForType(item.type)}
+        size={22}
+        color={item.fromMap ? '#0ea5e9' : colorForType(item.type)}
+      />
       <View style={styles.resultText}>
         <Text style={styles.resultName}>{item.text}</Text>
         {item.subtitle ? <Text style={styles.resultSubtitle}>{item.subtitle}</Text> : null}
