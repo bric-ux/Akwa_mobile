@@ -5,6 +5,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
+import { ensureAndroidNotificationChannel } from '../lib/appIconBadge';
 
 /**
  * iOS / Android 13+ : enregistre ou met à jour le token Expo push après connexion.
@@ -29,6 +30,9 @@ export function PushNotificationBootstrap() {
             console.warn('[PushNotificationBootstrap] extra.eas.projectId manquant');
             return;
           }
+
+          await ensureAndroidNotificationChannel();
+          if (cancelled) return;
 
           const { status: before } = await Notifications.getPermissionsAsync();
           if (cancelled) return;
@@ -58,7 +62,13 @@ export function PushNotificationBootstrap() {
             return;
           }
 
-          const { status: after } = await Notifications.requestPermissionsAsync();
+          const { status: after } = await Notifications.requestPermissionsAsync({
+            ios: {
+              allowAlert: true,
+              allowBadge: true,
+              allowSound: true,
+            },
+          });
           if (cancelled) return;
           if (after !== 'granted') return;
 

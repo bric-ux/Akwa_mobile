@@ -2,9 +2,9 @@ import { useState, useCallback, useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
+import { ensureAndroidNotificationChannel, setAppIconBadgeCount } from '../lib/appIconBadge';
 
 // Comportement des notifications quand l'app est au premier plan
 Notifications.setNotificationHandler({
@@ -57,11 +57,19 @@ export function usePushNotifications() {
       return null;
     }
 
+    await ensureAndroidNotificationChannel();
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+        },
+      });
       finalStatus = status;
       if (finalStatus !== 'granted') {
         return null;
@@ -126,6 +134,7 @@ export function usePushNotifications() {
           })
           .eq('user_id', user.id);
       }
+      await setAppIconBadgeCount(0);
       setExpoPushToken(null);
       setPushEnabled(false);
     } catch (e: any) {

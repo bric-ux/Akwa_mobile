@@ -6,9 +6,10 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { InteractionManager } from 'react-native';
+import { AppState, InteractionManager } from 'react-native';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { setAppIconBadgeCount } from '../lib/appIconBadge';
 
 export interface TabNotificationBadges {
   unreadMessages: number;
@@ -171,6 +172,7 @@ export const TabNotificationBadgesProvider: React.FC<{
   useEffect(() => {
     if (!user?.id) {
       setBadges(emptyBadges);
+      void setAppIconBadgeCount(0);
       return;
     }
     const task = InteractionManager.runAfterInteractions(() => {
@@ -178,6 +180,27 @@ export const TabNotificationBadgesProvider: React.FC<{
     });
     return () => task.cancel();
   }, [refresh, user?.id]);
+
+  // Pastille rouge sur l’icône (écran d’accueil du téléphone)
+  useEffect(() => {
+    if (!user?.id) return;
+    const total =
+      badges.unreadMessages +
+      badges.guestPropertyBookings +
+      badges.guestVehicleBookings +
+      badges.hostPropertyBookings +
+      badges.hostVehicleBookings;
+    void setAppIconBadgeCount(total);
+  }, [user?.id, badges]);
+
+  // Rafraîchir le badge en revenant au premier plan
+  useEffect(() => {
+    if (!user?.id) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refresh();
+    });
+    return () => sub.remove();
+  }, [user?.id, refresh]);
 
   useEffect(() => {
     if (!user?.id) return;
