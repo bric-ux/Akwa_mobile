@@ -314,7 +314,6 @@ const HostBookingsScreen: React.FC = () => {
       let isCurrentlyOccupied = false;
 
       propertyBookings.forEach(booking => {
-        stats.total++;
         if (booking.status === 'pending') stats.pending++;
         if (booking.status === 'confirmed') stats.confirmed++;
         if (booking.status === 'cancelled') stats.cancelled++;
@@ -358,7 +357,8 @@ const HostBookingsScreen: React.FC = () => {
         bookings: propertyBookings,
         stats,
         isCurrentlyOccupied,
-        isAvailable: propertyBookings.length === 0,
+        // Disponible si pas occupée maintenant (les résas passées ne bloquent plus)
+        isAvailable: !isCurrentlyOccupied,
       };
     });
 
@@ -1075,21 +1075,23 @@ const HostBookingsScreen: React.FC = () => {
                   tintColor="#e67e22"
                 />
               }
-              ListEmptyComponent={() => (
+              ListEmptyComponent={() => {
+                const neverBooked = (selectedProperty?.stats?.total ?? 0) === 0;
+                return (
                 <View style={styles.emptyContainer}>
                   <Ionicons 
-                    name={selectedProperty?.isAvailable ? "calendar-outline" : "calendar-outline"} 
+                    name="calendar-outline"
                     size={64} 
                     color="#ccc" 
                   />
                   <Text style={styles.emptyTitle}>
-                    {selectedProperty?.isAvailable 
+                    {neverBooked
                       ? t('hostBookings.propertyAvailable') 
                       : t('hostBookings.noBookings')
                     }
                   </Text>
                   <Text style={styles.emptySubtitle}>
-                    {selectedProperty?.isAvailable 
+                    {neverBooked
                       ? t('hostBookings.propertyAvailableDesc')
                       : selectedFilter === 'all' 
                         ? t('hostBookings.noBookingsForProperty')
@@ -1097,7 +1099,8 @@ const HostBookingsScreen: React.FC = () => {
                     }
                   </Text>
                 </View>
-              )}
+                );
+              }}
               contentContainerStyle={styles.listContainer}
             />
           )}
