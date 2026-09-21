@@ -226,7 +226,7 @@ const HostBookingsScreen: React.FC = () => {
     const checkOut = new Date(item.check_out_date);
     checkOut.setHours(0, 0, 0, 0);
     if (checkOut < today) return 'completed';
-    if (checkIn <= today && checkOut >= today && item.status === 'confirmed') return 'in_progress';
+    if (checkIn <= today && checkOut > today && item.status === 'confirmed') return 'in_progress';
     return item.status;
   };
 
@@ -272,7 +272,7 @@ const HostBookingsScreen: React.FC = () => {
     const checkOut = new Date(booking.check_out_date);
     checkOut.setHours(0, 0, 0, 0);
     
-    return booking.status === 'confirmed' && checkIn <= today && checkOut >= today;
+    return booking.status === 'confirmed' && checkIn <= today && checkOut > today;
   };
 
 
@@ -326,7 +326,7 @@ const HostBookingsScreen: React.FC = () => {
           const checkOut = new Date(booking.check_out_date);
           checkOut.setHours(0, 0, 0, 0);
           
-          if (booking.status === 'confirmed' && checkIn <= today && checkOut >= today) {
+          if (booking.status === 'confirmed' && checkIn <= today && checkOut > today) {
             stats.inProgress++;
             isCurrentlyOccupied = true;
           }

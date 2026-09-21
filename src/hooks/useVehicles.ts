@@ -5,6 +5,25 @@ import { uploadPropertyMediaToStorage } from '../lib/uploadPropertyMedia';
 import { fetchPublicOwnerInfo } from '../utils/publicOwnerInfo';
 import { Vehicle, VehicleFilters } from '../types';
 import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
+import { isWithinRadius } from '../utils/distance';
+
+/** Parse YYYY-MM-DD en bornes locales sans skew UTC. */
+function localDayBoundsIso(dateStr: string, endOfDay: boolean): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = endOfDay
+      ? new Date(y, mo, d, 23, 59, 59, 999)
+      : new Date(y, mo, d, 0, 0, 0, 0);
+    return dt.toISOString();
+  }
+  const fallback = new Date(dateStr);
+  if (endOfDay) fallback.setHours(23, 59, 59, 999);
+  else fallback.setHours(0, 0, 0, 0);
+  return fallback.toISOString();
+}
 
 export const useVehicles = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -107,6 +126,9 @@ export const useVehicles = () => {
 
       // Recherche hiérarchique par localisation (+ OSM / quartier élargi comme logements)
       let locationIds: string[] | null = null;
+      let radiusCenterLat: number | undefined = filters?.centerLat;
+      let radiusCenterLng: number | undefined = filters?.centerLng;
+      let radiusKm: number | undefined = filters?.radiusKm;
       
       if (filters?.locationName) {
         const searchTerm = filters.locationName.trim();
@@ -121,6 +143,18 @@ export const useVehicles = () => {
           if (__DEV__) {
             console.log(
               `✅ [useVehicles] Localisations pour "${searchTerm}": ${locationIds.length}`,
+            );
+          }
+        } else if (resolved.centerLat != null && resolved.centerLng != null) {
+          // Lieu hors base : filtre rayon sur coords de la location liée
+          radiusCenterLat = resolved.centerLat;
+          radiusCenterLng = resolved.centerLng;
+          radiusKm =
+            filters?.radiusKm && filters.radiusKm > 0 ? filters.radiusKm : 12;
+          locationIds = null;
+          if (__DEV__) {
+            console.log(
+              `📍 [useVehicles] "${searchTerm}" hors base → rayon ${radiusKm} km`,
             );
           }
         } else {
@@ -213,14 +247,8 @@ export const useVehicles = () => {
       // Si recherche par jour - utiliser la fonction SQL avec datetime pour une vérification précise
       else if (filters?.startDate && filters?.endDate) {
         console.log(`✅ [useVehicles] Filtrage par jour activé: ${filters.startDate} - ${filters.endDate}`);
-        // Construire les datetime à partir des dates (par défaut: début à 00:00, fin à 23:59:59)
-        const startDateObj = new Date(filters.startDate);
-        startDateObj.setHours(0, 0, 0, 0);
-        const startDateTime = startDateObj.toISOString();
-        
-        const endDateObj = new Date(filters.endDate);
-        endDateObj.setHours(23, 59, 59, 999);
-        const endDateTime = endDateObj.toISOString();
+        const startDateTime = localDayBoundsIso(filters.startDate, false);
+        const endDateTime = localDayBoundsIso(filters.endDate, true);
         
         console.log(`🔍 [useVehicles] Filtrage par dates avec datetime: ${startDateTime} - ${endDateTime}`);
         
@@ -278,13 +306,43 @@ export const useVehicles = () => {
         console.log(`⚠️ [useVehicles] Pas de filtrage par dates - startDate: ${filters?.startDate}, endDate: ${filters?.endDate}`);
       }
 
+      // Rayon carte / OSM (quand pas de location_ids DB)
+      if (
+        radiusCenterLat != null &&
+        radiusCenterLng != null &&
+        radiusKm != null &&
+        radiusKm > 0 &&
+        !(locationIds && locationIds.length > 0)
+      ) {
+        const before = availableVehicles.length;
+        availableVehicles = availableVehicles.filter((vehicle: any) => {
+          const lat = vehicle.locations?.latitude ?? vehicle.latitude;
+          const lng = vehicle.locations?.longitude ?? vehicle.longitude;
+          if (lat == null || lng == null || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
+            return false;
+          }
+          return isWithinRadius(
+            radiusCenterLat!,
+            radiusCenterLng!,
+            Number(lat),
+            Number(lng),
+            radiusKm!,
+          );
+        });
+        if (__DEV__) {
+          console.log(
+            `📍 [useVehicles] Filtre rayon ${radiusKm}km: ${before} → ${availableVehicles.length}`,
+          );
+        }
+      }
+
       if (queryError) {
         throw queryError;
       }
 
-      // Transformer les données (utiliser availableVehicles au lieu de data si filtrage par dates)
-      const vehiclesToTransform = (filters?.startDate && filters?.endDate) ? availableVehicles : (data || []);
-      console.log(`🔄 [useVehicles] Transformation: ${vehiclesToTransform.length} véhicule(s) à transformer (availableVehicles: ${availableVehicles.length}, data: ${data?.length || 0})`);
+      // Transformer les données
+      const vehiclesToTransform = availableVehicles;
+      console.log(`🔄 [useVehicles] Transformation: ${vehiclesToTransform.length} véhicule(s) à transformer (data: ${data?.length || 0})`);
       const transformedVehicles: Vehicle[] = vehiclesToTransform.map((vehicle: any) => {
         // Extraire la première image principale ou la première image
         const photos = vehicle.vehicle_photos || [];

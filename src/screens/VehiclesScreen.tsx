@@ -19,6 +19,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useVehicles } from '../hooks/useVehicles';
@@ -86,6 +87,11 @@ const VehiclesScreen: React.FC = () => {
   const [endDateTime, setEndDateTime] = useState<string>('');
   const scrollY = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const searchToastOpacity = useRef(new Animated.Value(0)).current;
+  const searchToastY = useRef(new Animated.Value(28)).current;
+  const searchToastScale = useRef(new Animated.Value(0.92)).current;
+  const radarPulse = useRef(new Animated.Value(0)).current;
+  const [showSearchToast, setShowSearchToast] = useState(false);
   
   // AMÉLIORATION: États pour le nouveau design avec carte
   const [isMapView, setIsMapView] = useState(false); // Liste par défaut
@@ -193,6 +199,63 @@ const VehiclesScreen: React.FC = () => {
     pulseAnimation.start();
     return () => pulseAnimation.stop();
   }, []);
+
+  // Toast flottant de recherche — aucune incidence sur le layout
+  useEffect(() => {
+    let radarLoop: Animated.CompositeAnimation | null = null;
+    if (loading) {
+      setShowSearchToast(true);
+      searchToastOpacity.setValue(0);
+      searchToastY.setValue(28);
+      searchToastScale.setValue(0.92);
+      Animated.parallel([
+        Animated.spring(searchToastY, {
+          toValue: 0,
+          friction: 7,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+        Animated.spring(searchToastScale, {
+          toValue: 1,
+          friction: 7,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(searchToastOpacity, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      radarPulse.setValue(0);
+      radarLoop = Animated.loop(
+        Animated.timing(radarPulse, {
+          toValue: 1,
+          duration: 1400,
+          useNativeDriver: true,
+        })
+      );
+      radarLoop.start();
+    } else if (showSearchToast) {
+      Animated.parallel([
+        Animated.timing(searchToastOpacity, {
+          toValue: 0,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+        Animated.timing(searchToastY, {
+          toValue: 16,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (finished) setShowSearchToast(false);
+      });
+    }
+    return () => {
+      radarLoop?.stop();
+    };
+  }, [loading]);
 
   const handleBackToProperties = () => {
     // Demander confirmation avant de quitter la section véhicule
@@ -848,18 +911,97 @@ const VehiclesScreen: React.FC = () => {
     </View>
   );
 
-  if (loading && vehicles.length === 0) {
-    return (
-      <SafeAreaView style={styles.newContainer} edges={['top']}>
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={TRAVELER_COLORS.primary} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const searchPlaceLabel = selectedLocationName
+    ? selectedLocationName.split(',')[0].trim()
+    : null;
 
   return (
     <View style={styles.newContainer}>
+      {/* Toast flottant + flou arrière-plan — zéro décalage de page */}
+      {showSearchToast && (
+        <>
+          <Animated.View
+            pointerEvents="auto"
+            style={[styles.searchBlurWrap, { opacity: searchToastOpacity }]}
+          >
+            <BlurView
+              intensity={38}
+              tint="dark"
+              experimentalBlurMethod="dimezisBlurView"
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.searchBlurDim} />
+          </Animated.View>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.searchToastWrap,
+              {
+                bottom: Math.max(insets.bottom, 12) + 88,
+                opacity: searchToastOpacity,
+                transform: [
+                  { translateY: searchToastY },
+                  { scale: searchToastScale },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.searchToast}>
+              <View style={styles.searchToastIconWrap}>
+                <Animated.View
+                  style={[
+                    styles.searchToastRadar,
+                    {
+                      opacity: radarPulse.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.55, 0],
+                      }),
+                      transform: [
+                        {
+                          scale: radarPulse.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 2.1],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <Ionicons name="car-sport" size={18} color="#fff" />
+              </View>
+              <View style={styles.searchToastTextCol}>
+                <Text style={styles.searchToastTitle} numberOfLines={1}>
+                  {searchPlaceLabel
+                    ? `Scan autour de ${searchPlaceLabel}`
+                    : 'Scan des véhicules…'}
+                </Text>
+                <Text style={styles.searchToastSub}>On peigne le quartier pour toi</Text>
+              </View>
+              <View style={styles.searchToastDots}>
+                {[0, 1, 2].map((i) => (
+                  <Animated.View
+                    key={i}
+                    style={[
+                      styles.searchToastDot,
+                      {
+                        opacity: radarPulse.interpolate({
+                          inputRange: [0, 0.35, 0.7, 1],
+                          outputRange:
+                            i === 0
+                              ? [1, 0.35, 0.35, 1]
+                              : i === 1
+                                ? [0.35, 1, 0.35, 0.35]
+                                : [0.35, 0.35, 1, 0.35],
+                        }),
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+          </Animated.View>
+        </>
+      )}
       {/* Carte en arrière-plan (seulement en mode carte) */}
       {isMapView && (
         <View style={styles.mapContainer}>
@@ -916,7 +1058,7 @@ const VehiclesScreen: React.FC = () => {
                 {selectedLocationName ? selectedLocationName.split(',')[0] || selectedLocationName : 'Localisation'}
               </Text>
               <Text style={styles.locationSubtext} numberOfLines={1}>
-                {selectedLocationName && selectedLocationName.includes(',') 
+                {selectedLocationName && selectedLocationName.includes(',')
                   ? selectedLocationName.split(',').slice(1).join(',').trim() || selectedLocationName
                   : selectedLocationName || 'Sélectionner un lieu'}
               </Text>
@@ -1078,7 +1220,7 @@ const VehiclesScreen: React.FC = () => {
           renderItem={renderVehicle}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={!loading ? renderEmptyState : null}
+          ListEmptyComponent={loading ? null : renderEmptyState()}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -2043,6 +2185,93 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  searchBlurWrap: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2990,
+    elevation: 28,
+    overflow: 'hidden',
+  },
+  searchBlurDim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.28)',
+  },
+  searchToastWrap: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    zIndex: 3000,
+    elevation: 30,
+    alignItems: 'center',
+  },
+  searchToast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    maxWidth: 360,
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  searchToastIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: VEHICLE_COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
+  searchToastRadar: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: VEHICLE_COLORS.secondary,
+  },
+  searchToastTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  searchToastTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  searchToastSub: {
+    marginTop: 2,
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  searchToastDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingRight: 2,
+  },
+  searchToastDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#fb923c',
   },
   header: {
     backgroundColor: '#ffffff',

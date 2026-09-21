@@ -395,7 +395,10 @@ export const useProperties = (options?: UsePropertiesOptions) => {
     }
   }, [amenitiesCache]);
 
-  const fetchProperties = useCallback(async (filters?: SearchFilters) => {
+  const fetchProperties = useCallback(async (
+    filters?: SearchFilters,
+    options?: { forceRefresh?: boolean },
+  ) => {
     try {
       setLoading(true);
       setError(null);
@@ -403,8 +406,8 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       // Créer une clé de cache basée sur les filtres
       const cacheKey = JSON.stringify({ source, filters: filters || {} });
       
-      // Vérifier le cache d'abord
-      if (cache.has(cacheKey)) {
+      // Vérifier le cache d'abord (sauf refresh forcé)
+      if (!options?.forceRefresh && cache.has(cacheKey)) {
         setProperties(cache.get(cacheKey)!);
         setLoading(false);
         return;
@@ -788,7 +791,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           ...property,
           images: finalImages,
           photos: sortedPhotos,
-          price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000,
+          price_per_night: property.price_per_night ?? 0,
           rating: Math.round(finalRating * 100) / 100,
           review_count: finalReviewCount,
           amenities: allAmenities,
@@ -993,7 +996,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         ...data,
         images: finalImages, // Pour compatibilité avec l'ancien système
         photos: sortedPhotos, // Nouveau système de photos catégorisées
-        price_per_night: data.price_per_night || Math.floor(Math.random() * 50000) + 10000,
+        price_per_night: data.price_per_night ?? 0,
         rating: finalRating > 0 ? Math.round(finalRating * 100) / 100 : 0, // Note finale depuis la DB (mise à jour par trigger)
         review_count: finalReviewCount, // Nombre d'avis final depuis la DB (mise à jour par trigger)
         amenities: allAmenities,
@@ -1060,241 +1063,17 @@ export const useProperties = (options?: UsePropertiesOptions) => {
     }
   }, [mapAmenities]);
 
-  // Fonction pour forcer un rafraîchissement complet (ignore le cache)
+  // Rafraîchissement forcé : même pipeline que fetchProperties (filtres dates / rayon / etc.)
   const refreshProperties = useCallback(async (filters?: SearchFilters) => {
     console.log('🔄 Rafraîchissement forcé des propriétés (cache ignoré)');
-    
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Créer une clé de cache basée sur les filtres
-      const cacheKey = JSON.stringify({ source, filters: filters || {} });
-      
-      // Supprimer l'entrée du cache pour forcer une nouvelle requête
-      setCache(prevCache => {
-        const newCache = new Map(prevCache);
-        newCache.delete(cacheKey);
-        return newCache;
-      });
-
-      // Récupérer les location_ids à filtrer
-      let locationIds: string[] | null = null;
-      
-      if (filters?.city) {
-        const searchTerm = filters.city.trim();
-        const resolved = await resolveLocationIdsForSearchTerm(searchTerm, {
-          centerLat: filters.centerLat,
-          centerLng: filters.centerLng,
-          radiusKm: filters.radiusKm,
-        });
-        if (resolved.locationIds && resolved.locationIds.length > 0) {
-          locationIds = resolved.locationIds;
-        } else if (
-          resolved.centerLat != null &&
-          resolved.centerLng != null &&
-          filters?.radiusKm != null &&
-          filters.radiusKm > 0
-        ) {
-          locationIds = null;
-        } else {
-          console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
-          setProperties([]);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Query properties avec nouvelle structure locations
-      let query = supabase
-        .from('properties')
-        .select(`
-          *,
-          locations:location_id (
-            id,
-            name,
-            type,
-            latitude,
-            longitude,
-            parent_id
-          ),
-          property_photos (
-            id,
-            url,
-            category,
-            display_order,
-            is_main,
-            created_at
-          )
-        `)
-        .eq('is_active', true)
-        .eq('is_hidden', false);
-
-      // Accueil (Explorer/Home) : masquer uniquement certaines annonces sur la home
-      if (source === 'home') {
-        query = query.eq('hide_from_home', false);
-      }
-
-      // Appliquer le filtre location_id si présent
-      if (locationIds && locationIds.length > 0) {
-        query = query
-          .in('location_id', locationIds)
-          .not('location_id', 'is', null);
-      }
-
-      // Appliquer les filtres d'équipements
-      if (filters?.wifi) {
-        query = query.contains('amenities', ['WiFi gratuit']);
-      }
-      if (filters?.parking) {
-        query = query.contains('amenities', ['Parking gratuit']);
-      }
-      if (filters?.pool) {
-        query = query.contains('amenities', ['Piscine']);
-      }
-      if (filters?.airConditioning) {
-        query = query.contains('amenities', ['Climatisation']);
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Erreur lors du chargement des propriétés:', error);
-        throw error;
-      }
-
-      console.log(`✅ ${data?.length || 0} propriété(s) chargée(s) (rafraîchissement forcé)`);
-
-      // Optimisation: Calculer tous les ratings en une seule requête batch
-      const propertyIds = (data || []).map(p => p.id);
-      const ratingsMap = await calculateRatingsFromReviewsBatch(propertyIds);
-
-      // Transformer les données avec les équipements
-      const transformedData = await Promise.all(
-        (data || []).map(async (property) => {
-          // Récupérer le rating calculé depuis le batch (ou utiliser celui de la DB)
-          const calculatedRating = ratingsMap.get(property.id) || { rating: 0, review_count: 0 };
-          
-          // Utiliser les valeurs calculées (ou celles de la DB si elles sont plus récentes)
-          const finalRating = calculatedRating.rating || property.rating || 0;
-          const finalReviewCount = calculatedRating.review_count || property.review_count || 0;
-
-          // Traiter les photos catégorisées
-          const categorizedPhotos = property.property_photos || [];
-          const sortedPhotos = categorizedPhotos.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
-          
-          // Créer un tableau d'images pour la compatibilité avec l'ancien système
-          const imageUrls = sortedPhotos.map((photo: any) => photo.url);
-          
-          // Si pas de photos catégorisées, utiliser l'ancien système
-          const fallbackImages = property.images || [];
-          const finalImages = imageUrls.length > 0 ? imageUrls : fallbackImages;
-
-          // Debug pour la propriété "haut standing" dans refreshProperties
-          if (property.title && property.title.toLowerCase().includes('haut standing')) {
-            console.log('🔄 refreshProperties - Transformation des données:', {
-              title: property.title,
-              categorizedPhotosRaw: categorizedPhotos,
-              categorizedPhotosLength: categorizedPhotos.length,
-              sortedPhotos: sortedPhotos,
-              sortedPhotosLength: sortedPhotos.length,
-              imageUrls: imageUrls,
-              imageUrlsLength: imageUrls.length,
-              fallbackImages: fallbackImages,
-              fallbackImagesLength: fallbackImages.length,
-              finalImages: finalImages,
-              finalImagesLength: finalImages.length
-            });
-          }
-
-          // Ajouter les équipements personnalisés s'ils existent
-          const mappedAmenitiesForRefresh = await mapAmenities(property.amenities);
-          const customAmenitiesListForRefresh = property.custom_amenities && Array.isArray(property.custom_amenities)
-            ? property.custom_amenities.map((name: string) => ({
-                id: `custom-${name}`,
-                name: name.trim(),
-                icon: '➕'
-              }))
-            : [];
-          const allAmenitiesForRefresh = [...mappedAmenitiesForRefresh, ...customAmenitiesListForRefresh];
-          
-          // Extraire les coordonnées de location
-          const location = (property as any).locations;
-          const latitude = location?.latitude || property.latitude;
-          const longitude = location?.longitude || property.longitude;
-
-          const transformedProperty = {
-            ...property,
-            images: finalImages, // Pour compatibilité avec l'ancien système
-            photos: sortedPhotos, // Nouveau système de photos catégorisées
-            price_per_night: property.price_per_night || Math.floor(Math.random() * 50000) + 10000,
-            rating: Math.round(finalRating * 100) / 100, // Note finale (calculée ou de base)
-            review_count: finalReviewCount, // Nombre d'avis final
-            amenities: allAmenitiesForRefresh,
-            custom_amenities: property.custom_amenities || [],
-            // Inclure les champs de règles et horaires
-            house_rules: property.house_rules || '',
-            check_in_time: property.check_in_time || null,
-            check_out_time: property.check_out_time || null,
-            address_details: property.address_details || '',
-            host_guide: property.host_guide || '',
-            // Inclure les réductions (courte durée et long séjour)
-            discount_enabled: property.discount_enabled || false,
-            discount_min_nights: property.discount_min_nights || null,
-            discount_percentage: property.discount_percentage || null,
-            long_stay_discount_enabled: property.long_stay_discount_enabled || false,
-            long_stay_discount_min_nights: property.long_stay_discount_min_nights || null,
-            long_stay_discount_percentage: property.long_stay_discount_percentage || null,
-            // Extraire et mapper location
-            location: location ? {
-              id: location.id,
-              name: location.name,
-              type: location.type,
-              latitude: location.latitude,
-              longitude: location.longitude,
-              parent_id: location.parent_id
-            } : undefined,
-            // Extraire les coordonnées directement sur la propriété pour compatibilité
-            latitude: latitude,
-            longitude: longitude,
-            // Garder locations pour compatibilité
-            locations: location
-          };
-
-
-          return transformedProperty;
-        })
-      );
-
-      const refDate = getRefDateStrForListPricing(filters);
-      const baseMapRefresh = new Map(
-        transformedData.map((p: Property) => [p.id, p.price_per_night || 0])
-      );
-      const priceMapRefresh = await getPricesForDateBatch(
-        transformedData.map((p: Property) => p.id),
-        refDate,
-        baseMapRefresh
-      );
-      const withDynamicRefresh: Property[] = transformedData.map((p: Property) => ({
-        ...p,
-        dynamic_price_today: priceMapRefresh.get(p.id) ?? p.price_per_night,
-      }));
-
-      // Mettre à jour le cache avec les nouvelles données
-      setCache(prevCache => {
-        const newCache = new Map(prevCache);
-        newCache.set(cacheKey, withDynamicRefresh);
-        return newCache;
-      });
-
-      setProperties(withDynamicRefresh);
-    } catch (err) {
-      console.error('❌ Erreur lors du rafraîchissement:', err);
-      setError(err instanceof Error ? err.message : 'Erreur inconnue');
-    } finally {
-      setLoading(false);
-    }
-  }, [mapAmenities]); // Supprimer fetchProperties des dépendances
+    const cacheKey = JSON.stringify({ source, filters: filters || {} });
+    setCache((prevCache) => {
+      const newCache = new Map(prevCache);
+      newCache.delete(cacheKey);
+      return newCache;
+    });
+    await fetchProperties(filters, { forceRefresh: true });
+  }, [fetchProperties, source]);
 
   return {
     properties,
