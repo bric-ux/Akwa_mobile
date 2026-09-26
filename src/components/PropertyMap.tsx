@@ -59,25 +59,27 @@ const PropertyMap: React.FC<PropertyMapProps> = ({
       <style>
         body { margin: 0; padding: 0; }
         #map { width: 100%; height: 100vh; }
+        .leaflet-control-attribution { display: none !important; }
       </style>
     </head>
     <body>
       <div id="map"></div>
       <script>
-        var map = L.map('map').setView([${mapLatitude}, ${mapLongitude}], 13);
+        var map = L.map('map', {
+          attributionControl: false,
+          zoomControl: false,
+        }).setView([${mapLatitude}, ${mapLongitude}], 13);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-          attribution: 'Tiles © Esri — OpenStreetMap',
+          attribution: '',
           maxZoom: 19
         }).addTo(map);
         
         var marker = L.marker([${mapLatitude}, ${mapLongitude}], {
-          icon: L.icon({
-            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
+          icon: L.divIcon({
+            className: '',
+            html: '<div style="width:36px;height:36px;border-radius:50%;background:#e67e22;border:3px solid white;box-shadow:0 2px 8px rgba(230,126,34,0.4);"></div>',
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
           })
         }).addTo(map);
         

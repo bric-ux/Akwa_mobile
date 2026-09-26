@@ -2420,8 +2420,8 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   list: {
-    paddingHorizontal: 20,
-    paddingTop: 20, // Margin après la barre de recherche
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 20,
   },
   emptyState: {

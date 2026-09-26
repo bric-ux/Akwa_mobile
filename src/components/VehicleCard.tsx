@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet, Alert, Dimensions } from 'react-native';
 import { Vehicle } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
 import { useVehicleFavorites } from '../hooks/useVehicleFavorites';
@@ -9,10 +9,16 @@ import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 import { getVehicleCoverUrl, getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
 import { formatCardLocationLabel } from '../utils/locationLabel';
 import {
-  LIST_SHELF_IMAGE_HEIGHT,
   formatExploreShelfHeadline,
   formatExploreShelfRatingSubtitle,
 } from '../constants/exploreShelfCard';
+
+/** Marge liste VehiclesScreen (paddingHorizontal 16). */
+const LIST_PAD = 16;
+/** Ratio 4:3 un peu plus compact que plein écran — largeur utile = écran − paddings liste. */
+const IMAGE_HEIGHT = Math.round(
+  (Dimensions.get('window').width - LIST_PAD * 2) * (3 / 5),
+);
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -74,14 +80,12 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
     return undefined;
   })();
 
-  const imageHeight = LIST_SHELF_IMAGE_HEIGHT;
-
   return (
     <View style={[styles.outer, variant === 'list' && styles.listOuter]}>
       <ExploreShelfPhotoCard
         onPress={() => onPress(vehicle)}
         imageAspect="list"
-        imageHeight={imageHeight}
+        imageHeight={IMAGE_HEIGHT}
         title={formatExploreShelfHeadline({
           title: vehicleTitle,
           typeLabel: 'Véhicule',
@@ -95,7 +99,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
         image={
           <MediaThumb
             uri={coverUri}
-            style={{ width: '100%', height: imageHeight }}
+            style={{ width: '100%', height: IMAGE_HEIGHT }}
             resizeMode="cover"
             contentPosition="center"
             fitWholeImage
@@ -111,11 +115,10 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
 
 const styles = StyleSheet.create({
   outer: {
-    width: '100%',
+    alignSelf: 'stretch',
   },
   listOuter: {
-    marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 14,
   },
 });
 

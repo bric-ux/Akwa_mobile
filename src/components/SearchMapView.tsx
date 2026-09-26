@@ -173,98 +173,70 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
   <style>
     body { margin: 0; padding: 0; }
     #map { width: 100%; height: 100vh; }
+    .leaflet-control-attribution { display: none !important; }
+    .price-marker-wrap {
+      position: relative;
+      display: inline-block;
+      pointer-events: none;
+    }
     .price-marker {
-      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-      border: 2px solid ${TRAVELER_COLORS.primary};
+      background: white;
+      border: 1px solid #e2e8f0;
       border-radius: 20px;
-      padding: 6px 14px;
-      font-weight: 800;
+      padding: 5px 10px;
+      font-weight: 600;
       font-size: 13px;
-      color: ${TRAVELER_COLORS.primary};
-      box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3), 0 2px 4px rgba(0,0,0,0.1);
+      color: #1f2937;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
       cursor: pointer;
       white-space: nowrap;
-      backdrop-filter: blur(8px);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.2;
+      display: inline-block;
+    }
+    .cluster-marker-wrap {
       position: relative;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .price-marker::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-      transition: left 0.5s;
-    }
-    .price-marker:hover {
-      background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%);
-      color: white;
-      transform: translateY(-2px) scale(1.05);
-      box-shadow: 0 6px 20px rgba(230, 126, 34, 0.4), 0 4px 8px rgba(0,0,0,0.15);
-    }
-    .price-marker:hover::before {
-      left: 100%;
+      display: inline-block;
+      padding-top: 4px;
+      padding-right: 8px;
+      pointer-events: none;
     }
     .cluster-marker {
-      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-      border: 2px solid ${TRAVELER_COLORS.primary};
+      background: white;
+      border: 1px solid #e2e8f0;
       border-radius: 20px;
-      padding: 6px 12px;
-      font-weight: 800;
-      font-size: 12px;
-      color: ${TRAVELER_COLORS.primary};
-      box-shadow: 0 4px 12px rgba(230, 126, 34, 0.3), 0 2px 4px rgba(0,0,0,0.1);
+      padding: 5px 10px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #1f2937;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
       cursor: pointer;
       white-space: nowrap;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.2;
+      display: inline-block;
+    }
+    .cluster-count {
+      position: absolute;
+      top: 0;
+      right: 0;
+      z-index: 2;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: #0f172a;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-width: 50px;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      backdrop-filter: blur(8px);
-      line-height: 1.2;
-    }
-    .cluster-marker::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-      transition: left 0.5s;
-    }
-    .cluster-marker:hover {
-      background: linear-gradient(135deg, ${TRAVELER_COLORS.primary} 0%, ${TRAVELER_COLORS.dark} 100%);
-      color: white;
-      transform: translateY(-2px) scale(1.05);
-      box-shadow: 0 6px 20px rgba(230, 126, 34, 0.4), 0 4px 8px rgba(0,0,0,0.15);
-    }
-    .cluster-marker:hover::before {
-      left: 100%;
-    }
-    .cluster-count {
-      background: ${TRAVELER_COLORS.primary};
-      color: white;
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-left: 8px;
-      font-size: 11px;
-      font-weight: 900;
-      box-shadow: 0 2px 6px rgba(230, 126, 34, 0.3);
-      border: 2px solid rgba(255, 255, 255, 0.9);
+      border: 2px solid white;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      line-height: 1;
+      box-sizing: border-box;
     }
     .property-list-item {
       padding: 12px 14px;
@@ -288,10 +260,12 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
 <body>
   <div id="map"></div>
   <script>
-    var map = L.map('map').setView([${center.lat}, ${center.lng}], ${getZoomLevel()});
+    var map = L.map('map', {
+      attributionControl: false,
+    }).setView([${center.lat}, ${center.lng}], ${getZoomLevel()});
     
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles © Esri — OpenStreetMap',
+      attribution: '',
       maxZoom: 19
     }).addTo(map);
 
@@ -353,11 +327,16 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
           priceDisplay = 'À partir de ' + minPrice.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
         }
         
+        const clusterLabel = priceDisplay + ' ' + displayCurrency;
+        const clusterW = Math.max(100, clusterLabel.length * 7.5 + 28);
         divIcon = L.divIcon({
-          className: 'custom-cluster-marker',
-          html: '<div class="cluster-marker">' + priceDisplay + ' ' + displayCurrency + '<span class="cluster-count">' + markerData.count + '</span></div>',
-          iconSize: [140, 34],
-          iconAnchor: [70, 34]
+          className: '',
+          html: '<div class="cluster-marker-wrap" style="min-width:' + (clusterW + 8) + 'px">' +
+            '<div class="cluster-marker">' + clusterLabel + '</div>' +
+            '<span class="cluster-count">' + markerData.count + '</span>' +
+          '</div>',
+          iconSize: [clusterW + 8, 40],
+          iconAnchor: [(clusterW + 8) / 2, 20]
         });
         
         // Popup avec liste de toutes les propriétés
@@ -414,11 +393,13 @@ const SearchMapView: React.FC<SearchMapViewProps> = ({ properties, onPropertyPre
             : prop.price.toLocaleString('fr-FR')
         );
         const displayCurrency = prop.convertedPrice !== undefined && currentCurrency !== 'XOF' ? currentCurrencySymbol : 'CFA';
+        const singleLabel = displayPrice + ' ' + displayCurrency;
+        const singleW = Math.max(80, singleLabel.length * 7.5 + 24);
         divIcon = L.divIcon({
-          className: 'custom-marker',
-          html: '<div class="price-marker">' + displayPrice + ' ' + displayCurrency + '</div>',
-          iconSize: [100, 34],
-          iconAnchor: [50, 34]
+          className: '',
+          html: '<div class="price-marker-wrap"><div class="price-marker">' + singleLabel + '</div></div>',
+          iconSize: [singleW, 28],
+          iconAnchor: [singleW / 2, 14]
         });
         
         // Popup pour une seule propriété
