@@ -26,7 +26,8 @@ import { Header } from '../components/Header';
 import { HeroSection } from '../components/HeroSection';
 import { InfoBanner } from '../components/InfoBanner';
 import ImageCarousel from '../components/ImageCarousel';
-import WeatherDateTimeWidget from '../components/WeatherDateTimeWidget';
+import HomeCategoryPills from '../components/home/HomeCategoryPills';
+import HomeWeatherChip from '../components/HomeWeatherChip';
 import ZipDailyCard from '../components/zip/ZipDailyCard';
 import MatchPredictionBanner from '../components/MatchPredictionBanner';
 import TeddyExploreFab from '../components/TeddyExploreFab';
@@ -261,8 +262,9 @@ const HomeScreen: React.FC = () => {
 
       {showDeferredHeaderContent ? (
         <>
-          <WeatherDateTimeWidget />
+          <HomeCategoryPills />
           <MatchPredictionBanner />
+          <HomeWeatherChip />
           <ZipDailyCard />
           <ImageCarousel
             images={CAROUSEL_IMAGES}
@@ -287,6 +289,7 @@ const HomeScreen: React.FC = () => {
       <>
         {/* Location de véhicules — aligné site HomeVehiclesPromoBanner (mobile) */}
         <View style={styles.vehiclesPromoSection}>
+          <Text style={styles.vehiclesPromoSectionTitle}>Location de véhicules</Text>
           <TouchableOpacity
             activeOpacity={0.92}
             onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
@@ -668,6 +671,12 @@ const styles = StyleSheet.create({
     marginHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
     marginTop: 8,
     marginBottom: 16,
+  },
+  vehiclesPromoSectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
   },
   vehiclesPromoCard: {
     overflow: 'hidden',

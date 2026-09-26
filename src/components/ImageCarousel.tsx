@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -47,31 +46,22 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
     });
   };
 
-  const goToNext = () => {
-    const nextIndex = (currentIndex + 1) % images.length;
-    goToSlide(nextIndex);
-  };
-
-  const goToPrevious = () => {
-    const prevIndex = currentIndex === 0 ? images.length - 1 : currentIndex - 1;
-    goToSlide(prevIndex);
-  };
-
   // Défilement automatique toutes les 2 secondes
   useEffect(() => {
-    if (images.length <= 1) return; // Pas de défilement s'il n'y a qu'une image
+    if (images.length <= 1) return;
 
     const interval = setInterval(() => {
-      goToNext();
-    }, 2000); // 2 secondes
+      const nextIndex = (currentIndex + 1) % images.length;
+      goToSlide(nextIndex);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [currentIndex, images.length]);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Explorez les trésors de la Côte d&apos;Ivoire</Text>
-      
+      <Text style={styles.sectionTitle}>Explorez les trésors de la Côte d'Ivoire</Text>
+
       <View style={styles.carouselContainer}>
         <ScrollView
           ref={scrollViewRef}
@@ -82,7 +72,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
           scrollEventThrottle={16}
           style={styles.scrollView}
         >
-          {images.map((image, index) => (
+          {images.map((image) => (
             <TouchableOpacity
               key={image.id}
               style={styles.slide}
@@ -97,7 +87,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
                 priority="high"
                 transition={200}
               />
-              
+
               <View style={styles.overlay}>
                 <View style={styles.textContainer}>
                   <Text style={styles.imageTitle}>{image.title}</Text>
@@ -107,24 +97,8 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
             </TouchableOpacity>
           ))}
         </ScrollView>
-
-        {/* Navigation buttons */}
-        <TouchableOpacity
-          style={[styles.navButton, styles.prevButton]}
-          onPress={goToPrevious}
-        >
-          <Ionicons name="chevron-back" size={24} color="#fff" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.navButton, styles.nextButton]}
-          onPress={goToNext}
-        >
-          <Ionicons name="chevron-forward" size={24} color="#fff" />
-        </TouchableOpacity>
       </View>
 
-      {/* Dots indicator */}
       <View style={styles.dotsContainer}>
         {images.map((_, index) => (
           <TouchableOpacity
@@ -155,7 +129,7 @@ const styles = StyleSheet.create({
   },
   carouselContainer: {
     position: 'relative',
-    borderRadius: 12,
+    borderRadius: 0,
     overflow: 'hidden',
   },
   scrollView: {
@@ -196,24 +170,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  navButton: {
-    position: 'absolute',
-    top: '50%',
-    transform: [{ translateY: -20 }],
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  prevButton: {
-    left: 10,
-  },
-  nextButton: {
-    right: 10,
-  },
   dotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -224,7 +180,7 @@ const styles = StyleSheet.create({
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: 0,
     backgroundColor: '#ccc',
     marginHorizontal: 4,
   },
@@ -235,4 +191,3 @@ const styles = StyleSheet.create({
 });
 
 export default ImageCarousel;
-
