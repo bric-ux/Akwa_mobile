@@ -255,18 +255,20 @@ export function getHomeShelfImageUrl(
   );
 }
 
-/** Cartes résultats : image entière dans l'encart (pas de recadrage CDN). */
-export function getListCardImageUrl(url: string): string {
+/** Cartes résultats recherche : CDN 3:2 cover (aligné site web, sans zoom forcé). */
+export function getListCardImageUrl(url: string, cardWidth = 420): string {
   if (!url || url.includes('placeholder')) return url;
+
+  const width = Math.round(cardWidth * 2);
+  const height = Math.round((width * 2) / 3);
 
   if (url.includes('images.unsplash.com')) {
     try {
       const u = new URL(url);
       u.searchParams.set('auto', 'format');
-      u.searchParams.set('fit', 'max');
-      u.searchParams.set('w', '1200');
-      u.searchParams.delete('h');
-      u.searchParams.delete('crop');
+      u.searchParams.set('fit', 'crop');
+      u.searchParams.set('w', String(width));
+      u.searchParams.set('h', String(height));
       return u.toString();
     } catch {
       return url;
@@ -275,7 +277,7 @@ export function getListCardImageUrl(url: string): string {
 
   return getOptimizedSupabaseImageUrl(
     url,
-    { width: 1200, height: 900, quality: 84, resize: 'contain' },
+    { width, height, quality: 85, resize: 'cover' },
     isHeicUrl(url) || isSupabasePublicStorageUrl(url),
   );
 }

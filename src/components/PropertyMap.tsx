@@ -65,8 +65,9 @@ const PropertyMap: React.FC<PropertyMapProps> = ({
       <div id="map"></div>
       <script>
         var map = L.map('map').setView([${mapLatitude}, ${mapLongitude}], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Tiles © Esri — OpenStreetMap',
+          maxZoom: 19
         }).addTo(map);
         
         var marker = L.marker([${mapLatitude}, ${mapLongitude}], {

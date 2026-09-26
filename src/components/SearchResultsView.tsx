@@ -416,11 +416,10 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
         attributionControl: true
       }).setView([${mapBounds.center.lat}, ${mapBounds.center.lng}], ${getZoomLevel()});
       
-      // Ajouter plusieurs sources de tuiles en fallback
-      var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19,
-        subdomains: ['a', 'b', 'c']
+      // Fond Esri (sans clé) — OSM.org souvent bloqué
+      var esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri — OpenStreetMap',
+        maxZoom: 19
       });
       
       var cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
@@ -429,13 +428,14 @@ const SearchResultsView: React.FC<SearchResultsViewProps> = ({
         subdomains: 'abcd'
       });
       
-      // Essayer d'ajouter OpenStreetMap d'abord
-      osmLayer.addTo(map);
+      esriLayer.addTo(map);
       
-      // Si OpenStreetMap échoue, essayer CartoDB
-      osmLayer.on('tileerror', function() {
-        console.log('OSM tiles failed, trying CartoDB');
-        map.removeLayer(osmLayer);
+      var switched = false;
+      esriLayer.on('tileerror', function() {
+        if (switched) return;
+        switched = true;
+        console.log('Esri tiles failed, trying CartoDB');
+        map.removeLayer(esriLayer);
         cartoLayer.addTo(map);
       });
       

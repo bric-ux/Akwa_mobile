@@ -24,8 +24,10 @@ import { getPropertyCardLocationLabel } from '../utils/locationLabel';
 import { getPropertyTypeLabel } from '../utils/propertyTypeLabel';
 import {
   EXPLORE_SHELF_IMAGE_HEIGHT,
+  LIST_CARD_IMAGE_HEIGHT,
   formatExploreShelfHeadline,
   formatExploreShelfRatingSubtitle,
+  formatListCardTitle,
 } from '../constants/exploreShelfCard';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 
@@ -130,11 +132,13 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
   const renderListCoverImage = (height: number) => {
     const uri = coverUri || galleryUrls[0];
     return (
-      <View style={[styles.imageContainer, { height }]}>
+      <View style={[styles.listImageContainer, { height }]}>
         <MediaThumb
           uri={uri}
           style={{ width: '100%', height }}
           resizeMode="cover"
+          contentPosition="center"
+          fitWholeImage
           isVideo={isVideoUrl(uri)}
           priority="low"
           recyclingKey={`${property.id}-list-cover`}
@@ -221,81 +225,89 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
   }
 
   if (variant === 'list') {
-    return (
-      <View style={[styles.container, styles.listContainer]}>
-        <View style={styles.cardLayout}>
-          <TouchableOpacity onPress={handlePropertyPress} activeOpacity={0.8}>
-            <View style={styles.imageArea}>
-              {renderListCoverImage(CAROUSEL_HEIGHT)}
-              <View style={styles.priceOverlay} pointerEvents="none">
-                <View style={styles.priceOverlayContent}>
-                  <Text style={styles.priceText}>
-                    {formatPrice(effectiveNightPrice)}/{t('common.perNight')}
-                  </Text>
-                </View>
-                {property.discount_enabled && property.discount_percentage && property.discount_min_nights && (
-                  <Text style={styles.discountOverlay}>
-                    -{property.discount_percentage}% {t('property.forNights')} {property.discount_min_nights}+ {t('property.nights')}
-                  </Text>
-                )}
-              </View>
-            </View>
+    const typeLabel = getPropertyTypeLabel(property.property_type);
+    const cardTitle = formatListCardTitle({
+      title: property.title,
+      typeLabel,
+    });
+    const metaBits = [
+      property.bedrooms != null && property.bedrooms > 0 ? `${property.bedrooms} ch.` : null,
+      property.max_guests != null && property.max_guests > 0 ? `${property.max_guests} pers.` : null,
+      typeLabel || null,
+    ].filter(Boolean) as string[];
+    const hasPromo = !!(
+      property.discount_enabled &&
+      property.discount_percentage &&
+      property.discount_min_nights
+    );
+    const ratingValue = Number(property.rating) || 0;
 
-            <View style={styles.cardContent}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {property.title}
-            </Text>
-            
+    return (
+      <View style={styles.listCardOuter}>
+        <TouchableOpacity onPress={handlePropertyPress} activeOpacity={0.9}>
+          <View style={[styles.listImageWrap, { height: LIST_CARD_IMAGE_HEIGHT }]}>
+            {renderListCoverImage(LIST_CARD_IMAGE_HEIGHT)}
+
+            <Pressable
+              style={styles.listFavoriteButton}
+              onPress={handleFavoritePress}
+              disabled={favoriteLoading}
+              hitSlop={8}
+            >
+              <Ionicons
+                name={isFavorited ? 'heart' : 'heart-outline'}
+                size={18}
+                color={isFavorited ? '#e74c3c' : '#1f2937'}
+              />
+            </Pressable>
+
+            {hasPromo ? (
+              <View style={styles.listPromoBadge}>
+                <Text style={styles.listPromoText}>
+                  −{property.discount_percentage}% dès {property.discount_min_nights} nuits
+                </Text>
+              </View>
+            ) : null}
+
+            {hasReviews ? (
+              <View style={styles.listRatingBadge}>
+                <Ionicons name="star" size={12} color="#f59e0b" />
+                <Text style={styles.listRatingText}>{ratingValue.toFixed(1)}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.listMeta}>
             {locationLabel ? (
-              <View style={styles.locationRow}>
-                <Ionicons name="location-outline" size={14} color="#666" />
-                <Text style={styles.cardLocation} numberOfLines={1}>
+              <View style={styles.listLocationRow}>
+                <Ionicons name="location" size={14} color="#2E7D32" />
+                <Text style={styles.listLocationText} numberOfLines={2}>
                   {locationLabel}
                 </Text>
               </View>
             ) : null}
-            
-            <View style={styles.cardRatingSlot}>
-              {hasReviews ? (
-                <Text style={styles.cardRating}>
-                  ⭐ {(Number(property.rating) || 0).toFixed(1)} ({reviewCount} {t('property.reviews')})
+
+            <Text style={styles.listTitle} numberOfLines={2}>
+              {cardTitle}
+            </Text>
+
+            <View style={styles.listPriceBlock}>
+              <Text style={styles.listPrice}>
+                {formatPrice(effectiveNightPrice)}
+                <Text style={styles.listPriceUnit}>/{t('common.perNight')}</Text>
+              </Text>
+              {metaBits.length > 0 ? (
+                <Text style={styles.listMetaBits} numberOfLines={1}>
+                  {metaBits.join(' · ')}
                 </Text>
               ) : null}
             </View>
-            
-            {property.amenities && property.amenities.length > 0 ? (
-              <View style={styles.cardAmenities}>
-                {property.amenities.slice(0, 3).map((amenity, index) => (
-                  <Text key={index} style={styles.amenityTag} numberOfLines={1}>
-                    {amenity.name}
-                  </Text>
-                ))}
-                {property.amenities.length > 3 && (
-                  <Text style={styles.moreAmenities} numberOfLines={1}>
-                    +{property.amenities.length - 3} {t('common.more')}
-                  </Text>
-                )}
-              </View>
-            ) : null}
-            </View>
-          </TouchableOpacity>
-
-          <Pressable
-            style={styles.favoriteButton}
-            onPress={handleFavoritePress}
-            disabled={favoriteLoading}
-            hitSlop={8}
-          >
-            <Ionicons
-              name={isFavorited ? 'heart' : 'heart-outline'}
-              size={20}
-              color={isFavorited ? '#e74c3c' : '#fff'}
-            />
-          </Pressable>
-        </View>
+          </View>
+        </TouchableOpacity>
       </View>
     );
   }
+
 
   return (
     <TouchableOpacity
@@ -420,6 +432,121 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     width: '100%',
     alignSelf: 'stretch',
+  },
+  listCardOuter: {
+    marginHorizontal: 16,
+    marginBottom: 22,
+  },
+  listImageWrap: {
+    position: 'relative',
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 22,
+    backgroundColor: '#e5e7eb',
+  },
+  listImageContainer: {
+    width: '100%',
+    overflow: 'hidden',
+    backgroundColor: '#e5e7eb',
+    borderRadius: 22,
+  },
+  listFavoriteButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 5,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  listPromoBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 5,
+    backgroundColor: '#2E7D32',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  listPromoText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  listRatingBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    zIndex: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  listRatingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  listMeta: {
+    marginTop: 12,
+    paddingHorizontal: 2,
+    gap: 6,
+  },
+  listLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  listLocationText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1f2937',
+    lineHeight: 18,
+  },
+  listTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    lineHeight: 22,
+    letterSpacing: -0.2,
+    textAlign: 'left',
+    alignSelf: 'stretch',
+  },
+  listPriceBlock: {
+    alignSelf: 'stretch',
+    alignItems: 'flex-start',
+    marginTop: 2,
+  },
+  listPrice: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'left',
+  },
+  listPriceUnit: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#6b7280',
+  },
+  listMetaBits: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'left',
   },
   // Nouveaux styles pour le design en cartes
   cardLayout: {

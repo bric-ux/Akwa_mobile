@@ -62,8 +62,8 @@ export default function PropertyLocationPicker({
   <div id="map"></div>
   <script>
     var map = L.map('map', { zoomControl: true }).setView([${lat}, ${lng}], ${hasPrecise ? 16 : 12});
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri — OpenStreetMap',
       maxZoom: 19
     }).addTo(map);
     var marker = L.marker([${lat}, ${lng}], { draggable: true }).addTo(map);

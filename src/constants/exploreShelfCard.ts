@@ -12,12 +12,12 @@ export const EXPLORE_SHELF_IMAGE_HEIGHT = Math.round(EXPLORE_SHELF_CARD_WIDTH * 
 
 export const EXPLORE_SHELF_IMAGE_RADIUS = 26;
 
-/** Marge horizontale standard des cartes liste (20 + 20). */
-const LIST_CARD_SIDE_MARGIN = 40;
+/** Marge horizontale standard des cartes liste (16 + 16). */
+const LIST_CARD_SIDE_MARGIN = 32;
 
-/** Format uniforme 4:3 pour tous les encarts liste recherche. */
+/** Format 3:2 pour les cartes résultats recherche (aligné site web). */
 export const LIST_CARD_IMAGE_HEIGHT = Math.round(
-  (SCREEN_W - LIST_CARD_SIDE_MARGIN) * (3 / 4),
+  (SCREEN_W - LIST_CARD_SIDE_MARGIN) * (2 / 3),
 );
 
 /** Titre court sur une ligne (avec note à droite sur la carte). */
@@ -35,6 +35,26 @@ export function formatExploreShelfHeadline({
   const normalized = title.trim().replace(/\s+/g, ' ');
   if (normalized.length <= maxLength) return normalized;
   return typeLabel?.trim() || 'Logement';
+}
+
+/**
+ * Titre carte résultats : coupe sur un mot, ou type de bien si trop long / marketing.
+ */
+export function formatListCardTitle({
+  title,
+  typeLabel,
+  maxLength = 52,
+}: {
+  title: string;
+  typeLabel?: string | null;
+  maxLength?: number;
+}): string {
+  const raw = title.trim().replace(/\s+/g, ' ');
+  if (raw.length <= maxLength) return raw;
+  if (typeLabel?.trim() && raw.length > 70) return typeLabel.trim();
+  const clipped = raw.slice(0, maxLength);
+  const lastSpace = clipped.lastIndexOf(' ');
+  return lastSpace > 24 ? clipped.slice(0, lastSpace) : clipped;
 }
 
 export function formatExploreShelfRatingSubtitle(

@@ -115,7 +115,10 @@ const VehicleMapView: React.FC<VehicleMapViewProps> = ({
     try {
       var map = L.map('map').setView([${centerLat}, ${centerLng}], ${zoomLevel});
       
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri — OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(map);
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
       }).addTo(map);
