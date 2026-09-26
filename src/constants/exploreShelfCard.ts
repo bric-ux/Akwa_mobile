@@ -4,13 +4,13 @@ const SCREEN_W = Dimensions.get('window').width;
 
 /** Largeur carte portrait sur l'accueil (carrousels horizontaux). */
 export const EXPLORE_SHELF_CARD_WIDTH = Math.round(
-  Math.max(198, Math.min(SCREEN_W * 0.56, 232)),
+  Math.max(168, Math.min(SCREEN_W * 0.46, 200)),
 );
 
 /** Ratio 3:4 portrait — format cartes accueil. */
 export const EXPLORE_SHELF_IMAGE_HEIGHT = Math.round(EXPLORE_SHELF_CARD_WIDTH * (4 / 3));
 
-export const EXPLORE_SHELF_IMAGE_RADIUS = 26;
+export const EXPLORE_SHELF_IMAGE_RADIUS = 0;
 
 /** Marge horizontale standard des cartes liste (16 + 16). */
 const LIST_CARD_SIDE_MARGIN = 32;

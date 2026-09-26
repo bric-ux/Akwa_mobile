@@ -197,9 +197,14 @@ const PropertyCardInner: React.FC<PropertyCardProps> = ({
           })}
           location={locationLabel || undefined}
           priceLabel={`${formatPrice(effectiveNightPrice)}/nuit`}
-          promoLabel={
-            property.discount_enabled && property.discount_percentage && property.discount_min_nights
-              ? `-${property.discount_percentage}% dès ${property.discount_min_nights} nuits`
+          promoPercent={
+            property.discount_enabled && property.discount_percentage
+              ? property.discount_percentage
+              : undefined
+          }
+          promoMinNights={
+            property.discount_enabled && property.discount_min_nights
+              ? property.discount_min_nights
               : undefined
           }
           subtitle={formatExploreShelfRatingSubtitle(property.rating, reviewCount)}

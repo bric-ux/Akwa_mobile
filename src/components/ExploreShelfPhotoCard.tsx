@@ -19,7 +19,10 @@ type ExploreShelfPhotoCardProps = {
   title: string;
   location?: string;
   priceLabel?: string;
+  /** Texte libre (legacy) — préférer promoPercent + promoMinNights. */
   promoLabel?: string;
+  promoPercent?: number;
+  promoMinNights?: number;
   /** Sous le titre (ex. étoiles hôtel). */
   subtitle?: string;
   imageHeight?: number;
@@ -36,6 +39,8 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
   location,
   priceLabel,
   promoLabel,
+  promoPercent,
+  promoMinNights,
   subtitle,
   imageHeight = EXPLORE_SHELF_IMAGE_HEIGHT,
   image,
@@ -43,7 +48,14 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
   isFavorited = false,
   favoriteLoading = false,
   style,
-}) => (
+}) => {
+  const hasStructuredPromo =
+    typeof promoPercent === 'number' &&
+    promoPercent > 0 &&
+    typeof promoMinNights === 'number' &&
+    promoMinNights > 0;
+
+  return (
   <TouchableOpacity
     style={[styles.shell, style]}
     onPress={onPress}
@@ -52,35 +64,17 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
     <View style={[styles.frame, { height: imageHeight }]}>
       {image}
 
-      {priceLabel || promoLabel ? (
-        <View style={styles.topRightStack} pointerEvents="none">
-          <View
-            style={[
-              styles.pricePromoGroup,
-              !(priceLabel && promoLabel) && styles.pricePromoGroupSolo,
-            ]}
-          >
-            {priceLabel ? (
-              <View
-                style={[
-                  styles.pricePill,
-                  priceLabel && promoLabel && styles.pricePillWithPromo,
-                ]}
-              >
-                <Text style={styles.priceText}>{priceLabel}</Text>
-              </View>
-            ) : null}
-            {promoLabel ? (
-              <View
-                style={[
-                  styles.promoPill,
-                  priceLabel && promoLabel && styles.promoPillAttached,
-                ]}
-              >
-                <Text style={styles.promoText}>{promoLabel}</Text>
-              </View>
-            ) : null}
-          </View>
+      {hasStructuredPromo ? (
+        <View style={styles.promoBadge} pointerEvents="none">
+          <Text style={styles.promoText}>
+            −{promoPercent}% dès {promoMinNights}n
+          </Text>
+        </View>
+      ) : promoLabel ? (
+        <View style={styles.promoBadge} pointerEvents="none">
+          <Text style={styles.promoText} numberOfLines={1}>
+            {promoLabel}
+          </Text>
         </View>
       ) : null}
 
@@ -92,12 +86,13 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
             onFavoritePress(e);
           }}
           disabled={favoriteLoading}
-          hitSlop={8}
+          hitSlop={12}
         >
           <Ionicons
             name={isFavorited ? 'heart' : 'heart-outline'}
-            size={18}
-            color={isFavorited ? '#e74c3c' : '#fff'}
+            size={22}
+            color={isFavorited ? '#e11d48' : '#fff'}
+            style={styles.favoriteIcon}
           />
         </Pressable>
       ) : null}
@@ -122,9 +117,15 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
           </Text>
         </View>
       ) : null}
+      {priceLabel ? (
+        <Text style={styles.metaPrice} numberOfLines={1}>
+          {priceLabel}
+        </Text>
+      ) : null}
     </View>
   </TouchableOpacity>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   shell: {
@@ -136,78 +137,43 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#ffffff',
     shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.22,
-    shadowRadius: 20,
-    elevation: 9,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    elevation: 6,
   },
-  topRightStack: {
+  promoBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    alignItems: 'center',
-    maxWidth: '72%',
-  },
-  pricePromoGroup: {
-    alignItems: 'stretch',
-    overflow: 'hidden',
-    borderRadius: 14,
-  },
-  pricePromoGroupSolo: {
-    borderRadius: 999,
-  },
-  pricePill: {
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 999,
-    alignSelf: 'center',
-  },
-  pricePillWithPromo: {
-    borderRadius: 0,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-    alignSelf: 'stretch',
-  },
-  priceText: {
-    color: '#0f172a',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  promoPill: {
-    backgroundColor: '#ff6b35',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    alignSelf: 'center',
-  },
-  promoPillAttached: {
-    borderRadius: 0,
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
-    alignSelf: 'stretch',
-    marginTop: 0,
+    top: 8,
+    right: 8,
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
   },
   promoText: {
     color: '#fff',
-    fontSize: 10,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
   favorite: {
     position: 'absolute',
-    top: 12,
-    left: 12,
+    top: 6,
+    left: 6,
     zIndex: 20,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  favoriteIcon: {
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   meta: {
-    paddingTop: 9,
+    paddingTop: 8,
     paddingHorizontal: 2,
   },
   titleRow: {
@@ -218,29 +184,35 @@ const styles = StyleSheet.create({
   metaTitle: {
     flex: 1,
     color: '#0f172a',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    lineHeight: 20,
+    lineHeight: 18,
     letterSpacing: -0.2,
   },
   metaSubtitle: {
     flexShrink: 0,
     color: '#b45309',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    marginTop: 2,
+    marginTop: 1,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 4,
+    marginTop: 3,
   },
   metaLocation: {
     flex: 1,
     color: '#64748b',
     fontSize: 12,
     fontWeight: '500',
+  },
+  metaPrice: {
+    marginTop: 4,
+    color: '#0f172a',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
 
