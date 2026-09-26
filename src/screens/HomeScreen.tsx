@@ -8,11 +8,12 @@ import {
   RefreshControl,
   ActivityIndicator,
   ScrollView,
-  useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Linking,
   InteractionManager,
+  ImageBackground,
+  useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +36,7 @@ import LoadErrorCard from '../components/LoadErrorCard';
 import type { LoadFailureKind } from '../utils/loadError';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
 import { EXPLORE_SHELF_CARD_WIDTH } from '../constants/exploreShelfCard';
+import { VEHICLE_COLORS } from '../constants/colors';
 
 /** Titres explore + première carte : alignés sur le carrousel « trésors CI » */
 const EXPLORE_GUTTER = HOME_EXPLORE_HORIZONTAL_GUTTER;
@@ -65,9 +67,10 @@ const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const vehiclesPromoNarrow = windowWidth < 400;
   const { t } = useLanguage();
   const { isOffline } = useNetwork();
+  const bottomServiceCardSize =
+    (windowWidth - HOME_EXPLORE_HORIZONTAL_GUTTER * 2 - 12) / 2;
   const {
     layoutSections: exploreSections,
     loading: exploreLoading,
@@ -282,205 +285,108 @@ const HomeScreen: React.FC = () => {
   const listFooter = useMemo(
     () => (
       <>
-        {/* Location de véhicules — après les résidences par ville */}
+        {/* Location de véhicules — aligné site HomeVehiclesPromoBanner (mobile) */}
         <View style={styles.vehiclesPromoSection}>
-          <View
-            style={[
-              styles.vehiclesPromoBackground,
-              vehiclesPromoNarrow && styles.vehiclesPromoBackgroundNarrow,
-            ]}
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
+            style={styles.vehiclesPromoCard}
+            accessibilityRole="button"
+            accessibilityLabel="Location de véhicules"
           >
-            <Image
+            <ImageBackground
               source={require('../../assets/images/vehicles-suv.jpg')}
               style={styles.vehiclesPromoBgImage}
-              contentFit="cover"
-              contentPosition="center"
-              cachePolicy="memory-disk"
-              recyclingKey="home-vehicles-promo"
-              priority="high"
-              transition={0}
-            />
-            <View
-              style={[
-                styles.vehiclesPromoOverlay,
-                vehiclesPromoNarrow && styles.vehiclesPromoOverlayNarrow,
-              ]}
-              pointerEvents="box-none"
+              resizeMode="cover"
             >
-              <View
-                style={[
-                  styles.vehiclesPromoContent,
-                  vehiclesPromoNarrow && styles.vehiclesPromoContentNarrow,
-                ]}
-              >
-                <View style={[styles.vehiclesPromoLeft, vehiclesPromoNarrow && styles.vehiclesPromoLeftNarrow]}>
-                  <View style={styles.vehiclesPromoBadge}>
-                    <Ionicons name="flash" size={16} color="#FFD700" />
-                    <Text style={styles.vehiclesPromoBadgeText}>NOUVEAU</Text>
-                  </View>
-                  {vehiclesPromoNarrow ? (
-                    <View>
-                      <Text style={[styles.vehiclesPromoTitle, styles.vehiclesPromoTitleNarrow]}>
-                        Location de
-                      </Text>
-                      <Text style={[styles.vehiclesPromoTitle, styles.vehiclesPromoTitleSecondLine]}>
-                        véhicules
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.vehiclesPromoTitle}>Location de véhicules</Text>
-                  )}
-                  <Text
-                    style={[
-                      styles.vehiclesPromoSubtitle,
-                      vehiclesPromoNarrow && styles.vehiclesPromoSubtitleNarrow,
-                    ]}
-                  >
-                    Explorez la Côte d&apos;Ivoire à votre rythme
-                  </Text>
-                  <Text
-                    style={[
-                      styles.vehiclesPromoDescription,
-                      vehiclesPromoNarrow && styles.vehiclesPromoDescriptionNarrow,
-                    ]}
-                  >
-                    Trouvez le véhicule parfait pour votre voyage. Des voitures, SUV, motos et plus
-                    encore disponibles à la location.
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.vehiclesPromoButton, vehiclesPromoNarrow && styles.vehiclesPromoButtonNarrow]}
-                    onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
-                  >
-                    <Text style={styles.vehiclesPromoButtonText}>Découvrir les véhicules</Text>
-                    <Ionicons name="arrow-forward" size={18} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-                <View style={[styles.vehiclesPromoRight, vehiclesPromoNarrow && styles.vehiclesPromoRightNarrow]}>
-                  <View
-                    style={[
-                      styles.vehiclesPromoIconContainer,
-                      vehiclesPromoNarrow && styles.vehiclesPromoIconContainerNarrow,
-                    ]}
-                  >
-                    <Ionicons name="car-sport" size={vehiclesPromoNarrow ? 40 : 64} color="#2E7D32" />
-                  </View>
-                  <View
-                    style={[styles.vehiclesPromoFeatures, vehiclesPromoNarrow && styles.vehiclesPromoFeaturesNarrow]}
-                  >
-                    <View style={styles.vehiclesPromoFeature}>
-                      <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                      <Text style={styles.vehiclesPromoFeatureText}>Large choix</Text>
-                    </View>
-                    <View style={styles.vehiclesPromoFeature}>
-                      <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                      <Text style={styles.vehiclesPromoFeatureText}>Prix compétitifs</Text>
-                    </View>
-                    <View style={styles.vehiclesPromoFeature}>
-                      <Ionicons name="checkmark-circle" size={16} color="#2E7D32" />
-                      <Text style={styles.vehiclesPromoFeatureText}>Réservation facile</Text>
-                    </View>
-                  </View>
+              <View style={styles.vehiclesPromoScrim} />
+              <View style={styles.vehiclesPromoContent}>
+                <Text style={styles.vehiclesPromoEyebrow}>Location de véhicules</Text>
+                <Text style={styles.vehiclesPromoTitle}>
+                  Abidjan & partout en Côte d'Ivoire
+                </Text>
+                <Text style={styles.vehiclesPromoDescription}>
+                  À la journée ou à l'heure, avec ou sans chauffeur.
+                </Text>
+                <View style={styles.vehiclesPromoButton}>
+                  <Text style={styles.vehiclesPromoButtonText}>Voir les véhicules</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#fff" />
                 </View>
               </View>
-            </View>
-          </View>
+            </ImageBackground>
+          </TouchableOpacity>
         </View>
 
-        {/* Boîtes à clés — propriétaires (aligné site Index.tsx) */}
-        <View style={styles.keyboxSection}>
-          <View style={styles.keyboxCard}>
-            <View style={styles.keyboxVisualWrap}>
-              <View style={styles.keyboxMainImgWrap}>
-                <Image
-                  source={require('../../assets/images/keybox-wall.jpg')}
-                  style={styles.keyboxMainImg}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                />
-              </View>
-              <View style={styles.keyboxInsetWrap}>
-                <View style={styles.keyboxInsetImgWrap}>
-                  <Image
-                    source={require('../../assets/images/keybox-open.jpg')}
-                    style={styles.keyboxInsetImg}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                  />
-                </View>
-                <View style={styles.keyboxInsetBadge}>
-                  <Ionicons name="key" size={14} color="#fff" />
-                </View>
-              </View>
-            </View>
+        {/* Services propriétaires — deux encarts carrés */}
+        <View style={styles.ownerServicesSection}>
+          <Text style={styles.ownerServicesTitle}>Services propriétaires</Text>
+          <Text style={styles.ownerServicesSubtitle}>Conciergerie et équipements pour hôtes</Text>
 
-            <Text style={styles.keyboxKicker}>Propriétaires</Text>
-            <Text style={styles.keyboxTitle}>
-              Résidences meublées :{' '}
-              <Text style={styles.keyboxTitleAccent}>simplifiez votre quotidien</Text>
-            </Text>
-            <Text style={styles.keyboxBody}>
-              Installation de <Text style={styles.keyboxBodyStrong}>boîtes à clés</Text> pour faciliter
-              arrivées et départs, sans surcharger votre planning.
-            </Text>
-            <Text style={styles.keyboxHint}>Arrivée autonome · Moins de trajets · Discret et sécurisé</Text>
+          <View style={styles.ownerServicesGrid}>
+            <TouchableOpacity
+              style={[styles.ownerServiceSquare, { width: bottomServiceCardSize, height: bottomServiceCardSize }]}
+              onPress={() => navigation.navigate('Conciergerie' as never)}
+              activeOpacity={0.9}
+              accessibilityRole="button"
+              accessibilityLabel="Conciergerie — Gestion locative"
+            >
+              <ImageBackground
+                source={require('../../assets/images/property-1.jpg')}
+                style={styles.ownerServiceSquareBg}
+                resizeMode="cover"
+              >
+                <View style={styles.ownerServiceSquareScrim} />
+                <View style={styles.ownerServiceSquareContent}>
+                  <View style={styles.ownerServiceSquareIcon}>
+                    <Ionicons name="business-outline" size={22} color="#fff" />
+                  </View>
+                  <Text style={styles.ownerServiceSquareLabel}>Conciergerie</Text>
+                  <Text style={styles.ownerServiceSquareTitle}>Gestion locative</Text>
+                  <Text style={styles.ownerServiceSquareDesc}>
+                    Accueil, ménage et suivi pour propriétaires.
+                  </Text>
+                  <View style={styles.ownerServiceSquareCta}>
+                    <Text style={styles.ownerServiceSquareCtaText}>Découvrir</Text>
+                    <Ionicons name="arrow-forward" size={14} color="#fff" />
+                  </View>
+                </View>
+              </ImageBackground>
+            </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.keyboxWaBtn}
+              style={[styles.ownerServiceSquare, { width: bottomServiceCardSize, height: bottomServiceCardSize }]}
               onPress={openKeyboxWhatsApp}
-              activeOpacity={0.85}
+              activeOpacity={0.9}
               accessibilityRole="link"
-              accessibilityLabel="Écrire sur WhatsApp pour les boîtes à clés"
+              accessibilityLabel="Boîtes à clés — Contact WhatsApp"
             >
-              <Ionicons name="logo-whatsapp" size={22} color="#fff" />
-              <Text style={styles.keyboxWaBtnText}>Écrire sur WhatsApp</Text>
-            </TouchableOpacity>
-            <Text style={styles.keyboxWaFoot}>Réponse sous 24h · sans engagement</Text>
-          </View>
-        </View>
-
-        <View style={styles.conciergeriePromoSection}>
-          <TouchableOpacity
-            style={styles.conciergeriePromoCard}
-            onPress={() => navigation.navigate('Conciergerie' as never)}
-            activeOpacity={0.9}
-          >
-            <View style={styles.conciergeriePromoBackground}>
-              <View style={styles.conciergeriePromoGradient} />
-              <View style={styles.conciergeriePromoCircle1} />
-              <View style={styles.conciergeriePromoCircle2} />
-            </View>
-
-            <View style={styles.conciergeriePromoContent}>
-              <View style={styles.conciergeriePromoLeft}>
-                <View style={styles.conciergeriePromoIconContainer}>
-                  <Ionicons name="sparkles" size={32} color="#FFFFFF" />
-                </View>
-                <View style={styles.conciergeriePromoTextContainer}>
-                  <View style={styles.conciergeriePromoBadgeRow}>
-                    <View style={styles.conciergeriePromoBadge}>
-                      <Text style={styles.conciergeriePromoBadgeText}>✨ NOUVEAUTÉ</Text>
-                    </View>
+              <ImageBackground
+                source={require('../../assets/images/keybox-wall.jpg')}
+                style={styles.ownerServiceSquareBg}
+                resizeMode="cover"
+              >
+                <View style={styles.ownerServiceSquareScrim} />
+                <View style={styles.ownerServiceSquareContent}>
+                  <View style={styles.ownerServiceSquareIcon}>
+                    <Ionicons name="key-outline" size={22} color="#fff" />
                   </View>
-                  <Text style={styles.conciergeriePromoTitle}>Service de Conciergerie AkwaHome</Text>
-                  <Text style={styles.conciergeriePromoDescription}>
-                    Maximisez vos revenus de <Text style={styles.conciergeriePromoHighlight}>+65%</Text>{' '}
-                    sans effort • Support{' '}
-                    <Text style={styles.conciergeriePromoHighlight}>24h/7j</Text> • Satisfaction{' '}
-                    <Text style={styles.conciergeriePromoHighlight}>98%</Text>
+                  <Text style={styles.ownerServiceSquareLabel}>Propriétaires</Text>
+                  <Text style={styles.ownerServiceSquareTitle}>Boîtes à clés</Text>
+                  <Text style={styles.ownerServiceSquareDesc}>
+                    Check-in autonome, installation discrète.
                   </Text>
+                  <View style={styles.ownerServiceSquareWaBtn}>
+                    <Ionicons name="logo-whatsapp" size={16} color="#fff" />
+                    <Text style={styles.ownerServiceSquareWaBtnText}>WhatsApp</Text>
+                  </View>
                 </View>
-              </View>
-              <View style={styles.conciergeriePromoRight}>
-                <View style={styles.conciergeriePromoArrowContainer}>
-                  <Ionicons name="arrow-forward" size={24} color="#e67e22" />
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
+              </ImageBackground>
+            </TouchableOpacity>
+          </View>
         </View>
       </>
     ),
-    [navigation, openKeyboxWhatsApp, vehiclesPromoNarrow],
+    [navigation, openKeyboxWhatsApp, bottomServiceCardSize],
   );
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingBottom: 20 + TEDDY_FAB_SCROLL_PADDING }],
@@ -759,491 +665,165 @@ const styles = StyleSheet.create({
     color: '#dc3545',
   },
   vehiclesPromoSection: {
-    marginHorizontal: 20,
-    marginVertical: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-    overflow: 'hidden',
+    marginHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
+    marginTop: 8,
+    marginBottom: 16,
   },
-  vehiclesPromoBackground: {
-    width: '100%',
-    minHeight: 220,
-    borderRadius: 16,
+  vehiclesPromoCard: {
     overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#0f172a',
-  },
-  vehiclesPromoBackgroundNarrow: {
-    minHeight: 280,
+    backgroundColor: '#1e293b',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15, 23, 42, 0.12)',
   },
   vehiclesPromoBgImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
     width: '100%',
-    height: '100%',
+    minHeight: 200,
+    justifyContent: 'flex-end',
   },
-  vehiclesPromoOverlay: {
-    backgroundColor: 'rgba(7, 16, 24, 0.55)',
-    padding: 20,
-    borderRadius: 16,
-    minHeight: 220,
-  },
-  vehiclesPromoOverlayNarrow: {
-    minHeight: 260,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+  vehiclesPromoScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.38)',
   },
   vehiclesPromoContent: {
-    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 18,
+    gap: 6,
   },
-  vehiclesPromoContentNarrow: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-  },
-  vehiclesPromoLeft: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  vehiclesPromoLeftNarrow: {
-    paddingRight: 0,
-    width: '100%',
-  },
-  vehiclesPromoTitleNarrow: {
-    fontSize: 22,
-    marginBottom: 0,
-    lineHeight: 26,
-  },
-  vehiclesPromoTitleSecondLine: {
-    fontSize: 22,
-    marginBottom: 8,
-    lineHeight: 26,
-  },
-  vehiclesPromoSubtitleNarrow: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  vehiclesPromoDescriptionNarrow: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  vehiclesPromoButtonNarrow: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignSelf: 'stretch',
-    justifyContent: 'center',
-  },
-  vehiclesPromoBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF9E6',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 12,
-    gap: 4,
-  },
-  vehiclesPromoBadgeText: {
+  vehiclesPromoEyebrow: {
     fontSize: 11,
-    fontWeight: 'bold',
-    color: '#FF8C00',
-    letterSpacing: 0.5,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 2,
   },
   vehiclesPromoTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  vehiclesPromoSubtitle: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: '600',
-    color: '#FFD700',
-    marginBottom: 12,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    color: '#FFFFFF',
+    lineHeight: 26,
+    letterSpacing: -0.3,
   },
   vehiclesPromoDescription: {
+    marginTop: 2,
+    marginBottom: 8,
     fontSize: 14,
     fontWeight: '400',
-    color: '#FFFFFF',
+    color: 'rgba(255, 255, 255, 0.85)',
     lineHeight: 20,
-    marginBottom: 16,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
   },
   vehiclesPromoButton: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#2E7D32',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
-    gap: 8,
-    shadowColor: '#2E7D32',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    backgroundColor: VEHICLE_COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
+    marginTop: 4,
   },
   vehiclesPromoButtonText: {
     color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  vehiclesPromoRight: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: 12,
-  },
-  vehiclesPromoRightNarrow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: 0,
-    paddingTop: 12,
-    marginTop: 4,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.25)',
-    width: '100%',
-  },
-  vehiclesPromoIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#f0f8f0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  vehiclesPromoIconContainerNarrow: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    marginBottom: 0,
-    marginRight: 8,
-  },
-  vehiclesPromoFeatures: {
-    gap: 8,
-  },
-  vehiclesPromoFeaturesNarrow: {
-    flex: 1,
-    minWidth: 0,
-  },
-  vehiclesPromoFeature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  vehiclesPromoFeatureText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '500',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  keyboxSection: {
+  ownerServicesSection: {
     marginHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
     marginTop: 4,
-    marginBottom: 4,
-  },
-  keyboxCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    padding: 16,
-    overflow: 'hidden',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  keyboxVisualWrap: {
-    position: 'relative',
-    width: '100%',
-    maxWidth: 240,
-    alignSelf: 'center',
-    marginBottom: 16,
-    paddingBottom: 36,
-  },
-  keyboxMainImgWrap: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e7e5e4',
-    backgroundColor: '#f8fafc',
-  },
-  keyboxMainImg: {
-    width: '100%',
-    height: 152,
-  },
-  keyboxInsetWrap: {
-    position: 'absolute',
-    bottom: 6,
-    right: -4,
-    width: '56%',
-    maxWidth: 132,
-  },
-  keyboxInsetImgWrap: {
-    borderRadius: 10,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(46, 125, 50, 0.35)',
-    backgroundColor: '#fff',
-  },
-  keyboxInsetImg: {
-    width: '100%',
-    height: 88,
-  },
-  keyboxInsetBadge: {
-    position: 'absolute',
-    left: -8,
-    top: -8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#2E7D32',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  keyboxKicker: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    color: '#2E7D32',
-    textTransform: 'uppercase',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  keyboxTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a',
-    lineHeight: 24,
-    textAlign: 'center',
     marginBottom: 8,
   },
-  keyboxTitleAccent: {
-    color: '#2E7D32',
-    fontWeight: '700',
-  },
-  keyboxBody: {
-    fontSize: 14,
-    color: '#64748b',
-    lineHeight: 21,
-    textAlign: 'center',
-  },
-  keyboxBodyStrong: {
+  ownerServicesTitle: {
+    fontSize: 18,
     fontWeight: '600',
     color: '#0f172a',
+    letterSpacing: -0.2,
   },
-  keyboxHint: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#94a3b8',
-    textAlign: 'center',
+  ownerServicesSubtitle: {
+    marginTop: 2,
+    marginBottom: 12,
+    fontSize: 14,
+    color: '#64748b',
   },
-  keyboxWaBtn: {
+  ownerServicesGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#25D366',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 999,
-    marginTop: 14,
-    alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  keyboxWaBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  keyboxWaFoot: {
-    marginTop: 10,
-    fontSize: 11,
-    color: '#94a3b8',
-    textAlign: 'center',
-  },
-  conciergeriePromoSection: {
-    marginHorizontal: 20,
-    marginVertical: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-    overflow: 'hidden',
-  },
-  conciergeriePromoCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#ff9800',
-  },
-  conciergeriePromoBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  conciergeriePromoGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#e67e22',
-  },
-  conciergeriePromoCircle1: {
-    position: 'absolute',
-    top: -80,
-    right: -80,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    opacity: 0.3,
-  },
-  conciergeriePromoCircle2: {
-    position: 'absolute',
-    bottom: -60,
-    left: -60,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(255, 235, 59, 0.2)',
-    opacity: 0.3,
-  },
-  conciergeriePromoContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    minHeight: 140,
-  },
-  conciergeriePromoLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     gap: 12,
   },
-  conciergeriePromoIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  ownerServiceSquare: {
+    overflow: 'hidden',
+    backgroundColor: '#0f172a',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15, 23, 42, 0.12)',
+  },
+  ownerServiceSquareBg: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-end',
+  },
+  ownerServiceSquareScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+  },
+  ownerServiceSquareContent: {
+    padding: 12,
+    zIndex: 1,
+  },
+  ownerServiceSquareIcon: {
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    marginBottom: 8,
   },
-  conciergeriePromoTextContainer: {
-    flex: 1,
+  ownerServiceSquareLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 2,
   },
-  conciergeriePromoBadgeRow: {
+  ownerServiceSquareTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  ownerServiceSquareDesc: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: 'rgba(255,255,255,0.85)',
+    marginBottom: 10,
+  },
+  ownerServiceSquareCta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    flexWrap: 'wrap',
-    gap: 8,
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
-  conciergeriePromoBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  conciergeriePromoBadgeText: {
-    color: '#FFFFFF',
+  ownerServiceSquareCtaText: {
+    color: '#fff',
     fontSize: 11,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
+    fontWeight: '600',
   },
-  conciergeriePromoTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    lineHeight: 26,
-  },
-  conciergeriePromoDescription: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.95)',
-    lineHeight: 20,
-    fontWeight: '500',
-  },
-  conciergeriePromoHighlight: {
-    fontWeight: 'bold',
-    color: '#FFD700',
-  },
-  conciergeriePromoRight: {
+  ownerServiceSquareWaBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: 12,
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: '#25D366',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
-  conciergeriePromoArrowContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+  ownerServiceSquareWaBtnText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
   },
 });
 
