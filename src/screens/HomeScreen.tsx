@@ -334,15 +334,11 @@ const HomeScreen: React.FC = () => {
               accessibilityLabel="Conciergerie — Gestion locative"
             >
               <ImageBackground
-                source={require('../../assets/images/property-1.jpg')}
+                source={require('../../assets/images/conciergerie.png')}
                 style={styles.ownerServiceSquareBg}
                 resizeMode="cover"
               >
-                <View style={styles.ownerServiceSquareScrim} />
                 <View style={styles.ownerServiceSquareContent}>
-                  <View style={styles.ownerServiceSquareIcon}>
-                    <Ionicons name="business-outline" size={22} color="#fff" />
-                  </View>
                   <Text style={styles.ownerServiceSquareLabel}>Conciergerie</Text>
                   <Text style={styles.ownerServiceSquareTitle}>Gestion locative</Text>
                   <Text style={styles.ownerServiceSquareDesc}>
@@ -368,11 +364,7 @@ const HomeScreen: React.FC = () => {
                 style={styles.ownerServiceSquareBg}
                 resizeMode="cover"
               >
-                <View style={styles.ownerServiceSquareScrim} />
                 <View style={styles.ownerServiceSquareContent}>
-                  <View style={styles.ownerServiceSquareIcon}>
-                    <Ionicons name="key-outline" size={22} color="#fff" />
-                  </View>
                   <Text style={styles.ownerServiceSquareLabel}>Propriétaires</Text>
                   <Text style={styles.ownerServiceSquareTitle}>Boîtes à clés</Text>
                   <Text style={styles.ownerServiceSquareDesc}>
@@ -770,55 +762,48 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'flex-end',
   },
-  ownerServiceSquareScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.42)',
-  },
   ownerServiceSquareContent: {
-    padding: 12,
-    zIndex: 1,
-  },
-  ownerServiceSquareIcon: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingTop: 12,
+    paddingBottom: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
   },
   ownerServiceSquareLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 1,
     textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 2,
+    color: 'rgba(255,255,255,0.88)',
+    marginBottom: 3,
   },
   ownerServiceSquareTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   ownerServiceSquareDesc: {
-    fontSize: 12,
-    lineHeight: 16,
-    color: 'rgba(255,255,255,0.85)',
-    marginBottom: 10,
+    fontSize: 11,
+    lineHeight: 15,
+    color: 'rgba(255,255,255,0.9)',
+    marginBottom: 8,
+    fontWeight: '500',
   },
   ownerServiceSquareCta: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.3)',
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 5,
   },
   ownerServiceSquareCtaText: {
     color: '#fff',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   ownerServiceSquareWaBtn: {
     flexDirection: 'row',
@@ -827,12 +812,12 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: '#25D366',
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 5,
   },
   ownerServiceSquareWaBtnText: {
     color: '#fff',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });
 

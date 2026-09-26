@@ -61,41 +61,43 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
     onPress={onPress}
     activeOpacity={0.92}
   >
-    <View style={[styles.frame, { height: imageHeight }]}>
-      {image}
+    <View style={[styles.frameWrap, { height: imageHeight }]}>
+      <View style={[styles.frame, { height: imageHeight }]}>
+        {image}
 
-      {hasStructuredPromo ? (
-        <View style={styles.promoBadge} pointerEvents="none">
-          <Text style={styles.promoText}>
-            −{promoPercent}% dès {promoMinNights}n
-          </Text>
-        </View>
-      ) : promoLabel ? (
-        <View style={styles.promoBadge} pointerEvents="none">
-          <Text style={styles.promoText} numberOfLines={1}>
-            {promoLabel}
-          </Text>
-        </View>
-      ) : null}
+        {hasStructuredPromo ? (
+          <View style={styles.promoBadge} pointerEvents="none">
+            <Text style={styles.promoText}>
+              −{promoPercent}% dès {promoMinNights} nuit{promoMinNights > 1 ? 's' : ''}
+            </Text>
+          </View>
+        ) : promoLabel ? (
+          <View style={styles.promoBadge} pointerEvents="none">
+            <Text style={styles.promoText} numberOfLines={1}>
+              {promoLabel}
+            </Text>
+          </View>
+        ) : null}
 
-      {onFavoritePress ? (
-        <Pressable
-          style={styles.favorite}
-          onPress={(e) => {
-            e.stopPropagation();
-            onFavoritePress(e);
-          }}
-          disabled={favoriteLoading}
-          hitSlop={12}
-        >
-          <Ionicons
-            name={isFavorited ? 'heart' : 'heart-outline'}
-            size={22}
-            color={isFavorited ? '#e11d48' : '#fff'}
-            style={styles.favoriteIcon}
-          />
-        </Pressable>
-      ) : null}
+        {onFavoritePress ? (
+          <Pressable
+            style={styles.favorite}
+            onPress={(e) => {
+              e.stopPropagation();
+              onFavoritePress(e);
+            }}
+            disabled={favoriteLoading}
+            hitSlop={12}
+          >
+            <Ionicons
+              name={isFavorited ? 'heart' : 'heart-outline'}
+              size={22}
+              color={isFavorited ? '#e11d48' : '#fff'}
+              style={styles.favoriteIcon}
+            />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
 
     <View style={styles.meta} pointerEvents="none">
@@ -131,16 +133,20 @@ const styles = StyleSheet.create({
   shell: {
     width: '100%',
   },
+  frameWrap: {
+    width: '100%',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    backgroundColor: 'transparent',
+  },
   frame: {
     width: '100%',
     borderRadius: EXPLORE_SHELF_IMAGE_RADIUS,
     overflow: 'hidden',
-    backgroundColor: '#ffffff',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    elevation: 6,
+    backgroundColor: '#e2e8f0',
   },
   promoBadge: {
     position: 'absolute',
