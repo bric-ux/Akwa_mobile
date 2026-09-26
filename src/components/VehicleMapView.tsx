@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Vehicle } from '../types';
-import { TRAVELER_COLORS } from '../constants/colors';
+import { VEHICLE_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
 
 interface VehicleMapViewProps {
@@ -88,8 +88,18 @@ const VehicleMapView: React.FC<VehicleMapViewProps> = ({
   <style>
     body { margin: 0; padding: 0; }
     #map { width: 100%; height: 100vh; }
-    .vehicle-marker {
-      background: ${TRAVELER_COLORS.primary};
+    .leaflet-control-attribution { display: none !important; }
+    .vehicle-marker-wrap {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      pointer-events: none;
+    }
+    .vehicle-marker-key {
+      position: absolute;
+      left: 4px;
+      top: 4px;
+      background: ${VEHICLE_COLORS.primary};
       color: white;
       border-radius: 50%;
       width: 40px;
@@ -97,15 +107,32 @@ const VehicleMapView: React.FC<VehicleMapViewProps> = ({
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 2px 8px rgba(230, 126, 34, 0.4);
+      box-shadow: 0 2px 10px rgba(37,99,235,0.4);
       border: 3px solid white;
-      font-size: 20px;
-      font-weight: 700;
+      font-size: 18px;
+      line-height: 1;
     }
     .vehicle-marker-count {
+      position: absolute;
+      top: 0;
+      right: 0;
+      z-index: 2;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: #0f172a;
+      color: #fff;
       font-size: 12px;
       font-weight: 800;
-      margin-top: -2px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid white;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      line-height: 1;
+      box-sizing: border-box;
     }
   </style>
 </head>
@@ -113,14 +140,13 @@ const VehicleMapView: React.FC<VehicleMapViewProps> = ({
   <div id="map"></div>
   <script>
     try {
-      var map = L.map('map').setView([${centerLat}, ${centerLng}], ${zoomLevel});
+      var map = L.map('map', {
+        attributionControl: false,
+      }).setView([${centerLat}, ${centerLng}], ${zoomLevel});
       
       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles © Esri — OpenStreetMap',
+        attribution: '',
         maxZoom: 19,
-      }).addTo(map);
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
       }).addTo(map);
 
       ${userLocation ? `
@@ -137,16 +163,18 @@ const VehicleMapView: React.FC<VehicleMapViewProps> = ({
       const markers = [${markers.length > 0 ? markers.join(',\n          ') : ''}];
       
       markers.forEach(function(markerData) {
-        var keyIcon = markerData.count > 1 
-          ? '<div class="vehicle-marker">🔑<div class="vehicle-marker-count">' + markerData.count + '</div></div>'
-          : '<div class="vehicle-marker">🔑</div>';
+        var keyIcon =
+          '<div class="vehicle-marker-wrap">' +
+            '<div class="vehicle-marker-key">🔑</div>' +
+            '<span class="vehicle-marker-count">' + markerData.count + '</span>' +
+          '</div>';
         
         var marker = L.marker(markerData.position, {
           icon: L.divIcon({
-            className: 'vehicle-marker',
+            className: '',
             html: keyIcon,
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
+            iconSize: [48, 48],
+            iconAnchor: [24, 24]
           })
         }).addTo(map);
 

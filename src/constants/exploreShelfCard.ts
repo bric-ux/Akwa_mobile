@@ -15,9 +15,14 @@ export const EXPLORE_SHELF_IMAGE_RADIUS = 0;
 /** Marge horizontale standard des cartes liste (16 + 16). */
 const LIST_CARD_SIDE_MARGIN = 32;
 
-/** Format 3:2 pour les cartes résultats recherche (aligné site web). */
+/** Format 3:2 pour les cartes résultats recherche logements. */
 export const LIST_CARD_IMAGE_HEIGHT = Math.round(
   (SCREEN_W - LIST_CARD_SIDE_MARGIN) * (2 / 3),
+);
+
+/** Format 4:3 pour les cartes liste ExploreShelf (véhicules, aligné site web). */
+export const LIST_SHELF_IMAGE_HEIGHT = Math.round(
+  (SCREEN_W - LIST_CARD_SIDE_MARGIN) * (3 / 4),
 );
 
 /** Titre court sur une ligne (avec note à droite sur la carte). */

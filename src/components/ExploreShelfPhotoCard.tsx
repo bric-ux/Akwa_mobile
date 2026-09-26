@@ -26,6 +26,8 @@ type ExploreShelfPhotoCardProps = {
   /** Sous le titre (ex. étoiles hôtel). */
   subtitle?: string;
   imageHeight?: number;
+  /** Accueil carrousel portrait ; liste recherche (prix sur l’image). */
+  imageAspect?: 'shelf' | 'list';
   image: React.ReactNode;
   onFavoritePress?: (e: { stopPropagation: () => void }) => void;
   isFavorited?: boolean;
@@ -43,12 +45,14 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
   promoMinNights,
   subtitle,
   imageHeight = EXPLORE_SHELF_IMAGE_HEIGHT,
+  imageAspect = 'shelf',
   image,
   onFavoritePress,
   isFavorited = false,
   favoriteLoading = false,
   style,
 }) => {
+  const isList = imageAspect === 'list';
   const hasStructuredPromo =
     typeof promoPercent === 'number' &&
     promoPercent > 0 &&
@@ -61,21 +65,46 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
     onPress={onPress}
     activeOpacity={0.92}
   >
-    <View style={[styles.frameWrap, { height: imageHeight }]}>
+    <View
+      style={[
+        styles.frameWrap,
+        isList && styles.frameWrapList,
+        { height: imageHeight },
+      ]}
+    >
       <View style={[styles.frame, { height: imageHeight }]}>
         {image}
 
-        {hasStructuredPromo ? (
+        {!isList && hasStructuredPromo ? (
           <View style={styles.promoBadge} pointerEvents="none">
             <Text style={styles.promoText}>
               −{promoPercent}% dès {promoMinNights} nuit{promoMinNights > 1 ? 's' : ''}
             </Text>
           </View>
-        ) : promoLabel ? (
+        ) : null}
+
+        {!isList && !hasStructuredPromo && promoLabel ? (
           <View style={styles.promoBadge} pointerEvents="none">
             <Text style={styles.promoText} numberOfLines={1}>
               {promoLabel}
             </Text>
+          </View>
+        ) : null}
+
+        {isList && (priceLabel || promoLabel) ? (
+          <View style={styles.listPriceStack} pointerEvents="none">
+            {priceLabel ? (
+              <View style={styles.listPricePill}>
+                <Text style={styles.listPriceText}>{priceLabel}</Text>
+              </View>
+            ) : null}
+            {promoLabel ? (
+              <View style={styles.listPromoPill}>
+                <Text style={styles.listPromoText} numberOfLines={1}>
+                  {promoLabel}
+                </Text>
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -102,7 +131,11 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
 
     <View style={styles.meta} pointerEvents="none">
       <View style={styles.titleRow}>
-        <Text style={styles.metaTitle} numberOfLines={1} ellipsizeMode="tail">
+        <Text
+          style={[styles.metaTitle, isList && styles.metaTitleList]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
           {title}
         </Text>
         {subtitle ? (
@@ -119,7 +152,7 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
           </Text>
         </View>
       ) : null}
-      {priceLabel ? (
+      {!isList && priceLabel ? (
         <Text style={styles.metaPrice} numberOfLines={1}>
           {priceLabel}
         </Text>
@@ -142,6 +175,12 @@ const styles = StyleSheet.create({
     elevation: 4,
     backgroundColor: 'transparent',
   },
+  frameWrapList: {
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 6,
+  },
   frame: {
     width: '100%',
     borderRadius: EXPLORE_SHELF_IMAGE_RADIUS,
@@ -161,6 +200,35 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.1,
+  },
+  listPriceStack: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    maxWidth: '72%',
+    overflow: 'hidden',
+  },
+  listPricePill: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  listPriceText: {
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  listPromoPill: {
+    backgroundColor: '#ff6b35',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignItems: 'center',
+  },
+  listPromoText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
   },
   favorite: {
     position: 'absolute',
@@ -194,6 +262,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 18,
     letterSpacing: -0.2,
+  },
+  metaTitleList: {
+    fontSize: 15,
+    lineHeight: 20,
   },
   metaSubtitle: {
     flexShrink: 0,

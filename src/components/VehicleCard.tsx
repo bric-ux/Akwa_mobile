@@ -1,28 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-  ScrollView,
-  Dimensions,
-  InteractionManager,
-  Alert,
-} from 'react-native';
-import AppVideo from './AppVideo';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
 import { Vehicle } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
-import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicleFavorites } from '../hooks/useVehicleFavorites';
 import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import MediaThumb from './MediaThumb';
+import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 import { getVehicleCoverUrl, getVehicleGalleryUrls, isVideoUrl } from '../utils/media';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { formatCardLocationLabel } from '../utils/locationLabel';
+import {
+  LIST_SHELF_IMAGE_HEIGHT,
+  formatExploreShelfHeadline,
+  formatExploreShelfRatingSubtitle,
+} from '../constants/exploreShelfCard';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -30,48 +20,33 @@ interface VehicleCardProps {
   variant?: 'grid' | 'list';
 }
 
-const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = 'list' }) => {
+const VehicleCard: React.FC<VehicleCardProps> = ({
+  vehicle,
+  onPress,
+  variant = 'list',
+}) => {
   const { formatPrice } = useCurrency();
-  const { t } = useLanguage();
   const { requireAuthForFavorites } = useAuthRedirect();
-  const { toggleFavorite, isFavoriteSync, loading: favoriteLoading, cacheVersion, refreshCache } = useVehicleFavorites();
-  const [showImageGallery, setShowImageGallery] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const galleryScrollViewRef = useRef<ScrollView>(null);
+  const {
+    toggleFavorite,
+    isFavoriteSync,
+    loading: favoriteLoading,
+    cacheVersion,
+    refreshCache,
+  } = useVehicleFavorites();
   const [isFavorited, setIsFavorited] = useState(() => isFavoriteSync(vehicle.id));
 
-  const getVehicleTypeIcon = (type: string) => {
-    switch (type) {
-      case 'car': return 'car-outline';
-      case 'suv': return 'car-sport-outline';
-      case 'van': return 'bus-outline';
-      case 'truck': return 'car-sport-outline';
-      case 'motorcycle': return 'bicycle-outline';
-      case 'scooter': return 'bicycle-outline';
-      case 'bicycle': return 'bicycle-outline';
-      default: return 'car-outline';
-    }
-  };
-
-  const vehicleImages = getVehicleGalleryUrls(vehicle);
-  const coverUri =
-    getVehicleCoverUrl(vehicle) || vehicleImages[0] || 'https://via.placeholder.com/300x200';
-  const hasMultipleImages = vehicleImages.length > 1;
-
-  // Synchroniser l'état des favoris avec le cache quand le cache change ou quand le véhicule change
   useEffect(() => {
     setIsFavorited(isFavoriteSync(vehicle.id));
-  }, [vehicle.id, cacheVersion]);
+  }, [vehicle.id, cacheVersion, isFavoriteSync]);
 
-  const handleFavoritePress = async (e: any) => {
+  const handleFavoritePress = async (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
-    
+
     requireAuthForFavorites(async () => {
       try {
         const newFavoriteState = await toggleFavorite(vehicle.id);
-        // Mettre à jour immédiatement l'état local
         setIsFavorited(newFavoriteState);
-        // Rafraîchir le cache pour s'assurer de la synchronisation
         await refreshCache();
       } catch (error: any) {
         Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
@@ -79,529 +54,69 @@ const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onPress, variant = '
     });
   };
 
-  const handleImagePress = (e: any) => {
-    e.stopPropagation();
-    if (vehicleImages.length > 0) {
-      setCurrentImageIndex(0);
-      setShowImageGallery(true);
+  const vehicleImages = getVehicleGalleryUrls(vehicle);
+  const coverUri =
+    getVehicleCoverUrl(vehicle) || vehicleImages[0] || 'https://via.placeholder.com/300x200';
+
+  const vehicleTitle =
+    [vehicle.brand, vehicle.model, vehicle.year].filter(Boolean).join(' ').trim() ||
+    vehicle.title ||
+    'Véhicule';
+
+  const locationLabel = (() => {
+    if (vehicle.location) {
+      return formatCardLocationLabel(vehicle.location as any) || undefined;
     }
-  };
-
-  // S'assurer que la galerie est correctement positionnée après l'ouverture
-  useEffect(() => {
-    if (showImageGallery) {
-      // Attendre que l'animation du modal soit terminée avant de scroller
-      InteractionManager.runAfterInteractions(() => {
-        setTimeout(() => {
-          if (galleryScrollViewRef.current && currentImageIndex === 0) {
-            galleryScrollViewRef.current.scrollTo({
-              x: 0,
-              animated: false,
-            });
-          }
-        }, 100);
-      });
+    const locationName = (vehicle as any).location_name as string | undefined;
+    if (locationName?.trim()) {
+      return formatCardLocationLabel(locationName) || undefined;
     }
-  }, [showImageGallery, currentImageIndex]);
+    return undefined;
+  })();
 
-  const handlePrevImage = () => {
-    const newIndex = currentImageIndex > 0 ? currentImageIndex - 1 : vehicleImages.length - 1;
-    setCurrentImageIndex(newIndex);
-    galleryScrollViewRef.current?.scrollTo({
-      x: newIndex * SCREEN_WIDTH,
-      animated: true,
-    });
-  };
-
-  const handleNextImage = () => {
-    const newIndex = currentImageIndex < vehicleImages.length - 1 ? currentImageIndex + 1 : 0;
-    setCurrentImageIndex(newIndex);
-    galleryScrollViewRef.current?.scrollTo({
-      x: newIndex * SCREEN_WIDTH,
-      animated: true,
-    });
-  };
+  const imageHeight = LIST_SHELF_IMAGE_HEIGHT;
 
   return (
-    <>
-      <TouchableOpacity
-        style={[styles.container, variant === 'list' && styles.listContainer]}
+    <View style={[styles.outer, variant === 'list' && styles.listOuter]}>
+      <ExploreShelfPhotoCard
         onPress={() => onPress(vehicle)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.cardLayout}>
-          {/* Image */}
-          <View style={styles.imageContainer}>
-            {variant === 'list' ? (
-              // En mode liste, l'image n'est pas cliquable
-              <View style={styles.imageTouchable}>
-                <MediaThumb
-                  uri={coverUri}
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                  isVideo={isVideoUrl(coverUri)}
-                />
-                {hasMultipleImages && (
-                  <View style={styles.imageCountBadge}>
-                    <Ionicons name="images-outline" size={14} color="#fff" />
-                    <Text style={styles.imageCountText}>{vehicleImages.length}</Text>
-                  </View>
-                )}
-              </View>
-            ) : (
-              // En mode grille, l'image est cliquable pour ouvrir la galerie
-              <TouchableOpacity
-                onPress={handleImagePress}
-                activeOpacity={0.9}
-                style={styles.imageTouchable}
-              >
-                <MediaThumb
-                  uri={coverUri}
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                  isVideo={isVideoUrl(coverUri)}
-                />
-                {hasMultipleImages && (
-                  <View style={styles.imageCountBadge}>
-                    <Ionicons name="images-outline" size={14} color="#fff" />
-                    <Text style={styles.imageCountText}>{vehicleImages.length}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-            
-            {/* Prix en overlay */}
-            <View style={styles.priceOverlay}>
-              <Text style={styles.priceText}>
-                {formatPrice(vehicle.price_per_day)}/jour
-              </Text>
-              {vehicle.hourly_rental_enabled && vehicle.price_per_hour && (
-                <Text style={styles.priceTextHourly}>
-                  {formatPrice(vehicle.price_per_hour)}/h
-                </Text>
-              )}
-            </View>
-
-            {/* Badge type de véhicule */}
-            <View style={styles.typeBadge}>
-              <Ionicons name={getVehicleTypeIcon(vehicle.vehicle_type) as any} size={16} color="#fff" />
-              <Text style={styles.typeText}>{vehicle.vehicle_type?.toUpperCase() || 'VEHICULE'}</Text>
-            </View>
-
-            {/* Bouton favoris */}
-            <TouchableOpacity
-              style={[styles.favoriteButton, isFavorited && styles.favoriteButtonActive]}
-              onPress={handleFavoritePress}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={isFavorited ? 'heart' : 'heart-outline'}
-                size={22}
-                color={isFavorited ? '#ef4444' : '#fff'}
-              />
-            </TouchableOpacity>
-          </View>
-        
-        {/* Contenu de la carte */}
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle} numberOfLines={1}>
-            {vehicle.brand || ''} {vehicle.model || ''} {vehicle.year || ''}
-          </Text>
-          
-          {vehicle.title && (
-            <Text style={styles.cardSubtitle} numberOfLines={1}>
-              {vehicle.title}
-            </Text>
-          )}
-          
-          {vehicle.location && (
-            <View style={styles.locationRow}>
-              <Ionicons name="location-outline" size={14} color="#666" />
-              <Text style={styles.cardLocation} numberOfLines={1}>
-                {vehicle.location.name}
-              </Text>
-            </View>
-          )}
-          
-          {/* Caractéristiques */}
-          <View style={styles.featuresRow}>
-            <View style={styles.featureItem}>
-              <Ionicons name="people-outline" size={14} color="#666" />
-              <Text style={styles.featureText}>{vehicle.seats || 0} places</Text>
-            </View>
-            {vehicle.transmission && (
-              <View style={styles.featureItem}>
-                <Ionicons name="settings-outline" size={14} color="#666" />
-                <Text style={styles.featureText}>
-                  {vehicle.transmission === 'automatic' ? 'Automatique' : 'Manuelle'}
-                </Text>
-              </View>
-            )}
-            {vehicle.fuel_type && (
-              <View style={styles.featureItem}>
-                <Ionicons name="flash-outline" size={14} color="#666" />
-                <Text style={styles.featureText}>{vehicle.fuel_type || ''}</Text>
-              </View>
-            )}
-          </View>
-          
-          {/* Note */}
-          {vehicle.rating > 0 && (
-            <View style={styles.ratingRow}>
-              <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={styles.ratingText}>
-                {vehicle.rating.toFixed(1)} ({vehicle.review_count} avis)
-              </Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-
-    {/* Modal Galerie d'images */}
-    <Modal
-      visible={showImageGallery}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={() => setShowImageGallery(false)}
-    >
-      <SafeAreaView style={styles.galleryModalContainer} edges={['top']}>
-        <View style={styles.galleryHeader}>
-          <Text style={styles.galleryTitle} numberOfLines={1}>
-            {vehicle.title || `${vehicle.brand} ${vehicle.model}`}
-          </Text>
-          <TouchableOpacity
-            style={styles.galleryCloseButton}
-            onPress={() => setShowImageGallery(false)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.galleryImageContainer} pointerEvents="box-none">
-          <ScrollView
-            ref={galleryScrollViewRef}
-            horizontal
-            pagingEnabled
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(event) => {
-              const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-              setCurrentImageIndex(index);
-            }}
-            style={styles.galleryScrollView}
-            contentContainerStyle={styles.galleryScrollContent}
-          >
-            {vehicleImages.map((imageUrl, index) => (
-              <View key={index} style={styles.galleryImageWrapper}>
-                {isVideoUrl(imageUrl) ? (
-                  <AppVideo
-                    source={{ uri: imageUrl }}
-                    style={styles.galleryImage}
-                    contentFit="contain"
-                    nativeControls
-                    shouldPlay={false}
-                  />
-                ) : (
-                  <Image
-                    source={{ uri: imageUrl }}
-                    style={styles.galleryImage}
-                    resizeMode="contain"
-                  />
-                )}
-              </View>
-            ))}
-          </ScrollView>
-
-          {hasMultipleImages && (
-            <>
-              <TouchableOpacity
-                style={[styles.galleryNavButton, styles.galleryNavButtonLeft]}
-                onPress={handlePrevImage}
-              >
-                <Ionicons name="chevron-back" size={32} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.galleryNavButton, styles.galleryNavButtonRight]}
-                onPress={handleNextImage}
-              >
-                <Ionicons name="chevron-forward" size={32} color="#fff" />
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-
-        {hasMultipleImages && (
-          <View style={styles.galleryFooter}>
-            <View style={styles.galleryCounter}>
-              <Text style={styles.galleryCounterText}>
-                {currentImageIndex + 1} / {vehicleImages.length}
-              </Text>
-            </View>
-          </View>
-        )}
-      </SafeAreaView>
-    </Modal>
-    </>
+        imageAspect="list"
+        imageHeight={imageHeight}
+        title={formatExploreShelfHeadline({
+          title: vehicleTitle,
+          typeLabel: 'Véhicule',
+        })}
+        location={locationLabel}
+        subtitle={formatExploreShelfRatingSubtitle(vehicle.rating, vehicle.review_count)}
+        priceLabel={`${formatPrice(vehicle.price_per_day || 0)}/jour`}
+        onFavoritePress={handleFavoritePress}
+        isFavorited={isFavorited}
+        favoriteLoading={favoriteLoading}
+        image={
+          <MediaThumb
+            uri={coverUri}
+            style={{ width: '100%', height: imageHeight }}
+            resizeMode="cover"
+            contentPosition="center"
+            fitWholeImage
+            isVideo={isVideoUrl(coverUri)}
+            priority="low"
+            recyclingKey={`${vehicle.id}-list-cover`}
+          />
+        }
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-    overflow: 'hidden',
-  },
-  listContainer: {
-    marginHorizontal: 20,
-    marginBottom: 15,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  cardLayout: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  imageContainer: {
-    position: 'relative',
-  },
-  imageTouchable: {
+  outer: {
     width: '100%',
-    height: 200,
-    position: 'relative',
   },
-  cardImage: {
-    width: '100%',
-    height: 200,
-  },
-  imageCountBadge: {
-    position: 'absolute',
-    bottom: 12,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
-  },
-  imageCountText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  priceOverlay: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: 'flex-end',
-  },
-  priceText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  priceTextHourly: {
-    color: '#e67e22',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  typeBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: 'rgba(46, 125, 50, 0.9)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  typeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  favoriteButton: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  favoriteButtonActive: {
-    borderColor: '#ef4444',
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-  },
-  cardContent: {
-    padding: 16,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  listOuter: {
+    marginHorizontal: 16,
     marginBottom: 12,
-    gap: 4,
-  },
-  cardLocation: {
-    fontSize: 14,
-    color: '#666',
-  },
-  featuresRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 12,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  featureText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  galleryModalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-  },
-  galleryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    zIndex: 1000,
-    elevation: 1000, // Pour Android
-  },
-  galleryTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-    marginRight: 16,
-  },
-  galleryCloseButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    zIndex: 1001,
-    elevation: 1001, // Pour Android
-  },
-  galleryImageContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  galleryScrollView: {
-    flex: 1,
-  },
-  galleryScrollContent: {
-    alignItems: 'center',
-  },
-  galleryImageWrapper: {
-    width: SCREEN_WIDTH,
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  galleryImage: {
-    width: SCREEN_WIDTH,
-    height: '100%',
-  },
-  galleryNavButton: {
-    position: 'absolute',
-    top: '50%',
-    transform: [{ translateY: -20 }],
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  galleryNavButtonLeft: {
-    left: 16,
-  },
-  galleryNavButtonRight: {
-    right: 16,
-  },
-  galleryFooter: {
-    padding: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    alignItems: 'center',
-  },
-  galleryCounter: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  galleryCounterText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
 
 export default VehicleCard;
-
-
-
-
-
