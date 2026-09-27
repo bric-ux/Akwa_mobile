@@ -624,7 +624,8 @@ const styles = StyleSheet.create({
   },
   exploreRowContent: {
     paddingLeft: EXPLORE_GUTTER,
-    paddingRight: EXPLORE_GUTTER,
+    /** Plus d’air à droite pour ne pas coller la dernière carte au bord. */
+    paddingRight: EXPLORE_GUTTER + 16,
     paddingBottom: 4,
   },
   exploreCardWrap: {

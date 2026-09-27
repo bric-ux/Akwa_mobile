@@ -4,7 +4,7 @@ const SCREEN_W = Dimensions.get('window').width;
 
 /** Largeur carte portrait sur l'accueil (carrousels horizontaux). */
 export const EXPLORE_SHELF_CARD_WIDTH = Math.round(
-  Math.max(168, Math.min(SCREEN_W * 0.46, 200)),
+  Math.max(160, Math.min(SCREEN_W * 0.42, 184)),
 );
 
 /** Ratio 3:4 portrait — format cartes accueil. */

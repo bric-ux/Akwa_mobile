@@ -14,7 +14,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  TouchableWithoutFeedback,
   Image,
   Alert,
 } from 'react-native';
@@ -45,6 +44,7 @@ import { VEHICLE_COLORS, TRAVELER_COLORS } from '../constants/colors';
 import VehicleMapView from '../components/VehicleMapView';
 import CurrencyBadge from '../components/CurrencyBadge';
 import { VehicleType } from '../types';
+import { resolvePreciseLocationFromDevice } from '../lib/geolocation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -78,6 +78,7 @@ const VehiclesScreen: React.FC = () => {
   const [locationSearchQuery, setLocationSearchQuery] = useState('');
   const [locationSearchResults, setLocationSearchResults] = useState<LocationResult[]>([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
   const [shouldFocusInput, setShouldFocusInput] = useState(false);
   const locationInputRef = useRef<TextInput>(null);
   const { searchLocations, getPopularLocations } = useLocationSearch();
@@ -445,23 +446,32 @@ const VehiclesScreen: React.FC = () => {
     setSelectedLocationName(location.name);
     void pushRecentSearch(location.name);
     
-    const isMapPlace =
-      Boolean(location.fromMap) || String(location.id || '').startsWith('osm_');
+    const isGeoOrMapPlace =
+      Boolean(location.fromMap) ||
+      String(location.id || '').startsWith('osm_') ||
+      String(location.id || '').startsWith('geo_');
+    const hasCoords =
+      location.latitude != null &&
+      location.longitude != null &&
+      Number.isFinite(Number(location.latitude)) &&
+      Number.isFinite(Number(location.longitude));
+
+    if (hasCoords) {
+      setUserLocation({
+        lat: Number(location.latitude),
+        lng: Number(location.longitude),
+      });
+    }
+
     const newFilters: VehicleFilters = {
       ...filters,
       locationName: location.name,
       locationId: undefined,
       search: searchQuery.trim() || undefined,
-      centerLat:
-        location.latitude != null && Number.isFinite(Number(location.latitude))
-          ? Number(location.latitude)
-          : undefined,
-      centerLng:
-        location.longitude != null && Number.isFinite(Number(location.longitude))
-          ? Number(location.longitude)
-          : undefined,
+      centerLat: hasCoords ? Number(location.latitude) : undefined,
+      centerLng: hasCoords ? Number(location.longitude) : undefined,
       radiusKm:
-        isMapPlace && location.latitude != null && location.longitude != null
+        isGeoOrMapPlace && hasCoords
           ? filters.radiusKm && filters.radiusKm > 0
             ? filters.radiusKm
             : 12
@@ -491,6 +501,44 @@ const VehiclesScreen: React.FC = () => {
     
     console.log(`🔄 [VehiclesScreen] Localisation sélectionnée - Appel fetchVehicles:`, cleanedFilters);
     fetchVehicles(cleanedFilters);
+  };
+
+  const handleGeolocate = async () => {
+    try {
+      setGeoLoading(true);
+      const result = await resolvePreciseLocationFromDevice();
+      const matched = result.matchedLocation;
+      const label = matched?.name || result.addressLabel;
+      if (!label?.trim()) {
+        Alert.alert('Localisation', 'Impossible de déterminer une destination près de vous.');
+        return;
+      }
+      const type =
+        matched?.type === 'neighborhood' ||
+        matched?.type === 'commune' ||
+        matched?.type === 'city'
+          ? matched.type
+          : 'city';
+      handleLocationSelect({
+        id: matched?.id
+          ? `geo_${matched.id}`
+          : `geo_${result.coords.latitude}_${result.coords.longitude}`,
+        name: label.trim(),
+        type,
+        latitude: result.coords.latitude,
+        longitude: result.coords.longitude,
+        fromMap: true,
+      });
+    } catch (e) {
+      Alert.alert(
+        'Localisation',
+        e instanceof Error
+          ? e.message
+          : 'Impossible d’obtenir votre position. Vérifiez les autorisations GPS.',
+      );
+    } finally {
+      setGeoLoading(false);
+    }
   };
 
   // Charger les villes populaires / historiques quand la modal s'ouvre
@@ -1483,152 +1531,182 @@ const VehiclesScreen: React.FC = () => {
         />
       )}
 
-      {/* Modal de sélection de localisation - Interface intégrée moderne */}
+      {/* Modal localisation — bottom sheet */}
       <Modal
         visible={showSearchModal}
         transparent
         animationType="slide"
         onRequestClose={() => setShowSearchModal(false)}
-        statusBarTranslucent={true}
+        statusBarTranslucent
       >
-        <View style={styles.searchModalSafeArea}>
+        <View style={styles.searchModalRoot}>
+          <TouchableOpacity
+            style={styles.searchModalDim}
+            activeOpacity={1}
+            onPress={() => setShowSearchModal(false)}
+          />
           <KeyboardAvoidingView
-            style={styles.searchModalOverlay}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            style={styles.searchModalSheetWrap}
           >
-            <TouchableOpacity
-              style={styles.searchModalBackdrop}
-              activeOpacity={1}
-              onPress={() => setShowSearchModal(false)}
+            <View
+              style={[
+                styles.searchModalSheet,
+                { paddingBottom: Math.max(insets.bottom, 12) },
+              ]}
             >
-              <TouchableWithoutFeedback>
-                <View style={styles.searchModalContent}>
-                  <View style={[styles.searchModalHeaderSafeArea, { paddingTop: Math.max(insets.top, 8) }]}>
-                    {/* Header */}
-                    <View style={styles.searchModalHeader}>
-                    <View style={styles.searchModalHeaderLeft}>
-                      <Ionicons name="location" size={24} color={TRAVELER_COLORS.primary} />
-                      <Text style={styles.searchModalTitle}>Choisir une localisation</Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => setShowSearchModal(false)}
-                      style={styles.closeBtn}
-                    >
-                      <Ionicons name="close" size={24} color="#0f172a" />
-                    </TouchableOpacity>
-                  </View>
-                  </View>
+              <View style={styles.searchModalHandleRow}>
+                <View style={styles.searchModalHandle} />
+              </View>
 
-                  {/* Champ de recherche intégré */}
-                  <View style={styles.locationSearchContainer}>
-                    <Ionicons name="search" size={20} color="#666" style={styles.locationSearchIcon} />
-                    <TextInput
-                      ref={locationInputRef}
-                      style={styles.locationSearchInput}
-                      placeholder="Rechercher une ville, commune ou quartier..."
-                      placeholderTextColor="#999"
-                      value={locationSearchQuery}
-                      onChangeText={setLocationSearchQuery}
-                      autoFocus={shouldFocusInput}
-                      returnKeyType="search"
-                      blurOnSubmit={false}
-                    />
-                    {isSearchingLocation && (
-                      <ActivityIndicator size="small" color={TRAVELER_COLORS.primary} style={styles.locationSearchLoader} />
-                    )}
-                    {locationSearchQuery.length > 0 && (
-                      <TouchableOpacity
-                        onPress={() => setLocationSearchQuery('')}
-                        style={styles.locationSearchClear}
-                      >
-                        <Ionicons name="close-circle" size={20} color="#999" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {/* Liste des résultats */}
-                  <FlatList
-                    data={locationSearchResults}
-                    keyExtractor={(item) => item.id}
-                    style={styles.locationResultsList}
-                    keyboardShouldPersistTaps="handled"
-                    showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={
-                      !isSearchingLocation && locationSearchQuery.length >= 2 ? (
-                        <View style={styles.locationEmptyContainer}>
-                          <Ionicons name="search" size={48} color="#ccc" />
-                          <Text style={styles.locationEmptyText}>
-                            Aucun résultat pour "{locationSearchQuery}"
-                          </Text>
-                        </View>
-                      ) : !isSearchingLocation && locationSearchQuery.length === 0 ? (
-                        <View style={styles.locationEmptyContainer}>
-                          <Ionicons name="location-outline" size={48} color="#ccc" />
-                          <Text style={styles.locationEmptyText}>
-                            Commencez à taper pour rechercher
-                          </Text>
-                        </View>
-                      ) : null
-                    }
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={styles.locationResultItem}
-                        onPress={() => handleLocationSelect(item)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.locationResultIconContainer}>
-                          <Ionicons
-                            name={
-                              item.fromMap
-                                ? 'map'
-                                : String(item.id).startsWith('recent_')
-                                  ? 'time-outline'
-                                  : item.type === 'city'
-                                    ? 'location'
-                                    : item.type === 'commune'
-                                      ? 'map'
-                                      : 'home'
-                            }
-                            size={22}
-                            color={
-                              item.fromMap
-                                ? '#0ea5e9'
-                                : item.type === 'city'
-                                  ? '#2563eb'
-                                  : item.type === 'commune'
-                                    ? '#10b981'
-                                    : '#64748b'
-                            }
-                          />
-                        </View>
-                        <View style={styles.locationResultContent}>
-                          <Text style={styles.locationResultName}>{item.name}</Text>
-                          <View style={styles.locationResultMeta}>
-                            {item.fromMap && (
-                              <Text style={styles.locationResultType}>Sur la carte</Text>
-                            )}
-                            {!item.fromMap && String(item.id).startsWith('recent_') && (
-                              <Text style={styles.locationResultType}>Recherche récente</Text>
-                            )}
-                            {!item.fromMap && !String(item.id).startsWith('recent_') && item.type === 'city' && (
-                              <Text style={styles.locationResultType}>Ville</Text>
-                            )}
-                            {!item.fromMap && item.type === 'commune' && (
-                              <Text style={styles.locationResultType}>Commune</Text>
-                            )}
-                            {!item.fromMap && item.type === 'neighborhood' && item.commune && (
-                              <Text style={styles.locationResultType}>{item.commune} • Quartier</Text>
-                            )}
-                          </View>
-                        </View>
-                        <Ionicons name="chevron-forward" size={20} color="#ccc" />
-                      </TouchableOpacity>
-                    )}
-                  />
+              <View style={styles.searchModalHeader}>
+                <View style={styles.searchModalHeaderLeft}>
+                  <Ionicons name="location" size={22} color={VEHICLE_COLORS.primary} />
+                  <Text style={styles.searchModalTitle} numberOfLines={1}>
+                    Choisir une localisation
+                  </Text>
                 </View>
-              </TouchableWithoutFeedback>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setShowSearchModal(false)}
+                  style={styles.closeBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={22} color="#0f172a" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.locationSearchContainer}>
+                <Ionicons name="search" size={20} color="#64748b" style={styles.locationSearchIcon} />
+                <TextInput
+                  ref={locationInputRef}
+                  style={styles.locationSearchInput}
+                  placeholder="Ville, commune ou quartier…"
+                  placeholderTextColor="#94a3b8"
+                  value={locationSearchQuery}
+                  onChangeText={setLocationSearchQuery}
+                  autoFocus={shouldFocusInput}
+                  returnKeyType="search"
+                  blurOnSubmit={false}
+                />
+                {isSearchingLocation && (
+                  <ActivityIndicator
+                    size="small"
+                    color={VEHICLE_COLORS.primary}
+                    style={styles.locationSearchLoader}
+                  />
+                )}
+                {locationSearchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setLocationSearchQuery('')}
+                    style={styles.locationSearchClear}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#94a3b8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={styles.geoBtn}
+                onPress={handleGeolocate}
+                disabled={geoLoading || isSearchingLocation}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Autour de moi"
+              >
+                {geoLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="navigate" size={18} color="#fff" />
+                    <Text style={styles.geoBtnText}>Autour de moi</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <FlatList
+                data={locationSearchResults}
+                keyExtractor={(item) => item.id}
+                style={styles.locationResultsList}
+                contentContainerStyle={styles.locationResultsContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                  !isSearchingLocation && locationSearchQuery.length >= 2 ? (
+                    <View style={styles.locationEmptyContainer}>
+                      <Ionicons name="search" size={48} color="#cbd5e1" />
+                      <Text style={styles.locationEmptyText}>
+                        Aucun résultat pour « {locationSearchQuery} »
+                      </Text>
+                    </View>
+                  ) : !isSearchingLocation && locationSearchQuery.length === 0 ? (
+                    <View style={styles.locationEmptyContainer}>
+                      <Ionicons name="location-outline" size={48} color="#cbd5e1" />
+                      <Text style={styles.locationEmptyText}>
+                        Commencez à taper pour rechercher
+                      </Text>
+                    </View>
+                  ) : null
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.locationResultItem}
+                    onPress={() => handleLocationSelect(item)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.locationResultIconContainer}>
+                      <Ionicons
+                        name={
+                          item.fromMap
+                            ? 'map'
+                            : String(item.id).startsWith('recent_')
+                              ? 'time-outline'
+                              : item.type === 'city'
+                                ? 'location'
+                                : item.type === 'commune'
+                                  ? 'map'
+                                  : 'home'
+                        }
+                        size={22}
+                        color={
+                          item.fromMap
+                            ? '#0ea5e9'
+                            : item.type === 'city'
+                              ? '#2563eb'
+                              : item.type === 'commune'
+                                ? '#10b981'
+                                : '#64748b'
+                        }
+                      />
+                    </View>
+                    <View style={styles.locationResultContent}>
+                      <Text style={styles.locationResultName}>{item.name}</Text>
+                      <View style={styles.locationResultMeta}>
+                        {item.fromMap && (
+                          <Text style={styles.locationResultType}>Sur la carte</Text>
+                        )}
+                        {!item.fromMap && String(item.id).startsWith('recent_') && (
+                          <Text style={styles.locationResultType}>Recherche récente</Text>
+                        )}
+                        {!item.fromMap &&
+                          !String(item.id).startsWith('recent_') &&
+                          item.type === 'city' && (
+                            <Text style={styles.locationResultType}>Ville</Text>
+                          )}
+                        {!item.fromMap && item.type === 'commune' && (
+                          <Text style={styles.locationResultType}>Commune</Text>
+                        )}
+                        {!item.fromMap && item.type === 'neighborhood' && item.commune && (
+                          <Text style={styles.locationResultType}>
+                            {item.commune} • Quartier
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
           </KeyboardAvoidingView>
         </View>
       </Modal>
@@ -2475,73 +2553,80 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
-  searchModalSafeArea: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  searchModalOverlay: {
+  searchModalRoot: {
     flex: 1,
     justifyContent: 'flex-end',
   },
-  searchModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  searchModalDim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
-  searchModalContent: {
+  searchModalSheetWrap: {
+    width: '100%',
+    height: Math.min(Math.round(height * 0.78), height - 48),
+  },
+  searchModalSheet: {
+    flex: 1,
+    width: '100%',
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: '90%',
-    minHeight: '80%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 24,
   },
-  searchModalHeaderSafeArea: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 8,
+  searchModalHandleRow: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 4,
   },
-  searchModalScroll: {
-    flex: 1,
-  },
-  searchModalScrollContent: {
-    paddingBottom: 40,
+  searchModalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#cbd5e1',
   },
   searchModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
+    paddingTop: 8,
+    paddingBottom: 12,
+    gap: 12,
   },
   searchModalHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     flex: 1,
+    minWidth: 0,
   },
   searchModalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#0f172a',
     flex: 1,
   },
   closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f1f5f9',
+  },
+  searchModalHeaderSafeArea: {
+    backgroundColor: '#ffffff',
+  },
+  searchModalScroll: {
+    flex: 1,
+  },
+  searchModalScrollContent: {
+    paddingBottom: 40,
   },
   searchInputs: {
     gap: 24,
@@ -2657,23 +2742,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 8,
-    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 10,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 16,
-    borderWidth: 1.5,
+    borderRadius: 14,
+    borderWidth: 1,
     borderColor: '#e2e8f0',
   },
   locationSearchIcon: {
-    marginRight: 12,
+    marginRight: 10,
   },
   locationSearchInput: {
     flex: 1,
     fontSize: 16,
     color: '#0f172a',
     padding: 0,
+    minWidth: 0,
   },
   locationSearchLoader: {
     marginLeft: 8,
@@ -2682,9 +2768,30 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
+  geoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: VEHICLE_COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  geoBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
   locationResultsList: {
     flex: 1,
-    paddingHorizontal: 20,
+  },
+  locationResultsContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    flexGrow: 1,
   },
   locationResultItem: {
     flexDirection: 'row',
