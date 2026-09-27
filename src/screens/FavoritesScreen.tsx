@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,104 +6,75 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Property, Vehicle } from '../types';
+import { Property, Vehicle, MonthlyRentalListing } from '../types';
 import { useFavorites } from '../hooks/useFavorites';
 import { useVehicleFavorites } from '../hooks/useVehicleFavorites';
+import { useHotelFavorites } from '../hooks/useHotelFavorites';
+import { useMonthlyFavorites } from '../hooks/useMonthlyFavorites';
+import type { HotelEstablishmentPublic } from '../hooks/useApprovedHotelEstablishments';
 import { useAuth } from '../services/AuthContext';
 import PropertyCard from '../components/PropertyCard';
 import VehicleCard from '../components/VehicleCard';
+import HotelEstablishmentCard from '../components/HotelEstablishmentCard';
+import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import GuestModePlaceholder from '../components/GuestModePlaceholder';
 
+type FavTab = 'properties' | 'vehicles' | 'hotels' | 'monthly';
+
 const FavoritesScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute();
   const { user } = useAuth();
-  const { getFavorites, removeFavorite, loading: propertiesLoading } = useFavorites();
-  const { getFavorites: getVehicleFavorites, removeFavorite: removeVehicleFavorite, loading: vehiclesLoading } = useVehicleFavorites();
+  const { getFavorites, loading: propertiesLoading } = useFavorites();
+  const { getFavorites: getVehicleFavorites, loading: vehiclesLoading } = useVehicleFavorites();
+  const { getFavorites: getHotelFavorites, loading: hotelsLoading } = useHotelFavorites();
+  const { getFavorites: getMonthlyFavorites, loading: monthlyLoading } = useMonthlyFavorites();
   const [favorites, setFavorites] = useState<Property[]>([]);
   const [vehicleFavorites, setVehicleFavorites] = useState<Vehicle[]>([]);
-  const [activeTab, setActiveTab] = useState<'properties' | 'vehicles'>('vehicles');
-  
-  // Détecter si on est dans le TabNavigator véhicules
+  const [hotelFavorites, setHotelFavorites] = useState<HotelEstablishmentPublic[]>([]);
+  const [monthlyFavorites, setMonthlyFavorites] = useState<MonthlyRentalListing[]>([]);
+  const [activeTab, setActiveTab] = useState<FavTab>('properties');
+
   const isVehicleFavoritesTab = route.name === 'VehicleFavoritesTab';
-  const loading = propertiesLoading || vehiclesLoading;
+  const loading = propertiesLoading || vehiclesLoading || hotelsLoading || monthlyLoading;
 
   const loadFavorites = async () => {
     try {
-      // Charger les deux types de favoris
-      const [propertiesData, vehiclesData] = await Promise.all([
+      const [propertiesData, vehiclesData, hotelsData, monthlyData] = await Promise.all([
         getFavorites(),
-        getVehicleFavorites()
+        getVehicleFavorites(),
+        getHotelFavorites(),
+        getMonthlyFavorites(),
       ]);
       setFavorites(propertiesData);
       setVehicleFavorites(vehiclesData);
+      setHotelFavorites(hotelsData);
+      setMonthlyFavorites(monthlyData);
     } catch (error) {
       console.error('Erreur lors du chargement des favoris:', error);
       Alert.alert('Erreur', 'Impossible de charger vos favoris');
     }
   };
 
-  // Recharger les favoris quand l'écran devient actif
   useFocusEffect(
     React.useCallback(() => {
       if (user) {
-        loadFavorites();
+        void loadFavorites();
       } else {
         setFavorites([]);
         setVehicleFavorites([]);
+        setHotelFavorites([]);
+        setMonthlyFavorites([]);
       }
-    }, [user])
+    }, [user]),
   );
-
-  const removeFromFavorites = async (propertyId: string) => {
-    Alert.alert(
-      'Supprimer des favoris',
-      'Êtes-vous sûr de vouloir supprimer cette propriété de vos favoris ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeFavorite(propertyId);
-              setFavorites(prev => prev.filter(fav => fav.id !== propertyId));
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Impossible de supprimer des favoris');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const removeVehicleFromFavorites = async (vehicleId: string) => {
-    Alert.alert(
-      'Supprimer des favoris',
-      'Êtes-vous sûr de vouloir supprimer ce véhicule de vos favoris ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeVehicleFavorite(vehicleId);
-              setVehicleFavorites(prev => prev.filter(fav => fav.id !== vehicleId));
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Impossible de supprimer des favoris');
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const handlePropertyPress = (property: Property) => {
     navigation.navigate('PropertyDetails', { propertyId: property.id });
@@ -113,23 +84,14 @@ const FavoritesScreen: React.FC = () => {
     navigation.navigate('VehicleDetails', { vehicleId: vehicle.id });
   };
 
-  const renderFavoriteItem = ({ item }: { item: Property }) => (
-    <PropertyCard
-      property={item}
-      onPress={handlePropertyPress}
-      variant="list"
-    />
-  );
+  const handleHotelPress = (est: HotelEstablishmentPublic) => {
+    navigation.navigate('HotelEstablishmentDetail', { establishmentId: est.id });
+  };
 
-  const renderVehicleFavoriteItem = ({ item }: { item: Vehicle }) => (
-    <VehicleCard
-      vehicle={item}
-      onPress={handleVehiclePress}
-      variant="list"
-    />
-  );
+  const handleMonthlyPress = (listing: MonthlyRentalListing) => {
+    navigation.navigate('MonthlyRentalListingDetail', { listingId: listing.id });
+  };
 
-  // Détecter si on est dans le TabNavigator (FavoritesTab) ou dans le Stack (Favorites)
   const isInTabNavigator = route.name === 'FavoritesTab' || route.name === 'VehicleFavoritesTab';
 
   if (!user) {
@@ -143,7 +105,7 @@ const FavoritesScreen: React.FC = () => {
     );
   }
 
-  if (loading) {
+  if (loading && favorites.length + vehicleFavorites.length + hotelFavorites.length + monthlyFavorites.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <View style={styles.centerContainer}>
@@ -154,14 +116,8 @@ const FavoritesScreen: React.FC = () => {
     );
   }
 
-  // Filtrer les items selon l'onglet actif
-  const getDisplayItems = () => {
-    if (activeTab === 'properties') return favorites;
-    return vehicleFavorites;
-  };
-
-  const displayItems = getDisplayItems();
-  const totalCount = favorites.length + vehicleFavorites.length;
+  const totalCount =
+    favorites.length + vehicleFavorites.length + hotelFavorites.length + monthlyFavorites.length;
 
   if (totalCount === 0) {
     return (
@@ -170,7 +126,8 @@ const FavoritesScreen: React.FC = () => {
           <Ionicons name="heart-outline" size={80} color="#ccc" />
           <Text style={styles.emptyTitle}>Aucun favori</Text>
           <Text style={styles.emptySubtitle}>
-            Explorez nos hébergements et véhicules, puis ajoutez vos favoris en cliquant sur le cœur
+            Explorez résidences, hôtels, longue durée et véhicules, puis ajoutez-les en favoris via
+            le cœur.
           </Text>
         </View>
         {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
@@ -178,44 +135,98 @@ const FavoritesScreen: React.FC = () => {
     );
   }
 
+  const tabs: { key: FavTab; label: string; count: number }[] = [
+    { key: 'properties', label: 'Résidences', count: favorites.length },
+    { key: 'hotels', label: 'Hôtels', count: hotelFavorites.length },
+    { key: 'monthly', label: 'Longue durée', count: monthlyFavorites.length },
+    { key: 'vehicles', label: 'Véhicules', count: vehicleFavorites.length },
+  ];
+
+  const visibleTabs = isVehicleFavoritesTab
+    ? tabs.filter((t) => t.key === 'vehicles')
+    : tabs.filter((t) => t.count > 0 || t.key === activeTab);
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mes Favoris</Text>
         <Text style={styles.headerSubtitle}>
-          {totalCount} favori{totalCount > 1 ? 's' : ''} ({favorites.length} résidence{favorites.length > 1 ? 's' : ''}, {vehicleFavorites.length} véhicule{vehicleFavorites.length > 1 ? 's' : ''})
+          {totalCount} favori{totalCount > 1 ? 's' : ''}
         </Text>
       </View>
 
-      {/* Onglets */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'vehicles' && styles.tabActive]}
-          onPress={() => setActiveTab('vehicles')}
-        >
-          <Text style={[styles.tabText, activeTab === 'vehicles' && styles.tabTextActive]}>
-            Véhicules ({vehicleFavorites.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'properties' && styles.tabActive]}
-          onPress={() => setActiveTab('properties')}
-        >
-          <Text style={[styles.tabText, activeTab === 'properties' && styles.tabTextActive]}>
-            Résidences ({favorites.length})
-          </Text>
-        </TouchableOpacity>
-      </View>
-      
-      <FlatList
-        data={displayItems}
-        renderItem={activeTab === 'vehicles' ? renderVehicleFavoriteItem : renderFavoriteItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.listContainer, { paddingBottom: 80 }]}
-        showsVerticalScrollIndicator={false}
-      />
-      
-      {/* Menu de navigation en bas - seulement si on est dans le Stack, pas dans le TabNavigator */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsScroll}
+        contentContainerStyle={styles.tabsContainer}
+      >
+        {visibleTabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+              {tab.label} ({tab.count})
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {activeTab === 'properties' && (
+        <FlatList
+          data={favorites}
+          renderItem={({ item }) => (
+            <PropertyCard property={item} onPress={handlePropertyPress} variant="list" />
+          )}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: 80 }]}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+      {activeTab === 'hotels' && (
+        <FlatList
+          data={hotelFavorites}
+          renderItem={({ item }) => (
+            <HotelEstablishmentCard
+              establishment={item}
+              onPress={handleHotelPress}
+              variant="list"
+            />
+          )}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: 80 }]}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+      {activeTab === 'monthly' && (
+        <FlatList
+          data={monthlyFavorites}
+          renderItem={({ item }) => (
+            <MonthlyRentalListingCard
+              listing={item}
+              onPress={handleMonthlyPress}
+              variant="list"
+            />
+          )}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: 80 }]}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+      {activeTab === 'vehicles' && (
+        <FlatList
+          data={vehicleFavorites}
+          renderItem={({ item }) => (
+            <VehicleCard vehicle={item} onPress={handleVehiclePress} variant="list" />
+          )}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: 80 }]}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+
       {!isInTabNavigator && <BottomNavigationBar activeScreen="favoris" />}
     </SafeAreaView>
   );
@@ -270,108 +281,21 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 20,
   },
-  favoriteItem: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  favoriteImage: {
-    width: '100%',
-    height: 200,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  favoriteContent: {
-    padding: 16,
-  },
-  favoriteHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  favoriteTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-    marginRight: 10,
-  },
-  removeButton: {
-    padding: 5,
-  },
-  favoriteLocation: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
-  },
-  favoriteDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  favoriteRating: {
-    fontSize: 14,
-    color: '#333',
-  },
-  favoriteGuests: {
-    fontSize: 14,
-    color: '#333',
-  },
-  favoriteFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  favoritePrice: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2E7D32',
-  },
-  amenitiesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  amenity: {
-    fontSize: 12,
-    color: '#666',
-    backgroundColor: '#f0f8f0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 6,
-    marginBottom: 4,
-  },
-  exploreButton: {
-    backgroundColor: '#2E7D32',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  exploreButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  tabsContainer: {
-    flexDirection: 'row',
+  tabsScroll: {
+    maxHeight: 48,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
-    paddingHorizontal: 20,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    alignItems: 'center',
   },
   tab: {
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginRight: 8,
+    paddingHorizontal: 14,
+    marginRight: 4,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -379,7 +303,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#2E7D32',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
     fontWeight: '500',
   },

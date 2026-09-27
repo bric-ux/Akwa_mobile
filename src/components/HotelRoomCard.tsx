@@ -1,7 +1,9 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
 import type { HotelRoomSearchResult } from '../hooks/useApprovedHotelRooms';
 import { useCurrency } from '../hooks/useCurrency';
+import { useHotelFavorites } from '../hooks/useHotelFavorites';
+import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import MediaThumb from './MediaThumb';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 import {
@@ -19,6 +21,29 @@ type Props = {
 /** Carte résultat recherche hôtel — centrée sur le type de chambre. */
 export default function HotelRoomCard({ room, onPress }: Props) {
   const { formatPrice } = useCurrency();
+  const { requireAuthForFavorites } = useAuthRedirect();
+  const { toggleFavorite, isFavoriteSync, loading: favoriteLoading, cacheVersion, refreshCache } =
+    useHotelFavorites();
+  const establishmentId = room.establishment.id;
+  const [isFavorited, setIsFavorited] = useState(() => isFavoriteSync(establishmentId));
+
+  useEffect(() => {
+    setIsFavorited(isFavoriteSync(establishmentId));
+  }, [establishmentId, cacheVersion, isFavoriteSync]);
+
+  const handleFavoritePress = async (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    requireAuthForFavorites(async () => {
+      try {
+        const next = await toggleFavorite(establishmentId);
+        setIsFavorited(next);
+        await refreshCache();
+      } catch (error: any) {
+        Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
+      }
+    });
+  };
+
   const cover =
     room.images[0] ||
     room.establishment.images[0] ||
@@ -58,6 +83,9 @@ export default function HotelRoomCard({ room, onPress }: Props) {
           room.establishment.review_count,
         )}
         priceLabel={`${formatPrice(room.price_per_night)}/nuit`}
+        onFavoritePress={handleFavoritePress}
+        isFavorited={isFavorited}
+        favoriteLoading={favoriteLoading}
         image={
           <MediaThumb
             uri={cover}

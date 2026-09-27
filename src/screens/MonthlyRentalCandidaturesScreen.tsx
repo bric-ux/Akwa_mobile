@@ -52,8 +52,8 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
 
   const handleAccept = (c: MonthlyRentalCandidature) => {
     Alert.alert(
-      'Accepter la candidature',
-      `Accepter la candidature de ${c.full_name} ?`,
+      'Accepter la visite',
+      `Accepter la demande de visite de ${c.full_name} ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -70,8 +70,8 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
 
   const handleReject = (c: MonthlyRentalCandidature) => {
     Alert.alert(
-      'Refuser la candidature',
-      `Refuser la candidature de ${c.full_name} ?`,
+      'Refuser la visite',
+      `Refuser la demande de visite de ${c.full_name} ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -90,7 +90,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
   const statusLabel = (s: string) => {
     if (s === 'sent') return 'Envoyée';
     if (s === 'viewed') return 'Vue';
-    if (s === 'accepted') return 'Acceptée';
+    if (s === 'accepted') return 'Visite acceptée';
     return 'Refusée';
   };
 
@@ -127,7 +127,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
         </View>
       )}
       <Text style={styles.date}>
-        Candidature du {new Date(item.created_at).toLocaleDateString('fr-FR')}
+        Demande du {new Date(item.created_at).toLocaleDateString('fr-FR')}
       </Text>
       {(item.status === 'sent' || item.status === 'viewed') && (
         <View style={styles.actions}>
@@ -157,7 +157,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Candidatures{listingTitle ? ` · ${listingTitle}` : ''}
+          Demandes de visite{listingTitle ? ` · ${listingTitle}` : ''}
         </Text>
       </View>
       {loading && candidatures.length === 0 ? (
@@ -180,9 +180,9 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={56} color="#ccc" />
-              <Text style={styles.emptyTitle}>Aucune candidature</Text>
+              <Text style={styles.emptyTitle}>Aucune demande de visite</Text>
               <Text style={styles.emptySubtitle}>
-                Les demandes des locataires apparaîtront ici.
+                Les demandes de visite apparaîtront ici.
               </Text>
             </View>
           }

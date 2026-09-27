@@ -1,7 +1,9 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
 import type { MonthlyRentalListing } from '../types';
 import { useCurrency } from '../hooks/useCurrency';
+import { useMonthlyFavorites } from '../hooks/useMonthlyFavorites';
+import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import MediaThumb from './MediaThumb';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 import {
@@ -32,13 +34,37 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
   variant = 'list',
 }) => {
   const { formatPrice } = useCurrency();
+  const { requireAuthForFavorites } = useAuthRedirect();
+  const { toggleFavorite, isFavoriteSync, loading: favoriteLoading, cacheVersion, refreshCache } =
+    useMonthlyFavorites();
+  const [isFavorited, setIsFavorited] = useState(() => isFavoriteSync(listing.id));
+
+  useEffect(() => {
+    setIsFavorited(isFavoriteSync(listing.id));
+  }, [listing.id, cacheVersion, isFavoriteSync]);
+
+  const handleFavoritePress = async (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    requireAuthForFavorites(async () => {
+      try {
+        const next = await toggleFavorite(listing.id);
+        setIsFavorited(next);
+        await refreshCache();
+      } catch (error: any) {
+        Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
+      }
+    });
+  };
+
   const imageUri = coverUri(listing);
   const typeLabel = 'Longue durée';
   const priceLabel = `${formatPrice(listing.monthly_rent_price)}/mois`;
   const location = listing.location?.trim() || undefined;
   const detailBits = [
     listing.surface_m2 ? `${listing.surface_m2} m²` : null,
-    listing.number_of_rooms ? `${listing.number_of_rooms} pièce${listing.number_of_rooms > 1 ? 's' : ''}` : null,
+    listing.number_of_rooms
+      ? `${listing.number_of_rooms} pièce${listing.number_of_rooms > 1 ? 's' : ''}`
+      : null,
   ].filter(Boolean);
   const detailLine = detailBits.length > 0 ? detailBits.join(' · ') : undefined;
 
@@ -55,6 +81,9 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
           location={location}
           priceLabel={priceLabel}
           imageHeight={EXPLORE_SHELF_IMAGE_HEIGHT}
+          onFavoritePress={handleFavoritePress}
+          isFavorited={isFavorited}
+          favoriteLoading={favoriteLoading}
           image={
             <MediaThumb
               uri={imageUri}
@@ -84,6 +113,9 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
         detailLine={detailLine}
         location={location}
         priceLabel={priceLabel}
+        onFavoritePress={handleFavoritePress}
+        isFavorited={isFavorited}
+        favoriteLoading={favoriteLoading}
         image={
           <MediaThumb
             uri={imageUri}

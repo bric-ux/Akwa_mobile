@@ -8,6 +8,8 @@ export interface MonthlyRentalListingInput {
   description: string | null;
   location: string;
   location_id?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   property_type?: string | null;
   surface_m2: number;
   number_of_rooms: number;
@@ -88,6 +90,8 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
             description: input.description || null,
             location: input.location,
             location_id: input.location_id || null,
+            latitude: input.latitude ?? null,
+            longitude: input.longitude ?? null,
             property_type: input.property_type || null,
             surface_m2: input.surface_m2,
             number_of_rooms: input.number_of_rooms,

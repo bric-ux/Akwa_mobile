@@ -85,7 +85,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
     }
     Alert.alert(
       'Supprimer le logement',
-      `Supprimer "${item.title}" ?${item.status === 'draft' ? '' : ' Les candidatures associées seront aussi supprimées.'}`,
+      `Supprimer "${item.title}" ?${item.status === 'draft' ? '' : ' Les demandes de visite associées seront aussi supprimées.'}`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -195,7 +195,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
             onPress={() => handleCandidatures(item.id)}
           >
             <Ionicons name="people-outline" size={20} color="#2E7D32" />
-            <Text style={styles.btnCandidaturesText}>Candidatures</Text>
+            <Text style={styles.btnCandidaturesText}>Demandes de visite</Text>
           </TouchableOpacity>
         )}
         {(item.status === 'pending' || item.status === 'approved') && (
@@ -270,7 +270,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
             <Ionicons name="home-outline" size={64} color="#ccc" />
             <Text style={styles.emptyTitle}>Aucun logement</Text>
             <Text style={styles.emptySubtitle}>
-              Ajoutez un logement en location mensuelle pour recevoir des candidatures.
+              Ajoutez un logement en location mensuelle pour recevoir des demandes de visite.
             </Text>
             <TouchableOpacity style={styles.emptyButton} onPress={handleAdd}>
               <Text style={styles.emptyButtonText}>Ajouter un logement</Text>

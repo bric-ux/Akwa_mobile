@@ -20,6 +20,9 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { useMonthlyRentalListings } from '../hooks/useMonthlyRentalListings';
 import CitySearchInputModal from '../components/CitySearchInputModal';
+import PropertyLocationPicker, {
+  type PropertyLocationPickerValue,
+} from '../components/PropertyLocationPicker';
 import { isLocationUuid, matchLocationNearCoords } from '../lib/geolocation';
 import { supabase } from '../services/supabase';
 
@@ -36,6 +39,11 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
   const { createListing, loading } = useMonthlyRentalListings(user?.id);
   const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
   const [locationId, setLocationId] = useState<string | null>(null);
+  const [preciseLocation, setPreciseLocation] = useState<PropertyLocationPickerValue>({
+    coords: null,
+    locationLabel: '',
+    matchedLocation: null,
+  });
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -147,6 +155,8 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
       description: form.description.trim() || null,
       location: form.location.trim(),
       location_id: locationId,
+      latitude: preciseLocation.coords?.latitude ?? null,
+      longitude: preciseLocation.coords?.longitude ?? null,
       property_type: form.property_type || null,
       surface_m2: surface,
       number_of_rooms: rooms,
@@ -166,7 +176,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
     if (result.success) {
       Alert.alert(
         'Succès',
-        'Logement enregistré en brouillon. Passez en mode logement longue durée pour le gérer (soumettre, modifier, candidatures).',
+        'Logement enregistré en brouillon. Passez en mode logement longue durée pour le gérer (soumettre, modifier, demandes de visite).',
         [
           {
             text: 'Mode logement longue durée',
@@ -242,8 +252,51 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
                   }
                 }
                 setLocationId(locId);
+                if (
+                  result.latitude != null &&
+                  result.longitude != null &&
+                  Number.isFinite(Number(result.latitude)) &&
+                  Number.isFinite(Number(result.longitude))
+                ) {
+                  setPreciseLocation({
+                    coords: {
+                      latitude: Number(result.latitude),
+                      longitude: Number(result.longitude),
+                    },
+                    locationLabel: result.name,
+                    matchedLocation: locId
+                      ? {
+                          id: locId,
+                          name: result.name,
+                          type: 'city',
+                          parent_id: null,
+                          latitude: Number(result.latitude),
+                          longitude: Number(result.longitude),
+                        }
+                      : null,
+                  });
+                }
               }}
               placeholder="Ville, commune ou quartier..."
+            />
+          </View>
+          <View style={styles.block}>
+            <Text style={styles.label}>Position précise</Text>
+            <Text style={styles.hint}>
+              Affinez avec le GPS ou en déplaçant le pin sur la carte.
+            </Text>
+            <PropertyLocationPicker
+              value={preciseLocation}
+              onChange={(next) => {
+                setPreciseLocation(next);
+                if (next.matchedLocation?.id && isLocationUuid(next.matchedLocation.id)) {
+                  setLocationId(next.matchedLocation.id);
+                }
+                if (next.locationLabel && !form.location.trim()) {
+                  set('location', next.locationLabel);
+                }
+              }}
+              height={220}
             />
           </View>
           <View style={styles.block}>
@@ -458,6 +511,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
   label: { fontSize: 14, fontWeight: '500', color: '#333', marginBottom: 6 },
+  hint: { fontSize: 12, color: '#666', marginBottom: 8, lineHeight: 17 },
   input: {
     backgroundColor: '#fff',
     borderWidth: 1,

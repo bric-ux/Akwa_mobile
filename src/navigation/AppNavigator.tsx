@@ -489,7 +489,7 @@ const MonthlyRentalOwnerTabNavigator = () => {
       <MonthlyRentalTab.Screen
         name="MonthlyRentalCandidaturesTab"
         component={MonthlyRentalOwnerCandidaturesScreen}
-        options={{ tabBarLabel: 'Candidatures' }}
+        options={{ tabBarLabel: 'Visites' }}
       />
       <MonthlyRentalTab.Screen
         name="MonthlyRentalMessagesTab"
@@ -924,7 +924,7 @@ const AppNavigator = () => {
               name="MonthlyRentalApply"
               component={MonthlyRentalApplyScreen}
               options={{
-                title: 'Candidater',
+                title: 'Demande de visite',
                 headerShown: false,
               }}
             />
@@ -1010,7 +1010,7 @@ const AppNavigator = () => {
             <Stack.Screen 
               name="MonthlyRentalCandidatures" 
               component={MonthlyRentalCandidaturesScreen}
-              options={{ title: 'Candidatures', headerShown: false }}
+              options={{ title: 'Demandes de visite', headerShown: false }}
             />
             <Stack.Screen 
               name="MyProperties" 

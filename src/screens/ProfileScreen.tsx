@@ -422,7 +422,7 @@ const ProfileScreen: React.FC = () => {
       onPress: () => {
         Alert.alert(
           'Mode logement longue durée',
-          'Gérer vos annonces et candidatures pour la location mensuelle.',
+          'Gérer vos annonces et demandes de visite pour la location mensuelle.',
           [
             { text: t('common.cancel'), style: 'cancel' },
             {
@@ -730,7 +730,7 @@ const ProfileScreen: React.FC = () => {
                   onPress={() => {
                     Alert.alert(
                       'Mode logement longue durée',
-                      'Gérer vos annonces et candidatures pour la location mensuelle.',
+                      'Gérer vos annonces et demandes de visite pour la location mensuelle.',
                       [
                         { text: t('common.cancel'), style: 'cancel' },
                         {
@@ -754,7 +754,7 @@ const ProfileScreen: React.FC = () => {
                     </View>
                     <View style={styles.monthlyRentalSpaceTextContainer}>
                       <Text style={styles.monthlyRentalSpaceText}>Mode logement longue durée</Text>
-                      <Text style={styles.monthlyRentalSpaceSubtext}>Gérez vos logements et candidatures</Text>
+                      <Text style={styles.monthlyRentalSpaceSubtext}>Gérez vos logements et demandes de visite</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color="#fff" />
                   </View>

@@ -1,6 +1,8 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
 import type { HotelEstablishmentPublic } from '../hooks/useApprovedHotelEstablishments';
+import { useHotelFavorites } from '../hooks/useHotelFavorites';
+import { useAuthRedirect } from '../hooks/useAuthRedirect';
 import MediaThumb from './MediaThumb';
 import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
 import {
@@ -29,6 +31,28 @@ export default function HotelEstablishmentCard({
   onPress,
   variant = 'list',
 }: Props) {
+  const { requireAuthForFavorites } = useAuthRedirect();
+  const { toggleFavorite, isFavoriteSync, loading: favoriteLoading, cacheVersion, refreshCache } =
+    useHotelFavorites();
+  const [isFavorited, setIsFavorited] = useState(() => isFavoriteSync(establishment.id));
+
+  useEffect(() => {
+    setIsFavorited(isFavoriteSync(establishment.id));
+  }, [establishment.id, cacheVersion, isFavoriteSync]);
+
+  const handleFavoritePress = async (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    requireAuthForFavorites(async () => {
+      try {
+        const next = await toggleFavorite(establishment.id);
+        setIsFavorited(next);
+        await refreshCache();
+      } catch (error: any) {
+        Alert.alert('Erreur', error.message || 'Impossible de modifier les favoris');
+      }
+    });
+  };
+
   const typeLabel = TYPE_LABEL[establishment.establishment_type] || 'Hôtel';
   const imageUri =
     Array.isArray(establishment.images) && establishment.images.length > 0
@@ -56,6 +80,9 @@ export default function HotelEstablishmentCard({
           location={location}
           subtitle={subtitle}
           imageHeight={EXPLORE_SHELF_IMAGE_HEIGHT}
+          onFavoritePress={handleFavoritePress}
+          isFavorited={isFavorited}
+          favoriteLoading={favoriteLoading}
           image={
             <MediaThumb
               uri={imageUri}
@@ -85,6 +112,9 @@ export default function HotelEstablishmentCard({
         location={location}
         subtitle={subtitle}
         priceLabel={typeLabel}
+        onFavoritePress={handleFavoritePress}
+        isFavorited={isFavorited}
+        favoriteLoading={favoriteLoading}
         image={
           <MediaThumb
             uri={imageUri}

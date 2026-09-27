@@ -154,8 +154,8 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
       </ScrollView>
       <View style={styles.footer}>
         <TouchableOpacity style={styles.postulerBtn} onPress={handlePostuler} activeOpacity={0.8}>
-          <Ionicons name="document-text-outline" size={22} color="#fff" />
-          <Text style={styles.postulerBtnText}>Postuler</Text>
+          <Ionicons name="calendar-outline" size={22} color="#fff" />
+          <Text style={styles.postulerBtnText}>Demander une visite</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

@@ -77,7 +77,7 @@ const MonthlyRentalOwnerCandidaturesScreen: React.FC = () => {
       ) : null}
       <Text style={styles.email}>{item.email}</Text>
       <Text style={styles.date}>
-        Candidature du {new Date(item.created_at).toLocaleDateString('fr-FR')}
+        Demande du {new Date(item.created_at).toLocaleDateString('fr-FR')}
       </Text>
       <View style={styles.voirRow}>
         <Text style={styles.voirText}>Voir les détails</Text>
@@ -89,9 +89,9 @@ const MonthlyRentalOwnerCandidaturesScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Candidatures</Text>
+        <Text style={styles.headerTitle}>Demandes de visite</Text>
         <Text style={styles.headerSubtitle}>
-          {candidatures.length} candidature{candidatures.length !== 1 ? 's' : ''} au total
+          {candidatures.length} demande{candidatures.length !== 1 ? 's' : ''} au total
         </Text>
       </View>
       {loading && candidatures.length === 0 ? (
@@ -114,9 +114,9 @@ const MonthlyRentalOwnerCandidaturesScreen: React.FC = () => {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={56} color="#ccc" />
-              <Text style={styles.emptyTitle}>Aucune candidature</Text>
+              <Text style={styles.emptyTitle}>Aucune demande de visite</Text>
               <Text style={styles.emptySubtitle}>
-                Les demandes sur vos logements apparaîtront ici.
+                Les demandes de visite sur vos logements apparaîtront ici.
               </Text>
             </View>
           }

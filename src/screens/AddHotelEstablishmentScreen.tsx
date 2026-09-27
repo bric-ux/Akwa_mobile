@@ -10,14 +10,21 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { HOTEL_COLORS } from '../constants/colors';
 import type { RootStackParamList } from '../types';
+import PropertyLocationPicker, {
+  type PropertyLocationPickerValue,
+} from '../components/PropertyLocationPicker';
+import CitySearchInputModal from '../components/CitySearchInputModal';
+import { isLocationUuid } from '../lib/geolocation';
 
 const ESTABLISHMENT_TYPES = [
   { value: 'hotel', label: 'Hôtel' },
@@ -26,7 +33,28 @@ const ESTABLISHMENT_TYPES = [
   { value: 'aparthotel', label: 'Aparthotel' },
 ] as const;
 
+const MAX_PHOTOS = 20;
+
 type Route = RouteProp<RootStackParamList, 'AddHotelEstablishment'>;
+
+async function uploadHotelImage(uri: string, userId: string): Promise<string> {
+  if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
+  const fileExt = uri.split('.').pop()?.split('?')[0] || 'jpg';
+  const fileName = `hotel/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+  const response = await fetch(uri);
+  if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+  const arrayBuffer = await response.arrayBuffer();
+  const contentType =
+    fileExt === 'png' ? 'image/png' : fileExt === 'gif' ? 'image/gif' : 'image/jpeg';
+  const { error } = await supabase.storage
+    .from('property-images')
+    .upload(fileName, new Uint8Array(arrayBuffer), { contentType, upsert: false });
+  if (error) throw error;
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from('property-images').getPublicUrl(fileName);
+  return publicUrl;
+}
 
 /**
  * Création / édition d’un établissement hôtelier.
@@ -40,11 +68,17 @@ export default function AddHotelEstablishmentScreen() {
   const [title, setTitle] = useState('');
   const [establishmentType, setEstablishmentType] = useState<string>('hotel');
   const [address, setAddress] = useState('');
+  const [addressDetails, setAddressDetails] = useState('');
   const [description, setDescription] = useState('');
-  const [coverUrl, setCoverUrl] = useState('');
+  const [imageUris, setImageUris] = useState<string[]>([]);
   const [status, setStatus] = useState<string>('draft');
   const [loading, setLoading] = useState(!!establishmentId);
   const [saving, setSaving] = useState(false);
+  const [preciseLocation, setPreciseLocation] = useState<PropertyLocationPickerValue>({
+    coords: null,
+    locationLabel: '',
+    matchedLocation: null,
+  });
 
   const load = useCallback(async () => {
     if (!establishmentId || !user) return;
@@ -52,7 +86,9 @@ export default function AddHotelEstablishmentScreen() {
     try {
       const { data, error } = await supabase
         .from('hotel_establishments')
-        .select('title, establishment_type, address, description, status, images')
+        .select(
+          'title, establishment_type, address, address_details, description, status, images, latitude, longitude, location_id',
+        )
         .eq('id', establishmentId)
         .eq('host_id', user.id)
         .maybeSingle();
@@ -65,11 +101,30 @@ export default function AddHotelEstablishmentScreen() {
       setTitle(data.title || '');
       setEstablishmentType(data.establishment_type || 'hotel');
       setAddress(data.address || '');
+      setAddressDetails(data.address_details || '');
       setDescription(data.description || '');
       setStatus(data.status || 'draft');
-      setCoverUrl(
-        Array.isArray(data.images) && data.images[0] ? String(data.images[0]) : '',
+      setImageUris(
+        Array.isArray(data.images) ? data.images.map(String).filter(Boolean) : [],
       );
+      const lat = data.latitude != null ? Number(data.latitude) : NaN;
+      const lng = data.longitude != null ? Number(data.longitude) : NaN;
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        setPreciseLocation({
+          coords: { latitude: lat, longitude: lng },
+          locationLabel: data.address || '',
+          matchedLocation: data.location_id
+            ? {
+                id: data.location_id,
+                name: data.address || '',
+                type: 'city',
+                parent_id: null,
+                latitude: lat,
+                longitude: lng,
+              }
+            : null,
+        });
+      }
     } catch (e) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Chargement impossible');
     } finally {
@@ -80,6 +135,32 @@ export default function AddHotelEstablishmentScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const pickImages = async () => {
+    const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm !== 'granted') {
+      Alert.alert('Permission requise', 'Autorisez l’accès à vos photos.');
+      return;
+    }
+    const limit = MAX_PHOTOS - imageUris.length;
+    if (limit <= 0) {
+      Alert.alert('Limite', `Vous pouvez ajouter jusqu’à ${MAX_PHOTOS} photos.`);
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsMultipleSelection: true,
+      selectionLimit: limit,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.length) {
+      setImageUris((prev) => [...prev, ...result.assets!.map((a) => a.uri)]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImageUris((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async () => {
     if (!user) {
@@ -93,16 +174,35 @@ export default function AddHotelEstablishmentScreen() {
 
     setSaving(true);
     try {
-      const images = coverUrl.trim() ? [coverUrl.trim()] : [];
+      const images: string[] = [];
+      for (const uri of imageUris) {
+        images.push(await uploadHotelImage(uri, user.id));
+      }
+      const locationId =
+        preciseLocation.matchedLocation?.id && isLocationUuid(preciseLocation.matchedLocation.id)
+          ? preciseLocation.matchedLocation.id
+          : null;
+      const lat = preciseLocation.coords?.latitude ?? null;
+      const lng = preciseLocation.coords?.longitude ?? null;
+      const addressValue =
+        address.trim() ||
+        preciseLocation.locationLabel.trim() ||
+        null;
+      const addressDetailsValue = addressDetails.trim() || null;
+
       if (isEdit && establishmentId) {
         const { error } = await supabase
           .from('hotel_establishments')
           .update({
             title: title.trim(),
             establishment_type: establishmentType,
-            address: address.trim() || null,
+            address: addressValue,
+            address_details: addressDetailsValue,
             description: description.trim() || null,
             images,
+            latitude: lat,
+            longitude: lng,
+            location_id: locationId,
             updated_at: new Date().toISOString(),
           })
           .eq('id', establishmentId)
@@ -113,15 +213,19 @@ export default function AddHotelEstablishmentScreen() {
         return;
       }
 
-      const { error } = await supabase
+      const { data: created, error } = await supabase
         .from('hotel_establishments')
         .insert({
           host_id: user.id,
           title: title.trim(),
           establishment_type: establishmentType,
-          address: address.trim() || null,
+          address: addressValue,
+          address_details: addressDetailsValue,
           description: description.trim() || null,
           images,
+          latitude: lat,
+          longitude: lng,
+          location_id: locationId,
           status: 'draft',
         })
         .select('id')
@@ -131,10 +235,20 @@ export default function AddHotelEstablishmentScreen() {
 
       Alert.alert(
         'Établissement créé',
-        'Ajoutez des types de chambres (avec photos) puis publiez depuis Mes établissements.',
+        'Ajoutez maintenant vos types de chambres (ex. 10 chambres Standard, 4 Suites).',
         [
           {
-            text: 'Continuer',
+            text: 'Ajouter des chambres',
+            onPress: () => {
+              navigation.replace('ManageHotelRoomTypes', {
+                establishmentId: created.id,
+                establishmentTitle: title.trim(),
+              });
+            },
+          },
+          {
+            text: 'Plus tard',
+            style: 'cancel',
             onPress: () => {
               navigation.navigate('ModeTransition', {
                 targetMode: 'hotel',
@@ -264,16 +378,79 @@ export default function AddHotelEstablishmentScreen() {
             ))}
           </View>
 
-          <Text style={styles.label}>Adresse</Text>
+          <Text style={styles.label}>Localisation *</Text>
+          <Text style={styles.hint}>
+            Recherchez une ville, commune ou quartier avec autocomplétion.
+          </Text>
+          <CitySearchInputModal
+            value={address}
+            onChange={(result) => {
+              if (!result) {
+                setAddress('');
+                setPreciseLocation({
+                  coords: null,
+                  locationLabel: '',
+                  matchedLocation: null,
+                });
+                return;
+              }
+              setAddress(result.name);
+              const lat = result.latitude != null ? Number(result.latitude) : NaN;
+              const lng = result.longitude != null ? Number(result.longitude) : NaN;
+              const matched =
+                isLocationUuid(result.id)
+                  ? {
+                      id: result.id,
+                      name: result.name,
+                      type: result.type,
+                      parent_id: result.parent_id ?? null,
+                      latitude: Number.isFinite(lat) ? lat : null,
+                      longitude: Number.isFinite(lng) ? lng : null,
+                      region: result.region,
+                      commune: result.commune,
+                      city_id: result.city_id,
+                    }
+                  : null;
+              setPreciseLocation({
+                coords:
+                  Number.isFinite(lat) && Number.isFinite(lng)
+                    ? { latitude: lat, longitude: lng }
+                    : null,
+                locationLabel: result.name,
+                matchedLocation: matched,
+              });
+            }}
+            placeholder="Rechercher ville, commune ou quartier…"
+          />
+
+          <Text style={[styles.label, { marginTop: 16 }]}>Complément d’adresse</Text>
           <TextInput
             style={styles.input}
-            value={address}
-            onChangeText={setAddress}
-            placeholder="Quartier, ville…"
+            value={addressDetails}
+            onChangeText={setAddressDetails}
+            placeholder="Rue, immeuble, repère…"
             placeholderTextColor="#94a3b8"
           />
 
-          <Text style={styles.label}>Description</Text>
+          <Text style={styles.label}>Position sur la carte</Text>
+          <Text style={styles.hint}>
+            Affinez avec le GPS ou en déplaçant le pin après la sélection.
+          </Text>
+          <PropertyLocationPicker
+            value={preciseLocation}
+            onChange={(next) => {
+              setPreciseLocation(next);
+              if (next.locationLabel) {
+                setAddress(next.locationLabel);
+              }
+            }}
+            onLocationLabelChange={(label) => {
+              if (label) setAddress(label);
+            }}
+            height={220}
+          />
+
+          <Text style={[styles.label, { marginTop: 16 }]}>Description</Text>
           <TextInput
             style={[styles.input, styles.textarea]}
             value={description}
@@ -284,15 +461,24 @@ export default function AddHotelEstablishmentScreen() {
             textAlignVertical="top"
           />
 
-          <Text style={styles.label}>Photo établissement (URL)</Text>
-          <TextInput
-            style={styles.input}
-            value={coverUrl}
-            onChangeText={setCoverUrl}
-            autoCapitalize="none"
-            placeholder="https://…"
-            placeholderTextColor="#94a3b8"
-          />
+          <Text style={styles.label}>Photos de l’établissement</Text>
+          <Text style={styles.hint}>Ajoutez vos photos depuis la galerie (max. {MAX_PHOTOS}).</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosRow}>
+            {imageUris.map((uri, index) => (
+              <View key={`${uri}-${index}`} style={styles.photoWrap}>
+                <Image source={{ uri }} style={styles.photoThumb} />
+                <TouchableOpacity style={styles.photoRemove} onPress={() => removeImage(index)}>
+                  <Ionicons name="close-circle" size={22} color="#e74c3c" />
+                </TouchableOpacity>
+              </View>
+            ))}
+            {imageUris.length < MAX_PHOTOS ? (
+              <TouchableOpacity style={styles.photoAdd} onPress={pickImages}>
+                <Ionicons name="camera-outline" size={28} color="#64748b" />
+                <Text style={styles.photoAddText}>Ajouter</Text>
+              </TouchableOpacity>
+            ) : null}
+          </ScrollView>
 
           <TouchableOpacity
             style={[styles.submit, saving && { opacity: 0.7 }]}
@@ -393,6 +579,23 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontWeight: '700', color: '#0f172a', marginBottom: 16 },
   label: { fontSize: 13, fontWeight: '600', color: '#475569', marginBottom: 8 },
+  hint: { fontSize: 12, color: '#64748b', marginBottom: 8, lineHeight: 17 },
+  photosRow: { flexDirection: 'row', marginBottom: 16, gap: 8 },
+  photoWrap: { position: 'relative', marginRight: 8 },
+  photoThumb: { width: 88, height: 88, borderRadius: 10, backgroundColor: '#e2e8f0' },
+  photoRemove: { position: 'absolute', top: -6, right: -6 },
+  photoAdd: {
+    width: 88,
+    height: 88,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  photoAddText: { marginTop: 4, fontSize: 12, color: '#64748b', fontWeight: '600' },
   input: {
     backgroundColor: '#fff',
     borderWidth: 1,

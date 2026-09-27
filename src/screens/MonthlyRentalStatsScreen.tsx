@@ -96,7 +96,7 @@ const MonthlyRentalStatsScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Statistiques</Text>
-        <Text style={styles.headerSubtitle}>Vues et candidatures sur vos logements</Text>
+        <Text style={styles.headerSubtitle}>Vues et demandes de visite sur vos logements</Text>
       </View>
       <ScrollView
         style={styles.scroll}
@@ -123,7 +123,7 @@ const MonthlyRentalStatsScreen: React.FC = () => {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Candidatures</Text>
+        <Text style={styles.sectionTitle}>Demandes de visite</Text>
         <View style={styles.row}>
           <StatCard
             icon="people"

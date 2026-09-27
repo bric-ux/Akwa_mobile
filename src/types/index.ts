@@ -512,6 +512,8 @@ export interface MonthlyRentalListing {
   description: string | null;
   location: string;
   location_id: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   property_type: string | null;
   surface_m2: number;
   number_of_rooms: number;
