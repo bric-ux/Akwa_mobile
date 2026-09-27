@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,32 +31,35 @@ const HostAccountScreen: React.FC = () => {
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus } = useIdentityVerification();
   const { getMyVehicles } = useVehicles();
-  const { monthlyRental } = useFeatureFlags();
+  const { monthlyRental, loading: flagsLoading } = useFeatureFlags();
   const [hasVehicles, setHasVehicles] = useState(false);
+  const [spacesReady, setSpacesReady] = useState(false);
 
-  // Vérifier si l'utilisateur a des véhicules
-  const checkVehicles = async () => {
-    if (!user) return;
-    
+  const loadSpaceExtras = useCallback(async () => {
+    if (!user) {
+      setHasVehicles(false);
+      setSpacesReady(true);
+      return;
+    }
     try {
       const vehicles = await getMyVehicles();
       setHasVehicles(vehicles.length > 0);
-    } catch (error) {
-      console.error('Erreur lors de la vérification des véhicules:', error);
+    } catch {
       setHasVehicles(false);
+    } finally {
+      setSpacesReady(true);
     }
-  };
+  }, [user, getMyVehicles]);
 
-  // Rafraîchir le profil quand l'écran devient actif
   useFocusEffect(
-    React.useCallback(() => {
-      if (user) {
-        refreshProfile();
-        checkVehicles();
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user])
+    useCallback(() => {
+      if (!user) return;
+      refreshProfile();
+      void loadSpaceExtras();
+    }, [user, refreshProfile, loadSpaceExtras]),
   );
+
+  const spacesUiReady = spacesReady && !flagsLoading;
 
   const handleLogout = () => {
     Alert.alert(
@@ -166,12 +170,18 @@ const HostAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
+      id: 'addListing',
+      title: 'Ajouter un bien',
+      icon: 'add-circle-outline',
+      onPress: () => navigation.navigate('AddListingChoice' as never),
+    },
+    {
       id: 'myGuestReviews',
       title: 'Mes avis',
       icon: 'star-outline',
       onPress: () => navigation.navigate('MyGuestReviews' as never),
     },
-    ...(monthlyRental ? [
+    ...(spacesUiReady && monthlyRental ? [
     {
       id: 'subscription',
       title: 'Abonnement location mensuelle',
@@ -283,7 +293,11 @@ const HostAccountScreen: React.FC = () => {
           </TouchableOpacity>
 
           {/* Bouton Espace Véhicules si l'utilisateur a des véhicules */}
-          {hasVehicles && (
+          {!spacesUiReady ? (
+            <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#999" />
+            </View>
+          ) : hasVehicles ? (
             <TouchableOpacity 
               style={styles.switchModeButtonVehicle}
               onPress={handleSwitchToVehicleMode}
@@ -300,7 +314,7 @@ const HostAccountScreen: React.FC = () => {
                 <Ionicons name="chevron-forward" size={20} color="#fff" />
               </View>
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
         {/* Vérification d'identité */}

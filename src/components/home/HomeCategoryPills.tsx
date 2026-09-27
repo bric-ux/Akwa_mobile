@@ -53,15 +53,19 @@ type Props = {
 
 export default function HomeCategoryPills({ showMonthlyCategory = true }: Props) {
   const navigation = useNavigation();
-  const { monthlyRental, hotel } = useFeatureFlags();
+  const { monthlyRental, hotel, loading: flagsLoading, isAdminViewer } = useFeatureFlags();
 
-  // Ordre : Résidences → Véhicules → Hôtels → Longue durée
+  // Ordre : Hôtels → Résidences → Véhicules → Longue durée (en dernier)
+  // Pendant flagsLoading, si cache admin déjà hydraté (isAdminViewer / hotel / monthly), on garde les pills
   const categories = useMemo(() => {
-    const list: CategoryDef[] = [RESIDENCE_CATEGORY, VEHICLE_CATEGORY];
-    if (hotel) list.push(HOTEL_CATEGORY);
-    if (monthlyRental && showMonthlyCategory) list.push(MONTHLY_CATEGORY);
+    const list: CategoryDef[] = [];
+    const showHotel = hotel || (flagsLoading && isAdminViewer);
+    const showMonthly = monthlyRental || (flagsLoading && isAdminViewer);
+    if (showHotel) list.push(HOTEL_CATEGORY);
+    list.push(RESIDENCE_CATEGORY, VEHICLE_CATEGORY);
+    if (showMonthly && showMonthlyCategory) list.push(MONTHLY_CATEGORY);
     return list;
-  }, [showMonthlyCategory, monthlyRental, hotel]);
+  }, [showMonthlyCategory, monthlyRental, hotel, flagsLoading, isAdminViewer]);
 
   const onPress = (id: HomeCategoryId) => {
     switch (id) {

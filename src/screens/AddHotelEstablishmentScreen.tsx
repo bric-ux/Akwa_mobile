@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { HOTEL_COLORS } from '../constants/colors';
+import type { RootStackParamList } from '../types';
 
 const ESTABLISHMENT_TYPES = [
   { value: 'hotel', label: 'Hôtel' },
@@ -25,17 +26,60 @@ const ESTABLISHMENT_TYPES = [
   { value: 'aparthotel', label: 'Aparthotel' },
 ] as const;
 
+type Route = RouteProp<RootStackParamList, 'AddHotelEstablishment'>;
+
 /**
- * Création d’un établissement hôtelier (brouillon) puis bascule vers l’espace hôtel.
+ * Création / édition d’un établissement hôtelier.
  */
 export default function AddHotelEstablishmentScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<Route>();
+  const establishmentId = route.params?.establishmentId;
+  const isEdit = !!establishmentId;
   const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [establishmentType, setEstablishmentType] = useState<string>('hotel');
   const [address, setAddress] = useState('');
   const [description, setDescription] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
+  const [status, setStatus] = useState<string>('draft');
+  const [loading, setLoading] = useState(!!establishmentId);
   const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!establishmentId || !user) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('hotel_establishments')
+        .select('title, establishment_type, address, description, status, images')
+        .eq('id', establishmentId)
+        .eq('host_id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        Alert.alert('Introuvable', 'Établissement introuvable.');
+        navigation.goBack();
+        return;
+      }
+      setTitle(data.title || '');
+      setEstablishmentType(data.establishment_type || 'hotel');
+      setAddress(data.address || '');
+      setDescription(data.description || '');
+      setStatus(data.status || 'draft');
+      setCoverUrl(
+        Array.isArray(data.images) && data.images[0] ? String(data.images[0]) : '',
+      );
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Chargement impossible');
+    } finally {
+      setLoading(false);
+    }
+  }, [establishmentId, user, navigation]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const handleSubmit = async () => {
     if (!user) {
@@ -49,7 +93,27 @@ export default function AddHotelEstablishmentScreen() {
 
     setSaving(true);
     try {
-      const { data, error } = await supabase
+      const images = coverUrl.trim() ? [coverUrl.trim()] : [];
+      if (isEdit && establishmentId) {
+        const { error } = await supabase
+          .from('hotel_establishments')
+          .update({
+            title: title.trim(),
+            establishment_type: establishmentType,
+            address: address.trim() || null,
+            description: description.trim() || null,
+            images,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', establishmentId)
+          .eq('host_id', user.id);
+        if (error) throw error;
+        Alert.alert('Enregistré', 'Établissement mis à jour.');
+        navigation.goBack();
+        return;
+      }
+
+      const { error } = await supabase
         .from('hotel_establishments')
         .insert({
           host_id: user.id,
@@ -57,6 +121,7 @@ export default function AddHotelEstablishmentScreen() {
           establishment_type: establishmentType,
           address: address.trim() || null,
           description: description.trim() || null,
+          images,
           status: 'draft',
         })
         .select('id')
@@ -66,7 +131,7 @@ export default function AddHotelEstablishmentScreen() {
 
       Alert.alert(
         'Établissement créé',
-        'Vous pouvez maintenant gérer votre hôtel depuis l’espace Hôtel.',
+        'Ajoutez des types de chambres (avec photos) puis publiez depuis Mes établissements.',
         [
           {
             text: 'Continuer',
@@ -83,12 +148,73 @@ export default function AddHotelEstablishmentScreen() {
     } catch (e: unknown) {
       Alert.alert(
         'Erreur',
-        e instanceof Error ? e.message : 'Impossible de créer l’établissement.',
+        e instanceof Error ? e.message : 'Impossible d’enregistrer l’établissement.',
       );
     } finally {
       setSaving(false);
     }
   };
+
+  const setVisibility = async (next: 'active' | 'hidden' | 'draft') => {
+    if (!user || !establishmentId) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('hotel_establishments')
+        .update({ status: next, updated_at: new Date().toISOString() })
+        .eq('id', establishmentId)
+        .eq('host_id', user.id);
+      if (error) throw error;
+      setStatus(next);
+      Alert.alert(
+        'OK',
+        next === 'active'
+          ? 'Établissement publié.'
+          : next === 'hidden'
+            ? 'Établissement masqué.'
+            : 'Repassé en brouillon.',
+      );
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Action impossible');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!user || !establishmentId) return;
+    Alert.alert('Supprimer', 'Supprimer définitivement cet établissement ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          setSaving(true);
+          try {
+            const { error } = await supabase
+              .from('hotel_establishments')
+              .delete()
+              .eq('id', establishmentId)
+              .eq('host_id', user.id);
+            if (error) throw error;
+            navigation.goBack();
+          } catch (e) {
+            Alert.alert('Erreur', e instanceof Error ? e.message : 'Suppression impossible');
+          } finally {
+            setSaving(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ActivityIndicator style={{ marginTop: 40 }} color={HOTEL_COLORS.primary} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -96,7 +222,9 @@ export default function AddHotelEstablishmentScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color="#0f172a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nouvel établissement</Text>
+        <Text style={styles.headerTitle}>
+          {isEdit ? 'Modifier l’établissement' : 'Nouvel établissement'}
+        </Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -106,9 +234,8 @@ export default function AddHotelEstablishmentScreen() {
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.eyebrow}>Hôtel</Text>
-          <Text style={styles.title}>Créer votre établissement</Text>
-          <Text style={styles.lead}>
-            Renseignez les informations de base. Vous pourrez ajouter les types de chambres ensuite.
+          <Text style={styles.title}>
+            {isEdit ? 'Modifier votre établissement' : 'Créer votre établissement'}
           </Text>
 
           <Text style={styles.label}>Nom de l’établissement *</Text>
@@ -126,16 +253,10 @@ export default function AddHotelEstablishmentScreen() {
               <TouchableOpacity
                 key={t.value}
                 onPress={() => setEstablishmentType(t.value)}
-                style={[
-                  styles.chip,
-                  establishmentType === t.value && styles.chipActive,
-                ]}
+                style={[styles.chip, establishmentType === t.value && styles.chipActive]}
               >
                 <Text
-                  style={[
-                    styles.chipText,
-                    establishmentType === t.value && styles.chipTextActive,
-                  ]}
+                  style={[styles.chipText, establishmentType === t.value && styles.chipTextActive]}
                 >
                   {t.label}
                 </Text>
@@ -163,6 +284,16 @@ export default function AddHotelEstablishmentScreen() {
             textAlignVertical="top"
           />
 
+          <Text style={styles.label}>Photo établissement (URL)</Text>
+          <TextInput
+            style={styles.input}
+            value={coverUrl}
+            onChangeText={setCoverUrl}
+            autoCapitalize="none"
+            placeholder="https://…"
+            placeholderTextColor="#94a3b8"
+          />
+
           <TouchableOpacity
             style={[styles.submit, saving && { opacity: 0.7 }]}
             onPress={handleSubmit}
@@ -171,9 +302,66 @@ export default function AddHotelEstablishmentScreen() {
             {saving ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitText}>Créer l’établissement</Text>
+              <Text style={styles.submitText}>
+                {isEdit ? 'Enregistrer' : 'Créer l’établissement'}
+              </Text>
             )}
           </TouchableOpacity>
+
+          {isEdit && establishmentId ? (
+            <View style={styles.manageBlock}>
+              <Text style={styles.manageTitle}>Gestion</Text>
+              <Text style={styles.statusLine}>
+                Statut :{' '}
+                {status === 'active' ? 'Publié' : status === 'hidden' ? 'Masqué' : 'Brouillon'}
+              </Text>
+
+              <TouchableOpacity
+                style={styles.secondaryBtn}
+                onPress={() =>
+                  navigation.navigate('ManageHotelRoomTypes', {
+                    establishmentId,
+                    establishmentTitle: title,
+                  })
+                }
+              >
+                <Ionicons name="bed-outline" size={18} color={HOTEL_COLORS.primary} />
+                <Text style={styles.secondaryBtnText}>Types de chambres</Text>
+              </TouchableOpacity>
+
+              {status !== 'active' ? (
+                <TouchableOpacity
+                  style={styles.publishBtn}
+                  onPress={() => void setVisibility('active')}
+                  disabled={saving}
+                >
+                  <Text style={styles.publishBtnText}>Publier</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.hideBtn}
+                  onPress={() => void setVisibility('hidden')}
+                  disabled={saving}
+                >
+                  <Text style={styles.hideBtnText}>Masquer</Text>
+                </TouchableOpacity>
+              )}
+
+              {status === 'hidden' ? (
+                <TouchableOpacity
+                  style={styles.publishBtn}
+                  onPress={() => void setVisibility('active')}
+                  disabled={saving}
+                >
+                  <Text style={styles.publishBtnText}>Remettre en ligne</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} disabled={saving}>
+                <Text style={styles.deleteBtnText}>Supprimer l’établissement</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -203,8 +391,7 @@ const styles = StyleSheet.create({
     color: HOTEL_COLORS.primary,
     marginBottom: 8,
   },
-  title: { fontSize: 22, fontWeight: '700', color: '#0f172a', marginBottom: 6 },
-  lead: { fontSize: 14, lineHeight: 20, color: '#64748b', marginBottom: 22 },
+  title: { fontSize: 22, fontWeight: '700', color: '#0f172a', marginBottom: 16 },
   label: { fontSize: 13, fontWeight: '600', color: '#475569', marginBottom: 8 },
   input: {
     backgroundColor: '#fff',
@@ -241,4 +428,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  manageBlock: {
+    marginTop: 28,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  manageTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 8 },
+  statusLine: { fontSize: 14, color: '#64748b', marginBottom: 12 },
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  secondaryBtnText: { fontSize: 14, fontWeight: '600', color: HOTEL_COLORS.primary },
+  publishBtn: {
+    backgroundColor: HOTEL_COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  publishBtnText: { color: '#fff', fontWeight: '700' },
+  hideBtn: {
+    backgroundColor: '#e8eaf6',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  hideBtnText: { color: '#5c6bc0', fontWeight: '700' },
+  deleteBtn: { paddingVertical: 12, alignItems: 'center' },
+  deleteBtnText: { color: '#c62828', fontWeight: '600' },
 });

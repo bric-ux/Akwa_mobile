@@ -18,12 +18,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useProperties } from '../hooks/useProperties';
 import { usePropertySorting, SortOption } from '../hooks/usePropertySorting';
 import { useApprovedMonthlyRentalListings } from '../hooks/useApprovedMonthlyRentalListings';
-import { useApprovedHotelEstablishments } from '../hooks/useApprovedHotelEstablishments';
+import { useApprovedHotelRooms } from '../hooks/useApprovedHotelRooms';
 import { Property, SearchFilters, RootStackParamList } from '../types';
 import type { MonthlyRentalListing } from '../types';
 import PropertyCard from '../components/PropertyCard';
 import MonthlyRentalListingCard from '../components/MonthlyRentalListingCard';
-import HotelEstablishmentCard from '../components/HotelEstablishmentCard';
+import HotelRoomCard from '../components/HotelRoomCard';
 import FiltersModal from '../components/FiltersModal';
 import SearchResultsHeader from '../components/SearchResultsHeader';
 import SearchFormModal, { type StaySearchType } from '../components/SearchFormModal';
@@ -111,10 +111,10 @@ const SearchScreen: React.FC = () => {
 
   const { listings: monthlyListings, loading: monthlyLoading, fetchListings: fetchMonthlyListings } = useApprovedMonthlyRentalListings();
   const {
-    establishments: hotelEstablishments,
+    rooms: hotelRooms,
     loading: hotelLoading,
-    fetchEstablishments: fetchHotels,
-  } = useApprovedHotelEstablishments();
+    fetchRooms: fetchHotelRooms,
+  } = useApprovedHotelRooms();
   const { dates: searchDates, setDates: saveSearchDates } = useSearchDatesContext();
   
   // États pour les dates et voyageurs (initialiser depuis le context, mais seulement si définis)
@@ -253,12 +253,15 @@ const SearchScreen: React.FC = () => {
 
   useEffect(() => {
     if (!hasSubmittedSearch || rentalType !== 'hotel') return;
-    fetchHotels({
+    fetchHotelRooms({
       city: hotelSearchQuery || undefined,
       starRating: filters.starRating,
       centerLat: filters.centerLat,
       centerLng: filters.centerLng,
       radiusKm: filters.radiusKm,
+      checkIn: checkIn || undefined,
+      checkOut: checkOut || undefined,
+      guests: adults + children + babies,
     });
   }, [
     hasSubmittedSearch,
@@ -268,7 +271,12 @@ const SearchScreen: React.FC = () => {
     filters.centerLat,
     filters.centerLng,
     filters.radiusKm,
-    fetchHotels,
+    checkIn,
+    checkOut,
+    adults,
+    children,
+    babies,
+    fetchHotelRooms,
   ]);
 
   // Charger l’historique des destinations (AsyncStorage)
@@ -307,7 +315,12 @@ const SearchScreen: React.FC = () => {
         if (rentalType === 'monthly') {
           await fetchMonthlyListings({ bedrooms: filters.bedrooms });
         } else if (rentalType === 'hotel') {
-          await fetchHotels({ starRating: filters.starRating });
+          await fetchHotelRooms({
+            starRating: filters.starRating,
+            checkIn: checkIn || undefined,
+            checkOut: checkOut || undefined,
+            guests: adults + children + babies,
+          });
         } else {
           await fetchProperties({
             ...filters,
@@ -350,15 +363,23 @@ const SearchScreen: React.FC = () => {
       try {
         if (query.trim()) {
           await rememberSearch(query);
-          await fetchHotels({
+          await fetchHotelRooms({
             city: query || undefined,
             starRating: filters.starRating,
             centerLat: filters.centerLat,
             centerLng: filters.centerLng,
             radiusKm: filters.radiusKm,
+            checkIn: checkIn || undefined,
+            checkOut: checkOut || undefined,
+            guests: adults + children + babies,
           });
         } else {
-          await fetchHotels({ starRating: filters.starRating });
+          await fetchHotelRooms({
+            starRating: filters.starRating,
+            checkIn: checkIn || undefined,
+            checkOut: checkOut || undefined,
+            guests: adults + children + babies,
+          });
         }
       } finally {
         setIsSearching(false);
@@ -576,32 +597,56 @@ const SearchScreen: React.FC = () => {
   };
 
   const handleFilterChange = (newFilters: SearchFilters) => {
-    setFilters(newFilters);
-    if (!hasSubmittedSearch) return;
-    const searchFilters = { 
-      ...newFilters, 
-      city: shortTermSearchQuery,
-      checkIn,
-      checkOut,
-      adults,
-      children,
-      babies,
-      guests: adults + children + babies
-    };
     const rt = (newFilters.rentalType ?? 'short_term') as StaySearchType;
+    const prevRt = (filters.rentalType ?? 'short_term') as StaySearchType;
+
+    // Garder la destination quand on change de type (résidence ↔ hôtel ↔ longue durée)
+    const dest =
+      (prevRt === 'monthly'
+        ? monthlySearchQuery
+        : prevRt === 'hotel'
+          ? hotelSearchQuery
+          : shortTermSearchQuery) ||
+      shortTermSearchQuery ||
+      hotelSearchQuery ||
+      monthlySearchQuery ||
+      '';
+
+    if (rt === 'short_term') setShortTermSearchQuery(dest);
+    else if (rt === 'monthly') setMonthlySearchQuery(dest);
+    else setHotelSearchQuery(dest);
+
+    if (rt !== 'short_term') setIsMapView(false);
+    setFilters(newFilters);
+
+    if (!hasSubmittedSearch) return;
+
     if (rt === 'short_term') {
-      fetchProperties(searchFilters);
-    }
-    if (rt === 'monthly') {
-      fetchMonthlyListings({
-        city: monthlySearchQuery || undefined,
-        bedrooms: newFilters.bedrooms,
+      fetchProperties({
+        ...newFilters,
+        city: dest,
+        checkIn,
+        checkOut,
+        adults,
+        children,
+        babies,
+        guests: adults + children + babies,
       });
-    }
-    if (rt === 'hotel') {
-      fetchHotels({
-        city: hotelSearchQuery || undefined,
+    } else if (rt === 'monthly') {
+      fetchMonthlyListings({
+        city: dest || undefined,
+        bedrooms: newFilters.bedrooms,
+        centerLat: newFilters.centerLat,
+        centerLng: newFilters.centerLng,
+        radiusKm: newFilters.radiusKm,
+      });
+    } else if (rt === 'hotel') {
+      fetchHotelRooms({
+        city: dest || undefined,
         starRating: newFilters.starRating,
+        checkIn: checkIn || undefined,
+        checkOut: checkOut || undefined,
+        guests: adults + children + babies,
       });
     }
   };
@@ -617,7 +662,11 @@ const SearchScreen: React.FC = () => {
       fetchMonthlyListings({});
     } else if (rentalType === 'hotel') {
       setHotelSearchQuery('');
-      fetchHotels({});
+      fetchHotelRooms({
+        checkIn: checkIn || undefined,
+        checkOut: checkOut || undefined,
+        guests: adults + children + babies,
+      });
     } else {
       setShortTermSearchQuery('');
       fetchProperties({ 
@@ -862,25 +911,33 @@ const SearchScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       ) : rentalType === 'hotel' ? (
-        hotelEstablishments.length === 0 ? (
+        hotelRooms.length === 0 ? (
           <View style={styles.noResultsContainer}>
             <Ionicons name="business-outline" size={64} color="#ccc" />
             <Text style={styles.noResultsTitle}>
-              {hotelSearchQuery ? `Aucun hôtel à ${hotelSearchQuery}` : 'Aucun hôtel'}
+              {hotelSearchQuery
+                ? `Aucune chambre à ${hotelSearchQuery}`
+                : 'Aucune chambre disponible'}
             </Text>
             <Text style={styles.noResultsSubtitle}>
-              Essayez une autre ville ou ajustez les filtres.
+              {checkIn && checkOut
+                ? 'Essayez d’autres dates, une autre ville ou ajustez les filtres.'
+                : 'Choisissez des dates pour voir les chambres disponibles, ou changez de ville.'}
             </Text>
           </View>
         ) : (
           <FlatList
-            data={hotelEstablishments}
+            data={hotelRooms}
             renderItem={({ item }) => (
-              <HotelEstablishmentCard
-                establishment={item}
-                onPress={(e) =>
+              <HotelRoomCard
+                room={item}
+                onPress={(room) =>
                   (navigation as any).navigate('HotelEstablishmentDetail', {
-                    establishmentId: e.id,
+                    establishmentId: room.establishment.id,
+                    roomTypeId: room.id,
+                    checkIn: checkIn || undefined,
+                    checkOut: checkOut || undefined,
+                    guests: adults + children + babies,
                   })
                 }
               />
@@ -890,7 +947,7 @@ const SearchScreen: React.FC = () => {
             contentContainerStyle={styles.propertiesList}
             ListHeaderComponent={
               <SearchResultsHeader
-                resultsCount={hotelEstablishments.length}
+                resultsCount={hotelRooms.length}
                 onSortPress={() => {}}
                 currentSort={sortBy}
                 onViewToggle={handleViewToggle}
@@ -1063,11 +1120,7 @@ const SearchScreen: React.FC = () => {
         onApply={handleFilterChange}
         initialFilters={filters}
         lockedRentalType={
-          hasSubmittedSearch
-            ? rentalType
-            : !(monthlyRental || hotelEnabled)
-              ? 'short_term'
-              : undefined
+          !(monthlyRental || hotelEnabled) ? 'short_term' : undefined
         }
       />
 

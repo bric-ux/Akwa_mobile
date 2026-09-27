@@ -263,7 +263,6 @@ const HomeScreen: React.FC = () => {
       {showDeferredHeaderContent ? (
         <>
           <HomeCategoryPills />
-          <HomeStayTypeShelves />
           <MatchPredictionBanner />
           <HomeWeatherChip />
           <ZipDailyCard />
@@ -276,9 +275,12 @@ const HomeScreen: React.FC = () => {
         <View style={styles.headerDeferredPlaceholder} />
       )}
 
+      {/* Ordre rayons : Hôtels → Résidences meublées → (villes) ; longue durée en bas */}
+      <HomeStayTypeShelves mode="hotel" />
+
       <View style={styles.section}>
         <View style={styles.exploreIntroHeader}>
-          <Text style={styles.sectionTitle}>Explorez par ville</Text>
+          <Text style={styles.sectionTitle}>Résidences meublées</Text>
         </View>
         {exploreErrorCard}
       </View>
@@ -288,6 +290,8 @@ const HomeScreen: React.FC = () => {
   const listFooter = useMemo(
     () => (
       <>
+        <HomeStayTypeShelves mode="monthly" />
+
         {/* Services propriétaires — deux encarts carrés */}
         <View style={styles.ownerServicesSection}>
           <Text style={styles.ownerServicesTitle}>Services propriétaires</Text>

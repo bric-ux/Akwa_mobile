@@ -23,8 +23,10 @@ type ExploreShelfPhotoCardProps = {
   promoLabel?: string;
   promoPercent?: number;
   promoMinNights?: number;
-  /** Sous le titre (ex. étoiles hôtel). */
+  /** Sous le titre (ex. étoiles hôtel) — même ligne, à droite. */
   subtitle?: string;
+  /** Ligne sous le titre (ex. surface · pièces). */
+  detailLine?: string;
   imageHeight?: number;
   /** Accueil carrousel portrait ; liste recherche (prix sur l’image). */
   imageAspect?: 'shelf' | 'list';
@@ -44,6 +46,7 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
   promoPercent,
   promoMinNights,
   subtitle,
+  detailLine,
   imageHeight = EXPLORE_SHELF_IMAGE_HEIGHT,
   imageAspect = 'shelf',
   image,
@@ -144,6 +147,11 @@ const ExploreShelfPhotoCard: React.FC<ExploreShelfPhotoCardProps> = ({
           </Text>
         ) : null}
       </View>
+      {detailLine ? (
+        <Text style={styles.metaDetail} numberOfLines={1}>
+          {detailLine}
+        </Text>
+      ) : null}
       {location ? (
         <View style={styles.locationRow}>
           <Ionicons name="location-outline" size={13} color="#64748b" />
@@ -273,6 +281,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     marginTop: 1,
+  },
+  metaDetail: {
+    marginTop: 2,
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 16,
   },
   locationRow: {
     flexDirection: 'row',

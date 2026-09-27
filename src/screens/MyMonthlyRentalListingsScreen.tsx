@@ -30,7 +30,8 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
   const route = useRoute();
   const { user } = useAuth();
   const isTabScreen = route.name === 'MonthlyRentalListingsTab';
-  const { getMyListings, deleteListing, submitForApproval, loading } = useMonthlyRentalListings(user?.id);
+  const { getMyListings, deleteListing, submitForApproval, archiveListing, restoreListing, loading } =
+    useMonthlyRentalListings(user?.id);
   const [listings, setListings] = useState<MonthlyRentalListing[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
@@ -79,7 +80,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
   const handleDelete = (item: MonthlyRentalListing) => {
     const canDelete = item.status === 'draft' || item.status === 'rejected';
     if (!canDelete) {
-      Alert.alert('Suppression', 'Seuls les brouillons et les annonces refusées peuvent être supprimés.');
+      Alert.alert('Suppression', 'Seuls les brouillons et les annonces refusées peuvent être supprimés. Masquez les annonces publiées.');
       return;
     }
     Alert.alert(
@@ -98,6 +99,38 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
         },
       ]
     );
+  };
+
+  const handleArchive = (item: MonthlyRentalListing) => {
+    Alert.alert(
+      'Masquer l’annonce',
+      `« ${item.title} » ne sera plus visible des voyageurs.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Masquer',
+          onPress: async () => {
+            const r = await archiveListing(item.id);
+            if (r.success) load();
+            else Alert.alert('Erreur', r.error || 'Impossible de masquer');
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRestore = (item: MonthlyRentalListing) => {
+    Alert.alert('Remettre en ligne', `Remettre « ${item.title} » visible ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Remettre',
+        onPress: async () => {
+          const r = await restoreListing(item.id);
+          if (r.success) load();
+          else Alert.alert('Erreur', r.error || 'Impossible de restaurer');
+        },
+      },
+    ]);
   };
 
   const getImageUrl = (item: MonthlyRentalListing): string => {
@@ -163,6 +196,18 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
           >
             <Ionicons name="people-outline" size={20} color="#2E7D32" />
             <Text style={styles.btnCandidaturesText}>Candidatures</Text>
+          </TouchableOpacity>
+        )}
+        {(item.status === 'pending' || item.status === 'approved') && (
+          <TouchableOpacity style={styles.btnArchive} onPress={() => handleArchive(item)}>
+            <Ionicons name="eye-off-outline" size={18} color="#5c6bc0" />
+            <Text style={styles.btnArchiveText}>Masquer</Text>
+          </TouchableOpacity>
+        )}
+        {item.status === 'archived' && (
+          <TouchableOpacity style={styles.btnRestore} onPress={() => handleRestore(item)}>
+            <Ionicons name="eye-outline" size={18} color="#2E7D32" />
+            <Text style={styles.btnRestoreText}>Remettre</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={styles.btnEdit} onPress={() => handleEdit(item.id)}>
@@ -315,6 +360,26 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   btnCandidaturesText: { fontSize: 14, color: '#2E7D32', fontWeight: '500' },
+  btnArchive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#e8eaf6',
+    borderRadius: 8,
+  },
+  btnArchiveText: { fontSize: 13, color: '#5c6bc0', fontWeight: '600' },
+  btnRestore: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#e8f5e9',
+    borderRadius: 8,
+  },
+  btnRestoreText: { fontSize: 13, color: '#2E7D32', fontWeight: '600' },
   btnEdit: {
     padding: 8,
     backgroundColor: '#2E7D32',

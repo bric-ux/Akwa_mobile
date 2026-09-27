@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { useFeatureFlags } from '../../contexts/FeatureFlagsContext';
 import { useApprovedMonthlyRentalListings } from '../../hooks/useApprovedMonthlyRentalListings';
 import { useApprovedHotelEstablishments } from '../../hooks/useApprovedHotelEstablishments';
@@ -21,10 +20,18 @@ import type { MonthlyRentalListing } from '../../types';
 
 const SHELF_LIMIT = 8;
 
-/** Rayons accueil : longue durée + hôtels (si flags actifs). */
-export default function HomeStayTypeShelves() {
+type Props = {
+  /** Par défaut les deux. Sur l’accueil : hôtel avant résidences, longue durée en bas. */
+  mode?: 'hotel' | 'monthly' | 'all';
+};
+
+/** Rayons accueil : hôtels et/ou longue durée (si flags actifs). */
+export default function HomeStayTypeShelves({ mode = 'all' }: Props) {
   const navigation = useNavigation<any>();
-  const { monthlyRental, hotel } = useFeatureFlags();
+  const { monthlyRental, hotel, loading: flagsLoading } = useFeatureFlags();
+  const showHotel = (mode === 'hotel' || mode === 'all') && hotel;
+  const showMonthly = (mode === 'monthly' || mode === 'all') && monthlyRental;
+
   const { fetchListings } = useApprovedMonthlyRentalListings();
   const { fetchEstablishments } = useApprovedHotelEstablishments();
   const [monthly, setMonthly] = useState<MonthlyRentalListing[]>([]);
@@ -33,7 +40,10 @@ export default function HomeStayTypeShelves() {
   const [loadingHotels, setLoadingHotels] = useState(false);
 
   const load = useCallback(async () => {
-    if (monthlyRental) {
+    // Pendant le chargement des flags (reload), ne pas vider les rayons
+    if (flagsLoading) return;
+
+    if (showMonthly) {
       setLoadingMonthly(true);
       const list = await fetchListings({});
       setMonthly(list.slice(0, SHELF_LIMIT));
@@ -41,7 +51,7 @@ export default function HomeStayTypeShelves() {
     } else {
       setMonthly([]);
     }
-    if (hotel) {
+    if (showHotel) {
       setLoadingHotels(true);
       const list = await fetchEstablishments({ forHome: true });
       setHotels(list.slice(0, SHELF_LIMIT));
@@ -49,17 +59,19 @@ export default function HomeStayTypeShelves() {
     } else {
       setHotels([]);
     }
-  }, [monthlyRental, hotel, fetchListings, fetchEstablishments]);
+  }, [showMonthly, showHotel, flagsLoading, fetchListings, fetchEstablishments]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (!monthlyRental && !hotel) return null;
+  // Flags encore en cours + pas encore de data : ne rien afficher (évite flash disparition)
+  if (flagsLoading && !showHotel && !showMonthly) return null;
+  if (!showHotel && !showMonthly) return null;
 
   return (
     <View style={styles.wrap}>
-      {hotel ? (
+      {showHotel ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Hôtels</Text>
@@ -83,7 +95,7 @@ export default function HomeStayTypeShelves() {
               contentContainerStyle={styles.shelf}
             >
               {hotels.map((item) => (
-                <View key={item.id} style={{ width: EXPLORE_SHELF_CARD_WIDTH }}>
+                <View key={item.id} style={styles.shelfCardWrap}>
                   <HotelEstablishmentCard
                     establishment={item}
                     variant="shelf"
@@ -100,7 +112,7 @@ export default function HomeStayTypeShelves() {
         </View>
       ) : null}
 
-      {monthlyRental ? (
+      {showMonthly ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Location longue durée</Text>
@@ -129,7 +141,7 @@ export default function HomeStayTypeShelves() {
               contentContainerStyle={styles.shelf}
             >
               {monthly.map((item) => (
-                <View key={item.id} style={{ width: EXPLORE_SHELF_CARD_WIDTH, marginRight: 0 }}>
+                <View key={item.id} style={styles.shelfCardWrap}>
                   <MonthlyRentalListingCard
                     listing={item}
                     variant="shelf"
@@ -161,7 +173,12 @@ const styles = StyleSheet.create({
   seeAll: { fontSize: 13, fontWeight: '600' },
   shelf: {
     paddingHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
-    gap: 10,
+    paddingRight: HOME_EXPLORE_HORIZONTAL_GUTTER + 16,
+    paddingBottom: 4,
+  },
+  shelfCardWrap: {
+    width: EXPLORE_SHELF_CARD_WIDTH,
+    marginRight: 12,
   },
   empty: {
     paddingHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,

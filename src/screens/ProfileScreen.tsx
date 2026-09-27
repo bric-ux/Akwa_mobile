@@ -9,6 +9,7 @@ import {
   Image,
   InteractionManager,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,7 +44,7 @@ const ProfileScreen: React.FC = () => {
   // Détecter si on est dans le TabNavigator (ProfileTab) ou dans le Stack (Profile)
   const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab' || route.name === 'MonthlyRentalProfileTab' || route.name === 'HotelProfileTab';
   const { t } = useLanguage();
-  const { monthlyRental, hotel: hotelEnabled } = useFeatureFlags();
+  const { monthlyRental, hotel: hotelEnabled, loading: flagsLoading } = useFeatureFlags();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
   const { isEmailVerified, generateVerificationCode, checkEmailVerificationStatus } = useEmailVerification();
@@ -54,6 +55,8 @@ const ProfileScreen: React.FC = () => {
   const [hasVehicles, setHasVehicles] = useState(false);
   const [hasMonthlyListings, setHasMonthlyListings] = useState(false);
   const [hasHotels, setHasHotels] = useState(false);
+  /** Évite d’afficher les boutons Espace… à vide puis de les faire apparaître après coup. */
+  const [spacesReady, setSpacesReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const isLoggingOutRef = useRef(false);
   const sessionKey = user?.id ?? 'guest';
@@ -95,33 +98,82 @@ const ProfileScreen: React.FC = () => {
     );
   };
 
-  const checkMonthlyListings = async () => {
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from('monthly_rental_listings')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1);
-      setHasMonthlyListings(!error && data && data.length > 0);
-    } catch {
+  const loadSpaceExtras = React.useCallback(async () => {
+    if (!user) {
+      setHasPendingApplications(false);
+      setHasVehicles(false);
       setHasMonthlyListings(false);
-    }
-  };
-
-  const checkHotels = async () => {
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from('hotel_establishments')
-        .select('id')
-        .eq('host_id', user.id)
-        .limit(1);
-      setHasHotels(!error && !!data && data.length > 0);
-    } catch {
       setHasHotels(false);
+      setSpacesReady(true);
+      return;
     }
-  };
+    try {
+      // Résoudre tout avant de setState → lignes Espace affichées ensemble (pas de pop progressif)
+      const [pending, vehicles, monthly, hotels] = await Promise.all([
+        (async () => {
+          try {
+            const applications = await getApplications();
+            return applications.some(
+              (app) => app.status === 'pending' || app.status === 'reviewing',
+            );
+          } catch {
+            return false;
+          }
+        })(),
+        (async () => {
+          try {
+            const list = await getMyVehicles();
+            return list.length > 0;
+          } catch {
+            return false;
+          }
+        })(),
+        (async () => {
+          try {
+            const { data, error } = await supabase
+              .from('monthly_rental_listings')
+              .select('id')
+              .eq('owner_id', user.id)
+              .limit(1);
+            return !error && !!data && data.length > 0;
+          } catch {
+            return false;
+          }
+        })(),
+        (async () => {
+          try {
+            const { data, error } = await supabase
+              .from('hotel_establishments')
+              .select('id')
+              .eq('host_id', user.id)
+              .limit(1);
+            return !error && !!data && data.length > 0;
+          } catch {
+            return false;
+          }
+        })(),
+      ]);
+      setHasPendingApplications(pending);
+      setHasVehicles(vehicles);
+      setHasMonthlyListings(monthly);
+      setHasHotels(hotels);
+    } finally {
+      setSpacesReady(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getApplications non mémoïsé
+  }, [user]);
+
+  // Reset au changement d’utilisateur (sinon anciennes lignes visibles un instant)
+  useEffect(() => {
+    setSpacesReady(false);
+    if (!user) {
+      setHasPendingApplications(false);
+      setHasVehicles(false);
+      setHasMonthlyListings(false);
+      setHasHotels(false);
+      setSpacesReady(true);
+    }
+  }, [user?.id]);
 
   // Rafraîchir le profil quand l'écran devient actif (seulement si connecté)
   useFocusEffect(
@@ -129,43 +181,12 @@ const ProfileScreen: React.FC = () => {
       if (!user) return;
       const task = InteractionManager.runAfterInteractions(() => {
         refreshProfile();
-        checkPendingApplications();
-        checkVehicles();
-        if (monthlyRental) checkMonthlyListings();
-        if (hotelEnabled) checkHotels();
+        void loadSpaceExtras();
         checkEmailVerificationStatus(true);
       });
       return () => task.cancel();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]),
+    }, [user, loadSpaceExtras, refreshProfile, checkEmailVerificationStatus]),
   );
-
-  const checkPendingApplications = async () => {
-    if (!user) return;
-    
-    try {
-      const applications = await getApplications();
-      const pendingApps = applications.filter(app => 
-        app.status === 'pending' || app.status === 'reviewing'
-      );
-      setHasPendingApplications(pendingApps.length > 0);
-    } catch (error) {
-      console.error('Erreur lors de la vérification des candidatures:', error);
-      setHasPendingApplications(false);
-    }
-  };
-
-  const checkVehicles = async () => {
-    if (!user) return;
-    
-    try {
-      const vehicles = await getMyVehicles();
-      setHasVehicles(vehicles.length > 0);
-    } catch (error) {
-      console.error('Erreur lors de la vérification des véhicules:', error);
-      setHasVehicles(false);
-    }
-  };
 
 
   const handleEmailVerification = async () => {
@@ -271,6 +292,12 @@ const ProfileScreen: React.FC = () => {
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
+      id: 'addListing',
+      title: 'Ajouter un bien',
+      icon: 'add-circle-outline',
+      onPress: () => navigation.navigate('AddListingChoice' as never),
+    },
+    {
       id: 'myGuestReviews',
       title: 'Mes avis',
       icon: 'star-outline',
@@ -373,19 +400,21 @@ const ProfileScreen: React.FC = () => {
 
   const isInMonthlyRentalMode = route.name === 'MonthlyRentalProfileTab';
   const isInHotelMode = route.name === 'HotelProfileTab';
+  /** Flags + checks espaces prêts → pas de lignes qui « pop » après coup */
+  const spacesUiReady = spacesReady && !flagsLoading;
 
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
-  if (profile?.is_host || hasPendingApplications) {
+  if (spacesUiReady && (profile?.is_host || hasPendingApplications)) {
     menuItems.push(hostSpaceItem);
   }
 
   // Ajouter "Espace Véhicules" si l'utilisateur a des véhicules (navigation complète)
-  if (hasVehicles) {
+  if (spacesUiReady && hasVehicles) {
     menuItems.push(vehicleSpaceItem);
   }
 
   // Ajouter "Mode logement longue durée" si l'utilisateur a au moins un logement longue durée (et qu'on n'est pas déjà dans ce mode)
-  if (monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode) {
+  if (spacesUiReady && monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode) {
     menuItems.push({
       id: 'monthlyRentalSpace',
       title: 'Mode logement longue durée',
@@ -413,7 +442,7 @@ const ProfileScreen: React.FC = () => {
   }
 
   // Mode hôtel si l’utilisateur a un établissement
-  if (hotelEnabled && hasHotels && !isInHotelMode) {
+  if (spacesUiReady && hotelEnabled && hasHotels && !isInHotelMode) {
     menuItems.push({
       id: 'hotelSpace',
       title: 'Espace Hôtel',
@@ -642,205 +671,214 @@ const ProfileScreen: React.FC = () => {
           <IdentityVerificationAlert />
         </View>
 
-        {/* Bouton Espace hôte (si applicable) */}
-        {(profile?.is_host || hasPendingApplications) && (
-          <View style={styles.hostSpaceContainer}>
-            <TouchableOpacity
-              style={styles.hostSpaceButton}
-              onPress={hostSpaceItem.onPress}
-              activeOpacity={0.8}
-            >
-              <View style={styles.hostSpaceContent}>
-                <View style={styles.hostSpaceIconContainer}>
-                  <Ionicons name="business" size={18} color="#fff" />
-                </View>
-                <View style={styles.hostSpaceTextContainer}>
-                  <Text style={styles.hostSpaceText}>{t('profile.hostSpace')}</Text>
-                  <Text style={styles.hostSpaceSubtext}>{t('profile.hostSpaceDesc')}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
-              </View>
-            </TouchableOpacity>
+        {/* Espaces : afficher d’un coup (flags + checks) pour éviter les lignes qui apparaissent en retard */}
+        {!spacesUiReady ? (
+          <View style={styles.spacesLoadingContainer}>
+            <ActivityIndicator size="small" color="#999" />
           </View>
-        )}
-
-        {/* Bouton Espace Véhicules (si applicable) */}
-        {hasVehicles && (
-          <View style={styles.vehicleSpaceContainer}>
-            <TouchableOpacity
-              style={styles.vehicleSpaceButton}
-              onPress={vehicleSpaceItem.onPress}
-              activeOpacity={0.8}
-            >
-              <View style={styles.vehicleSpaceContent}>
-                <View style={styles.vehicleSpaceIconContainer}>
-                  <Ionicons name="car" size={18} color="#fff" />
-                </View>
-                <View style={styles.vehicleSpaceTextContainer}>
-                  <Text style={styles.vehicleSpaceText}>Espace Véhicules</Text>
-                  <Text style={styles.vehicleSpaceSubtext}>Gérez vos véhicules et réservations</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
+        ) : (
+          <>
+            {/* Bouton Espace hôte (si applicable) */}
+            {(profile?.is_host || hasPendingApplications) && (
+              <View style={styles.hostSpaceContainer}>
+                <TouchableOpacity
+                  style={styles.hostSpaceButton}
+                  onPress={hostSpaceItem.onPress}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.hostSpaceContent}>
+                    <View style={styles.hostSpaceIconContainer}>
+                      <Ionicons name="business" size={18} color="#fff" />
+                    </View>
+                    <View style={styles.hostSpaceTextContainer}>
+                      <Text style={styles.hostSpaceText}>{t('profile.hostSpace')}</Text>
+                      <Text style={styles.hostSpaceSubtext}>{t('profile.hostSpaceDesc')}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#fff" />
+                  </View>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-          </View>
-        )}
+            )}
 
-        {/* Bouton Mode logement longue durée (si applicable) */}
-        {monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode && (
-          <View style={styles.monthlyRentalSpaceContainer}>
-            <TouchableOpacity
-              style={styles.monthlyRentalSpaceButton}
-              onPress={() => {
-                Alert.alert(
-                  'Mode logement longue durée',
-                  'Gérer vos annonces et candidatures pour la location mensuelle.',
-                  [
-                    { text: t('common.cancel'), style: 'cancel' },
-                    {
-                      text: t('common.continue'),
-                      onPress: () => {
-                        navigation.navigate('ModeTransition' as never, {
-                          targetMode: 'monthly_rental',
-                          targetPath: 'MonthlyRentalOwnerSpace',
-                          fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : route.name === 'HotelProfileTab' ? 'hotel' : 'traveler',
-                        });
+            {/* Bouton Espace Véhicules (si applicable) */}
+            {hasVehicles && (
+              <View style={styles.vehicleSpaceContainer}>
+                <TouchableOpacity
+                  style={styles.vehicleSpaceButton}
+                  onPress={vehicleSpaceItem.onPress}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.vehicleSpaceContent}>
+                    <View style={styles.vehicleSpaceIconContainer}>
+                      <Ionicons name="car" size={18} color="#fff" />
+                    </View>
+                    <View style={styles.vehicleSpaceTextContainer}>
+                      <Text style={styles.vehicleSpaceText}>Espace Véhicules</Text>
+                      <Text style={styles.vehicleSpaceSubtext}>Gérez vos véhicules et réservations</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Bouton Mode logement longue durée (si applicable) */}
+            {monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode && (
+              <View style={styles.monthlyRentalSpaceContainer}>
+                <TouchableOpacity
+                  style={styles.monthlyRentalSpaceButton}
+                  onPress={() => {
+                    Alert.alert(
+                      'Mode logement longue durée',
+                      'Gérer vos annonces et candidatures pour la location mensuelle.',
+                      [
+                        { text: t('common.cancel'), style: 'cancel' },
+                        {
+                          text: t('common.continue'),
+                          onPress: () => {
+                            navigation.navigate('ModeTransition' as never, {
+                              targetMode: 'monthly_rental',
+                              targetPath: 'MonthlyRentalOwnerSpace',
+                              fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : route.name === 'HotelProfileTab' ? 'hotel' : 'traveler',
+                            });
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.monthlyRentalSpaceContent}>
+                    <View style={styles.monthlyRentalSpaceIconContainer}>
+                      <Ionicons name="business" size={18} color="#fff" />
+                    </View>
+                    <View style={styles.monthlyRentalSpaceTextContainer}>
+                      <Text style={styles.monthlyRentalSpaceText}>Mode logement longue durée</Text>
+                      <Text style={styles.monthlyRentalSpaceSubtext}>Gérez vos logements et candidatures</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {hotelEnabled && hasHotels && !isInHotelMode && (
+              <View style={styles.hotelSpaceContainer}>
+                <TouchableOpacity
+                  style={styles.hotelSpaceButton}
+                  onPress={() => {
+                    Alert.alert('Espace Hôtel', 'Gérer vos établissements et réservations.', [
+                      { text: t('common.cancel'), style: 'cancel' },
+                      {
+                        text: t('common.continue'),
+                        onPress: () => {
+                          navigation.navigate('ModeTransition' as never, {
+                            targetMode: 'hotel',
+                            targetPath: 'HotelOwnerSpace',
+                            fromMode:
+                              route.name === 'HostProfileTab'
+                                ? 'host'
+                                : route.name === 'VehicleOwnerProfileTab'
+                                  ? 'vehicle'
+                                  : route.name === 'MonthlyRentalProfileTab'
+                                    ? 'monthly_rental'
+                                    : 'traveler',
+                          });
+                        },
                       },
-                    },
-                  ]
-                );
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={styles.monthlyRentalSpaceContent}>
-                <View style={styles.monthlyRentalSpaceIconContainer}>
-                  <Ionicons name="business" size={18} color="#fff" />
-                </View>
-                <View style={styles.monthlyRentalSpaceTextContainer}>
-                  <Text style={styles.monthlyRentalSpaceText}>Mode logement longue durée</Text>
-                  <Text style={styles.monthlyRentalSpaceSubtext}>Gérez vos logements et candidatures</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
+                    ]);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.hotelSpaceContent}>
+                    <View style={styles.hotelSpaceIconContainer}>
+                      <Ionicons name="business" size={18} color="#fff" />
+                    </View>
+                    <View style={styles.hotelSpaceTextContainer}>
+                      <Text style={styles.hotelSpaceText}>Espace Hôtel</Text>
+                      <Text style={styles.hotelSpaceSubtext}>Établissements & réservations</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#fff" />
+                  </View>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-          </View>
-        )}
+            )}
 
-        {hotelEnabled && hasHotels && !isInHotelMode && (
-          <View style={styles.hotelSpaceContainer}>
-            <TouchableOpacity
-              style={styles.hotelSpaceButton}
-              onPress={() => {
-                Alert.alert('Espace Hôtel', 'Gérer vos établissements et réservations.', [
-                  { text: t('common.cancel'), style: 'cancel' },
-                  {
-                    text: t('common.continue'),
-                    onPress: () => {
-                      navigation.navigate('ModeTransition' as never, {
-                        targetMode: 'hotel',
-                        targetPath: 'HotelOwnerSpace',
-                        fromMode:
-                          route.name === 'HostProfileTab'
-                            ? 'host'
-                            : route.name === 'VehicleOwnerProfileTab'
-                              ? 'vehicle'
-                              : route.name === 'MonthlyRentalProfileTab'
-                                ? 'monthly_rental'
-                                : 'traveler',
-                      });
-                    },
-                  },
-                ]);
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={styles.hotelSpaceContent}>
-                <View style={styles.hotelSpaceIconContainer}>
-                  <Ionicons name="business" size={18} color="#fff" />
-                </View>
-                <View style={styles.hotelSpaceTextContainer}>
-                  <Text style={styles.hotelSpaceText}>Espace Hôtel</Text>
-                  <Text style={styles.hotelSpaceSubtext}>Établissements & réservations</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
+            {/* Bouton Espace voyageur (uniquement en mode logement longue durée) */}
+            {monthlyRental && isInMonthlyRentalMode && (
+              <View style={styles.travelerSpaceContainer}>
+                <TouchableOpacity
+                  style={styles.travelerSpaceButton}
+                  onPress={() => {
+                    Alert.alert(
+                      'Espace voyageur',
+                      'Accéder à l\'espace voyageur ?',
+                      [
+                        { text: t('common.cancel'), style: 'cancel' },
+                        {
+                          text: t('common.continue'),
+                          onPress: () => {
+                            navigation.navigate('ModeTransition' as never, {
+                              targetMode: 'traveler',
+                              targetPath: 'Home',
+                              fromMode: 'monthly_rental',
+                            });
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.travelerSpaceContent}>
+                    <View style={styles.travelerSpaceIconContainer}>
+                      <Ionicons name="airplane" size={18} color="#fff" />
+                    </View>
+                    <View style={styles.travelerSpaceTextContainer}>
+                      <Text style={styles.travelerSpaceText}>Espace voyageur</Text>
+                      <Text style={styles.travelerSpaceSubtext}>Recherche, réservations, favoris</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#fff" />
+                  </View>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-          </View>
-        )}
+            )}
 
-        {/* Bouton Espace voyageur (uniquement en mode logement longue durée) */}
-        {monthlyRental && isInMonthlyRentalMode && (
-          <View style={styles.travelerSpaceContainer}>
-            <TouchableOpacity
-              style={styles.travelerSpaceButton}
-              onPress={() => {
-                Alert.alert(
-                  'Espace voyageur',
-                  'Accéder à l\'espace voyageur ?',
-                  [
-                    { text: t('common.cancel'), style: 'cancel' },
-                    {
-                      text: t('common.continue'),
-                      onPress: () => {
-                        navigation.navigate('ModeTransition' as never, {
-                          targetMode: 'traveler',
-                          targetPath: 'Home',
-                          fromMode: 'monthly_rental',
-                        });
+            {hotelEnabled && isInHotelMode && (
+              <View style={styles.travelerSpaceContainer}>
+                <TouchableOpacity
+                  style={styles.travelerSpaceButton}
+                  onPress={() => {
+                    Alert.alert('Espace voyageur', "Accéder à l'espace voyageur ?", [
+                      { text: t('common.cancel'), style: 'cancel' },
+                      {
+                        text: t('common.continue'),
+                        onPress: () => {
+                          navigation.navigate('ModeTransition' as never, {
+                            targetMode: 'traveler',
+                            targetPath: 'Home',
+                            fromMode: 'hotel',
+                          });
+                        },
                       },
-                    },
-                  ]
-                );
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={styles.travelerSpaceContent}>
-                <View style={styles.travelerSpaceIconContainer}>
-                  <Ionicons name="airplane" size={18} color="#fff" />
-                </View>
-                <View style={styles.travelerSpaceTextContainer}>
-                  <Text style={styles.travelerSpaceText}>Espace voyageur</Text>
-                  <Text style={styles.travelerSpaceSubtext}>Recherche, réservations, favoris</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
+                    ]);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.travelerSpaceContent}>
+                    <View style={styles.travelerSpaceIconContainer}>
+                      <Ionicons name="airplane" size={18} color="#fff" />
+                    </View>
+                    <View style={styles.travelerSpaceTextContainer}>
+                      <Text style={styles.travelerSpaceText}>Espace voyageur</Text>
+                      <Text style={styles.travelerSpaceSubtext}>Recherche, réservations, favoris</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#fff" />
+                  </View>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {hotelEnabled && isInHotelMode && (
-          <View style={styles.travelerSpaceContainer}>
-            <TouchableOpacity
-              style={styles.travelerSpaceButton}
-              onPress={() => {
-                Alert.alert('Espace voyageur', "Accéder à l'espace voyageur ?", [
-                  { text: t('common.cancel'), style: 'cancel' },
-                  {
-                    text: t('common.continue'),
-                    onPress: () => {
-                      navigation.navigate('ModeTransition' as never, {
-                        targetMode: 'traveler',
-                        targetPath: 'Home',
-                        fromMode: 'hotel',
-                      });
-                    },
-                  },
-                ]);
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={styles.travelerSpaceContent}>
-                <View style={styles.travelerSpaceIconContainer}>
-                  <Ionicons name="airplane" size={18} color="#fff" />
-                </View>
-                <View style={styles.travelerSpaceTextContainer}>
-                  <Text style={styles.travelerSpaceText}>Espace voyageur</Text>
-                  <Text style={styles.travelerSpaceSubtext}>Recherche, réservations, favoris</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#fff" />
-              </View>
-            </TouchableOpacity>
-          </View>
+            )}
+          </>
         )}
 
         {/* Menu Items */}
@@ -851,8 +889,7 @@ const ProfileScreen: React.FC = () => {
                 item.id !== 'hostSpace' &&
                 item.id !== 'vehicleSpace' &&
                 item.id !== 'monthlyRentalSpace' &&
-                item.id !== 'hotelSpace' &&
-                item.id !== 'addListing',
+                item.id !== 'hotelSpace',
             )
             .map((item) => (
               <TouchableOpacity
@@ -1048,6 +1085,11 @@ const styles = StyleSheet.create({
   identitySection: {
     marginHorizontal: 20,
     marginTop: 20,
+  },
+  spacesLoadingContainer: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   menuContainer: {
     backgroundColor: '#fff',

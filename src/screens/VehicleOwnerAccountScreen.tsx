@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,14 +29,12 @@ const VehicleOwnerAccountScreen: React.FC = () => {
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus } = useIdentityVerification();
 
-  // Rafraîchir le profil quand l'écran devient actif
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       if (user) {
         refreshProfile();
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user])
+    }, [user, refreshProfile]),
   );
 
   const handleLogout = () => {
@@ -145,6 +144,12 @@ const VehicleOwnerAccountScreen: React.FC = () => {
       title: t('profile.edit'),
       icon: 'person-outline',
       onPress: () => navigation.navigate('EditProfile'),
+    },
+    {
+      id: 'addListing',
+      title: 'Ajouter un bien',
+      icon: 'add-circle-outline',
+      onPress: () => navigation.navigate('AddListingChoice' as never),
     },
     {
       id: 'helpAssistant',
@@ -257,8 +262,12 @@ const VehicleOwnerAccountScreen: React.FC = () => {
             </View>
           </TouchableOpacity>
 
-          {/* Bouton Espace Hôte si l'utilisateur est hôte */}
-          {profile?.is_host && (
+          {/* Bouton Espace Hôte si l'utilisateur est hôte — attendre le profil pour éviter le pop */}
+          {loading && !profile ? (
+            <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#999" />
+            </View>
+          ) : profile?.is_host ? (
             <TouchableOpacity 
               style={styles.switchModeButtonHost}
               onPress={handleSwitchToHostMode}
@@ -275,7 +284,7 @@ const VehicleOwnerAccountScreen: React.FC = () => {
                 <Ionicons name="chevron-forward" size={20} color="#fff" />
               </View>
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
         {/* Vérification d'identité */}

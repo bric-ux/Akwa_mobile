@@ -61,7 +61,7 @@ export default function StripeReturnHandler({ navigationRef }: Props) {
   const checkPayment = useCallback(async (payload: PendingPayment): Promise<{ paid: boolean; error?: string }> => {
     try {
       const result = await checkPaymentStatus({
-        booking_type: (payload.bookingType as 'property' | 'vehicle') || 'property',
+        booking_type: (payload.bookingType as 'property' | 'vehicle' | 'hotel') || 'property',
         payment_type: 'booking',
         checkout_token: payload.value,
         ...(payload.wave ? { wave: true } : {}),

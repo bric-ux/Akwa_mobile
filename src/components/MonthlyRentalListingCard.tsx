@@ -1,14 +1,29 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
 import type { MonthlyRentalListing } from '../types';
-import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
+import MediaThumb from './MediaThumb';
+import ExploreShelfPhotoCard from './ExploreShelfPhotoCard';
+import {
+  EXPLORE_SHELF_IMAGE_HEIGHT,
+  LIST_CARD_IMAGE_HEIGHT,
+  formatExploreShelfHeadline,
+  formatListCardTitle,
+} from '../constants/exploreShelfCard';
 
 interface MonthlyRentalListingCardProps {
   listing: MonthlyRentalListing;
   onPress: (listing: MonthlyRentalListing) => void;
   variant?: 'grid' | 'list' | 'shelf';
+}
+
+function coverUri(listing: MonthlyRentalListing): string {
+  if (Array.isArray(listing.images) && listing.images.length > 0) {
+    return listing.images[0];
+  }
+  const cp = listing.categorized_photos as Array<{ url?: string }> | undefined;
+  if (Array.isArray(cp) && cp[0]?.url) return cp[0].url;
+  return 'https://via.placeholder.com/300x200';
 }
 
 const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
@@ -17,105 +32,81 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
   variant = 'list',
 }) => {
   const { formatPrice } = useCurrency();
-  const imageUri = Array.isArray(listing.images) && listing.images.length > 0
-    ? listing.images[0]
-    : 'https://via.placeholder.com/300x200';
+  const imageUri = coverUri(listing);
+  const typeLabel = 'Longue durée';
+  const priceLabel = `${formatPrice(listing.monthly_rent_price)}/mois`;
+  const location = listing.location?.trim() || undefined;
+  const detailBits = [
+    listing.surface_m2 ? `${listing.surface_m2} m²` : null,
+    listing.number_of_rooms ? `${listing.number_of_rooms} pièce${listing.number_of_rooms > 1 ? 's' : ''}` : null,
+  ].filter(Boolean);
+  const detailLine = detailBits.length > 0 ? detailBits.join(' · ') : undefined;
+
+  if (variant === 'shelf') {
+    return (
+      <View style={styles.shelfOuter}>
+        <ExploreShelfPhotoCard
+          onPress={() => onPress(listing)}
+          title={formatExploreShelfHeadline({
+            title: listing.title,
+            typeLabel,
+          })}
+          detailLine={detailLine}
+          location={location}
+          priceLabel={priceLabel}
+          imageHeight={EXPLORE_SHELF_IMAGE_HEIGHT}
+          image={
+            <MediaThumb
+              uri={imageUri}
+              style={{ width: '100%', height: EXPLORE_SHELF_IMAGE_HEIGHT }}
+              resizeMode="cover"
+              contentPosition="top"
+              preferOriginal
+              priority="high"
+              recyclingKey={`${listing.id}-shelf-cover`}
+            />
+          }
+        />
+      </View>
+    );
+  }
 
   return (
-    <TouchableOpacity
-      style={[
-        styles.container,
-        variant === 'list' && styles.listContainer,
-        variant === 'shelf' && styles.shelfContainer,
-      ]}
-      onPress={() => onPress(listing)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.cardLayout}>
-        <View style={[styles.imageContainer, variant === 'shelf' && styles.shelfImage]}>
-          <Image source={{ uri: imageUri }} style={styles.cardImage} resizeMode="cover" />
-          <View style={styles.priceOverlay}>
-            <Text style={styles.priceText}>
-              {formatPrice(listing.monthly_rent_price)}/mois
-            </Text>
-          </View>
-          <View style={styles.badgeLongueDuree}>
-            <Text style={styles.badgeText}>Longue durée</Text>
-          </View>
-        </View>
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{listing.title}</Text>
-          <Text style={styles.cardLocation} numberOfLines={1}>
-            📍 {listing.location}
-          </Text>
-          {variant !== 'shelf' ? (
-            <View style={styles.metaRow}>
-              <Text style={styles.metaText}>{listing.surface_m2} m²</Text>
-              <Text style={styles.metaDot}>•</Text>
-              <Text style={styles.metaText}>{listing.number_of_rooms} pièces</Text>
-              <Text style={styles.metaDot}>•</Text>
-              <Text style={styles.metaText}>{listing.bedrooms} ch.</Text>
-              {listing.is_furnished && (
-                <>
-                  <Text style={styles.metaDot}>•</Text>
-                  <Text style={styles.metaText}>Meublé</Text>
-                </>
-              )}
-            </View>
-          ) : null}
-        </View>
-      </View>
-    </TouchableOpacity>
+    <View style={styles.listOuter}>
+      <ExploreShelfPhotoCard
+        onPress={() => onPress(listing)}
+        imageAspect="list"
+        imageHeight={LIST_CARD_IMAGE_HEIGHT}
+        title={formatListCardTitle({
+          title: listing.title,
+          typeLabel,
+        })}
+        detailLine={detailLine}
+        location={location}
+        priceLabel={priceLabel}
+        image={
+          <MediaThumb
+            uri={imageUri}
+            style={{ width: '100%', height: LIST_CARD_IMAGE_HEIGHT }}
+            resizeMode="cover"
+            contentPosition="top"
+            preferOriginal
+            priority="high"
+            recyclingKey={`${listing.id}-list-cover`}
+          />
+        }
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { marginHorizontal: 20, marginBottom: 16 },
-  listContainer: {},
-  shelfContainer: { marginHorizontal: 0, marginBottom: 0 },
-  cardLayout: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  imageContainer: {
+  shelfOuter: {
     width: '100%',
-    height: 180,
-    position: 'relative',
   },
-  shelfImage: { height: 120 },
-  cardImage: { width: '100%', height: '100%' },
-  priceOverlay: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+  listOuter: {
+    marginBottom: 14,
   },
-  priceText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  badgeLongueDuree: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: MONTHLY_RENTAL_COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  cardContent: { padding: 14 },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: '#1a1a1a', marginBottom: 4 },
-  cardLocation: { fontSize: 13, color: '#666', marginBottom: 6 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  metaText: { fontSize: 12, color: '#888' },
-  metaDot: { fontSize: 12, color: '#ccc', marginHorizontal: 4 },
 });
 
 export default MonthlyRentalListingCard;

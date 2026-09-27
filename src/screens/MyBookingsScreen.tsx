@@ -34,13 +34,29 @@ import GuestModePlaceholder from '../components/GuestModePlaceholder';
 import MediaThumb from '../components/MediaThumb';
 import { getVehicleCoverUrl, isVideoUrl } from '../utils/media';
 import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
+import { supabase } from '../services/supabase';
+import { HOTEL_COLORS } from '../constants/colors';
+
+type HotelBookingListItem = {
+  id: string;
+  booking_code: string | null;
+  check_in_date: string;
+  check_out_date: string;
+  guests_count: number;
+  total_price: number;
+  status: string;
+  payment_method: string | null;
+  payment_status: string | null;
+  hotel_title: string;
+  room_name: string;
+};
 
 const MyBookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { user } = useAuth();
   const isInTabNavigator = route.name === 'BookingsTab';
-  const { currency, rates } = useCurrency();
+  const { currency, rates, formatPrice } = useCurrency();
   const { getUserBookings, cancelBooking, loading: propertiesLoading, error } = useBookings();
   const { getMyBookings: getVehicleBookings, loading: vehiclesLoading } = useVehicleBookings();
   const { canUserReviewProperty } = useReviews();
@@ -53,8 +69,10 @@ const MyBookingsScreen: React.FC = () => {
   const { getBookingPendingRequest: getVehicleBookingPendingRequest } = useVehicleBookingModifications();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [vehicleBookings, setVehicleBookings] = useState<VehicleBooking[]>([]);
+  const [hotelBookings, setHotelBookings] = useState<HotelBookingListItem[]>([]);
+  const [hotelsLoading, setHotelsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'properties' | 'vehicles'>('properties');
+  const [activeTab, setActiveTab] = useState<'properties' | 'vehicles' | 'hotels'>('properties');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in_progress'>('all');
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [vehicleReviewModalVisible, setVehicleReviewModalVisible] = useState(false);
@@ -71,7 +89,7 @@ const MyBookingsScreen: React.FC = () => {
   const [selectedBookingForModification, setSelectedBookingForModification] = useState<Booking | null>(null);
   const [selectedVehicleBookingForModification, setSelectedVehicleBookingForModification] = useState<VehicleBooking | null>(null);
   const [vehiclePendingRequests, setVehiclePendingRequests] = useState<{ [key: string]: any }>({});
-  const loading = propertiesLoading || vehiclesLoading;
+  const loading = propertiesLoading || vehiclesLoading || hotelsLoading;
 
   const canModifyVehicleBooking = (booking: VehicleBooking) => {
     if (booking.status === 'cancelled' || booking.status === 'completed') return false;
@@ -111,14 +129,50 @@ const MyBookingsScreen: React.FC = () => {
 
   const loadBookings = async () => {
     try {
-      // Charger les deux types de réservations en parallèle
-      const [userBookings, userVehicleBookings] = await Promise.all([
+      setHotelsLoading(true);
+      // Charger les trois types de réservations en parallèle
+      const [userBookings, userVehicleBookings, hotelRes] = await Promise.all([
         getUserBookings(),
-        getVehicleBookings()
+        getVehicleBookings(),
+        user
+          ? supabase
+              .from('hotel_bookings')
+              .select(
+                `
+                id, booking_code, check_in_date, check_out_date, guests_count,
+                total_price, status, payment_method, payment_status,
+                hotel_establishments ( title ),
+                hotel_booking_items ( hotel_room_types ( name ) )
+              `,
+              )
+              .eq('guest_id', user.id)
+              .order('created_at', { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
       ]);
       
       setBookings(userBookings);
       setVehicleBookings(userVehicleBookings);
+
+      if (hotelRes.error) {
+        console.error('Hotel bookings load:', hotelRes.error);
+        setHotelBookings([]);
+      } else {
+        setHotelBookings(
+          ((hotelRes.data as any[]) || []).map((b) => ({
+            id: b.id,
+            booking_code: b.booking_code,
+            check_in_date: b.check_in_date,
+            check_out_date: b.check_out_date,
+            guests_count: b.guests_count,
+            total_price: Number(b.total_price || 0),
+            status: b.status,
+            payment_method: b.payment_method,
+            payment_status: b.payment_status || 'unpaid',
+            hotel_title: b.hotel_establishments?.title || 'Hôtel',
+            room_name: b.hotel_booking_items?.[0]?.hotel_room_types?.name || 'Chambre',
+          })),
+        );
+      }
       
       // Vérifier quelles réservations de propriétés peuvent être notées
       const canReviewPromises = userBookings
@@ -185,6 +239,8 @@ const MyBookingsScreen: React.FC = () => {
       setVehiclePendingRequests(vehicleRequestsMap);
     } catch (err) {
       console.error('Erreur lors du chargement des réservations:', err);
+    } finally {
+      setHotelsLoading(false);
     }
   };
 
@@ -358,14 +414,40 @@ const MyBookingsScreen: React.FC = () => {
     return status === selectedFilter;
   });
 
+  const getHotelBookingStatus = (booking: HotelBookingListItem): string => {
+    if (booking.status === 'cancelled') return 'cancelled';
+    if (booking.status === 'pending') return 'pending';
+    if (booking.status === 'completed') return 'completed';
+    if (booking.status === 'confirmed') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const checkIn = new Date(booking.check_in_date);
+      checkIn.setHours(0, 0, 0, 0);
+      const checkOut = new Date(booking.check_out_date);
+      checkOut.setHours(0, 0, 0, 0);
+      if (checkOut < today) return 'completed';
+      if (checkIn <= today && today <= checkOut) return 'in_progress';
+      return 'confirmed';
+    }
+    return booking.status;
+  };
+
+  const filteredHotelBookings = hotelBookings.filter((booking) => {
+    const status = getHotelBookingStatus(booking);
+    if (selectedFilter === 'all') return true;
+    if (selectedFilter === 'in_progress') return status === 'in_progress';
+    return status === selectedFilter;
+  });
+
   // Obtenir les items à afficher selon l'onglet actif
   const getDisplayItems = () => {
     if (activeTab === 'properties') return filteredBookings;
+    if (activeTab === 'hotels') return filteredHotelBookings;
     return filteredVehicleBookings;
   };
 
   const displayItems = getDisplayItems();
-  const totalCount = bookings.length + vehicleBookings.length;
+  const totalCount = bookings.length + vehicleBookings.length + hotelBookings.length;
 
   const renderBookingItem = ({ item: booking }: { item: Booking }) => (
     <BookingCard
@@ -377,6 +459,85 @@ const MyBookingsScreen: React.FC = () => {
       canReview={canReviewMap[booking.id] || false}
     />
   );
+
+  const renderHotelBookingItem = ({ item }: { item: HotelBookingListItem }) => {
+    const status = getHotelBookingStatus(item);
+    const statusLabel = getStatusText(status);
+    const unpaid = item.payment_method === 'cash' && item.payment_status !== 'paid';
+    const statusColor =
+      status === 'pending'
+        ? '#f59e0b'
+        : status === 'confirmed'
+          ? '#10b981'
+          : status === 'in_progress'
+            ? '#3b82f6'
+            : status === 'completed'
+              ? '#6366f1'
+              : '#ef4444';
+    const formatDate = (dateStr: string) =>
+      new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'short',
+      });
+
+    return (
+      <TouchableOpacity
+        style={styles.hotelCard}
+        activeOpacity={0.9}
+        onPress={() =>
+          (navigation as any).navigate('HotelBookingDetail', {
+            bookingId: item.id,
+            role: 'guest',
+          })
+        }
+      >
+        <View style={styles.hotelCardTop}>
+          <View style={[styles.hotelIconWrap]}>
+            <Ionicons name="business" size={20} color={HOTEL_COLORS.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.hotelCardTitle} numberOfLines={1}>
+              {item.hotel_title}
+            </Text>
+            <Text style={styles.hotelCardRoom}>{item.room_name}</Text>
+          </View>
+          {item.booking_code ? (
+            <Text style={styles.hotelCode}>{item.booking_code}</Text>
+          ) : null}
+        </View>
+        <Text style={styles.hotelDates}>
+          {formatDate(item.check_in_date)} → {formatDate(item.check_out_date)} ·{' '}
+          {item.guests_count} pers.
+        </Text>
+        <View style={styles.hotelBadges}>
+          <View style={[styles.hotelBadge, { backgroundColor: statusColor + '22' }]}>
+            <Text style={[styles.hotelBadgeText, { color: statusColor }]}>
+              {statusLabel}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.hotelBadge,
+              { backgroundColor: unpaid ? '#ffedd5' : '#dcfce7' },
+            ]}
+          >
+            <Text
+              style={[
+                styles.hotelBadgeText,
+                { color: unpaid ? '#92400e' : '#166534' },
+              ]}
+            >
+              {unpaid ? 'Espèces à l’arrivée' : 'Payé'}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.hotelFooter}>
+          <Text style={styles.hotelPrice}>{formatPrice(item.total_price)}</Text>
+          <Text style={styles.hotelLink}>Facture →</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderVehicleBookingItem = ({ item: booking }: { item: VehicleBooking }) => {
     const vehicle = booking.vehicle;
@@ -579,9 +740,12 @@ const MyBookingsScreen: React.FC = () => {
 
   const renderEmptyState = () => {
     const hasAnyBookings = totalCount > 0;
-    const emptyMessage = activeTab === 'properties' 
-      ? 'Aucune réservation de résidence meublée'
-      : 'Aucune réservation de véhicule';
+    const emptyMessage =
+      activeTab === 'properties'
+        ? 'Aucune réservation de résidence meublée'
+        : activeTab === 'hotels'
+          ? 'Aucune réservation hôtel'
+          : 'Aucune réservation de véhicule';
     
     return (
       <View style={styles.emptyContainer}>
@@ -590,7 +754,7 @@ const MyBookingsScreen: React.FC = () => {
         <Text style={styles.emptySubtitle}>
           {selectedFilter === 'all' 
             ? hasAnyBookings 
-              ? `Aucune réservation ${activeTab === 'properties' ? 'de résidence' : 'de véhicule'} ${getStatusText(selectedFilter).toLowerCase()}`
+              ? `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()}`
               : 'Vous n\'avez pas encore de réservations'
             : `Aucune réservation ${getStatusText(selectedFilter).toLowerCase()}`
           }
@@ -601,13 +765,19 @@ const MyBookingsScreen: React.FC = () => {
             onPress={() => {
               if (activeTab === 'vehicles') {
                 (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' });
+              } else if (activeTab === 'hotels') {
+                (navigation as any).navigate('Search', { initialRentalType: 'hotel' });
               } else {
                 (navigation as any).navigate('Home', { screen: 'HomeTab' });
               }
             }}
           >
             <Text style={styles.exploreButtonText}>
-              {activeTab === 'vehicles' ? 'Découvrir des véhicules' : 'Explorer les propriétés'}
+              {activeTab === 'vehicles'
+                ? 'Découvrir des véhicules'
+                : activeTab === 'hotels'
+                  ? 'Explorer les hôtels'
+                  : 'Explorer les propriétés'}
             </Text>
           </TouchableOpacity>
         )}
@@ -669,6 +839,14 @@ const MyBookingsScreen: React.FC = () => {
             Véhicules ({vehicleBookings.length})
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'hotels' && styles.tabActive]}
+          onPress={() => setActiveTab('hotels')}
+        >
+          <Text style={[styles.tabText, activeTab === 'hotels' && styles.tabTextActive]}>
+            Hôtels ({hotelBookings.length})
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Filtres */}
@@ -694,7 +872,13 @@ const MyBookingsScreen: React.FC = () => {
       ) : (
         <FlatList
           data={displayItems}
-          renderItem={activeTab === 'vehicles' ? renderVehicleBookingItem : renderBookingItem}
+          renderItem={
+            activeTab === 'vehicles'
+              ? renderVehicleBookingItem
+              : activeTab === 'hotels'
+                ? (renderHotelBookingItem as any)
+                : renderBookingItem
+          }
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
           refreshControl={
@@ -940,12 +1124,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e9ecef',
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
   },
   tab: {
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginRight: 8,
+    paddingHorizontal: 10,
+    marginRight: 4,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -953,7 +1137,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#2E7D32',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
     fontWeight: '500',
   },
@@ -961,6 +1145,38 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
     fontWeight: '600',
   },
+  hotelCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  hotelCardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  hotelIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: HOTEL_COLORS.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hotelCardTitle: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  hotelCardRoom: { marginTop: 2, fontSize: 13, color: '#64748b' },
+  hotelCode: { fontSize: 11, fontWeight: '700', color: HOTEL_COLORS.dark },
+  hotelDates: { marginTop: 10, fontSize: 13, color: '#475569' },
+  hotelBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  hotelBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  hotelBadgeText: { fontSize: 11, fontWeight: '700' },
+  hotelFooter: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  hotelPrice: { fontSize: 16, fontWeight: '800', color: HOTEL_COLORS.primary },
+  hotelLink: { fontSize: 13, fontWeight: '600', color: HOTEL_COLORS.primary },
   vehicleBookingCard: {
     backgroundColor: '#fff',
     borderRadius: 12,

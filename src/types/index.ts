@@ -244,7 +244,17 @@ export type RootStackParamList = {
     /** @deprecated utiliser initialRentalType */
     rentalType?: 'short_term' | 'monthly' | 'hotel';
   };
-  HotelEstablishmentDetail: { establishmentId: string };
+  HotelEstablishmentDetail: {
+    establishmentId: string;
+    roomTypeId?: string;
+    checkIn?: string;
+    checkOut?: string;
+    guests?: number;
+  };
+  HotelBookingDetail: {
+    bookingId: string;
+    role: 'guest' | 'host';
+  };
   PropertyDetails: { 
     propertyId: string;
     checkIn?: string;
@@ -257,6 +267,7 @@ export type RootStackParamList = {
   };
   Booking: { propertyId: string };
   MonthlyRentalListingDetail: { listingId: string }; // Détail annonce longue durée (voyageur)
+  MonthlyRentalApply: { listingId: string; listingTitle: string };
   HostProfile: {
     hostId: string;
     propertyOnly?: boolean;
@@ -277,7 +288,8 @@ export type RootStackParamList = {
   BecomeHost: undefined;
   /** Choix du type de bien : résidence, véhicule, hôtel, longue durée */
   AddListingChoice: undefined;
-  AddHotelEstablishment: undefined;
+  AddHotelEstablishment: { establishmentId?: string } | undefined;
+  ManageHotelRoomTypes: { establishmentId: string; establishmentTitle?: string };
   /** Assistant IA (questions / réponses) — réservé usage futur */
   HostOnboardingAssistant: undefined;
   MyHostApplications: undefined;

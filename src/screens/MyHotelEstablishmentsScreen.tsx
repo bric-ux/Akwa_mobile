@@ -112,7 +112,13 @@ export default function MyHotelEstablishmentsScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.card}
+              activeOpacity={0.85}
+              onPress={() =>
+                navigation.navigate('AddHotelEstablishment', { establishmentId: item.id })
+              }
+            >
               <View style={[styles.badge, { backgroundColor: HOTEL_COLORS.light }]}>
                 <Ionicons name="business" size={20} color={HOTEL_COLORS.primary} />
               </View>
@@ -123,7 +129,8 @@ export default function MyHotelEstablishmentsScreen() {
                 </Text>
                 {!!item.address && <Text style={styles.cardAddr}>{item.address}</Text>}
               </View>
-            </View>
+              <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+            </TouchableOpacity>
           )}
         />
       )}

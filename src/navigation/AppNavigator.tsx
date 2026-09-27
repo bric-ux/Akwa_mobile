@@ -39,8 +39,10 @@ import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 import BecomeHostScreen from '../screens/BecomeHostScreen';
 import AddListingChoiceScreen from '../screens/AddListingChoiceScreen';
 import AddHotelEstablishmentScreen from '../screens/AddHotelEstablishmentScreen';
+import ManageHotelRoomTypesScreen from '../screens/ManageHotelRoomTypesScreen';
 import MyHotelEstablishmentsScreen from '../screens/MyHotelEstablishmentsScreen';
 import HotelOwnerBookingsScreen from '../screens/HotelOwnerBookingsScreen';
+import MonthlyRentalApplyScreen from '../screens/MonthlyRentalApplyScreen';
 import HostOnboardingAssistantScreen from '../screens/HostOnboardingAssistantScreen';
 import MyHostApplicationsScreen from '../screens/MyHostApplicationsScreen';
 import ApplicationDetailsScreen from '../screens/ApplicationDetailsScreen';
@@ -73,6 +75,7 @@ import MonthlyRentalOwnerCandidaturesScreen from '../screens/MonthlyRentalOwnerC
 import MonthlyRentalStatsScreen from '../screens/MonthlyRentalStatsScreen';
 import MonthlyRentalListingDetailScreen from '../screens/MonthlyRentalListingDetailScreen';
 import HotelEstablishmentDetailScreen from '../screens/HotelEstablishmentDetailScreen';
+import HotelBookingDetailScreen from '../screens/HotelBookingDetailScreen';
 import HostReferralScreen from '../screens/HostReferralScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsScreen from '../screens/TermsScreen';
@@ -799,6 +802,11 @@ const AppNavigator = () => {
           component={HotelEstablishmentDetailScreen}
           options={{ title: 'Hôtel', headerShown: false }}
         />
+        <Stack.Screen
+          name="HotelBookingDetail"
+          component={HotelBookingDetailScreen}
+          options={{ title: 'Réservation hôtel', headerShown: false }}
+        />
         <Stack.Screen 
           name="Booking" 
           component={BookingScreen}
@@ -901,6 +909,22 @@ const AppNavigator = () => {
               component={AddHotelEstablishmentScreen}
               options={{
                 title: 'Nouvel établissement',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ManageHotelRoomTypes"
+              component={ManageHotelRoomTypesScreen}
+              options={{
+                title: 'Types de chambres',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="MonthlyRentalApply"
+              component={MonthlyRentalApplyScreen}
+              options={{
+                title: 'Candidater',
                 headerShown: false,
               }}
             />

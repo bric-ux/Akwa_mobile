@@ -7,7 +7,6 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,14 +52,10 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
 
   const handlePostuler = () => {
     if (!listing) return;
-    Alert.alert(
-      'Postuler',
-      'La candidature pour ce logement sera bientôt disponible. En attendant, vous pouvez contacter le propriétaire via Messages.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'OK' },
-      ]
-    );
+    (navigation as any).navigate('MonthlyRentalApply', {
+      listingId: listing.id,
+      listingTitle: listing.title,
+    });
   };
 
   if (loading) {
