@@ -34,13 +34,13 @@ export const InfoBanner: React.FC<InfoBannerProps> = () => {
         style={styles.hostBanner}
       >
         <View style={styles.hostIconContainer}>
-          <Ionicons name="home" size={16} color="#93c5fd" />
+          <Ionicons name="home" size={16} color="#F5A574" />
         </View>
         <Text style={styles.hostBannerText}>
           Ajouter votre bien{' '}
           <Text style={styles.hostBannerLink}>en cliquant ici</Text>
         </Text>
-        <Ionicons name="chevron-forward" size={14} color="rgba(255, 255, 255, 0.4)" />
+        <Ionicons name="chevron-forward" size={14} color="rgba(246, 245, 242, 0.35)" />
       </TouchableOpacity>
     </View>
   );
@@ -48,9 +48,9 @@ export const InfoBanner: React.FC<InfoBannerProps> = () => {
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: '#0a0e1a',
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#1F1A17',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(246, 245, 242, 0.08)',
   },
   hostBanner: {
     flexDirection: 'row',
@@ -58,9 +58,6 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(37, 99, 235, 0.35)',
-    backgroundColor: 'rgba(15, 42, 90, 0.55)',
   },
   hostIconContainer: {
     width: 28,
@@ -68,17 +65,17 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.28)',
+    backgroundColor: 'rgba(234, 88, 12, 0.18)',
   },
   hostBannerText: {
     flex: 1,
-    color: '#fff',
+    color: '#F6F5F2',
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: -0.2,
   },
   hostBannerLink: {
-    color: '#93c5fd',
+    color: '#F5A574',
     textDecorationLine: 'underline',
   },
 });
