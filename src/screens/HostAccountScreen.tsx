@@ -19,7 +19,7 @@ import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicles } from '../hooks/useVehicles';
 import { HOST_COLORS, VEHICLE_COLORS } from '../constants/colors';
-import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { APP_VERSION } from '../constants/appVersion';
 import { displayEmailOrPhone } from '../lib/displayContact';
 
@@ -30,6 +30,7 @@ const HostAccountScreen: React.FC = () => {
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus } = useIdentityVerification();
   const { getMyVehicles } = useVehicles();
+  const { monthlyRental } = useFeatureFlags();
   const [hasVehicles, setHasVehicles] = useState(false);
 
   // Vérifier si l'utilisateur a des véhicules
@@ -165,18 +166,12 @@ const HostAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
-      id: 'addProperty',
-      title: t('host.addProperty'),
-      icon: 'add-circle-outline',
-      onPress: () => navigation.navigate('BecomeHost' as never),
-    },
-    {
       id: 'myGuestReviews',
       title: 'Mes avis',
       icon: 'star-outline',
       onPress: () => navigation.navigate('MyGuestReviews' as never),
     },
-    ...(FEATURE_MONTHLY_RENTAL ? [
+    ...(monthlyRental ? [
     {
       id: 'subscription',
       title: 'Abonnement location mensuelle',

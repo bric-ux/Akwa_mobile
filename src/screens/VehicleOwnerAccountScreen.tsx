@@ -153,12 +153,6 @@ const VehicleOwnerAccountScreen: React.FC = () => {
       onPress: () => navigation.navigate('HelpAssistant' as never),
     },
     {
-      id: 'addVehicle',
-      title: 'Ajouter un véhicule',
-      icon: 'add-circle-outline',
-      onPress: () => navigation.navigate('AddVehicle' as never),
-    },
-    {
       id: 'myGuestReviews',
       title: 'Mes avis',
       icon: 'star-outline',

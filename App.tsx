@@ -11,6 +11,7 @@ import { CurrencyProvider } from './src/contexts/CurrencyContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { SearchDatesProvider } from './src/contexts/SearchDatesContext';
 import { NetworkProvider } from './src/contexts/NetworkContext';
+import { FeatureFlagsProvider } from './src/contexts/FeatureFlagsContext';
 import OfflineBanner from './src/components/OfflineBanner';
 import AppNavigator from './src/navigation/AppNavigator';
 import CurrencyDefaultFromCountry from './src/components/CurrencyDefaultFromCountry';
@@ -46,6 +47,7 @@ export default function App() {
           <LanguageProvider>
             <CurrencyProvider>
               <AuthProvider>
+                <FeatureFlagsProvider>
                 <SearchDatesProvider>
                   <NetworkProvider>
                     <AuthGate>
@@ -56,6 +58,7 @@ export default function App() {
                     </AuthGate>
                   </NetworkProvider>
                 </SearchDatesProvider>
+                </FeatureFlagsProvider>
               </AuthProvider>
             </CurrencyProvider>
           </LanguageProvider>

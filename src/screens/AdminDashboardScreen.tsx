@@ -20,7 +20,6 @@ import { useBookingPDF } from '../hooks/useBookingPDF';
 import AdminNotificationBell from '../components/AdminNotificationBell';
 import AdminRecentBookingsSection from '../components/admin/AdminRecentBookingsSection';
 import { supabase } from '../services/supabase';
-import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
 
 const AdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -35,9 +34,10 @@ const AdminDashboardScreen: React.FC = () => {
   const [testEmail, setTestEmail] = useState('');
   const { generateAndSendBookingPDF } = useBookingPDF();
 
+  // Ne pas remettre loadingStats=true si on a déjà des stats (refresh silencieux)
   const loadStats = async () => {
     try {
-      setLoadingStats(true);
+      if (!stats) setLoadingStats(true);
       const dashboardStats = await getDashboardStats();
       setStats(dashboardStats);
     } catch (error) {
@@ -289,16 +289,7 @@ const AdminDashboardScreen: React.FC = () => {
     );
   }
 
-  if (loadingStats) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#e74c3c" />
-          <Text style={styles.loadingText}>Chargement du tableau de bord...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Ne plus bloquer tout l’écran : actions rapides disponibles tout de suite
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -310,8 +301,13 @@ const AdminDashboardScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.refreshButton}
           onPress={loadStats}
+          disabled={loadingStats}
         >
-          <Ionicons name="refresh" size={24} color="#e74c3c" />
+          {loadingStats ? (
+            <ActivityIndicator size="small" color="#e74c3c" />
+          ) : (
+            <Ionicons name="refresh" size={24} color="#e74c3c" />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -328,7 +324,11 @@ const AdminDashboardScreen: React.FC = () => {
                 <Ionicons name="grid-outline" size={22} color="#ea580c" />
               </View>
               <View style={styles.statTextContainer}>
-                <Text style={styles.statValue}>{stats?.zipUniquePlayers ?? 0}</Text>
+                {loadingStats && !stats ? (
+                  <ActivityIndicator size="small" color="#ea580c" style={{ alignSelf: 'flex-start' }} />
+                ) : (
+                  <Text style={styles.statValue}>{stats?.zipUniquePlayers ?? 0}</Text>
+                )}
                 <Text style={styles.statTitle}>Joueurs Zip (uniques)</Text>
               </View>
             </View>
@@ -488,7 +488,6 @@ const AdminDashboardScreen: React.FC = () => {
             color="#3498db"
           />
 
-          {FEATURE_MONTHLY_RENTAL && (
           <QuickAction
             title="Locations mensuelles"
             description="Approuver ou refuser les annonces longue durée"
@@ -496,7 +495,14 @@ const AdminDashboardScreen: React.FC = () => {
             onPress={() => navigation.navigate('AdminMonthlyRental' as never)}
             color="#3498db"
           />
-          )}
+
+          <QuickAction
+            title="Visibilité produits"
+            description="Afficher ou masquer longue durée et hôtels"
+            icon="eye-outline"
+            onPress={() => navigation.navigate('AdminFeatureFlags' as never)}
+            color="#8e44ad"
+          />
         </View>
 
         {/* Section Tests */}
@@ -520,7 +526,13 @@ const AdminDashboardScreen: React.FC = () => {
 
         {/* Réservations récentes */}
         <Text style={styles.sectionTitle}>Réservations récentes</Text>
-        <AdminRecentBookingsSection items={stats?.recentBookings || []} limit={8} />
+        {loadingStats && !stats ? (
+          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#e74c3c" />
+          </View>
+        ) : (
+          <AdminRecentBookingsSection items={stats?.recentBookings || []} limit={8} />
+        )}
       </ScrollView>
 
       {/* Modal pour saisie email de test */}

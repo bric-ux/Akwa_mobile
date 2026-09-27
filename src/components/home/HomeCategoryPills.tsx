@@ -1,11 +1,18 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
+import React, { useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ImageBackground,
+  ScrollView,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../../constants/homeExploreLayout';
-import { FEATURE_MONTHLY_RENTAL } from '../../constants/features';
+import { useFeatureFlags } from '../../contexts/FeatureFlagsContext';
 
-export type HomeCategoryId = 'residence' | 'monthly' | 'vehicle';
+export type HomeCategoryId = 'residence' | 'monthly' | 'vehicle' | 'hotel';
 
 type CategoryDef = {
   id: HomeCategoryId;
@@ -13,23 +20,31 @@ type CategoryDef = {
   image: number;
 };
 
-const BASE_CATEGORIES: CategoryDef[] = [
-  {
-    id: 'residence',
-    label: 'Résidences',
-    image: require('../../../assets/images/category-residences.jpg'),
-  },
-  {
-    id: 'vehicle',
-    label: 'Véhicules',
-    image: require('../../../assets/images/category-vehicles.jpg'),
-  },
-];
+const PILL_WIDTH = 148;
+const PILL_GAP = 8;
+
+const RESIDENCE_CATEGORY: CategoryDef = {
+  id: 'residence',
+  label: 'Résidences',
+  image: require('../../../assets/images/category-residences.jpg'),
+};
+
+const VEHICLE_CATEGORY: CategoryDef = {
+  id: 'vehicle',
+  label: 'Véhicules',
+  image: require('../../../assets/images/category-vehicles.jpg'),
+};
 
 const MONTHLY_CATEGORY: CategoryDef = {
   id: 'monthly',
-  label: 'Location',
-  image: require('../../../assets/images/abidjan.jpg'),
+  label: 'Longue durée',
+  image: require('../../../assets/IMG_9552.jpeg'),
+};
+
+const HOTEL_CATEGORY: CategoryDef = {
+  id: 'hotel',
+  label: 'Hôtels',
+  image: require('../../../assets/IMG_9553.jpeg'),
 };
 
 type Props = {
@@ -38,19 +53,26 @@ type Props = {
 
 export default function HomeCategoryPills({ showMonthlyCategory = true }: Props) {
   const navigation = useNavigation();
+  const { monthlyRental, hotel } = useFeatureFlags();
 
-  const categories = [...BASE_CATEGORIES];
-  if (FEATURE_MONTHLY_RENTAL && showMonthlyCategory) {
-    categories.splice(1, 0, MONTHLY_CATEGORY);
-  }
+  // Ordre : Résidences → Véhicules → Hôtels → Longue durée
+  const categories = useMemo(() => {
+    const list: CategoryDef[] = [RESIDENCE_CATEGORY, VEHICLE_CATEGORY];
+    if (hotel) list.push(HOTEL_CATEGORY);
+    if (monthlyRental && showMonthlyCategory) list.push(MONTHLY_CATEGORY);
+    return list;
+  }, [showMonthlyCategory, monthlyRental, hotel]);
 
   const onPress = (id: HomeCategoryId) => {
     switch (id) {
       case 'residence':
-        (navigation as any).navigate('Search');
+        (navigation as any).navigate('Search', { initialRentalType: 'short_term' });
         break;
       case 'monthly':
-        (navigation as any).navigate('Search', { rentalType: 'monthly' });
+        (navigation as any).navigate('Search', { initialRentalType: 'monthly' });
+        break;
+      case 'hotel':
+        (navigation as any).navigate('Search', { initialRentalType: 'hotel' });
         break;
       case 'vehicle':
         (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' });
@@ -61,9 +83,11 @@ export default function HomeCategoryPills({ showMonthlyCategory = true }: Props)
   };
 
   return (
-    <View
-      style={styles.nav}
-      accessibilityRole="summary"
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
+      contentContainerStyle={styles.nav}
       accessibilityLabel="Parcourir par catégorie"
     >
       {categories.map((item) => (
@@ -92,21 +116,24 @@ export default function HomeCategoryPills({ showMonthlyCategory = true }: Props)
           </ImageBackground>
         </TouchableOpacity>
       ))}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  nav: {
-    marginHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
+  scroll: {
     marginTop: 12,
     marginBottom: 4,
+    flexGrow: 0,
+  },
+  nav: {
+    paddingHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
     flexDirection: 'row',
-    gap: 8,
+    gap: PILL_GAP,
   },
   pill: {
-    flex: 1,
-    height: 72,
+    width: PILL_WIDTH,
+    height: 80,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(0,0,0,0.1)',
@@ -130,15 +157,16 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   label: {
-    flex: 1,
+    flexShrink: 1,
     fontSize: 13,
     fontWeight: '600',
     color: '#fff',
     letterSpacing: -0.2,
   },
   chevron: {
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.15)',

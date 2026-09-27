@@ -8,7 +8,7 @@ import { useCurrency } from '../hooks/useCurrency';
 interface MonthlyRentalListingCardProps {
   listing: MonthlyRentalListing;
   onPress: (listing: MonthlyRentalListing) => void;
-  variant?: 'grid' | 'list';
+  variant?: 'grid' | 'list' | 'shelf';
 }
 
 const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
@@ -23,12 +23,16 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.container, variant === 'list' && styles.listContainer]}
+      style={[
+        styles.container,
+        variant === 'list' && styles.listContainer,
+        variant === 'shelf' && styles.shelfContainer,
+      ]}
       onPress={() => onPress(listing)}
       activeOpacity={0.8}
     >
       <View style={styles.cardLayout}>
-        <View style={styles.imageContainer}>
+        <View style={[styles.imageContainer, variant === 'shelf' && styles.shelfImage]}>
           <Image source={{ uri: imageUri }} style={styles.cardImage} resizeMode="cover" />
           <View style={styles.priceOverlay}>
             <Text style={styles.priceText}>
@@ -44,19 +48,21 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
           <Text style={styles.cardLocation} numberOfLines={1}>
             📍 {listing.location}
           </Text>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaText}>{listing.surface_m2} m²</Text>
-            <Text style={styles.metaDot}>•</Text>
-            <Text style={styles.metaText}>{listing.number_of_rooms} pièces</Text>
-            <Text style={styles.metaDot}>•</Text>
-            <Text style={styles.metaText}>{listing.bedrooms} ch.</Text>
-            {listing.is_furnished && (
-              <>
-                <Text style={styles.metaDot}>•</Text>
-                <Text style={styles.metaText}>Meublé</Text>
-              </>
-            )}
-          </View>
+          {variant !== 'shelf' ? (
+            <View style={styles.metaRow}>
+              <Text style={styles.metaText}>{listing.surface_m2} m²</Text>
+              <Text style={styles.metaDot}>•</Text>
+              <Text style={styles.metaText}>{listing.number_of_rooms} pièces</Text>
+              <Text style={styles.metaDot}>•</Text>
+              <Text style={styles.metaText}>{listing.bedrooms} ch.</Text>
+              {listing.is_furnished && (
+                <>
+                  <Text style={styles.metaDot}>•</Text>
+                  <Text style={styles.metaText}>Meublé</Text>
+                </>
+              )}
+            </View>
+          ) : null}
         </View>
       </View>
     </TouchableOpacity>
@@ -66,6 +72,7 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
 const styles = StyleSheet.create({
   container: { marginHorizontal: 20, marginBottom: 16 },
   listContainer: {},
+  shelfContainer: { marginHorizontal: 0, marginBottom: 0 },
   cardLayout: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -81,6 +88,7 @@ const styles = StyleSheet.create({
     height: 180,
     position: 'relative',
   },
+  shelfImage: { height: 120 },
   cardImage: { width: '100%', height: '100%' },
   priceOverlay: {
     position: 'absolute',

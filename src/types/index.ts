@@ -218,8 +218,10 @@ export interface SearchFilters {
   radiusKm?: number; // Rayon de recherche en kilomètres
   // Tri des résultats
   sortBy?: 'popular' | 'price_asc' | 'price_desc' | 'rating_desc' | 'recent' | '';
-  // Type de logement : résidence meublée (court séjour) ou location longue durée
-  rentalType?: 'short_term' | 'monthly' | 'all';
+  // Type de logement
+  rentalType?: 'short_term' | 'monthly' | 'hotel' | 'all';
+  /** Hôtel : étoiles minimum */
+  starRating?: number;
 }
 
 // Types de navigation
@@ -228,6 +230,7 @@ export type RootStackParamList = {
   HostSpace: { screen?: keyof HostTabParamList } | undefined; // Navigation hôte avec onglets
   VehicleOwnerSpace: { screen?: keyof VehicleOwnerTabParamList } | undefined; // Navigation propriétaire de véhicule avec onglets
   MonthlyRentalOwnerSpace: { screen?: keyof MonthlyRentalTabParamList } | undefined; // Mode logement longue durée (gérer annonces + candidatures)
+  HotelOwnerSpace: { screen?: keyof HotelOwnerTabParamList } | undefined; // Mode hôtel
   Auth: {
     returnTo?: string;
     returnParams?: Record<string, unknown>;
@@ -235,7 +238,13 @@ export type RootStackParamList = {
     mode?: 'login' | 'signup';
   };
   EmailVerification: { email: string; firstName: string };
-  Search: { destination?: string; initialRentalType?: 'short_term' | 'monthly' | 'all' };
+  Search: {
+    destination?: string;
+    initialRentalType?: 'short_term' | 'monthly' | 'hotel' | 'all';
+    /** @deprecated utiliser initialRentalType */
+    rentalType?: 'short_term' | 'monthly' | 'hotel';
+  };
+  HotelEstablishmentDetail: { establishmentId: string };
   PropertyDetails: { 
     propertyId: string;
     checkIn?: string;
@@ -266,6 +275,9 @@ export type RootStackParamList = {
   MatchPrediction: undefined;
   EditProfile: undefined;
   BecomeHost: undefined;
+  /** Choix du type de bien : résidence, véhicule, hôtel, longue durée */
+  AddListingChoice: undefined;
+  AddHotelEstablishment: undefined;
   /** Assistant IA (questions / réponses) — réservé usage futur */
   HostOnboardingAssistant: undefined;
   MyHostApplications: undefined;
@@ -299,13 +311,18 @@ export type RootStackParamList = {
   AdminCommissionPaymentTest: undefined;
   AdminWaveTest: undefined;
   AdminMonthlyRental: undefined;
+  AdminFeatureFlags: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
   PropertyManagement: { propertyId: string }; // Gestion de propriété avec photos et options
   PropertyPricing: { propertyId: string }; // Tarification
   PropertyRules: { propertyId: string }; // Règlement intérieur
   PropertyReviews: { propertyId: string }; // Avis pour une propriété spécifique
-  ModeTransition: { targetMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental'; targetPath?: string; fromMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental' }; // Page de transition entre modes
+  ModeTransition: {
+    targetMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental' | 'hotel';
+    targetPath?: string;
+    fromMode?: 'host' | 'traveler' | 'vehicle' | 'monthly_rental' | 'hotel';
+  };
   MyBookings: undefined;
   MyGuestReviews: undefined;
   MyVehicleRenterReviews: undefined;
@@ -373,6 +390,13 @@ export type MonthlyRentalTabParamList = {
   MonthlyRentalMessagesTab: undefined;   // Messages
   MonthlyRentalStatsTab: undefined;     // Statistiques (vues, candidatures)
   MonthlyRentalProfileTab: undefined;   // Mon compte
+};
+
+export type HotelOwnerTabParamList = {
+  HotelEstablishmentsTab: undefined;
+  HotelBookingsTab: undefined;
+  HotelMessagesTab: undefined;
+  HotelProfileTab: undefined;
 };
 
 export interface AuthContextType {

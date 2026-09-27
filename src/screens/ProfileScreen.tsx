@@ -24,8 +24,8 @@ import { useHostApplications } from '../hooks/useHostApplications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useVehicles } from '../hooks/useVehicles';
-import { HOST_COLORS, VEHICLE_COLORS, MONTHLY_RENTAL_COLORS, TRAVELER_COLORS } from '../constants/colors';
-import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
+import { HOST_COLORS, VEHICLE_COLORS, MONTHLY_RENTAL_COLORS, TRAVELER_COLORS, HOTEL_COLORS } from '../constants/colors';
 import { APP_VERSION } from '../constants/appVersion';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import ProfileLoadingSkeleton from '../components/ProfileLoadingSkeleton';
@@ -41,8 +41,9 @@ const ProfileScreen: React.FC = () => {
   const { user, loading: authLoading, signOut } = useAuth();
   
   // Détecter si on est dans le TabNavigator (ProfileTab) ou dans le Stack (Profile)
-  const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab' || route.name === 'MonthlyRentalProfileTab';
+  const isInTabNavigator = route.name === 'ProfileTab' || route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab' || route.name === 'MonthlyRentalProfileTab' || route.name === 'HotelProfileTab';
   const { t } = useLanguage();
+  const { monthlyRental, hotel: hotelEnabled } = useFeatureFlags();
   const { profile, loading, error, refreshProfile } = useUserProfile();
   const { verificationStatus, isVerified } = useIdentityVerification();
   const { isEmailVerified, generateVerificationCode, checkEmailVerificationStatus } = useEmailVerification();
@@ -52,6 +53,7 @@ const ProfileScreen: React.FC = () => {
   const [hasPendingApplications, setHasPendingApplications] = useState(false);
   const [hasVehicles, setHasVehicles] = useState(false);
   const [hasMonthlyListings, setHasMonthlyListings] = useState(false);
+  const [hasHotels, setHasHotels] = useState(false);
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const isLoggingOutRef = useRef(false);
   const sessionKey = user?.id ?? 'guest';
@@ -107,6 +109,20 @@ const ProfileScreen: React.FC = () => {
     }
   };
 
+  const checkHotels = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('hotel_establishments')
+        .select('id')
+        .eq('host_id', user.id)
+        .limit(1);
+      setHasHotels(!error && !!data && data.length > 0);
+    } catch {
+      setHasHotels(false);
+    }
+  };
+
   // Rafraîchir le profil quand l'écran devient actif (seulement si connecté)
   useFocusEffect(
     React.useCallback(() => {
@@ -115,7 +131,8 @@ const ProfileScreen: React.FC = () => {
         refreshProfile();
         checkPendingApplications();
         checkVehicles();
-        if (FEATURE_MONTHLY_RENTAL) checkMonthlyListings();
+        if (monthlyRental) checkMonthlyListings();
+        if (hotelEnabled) checkHotels();
         checkEmailVerificationStatus(true);
       });
       return () => task.cancel();
@@ -298,28 +315,6 @@ const ProfileScreen: React.FC = () => {
     },
   };
 
-  // Élément pour devenir hôte (si pas encore hôte)
-  const becomeHostItem = {
-    id: 'host',
-    title: t('becomeHost.menuTitle') || 'Devenir hôte',
-    icon: 'home-outline',
-    onPress: () => {
-      console.log('🔵 [ProfileScreen] Navigation vers BecomeHost');
-      navigation.navigate('BecomeHost' as never);
-    },
-  };
-
-  // Élément pour ajouter une propriété (si déjà hôte)
-  const addPropertyItem = {
-    id: 'addProperty',
-    title: t('host.addProperty'),
-    icon: 'add-circle-outline',
-    onPress: () => {
-      console.log('🔵 [ProfileScreen] Navigation vers BecomeHost pour ajouter une propriété');
-      navigation.navigate('BecomeHost' as never);
-    },
-  };
-
   // Élément pour l'espace véhicules (navigation complète avec onglets)
   const vehicleSpaceItem = {
     id: 'vehicleSpace',
@@ -351,13 +346,6 @@ const ProfileScreen: React.FC = () => {
     },
   };
 
-  const addVehicleItem = {
-    id: 'addVehicle',
-    title: t('vehicles.addVehicle'),
-    icon: 'add-circle-outline',
-    onPress: () => navigation.navigate('AddVehicle' as never),
-  };
-
   // Éléments de menu communs
   const commonMenuItems = [
     {
@@ -384,20 +372,12 @@ const ProfileScreen: React.FC = () => {
   let menuItems = [...baseMenuItems];
 
   const isInMonthlyRentalMode = route.name === 'MonthlyRentalProfileTab';
+  const isInHotelMode = route.name === 'HotelProfileTab';
 
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
   if (profile?.is_host || hasPendingApplications) {
     menuItems.push(hostSpaceItem);
-    // Si l'utilisateur est déjà hôte, ajouter aussi l'option "Ajouter une propriété"
-    if (profile?.is_host) {
-      menuItems.push(addPropertyItem);
-    }
-  } else {
-    // Ajouter "Devenir hôte" si pas encore hôte et pas de candidatures en cours
-    menuItems.push(becomeHostItem);
   }
-
-  menuItems.push(addVehicleItem);
 
   // Ajouter "Espace Véhicules" si l'utilisateur a des véhicules (navigation complète)
   if (hasVehicles) {
@@ -405,7 +385,7 @@ const ProfileScreen: React.FC = () => {
   }
 
   // Ajouter "Mode logement longue durée" si l'utilisateur a au moins un logement longue durée (et qu'on n'est pas déjà dans ce mode)
-  if (FEATURE_MONTHLY_RENTAL && hasMonthlyListings && !isInMonthlyRentalMode) {
+  if (monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode) {
     menuItems.push({
       id: 'monthlyRentalSpace',
       title: 'Mode logement longue durée',
@@ -422,12 +402,43 @@ const ProfileScreen: React.FC = () => {
                 navigation.navigate('ModeTransition' as never, {
                   targetMode: 'monthly_rental',
                   targetPath: 'MonthlyRentalOwnerSpace',
-                  fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : 'traveler',
+                  fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : route.name === 'HotelProfileTab' ? 'hotel' : 'traveler',
                 });
               },
             },
           ]
         );
+      },
+    });
+  }
+
+  // Mode hôtel si l’utilisateur a un établissement
+  if (hotelEnabled && hasHotels && !isInHotelMode) {
+    menuItems.push({
+      id: 'hotelSpace',
+      title: 'Espace Hôtel',
+      icon: 'business-outline',
+      onPress: () => {
+        Alert.alert('Espace Hôtel', 'Gérer vos établissements et réservations.', [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.continue'),
+            onPress: () => {
+              navigation.navigate('ModeTransition' as never, {
+                targetMode: 'hotel',
+                targetPath: 'HotelOwnerSpace',
+                fromMode:
+                  route.name === 'HostProfileTab'
+                    ? 'host'
+                    : route.name === 'VehicleOwnerProfileTab'
+                      ? 'vehicle'
+                      : route.name === 'MonthlyRentalProfileTab'
+                        ? 'monthly_rental'
+                        : 'traveler',
+              });
+            },
+          },
+        ]);
       },
     });
   }
@@ -676,7 +687,7 @@ const ProfileScreen: React.FC = () => {
         )}
 
         {/* Bouton Mode logement longue durée (si applicable) */}
-        {FEATURE_MONTHLY_RENTAL && hasMonthlyListings && !isInMonthlyRentalMode && (
+        {monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode && (
           <View style={styles.monthlyRentalSpaceContainer}>
             <TouchableOpacity
               style={styles.monthlyRentalSpaceButton}
@@ -692,7 +703,7 @@ const ProfileScreen: React.FC = () => {
                         navigation.navigate('ModeTransition' as never, {
                           targetMode: 'monthly_rental',
                           targetPath: 'MonthlyRentalOwnerSpace',
-                          fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : 'traveler',
+                          fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : route.name === 'HotelProfileTab' ? 'hotel' : 'traveler',
                         });
                       },
                     },
@@ -715,8 +726,50 @@ const ProfileScreen: React.FC = () => {
           </View>
         )}
 
+        {hotelEnabled && hasHotels && !isInHotelMode && (
+          <View style={styles.hotelSpaceContainer}>
+            <TouchableOpacity
+              style={styles.hotelSpaceButton}
+              onPress={() => {
+                Alert.alert('Espace Hôtel', 'Gérer vos établissements et réservations.', [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  {
+                    text: t('common.continue'),
+                    onPress: () => {
+                      navigation.navigate('ModeTransition' as never, {
+                        targetMode: 'hotel',
+                        targetPath: 'HotelOwnerSpace',
+                        fromMode:
+                          route.name === 'HostProfileTab'
+                            ? 'host'
+                            : route.name === 'VehicleOwnerProfileTab'
+                              ? 'vehicle'
+                              : route.name === 'MonthlyRentalProfileTab'
+                                ? 'monthly_rental'
+                                : 'traveler',
+                      });
+                    },
+                  },
+                ]);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.hotelSpaceContent}>
+                <View style={styles.hotelSpaceIconContainer}>
+                  <Ionicons name="business" size={18} color="#fff" />
+                </View>
+                <View style={styles.hotelSpaceTextContainer}>
+                  <Text style={styles.hotelSpaceText}>Espace Hôtel</Text>
+                  <Text style={styles.hotelSpaceSubtext}>Établissements & réservations</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Bouton Espace voyageur (uniquement en mode logement longue durée) */}
-        {FEATURE_MONTHLY_RENTAL && isInMonthlyRentalMode && (
+        {monthlyRental && isInMonthlyRentalMode && (
           <View style={styles.travelerSpaceContainer}>
             <TouchableOpacity
               style={styles.travelerSpaceButton}
@@ -755,10 +808,52 @@ const ProfileScreen: React.FC = () => {
           </View>
         )}
 
+        {hotelEnabled && isInHotelMode && (
+          <View style={styles.travelerSpaceContainer}>
+            <TouchableOpacity
+              style={styles.travelerSpaceButton}
+              onPress={() => {
+                Alert.alert('Espace voyageur', "Accéder à l'espace voyageur ?", [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  {
+                    text: t('common.continue'),
+                    onPress: () => {
+                      navigation.navigate('ModeTransition' as never, {
+                        targetMode: 'traveler',
+                        targetPath: 'Home',
+                        fromMode: 'hotel',
+                      });
+                    },
+                  },
+                ]);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.travelerSpaceContent}>
+                <View style={styles.travelerSpaceIconContainer}>
+                  <Ionicons name="airplane" size={18} color="#fff" />
+                </View>
+                <View style={styles.travelerSpaceTextContainer}>
+                  <Text style={styles.travelerSpaceText}>Espace voyageur</Text>
+                  <Text style={styles.travelerSpaceSubtext}>Recherche, réservations, favoris</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Menu Items */}
         <View style={styles.menuContainer}>
           {menuItems
-            .filter(item => item.id !== 'hostSpace' && item.id !== 'vehicleSpace' && item.id !== 'monthlyRentalSpace')
+            .filter(
+              (item) =>
+                item.id !== 'hostSpace' &&
+                item.id !== 'vehicleSpace' &&
+                item.id !== 'monthlyRentalSpace' &&
+                item.id !== 'hotelSpace' &&
+                item.id !== 'addListing',
+            )
             .map((item) => (
               <TouchableOpacity
                 key={item.id}
@@ -1055,6 +1150,43 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 10,
     marginBottom: 10,
+  },
+  hotelSpaceContainer: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  hotelSpaceButton: {
+    backgroundColor: HOTEL_COLORS.primary,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  hotelSpaceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 12,
+  },
+  hotelSpaceIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hotelSpaceTextContainer: {
+    flex: 1,
+  },
+  hotelSpaceText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  hotelSpaceSubtext: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    marginTop: 2,
   },
   monthlyRentalSpaceButton: {
     backgroundColor: MONTHLY_RENTAL_COLORS.primary,

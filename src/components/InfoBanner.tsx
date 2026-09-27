@@ -10,7 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 
 type InfoBannerProps = {
-  /** Conservé pour compatibilité (carrousel Conciergerie/Véhicules retiré). */
+  /** Conservé pour compatibilité. */
   showCarousel?: boolean;
 };
 
@@ -18,18 +18,18 @@ export const InfoBanner: React.FC<InfoBannerProps> = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
 
-  const goToBecomeHost = () => {
+  const goToAddListing = () => {
     if (user) {
-      navigation.navigate('BecomeHost' as never);
+      navigation.navigate('AddListingChoice' as never);
     } else {
-      navigation.navigate('Auth' as never, { returnTo: 'BecomeHost' } as never);
+      navigation.navigate('Auth' as never, { returnTo: 'AddListingChoice' } as never);
     }
   };
 
   return (
     <View style={styles.wrapper}>
       <TouchableOpacity
-        onPress={goToBecomeHost}
+        onPress={goToAddListing}
         activeOpacity={0.85}
         style={styles.hostBanner}
       >

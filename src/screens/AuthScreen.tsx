@@ -36,7 +36,7 @@ import PhoneSignUpForm from '../components/auth/PhoneSignUpForm';
 import DateOfBirthField from '../components/DateOfBirthField';
 import { useEmailVerification } from '../hooks/useEmailVerification';
 import { useLanguage } from '../contexts/LanguageContext';
-import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 
 type AuthScreenRouteProp = RouteProp<RootStackParamList, 'Auth'>;
 
@@ -48,6 +48,7 @@ const AuthScreen: React.FC = () => {
   const { t } = useLanguage();
   const { returnTo, returnParams, mode: authModeParam } = route.params || {};
   const { signIn, signUp } = useAuth();
+  const { monthlyRental } = useFeatureFlags();
 
   const [isLogin, setIsLogin] = useState(authModeParam !== 'signup');
   /** Aligné site web : téléphone par défaut */
@@ -271,7 +272,7 @@ const AuthScreen: React.FC = () => {
           return;
         }
         await AsyncStorage.setItem('preferredMode', 'traveler');
-      } else if (FEATURE_MONTHLY_RENTAL && preferredMode === 'monthly_rental') {
+      } else if (monthlyRental && preferredMode === 'monthly_rental') {
         const { data: listings } = await supabase
           .from('monthly_rental_listings')
           .select('id')

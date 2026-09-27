@@ -38,7 +38,7 @@ import { isLocationUuid } from '../lib/geolocation';
 import IdentityVerificationAlert from '../components/IdentityVerificationAlert';
 import { supabase } from '../services/supabase';
 import { Amenity } from '../types';
-import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { PROPERTY_TYPES } from '../constants/hostListingForm';
 import {
   consumeHostAssistantDraft,
@@ -99,6 +99,7 @@ const MAX_PROPERTY_VIDEOS = 5;
 const BecomeHostScreen: React.FC = ({ route }: any) => {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
+  const { monthlyRental } = useFeatureFlags();
   const isPhoneAccount = user ? isPhonePseudoEmail(user.email) : false;
   const { t } = useLanguage();
   
@@ -2052,7 +2053,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           Pour les voyageurs : location à la nuitée, réservations courtes.
         </Text>
       </TouchableOpacity>
-      {FEATURE_MONTHLY_RENTAL && (
+      {monthlyRental && (
       <TouchableOpacity
         style={[styles.listingTypeCard, listingType === 'monthly' && styles.listingTypeCardSelected]}
         onPress={() => setListingType('monthly')}
@@ -2072,7 +2073,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         <TouchableOpacity
           style={styles.listingTypeContinueButton}
           onPress={() => {
-            if (FEATURE_MONTHLY_RENTAL && listingType === 'monthly') {
+            if (monthlyRental && listingType === 'monthly') {
               navigation.navigate('AddMonthlyRentalListing');
               return;
             }

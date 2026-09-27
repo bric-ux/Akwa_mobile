@@ -7,8 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
-import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS } from '../constants/colors';
-import { FEATURE_MONTHLY_RENTAL } from '../constants/features';
+import { HOST_COLORS, VEHICLE_COLORS, TRAVELER_COLORS, MONTHLY_RENTAL_COLORS, HOTEL_COLORS } from '../constants/colors';
+import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { PushNotificationBootstrap } from '../components/PushNotificationBootstrap';
 import { PushNotificationNavigationHandler } from '../components/PushNotificationNavigationHandler';
 import AuthSessionFade from '../components/AuthSessionFade';
@@ -37,6 +37,10 @@ import MatchPredictionScreen from '../screens/MatchPredictionScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import SupabaseTestScreen from '../screens/SupabaseTestScreen';
 import BecomeHostScreen from '../screens/BecomeHostScreen';
+import AddListingChoiceScreen from '../screens/AddListingChoiceScreen';
+import AddHotelEstablishmentScreen from '../screens/AddHotelEstablishmentScreen';
+import MyHotelEstablishmentsScreen from '../screens/MyHotelEstablishmentsScreen';
+import HotelOwnerBookingsScreen from '../screens/HotelOwnerBookingsScreen';
 import HostOnboardingAssistantScreen from '../screens/HostOnboardingAssistantScreen';
 import MyHostApplicationsScreen from '../screens/MyHostApplicationsScreen';
 import ApplicationDetailsScreen from '../screens/ApplicationDetailsScreen';
@@ -68,6 +72,7 @@ import MonthlyRentalCandidaturesScreen from '../screens/MonthlyRentalCandidature
 import MonthlyRentalOwnerCandidaturesScreen from '../screens/MonthlyRentalOwnerCandidaturesScreen';
 import MonthlyRentalStatsScreen from '../screens/MonthlyRentalStatsScreen';
 import MonthlyRentalListingDetailScreen from '../screens/MonthlyRentalListingDetailScreen';
+import HotelEstablishmentDetailScreen from '../screens/HotelEstablishmentDetailScreen';
 import HostReferralScreen from '../screens/HostReferralScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 import TermsScreen from '../screens/TermsScreen';
@@ -104,6 +109,7 @@ import AdminBookingCalculationTestScreen from '../screens/AdminBookingCalculatio
 import AdminCommissionPaymentTestScreen from '../screens/AdminCommissionPaymentTestScreen';
 import AdminWaveTestScreen from '../screens/AdminWaveTestScreen';
 import AdminMonthlyRentalScreen from '../screens/AdminMonthlyRentalScreen';
+import AdminFeatureFlagsScreen from '../screens/AdminFeatureFlagsScreen';
 import HostReviewsScreen from '../screens/HostReviewsScreen';
 import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
 import MyVehicleRenterReviewsScreen from '../screens/MyVehicleRenterReviewsScreen';
@@ -118,7 +124,7 @@ import {
 import { TabBarBadgeIcon } from '../components/TabBarBadgeIcon';
 
 // Types
-import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList } from '../types';
+import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList, HotelOwnerTabParamList } from '../types';
 import HostAccountScreen from '../screens/HostAccountScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -127,6 +133,7 @@ const HostTab = createBottomTabNavigator<HostTabParamList>();
 const VehicleTab = createBottomTabNavigator<VehicleTabParamList>();
 const VehicleOwnerTab = createBottomTabNavigator<VehicleOwnerTabParamList>();
 const MonthlyRentalTab = createBottomTabNavigator<MonthlyRentalTabParamList>();
+const HotelOwnerTab = createBottomTabNavigator<HotelOwnerTabParamList>();
 
 // Tab Navigator
 const TabNavigator = () => {
@@ -500,10 +507,73 @@ const MonthlyRentalOwnerTabNavigator = () => {
   );
 };
 
+// Mode Hôtel (établissements, réservations, messages, compte)
+const HotelOwnerTabNavigator = () => {
+  const badges = useTabNotificationBadges();
+
+  return (
+    <HotelOwnerTab.Navigator
+      initialRouteName="HotelEstablishmentsTab"
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+          let badgeCount = 0;
+          if (route.name === 'HotelEstablishmentsTab') {
+            iconName = focused ? 'business' : 'business-outline';
+          } else if (route.name === 'HotelBookingsTab') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'HotelMessagesTab') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            badgeCount = badges.unreadMessages;
+          } else if (route.name === 'HotelProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else {
+            iconName = 'business-outline';
+          }
+          return (
+            <TabBarBadgeIcon
+              name={iconName}
+              focused={focused}
+              color={color}
+              size={size}
+              badgeCount={badgeCount}
+            />
+          );
+        },
+        tabBarActiveTintColor: HOTEL_COLORS.primary,
+        tabBarInactiveTintColor: 'gray',
+        headerShown: false,
+      })}
+    >
+      <HotelOwnerTab.Screen
+        name="HotelEstablishmentsTab"
+        component={MyHotelEstablishmentsScreen}
+        options={{ tabBarLabel: 'Établissements' }}
+      />
+      <HotelOwnerTab.Screen
+        name="HotelBookingsTab"
+        component={HotelOwnerBookingsScreen}
+        options={{ tabBarLabel: 'Réservations' }}
+      />
+      <HotelOwnerTab.Screen
+        name="HotelMessagesTab"
+        component={MessagingScreen}
+        options={{ tabBarLabel: 'Messages' }}
+      />
+      <HotelOwnerTab.Screen
+        name="HotelProfileTab"
+        component={ProfileScreen}
+        options={{ tabBarLabel: 'Mon compte' }}
+      />
+    </HotelOwnerTab.Navigator>
+  );
+};
+
 // Main Stack Navigator
 const AppNavigator = () => {
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const { user, loading: authLoading } = useAuth();
+  const { monthlyRental, hotel: hotelEnabled } = useFeatureFlags();
   const hasCheckedMode = React.useRef(false);
 
   React.useEffect(() => {
@@ -585,7 +655,7 @@ const AppNavigator = () => {
                     // L'utilisateur n'a pas de véhicules, réinitialiser le mode préféré
                     await AsyncStorage.setItem('preferredMode', 'traveler');
                   }
-                } else if (FEATURE_MONTHLY_RENTAL && preferredMode === 'monthly_rental') {
+                } else if (monthlyRental && preferredMode === 'monthly_rental') {
                   const { data: listings } = await supabase
                     .from('monthly_rental_listings')
                     .select('id')
@@ -596,6 +666,22 @@ const AppNavigator = () => {
                       CommonActions.reset({
                         index: 0,
                         routes: [{ name: 'MonthlyRentalOwnerSpace' }],
+                      })
+                    );
+                  } else {
+                    await AsyncStorage.setItem('preferredMode', 'traveler');
+                  }
+                } else if (hotelEnabled && preferredMode === 'hotel') {
+                  const { data: hotels } = await supabase
+                    .from('hotel_establishments')
+                    .select('id')
+                    .eq('host_id', user.id)
+                    .limit(1);
+                  if (hotels && hotels.length > 0) {
+                    navigationRef.dispatch(
+                      CommonActions.reset({
+                        index: 0,
+                        routes: [{ name: 'HotelOwnerSpace' }],
                       })
                     );
                   } else {
@@ -617,7 +703,7 @@ const AppNavigator = () => {
     };
 
     checkAndNavigate();
-  }, [user, authLoading, navigationRef]);
+  }, [user, authLoading, navigationRef, monthlyRental, hotelEnabled]);
 
   return (
     <NavigationContainer ref={navigationRef} linking={appLinking}>
@@ -661,6 +747,11 @@ const AppNavigator = () => {
           component={MonthlyRentalOwnerTabNavigator}
           options={{ headerShown: false, gestureEnabled: false }}
         />
+        <Stack.Screen
+          name="HotelOwnerSpace"
+          component={HotelOwnerTabNavigator}
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
         <Stack.Screen 
           name="Auth" 
           component={AuthScreen}
@@ -702,6 +793,11 @@ const AppNavigator = () => {
           name="MonthlyRentalListingDetail"
           component={MonthlyRentalListingDetailScreen}
           options={{ title: 'Logement longue durée', headerShown: false }}
+        />
+        <Stack.Screen
+          name="HotelEstablishmentDetail"
+          component={HotelEstablishmentDetailScreen}
+          options={{ title: 'Hôtel', headerShown: false }}
         />
         <Stack.Screen 
           name="Booking" 
@@ -790,6 +886,22 @@ const AppNavigator = () => {
               options={{ 
                 title: 'Devenir hôte',
                 headerShown: false 
+              }}
+            />
+            <Stack.Screen
+              name="AddListingChoice"
+              component={AddListingChoiceScreen}
+              options={{
+                title: 'Ajouter un bien',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="AddHotelEstablishment"
+              component={AddHotelEstablishmentScreen}
+              options={{
+                title: 'Nouvel établissement',
+                headerShown: false,
               }}
             />
             <Stack.Screen
@@ -1124,6 +1236,14 @@ const AppNavigator = () => {
               component={AdminMonthlyRentalScreen}
               options={{
                 title: 'Locations mensuelles',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminFeatureFlags"
+              component={AdminFeatureFlagsScreen}
+              options={{
+                title: 'Visibilité produits',
                 headerShown: false
               }}
             />

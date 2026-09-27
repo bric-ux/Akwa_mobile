@@ -41,6 +41,16 @@ export const MONTHLY_RENTAL_COLORS = {
   badgeText: '#0d9488',
 };
 
+// Mode Hôtel (établissement multi-chambres)
+export const HOTEL_COLORS = {
+  primary: '#7c3aed',
+  secondary: '#8b5cf6',
+  light: '#ede9fe',
+  dark: '#6d28d9',
+  badge: '#ede9fe',
+  badgeText: '#7c3aed',
+};
+
 // Couleurs communes
 export const COMMON_COLORS = {
   white: '#ffffff',

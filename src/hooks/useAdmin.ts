@@ -586,123 +586,108 @@ export const useAdmin = () => {
     setLoading(true);
     setError(null);
 
-    const fetchZipUniquePlayers = async (): Promise<number> => {
-      const { data, error } = await supabase.rpc('count_zip_unique_players');
-      if (!error && typeof data === 'number') return data;
-
-      const { data: rows, error: rowsError } = await supabase
-        .from('zip_game_plays')
-        .select('player_key');
-      if (rowsError) {
-        console.warn('[useAdmin] zip unique players fallback error', rowsError);
-        return 0;
-      }
-      return new Set((rows ?? []).map((row) => row.player_key)).size;
+    const empty: DashboardStats = {
+      totalUsers: 0,
+      totalProperties: 0,
+      totalBookings: 0,
+      totalRevenue: 0,
+      averageRating: 0,
+      pendingApplications: 0,
+      zipUniquePlayers: 0,
+      recentUsers: [],
+      recentBookings: [],
+      popularCities: [],
     };
 
     try {
-      // Statistiques utilisateurs
-      const { count: totalUsers } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-
-      // Statistiques propriétés
-      const { count: totalProperties } = await supabase
-        .from('properties')
-        .select('*', { count: 'exact', head: true });
-
-      // Statistiques réservations
-      const { count: totalBookings } = await supabase
-        .from('bookings')
-        .select('*', { count: 'exact', head: true });
-
-      // Revenus totaux
-      const { data: bookingsData } = await supabase
-        .from('bookings')
-        .select('total_price')
-        .eq('status', 'confirmed');
-
-      const totalRevenue = bookingsData?.reduce((sum, booking) => sum + (booking.total_price || 0), 0) || 0;
-
-      // Note moyenne
-      const { data: reviewsData } = await supabase
-        .from('reviews')
-        .select('rating');
-
-      const averageRating = reviewsData?.length 
-        ? reviewsData.reduce((sum, review) => sum + review.rating, 0) / reviewsData.length
-        : 0;
-
-      // Candidatures en attente
-      const { count: pendingApplications } = await supabase
-        .from('host_applications')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-
-      const zipUniquePlayers = await fetchZipUniquePlayers();
-
-      // Utilisateurs récents
-      const { data: recentUsers } = await supabase
-        .from('profiles')
-        .select('first_name, last_name, email, created_at, role, is_host')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      // Réservations récentes (logements + véhicules)
-      const [recentPropertyBookingsResult, recentVehicleBookingsResult] = await Promise.all([
-        supabase
-          .from('bookings')
-          .select(`
-            id,
-            booking_code,
-            total_price,
-            status,
-            check_in_date,
-            check_out_date,
-            guests_count,
-            created_at,
-            payment_method,
-            special_requests,
-            property:properties(
+      // 1 RPC agrégé + 2 listes légères en parallèle (plus de scans JS côté client)
+      const [overviewResult, recentPropertyBookingsResult, recentVehicleBookingsResult] =
+        await Promise.all([
+          supabase.rpc('admin_dashboard_overview'),
+          supabase
+            .from('bookings')
+            .select(`
               id,
-              title,
-              address,
-              images,
-              property_photos(url, category, display_order, is_main),
-              host:profiles!properties_host_id_fkey(user_id, first_name, last_name, email, phone)
-            ),
-            guest:profiles!bookings_guest_id_fkey(user_id, first_name, last_name, email, phone)
-          `)
-          .order('created_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('vehicle_bookings')
-          .select(`
-            id,
-            vehicle_booking_code,
-            total_price,
-            status,
-            start_date,
-            end_date,
-            created_at,
-            payment_method,
-            special_requests,
-            with_driver,
-            daily_rate,
-            vehicle:vehicles(
+              booking_code,
+              total_price,
+              status,
+              check_in_date,
+              check_out_date,
+              guests_count,
+              created_at,
+              payment_method,
+              special_requests,
+              property:properties(
+                id,
+                title,
+                address,
+                images,
+                host:profiles!properties_host_id_fkey(user_id, first_name, last_name, email, phone)
+              ),
+              guest:profiles!bookings_guest_id_fkey(user_id, first_name, last_name, email, phone)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(8),
+          supabase
+            .from('vehicle_bookings')
+            .select(`
               id,
-              brand,
-              model,
-              title,
-              images,
-              vehicle_photos(url, is_main),
-              owner:profiles!vehicles_owner_id_fkey(user_id, first_name, last_name, email, phone)
-            ),
-            renter:profiles!vehicle_bookings_renter_id_fkey(user_id, first_name, last_name, email, phone)
-          `)
-          .order('created_at', { ascending: false })
-          .limit(10),
-      ]);
+              vehicle_booking_code,
+              total_price,
+              status,
+              start_date,
+              end_date,
+              created_at,
+              payment_method,
+              special_requests,
+              with_driver,
+              daily_rate,
+              vehicle:vehicles(
+                id,
+                brand,
+                model,
+                title,
+                images,
+                owner:profiles!vehicles_owner_id_fkey(user_id, first_name, last_name, email, phone)
+              ),
+              renter:profiles!vehicle_bookings_renter_id_fkey(user_id, first_name, last_name, email, phone)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(8),
+        ]);
+
+      let overview = overviewResult.data as Record<string, unknown> | null;
+      if (overviewResult.error || !overview) {
+        console.warn('[useAdmin] admin_dashboard_overview:', overviewResult.error?.message);
+        // Fallback parallèle léger si la migration RPC n’est pas encore appliquée
+        const [
+          usersRes,
+          propertiesRes,
+          bookingsRes,
+          pendingRes,
+          revenueRes,
+          zipRes,
+        ] = await Promise.all([
+          supabase.from('profiles').select('id', { count: 'exact', head: true }),
+          supabase.from('properties').select('id', { count: 'exact', head: true }),
+          supabase.from('bookings').select('id', { count: 'exact', head: true }),
+          supabase
+            .from('host_applications')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'pending'),
+          supabase.rpc('admin_confirmed_revenue_sum'),
+          supabase.rpc('count_zip_unique_players'),
+        ]);
+        overview = {
+          total_users: usersRes.count ?? 0,
+          total_properties: propertiesRes.count ?? 0,
+          total_bookings: bookingsRes.count ?? 0,
+          total_revenue: revenueRes.data ?? 0,
+          average_rating: 0,
+          pending_applications: pendingRes.count ?? 0,
+          zip_unique_players: typeof zipRes.data === 'number' ? zipRes.data : 0,
+        };
+      }
 
       const recentPropertyBookings = recentPropertyBookingsResult.data || [];
       const recentVehicleBookings = recentVehicleBookingsResult.data || [];
@@ -725,45 +710,22 @@ export const useAdmin = () => {
         )
         .slice(0, 8);
 
-      // Villes populaires (via locations)
-      const { data: popularLocations } = await supabase
-        .from('properties')
-        .select(`
-          location_id,
-          locations:location_id!inner(name, type),
-          bookings!inner(id)
-        `)
-        .eq('is_active', true);
-
-      const stats: DashboardStats = {
-        totalUsers: totalUsers || 0,
-        totalProperties: totalProperties || 0,
-        totalBookings: totalBookings || 0,
-        totalRevenue,
-        averageRating: Math.round(averageRating * 10) / 10,
-        pendingApplications: pendingApplications || 0,
-        zipUniquePlayers,
-        recentUsers: recentUsers || [],
+      return {
+        totalUsers: Number(overview.total_users) || 0,
+        totalProperties: Number(overview.total_properties) || 0,
+        totalBookings: Number(overview.total_bookings) || 0,
+        totalRevenue: Number(overview.total_revenue) || 0,
+        averageRating: Number(overview.average_rating) || 0,
+        pendingApplications: Number(overview.pending_applications) || 0,
+        zipUniquePlayers: Number(overview.zip_unique_players) || 0,
+        recentUsers: [],
         recentBookings,
-        popularCities: popularLocations || [],
+        popularCities: [],
       };
-
-      return stats;
     } catch (err) {
       console.error('Unexpected error:', err);
       setError('Erreur lors du chargement des statistiques');
-      return {
-        totalUsers: 0,
-        totalProperties: 0,
-        totalBookings: 0,
-        totalRevenue: 0,
-        averageRating: 0,
-        pendingApplications: 0,
-        zipUniquePlayers: 0,
-        recentUsers: [],
-        recentBookings: [],
-        popularCities: [],
-      };
+      return empty;
     } finally {
       setLoading(false);
     }

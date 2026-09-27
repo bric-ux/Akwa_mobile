@@ -27,6 +27,7 @@ import { HeroSection } from '../components/HeroSection';
 import { InfoBanner } from '../components/InfoBanner';
 import ImageCarousel from '../components/ImageCarousel';
 import HomeCategoryPills from '../components/home/HomeCategoryPills';
+import HomeStayTypeShelves from '../components/home/HomeStayTypeShelves';
 import HomeWeatherChip from '../components/HomeWeatherChip';
 import ZipDailyCard from '../components/zip/ZipDailyCard';
 import MatchPredictionBanner from '../components/MatchPredictionBanner';
@@ -262,6 +263,7 @@ const HomeScreen: React.FC = () => {
       {showDeferredHeaderContent ? (
         <>
           <HomeCategoryPills />
+          <HomeStayTypeShelves />
           <MatchPredictionBanner />
           <HomeWeatherChip />
           <ZipDailyCard />
