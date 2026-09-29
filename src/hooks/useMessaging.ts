@@ -4,6 +4,10 @@ import { Conversation, Message } from '../types';
 import { log, logError, logWarn } from '../utils/logger';
 import { sendPushToUser } from '../services/pushNotificationService';
 import { PUSH_TYPE_MESSAGE } from '../services/pushNavigation';
+import {
+  AKWAHOME_SUPPORT_KIND,
+  AKWAHOME_SUPPORT_TITLE,
+} from '../constants/supportMessaging';
 
 export const useMessaging = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -348,7 +352,7 @@ export const useMessaging = () => {
         try {
           const { data: conversation } = await supabase
             .from('conversations')
-            .select('host_id, guest_id, property_id, vehicle_id, monthly_rental_listing_id, properties(title), vehicles(title), monthly_rental_listings(title)')
+            .select('host_id, guest_id, kind, property_id, vehicle_id, monthly_rental_listing_id, properties(title), vehicles(title), monthly_rental_listings(title)')
             .eq('id', conversationId)
             .single();
           if (!conversation) return;
@@ -357,6 +361,7 @@ export const useMessaging = () => {
             senderId === conversation.host_id ? conversation.guest_id : conversation.host_id;
           if (!recipientId || recipientId === senderId) return;
 
+          const isAdminSupport = conversation.kind === AKWAHOME_SUPPORT_KIND;
           const senderName = data.sender_profile
             ? `${data.sender_profile.first_name} ${data.sender_profile.last_name}`.trim()
             : 'Utilisateur';
@@ -370,8 +375,8 @@ export const useMessaging = () => {
 
           await sendPushToUser(
             recipientId,
-            'Nouveau message',
-            `${senderName} : ${preview}`,
+            isAdminSupport ? AKWAHOME_SUPPORT_TITLE : 'Nouveau message',
+            isAdminSupport ? preview : `${senderName} : ${preview}`,
             {
               type: PUSH_TYPE_MESSAGE,
               conversationId,
@@ -682,6 +687,39 @@ export const useMessaging = () => {
     setMessages([]);
   }, []);
 
+  const createOrGetAdminSupportConversation = useCallback(
+    async (adminId: string, userId: string): Promise<string> => {
+      if (!adminId || !userId || adminId === userId) {
+        throw new Error('Utilisateur invalide');
+      }
+
+      const { data: existing, error: fetchError } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('kind', AKWAHOME_SUPPORT_KIND)
+        .eq('guest_id', userId)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+      if (existing?.id) return existing.id;
+
+      const { data: created, error: createError } = await supabase
+        .from('conversations')
+        .insert({
+          kind: AKWAHOME_SUPPORT_KIND,
+          host_id: adminId,
+          guest_id: userId,
+          title: AKWAHOME_SUPPORT_TITLE,
+        })
+        .select('id')
+        .single();
+
+      if (createError) throw createError;
+      return created.id;
+    },
+    [],
+  );
+
   return {
     conversations,
     messages,
@@ -692,6 +730,7 @@ export const useMessaging = () => {
     loadMessages,
     sendMessage,
     createOrGetConversation,
+    createOrGetAdminSupportConversation,
     markMessagesAsRead,
     setupRealtimeSubscription,
     clearUnreadForConversation,

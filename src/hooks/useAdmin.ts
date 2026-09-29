@@ -580,28 +580,57 @@ export const useAdmin = () => {
   };
 
   const getAllUsers = async () => {
-    setLoading(true);
     setError(null);
 
     try {
-      const { data, error } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('*')
+        .select(
+          'user_id, first_name, last_name, email, phone, role, is_host, created_at, avatar_url',
+        )
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching users:', error);
+      if (profilesError) {
+        console.error('Error fetching users:', profilesError);
         setError('Erreur lors du chargement des utilisateurs');
         return [];
       }
 
-      return data || [];
+      const rows = profiles || [];
+      if (rows.length === 0) return [];
+
+      const userIds = rows.map((p) => p.user_id);
+      const identityByUser = new Map<string, boolean | null>();
+      const chunkSize = 200;
+
+      for (let i = 0; i < userIds.length; i += chunkSize) {
+        const chunk = userIds.slice(i, i + chunkSize);
+        const { data: identityRows, error: identityError } = await supabase
+          .from('identity_documents')
+          .select('user_id, verified, uploaded_at')
+          .in('user_id', chunk)
+          .order('uploaded_at', { ascending: false });
+
+        if (identityError) {
+          console.warn('Identity batch fetch partial error:', identityError);
+          continue;
+        }
+
+        for (const doc of identityRows || []) {
+          if (!identityByUser.has(doc.user_id)) {
+            identityByUser.set(doc.user_id, doc.verified ?? null);
+          }
+        }
+      }
+
+      return rows.map((profile) => ({
+        ...profile,
+        identity_verified: identityByUser.get(profile.user_id) ?? null,
+      }));
     } catch (err) {
       console.error('Unexpected error:', err);
       setError('Erreur lors du chargement des utilisateurs');
       return [];
-    } finally {
-      setLoading(false);
     }
   };
 

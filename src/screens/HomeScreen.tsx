@@ -312,6 +312,7 @@ const HomeScreen: React.FC = () => {
               resizeMode="cover"
             >
               <View style={styles.vehiclesPromoScrim} />
+              <View style={styles.vehiclesPromoScrimBottom} />
               <View style={styles.vehiclesPromoContent}>
                 <Text style={styles.vehiclesPromoEyebrow}>Location de véhicules</Text>
                 <Text style={styles.vehiclesPromoTitle}>
@@ -690,41 +691,62 @@ const styles = StyleSheet.create({
   },
   vehiclesPromoBgImage: {
     width: '100%',
-    minHeight: 220,
+    minHeight: 240,
     justifyContent: 'flex-end',
   },
   vehiclesPromoScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.38)',
+    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  vehiclesPromoScrimBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '48%',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   vehiclesPromoContent: {
-    paddingHorizontal: 20,
-    paddingTop: 28,
+    paddingHorizontal: 18,
+    paddingTop: 16,
     paddingBottom: 18,
     gap: 6,
+    marginHorizontal: 14,
+    marginBottom: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
   },
   vehiclesPromoEyebrow: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#FFFFFF',
     marginBottom: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   vehiclesPromoTitle: {
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
-    lineHeight: 26,
+    lineHeight: 28,
     letterSpacing: -0.3,
+    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   vehiclesPromoDescription: {
     marginTop: 2,
     marginBottom: 8,
     fontSize: 14,
-    fontWeight: '400',
-    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '500',
+    color: '#FFFFFF',
     lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   vehiclesPromoButton: {
     flexDirection: 'row',

@@ -37,9 +37,10 @@ import { getPublicPropertyListVersion } from '../utils/publicPropertyListVersion
 
 const SEARCH_LIST_PAGE_SIZE = 30;
 
-const normalizeStayType = (raw?: string | null): StaySearchType => {
-  if (raw === 'monthly' || raw === 'hotel') return raw;
-  return 'short_term';
+/** Type passé via navigation ; `null` = aucun choix (ne pas pré-sélectionner Résidence). */
+const parseRouteStayType = (raw?: string | null): StaySearchType | null => {
+  if (raw === 'monthly' || raw === 'hotel' || raw === 'short_term') return raw;
+  return null;
 };
 
 type SearchScreenRouteProp = RouteProp<RootStackParamList, 'Search'>;
@@ -49,20 +50,21 @@ const SearchScreen: React.FC = () => {
   const navigation = useNavigation();
   const { monthlyRental, hotel: hotelEnabled, loading: flagsLoading } = useFeatureFlags();
 
-  const routeInitialType = normalizeStayType(
+  const routeInitialType = parseRouteStayType(
     (route.params as any)?.initialRentalType ?? (route.params as any)?.rentalType,
   );
   
   const [shortTermSearchQuery, setShortTermSearchQuery] = useState(route.params?.destination || '');
   const [monthlySearchQuery, setMonthlySearchQuery] = useState(route.params?.destination || '');
   const [hotelSearchQuery, setHotelSearchQuery] = useState(route.params?.destination || '');
-  const [filters, setFilters] = useState<SearchFilters>(() => ({
-    // Types expérimentaux : attendre le gate admin avant d’activer
-    rentalType:
-      routeInitialType === 'monthly' || routeInitialType === 'hotel'
-        ? 'short_term'
-        : routeInitialType,
-  }));
+  const [filters, setFilters] = useState<SearchFilters>(() => {
+    // Pas de type par défaut : évite de présenter « Résidence » comme déjà choisi.
+    // Types expérimentaux : attendre le gate admin avant d’activer.
+    if (routeInitialType === 'monthly' || routeInitialType === 'hotel') {
+      return {};
+    }
+    return routeInitialType ? { rentalType: routeInitialType } : {};
+  });
   const initialRentalTypeApplied = useRef(false);
   const [showFilters, setShowFilters] = useState(false);
   const resumeSearchFormAfterFiltersRef = useRef(false);
@@ -124,12 +126,18 @@ const SearchScreen: React.FC = () => {
   const [children, setChildren] = useState(searchDates.children || 0);
   const [babies, setBabies] = useState(searchDates.babies || 0);
 
-  // Appliquer initialRentalType une fois le gate admin résolu
+  // Appliquer initialRentalType une fois le gate admin résolu (seulement si passé en params)
   useEffect(() => {
-    const initial = normalizeStayType(
+    const initial = parseRouteStayType(
       (route.params as any)?.initialRentalType ?? (route.params as any)?.rentalType,
     );
     if (initialRentalTypeApplied.current) return;
+
+    // Ouverture générique (barre de recherche) : aucun type pré-sélectionné
+    if (!initial) {
+      initialRentalTypeApplied.current = true;
+      return;
+    }
 
     if (initial === 'monthly' || initial === 'hotel') {
       if (flagsLoading) return;
@@ -185,10 +193,16 @@ const SearchScreen: React.FC = () => {
   }, [searchDates.checkIn, searchDates.checkOut, searchDates.adults, searchDates.children, searchDates.babies]);
 
 
-  const rentalType = (() => {
-    const raw = (filters.rentalType ?? 'short_term') as StaySearchType;
-    if (raw === 'monthly' && !monthlyRental) return 'short_term';
-    if (raw === 'hotel' && !hotelEnabled) return 'short_term';
+  const showStayTypeSwitch = monthlyRental || hotelEnabled;
+  const rentalType = ((): StaySearchType | null => {
+    const raw = filters.rentalType as StaySearchType | 'all' | undefined;
+    if (!raw || raw === 'all') {
+      // Sans switch (flags off) : résidence seule, pas besoin de choix explicite
+      if (!flagsLoading && !showStayTypeSwitch) return 'short_term';
+      return null;
+    }
+    if (raw === 'monthly' && !monthlyRental) return showStayTypeSwitch ? null : 'short_term';
+    if (raw === 'hotel' && !hotelEnabled) return showStayTypeSwitch ? null : 'short_term';
     return raw;
   })();
   const currentSearchQuery =
@@ -692,6 +706,15 @@ const SearchScreen: React.FC = () => {
   };
 
   const handleSearchButtonPress = async (queryFromForm?: string) => {
+    if (showStayTypeSwitch && !rentalType) {
+      Alert.alert(
+        'Type requis',
+        'Choisissez un type d’hébergement : Résidence, Hôtel ou Bail longue durée.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     const query = (queryFromForm ?? currentSearchQuery).trim();
 
     if (!query) {

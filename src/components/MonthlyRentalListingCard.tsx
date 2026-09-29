@@ -90,8 +90,8 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
               uri={imageUri}
               style={{ width: '100%', height: EXPLORE_SHELF_IMAGE_HEIGHT }}
               resizeMode="cover"
-              contentPosition="top"
-              preferOriginal
+              contentPosition="center"
+              fitWholeImage
               priority="high"
               recyclingKey={`${listing.id}-shelf-cover`}
             />
@@ -122,8 +122,8 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
             uri={imageUri}
             style={{ width: '100%', height: LIST_CARD_IMAGE_HEIGHT }}
             resizeMode="cover"
-            contentPosition="top"
-            preferOriginal
+            contentPosition="center"
+            fitWholeImage
             priority="high"
             recyclingKey={`${listing.id}-list-cover`}
           />

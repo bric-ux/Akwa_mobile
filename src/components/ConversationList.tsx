@@ -11,6 +11,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Conversation } from '../types';
+import {
+  AKWAHOME_SUPPORT_SUBTITLE,
+  AKWAHOME_SUPPORT_TITLE,
+  isAdminSupportConversation,
+} from '../constants/supportMessaging';
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -70,6 +75,12 @@ const ConversationList: React.FC<ConversationListProps> = ({
   };
 
   const getOtherUserName = (conversation: Conversation) => {
+    if (
+      isAdminSupportConversation(conversation) &&
+      currentUserId === conversation.guest_id
+    ) {
+      return AKWAHOME_SUPPORT_TITLE;
+    }
     const otherUser = getOtherUser(conversation);
     if (otherUser) {
       const firstName = String(otherUser.first_name ?? '').trim();
@@ -78,6 +89,23 @@ const ConversationList: React.FC<ConversationListProps> = ({
       return fullName || 'Utilisateur';
     }
     return 'Utilisateur';
+  };
+
+  const getConversationSubtitle = (conversation: Conversation) => {
+    if (isAdminSupportConversation(conversation)) {
+      return currentUserId === conversation.guest_id
+        ? AKWAHOME_SUPPORT_SUBTITLE
+        : AKWAHOME_SUPPORT_TITLE;
+    }
+    if (conversation.title) return conversation.title;
+    if (conversation.property?.title) return `Résidence - ${conversation.property.title}`;
+    if (conversation.vehicle) {
+      return `Véhicule - ${(conversation.vehicle as any).title || `${conversation.vehicle.brand} ${conversation.vehicle.model}${conversation.vehicle.year ? ` (${conversation.vehicle.year})` : ''}`}`;
+    }
+    if (conversation.monthly_rental_listing?.title) {
+      return `Bail - ${conversation.monthly_rental_listing.title}`;
+    }
+    return 'Annonce';
   };
 
   const getOtherUserAvatar = (conversation: Conversation) => {
@@ -138,36 +166,22 @@ const ConversationList: React.FC<ConversationListProps> = ({
           </Text>
         </View>
         
-        {(onOpenOffer && (item.property?.id || item.vehicle?.id || item.monthly_rental_listing?.id)) ? (
+        {(onOpenOffer &&
+          !isAdminSupportConversation(item) &&
+          (item.property?.id || item.vehicle?.id || item.monthly_rental_listing?.id)) ? (
           <TouchableOpacity
             onPress={() => onOpenOffer(item)}
             activeOpacity={0.7}
             style={styles.propertyTitleTouchable}
           >
             <Text style={styles.propertyTitleLink} numberOfLines={1}>
-              {item.title
-                ? item.title
-                : item.property?.title
-                  ? `Résidence - ${item.property.title}`
-                  : item.vehicle
-                    ? `Véhicule - ${(item.vehicle as any).title || `${item.vehicle.brand} ${item.vehicle.model}${item.vehicle.year ? ` (${item.vehicle.year})` : ''}`}`
-                    : item.monthly_rental_listing?.title
-                      ? `Bail - ${item.monthly_rental_listing.title}`
-                      : 'Annonce'}
+              {getConversationSubtitle(item)}
             </Text>
             <Ionicons name="open-outline" size={14} color="#007AFF" style={styles.propertyTitleIcon} />
           </TouchableOpacity>
         ) : (
           <Text style={styles.propertyTitle} numberOfLines={1}>
-            {item.title
-              ? item.title
-              : item.property?.title
-                ? `Résidence - ${item.property.title}`
-                : item.vehicle
-                  ? `Véhicule - ${(item.vehicle as any).title || `${item.vehicle.brand} ${item.vehicle.model}${item.vehicle.year ? ` (${item.vehicle.year})` : ''}`}`
-                  : item.monthly_rental_listing?.title
-                    ? `Bail - ${item.monthly_rental_listing.title}`
-                    : 'Annonce'}
+            {getConversationSubtitle(item)}
           </Text>
         )}
         

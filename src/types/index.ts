@@ -137,6 +137,7 @@ export interface Conversation {
   monthly_rental_listing_id?: string;
   guest_id: string;
   host_id: string;
+  kind?: 'listing' | 'admin_support';
   created_at: string;
   updated_at: string;
   title?: string;

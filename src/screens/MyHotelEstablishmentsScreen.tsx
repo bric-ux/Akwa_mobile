@@ -14,6 +14,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { HOTEL_COLORS } from '../constants/colors';
+import MediaThumb from '../components/MediaThumb';
 
 type HotelRow = {
   id: string;
@@ -21,7 +22,22 @@ type HotelRow = {
   establishment_type: string;
   status: string;
   address: string | null;
+  images?: string[] | null;
 };
+
+const ESTABLISHMENT_TYPE_LABEL: Record<string, string> = {
+  hotel: 'Hôtel',
+  guesthouse: 'Maison d’hôtes',
+  residence: 'Résidence',
+  aparthotel: 'Aparthotel',
+};
+
+function coverUri(item: HotelRow): string {
+  if (Array.isArray(item.images) && item.images.length > 0 && item.images[0]) {
+    return item.images[0];
+  }
+  return 'https://via.placeholder.com/160x160?text=Hôtel';
+}
 
 export default function MyHotelEstablishmentsScreen() {
   const navigation = useNavigation<any>();
@@ -39,7 +55,7 @@ export default function MyHotelEstablishmentsScreen() {
     try {
       const { data, error } = await supabase
         .from('hotel_establishments')
-        .select('id, title, establishment_type, status, address')
+        .select('id, title, establishment_type, status, address, images')
         .eq('host_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -121,15 +137,28 @@ export default function MyHotelEstablishmentsScreen() {
                 navigation.navigate('AddHotelEstablishment', { establishmentId: item.id })
               }
             >
-              <View style={[styles.badge, { backgroundColor: HOTEL_COLORS.light }]}>
-                <Ionicons name="business" size={20} color={HOTEL_COLORS.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardMeta}>
-                  {item.establishment_type} · {statusLabel(item.status)}
+              <MediaThumb
+                uri={coverUri(item)}
+                style={styles.thumb}
+                resizeMode="cover"
+                contentPosition="center"
+                fitWholeImage
+                recyclingKey={`hotel-est-${item.id}`}
+              />
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle} numberOfLines={2}>
+                  {item.title}
                 </Text>
-                {!!item.address && <Text style={styles.cardAddr}>{item.address}</Text>}
+                <Text style={styles.cardMeta}>
+                  {ESTABLISHMENT_TYPE_LABEL[item.establishment_type] || item.establishment_type}
+                  {' · '}
+                  {statusLabel(item.status)}
+                </Text>
+                {!!item.address && (
+                  <Text style={styles.cardAddr} numberOfLines={1}>
+                    {item.address}
+                  </Text>
+                )}
               </View>
               <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
             </TouchableOpacity>
@@ -187,22 +216,23 @@ const styles = StyleSheet.create({
   ctaText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   card: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     backgroundColor: '#fff',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    padding: 14,
+    padding: 12,
     marginBottom: 10,
   },
-  badge: {
-    width: 44,
-    height: 44,
+  thumb: {
+    width: 80,
+    height: 80,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: HOTEL_COLORS.light,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  cardBody: { flex: 1, minWidth: 0 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 4 },
   cardMeta: { marginTop: 2, fontSize: 12, color: HOTEL_COLORS.primary, fontWeight: '600' },
   cardAddr: { marginTop: 4, fontSize: 13, color: '#64748b' },
 });

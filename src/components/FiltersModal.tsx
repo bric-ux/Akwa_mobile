@@ -8,6 +8,7 @@ import {
   ScrollView,
   TextInput,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SearchFilters } from '../types';
@@ -39,13 +40,15 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   const { amenities, loading: amenitiesLoading } = useAmenities();
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>(initialFilters.sortBy || '');
-  const [rentalType, setRentalType] = useState<StaySearchType>(
+  const [rentalType, setRentalType] = useState<StaySearchType | null>(
     lockedRentalType ??
       (initialFilters.rentalType === 'monthly'
         ? 'monthly'
         : initialFilters.rentalType === 'hotel'
           ? 'hotel'
-          : 'short_term'),
+          : initialFilters.rentalType === 'short_term'
+            ? 'short_term'
+            : null),
   );
   const [minPriceInput, setMinPriceInput] = useState<string>(initialFilters.priceMin?.toString() || '');
   const [maxPriceInput, setMaxPriceInput] = useState<string>(initialFilters.priceMax?.toString() || '');
@@ -100,6 +103,8 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
       setRentalType(lockedRentalType);
     } else if (initialFilters.rentalType === 'monthly' || initialFilters.rentalType === 'hotel' || initialFilters.rentalType === 'short_term') {
       setRentalType(initialFilters.rentalType);
+    } else if (!initialFilters.rentalType) {
+      setRentalType(null);
     }
     if (initialFilters.priceMin !== undefined) {
       setMinPriceInput(initialFilters.priceMin.toString());
@@ -110,6 +115,15 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
   }, [initialFilters, lockedRentalType]);
 
   const handleApply = () => {
+    const effectiveType = lockedRentalType ?? rentalType;
+    if (!effectiveType) {
+      Alert.alert(
+        'Type requis',
+        'Choisissez un type de logement avant d’appliquer les filtres.',
+      );
+      return;
+    }
+
     const priceMin = minPriceInput ? parseInt(minPriceInput) : undefined;
     const priceMax = maxPriceInput ? parseInt(maxPriceInput) : undefined;
     
@@ -117,13 +131,13 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
       ...filters,
       priceMin,
       priceMax,
-      amenities: rentalType === 'short_term' && selectedAmenities.length > 0 ? selectedAmenities : undefined,
+      amenities: effectiveType === 'short_term' && selectedAmenities.length > 0 ? selectedAmenities : undefined,
       sortBy: sortBy || undefined,
-      rentalType: lockedRentalType ?? rentalType,
-      bedrooms: rentalType === 'hotel' ? undefined : filters.bedrooms,
-      propertyType: rentalType === 'short_term' || rentalType === 'monthly' ? filters.propertyType : undefined,
-      isFurnished: rentalType === 'monthly' ? filters.isFurnished : undefined,
-      ...(rentalType === 'hotel' ? { starRating } : { starRating: undefined }),
+      rentalType: effectiveType,
+      bedrooms: effectiveType === 'hotel' ? undefined : filters.bedrooms,
+      propertyType: effectiveType === 'short_term' || effectiveType === 'monthly' ? filters.propertyType : undefined,
+      isFurnished: effectiveType === 'monthly' ? filters.isFurnished : undefined,
+      ...(effectiveType === 'hotel' ? { starRating } : { starRating: undefined }),
     } as SearchFilters);
     onClose();
   };
@@ -142,7 +156,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
     setFilters({});
     setSelectedAmenities([]);
     setSortBy('');
-    setRentalType(lockedRentalType ?? 'short_term');
+    setRentalType(lockedRentalType ?? null);
     setMinPriceInput('');
     setMaxPriceInput('');
   };

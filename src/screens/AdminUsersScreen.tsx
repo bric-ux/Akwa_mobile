@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,24 @@ import {
   RefreshControl,
   ActivityIndicator,
   TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAdmin } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { supabase } from '../services/supabase';
+import { useMessaging } from '../hooks/useMessaging';
+import { AKWAHOME_SUPPORT_TITLE } from '../constants/supportMessaging';
+import {
+  displayEmailOrPhone,
+  getProfileContactEmail,
+  isPhonePseudoEmail,
+} from '../lib/displayContact';
 
 interface User {
   user_id: string;
@@ -31,52 +41,37 @@ interface User {
   identity_verified?: boolean | null;
 }
 
+type ContactEntry = {
+  kind: 'email' | 'phone';
+  value: string;
+};
+
 const AdminUsersScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { getAllUsers, updateUserRole, loading } = useAdmin();
+  const { createOrGetAdminSupportConversation, sendMessage, sending } = useMessaging();
   
   const [users, setUsers] = useState<User[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'user' | 'admin' | 'host'>('all');
+  const [messageTarget, setMessageTarget] = useState<User | null>(null);
+  const [messageText, setMessageText] = useState('');
+  const [messageSending, setMessageSending] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       const allUsers = await getAllUsers();
-      
-      // Récupérer le statut de vérification d'identité pour chaque utilisateur
-      const usersWithIdentityStatus = await Promise.all(
-        allUsers.map(async (user) => {
-          try {
-            const { data: identityDoc } = await supabase
-              .from('identity_documents')
-              .select('verified')
-              .eq('user_id', user.user_id)
-              .order('uploaded_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            
-            return {
-              ...user,
-              identity_verified: identityDoc?.verified || null
-            };
-          } catch (error) {
-            console.error(`Erreur lors de la récupération du statut d'identité pour ${user.user_id}:`, error);
-            return {
-              ...user,
-              identity_verified: null
-            };
-          }
-        })
-      );
-      
-      setUsers(usersWithIdentityStatus);
+      setUsers(allUsers as User[]);
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error);
+    } finally {
+      setListLoading(false);
     }
-  };
+  }, [getAllUsers]);
 
   // Charger les utilisateurs quand l'écran devient actif
   useFocusEffect(
@@ -91,6 +86,41 @@ const AdminUsersScreen: React.FC = () => {
     setRefreshing(true);
     await loadUsers();
     setRefreshing(false);
+  };
+
+  const formatDisplayName = (item: User) => {
+    const full = [item.first_name, item.last_name]
+      .map((part) => (part || '').trim())
+      .filter(Boolean)
+      .join(' ');
+    return full || 'Utilisateur sans nom';
+  };
+
+  const getContactEntries = (item: User): ContactEntry[] => {
+    const emailLine = getProfileContactEmail(item.email, item.email);
+    const phoneLine = isPhonePseudoEmail(item.email)
+      ? displayEmailOrPhone(item.email, item.phone)
+      : (item.phone || '').trim();
+    const entries: ContactEntry[] = [];
+    if (emailLine) entries.push({ kind: 'email', value: emailLine });
+    if (phoneLine && phoneLine !== emailLine) entries.push({ kind: 'phone', value: phoneLine });
+    return entries;
+  };
+
+  const copyContact = async (value: string, label: string) => {
+    try {
+      await Clipboard.setStringAsync(value);
+      Alert.alert('Copié', `${label} copié dans le presse-papiers.`);
+    } catch {
+      Alert.alert('Erreur', 'Impossible de copier dans le presse-papiers.');
+    }
+  };
+
+  const getInitials = (item: User) => {
+    const first = (item.first_name || '').trim().charAt(0);
+    const last = (item.last_name || '').trim().charAt(0);
+    const initials = `${first}${last}`.toUpperCase();
+    return initials || '?';
   };
 
   const handleRoleUpdate = async (userId: string, newRole: 'user' | 'admin') => {
@@ -145,6 +175,38 @@ const AdminUsersScreen: React.FC = () => {
     }
   };
 
+  const handleSendSupportMessage = async () => {
+    if (!user || !messageTarget) return;
+    const text = messageText.trim();
+    if (!text) {
+      Alert.alert('Message requis', 'Écrivez un message à envoyer à cet utilisateur.');
+      return;
+    }
+    if (messageTarget.user_id === user.id) {
+      Alert.alert('Action impossible', 'Vous ne pouvez pas vous écrire à vous-même.');
+      return;
+    }
+
+    setMessageSending(true);
+    try {
+      const conversationId = await createOrGetAdminSupportConversation(
+        user.id,
+        messageTarget.user_id,
+      );
+      await sendMessage(conversationId, text, user.id);
+      setMessageTarget(null);
+      setMessageText('');
+      navigation.navigate('Messaging' as never, { conversationId } as never);
+    } catch (error: unknown) {
+      Alert.alert(
+        'Erreur',
+        error instanceof Error ? error.message : "Impossible d'envoyer le message.",
+      );
+    } finally {
+      setMessageSending(false);
+    }
+  };
+
   const getRoleBadge = (role: string, isHost: boolean) => {
     if (role === 'admin') {
       return { color: '#e74c3c', text: 'Admin', icon: 'shield-outline' };
@@ -155,12 +217,17 @@ const AdminUsersScreen: React.FC = () => {
     }
   };
 
-  const filteredUsers = users.filter(user => {
-    // Filtre par recherche
-    const matchesSearch = searchQuery === '' || 
-      user.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredUsers = useMemo(() => users.filter((user) => {
+    const q = searchQuery.trim().toLowerCase();
+    const contactEntries = getContactEntries(user);
+    const matchesSearch =
+      q === '' ||
+      user.first_name?.toLowerCase().includes(q) ||
+      user.last_name?.toLowerCase().includes(q) ||
+      formatDisplayName(user).toLowerCase().includes(q) ||
+      user.email?.toLowerCase().includes(q) ||
+      user.phone?.toLowerCase().includes(q) ||
+      contactEntries.some((entry) => entry.value.toLowerCase().includes(q));
 
     // Filtre par rôle
     let matchesRole = true;
@@ -173,30 +240,67 @@ const AdminUsersScreen: React.FC = () => {
     }
 
     return matchesSearch && matchesRole;
-  });
+  }), [users, searchQuery, filterRole]);
 
   const renderUserItem = ({ item: user }: { item: User }) => {
     const roleInfo = getRoleBadge(user.role, user.is_host);
     const identityInfo = getIdentityBadge(user.identity_verified);
+    const displayName = formatDisplayName(user);
+    const contactEntries = getContactEntries(user);
     
     return (
       <TouchableOpacity style={styles.userCard}>
         <View style={styles.userHeader}>
           <View style={styles.userInfo}>
             <View style={styles.userAvatar}>
-              <Ionicons name="person" size={24} color="#666" />
+              <Text style={styles.userAvatarText}>{getInitials(user)}</Text>
             </View>
             <View style={styles.userDetails}>
-              <Text style={styles.userName} numberOfLines={1}>
-                {user.first_name} {user.last_name}
+              <Text style={styles.userName} numberOfLines={2}>
+                {displayName}
               </Text>
-              <Text style={styles.userEmail} numberOfLines={1}>
-                📧 {user.email}
-              </Text>
-              {user.phone && (
-                <Text style={styles.userPhone} numberOfLines={1}>
-                  📞 {user.phone}
-                </Text>
+              {contactEntries.length > 0 ? (
+                contactEntries.map((entry) => (
+                  <View key={`${user.user_id}-${entry.kind}`} style={styles.contactRow}>
+                    <Ionicons
+                      name={entry.kind === 'email' ? 'mail-outline' : 'call-outline'}
+                      size={14}
+                      color="#64748b"
+                      style={styles.contactIcon}
+                    />
+                    <TouchableOpacity
+                      style={styles.contactTextWrap}
+                      onPress={() =>
+                        void copyContact(
+                          entry.value,
+                          entry.kind === 'email' ? "L'email" : 'Le numéro',
+                        )
+                      }
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.userContact} selectable>
+                        {entry.value}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.contactCopyBtn}
+                      onPress={() =>
+                        void copyContact(
+                          entry.value,
+                          entry.kind === 'email' ? "L'email" : 'Le numéro',
+                        )
+                      }
+                      accessibilityLabel={
+                        entry.kind === 'email' ? "Copier l'email" : 'Copier le numéro'
+                      }
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="copy-outline" size={17} color="#2563eb" />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.userContactMuted}>Aucun contact renseigné</Text>
               )}
             </View>
           </View>
@@ -229,6 +333,19 @@ const AdminUsersScreen: React.FC = () => {
 
         {/* Actions */}
         <View style={styles.userActions}>
+          {user.user_id !== profile?.id && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.messageButton]}
+              onPress={() => {
+                setMessageTarget(user);
+                setMessageText('');
+              }}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={16} color="#2563eb" />
+              <Text style={styles.actionButtonText}>Écrire</Text>
+            </TouchableOpacity>
+          )}
+
           {user.role !== 'admin' && (
             <TouchableOpacity
               style={[styles.actionButton, styles.promoteButton]}
@@ -373,7 +490,7 @@ const AdminUsersScreen: React.FC = () => {
         ))}
       </View>
 
-      {loading && users.length === 0 ? (
+      {listLoading && users.length === 0 ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#e74c3c" />
           <Text style={styles.loadingText}>Chargement des utilisateurs...</Text>
@@ -393,11 +510,68 @@ const AdminUsersScreen: React.FC = () => {
           renderItem={renderUserItem}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={12}
+          maxToRenderPerBatch={16}
+          windowSize={8}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#e74c3c']} />
           }
         />
       )}
+
+      <Modal
+        visible={!!messageTarget}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setMessageTarget(null)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>{AKWAHOME_SUPPORT_TITLE}</Text>
+            {messageTarget ? (
+              <Text style={styles.modalSubtitle}>
+                Message à {messageTarget.first_name} {messageTarget.last_name}
+              </Text>
+            ) : null}
+            <Text style={styles.modalHint}>
+              L’utilisateur verra « Service AkwaHome » et recevra une notification push.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={messageText}
+              onChangeText={setMessageText}
+              placeholder="Votre message…"
+              placeholderTextColor="#9ca3af"
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setMessageTarget(null)}
+                disabled={messageSending || sending}
+              >
+                <Text style={styles.modalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSend}
+                onPress={() => void handleSendSupportMessage()}
+                disabled={messageSending || sending}
+              >
+                {messageSending || sending ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalSendText}>Envoyer</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -532,35 +706,64 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   userAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fa',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fee2e2',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
+  userAvatarText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#b91c1c',
+  },
   userDetails: {
     flex: 1,
+    minWidth: 0,
   },
   userName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 4,
+    lineHeight: 22,
   },
-  userEmail: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 2,
+  userContact: {
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 18,
   },
-  userPhone: {
-    fontSize: 14,
-    color: '#666',
+  userContactMuted: {
+    fontSize: 13,
+    color: '#94a3b8',
+    fontStyle: 'italic',
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 4,
+    width: '100%',
+  },
+  contactIcon: {
+    marginTop: 2,
+  },
+  contactTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  contactCopyBtn: {
+    padding: 4,
+    marginTop: -2,
   },
   badgesContainer: {
-    flexDirection: 'row',
-    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 6,
+    flexShrink: 0,
+    marginLeft: 8,
   },
   roleBadge: {
     flexDirection: 'row',
@@ -604,7 +807,9 @@ const styles = StyleSheet.create({
   },
   userActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
+    gap: 8,
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
@@ -628,6 +833,74 @@ const styles = StyleSheet.create({
   },
   demoteButton: {
     backgroundColor: '#e3f2fd',
+  },
+  messageButton: {
+    backgroundColor: '#eff6ff',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  modalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 20,
+    paddingBottom: 28,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#374151',
+  },
+  modalHint: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#64748b',
+  },
+  modalInput: {
+    marginTop: 14,
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 15,
+    color: '#111827',
+    backgroundColor: '#f9fafb',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 16,
+  },
+  modalCancel: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  modalCancelText: {
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  modalSend: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    minWidth: 96,
+    alignItems: 'center',
+  },
+  modalSendText: {
+    color: '#fff',
+    fontWeight: '700',
   },
   emptyTitle: {
     fontSize: 20,

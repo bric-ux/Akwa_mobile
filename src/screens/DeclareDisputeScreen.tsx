@@ -16,6 +16,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
+import { TRAVELER_COLORS } from '../constants/colors';
+
+const ACCENT = TRAVELER_COLORS.primary;
 
 const DISPUTE_TYPES = [
   { value: 'booking', label: 'Problème de réservation' },
@@ -37,8 +40,15 @@ const DeclareDisputeScreen: React.FC = () => {
   const [sent, setSent] = useState(false);
 
   const handleSubmit = async () => {
+    if (!disputeType) {
+      Alert.alert('Champ requis', 'Veuillez sélectionner un type de litige.');
+      return;
+    }
     if (!bookingReference.trim()) {
-      Alert.alert('Champ requis', 'Veuillez indiquer la référence de la réservation concernée (ex. numéro de réservation ou logement).');
+      Alert.alert(
+        'Champ requis',
+        'Indiquez la référence de la réservation concernée (numéro, logement ou véhicule).',
+      );
       return;
     }
     if (!subject.trim()) {
@@ -62,8 +72,10 @@ const DeclareDisputeScreen: React.FC = () => {
         .eq('user_id', user.id)
         .maybeSingle();
 
-      const userName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || user.email;
-      const disputeTypeLabel = DISPUTE_TYPES.find((t) => t.value === disputeType)?.label || disputeType || 'Non précisé';
+      const userName =
+        [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || user.email;
+      const disputeTypeLabel =
+        DISPUTE_TYPES.find((t) => t.value === disputeType)?.label || disputeType;
 
       const { error } = await supabase.functions.invoke('send-email', {
         body: {
@@ -74,7 +86,7 @@ const DeclareDisputeScreen: React.FC = () => {
             userEmail: user.email,
             disputeType,
             disputeTypeLabel,
-            bookingReference: bookingReference.trim() || undefined,
+            bookingReference: bookingReference.trim(),
             subject: subject.trim(),
             description: description.trim(),
           },
@@ -83,13 +95,8 @@ const DeclareDisputeScreen: React.FC = () => {
 
       if (error) throw error;
       setSent(true);
-      Alert.alert(
-        'Message envoyé',
-        'Votre déclaration de litige a bien été transmise à notre équipe (accueil@akwahome.com). Nous vous recontacterons sous 48h.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'envoyer le message.');
+      Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'envoyer le message.");
     } finally {
       setLoading(false);
     }
@@ -98,10 +105,25 @@ const DeclareDisputeScreen: React.FC = () => {
   if (sent) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#1f2937" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Déclarer un litige</Text>
+          <View style={styles.placeholder} />
+        </View>
         <View style={styles.successBox}>
-          <Ionicons name="checkmark-circle" size={64} color="#10b981" />
-          <Text style={styles.successTitle}>Message envoyé</Text>
-          <Text style={styles.successText}>Notre équipe vous recontactera à {user?.email}.</Text>
+          <View style={styles.successIconWrap}>
+            <Ionicons name="checkmark-circle" size={56} color="#059669" />
+          </View>
+          <Text style={styles.successTitle}>Déclaration transmise</Text>
+          <Text style={styles.successText}>
+            Notre équipe support vous répondra sous 48 h
+            {user?.email ? ` à ${user.email}` : ''}.
+          </Text>
+          <TouchableOpacity style={styles.successButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.successButtonText}>Retour</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -111,7 +133,7 @@ const DeclareDisputeScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Déclarer un litige</Text>
         <View style={styles.placeholder} />
@@ -122,35 +144,47 @@ const DeclareDisputeScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.hero}>
-            <Text style={styles.heroEmoji}>📋</Text>
-            <Text style={styles.heroTitle}>Nous sommes à votre écoute</Text>
+            <View style={styles.heroIconWrap}>
+              <Ionicons name="document-text-outline" size={22} color={ACCENT} />
+            </View>
+            <Text style={styles.heroTitle}>Support AkwaHome</Text>
             <Text style={styles.heroSubtitle}>
-              Décrivez votre litige en détail. Les informations seront transmises à accueil@akwahome.com et notre équipe vous recontactera sous 48h.
+              Décrivez la situation. Notre équipe examine chaque déclaration et vous répond sous 48 h.
             </Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Type de litige</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-              {DISPUTE_TYPES.map((t) => (
-                <TouchableOpacity
-                  key={t.value}
-                  style={[styles.chip, disputeType === t.value && styles.chipSelected]}
-                  onPress={() => setDisputeType(t.value)}
-                >
-                  <Text style={[styles.chipText, disputeType === t.value && styles.chipTextSelected]}>{t.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <Text style={styles.label}>Type de litige *</Text>
+            <View style={styles.chipWrap}>
+              {DISPUTE_TYPES.map((t) => {
+                const selected = disputeType === t.value;
+                return (
+                  <TouchableOpacity
+                    key={t.value}
+                    style={[styles.chip, selected && styles.chipSelected]}
+                    onPress={() => setDisputeType(t.value)}
+                  >
+                    <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                      {t.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.label}>Référence de réservation *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Ex. numéro de réservation, logement ou véhicule concerné"
+              placeholder="Numéro de réservation, logement ou véhicule"
               placeholderTextColor="#9ca3af"
               value={bookingReference}
               onChangeText={setBookingReference}
@@ -161,7 +195,7 @@ const DeclareDisputeScreen: React.FC = () => {
             <Text style={styles.label}>Sujet *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Résumé du litige en quelques mots"
+              placeholder="Résumé en quelques mots"
               placeholderTextColor="#9ca3af"
               value={subject}
               onChangeText={setSubject}
@@ -169,10 +203,10 @@ const DeclareDisputeScreen: React.FC = () => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Description détaillée *</Text>
+            <Text style={styles.label}>Description *</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Décrivez la situation, les faits et ce que vous attendez..."
+              placeholder="Faits, dates, et ce que vous attendez de notre intervention…"
               placeholderTextColor="#9ca3af"
               value={description}
               onChangeText={setDescription}
@@ -191,14 +225,15 @@ const DeclareDisputeScreen: React.FC = () => {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Ionicons name="send" size={20} color="#fff" />
-                <Text style={styles.submitButtonText}>Envoyer la déclaration</Text>
+                <Ionicons name="send" size={18} color="#fff" />
+                <Text style={styles.submitButtonText}>Envoyer</Text>
               </>
             )}
           </TouchableOpacity>
 
           <Text style={styles.footerNote}>
-            Un accusé de réception sera envoyé à {user?.email}. Merci de faire confiance à Akwahome 🌴
+            Réponse sous 48 h
+            {user?.email ? ` à l’adresse ${user.email}` : ''}.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -218,61 +253,72 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e5e7eb',
   },
   backButton: { padding: 4 },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#111827',
   },
   placeholder: { width: 32 },
   keyboardView: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 40 },
   hero: {
-    backgroundColor: '#fff7ed',
-    borderLeftWidth: 4,
-    borderLeftColor: '#ea580c',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 24,
+    backgroundColor: '#fff',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5e7eb',
+    padding: 18,
+    borderRadius: 14,
+    marginBottom: 22,
   },
-  heroEmoji: { fontSize: 36, marginBottom: 8 },
+  heroIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: TRAVELER_COLORS.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
   heroTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#9a3412',
+    color: '#111827',
     marginBottom: 6,
   },
   heroSubtitle: {
     fontSize: 14,
     color: '#6b7280',
-    lineHeight: 20,
+    lineHeight: 21,
   },
   section: { marginBottom: 20 },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
   },
-  chipRow: { marginHorizontal: -4 },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   chip: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 10,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    marginRight: 8,
   },
   chipSelected: {
-    backgroundColor: '#ea580c',
-    borderColor: '#ea580c',
+    backgroundColor: ACCENT,
+    borderColor: ACCENT,
   },
-  chipText: { fontSize: 13, color: '#4b5563' },
+  chipText: { fontSize: 13, color: '#4b5563', fontWeight: '500' },
   chipTextSelected: { color: '#fff', fontWeight: '600' },
   input: {
     backgroundColor: '#fff',
@@ -284,7 +330,7 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   textArea: {
-    minHeight: 120,
+    minHeight: 130,
     paddingTop: 14,
   },
   submitButton: {
@@ -292,10 +338,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#ea580c',
-    paddingVertical: 16,
+    backgroundColor: ACCENT,
+    paddingVertical: 15,
     borderRadius: 12,
-    marginTop: 8,
+    marginTop: 4,
   },
   submitButtonDisabled: { opacity: 0.7 },
   submitButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
@@ -303,8 +349,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9ca3af',
     textAlign: 'center',
-    marginTop: 20,
-    paddingHorizontal: 16,
+    marginTop: 18,
+    lineHeight: 18,
+    paddingHorizontal: 8,
   },
   successBox: {
     flex: 1,
@@ -312,17 +359,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
+  successIconWrap: {
+    marginBottom: 8,
+  },
   successTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#059669',
-    marginTop: 16,
+    color: '#111827',
+    marginTop: 8,
   },
   successText: {
     fontSize: 14,
     color: '#6b7280',
-    marginTop: 8,
+    marginTop: 10,
     textAlign: 'center',
+    lineHeight: 21,
+  },
+  successButton: {
+    marginTop: 28,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 10,
+    backgroundColor: ACCENT,
+  },
+  successButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

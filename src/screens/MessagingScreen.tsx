@@ -26,6 +26,10 @@ import { useLanguage } from '../contexts/LanguageContext';
 import BottomNavigationBar from '../components/BottomNavigationBar';
 import GuestModePlaceholder from '../components/GuestModePlaceholder';
 import { useTabNotificationBadges } from '../contexts/TabNotificationBadgesContext';
+import {
+  AKWAHOME_SUPPORT_TITLE,
+  isAdminSupportConversation,
+} from '../constants/supportMessaging';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -467,6 +471,7 @@ const MessagingScreen: React.FC = () => {
         conversations={conversations}
         onSelectConversation={handleSelectConversation}
         onOpenOffer={(conv) => {
+          if (isAdminSupportConversation(conv)) return;
           if (conv.property?.id) {
             (navigation as any).navigate('PropertyDetails', { propertyId: conv.property.id });
           } else if (conv.vehicle?.id) {

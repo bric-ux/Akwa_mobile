@@ -25,7 +25,7 @@ type Props = {
   onClose: () => void;
   onBack: () => void;
   onOpenFilters: () => void;
-  rentalType: StaySearchType;
+  rentalType: StaySearchType | null;
   onRentalModeSwitch: (type: StaySearchType) => void;
   currentSearchQuery: string;
   onSearch: (query: string) => void;
@@ -73,7 +73,8 @@ const SearchFormModal: React.FC<Props> = ({
   }, [currentSearchQuery]);
 
   const hasDestination = destinationQuery.trim().length > 0;
-  const needsDates = rentalType !== 'monthly';
+  const needsDates = rentalType !== null && rentalType !== 'monthly';
+  const typeRequired = showTypeSwitch && !rentalType;
 
   const handleDestinationSelect = (suggestion: DestinationSuggestion) => {
     setDestinationQuery(suggestion.text);
@@ -131,7 +132,9 @@ const SearchFormModal: React.FC<Props> = ({
           )}
 
           {showTypeSwitch ? (
-            <View style={styles.modeSwitch}>
+            <View style={styles.modeSwitchBlock}>
+              <Text style={styles.fieldLabel}>Type d’hébergement</Text>
+              <View style={styles.modeSwitch}>
               <TouchableOpacity
                 style={[styles.modeChip, rentalType === 'short_term' && styles.modeChipActive]}
                 onPress={() => onRentalModeSwitch('short_term')}
@@ -195,6 +198,7 @@ const SearchFormModal: React.FC<Props> = ({
                   </Text>
                 </TouchableOpacity>
               ) : null}
+              </View>
             </View>
           ) : null}
 
@@ -218,7 +222,13 @@ const SearchFormModal: React.FC<Props> = ({
             </TouchableOpacity>
           </View>
 
-          {needsDates ? (
+          {rentalType === null && showTypeSwitch ? (
+            <View style={styles.formCard}>
+              <Text style={styles.monthlyHint}>
+                Sélectionnez d’abord un type d’hébergement pour continuer.
+              </Text>
+            </View>
+          ) : needsDates ? (
             <View style={styles.formCard}>
               <Text style={styles.fieldLabel}>Dates et voyageurs</Text>
               <View style={styles.datesGuestsField}>
@@ -233,17 +243,17 @@ const SearchFormModal: React.FC<Props> = ({
                 />
               </View>
             </View>
-          ) : (
+          ) : rentalType === 'monthly' ? (
             <View style={styles.formCard}>
               <Text style={styles.monthlyHint}>
                 Bail longue durée : recherchez par ville, puis affinez le loyer et les pièces.
               </Text>
             </View>
-          )}
+          ) : null}
 
           <SearchButton
             onPress={() => onSearchPress(destinationQuery.trim())}
-            disabled={isSearching}
+            disabled={isSearching || typeRequired}
             loading={isSearching}
           />
         </ScrollView>
@@ -295,6 +305,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: { fontSize: 20, fontWeight: '700', color: '#111', textAlign: 'center' },
   heroSubtitle: { fontSize: 14, lineHeight: 20, color: '#6b7280', textAlign: 'center' },
+  modeSwitchBlock: { gap: 8 },
   modeSwitch: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   modeChip: {
     flexDirection: 'row',

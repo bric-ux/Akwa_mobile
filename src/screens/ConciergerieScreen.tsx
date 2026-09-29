@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,108 +18,119 @@ import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { supabase } from '../services/supabase';
 import { displayEmailOrPhone, isPhonePseudoEmail } from '../lib/displayContact';
+import { HOST_COLORS, TRAVELER_COLORS } from '../constants/colors';
 
 type ContactMethod = 'email' | 'phone';
+
+type FormState = {
+  name: string;
+  contactMethod: ContactMethod;
+  contactValue: string;
+  propertyType: string;
+  numberOfRooms: string;
+  surface: string;
+  propertyLocation: string;
+  characteristics: string;
+  needs: string;
+  message: string;
+  selectedPlan: string;
+};
+
+const PLANS = [
+  {
+    name: 'Basique',
+    description: 'Gestion essentielle de votre bien',
+    features: [
+      'Gestion des entrées et sorties',
+      'Communication avec le voyageur 24h/24',
+      'Visibilité des propriétés sur AkwaHome',
+      'Gestion du calendrier',
+    ],
+    popular: false,
+  },
+  {
+    name: 'Premium',
+    description: 'Accompagnement complet',
+    features: [
+      'Toute l’offre Basique',
+      'Ménage en cours et après séjour',
+      'Optimisation des prix',
+      'Rapport mensuel détaillé',
+    ],
+    popular: true,
+  },
+  {
+    name: 'Luxe',
+    description: 'Service haut de gamme',
+    features: [
+      'Toute l’offre Premium',
+      'Décoration et staging',
+      'Photographie professionnelle',
+      'Gestionnaire dédié',
+      'Démarches administratives',
+      'Assistance des voyageurs sur place',
+      'Prestations complémentaires sur devis',
+    ],
+    popular: false,
+  },
+];
+
+const emptyForm = (): FormState => ({
+  name: '',
+  contactMethod: 'email',
+  contactValue: '',
+  propertyType: '',
+  numberOfRooms: '',
+  surface: '',
+  propertyLocation: '',
+  characteristics: '',
+  needs: '',
+  message: '',
+  selectedPlan: '',
+});
 
 const ConciergerieScreen: React.FC = () => {
   const navigation = useNavigation();
   const scrollViewRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(false);
-  const [showPlanModal, setShowPlanModal] = useState(false);
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile();
+  const [formData, setFormData] = useState<FormState>(emptyForm);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    propertyType: '',
-    numberOfRooms: '',
-    surface: '',
-    propertyLocation: '',
-    characteristics: '',
-    needs: '',
-    message: '',
-    selectedPlan: '',
-  });
-
-  // Pré-remplir les informations si l'utilisateur est connecté
   useEffect(() => {
-    if (user && profile && !profileLoading) {
-      const fullName = [profile.first_name, profile.last_name]
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-      
-      const accountEmail = profile.email || user.email || '';
-      const profilePhone = profile.phone || '';
-      const phoneAccount = isPhonePseudoEmail(accountEmail);
+    if (!user || !profile || profileLoading) return;
 
-      setFormData(prev => ({
-        ...prev,
-        name: fullName || prev.name,
-        contactMethod: phoneAccount || profilePhone ? 'phone' : 'email',
-        contactValue: phoneAccount
-          ? displayEmailOrPhone(accountEmail, profilePhone)
-          : profilePhone && !phoneAccount
-            ? profilePhone
-            : phoneAccount
-              ? ''
-              : accountEmail && !phoneAccount
-                ? accountEmail
-                : prev.contactValue,
-      }));
-    }
+    const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+    const accountEmail = profile.email || user.email || '';
+    const profilePhone = profile.phone || '';
+    const phoneAccount = isPhonePseudoEmail(accountEmail);
+
+    setFormData((prev) => ({
+      ...prev,
+      name: fullName || prev.name,
+      contactMethod: phoneAccount || profilePhone ? 'phone' : 'email',
+      contactValue: phoneAccount
+        ? displayEmailOrPhone(accountEmail, profilePhone)
+        : profilePhone && !phoneAccount
+          ? profilePhone
+          : accountEmail && !phoneAccount
+            ? accountEmail
+            : prev.contactValue,
+    }));
   }, [user, profile, profileLoading]);
-
-
-  const plans = [
-    {
-      name: 'Basique',
-      description: 'Pour commencer simplement',
-      features: [
-        'Gestion des entrées et sorties',
-        'Communication avec le voyageur H24',
-        'Assure la visibilité des propriétés sur akwahome',
-        'Gestion de calendrier',
-      ],
-      popular: false,
-    },
-    {
-      name: 'Premium',
-      description: 'Le plus populaire',
-      features: [
-        'Gestion de Ménage en cours de séjour / après séjour',
-        'Tout l\'offre basique',
-        'Optimisation des prix',
-        'Rapport mensuel détaillé',
-      ],
-      popular: true,
-    },
-    {
-      name: 'Luxe',
-      description: 'Service haut de gamme',
-      features: [
-        'Tout l\'offre Premium',
-        'Décoration et staging',
-        'Photographie professionnelle',
-        'Gestionnaire dédié',
-        'Démarche administrative liée à la réglementation',
-        'Assistance des voyageurs sur place',
-        'Service complémentaire sur devis',
-      ],
-      popular: false,
-    },
-  ];
 
   const scrollToContact = () => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   };
 
+  const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
   const handleSubmit = async () => {
     const contact = formData.contactValue.trim();
     if (!formData.name.trim() || !contact) {
-      Alert.alert('Informations manquantes', 'Veuillez remplir le nom et votre contact.');
+      Alert.alert('Informations manquantes', 'Veuillez renseigner votre nom et un moyen de contact.');
       return;
     }
 
@@ -131,7 +141,7 @@ const ConciergerieScreen: React.FC = () => {
       return;
     }
     if (formData.contactMethod === 'phone' && !phoneRegex.test(contact)) {
-      Alert.alert('Contact invalide', 'Veuillez saisir un numéro de téléphone valide (au moins 8 chiffres).');
+      Alert.alert('Contact invalide', 'Veuillez saisir un numéro valide (au moins 8 chiffres).');
       return;
     }
 
@@ -140,12 +150,11 @@ const ConciergerieScreen: React.FC = () => {
 
     try {
       setLoading(true);
-      
-      // Utiliser la même structure que le site web
+
       const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email', {
         body: {
           type: 'conciergerie_request',
-          to: 'jeanbrice270@gmail.com',
+          to: 'accueil@akwahome.com',
           data: {
             clientName: formData.name,
             clientEmail,
@@ -160,75 +169,52 @@ const ConciergerieScreen: React.FC = () => {
             needs: formData.needs || 'Aucun besoin spécifié',
             message: formData.message || 'Aucun message',
             submittedAt: new Date().toLocaleString('fr-FR'),
-            requestId: null
-          }
-        }
+            requestId: null,
+          },
+        },
       });
 
-      // Vérifier les erreurs (peuvent être dans error ou dans data.error)
       if (emailError) {
-        console.error('❌ Erreur envoi email (error):', emailError);
-        throw new Error(`Erreur lors de l'envoi de l'email: ${emailError.message || JSON.stringify(emailError)}`);
+        throw new Error(emailError.message || "Erreur lors de l'envoi");
       }
-
       if (emailData?.error) {
-        console.error('❌ Erreur envoi email (data.error):', emailData.error);
-        throw new Error(`Erreur lors de l'envoi de l'email: ${emailData.error.message || JSON.stringify(emailData.error)}`);
+        throw new Error(emailData.error.message || "Erreur lors de l'envoi");
       }
-
-      console.log('✅ Email envoyé avec succès:', emailData);
 
       Alert.alert(
-        'Demande envoyée !',
-        'Notre équipe vous contactera dans les 24h pour discuter de vos besoins.',
-        [{ 
-          text: 'OK', 
-          onPress: () => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('Home' as never);
-            }
-          }
-        }]
+        'Demande envoyée',
+        'Notre équipe vous recontactera sous 24 h.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (navigation.canGoBack()) navigation.goBack();
+              else navigation.navigate('Home' as never);
+            },
+          },
+        ],
       );
 
-      setFormData({
-        name: '',
-        contactMethod: 'email',
-        contactValue: '',
-        propertyType: '',
-        numberOfRooms: '',
-        surface: '',
-        propertyLocation: '',
-        characteristics: '',
-        needs: '',
-        message: '',
-        selectedPlan: '',
-      });
-    } catch (error: any) {
-      console.error('❌ Erreur complète:', error);
-      const errorMessage = error?.message || error?.error?.message || error?.error || "Une erreur est survenue lors de l'envoi. Veuillez réessayer.";
-      Alert.alert('Erreur', errorMessage);
+      setFormData(emptyForm());
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Une erreur est survenue. Veuillez réessayer.";
+      Alert.alert('Erreur', message);
     } finally {
       setLoading(false);
     }
   };
 
+  const goBack = () => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('Home' as never);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('Home' as never);
-            }
-          }} 
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
+        <TouchableOpacity onPress={goBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Conciergerie</Text>
         <View style={styles.placeholder} />
@@ -244,117 +230,67 @@ const ConciergerieScreen: React.FC = () => {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}
         >
-          {/* Hero Section */}
           <View style={styles.heroSection}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Service Premium 🏆</Text>
-            </View>
-            <Text style={styles.heroTitle}>
-              Service de{'\n'}
-              <Text style={styles.heroTitleHighlight}>Conciergerie AkwaHome</Text>
-            </Text>
+            <Text style={styles.heroEyebrow}>Gestion locative</Text>
+            <Text style={styles.heroTitle}>Conciergerie AkwaHome</Text>
             <Text style={styles.heroDescription}>
-              Maximisez vos revenus sans effort ! Notre équipe d'experts gère entièrement votre propriété
-              pendant que vous profitez des bénéfices.
+              Accueil des voyageurs, ménage et suivi de vos annonces — délégué à notre équipe.
             </Text>
-            <View style={styles.heroButtons}>
-              <TouchableOpacity style={styles.primaryButton} onPress={scrollToContact}>
-                <Text style={styles.primaryButtonText}>Démarrer maintenant</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Stats */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>+65%</Text>
-                <Text style={styles.statLabel}>Revenus supplémentaires</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>24h/7j</Text>
-                <Text style={styles.statLabel}>Support disponible</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>98%</Text>
-                <Text style={styles.statLabel}>Taux de satisfaction</Text>
-              </View>
-            </View>
+            <TouchableOpacity style={styles.primaryButton} onPress={scrollToContact}>
+              <Text style={styles.primaryButtonText}>Demander un devis</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Plans Section */}
-          <View style={[styles.section, styles.plansSection]}>
-            <Text style={styles.sectionTitle}>Nos formules</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Formules</Text>
             <Text style={styles.sectionSubtitle}>
-              Choisissez la formule qui correspond à vos besoins
+              Choisissez une offre, puis complétez le formulaire ci-dessous.
             </Text>
 
-            {plans.map((plan, index) => {
+            {PLANS.map((plan) => {
               const isSelected = formData.selectedPlan === plan.name;
               return (
                 <TouchableOpacity
-                  key={index}
+                  key={plan.name}
                   style={[
                     styles.planCard,
-                    isSelected ? styles.planCardSelected : (plan.popular && !formData.selectedPlan && styles.planCardPopular),
+                    isSelected && styles.planCardSelected,
+                    plan.popular && !formData.selectedPlan && styles.planCardPopular,
                   ]}
                   onPress={() => {
-                    setFormData({ ...formData, selectedPlan: plan.name });
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollToEnd({ animated: true });
-                    }, 300);
+                    update('selectedPlan', plan.name);
+                    setTimeout(scrollToContact, 250);
                   }}
-                  activeOpacity={0.8}
+                  activeOpacity={0.85}
                 >
-                  {plan.popular && !isSelected && (
-                    <View style={styles.popularBadge}>
-                      <Text style={styles.popularBadgeText}>Le plus populaire</Text>
-                    </View>
-                  )}
-                  {isSelected && (
-                    <View style={styles.selectedBadge}>
-                      <Text style={styles.selectedBadgeText}>Sélectionnée</Text>
-                    </View>
-                  )}
+                  {plan.popular ? (
+                    <Text style={styles.planHint}>
+                      {isSelected ? 'Sélectionnée' : 'Recommandée'}
+                    </Text>
+                  ) : isSelected ? (
+                    <Text style={styles.planHint}>Sélectionnée</Text>
+                  ) : null}
                   <Text style={styles.planName}>{plan.name}</Text>
                   <Text style={styles.planDescription}>{plan.description}</Text>
                   <View style={styles.planFeatures}>
-                    {plan.features.map((feature, idx) => (
-                      <View key={idx} style={styles.planFeatureItem}>
-                        <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                    {plan.features.map((feature) => (
+                      <View key={feature} style={styles.planFeatureItem}>
+                        <Ionicons name="checkmark" size={16} color={HOST_COLORS.primary} />
                         <Text style={styles.planFeatureText}>{feature}</Text>
                       </View>
                     ))}
                   </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.planButton,
-                      isSelected && styles.planButtonSelected,
-                    ]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      setFormData({ ...formData, selectedPlan: plan.name });
-                      setTimeout(() => {
-                        scrollViewRef.current?.scrollToEnd({ animated: true });
-                      }, 300);
-                    }}
-                  >
-                    <Text style={[
-                      styles.planButtonText,
-                      isSelected && styles.planButtonTextSelected,
-                    ]}>
-                      {isSelected ? 'Sélectionnée' : 'Choisir cette formule'}
-                    </Text>
-                  </TouchableOpacity>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          {/* Contact Form */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Contactez-nous</Text>
+            <Text style={styles.sectionTitle}>Votre demande</Text>
             <Text style={styles.sectionSubtitle}>
-              Remplissez ce formulaire et notre équipe vous contactera dans les 24h
+              Réponse sous 24 h ouvrissage.
             </Text>
 
             <View style={styles.formCard}>
@@ -363,8 +299,9 @@ const ConciergerieScreen: React.FC = () => {
                 <TextInput
                   style={styles.input}
                   value={formData.name}
-                  onChangeText={(text) => setFormData({ ...formData, name: text })}
+                  onChangeText={(text) => update('name', text)}
                   placeholder="Votre nom"
+                  placeholderTextColor="#9ca3af"
                 />
               </View>
 
@@ -419,12 +356,11 @@ const ConciergerieScreen: React.FC = () => {
                 <TextInput
                   style={styles.input}
                   value={formData.contactValue}
-                  onChangeText={(text) => setFormData({ ...formData, contactValue: text })}
+                  onChangeText={(text) => update('contactValue', text)}
                   placeholder={
-                    formData.contactMethod === 'email'
-                      ? 'votre@email.com'
-                      : '+225 XX XX XX XX XX'
+                    formData.contactMethod === 'email' ? 'votre@email.com' : '+225 XX XX XX XX XX'
                   }
+                  placeholderTextColor="#9ca3af"
                   keyboardType={formData.contactMethod === 'email' ? 'email-address' : 'phone-pad'}
                   autoCapitalize="none"
                 />
@@ -435,31 +371,35 @@ const ConciergerieScreen: React.FC = () => {
                 <TextInput
                   style={styles.input}
                   value={formData.propertyType}
-                  onChangeText={(text) => setFormData({ ...formData, propertyType: text })}
-                  placeholder="Appartement, Villa, etc."
+                  onChangeText={(text) => update('propertyType', text)}
+                  placeholder="Appartement, villa…"
+                  placeholderTextColor="#9ca3af"
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nombre de pièces</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.numberOfRooms}
-                  onChangeText={(text) => setFormData({ ...formData, numberOfRooms: text })}
-                  placeholder="Ex: 4"
-                  keyboardType="number-pad"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Superficie (m²)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.surface}
-                  onChangeText={(text) => setFormData({ ...formData, surface: text })}
-                  placeholder="Ex: 120"
-                  keyboardType="decimal-pad"
-                />
+              <View style={styles.row}>
+                <View style={[styles.inputGroup, styles.half]}>
+                  <Text style={styles.inputLabel}>Pièces</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.numberOfRooms}
+                    onChangeText={(text) => update('numberOfRooms', text)}
+                    placeholder="Ex. 4"
+                    placeholderTextColor="#9ca3af"
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <View style={[styles.inputGroup, styles.half]}>
+                  <Text style={styles.inputLabel}>Surface (m²)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.surface}
+                    onChangeText={(text) => update('surface', text)}
+                    placeholder="Ex. 120"
+                    placeholderTextColor="#9ca3af"
+                    keyboardType="decimal-pad"
+                  />
+                </View>
               </View>
 
               <View style={styles.inputGroup}>
@@ -467,8 +407,9 @@ const ConciergerieScreen: React.FC = () => {
                 <TextInput
                   style={styles.input}
                   value={formData.propertyLocation}
-                  onChangeText={(text) => setFormData({ ...formData, propertyLocation: text })}
-                  placeholder="Ville, quartier ou adresse"
+                  onChangeText={(text) => update('propertyLocation', text)}
+                  placeholder="Ville, quartier"
+                  placeholderTextColor="#9ca3af"
                 />
               </View>
 
@@ -477,47 +418,31 @@ const ConciergerieScreen: React.FC = () => {
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   value={formData.characteristics}
-                  onChangeText={(text) => setFormData({ ...formData, characteristics: text })}
-                  placeholder="Piscine, jardin, parking, climatisation, etc."
+                  onChangeText={(text) => update('characteristics', text)}
+                  placeholder="Piscine, parking, climatisation…"
+                  placeholderTextColor="#9ca3af"
                   multiline
                   numberOfLines={2}
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Formule souhaitée</Text>
-                <TouchableOpacity
-                  style={styles.planSelectorButton}
-                  onPress={() => setShowPlanModal(true)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={formData.selectedPlan ? styles.planSelectorText : styles.planSelectorPlaceholder}>
-                    {formData.selectedPlan 
-                      ? formData.selectedPlan
-                      : 'Sélectionner une formule'
-                    }
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#666" />
-                </TouchableOpacity>
-                {formData.selectedPlan && (
-                  <View style={styles.selectedPlanInfo}>
-                    <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-                    <Text style={styles.selectedPlanInfoText}>
-                      Formule sélectionnée : {formData.selectedPlan}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              {formData.selectedPlan ? (
+                <View style={styles.selectedPlanRow}>
+                  <Ionicons name="checkmark-circle" size={18} color={HOST_COLORS.primary} />
+                  <Text style={styles.selectedPlanText}>Formule {formData.selectedPlan}</Text>
+                </View>
+              ) : null}
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Vos besoins</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   value={formData.needs}
-                  onChangeText={(text) => setFormData({ ...formData, needs: text })}
-                  placeholder="Décrivez vos besoins..."
+                  onChangeText={(text) => update('needs', text)}
+                  placeholder="Décrivez ce dont vous avez besoin…"
+                  placeholderTextColor="#9ca3af"
                   multiline
-                  numberOfLines={4}
+                  numberOfLines={3}
                 />
               </View>
 
@@ -526,10 +451,11 @@ const ConciergerieScreen: React.FC = () => {
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   value={formData.message}
-                  onChangeText={(text) => setFormData({ ...formData, message: text })}
-                  placeholder="Votre message..."
+                  onChangeText={(text) => update('message', text)}
+                  placeholder="Informations complémentaires…"
+                  placeholderTextColor="#9ca3af"
                   multiline
-                  numberOfLines={4}
+                  numberOfLines={3}
                 />
               </View>
 
@@ -542,7 +468,7 @@ const ConciergerieScreen: React.FC = () => {
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <>
-                    <Ionicons name="send-outline" size={20} color="#fff" />
+                    <Ionicons name="send-outline" size={18} color="#fff" />
                     <Text style={styles.submitButtonText}>Envoyer la demande</Text>
                   </>
                 )}
@@ -551,71 +477,6 @@ const ConciergerieScreen: React.FC = () => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Modal de sélection de formule */}
-      <Modal
-        visible={showPlanModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowPlanModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Choisir une formule</Text>
-              <TouchableOpacity
-                onPress={() => setShowPlanModal(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
-              {plans.map((plan, index) => {
-                const isSelected = formData.selectedPlan === plan.name;
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.modalPlanCard,
-                      isSelected && styles.modalPlanCardSelected,
-                    ]}
-                    onPress={() => {
-                      setFormData({ ...formData, selectedPlan: plan.name });
-                      setShowPlanModal(false);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.modalPlanHeader}>
-                      <View style={styles.modalPlanTitleContainer}>
-                        <Text style={styles.modalPlanName}>{plan.name}</Text>
-                      </View>
-                      {isSelected && (
-                        <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
-                      )}
-                    </View>
-                    <Text style={styles.modalPlanDescription}>{plan.description}</Text>
-                    {plan.popular && (
-                      <View style={styles.modalPopularBadge}>
-                        <Text style={styles.modalPopularBadgeText}>Le plus populaire</Text>
-                      </View>
-                    )}
-                    <View style={styles.modalPlanFeatures}>
-                      {plan.features.map((feature, idx) => (
-                        <View key={idx} style={styles.modalPlanFeatureItem}>
-                          <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-                          <Text style={styles.modalPlanFeatureText}>{feature}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -623,214 +484,118 @@ const ConciergerieScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
   },
-  backButton: {
-    padding: 8,
-  },
+  backButton: { padding: 4 },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#111827',
   },
-  placeholder: {
-    width: 40,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
+  placeholder: { width: 32 },
+  keyboardAvoidingView: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingBottom: 32 },
   heroSection: {
     backgroundColor: '#fff',
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 28,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
   },
-  badge: {
-    backgroundColor: '#fff3e0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#ff9800',
-  },
-  badgeText: {
-    color: '#e67e22',
+  heroEyebrow: {
     fontSize: 12,
     fontWeight: '600',
+    color: TRAVELER_COLORS.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 8,
   },
   heroTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  heroTitleHighlight: {
-    color: '#e67e22',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 10,
   },
   heroDescription: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 24,
-  },
-  heroButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 32,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    fontSize: 15,
+    color: '#6b7280',
+    lineHeight: 22,
+    marginBottom: 20,
   },
   primaryButton: {
-    backgroundColor: '#e67e22',
-    paddingHorizontal: 24,
+    alignSelf: 'flex-start',
+    backgroundColor: TRAVELER_COLORS.primary,
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   primaryButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-  },
-  secondaryButton: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e67e22',
-  },
-  secondaryButtonText: {
-    color: '#e67e22',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginTop: 20,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#e67e22',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
   },
   section: {
     padding: 20,
-    backgroundColor: '#fff',
-    marginBottom: 20,
-  },
-  plansSection: {
-    backgroundColor: '#f8f9fa',
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 6,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 24,
+    color: '#6b7280',
+    marginBottom: 16,
     lineHeight: 20,
   },
   planCard: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#e9ecef',
-    position: 'relative',
+    padding: 18,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#e5e7eb',
   },
   planCardPopular: {
-    borderColor: '#e67e22',
-    backgroundColor: '#fff3e0',
+    borderColor: TRAVELER_COLORS.primary,
   },
   planCardSelected: {
-    borderColor: '#e67e22',
-    backgroundColor: '#fff3e0',
-    shadowColor: '#e67e22',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderColor: TRAVELER_COLORS.primary,
+    backgroundColor: TRAVELER_COLORS.light,
   },
-  popularBadge: {
-    position: 'absolute',
-    top: -12,
-    right: 20,
-    backgroundColor: '#e67e22',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  popularBadgeText: {
-    color: '#fff',
-    fontSize: 12,
+  planHint: {
+    fontSize: 11,
     fontWeight: '600',
-  },
-  selectedBadge: {
-    position: 'absolute',
-    top: -12,
-    left: 20,
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  selectedBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    color: TRAVELER_COLORS.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 6,
   },
   planName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 4,
   },
   planDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 16,
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 12,
   },
-  planFeatures: {
-    gap: 12,
-  },
+  planFeatures: { gap: 8 },
   planFeatureItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -838,185 +603,25 @@ const styles = StyleSheet.create({
   },
   planFeatureText: {
     fontSize: 14,
-    color: '#333',
-    flex: 1,
-    lineHeight: 20,
-  },
-  planButton: {
-    backgroundColor: '#e9ecef',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  planButtonSelected: {
-    backgroundColor: '#e67e22',
-  },
-  planButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  planButtonTextSelected: {
-    color: '#fff',
-  },
-  selectedPlanDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 44,
-  },
-  selectedPlanText: {
-    fontSize: 16,
-    color: '#333',
-    flex: 1,
-  },
-  planSelectorButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    minHeight: 50,
-  },
-  planSelectorText: {
-    fontSize: 16,
-    color: '#333',
-    flex: 1,
-  },
-  planSelectorPlaceholder: {
-    fontSize: 16,
-    color: '#999',
-    flex: 1,
-  },
-  selectedPlanInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingHorizontal: 8,
-    gap: 6,
-  },
-  selectedPlanInfoText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '500',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    paddingBottom: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  modalScrollView: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  modalPlanCard: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#e9ecef',
-  },
-  modalPlanCardSelected: {
-    borderColor: '#e67e22',
-    backgroundColor: '#fff3e0',
-  },
-  modalPlanHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  modalPlanTitleContainer: {
-    flex: 1,
-  },
-  modalPlanName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  modalPlanDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
-  },
-  modalPopularBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#e67e22',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  modalPopularBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  modalPlanFeatures: {
-    gap: 8,
-  },
-  modalPlanFeatureItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  modalPlanFeatureText: {
-    fontSize: 14,
-    color: '#333',
+    color: '#374151',
     flex: 1,
     lineHeight: 20,
   },
   formCard: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5e7eb',
   },
-  inputGroup: {
-    marginBottom: 16,
-  },
+  inputGroup: { marginBottom: 14 },
+  row: { flexDirection: 'row', gap: 12 },
+  half: { flex: 1 },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 6,
   },
   contactMethodRow: {
     flexDirection: 'row',
@@ -1028,55 +633,63 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: '#e5e7eb',
     backgroundColor: '#fff',
     alignItems: 'center',
   },
   contactMethodBtnActive: {
-    borderColor: '#e67e22',
-    backgroundColor: '#fef5ee',
+    borderColor: TRAVELER_COLORS.primary,
+    backgroundColor: TRAVELER_COLORS.light,
   },
   contactMethodBtnText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
+    color: '#6b7280',
   },
   contactMethodBtnTextActive: {
-    color: '#e67e22',
+    color: TRAVELER_COLORS.primary,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f9fafb',
     borderWidth: 1,
-    borderColor: '#e9ecef',
-    borderRadius: 8,
+    borderColor: '#e5e7eb',
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#333',
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
   },
   textArea: {
-    minHeight: 100,
+    minHeight: 88,
     textAlignVertical: 'top',
   },
+  selectedPlanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 14,
+  },
+  selectedPlanText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: HOST_COLORS.primary,
+  },
   submitButton: {
-    backgroundColor: '#e67e22',
+    backgroundColor: TRAVELER_COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 10,
     gap: 8,
-    marginTop: 8,
+    marginTop: 4,
   },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
+  submitButtonDisabled: { opacity: 0.6 },
   submitButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
 });
 
 export default ConciergerieScreen;
-

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   Alert,
   RefreshControl,
   ActivityIndicator,
@@ -16,6 +15,8 @@ import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/nativ
 import { useAuth } from '../services/AuthContext';
 import { useMonthlyRentalListings } from '../hooks/useMonthlyRentalListings';
 import type { MonthlyRentalListing } from '../types';
+import MediaThumb from '../components/MediaThumb';
+import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Brouillon',
@@ -154,14 +155,33 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
 
   const renderItem = ({ item }: { item: MonthlyRentalListing }) => (
     <View style={styles.card}>
-      <TouchableOpacity onPress={() => handleEdit(item.id)} activeOpacity={0.8}>
-        <Image source={{ uri: getImageUrl(item) }} style={styles.image} resizeMode="cover" />
-        <View style={[styles.statusBadge, getStatusStyle(item.status)]}>
-          <Text style={styles.statusBadgeText}>{STATUS_LABEL[item.status] || item.status}</Text>
-        </View>
+      <TouchableOpacity
+        style={styles.cardMain}
+        onPress={() => handleEdit(item.id)}
+        activeOpacity={0.8}
+      >
+        <MediaThumb
+          uri={getImageUrl(item)}
+          style={styles.thumb}
+          resizeMode="cover"
+          contentPosition="center"
+          fitWholeImage
+          recyclingKey={`monthly-listing-${item.id}`}
+        />
         <View style={styles.cardBody}>
-          <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-          <Text style={styles.location} numberOfLines={1}>{item.location}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={2}>
+              {item.title}
+            </Text>
+            <View style={[styles.statusBadge, getStatusStyle(item.status)]}>
+              <Text style={styles.statusBadgeText}>
+                {STATUS_LABEL[item.status] || item.status}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.location} numberOfLines={1}>
+            {item.location}
+          </Text>
           <Text style={styles.price}>{formatPrice(item.monthly_rent_price)}</Text>
           <View style={styles.meta}>
             <Text style={styles.metaText}>{item.surface_m2} m²</Text>
@@ -310,23 +330,40 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5e7eb',
   },
-  image: { width: '100%', height: 160 },
-  cardBody: { padding: 14 },
-  title: { fontSize: 16, fontWeight: '600', color: '#222', marginBottom: 4 },
-  location: { fontSize: 13, color: '#666', marginBottom: 4 },
-  price: { fontSize: 15, fontWeight: '600', color: '#2E7D32', marginBottom: 6 },
-  meta: { flexDirection: 'row' },
-  metaText: { fontSize: 12, color: '#888' },
+  cardMain: {
+    flexDirection: 'row',
+    padding: 12,
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  thumb: {
+    width: 88,
+    height: 88,
+    borderRadius: 10,
+    backgroundColor: MONTHLY_RENTAL_COLORS.light,
+  },
+  cardBody: { flex: 1, minWidth: 0 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 4,
+  },
+  title: { flex: 1, fontSize: 16, fontWeight: '700', color: '#111827' },
+  location: { fontSize: 13, color: '#64748b', marginBottom: 4 },
+  price: { fontSize: 15, fontWeight: '600', color: MONTHLY_RENTAL_COLORS.primary, marginBottom: 6 },
+  meta: { flexDirection: 'row', flexWrap: 'wrap' },
+  metaText: { fontSize: 12, color: '#94a3b8' },
   statusBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    flexShrink: 0,
   },
-  statusBadgeText: { fontSize: 12, fontWeight: '600', color: '#fff' },
+  statusBadgeText: { fontSize: 11, fontWeight: '600', color: '#fff' },
   badgeDraft: { backgroundColor: '#9e9e9e' },
   badgePending: { backgroundColor: '#f59e0b' },
   badgeApproved: { backgroundColor: '#2E7D32' },
@@ -336,9 +373,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingBottom: 12,
+    paddingTop: 10,
     gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#f1f5f9',
+    marginTop: 4,
+    marginHorizontal: 12,
   },
   btnSubmit: {
     flexDirection: 'row',
