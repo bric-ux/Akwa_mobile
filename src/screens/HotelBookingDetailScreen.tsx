@@ -13,7 +13,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
-import { notifyHotelBookingStatusChange } from '../services/hotelBookingNotifications';
+import {
+  notifyHotelBookingCancelledByGuest,
+  notifyHotelBookingStatusChange,
+} from '../services/hotelBookingNotifications';
 import { HOTEL_COLORS } from '../constants/colors';
 import HotelInvoiceCard, { type HotelInvoiceData } from '../components/HotelInvoiceCard';
 import type { RootStackParamList } from '../types';
@@ -189,15 +192,28 @@ export default function HotelBookingDetailScreen() {
       {
         text: 'Oui, annuler',
         style: 'destructive',
-        onPress: () =>
-          void updateBooking(
-            {
-              status: 'cancelled',
-              cancelled_at: new Date().toISOString(),
-              cancelled_by: user?.id,
-            },
-            'Réservation annulée.',
-          ),
+        onPress: async () => {
+          setActing(true);
+          try {
+            const { error } = await supabase
+              .from('hotel_bookings')
+              .update({
+                status: 'cancelled',
+                cancelled_at: new Date().toISOString(),
+                cancelled_by: user?.id,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', bookingId);
+            if (error) throw error;
+            notifyHotelBookingCancelledByGuest(bookingId).catch(() => {});
+            Alert.alert('OK', 'Réservation annulée.');
+            await load();
+          } catch (e) {
+            Alert.alert('Erreur', e instanceof Error ? e.message : 'Action impossible');
+          } finally {
+            setActing(false);
+          }
+        },
       },
     ]);
 

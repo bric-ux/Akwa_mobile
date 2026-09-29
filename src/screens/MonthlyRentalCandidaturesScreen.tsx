@@ -26,7 +26,8 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
   const listingId = route.params?.listingId;
-  const { getByListingId, acceptCandidature, rejectCandidature, loading } = useMonthlyRentalCandidatures();
+  const { getByListingId, acceptCandidature, rejectCandidature, markSentAsViewed, loading } =
+    useMonthlyRentalCandidatures();
   const { getListingById } = useMonthlyRentalListings();
   const [candidatures, setCandidatures] = useState<MonthlyRentalCandidature[]>([]);
   const [listingTitle, setListingTitle] = useState<string>('');
@@ -39,9 +40,16 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
       getByListingId(listingId),
       getListingById(listingId),
     ]);
-    setCandidatures(list);
+    const hasSent = list.some((c) => c.status === 'sent');
+    if (hasSent) {
+      await markSentAsViewed(listingId);
+      const refreshed = await getByListingId(listingId);
+      setCandidatures(refreshed);
+    } else {
+      setCandidatures(list);
+    }
     if (listing) setListingTitle(listing.title);
-  }, [listingId, getByListingId, getListingById]);
+  }, [listingId, getByListingId, getListingById, markSentAsViewed]);
 
   useFocusEffect(
     useCallback(() => {

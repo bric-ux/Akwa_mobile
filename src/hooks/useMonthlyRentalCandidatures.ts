@@ -275,12 +275,33 @@ export const useMonthlyRentalCandidatures = () => {
     [user],
   );
 
+  /** Passe les candidatures « envoyées » en « vues » quand le proprio ouvre la liste. */
+  const markSentAsViewed = useCallback(
+    async (listingId: string): Promise<void> => {
+      if (!user || !listingId) return;
+      try {
+        await supabase
+          .from('monthly_rental_candidatures')
+          .update({
+            status: 'viewed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('listing_id', listingId)
+          .eq('status', 'sent');
+      } catch {
+        /* non bloquant */
+      }
+    },
+    [user],
+  );
+
   return {
     getByListingId,
     getByOwnerId,
     getByTenantId,
     getMyCandidatureForListing,
     submitCandidature,
+    markSentAsViewed,
     acceptCandidature: (id: string) => updateStatus(id, 'accepted'),
     rejectCandidature: (id: string) => updateStatus(id, 'rejected'),
     loading,

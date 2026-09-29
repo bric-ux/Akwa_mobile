@@ -212,3 +212,29 @@ export async function notifyHotelBookingStatusChange(
     ).catch(() => {}),
   ]);
 }
+
+/** Annulation par le voyageur → notifie l’hôtelier. */
+export async function notifyHotelBookingCancelledByGuest(bookingId: string): Promise<void> {
+  const ctx = await loadHotelBookingContext(bookingId);
+  if (!ctx) return;
+
+  const title = ctx.establishment.title;
+
+  await Promise.all([
+    invokeEmail('booking_cancelled_host', ctx.host.email, {
+      hostName: ctx.host.name,
+      guestName: ctx.guest.name,
+      propertyTitle: title,
+      checkIn: ctx.check_in_date,
+      checkOut: ctx.check_out_date,
+      guests: ctx.guests_count,
+      totalPrice: ctx.total_price,
+    }),
+    sendPushToUser(
+      ctx.establishment.host_id,
+      'Réservation annulée',
+      `${ctx.guest.name} a annulé sa demande pour ${title}.`,
+      { type: PUSH_TYPE_HOTEL_BOOKING, bookingId: ctx.id, role: 'host' },
+    ).catch(() => {}),
+  ]);
+}

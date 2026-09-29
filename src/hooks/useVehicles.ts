@@ -6,6 +6,7 @@ import { fetchPublicOwnerInfo } from '../utils/publicOwnerInfo';
 import { Vehicle, VehicleFilters } from '../types';
 import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
 import { isWithinRadius } from '../utils/distance';
+import { notifyAdminsModerationPush } from '../services/notifyAdminsModerationPush';
 
 /** Parse YYYY-MM-DD en bornes locales sans skew UTC. */
 function localDayBoundsIso(dateStr: string, endOfDay: boolean): string {
@@ -766,6 +767,14 @@ export const useVehicles = () => {
           } catch (emailError) {
             console.error('❌ [useVehicles] Erreur email admin:', emailError);
           }
+
+          notifyAdminsModerationPush({
+            entityType: 'vehicle',
+            entityId: data.id,
+            title: 'Véhicule à valider',
+            body: `${emailData.ownerName} — ${emailData.vehicleTitle}`,
+            adminScreen: 'AdminVehicles',
+          }).catch(() => {});
         }
       } catch (emailError) {
         console.error('❌ [useVehicles] Erreur globale envoi emails:', emailError);

@@ -1,7 +1,7 @@
 export const MONTHLY_FURNISHED_OPTIONS = [
   {
     value: false,
-    label: 'Location nue',
+    label: 'Logement non meublé',
     shortLabel: 'Non meublé',
     description:
       'Le locataire aménage le logement lui-même. Pas de mobilier ni d’électroménager fournis.',
@@ -9,7 +9,7 @@ export const MONTHLY_FURNISHED_OPTIONS = [
   },
   {
     value: true,
-    label: 'Location meublée',
+    label: 'Logement meublé',
     shortLabel: 'Meublé',
     description:
       'Le logement est prêt à habiter : mobilier, literie et équipements de base inclus.',
