@@ -29,6 +29,7 @@ import {
   MONTHLY_RENTAL_DOCUMENT_OPTIONS,
 } from '../constants/monthlyRentalDocuments';
 import { MONTHLY_FURNITURE_OPTIONS } from '../constants/monthlyFurniture';
+import { MONTHLY_FURNISHED_OPTIONS } from '../constants/monthlyFurnished';
 
 const PROPERTY_TYPES = [
   { value: 'apartment', label: 'Appartement' },
@@ -448,19 +449,38 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
               />
             </View>
           </View>
-          <View style={[styles.block, styles.switchRow]}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={styles.label}>Type de location</Text>
-              <Text style={styles.helpText}>
-                {form.is_furnished ? 'Meublé' : 'Non meublé'}
-              </Text>
-            </View>
-            <Switch
-              value={form.is_furnished}
-              onValueChange={setFurnished}
-              trackColor={{ false: '#e5e7eb', true: '#2E7D32' }}
-              thumbColor="#fff"
-            />
+          <View style={styles.block}>
+            <Text style={styles.label}>Type de location</Text>
+            <Text style={styles.helpText}>
+              Choisissez si le logement est loué meublé ou nu. Les deux options sont visibles pour
+              comparer avant de valider.
+            </Text>
+            {MONTHLY_FURNISHED_OPTIONS.map((option) => {
+              const selected = form.is_furnished === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.label}
+                  style={[styles.furnishedCard, selected && styles.furnishedCardOn]}
+                  onPress={() => setFurnished(option.value)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.furnishedCardHeader}>
+                    <Text style={[styles.furnishedCardTitle, selected && styles.furnishedCardTitleOn]}>
+                      {option.label}
+                    </Text>
+                    {selected ? (
+                      <Ionicons name="checkmark-circle" size={22} color="#2E7D32" />
+                    ) : (
+                      <Ionicons name="ellipse-outline" size={22} color="#94a3b8" />
+                    )}
+                  </View>
+                  <Text style={styles.furnishedCardDesc}>{option.description}</Text>
+                  {!selected ? (
+                    <Text style={styles.furnishedCardHint}>{option.hint}</Text>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
           </View>
           {form.is_furnished ? (
             <View style={styles.block}>
@@ -687,6 +707,28 @@ const styles = StyleSheet.create({
   selectText: { fontSize: 16, color: '#333' },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   helpText: { fontSize: 12, color: '#666', marginBottom: 8 },
+  furnishedCard: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 10,
+    backgroundColor: '#fff',
+  },
+  furnishedCardOn: {
+    borderColor: '#2E7D32',
+    backgroundColor: '#f0fdf4',
+  },
+  furnishedCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  furnishedCardTitle: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  furnishedCardTitleOn: { color: '#14532d' },
+  furnishedCardDesc: { fontSize: 13, color: '#475569', lineHeight: 18 },
+  furnishedCardHint: { marginTop: 8, fontSize: 12, color: '#64748b', fontStyle: 'italic' },
   furnitureWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   furnitureChip: {
     borderWidth: 1,

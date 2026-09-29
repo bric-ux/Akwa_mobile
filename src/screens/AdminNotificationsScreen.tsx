@@ -28,6 +28,18 @@ const AdminNotificationsScreen: React.FC = () => {
       case 'property_media':
         navigation.navigate('AdminProperties' as never);
         break;
+      case 'monthly_listing_pending':
+        navigation.navigate('AdminMonthlyRental' as never);
+        break;
+      case 'hotel_establishment_pending':
+        navigation.navigate('AdminHotels' as never);
+        break;
+      case 'vehicle_pending':
+        navigation.navigate('AdminVehicles' as never);
+        break;
+      case 'monthly_candidature':
+        navigation.navigate('AdminMonthlyRental' as never);
+        break;
       default:
         Alert.alert('Notification', notification.message);
     }
@@ -54,6 +66,14 @@ const AdminNotificationsScreen: React.FC = () => {
         return 'person-add-outline';
       case 'booking':
         return 'calendar-outline';
+      case 'monthly_listing_pending':
+        return 'home-outline';
+      case 'hotel_establishment_pending':
+        return 'bed-outline';
+      case 'vehicle_pending':
+        return 'car-outline';
+      case 'monthly_candidature':
+        return 'document-text-outline';
       default:
         return 'notifications-outline';
     }
@@ -69,6 +89,14 @@ const AdminNotificationsScreen: React.FC = () => {
         return '#10b981';
       case 'booking':
         return '#8b5cf6';
+      case 'monthly_listing_pending':
+        return '#2E7D32';
+      case 'hotel_establishment_pending':
+        return '#0ea5e9';
+      case 'vehicle_pending':
+        return '#2563eb';
+      case 'monthly_candidature':
+        return '#059669';
       default:
         return '#6b7280';
     }

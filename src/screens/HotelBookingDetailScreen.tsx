@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
+import { notifyHotelBookingStatusChange } from '../services/hotelBookingNotifications';
 import { HOTEL_COLORS } from '../constants/colors';
 import HotelInvoiceCard, { type HotelInvoiceData } from '../components/HotelInvoiceCard';
 import type { RootStackParamList } from '../types';
@@ -117,7 +118,11 @@ export default function HotelBookingDetailScreen() {
     }, [load]),
   );
 
-  const updateBooking = async (patch: Record<string, unknown>, successMsg: string) => {
+  const updateBooking = async (
+    patch: Record<string, unknown>,
+    successMsg: string,
+    notifyStatus?: 'confirmed' | 'cancelled',
+  ) => {
     setActing(true);
     try {
       const { error } = await supabase
@@ -125,6 +130,9 @@ export default function HotelBookingDetailScreen() {
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq('id', bookingId);
       if (error) throw error;
+      if (notifyStatus) {
+        notifyHotelBookingStatusChange(bookingId, notifyStatus).catch(() => {});
+      }
       Alert.alert('OK', successMsg);
       await load();
     } catch (e) {
@@ -135,7 +143,7 @@ export default function HotelBookingDetailScreen() {
   };
 
   const confirm = () =>
-    void updateBooking({ status: 'confirmed' }, 'Réservation confirmée.');
+    void updateBooking({ status: 'confirmed' }, 'Réservation confirmée.', 'confirmed');
   const refuse = () =>
     Alert.alert('Refuser', 'Refuser cette demande ?', [
       { text: 'Annuler', style: 'cancel' },
@@ -150,6 +158,7 @@ export default function HotelBookingDetailScreen() {
               cancelled_by: user?.id,
             },
             'Demande refusée.',
+            'cancelled',
           ),
       },
     ]);

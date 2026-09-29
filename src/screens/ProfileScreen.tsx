@@ -417,6 +417,15 @@ const ProfileScreen: React.FC = () => {
   /** Flags + checks espaces prêts → pas de lignes qui « pop » après coup */
   const spacesUiReady = spacesReady && !flagsLoading;
 
+  if (spacesUiReady && monthlyRental && !isInMonthlyRentalMode) {
+    menuItems.splice(3, 0, {
+      id: 'myMonthlyCandidatures',
+      title: 'Mes candidatures bail',
+      icon: 'document-text-outline',
+      onPress: () => navigation.navigate('MyMonthlyRentalCandidatures' as never),
+    });
+  }
+
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
   if (spacesUiReady && (profile?.is_host || hasPendingApplications) && !isInHostMode) {
     menuItems.push(hostSpaceItem);

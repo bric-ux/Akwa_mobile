@@ -2,6 +2,10 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
 import type { MonthlyRentalCandidature } from '../types';
+import {
+  notifyMonthlyCandidatureStatusChange,
+  notifyMonthlyCandidatureSubmitted,
+} from '../services/monthlyCandidatureNotifications';
 
 export type MonthlyRentalCandidatureInput = {
   listing_id: string;
@@ -88,6 +92,48 @@ export const useMonthlyRentalCandidatures = () => {
     }
   }, [user]);
 
+  const getByTenantId = useCallback(async (): Promise<
+    (MonthlyRentalCandidature & { listing_title?: string; listing_location?: string })[]
+  > => {
+    if (!user) return [];
+
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: err } = await supabase
+        .from('monthly_rental_candidatures')
+        .select('*')
+        .eq('tenant_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (err) {
+        setError(err.message);
+        return [];
+      }
+
+      const candidatures = (data || []) as MonthlyRentalCandidature[];
+      if (candidatures.length === 0) return [];
+
+      const listingIds = [...new Set(candidatures.map((c) => c.listing_id))];
+      const { data: listings } = await supabase
+        .from('monthly_rental_listings')
+        .select('id, title, location')
+        .in('id', listingIds);
+
+      const byId = Object.fromEntries((listings || []).map((l) => [l.id, l]));
+      return candidatures.map((c) => ({
+        ...c,
+        listing_title: byId[c.listing_id]?.title,
+        listing_location: byId[c.listing_id]?.location,
+      }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
   const getMyCandidatureForListing = useCallback(
     async (listingId: string): Promise<MonthlyRentalCandidature | null> => {
       if (!user) return null;
@@ -123,19 +169,23 @@ export const useMonthlyRentalCandidatures = () => {
           submitted_at: new Date().toISOString(),
         };
 
-        const { error: err } = await supabase.from('monthly_rental_candidatures').insert({
-          listing_id: input.listing_id,
-          tenant_id: user.id,
-          full_name: input.full_name.trim(),
-          email: input.email.trim(),
-          phone: input.phone.trim(),
-          message: input.message?.trim() || null,
-          desired_move_in_date: input.desired_move_in_date || null,
-          duration_months: input.duration_months ?? null,
-          application_documents: input.application_documents || [],
-          snapshot,
-          status: 'sent',
-        });
+        const { data: inserted, error: err } = await supabase
+          .from('monthly_rental_candidatures')
+          .insert({
+            listing_id: input.listing_id,
+            tenant_id: user.id,
+            full_name: input.full_name.trim(),
+            email: input.email.trim(),
+            phone: input.phone.trim(),
+            message: input.message?.trim() || null,
+            desired_move_in_date: input.desired_move_in_date || null,
+            duration_months: input.duration_months ?? null,
+            application_documents: input.application_documents || [],
+            snapshot,
+            status: 'sent',
+          })
+          .select('id')
+          .single();
 
         if (err) {
           const msg =
@@ -145,6 +195,17 @@ export const useMonthlyRentalCandidatures = () => {
           setError(msg);
           return { success: false, error: msg };
         }
+
+        if (inserted?.id) {
+          notifyMonthlyCandidatureSubmitted({
+            listingId: input.listing_id,
+            tenantId: user.id,
+            tenantName: input.full_name.trim(),
+            tenantEmail: input.email.trim(),
+            candidatureId: inserted.id,
+          }).catch(() => {});
+        }
+
         return { success: true };
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Erreur';
@@ -167,6 +228,17 @@ export const useMonthlyRentalCandidatures = () => {
       setLoading(true);
       setError(null);
       try {
+        const { data: candidature, error: fetchErr } = await supabase
+          .from('monthly_rental_candidatures')
+          .select('id, listing_id, tenant_id, full_name, email')
+          .eq('id', candidatureId)
+          .maybeSingle();
+
+        if (fetchErr) {
+          setError(fetchErr.message);
+          return { success: false, error: fetchErr.message };
+        }
+
         const { error: err } = await supabase
           .from('monthly_rental_candidatures')
           .update({
@@ -180,6 +252,17 @@ export const useMonthlyRentalCandidatures = () => {
           setError(err.message);
           return { success: false, error: err.message };
         }
+
+        if (candidature?.tenant_id && candidature.listing_id) {
+          notifyMonthlyCandidatureStatusChange({
+            listingId: candidature.listing_id,
+            tenantId: candidature.tenant_id,
+            tenantName: candidature.full_name || 'Candidat',
+            tenantEmail: candidature.email || '',
+            status,
+          }).catch(() => {});
+        }
+
         return { success: true };
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Erreur';
@@ -195,6 +278,7 @@ export const useMonthlyRentalCandidatures = () => {
   return {
     getByListingId,
     getByOwnerId,
+    getByTenantId,
     getMyCandidatureForListing,
     submitCandidature,
     acceptCandidature: (id: string) => updateStatus(id, 'accepted'),

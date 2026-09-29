@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
+import { notifyMonthlyListingSubmitted } from '../services/moderationNotifications';
 import { useAuth } from '../services/AuthContext';
 import type { MonthlyRentalListing } from '../types';
 
@@ -169,6 +170,19 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
       setLoading(true);
       setError(null);
       try {
+        const { data: listing, error: fetchErr } = await supabase
+          .from('monthly_rental_listings')
+          .select('id, title, owner_id')
+          .eq('id', listingId)
+          .eq('owner_id', uid)
+          .maybeSingle();
+
+        if (fetchErr || !listing) {
+          const msg = fetchErr?.message || 'Annonce introuvable';
+          setError(msg);
+          return { success: false, error: msg };
+        }
+
         const { error: err } = await supabase
           .from('monthly_rental_listings')
           .update({
@@ -182,6 +196,17 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
           setError(err.message);
           return { success: false, error: err.message };
         }
+
+        const { data: ownerProfile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('user_id', listing.owner_id)
+          .maybeSingle();
+        const ownerName =
+          [ownerProfile?.first_name, ownerProfile?.last_name].filter(Boolean).join(' ') ||
+          'Propriétaire';
+        notifyMonthlyListingSubmitted(listingId, listing.title, ownerName).catch(() => {});
+
         return { success: true };
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Erreur';

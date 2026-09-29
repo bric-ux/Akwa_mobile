@@ -277,6 +277,7 @@ export type RootStackParamList = {
   Booking: { propertyId: string };
   MonthlyRentalListingDetail: { listingId: string }; // Détail annonce en bail longue durée (voyageur)
   MonthlyRentalApply: { listingId: string; listingTitle: string };
+  MyMonthlyRentalCandidatures: undefined;
   HostProfile: {
     hostId: string;
     propertyOnly?: boolean;

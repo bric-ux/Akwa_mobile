@@ -25,6 +25,7 @@ import { useCurrency } from '../hooks/useCurrency';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import type { RootStackParamList } from '../types';
 import { HOTEL_COLORS } from '../constants/colors';
+import { notifyHotelBookingCreated } from '../services/hotelBookingNotifications';
 import {
   buildHotelGallery,
   checkHotelRoomAvailability,
@@ -526,6 +527,8 @@ export default function HotelEstablishmentDetailScreen() {
         line_total: total,
       });
       if (itemErr) throw itemErr;
+
+      notifyHotelBookingCreated(booking.id).catch(() => {});
 
       Alert.alert(
         autoConfirm ? 'Réservation confirmée' : 'Demande envoyée',

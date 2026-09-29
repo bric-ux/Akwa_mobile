@@ -19,6 +19,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { useMonthlyRentalCandidatures } from '../hooks/useMonthlyRentalCandidatures';
+import { useToast } from '../contexts/ToastContext';
 import type { MonthlyRentalCandidature, RootStackParamList } from '../types';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import {
@@ -48,6 +49,7 @@ export default function MonthlyRentalApplyScreen() {
   const { listingId, listingTitle } = route.params;
   const { user } = useAuth();
   const { submitCandidature, getMyCandidatureForListing, loading } = useMonthlyRentalCandidatures();
+  const { showToast } = useToast();
   const [existing, setExisting] = useState<MonthlyRentalCandidature | null>(null);
   const [checking, setChecking] = useState(true);
   const [requiredDocuments, setRequiredDocuments] = useState<string[]>([]);
@@ -193,14 +195,11 @@ export default function MonthlyRentalApplyScreen() {
       application_documents: applicationDocuments,
     });
     if (result.success) {
-      Alert.alert(
-        'Candidature envoyée',
-        `Votre dossier pour « ${listingTitle} » a été transmis. Le propriétaire étudie d’abord votre profil avant d’organiser une visite.`,
-      );
+      showToast('Candidature envoyée — le propriétaire va l’étudier.', 'success');
       const candidature = await getMyCandidatureForListing(listingId);
       setExisting(candidature);
     } else {
-      Alert.alert('Erreur', result.error || 'Impossible d’envoyer la candidature.');
+      showToast(result.error || 'Impossible d’envoyer la candidature.', 'error');
     }
   };
 
@@ -250,6 +249,12 @@ export default function MonthlyRentalApplyScreen() {
                   : 'Le propriétaire étudie votre dossier. Une visite ne sera proposée que s’il correspond.'}
             </Text>
           </View>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={() => navigation.navigate('MyMonthlyRentalCandidatures')}
+          >
+            <Text style={styles.secondaryBtnText}>Voir toutes mes candidatures</Text>
+          </TouchableOpacity>
           {Array.isArray(existing.application_documents) &&
           existing.application_documents.length > 0 ? (
             <View style={styles.docsBlock}>
@@ -476,6 +481,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  secondaryBtn: {
+    marginTop: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: MONTHLY_RENTAL_COLORS.primary,
+  },
+  secondaryBtnText: { color: MONTHLY_RENTAL_COLORS.primary, fontWeight: '700', fontSize: 14 },
   box: {
     margin: 20,
     padding: 16,

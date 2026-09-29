@@ -13,7 +13,15 @@ import { useAuth } from '../services/AuthContext';
 
 export interface AdminNotification {
   id: string;
-  type: 'identity_document' | 'property_media' | 'new_user' | 'booking';
+  type:
+    | 'identity_document'
+    | 'property_media'
+    | 'new_user'
+    | 'booking'
+    | 'monthly_listing_pending'
+    | 'hotel_establishment_pending'
+    | 'vehicle_pending'
+    | 'monthly_candidature';
   title: string;
   message: string;
   data: any;
@@ -162,7 +170,125 @@ export const AdminNotificationsProvider: React.FC<{ children: React.ReactNode }>
         };
       });
 
-      const sorted = [...identityNotifications, ...propertyNotifications].sort(
+      const [
+        { data: pendingMonthly },
+        { data: pendingHotels },
+        { data: pendingVehicles },
+        { data: recentCandidatures },
+      ] = await Promise.all([
+        supabase
+          .from('monthly_rental_listings')
+          .select('id, title, submitted_at, owner_id')
+          .eq('status', 'pending')
+          .order('submitted_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('hotel_establishments')
+          .select('id, title, submitted_at, host_id')
+          .eq('status', 'pending')
+          .order('submitted_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('vehicles')
+          .select('id, title, updated_at, owner_id')
+          .eq('approval_status', 'pending')
+          .order('updated_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('monthly_rental_candidatures')
+          .select('id, full_name, created_at, listing_id')
+          .order('created_at', { ascending: false })
+          .limit(15),
+      ]);
+
+      const ownerIds = [
+        ...(pendingMonthly || []).map((l) => l.owner_id),
+        ...(pendingHotels || []).map((h) => h.host_id),
+        ...(pendingVehicles || []).map((v) => v.owner_id),
+      ].filter(Boolean);
+      const listingIds = (recentCandidatures || []).map((c) => c.listing_id).filter(Boolean);
+
+      const [{ data: ownerProfiles }, { data: listingTitles }] = await Promise.all([
+        ownerIds.length
+          ? supabase
+              .from('profiles')
+              .select('user_id, first_name, last_name')
+              .in('user_id', [...new Set(ownerIds)])
+          : Promise.resolve({ data: [] as any[] }),
+        listingIds.length
+          ? supabase.from('monthly_rental_listings').select('id, title').in('id', [...new Set(listingIds)])
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+
+      const ownerMap: Record<string, any> = {};
+      ownerProfiles?.forEach((p) => {
+        ownerMap[p.user_id] = p;
+      });
+      const listingMap = Object.fromEntries((listingTitles || []).map((l) => [l.id, l.title]));
+
+      const monthlyNotifications: AdminNotification[] = (pendingMonthly || []).map((listing) => {
+        const profile = ownerMap[listing.owner_id];
+        const ownerName =
+          `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'Propriétaire';
+        return {
+          id: `monthly-${listing.id}`,
+          type: 'monthly_listing_pending' as const,
+          title: 'Annonce bail à valider',
+          message: `${ownerName} — ${listing.title}`,
+          data: { listingId: listing.id, listingTitle: listing.title },
+          read: false,
+          created_at: listing.submitted_at || new Date().toISOString(),
+        };
+      });
+
+      const hotelNotifications: AdminNotification[] = (pendingHotels || []).map((hotel) => {
+        const profile = ownerMap[hotel.host_id];
+        const hostName =
+          `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'Hôtelier';
+        return {
+          id: `hotel-${hotel.id}`,
+          type: 'hotel_establishment_pending' as const,
+          title: 'Établissement hôtel à valider',
+          message: `${hostName} — ${hotel.title}`,
+          data: { establishmentId: hotel.id, establishmentTitle: hotel.title },
+          read: false,
+          created_at: hotel.submitted_at || new Date().toISOString(),
+        };
+      });
+
+      const vehicleNotifications: AdminNotification[] = (pendingVehicles || []).map((vehicle) => {
+        const profile = ownerMap[vehicle.owner_id];
+        const ownerName =
+          `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'Propriétaire';
+        return {
+          id: `vehicle-${vehicle.id}`,
+          type: 'vehicle_pending' as const,
+          title: 'Véhicule à valider',
+          message: `${ownerName} — ${vehicle.title}`,
+          data: { vehicleId: vehicle.id, vehicleTitle: vehicle.title },
+          read: false,
+          created_at: vehicle.updated_at || new Date().toISOString(),
+        };
+      });
+
+      const candidatureNotifications: AdminNotification[] = (recentCandidatures || []).map((c) => ({
+        id: `candidature-${c.id}`,
+        type: 'monthly_candidature' as const,
+        title: 'Nouvelle candidature bail',
+        message: `${c.full_name} — ${listingMap[c.listing_id] || 'Annonce'}`,
+        data: { candidatureId: c.id, listingId: c.listing_id },
+        read: false,
+        created_at: c.created_at,
+      }));
+
+      const sorted = [
+        ...identityNotifications,
+        ...propertyNotifications,
+        ...monthlyNotifications,
+        ...hotelNotifications,
+        ...vehicleNotifications,
+        ...candidatureNotifications,
+      ].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
@@ -204,6 +330,26 @@ export const AdminNotificationsProvider: React.FC<{ children: React.ReactNode }>
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'properties' },
+        () => scheduleRealtimeReload()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'monthly_rental_listings' },
+        () => scheduleRealtimeReload()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hotel_establishments' },
+        () => scheduleRealtimeReload()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vehicles' },
+        () => scheduleRealtimeReload()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'monthly_rental_candidatures' },
         () => scheduleRealtimeReload()
       )
       .subscribe();

@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
+import { notifyHotelBookingStatusChange } from '../services/hotelBookingNotifications';
 import { HOTEL_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
 
@@ -130,8 +131,12 @@ export default function HotelOwnerBookingsScreen() {
           : {}),
       })
       .eq('id', id);
-    if (error) Alert.alert('Erreur', error.message);
-    else void load();
+    if (error) {
+      Alert.alert('Erreur', error.message);
+    } else {
+      notifyHotelBookingStatusChange(id, status).catch(() => {});
+      void load();
+    }
   };
 
   const markPaid = (id: string) => {

@@ -120,6 +120,8 @@ import PropertyReviewsScreen from '../screens/PropertyReviewsScreen';
 import StripeReturnHandler from '../components/StripeReturnHandler';
 import WaveReturnHandler from '../components/WaveReturnHandler';
 import { AdminNotificationsProvider } from '../contexts/AdminNotificationsContext';
+import { ToastProvider } from '../contexts/ToastContext';
+import MyMonthlyRentalCandidaturesScreen from '../screens/MyMonthlyRentalCandidaturesScreen';
 import {
   TabNotificationBadgesProvider,
   useTabNotificationBadges,
@@ -712,6 +714,7 @@ const AppNavigator = () => {
       <PushNotificationBootstrap />
       <PushNotificationNavigationHandler navigationRef={navigationRef} />
       <TabNotificationBadgesProvider>
+      <ToastProvider>
       <AdminNotificationsProvider>
       <AuthSessionFade>
       <Stack.Navigator
@@ -924,6 +927,14 @@ const AppNavigator = () => {
               component={MonthlyRentalApplyScreen}
               options={{
                 title: 'Postuler',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="MyMonthlyRentalCandidatures"
+              component={MyMonthlyRentalCandidaturesScreen}
+              options={{
+                title: 'Mes candidatures',
                 headerShown: false,
               }}
             />
@@ -1502,6 +1513,7 @@ const AppNavigator = () => {
       <WaveReturnHandler />
       </AuthSessionFade>
       </AdminNotificationsProvider>
+      </ToastProvider>
       </TabNotificationBadgesProvider>
     </NavigationContainer>
   );

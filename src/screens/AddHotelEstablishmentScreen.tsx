@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
+import { notifyHotelEstablishmentSubmitted } from '../services/moderationNotifications';
 import { HOTEL_COLORS } from '../constants/colors';
 import type { RootStackParamList } from '../types';
 import PropertyLocationPicker, {
@@ -334,6 +335,16 @@ export default function AddHotelEstablishmentScreen() {
         .eq('host_id', user.id);
       if (error) throw error;
       setStatus(next);
+      if (next === 'pending') {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const hostName =
+          [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Hôtelier';
+        notifyHotelEstablishmentSubmitted(establishmentId, title.trim(), hostName).catch(() => {});
+      }
       Alert.alert(
         'OK',
         next === 'pending'

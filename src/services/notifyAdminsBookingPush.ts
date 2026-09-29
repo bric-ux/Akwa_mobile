@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 
 export type NotifyAdminsBookingPushParams = {
   bookingId: string;
-  bookingType: 'property' | 'vehicle';
+  bookingType: 'property' | 'vehicle' | 'hotel';
   listingTitle?: string;
   guestName?: string;
   status?: 'pending' | 'confirmed' | string;

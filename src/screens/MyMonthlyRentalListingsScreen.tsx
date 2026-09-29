@@ -17,6 +17,7 @@ import { useMonthlyRentalListings } from '../hooks/useMonthlyRentalListings';
 import type { MonthlyRentalListing } from '../types';
 import MediaThumb from '../components/MediaThumb';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import { useToast } from '../contexts/ToastContext';
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Brouillon',
@@ -30,6 +31,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const isTabScreen = route.name === 'MonthlyRentalListingsTab';
   const { getMyListings, deleteListing, submitForApproval, archiveListing, restoreListing, loading } =
     useMonthlyRentalListings(user?.id);
@@ -71,8 +73,10 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
     setSubmittingId(item.id);
     try {
       const sub = await submitForApproval(item.id, true);
-      if (sub.success) load();
-      else Alert.alert('Erreur', sub.error || 'Impossible de soumettre');
+      if (sub.success) {
+        showToast('Annonce soumise — validation admin en cours.', 'success');
+        load();
+      } else showToast(sub.error || 'Impossible de soumettre', 'error');
     } finally {
       setSubmittingId(null);
     }
