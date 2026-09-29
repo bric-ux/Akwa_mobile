@@ -97,7 +97,6 @@ import VehicleManagementScreen from '../screens/VehicleManagementScreen';
 import VehicleCalendarScreen from '../screens/VehicleCalendarScreen';
 import VehiclePricingScreen from '../screens/VehiclePricingScreen';
 import VehicleReviewsScreen from '../screens/VehicleReviewsScreen';
-import VehicleOwnerAccountScreen from '../screens/VehicleOwnerAccountScreen';
 import VehicleOwnerStatsScreen from '../screens/VehicleOwnerStatsScreen';
 import VehicleOwnerPayoutsScreen from '../screens/VehicleOwnerPayoutsScreen';
 import PenaltiesScreen from '../screens/PenaltiesScreen';
@@ -112,6 +111,7 @@ import AdminBookingCalculationTestScreen from '../screens/AdminBookingCalculatio
 import AdminCommissionPaymentTestScreen from '../screens/AdminCommissionPaymentTestScreen';
 import AdminWaveTestScreen from '../screens/AdminWaveTestScreen';
 import AdminMonthlyRentalScreen from '../screens/AdminMonthlyRentalScreen';
+import AdminHotelsScreen from '../screens/AdminHotelsScreen';
 import AdminFeatureFlagsScreen from '../screens/AdminFeatureFlagsScreen';
 import HostReviewsScreen from '../screens/HostReviewsScreen';
 import MyGuestReviewsScreen from '../screens/MyGuestReviewsScreen';
@@ -128,7 +128,6 @@ import { TabBarBadgeIcon } from '../components/TabBarBadgeIcon';
 
 // Types
 import { RootStackParamList, TabParamList, HostTabParamList, VehicleTabParamList, VehicleOwnerTabParamList, MonthlyRentalTabParamList, HotelOwnerTabParamList } from '../types';
-import HostAccountScreen from '../screens/HostAccountScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -282,7 +281,7 @@ const HostTabNavigator = () => {
       />
       <HostTab.Screen 
         name="HostProfileTab" 
-        component={HostAccountScreen}
+        component={ProfileScreen}
         options={{ tabBarLabel: 'Mon compte' }}
       />
     </HostTab.Navigator>
@@ -362,7 +361,7 @@ const VehicleOwnerTabNavigator = () => {
       />
       <VehicleOwnerTab.Screen 
         name="VehicleOwnerProfileTab" 
-        component={VehicleOwnerAccountScreen}
+        component={ProfileScreen}
         options={{ tabBarLabel: 'Mon compte' }}
       />
     </VehicleOwnerTab.Navigator>
@@ -1261,6 +1260,14 @@ const AppNavigator = () => {
               options={{
                 title: 'Locations mensuelles',
                 headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="AdminHotels"
+              component={AdminHotelsScreen}
+              options={{
+                title: 'Modération hôtels',
+                headerShown: false,
               }}
             />
             <Stack.Screen

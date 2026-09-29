@@ -134,6 +134,7 @@ export interface Conversation {
   id: string;
   property_id?: string;
   vehicle_id?: string;
+  monthly_rental_listing_id?: string;
   guest_id: string;
   host_id: string;
   created_at: string;
@@ -151,6 +152,11 @@ export interface Conversation {
     brand: string;
     model: string;
     year?: number;
+    images?: string[];
+  };
+  monthly_rental_listing?: {
+    id: string;
+    title: string;
     images?: string[];
   };
   host_profile?: {
@@ -323,6 +329,7 @@ export type RootStackParamList = {
   AdminCommissionPaymentTest: undefined;
   AdminWaveTest: undefined;
   AdminMonthlyRental: undefined;
+  AdminHotels: undefined;
   AdminFeatureFlags: undefined;
   EditProperty: { propertyId: string };
   PropertyCalendar: { propertyId: string };
@@ -528,6 +535,8 @@ export interface MonthlyRentalListing {
   images: string[];
   categorized_photos: unknown;
   amenities: string[];
+  /** Documents exigés pour postuler (ids : cni, fiche_paie, …) */
+  required_documents?: string[];
   status: MonthlyRentalListingStatus;
   submitted_at: string | null;
   reviewed_at: string | null;
@@ -562,6 +571,8 @@ export interface MonthlyRentalCandidature {
   desired_move_in_date: string | null;
   duration_months: number | null;
   status: MonthlyRentalCandidatureStatus;
+  /** Pièces jointes : [{ type, url, name }] */
+  application_documents?: { type: string; url: string; name: string }[];
   viewed_at: string | null;
   decided_at: string | null;
   created_at: string;

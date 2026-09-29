@@ -11,6 +11,23 @@ export interface MonthlyRentalListingWithOwner extends MonthlyRentalListing {
   payment?: MonthlyRentalListingPayment | null;
 }
 
+export interface HotelEstablishmentWithOwner {
+  id: string;
+  host_id: string;
+  title: string;
+  establishment_type: string | null;
+  address: string | null;
+  city: string | null;
+  status: string;
+  hidden_by_admin?: boolean;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
+  admin_notes?: string | null;
+  created_at: string;
+  images?: string[] | null;
+  owner_profile?: { first_name?: string; last_name?: string; email?: string } | null;
+}
+
 export interface AdminRecentBookingItem {
   kind: 'property' | 'vehicle';
   created_at: string;
@@ -851,6 +868,79 @@ export const useAdmin = () => {
     }
   };
 
+  const getHotelEstablishments = async (): Promise<HotelEstablishmentWithOwner[]> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: rows, error: err } = await supabase
+        .from('hotel_establishments')
+        .select('*')
+        .order('submitted_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
+      if (err) {
+        setError(err.message);
+        return [];
+      }
+      const list = (rows || []) as HotelEstablishmentWithOwner[];
+      if (list.length === 0) return [];
+      const hostIds = [...new Set(list.map((l) => l.host_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, email')
+        .in('user_id', hostIds);
+      const byId = new Map((profiles || []).map((p) => [p.user_id, p]));
+      return list.map((l) => ({
+        ...l,
+        owner_profile: byId.get(l.host_id) ?? null,
+      }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateHotelEstablishmentStatus = async (
+    establishmentId: string,
+    status: 'active' | 'rejected' | 'hidden',
+    adminNotes?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Non connecté' };
+    setLoading(true);
+    setError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        status,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user.id,
+        admin_notes: adminNotes ?? null,
+        updated_at: new Date().toISOString(),
+      };
+      if (status === 'active') {
+        payload.hidden_by_admin = false;
+      }
+      if (status === 'hidden') {
+        payload.hidden_by_admin = true;
+      }
+      const { error: err } = await supabase
+        .from('hotel_establishments')
+        .update(payload)
+        .eq('id', establishmentId);
+      if (err) {
+        setError(err.message);
+        return { success: false, error: err.message };
+      }
+      return { success: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erreur';
+      setError(msg);
+      return { success: false, error: msg };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   /** RLS : admin uniquement, statuts pending | reviewing (voir migration admin_delete_host_application). */
   const deleteHostApplication = async (
     applicationId: string
@@ -887,6 +977,8 @@ export const useAdmin = () => {
     getMonthlyRentalListings,
     updateMonthlyRentalListingStatus,
     deleteMonthlyRentalListing,
+    getHotelEstablishments,
+    updateHotelEstablishmentStatus,
     loading,
     error,
   };

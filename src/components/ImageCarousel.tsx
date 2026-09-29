@@ -85,7 +85,8 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({
                 contentFit="cover"
                 cachePolicy="memory-disk"
                 priority="high"
-                transition={200}
+                transition={0}
+                placeholderContentFit="cover"
               />
 
               <View style={styles.overlay}>
@@ -139,11 +140,12 @@ const styles = StyleSheet.create({
     width: SLIDE_WIDTH,
     height: 250,
     position: 'relative',
-    backgroundColor: '#1e293b',
+    backgroundColor: '#e8eef4',
   },
   image: {
     width: '100%',
     height: '100%',
+    backgroundColor: '#e8eef4',
   },
   overlay: {
     position: 'absolute',

@@ -181,20 +181,22 @@ const HostAccountScreen: React.FC = () => {
       icon: 'star-outline',
       onPress: () => navigation.navigate('MyGuestReviews' as never),
     },
-    ...(spacesUiReady && monthlyRental ? [
-    {
-      id: 'subscription',
-      title: 'Abonnement location mensuelle',
-      icon: 'calendar-outline',
-      onPress: () => navigation.navigate('HostSubscription' as never),
-    },
-    {
-      id: 'monthlyListings',
-      title: 'Mes bails longue durée',
-      icon: 'business-outline',
-      onPress: () => navigation.navigate('MyMonthlyRentalListings' as never),
-    },
-    ] : []),
+    ...(spacesUiReady && monthlyRental
+      ? [
+          {
+            id: 'monthlyListings',
+            title: 'Mode bail longue durée',
+            icon: 'business-outline',
+            onPress: () => {
+              navigation.navigate('ModeTransition' as never, {
+                targetMode: 'monthly_rental',
+                targetPath: 'MonthlyRentalOwnerSpace',
+                fromMode: 'host',
+              });
+            },
+          },
+        ]
+      : []),
     {
       id: 'conciergerie',
       title: 'Conciergerie',

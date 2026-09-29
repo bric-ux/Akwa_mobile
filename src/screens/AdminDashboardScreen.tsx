@@ -539,6 +539,14 @@ const AdminDashboardScreen: React.FC = () => {
           />
 
           <QuickAction
+            title="Hôtels"
+            description="Approuver ou refuser les établissements soumis"
+            icon="business-outline"
+            onPress={() => navigation.navigate('AdminHotels' as never)}
+            color="#7c3aed"
+          />
+
+          <QuickAction
             title="Visibilité produits"
             description="Afficher ou masquer bail longue durée et hôtels"
             icon="eye-outline"

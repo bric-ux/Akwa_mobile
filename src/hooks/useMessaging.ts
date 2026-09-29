@@ -51,6 +51,11 @@ export const useMessaging = () => {
             year,
             images
           ),
+          monthly_rental_listing:monthly_rental_listings(
+            id,
+            title,
+            images
+          ),
           host_profile:profiles!conversations_host_id_fkey(
             first_name,
             last_name,
@@ -343,7 +348,7 @@ export const useMessaging = () => {
         try {
           const { data: conversation } = await supabase
             .from('conversations')
-            .select('host_id, guest_id, property_id, vehicle_id, properties(title), vehicles(title)')
+            .select('host_id, guest_id, property_id, vehicle_id, monthly_rental_listing_id, properties(title), vehicles(title), monthly_rental_listings(title)')
             .eq('id', conversationId)
             .single();
           if (!conversation) return;
@@ -358,6 +363,7 @@ export const useMessaging = () => {
           const itemTitle =
             (conversation as { properties?: { title?: string } | null }).properties?.title ||
             (conversation as { vehicles?: { title?: string } | null }).vehicles?.title ||
+            (conversation as { monthly_rental_listings?: { title?: string } | null }).monthly_rental_listings?.title ||
             'votre annonce';
           const preview =
             message.trim().length > 120 ? `${message.trim().slice(0, 117)}…` : message.trim();
@@ -420,19 +426,18 @@ export const useMessaging = () => {
     hostId?: string,
     guestId?: string,
     vehicleId?: string,
-    title?: string
+    title?: string,
+    monthlyListingId?: string,
   ) => {
     try {
-      // Vérifier qu'on a au moins propertyId ou vehicleId
-      if (!propertyId && !vehicleId) {
-        throw new Error('propertyId ou vehicleId requis');
+      if (!propertyId && !vehicleId && !monthlyListingId) {
+        throw new Error('propertyId, vehicleId ou monthlyListingId requis');
       }
 
       if (!hostId || !guestId) {
         throw new Error('hostId et guestId requis');
       }
 
-      // Chercher une conversation existante (comme sur le site web)
       let existingQuery = supabase
         .from('conversations')
         .select('id');
@@ -441,6 +446,8 @@ export const useMessaging = () => {
         existingQuery = existingQuery.eq('property_id', propertyId);
       } else if (vehicleId) {
         existingQuery = existingQuery.eq('vehicle_id', vehicleId);
+      } else if (monthlyListingId) {
+        existingQuery = existingQuery.eq('monthly_rental_listing_id', monthlyListingId);
       }
       
       const { data: existing, error: fetchError } = await existingQuery
@@ -466,10 +473,12 @@ export const useMessaging = () => {
         insertData.property_id = propertyId;
       } else if (vehicleId) {
         insertData.vehicle_id = vehicleId;
+      } else if (monthlyListingId) {
+        insertData.monthly_rental_listing_id = monthlyListingId;
       }
 
       // Ne pas insérer title : la colonne peut être absente (migration non appliquée).
-      // L’affichage utilise property.title / vehicle en fallback dans ConversationList.
+      // L’affichage utilise property / vehicle / monthly_rental_listing en fallback.
 
       console.log('🟡 [useMessaging] Création nouvelle conversation avec:', insertData);
       

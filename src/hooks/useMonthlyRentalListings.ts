@@ -24,6 +24,7 @@ export interface MonthlyRentalListingInput {
   images?: string[];
   categorized_photos?: unknown;
   amenities?: string[];
+  required_documents?: string[];
   status?: 'draft' | 'pending' | 'approved' | 'rejected' | 'archived';
 }
 
@@ -106,6 +107,7 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
             images: input.images || [],
             categorized_photos: input.categorized_photos || null,
             amenities: input.amenities || [],
+            required_documents: input.required_documents || [],
             status: input.status || 'draft',
           })
           .select('id')

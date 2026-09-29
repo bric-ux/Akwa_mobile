@@ -25,6 +25,9 @@ import PropertyLocationPicker, {
 } from '../components/PropertyLocationPicker';
 import { isLocationUuid, matchLocationNearCoords } from '../lib/geolocation';
 import { supabase } from '../services/supabase';
+import {
+  MONTHLY_RENTAL_DOCUMENT_OPTIONS,
+} from '../constants/monthlyRentalDocuments';
 
 const PROPERTY_TYPES = [
   { value: 'apartment', label: 'Appartement' },
@@ -62,9 +65,16 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
   });
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [requiredDocuments, setRequiredDocuments] = useState<string[]>([]);
 
   const set = (key: string, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleRequiredDoc = (id: string) => {
+    setRequiredDocuments((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id],
+    );
   };
 
   const uploadImageToStorage = async (uri: string): Promise<string> => {
@@ -170,6 +180,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
       address_details: form.address_details.trim() || null,
       images: imageUrls,
       amenities: [],
+      required_documents: requiredDocuments,
       status: 'draft',
     });
 
@@ -451,6 +462,34 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
               numberOfLines={2}
             />
           </View>
+          <View style={styles.block}>
+            <Text style={styles.label}>Documents demandés aux candidats</Text>
+            <Text style={styles.hint}>
+              Sélectionnez les pièces que le candidat devra joindre avant de postuler.
+            </Text>
+            <View style={styles.docChips}>
+              {MONTHLY_RENTAL_DOCUMENT_OPTIONS.map((doc) => {
+                const on = requiredDocuments.includes(doc.id);
+                return (
+                  <TouchableOpacity
+                    key={doc.id}
+                    style={[styles.docChip, on && styles.docChipOn]}
+                    onPress={() => toggleRequiredDoc(doc.id)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons
+                      name={on ? 'checkbox' : 'square-outline'}
+                      size={18}
+                      color={on ? '#2E7D32' : '#94a3b8'}
+                    />
+                    <Text style={[styles.docChipText, on && styles.docChipTextOn]}>
+                      {doc.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
           <TouchableOpacity
             style={[styles.submit, (loading || uploadingImages) && styles.submitDisabled]}
             onPress={handleSubmit}
@@ -537,6 +576,24 @@ const styles = StyleSheet.create({
   selectText: { fontSize: 16, color: '#333' },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   helpText: { fontSize: 12, color: '#666', marginBottom: 8 },
+  docChips: { gap: 8 },
+  docChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  docChipOn: {
+    borderColor: '#2E7D32',
+    backgroundColor: '#f0fdf4',
+  },
+  docChipText: { flex: 1, fontSize: 14, color: '#334155', lineHeight: 19 },
+  docChipTextOn: { color: '#14532d', fontWeight: '600' },
   photosRow: { flexDirection: 'row', marginTop: 8, gap: 8 },
   photoWrap: { position: 'relative' },
   photoThumb: { width: 88, height: 88, borderRadius: 8, backgroundColor: '#eee' },

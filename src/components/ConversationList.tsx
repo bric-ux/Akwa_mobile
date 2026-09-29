@@ -138,7 +138,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
           </Text>
         </View>
         
-        {(onOpenOffer && (item.property?.id || item.vehicle?.id)) ? (
+        {(onOpenOffer && (item.property?.id || item.vehicle?.id || item.monthly_rental_listing?.id)) ? (
           <TouchableOpacity
             onPress={() => onOpenOffer(item)}
             activeOpacity={0.7}
@@ -151,7 +151,9 @@ const ConversationList: React.FC<ConversationListProps> = ({
                   ? `Résidence - ${item.property.title}`
                   : item.vehicle
                     ? `Véhicule - ${(item.vehicle as any).title || `${item.vehicle.brand} ${item.vehicle.model}${item.vehicle.year ? ` (${item.vehicle.year})` : ''}`}`
-                    : 'Propriété/Véhicule'}
+                    : item.monthly_rental_listing?.title
+                      ? `Bail - ${item.monthly_rental_listing.title}`
+                      : 'Annonce'}
             </Text>
             <Ionicons name="open-outline" size={14} color="#007AFF" style={styles.propertyTitleIcon} />
           </TouchableOpacity>
@@ -163,7 +165,9 @@ const ConversationList: React.FC<ConversationListProps> = ({
                 ? `Résidence - ${item.property.title}`
                 : item.vehicle
                   ? `Véhicule - ${(item.vehicle as any).title || `${item.vehicle.brand} ${item.vehicle.model}${item.vehicle.year ? ` (${item.vehicle.year})` : ''}`}`
-                  : 'Propriété/Véhicule'}
+                  : item.monthly_rental_listing?.title
+                    ? `Bail - ${item.monthly_rental_listing.title}`
+                    : 'Annonce'}
           </Text>
         )}
         

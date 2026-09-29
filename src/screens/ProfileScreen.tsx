@@ -282,6 +282,24 @@ const ProfileScreen: React.FC = () => {
     );
   };
 
+  // Mode courant (Mon compte ISO : mêmes switchers dans tous les espaces)
+  const isInHostMode = route.name === 'HostProfileTab';
+  const isInVehicleMode =
+    route.name === 'VehicleOwnerProfileTab' || route.name === 'VehicleProfileTab';
+  const isInMonthlyRentalMode = route.name === 'MonthlyRentalProfileTab';
+  const isInHotelMode = route.name === 'HotelProfileTab';
+  const isInTravelerMode =
+    !isInHostMode && !isInVehicleMode && !isInMonthlyRentalMode && !isInHotelMode;
+  const accountFromMode = isInHostMode
+    ? 'host'
+    : isInVehicleMode
+      ? 'vehicle'
+      : isInMonthlyRentalMode
+        ? 'monthly_rental'
+        : isInHotelMode
+          ? 'hotel'
+          : 'traveler';
+
   // Créer les éléments de menu de base
   // Note: "Mes réservations" n'est plus ici car accessible via l'onglet "Réservations" de la navigation principale
   const baseMenuItems = [
@@ -328,11 +346,10 @@ const ProfileScreen: React.FC = () => {
           {
             text: t('common.continue'),
             onPress: async () => {
-              // Naviguer vers la page de transition
               navigation.navigate('ModeTransition' as never, {
                 targetMode: 'host',
                 targetPath: 'HostSpace',
-                fromMode: 'traveler',
+                fromMode: accountFromMode,
               });
             },
             style: 'default',
@@ -359,11 +376,10 @@ const ProfileScreen: React.FC = () => {
           {
             text: t('common.continue'),
             onPress: async () => {
-              // Naviguer vers la page de transition
               navigation.navigate('ModeTransition' as never, {
                 targetMode: 'vehicle',
                 targetPath: 'VehicleOwnerSpace',
-                fromMode: 'traveler',
+                fromMode: accountFromMode,
               });
             },
             style: 'default',
@@ -398,18 +414,16 @@ const ProfileScreen: React.FC = () => {
   // Construire la liste des éléments de menu selon le profil
   let menuItems = [...baseMenuItems];
 
-  const isInMonthlyRentalMode = route.name === 'MonthlyRentalProfileTab';
-  const isInHotelMode = route.name === 'HotelProfileTab';
   /** Flags + checks espaces prêts → pas de lignes qui « pop » après coup */
   const spacesUiReady = spacesReady && !flagsLoading;
 
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
-  if (spacesUiReady && (profile?.is_host || hasPendingApplications)) {
+  if (spacesUiReady && (profile?.is_host || hasPendingApplications) && !isInHostMode) {
     menuItems.push(hostSpaceItem);
   }
 
   // Ajouter "Espace Véhicules" si l'utilisateur a des véhicules (navigation complète)
-  if (spacesUiReady && hasVehicles) {
+  if (spacesUiReady && hasVehicles && !isInVehicleMode) {
     menuItems.push(vehicleSpaceItem);
   }
 
@@ -422,7 +436,7 @@ const ProfileScreen: React.FC = () => {
       onPress: () => {
         Alert.alert(
           'Mode bail longue durée',
-          'Gérer vos annonces et demandes de visite pour la location mensuelle.',
+          'Gérer vos annonces et candidatures pour le bail longue durée. La publication est gratuite.',
           [
             { text: t('common.cancel'), style: 'cancel' },
             {
@@ -431,7 +445,7 @@ const ProfileScreen: React.FC = () => {
                 navigation.navigate('ModeTransition' as never, {
                   targetMode: 'monthly_rental',
                   targetPath: 'MonthlyRentalOwnerSpace',
-                  fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : route.name === 'HotelProfileTab' ? 'hotel' : 'traveler',
+                  fromMode: accountFromMode,
                 });
               },
             },
@@ -456,14 +470,7 @@ const ProfileScreen: React.FC = () => {
               navigation.navigate('ModeTransition' as never, {
                 targetMode: 'hotel',
                 targetPath: 'HotelOwnerSpace',
-                fromMode:
-                  route.name === 'HostProfileTab'
-                    ? 'host'
-                    : route.name === 'VehicleOwnerProfileTab'
-                      ? 'vehicle'
-                      : route.name === 'MonthlyRentalProfileTab'
-                        ? 'monthly_rental'
-                        : 'traveler',
+                fromMode: accountFromMode,
               });
             },
           },
@@ -472,9 +479,34 @@ const ProfileScreen: React.FC = () => {
     });
   }
 
-  // Remboursements & Pénalités : uniquement dans les espaces hôte et véhicules (pas en espace voyageur)
-  const isHostOrVehicleSpace = route.name === 'HostProfileTab' || route.name === 'VehicleOwnerProfileTab';
-  if (isHostOrVehicleSpace && (profile?.is_host || hasVehicles)) {
+  // Espace voyageur depuis n’importe quel autre espace
+  if (spacesUiReady && !isInTravelerMode) {
+    menuItems.push({
+      id: 'travelerSpace',
+      title: 'Espace voyageur',
+      icon: 'airplane-outline',
+      onPress: () => {
+        Alert.alert('Espace voyageur', "Accéder à l'espace voyageur ?", [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.continue'),
+            onPress: () => {
+              navigation.navigate('ModeTransition' as never, {
+                targetMode: 'traveler',
+                targetPath: 'Home',
+                fromMode: accountFromMode,
+              });
+            },
+          },
+        ]);
+      },
+    });
+  }
+
+  // Remboursements & Pénalités : espaces propriétaire (pas en espace voyageur)
+  const isOwnerSpace =
+    isInHostMode || isInVehicleMode || isInMonthlyRentalMode || isInHotelMode;
+  if (isOwnerSpace && (profile?.is_host || hasVehicles || hasMonthlyListings || hasHotels)) {
     menuItems.push({
       id: 'penalties',
       title: 'Remboursements & Pénalités',
@@ -678,8 +710,7 @@ const ProfileScreen: React.FC = () => {
           </View>
         ) : (
           <>
-            {/* Bouton Espace hôte (si applicable) */}
-            {(profile?.is_host || hasPendingApplications) && (
+            {(profile?.is_host || hasPendingApplications) && !isInHostMode && (
               <View style={styles.hostSpaceContainer}>
                 <TouchableOpacity
                   style={styles.hostSpaceButton}
@@ -700,8 +731,7 @@ const ProfileScreen: React.FC = () => {
               </View>
             )}
 
-            {/* Bouton Espace Véhicules (si applicable) */}
-            {hasVehicles && (
+            {hasVehicles && !isInVehicleMode && (
               <View style={styles.vehicleSpaceContainer}>
                 <TouchableOpacity
                   style={styles.vehicleSpaceButton}
@@ -722,7 +752,6 @@ const ProfileScreen: React.FC = () => {
               </View>
             )}
 
-            {/* Bouton Mode bail longue durée (si applicable) */}
             {monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode && (
               <View style={styles.monthlyRentalSpaceContainer}>
                 <TouchableOpacity
@@ -730,7 +759,7 @@ const ProfileScreen: React.FC = () => {
                   onPress={() => {
                     Alert.alert(
                       'Mode bail longue durée',
-                      'Gérer vos annonces et demandes de visite pour la location mensuelle.',
+                      'Gérer vos annonces et candidatures. La publication est gratuite.',
                       [
                         { text: t('common.cancel'), style: 'cancel' },
                         {
@@ -739,7 +768,7 @@ const ProfileScreen: React.FC = () => {
                             navigation.navigate('ModeTransition' as never, {
                               targetMode: 'monthly_rental',
                               targetPath: 'MonthlyRentalOwnerSpace',
-                              fromMode: route.name === 'HostProfileTab' ? 'host' : route.name === 'VehicleOwnerProfileTab' ? 'vehicle' : route.name === 'HotelProfileTab' ? 'hotel' : 'traveler',
+                              fromMode: accountFromMode,
                             });
                           },
                         },
@@ -754,7 +783,9 @@ const ProfileScreen: React.FC = () => {
                     </View>
                     <View style={styles.monthlyRentalSpaceTextContainer}>
                       <Text style={styles.monthlyRentalSpaceText}>Mode bail longue durée</Text>
-                      <Text style={styles.monthlyRentalSpaceSubtext}>Gérez vos logements et demandes de visite</Text>
+                      <Text style={styles.monthlyRentalSpaceSubtext}>
+                        Logements & candidatures — publication gratuite
+                      </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color="#fff" />
                   </View>
@@ -775,14 +806,7 @@ const ProfileScreen: React.FC = () => {
                           navigation.navigate('ModeTransition' as never, {
                             targetMode: 'hotel',
                             targetPath: 'HotelOwnerSpace',
-                            fromMode:
-                              route.name === 'HostProfileTab'
-                                ? 'host'
-                                : route.name === 'VehicleOwnerProfileTab'
-                                  ? 'vehicle'
-                                  : route.name === 'MonthlyRentalProfileTab'
-                                    ? 'monthly_rental'
-                                    : 'traveler',
+                            fromMode: accountFromMode,
                           });
                         },
                       },
@@ -804,47 +828,7 @@ const ProfileScreen: React.FC = () => {
               </View>
             )}
 
-            {/* Bouton Espace voyageur (uniquement en mode bail longue durée) */}
-            {monthlyRental && isInMonthlyRentalMode && (
-              <View style={styles.travelerSpaceContainer}>
-                <TouchableOpacity
-                  style={styles.travelerSpaceButton}
-                  onPress={() => {
-                    Alert.alert(
-                      'Espace voyageur',
-                      'Accéder à l\'espace voyageur ?',
-                      [
-                        { text: t('common.cancel'), style: 'cancel' },
-                        {
-                          text: t('common.continue'),
-                          onPress: () => {
-                            navigation.navigate('ModeTransition' as never, {
-                              targetMode: 'traveler',
-                              targetPath: 'Home',
-                              fromMode: 'monthly_rental',
-                            });
-                          },
-                        },
-                      ]
-                    );
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.travelerSpaceContent}>
-                    <View style={styles.travelerSpaceIconContainer}>
-                      <Ionicons name="airplane" size={18} color="#fff" />
-                    </View>
-                    <View style={styles.travelerSpaceTextContainer}>
-                      <Text style={styles.travelerSpaceText}>Espace voyageur</Text>
-                      <Text style={styles.travelerSpaceSubtext}>Recherche, réservations, favoris</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#fff" />
-                  </View>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {hotelEnabled && isInHotelMode && (
+            {!isInTravelerMode && (
               <View style={styles.travelerSpaceContainer}>
                 <TouchableOpacity
                   style={styles.travelerSpaceButton}
@@ -857,7 +841,7 @@ const ProfileScreen: React.FC = () => {
                           navigation.navigate('ModeTransition' as never, {
                             targetMode: 'traveler',
                             targetPath: 'Home',
-                            fromMode: 'hotel',
+                            fromMode: accountFromMode,
                           });
                         },
                       },
@@ -889,7 +873,8 @@ const ProfileScreen: React.FC = () => {
                 item.id !== 'hostSpace' &&
                 item.id !== 'vehicleSpace' &&
                 item.id !== 'monthlyRentalSpace' &&
-                item.id !== 'hotelSpace',
+                item.id !== 'hotelSpace' &&
+                item.id !== 'travelerSpace',
             )
             .map((item) => (
               <TouchableOpacity

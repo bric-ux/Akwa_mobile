@@ -60,7 +60,9 @@ export default function MyHotelEstablishmentsScreen() {
   );
 
   const statusLabel = (s: string) => {
-    if (s === 'active') return 'Actif';
+    if (s === 'active') return 'Publié';
+    if (s === 'pending') return 'En validation';
+    if (s === 'rejected') return 'Refusé';
     if (s === 'hidden') return 'Masqué';
     return 'Brouillon';
   };

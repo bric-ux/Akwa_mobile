@@ -11,6 +11,7 @@ export type MonthlyRentalCandidatureInput = {
   message?: string;
   desired_move_in_date?: string;
   duration_months?: number;
+  application_documents?: { type: string; url: string; name: string }[];
 };
 
 export const useMonthlyRentalCandidatures = () => {
@@ -131,6 +132,7 @@ export const useMonthlyRentalCandidatures = () => {
           message: input.message?.trim() || null,
           desired_move_in_date: input.desired_move_in_date || null,
           duration_months: input.duration_months ?? null,
+          application_documents: input.application_documents || [],
           snapshot,
           status: 'sent',
         });

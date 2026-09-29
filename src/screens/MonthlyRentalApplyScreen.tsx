@@ -10,15 +10,21 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { useMonthlyRentalCandidatures } from '../hooks/useMonthlyRentalCandidatures';
 import type { MonthlyRentalCandidature, RootStackParamList } from '../types';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import {
+  monthlyRentalDocumentLabel,
+  type MonthlyRentalApplicationDocument,
+} from '../constants/monthlyRentalDocuments';
 
 const STATUS_LABEL: Record<string, string> = {
   sent: 'Dossier envoyé',
@@ -29,6 +35,13 @@ const STATUS_LABEL: Record<string, string> = {
 
 type Route = RouteProp<RootStackParamList, 'MonthlyRentalApply'>;
 
+type LocalDoc = {
+  type: string;
+  uri: string;
+  name: string;
+  mimeType?: string | null;
+};
+
 export default function MonthlyRentalApplyScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<Route>();
@@ -37,6 +50,9 @@ export default function MonthlyRentalApplyScreen() {
   const { submitCandidature, getMyCandidatureForListing, loading } = useMonthlyRentalCandidatures();
   const [existing, setExisting] = useState<MonthlyRentalCandidature | null>(null);
   const [checking, setChecking] = useState(true);
+  const [requiredDocuments, setRequiredDocuments] = useState<string[]>([]);
+  const [localDocs, setLocalDocs] = useState<Record<string, LocalDoc>>({});
+  const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
     full_name: '',
     email: '',
@@ -47,12 +63,23 @@ export default function MonthlyRentalApplyScreen() {
   });
 
   useEffect(() => {
-    if (!user) {
-      setChecking(false);
-      return;
-    }
     let cancelled = false;
     (async () => {
+      const listingRes = await supabase
+        .from('monthly_rental_listings')
+        .select('required_documents')
+        .eq('id', listingId)
+        .maybeSingle();
+      if (!cancelled) {
+        const docs = listingRes.data?.required_documents;
+        setRequiredDocuments(Array.isArray(docs) ? docs : []);
+      }
+
+      if (!user) {
+        if (!cancelled) setChecking(false);
+        return;
+      }
+
       const [candidature, profileRes] = await Promise.all([
         getMyCandidatureForListing(listingId),
         supabase
@@ -80,11 +107,79 @@ export default function MonthlyRentalApplyScreen() {
     };
   }, [user, listingId, getMyCandidatureForListing]);
 
+  const pickDocument = async (docType: string) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      setLocalDocs((prev) => ({
+        ...prev,
+        [docType]: {
+          type: docType,
+          uri: asset.uri,
+          name: asset.name || `${docType}.pdf`,
+          mimeType: asset.mimeType,
+        },
+      }));
+    } catch {
+      Alert.alert('Erreur', 'Impossible d’ouvrir le sélecteur de fichiers.');
+    }
+  };
+
+  const uploadDoc = async (doc: LocalDoc): Promise<MonthlyRentalApplicationDocument> => {
+    const ext =
+      doc.name.split('.').pop()?.toLowerCase() ||
+      (doc.mimeType?.includes('pdf') ? 'pdf' : 'jpg');
+    const fileName = `monthly-rental-docs/${user!.id}/${listingId}/${doc.type}-${Date.now()}.${ext}`;
+    const response = await fetch(doc.uri);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const arrayBuffer = await response.arrayBuffer();
+    const contentType =
+      doc.mimeType ||
+      (ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg');
+    const { error } = await supabase.storage
+      .from('property-images')
+      .upload(fileName, new Uint8Array(arrayBuffer), { contentType, upsert: false });
+    if (error) throw error;
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('property-images').getPublicUrl(fileName);
+    return { type: doc.type, url: publicUrl, name: doc.name };
+  };
+
   const handleSubmit = async () => {
     if (!form.full_name.trim() || !form.email.trim() || !form.phone.trim()) {
       Alert.alert('Champs requis', 'Nom, email et téléphone sont obligatoires.');
       return;
     }
+    const missing = requiredDocuments.filter((id) => !localDocs[id]);
+    if (missing.length > 0) {
+      Alert.alert(
+        'Documents manquants',
+        `Joignez tous les documents demandés :\n${missing.map(monthlyRentalDocumentLabel).join('\n')}`,
+      );
+      return;
+    }
+
+    let applicationDocuments: MonthlyRentalApplicationDocument[] = [];
+    if (requiredDocuments.length > 0) {
+      setUploading(true);
+      try {
+        for (const id of requiredDocuments) {
+          applicationDocuments.push(await uploadDoc(localDocs[id]));
+        }
+      } catch {
+        setUploading(false);
+        Alert.alert('Erreur', 'Impossible d’envoyer certains documents. Réessayez.');
+        return;
+      }
+      setUploading(false);
+    }
+
     const result = await submitCandidature({
       listing_id: listingId,
       full_name: form.full_name,
@@ -95,6 +190,7 @@ export default function MonthlyRentalApplyScreen() {
       duration_months: form.duration_months
         ? parseInt(form.duration_months, 10)
         : undefined,
+      application_documents: applicationDocuments,
     });
     if (result.success) {
       Alert.alert(
@@ -107,6 +203,8 @@ export default function MonthlyRentalApplyScreen() {
       Alert.alert('Erreur', result.error || 'Impossible d’envoyer la candidature.');
     }
   };
+
+  const busy = loading || uploading;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -138,19 +236,40 @@ export default function MonthlyRentalApplyScreen() {
           </TouchableOpacity>
         </View>
       ) : existing ? (
-        <View style={[styles.box, styles.boxSuccess]}>
-          <Text style={styles.successTitle}>Candidature envoyée</Text>
-          <Text style={styles.boxText}>
-            Statut : {STATUS_LABEL[existing.status] || existing.status}
-          </Text>
-          <Text style={[styles.boxText, { marginTop: 8 }]}>
-            {existing.status === 'accepted'
-              ? 'Votre dossier a été accepté. Le propriétaire vous contactera pour organiser la visite.'
-              : existing.status === 'rejected'
-                ? 'Le propriétaire a décliné votre dossier pour ce logement.'
-                : 'Le propriétaire étudie votre dossier. Une visite ne sera proposée que s’il correspond.'}
-          </Text>
-        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={[styles.box, styles.boxSuccess, { margin: 0 }]}>
+            <Text style={styles.successTitle}>Candidature envoyée</Text>
+            <Text style={styles.boxText}>
+              Statut : {STATUS_LABEL[existing.status] || existing.status}
+            </Text>
+            <Text style={[styles.boxText, { marginTop: 8 }]}>
+              {existing.status === 'accepted'
+                ? 'Votre dossier a été accepté. Le propriétaire vous contactera pour organiser la visite.'
+                : existing.status === 'rejected'
+                  ? 'Le propriétaire a décliné votre dossier pour ce logement.'
+                  : 'Le propriétaire étudie votre dossier. Une visite ne sera proposée que s’il correspond.'}
+            </Text>
+          </View>
+          {Array.isArray(existing.application_documents) &&
+          existing.application_documents.length > 0 ? (
+            <View style={styles.docsBlock}>
+              <Text style={styles.label}>Documents envoyés</Text>
+              {existing.application_documents.map((doc) => (
+                <TouchableOpacity
+                  key={`${doc.type}-${doc.url}`}
+                  style={styles.docRow}
+                  onPress={() => Linking.openURL(doc.url)}
+                >
+                  <Ionicons name="document-text-outline" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
+                  <Text style={styles.docRowText} numberOfLines={1}>
+                    {monthlyRentalDocumentLabel(doc.type)} — {doc.name}
+                  </Text>
+                  <Ionicons name="open-outline" size={16} color="#94a3b8" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
+        </ScrollView>
       ) : (
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -218,12 +337,52 @@ export default function MonthlyRentalApplyScreen() {
               onChangeText={(v) => setForm((f) => ({ ...f, message: v }))}
             />
 
+            {requiredDocuments.length > 0 ? (
+              <View style={styles.docsBlock}>
+                <Text style={styles.label}>Documents demandés *</Text>
+                <Text style={styles.docsHint}>
+                  Joignez chaque pièce (PDF ou image) avant d’envoyer votre candidature.
+                </Text>
+                {requiredDocuments.map((docType) => {
+                  const attached = localDocs[docType];
+                  return (
+                    <View key={docType} style={styles.docPickRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.docPickLabel}>{monthlyRentalDocumentLabel(docType)}</Text>
+                        {attached ? (
+                          <Text style={styles.docPickFile} numberOfLines={1}>
+                            {attached.name}
+                          </Text>
+                        ) : (
+                          <Text style={styles.docPickEmpty}>Aucun fichier</Text>
+                        )}
+                      </View>
+                      <TouchableOpacity
+                        style={styles.docPickBtn}
+                        onPress={() => pickDocument(docType)}
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons
+                          name={attached ? 'checkmark-circle' : 'cloud-upload-outline'}
+                          size={18}
+                          color={attached ? '#2E7D32' : MONTHLY_RENTAL_COLORS.primary}
+                        />
+                        <Text style={styles.docPickBtnText}>
+                          {attached ? 'Remplacer' : 'Ajouter'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+
             <TouchableOpacity
-              style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
+              style={[styles.primaryBtn, busy && { opacity: 0.7 }]}
               onPress={handleSubmit}
-              disabled={loading}
+              disabled={busy}
             >
-              {loading ? (
+              {busy ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.primaryBtnText}>Envoyer ma candidature</Text>
@@ -271,6 +430,44 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   textarea: { minHeight: 100, paddingTop: 12 },
+  docsBlock: { marginBottom: 16 },
+  docsHint: { fontSize: 12, color: '#64748b', marginBottom: 10, lineHeight: 17 },
+  docPickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  docPickLabel: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
+  docPickFile: { marginTop: 3, fontSize: 12, color: '#2E7D32' },
+  docPickEmpty: { marginTop: 3, fontSize: 12, color: '#94a3b8' },
+  docPickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  docPickBtnText: { fontSize: 12, fontWeight: '700', color: '#334155' },
+  docRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  docRowText: { flex: 1, fontSize: 13, color: '#334155' },
   primaryBtn: {
     marginTop: 8,
     backgroundColor: MONTHLY_RENTAL_COLORS.primary,

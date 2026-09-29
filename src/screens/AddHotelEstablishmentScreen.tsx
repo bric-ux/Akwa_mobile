@@ -316,24 +316,33 @@ export default function AddHotelEstablishmentScreen() {
     }
   };
 
-  const setVisibility = async (next: 'active' | 'hidden' | 'draft') => {
+  const setVisibility = async (next: 'active' | 'hidden' | 'draft' | 'pending') => {
     if (!user || !establishmentId) return;
     setSaving(true);
     try {
+      const payload: Record<string, unknown> = {
+        status: next,
+        updated_at: new Date().toISOString(),
+      };
+      if (next === 'pending') {
+        payload.submitted_at = new Date().toISOString();
+      }
       const { error } = await supabase
         .from('hotel_establishments')
-        .update({ status: next, updated_at: new Date().toISOString() })
+        .update(payload)
         .eq('id', establishmentId)
         .eq('host_id', user.id);
       if (error) throw error;
       setStatus(next);
       Alert.alert(
         'OK',
-        next === 'active'
-          ? 'Établissement publié.'
-          : next === 'hidden'
-            ? 'Établissement masqué.'
-            : 'Repassé en brouillon.',
+        next === 'pending'
+          ? 'Soumis pour validation. Un admin doit approuver avant affichage public.'
+          : next === 'active'
+            ? 'Établissement publié.'
+            : next === 'hidden'
+              ? 'Établissement masqué.'
+              : 'Repassé en brouillon.',
       );
     } catch (e) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Action impossible');
@@ -650,7 +659,15 @@ export default function AddHotelEstablishmentScreen() {
               <Text style={styles.manageTitle}>Gestion</Text>
               <Text style={styles.statusLine}>
                 Statut :{' '}
-                {status === 'active' ? 'Publié' : status === 'hidden' ? 'Masqué' : 'Brouillon'}
+                {status === 'active'
+                  ? 'Publié'
+                  : status === 'pending'
+                    ? 'En attente de validation'
+                    : status === 'rejected'
+                      ? 'Refusé par l’admin'
+                      : status === 'hidden'
+                        ? 'Masqué'
+                        : 'Brouillon'}
               </Text>
 
               <TouchableOpacity
@@ -666,15 +683,7 @@ export default function AddHotelEstablishmentScreen() {
                 <Text style={styles.secondaryBtnText}>Types de chambres</Text>
               </TouchableOpacity>
 
-              {status !== 'active' ? (
-                <TouchableOpacity
-                  style={styles.publishBtn}
-                  onPress={() => void setVisibility('active')}
-                  disabled={saving}
-                >
-                  <Text style={styles.publishBtnText}>Publier</Text>
-                </TouchableOpacity>
-              ) : (
+              {status === 'active' ? (
                 <TouchableOpacity
                   style={styles.hideBtn}
                   onPress={() => void setVisibility('hidden')}
@@ -682,17 +691,25 @@ export default function AddHotelEstablishmentScreen() {
                 >
                   <Text style={styles.hideBtnText}>Masquer</Text>
                 </TouchableOpacity>
-              )}
-
-              {status === 'hidden' ? (
+              ) : status === 'pending' ? (
+                <View style={styles.pendingHint}>
+                  <Text style={styles.pendingHintText}>
+                    En cours de validation admin. L’annonce sera visible après approbation.
+                  </Text>
+                </View>
+              ) : (
                 <TouchableOpacity
                   style={styles.publishBtn}
-                  onPress={() => void setVisibility('active')}
+                  onPress={() => void setVisibility('pending')}
                   disabled={saving}
                 >
-                  <Text style={styles.publishBtnText}>Remettre en ligne</Text>
+                  <Text style={styles.publishBtnText}>
+                    {status === 'rejected' || status === 'hidden'
+                      ? 'Resoumettre pour validation'
+                      : 'Soumettre pour validation'}
+                  </Text>
                 </TouchableOpacity>
-              ) : null}
+              )}
 
               <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} disabled={saving}>
                 <Text style={styles.deleteBtnText}>Supprimer l’établissement</Text>
@@ -834,6 +851,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   hideBtnText: { color: '#5c6bc0', fontWeight: '700' },
+  pendingHint: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  pendingHintText: { fontSize: 13, color: '#92400e', lineHeight: 18 },
   deleteBtn: { paddingVertical: 12, alignItems: 'center' },
   deleteBtnText: { color: '#c62828', fontWeight: '600' },
 });

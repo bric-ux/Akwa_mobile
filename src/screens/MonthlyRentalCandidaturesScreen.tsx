@@ -8,6 +8,7 @@ import {
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +16,9 @@ import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navig
 import { useMonthlyRentalCandidatures } from '../hooks/useMonthlyRentalCandidatures';
 import { useMonthlyRentalListings } from '../hooks/useMonthlyRentalListings';
 import type { MonthlyRentalCandidature } from '../types';
+import { monthlyRentalDocumentLabel } from '../constants/monthlyRentalDocuments';
+import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
+import SimpleMessageModal from '../components/SimpleMessageModal';
 
 type RouteParams = { listingId: string };
 
@@ -27,6 +31,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
   const [candidatures, setCandidatures] = useState<MonthlyRentalCandidature[]>([]);
   const [listingTitle, setListingTitle] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
+  const [messageTarget, setMessageTarget] = useState<MonthlyRentalCandidature | null>(null);
 
   const load = useCallback(async () => {
     if (!listingId) return;
@@ -116,6 +121,24 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
       {item.message ? (
         <Text style={styles.message} numberOfLines={3}>{item.message}</Text>
       ) : null}
+      {Array.isArray(item.application_documents) && item.application_documents.length > 0 ? (
+        <View style={styles.docs}>
+          <Text style={styles.docsTitle}>Documents joints</Text>
+          {item.application_documents.map((doc) => (
+            <TouchableOpacity
+              key={`${doc.type}-${doc.url}`}
+              style={styles.docLink}
+              onPress={() => Linking.openURL(doc.url)}
+            >
+              <Ionicons name="document-text-outline" size={16} color={MONTHLY_RENTAL_COLORS.primary} />
+              <Text style={styles.docLinkText} numberOfLines={1}>
+                {monthlyRentalDocumentLabel(doc.type)}
+              </Text>
+              <Ionicons name="open-outline" size={14} color="#94a3b8" />
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
       {(item.desired_move_in_date || item.duration_months) && (
         <View style={styles.meta}>
           {item.desired_move_in_date && (
@@ -129,6 +152,14 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
       <Text style={styles.date}>
         Candidature du {new Date(item.created_at).toLocaleDateString('fr-FR')}
       </Text>
+      <TouchableOpacity
+        style={styles.btnMessage}
+        onPress={() => setMessageTarget(item)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="chatbubble-outline" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
+        <Text style={styles.btnMessageText}>Répondre / écrire</Text>
+      </TouchableOpacity>
       {(item.status === 'sent' || item.status === 'viewed') && (
         <View style={styles.actions}>
           <TouchableOpacity
@@ -189,6 +220,18 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
           }
         />
       )}
+      {listingId && messageTarget ? (
+        <SimpleMessageModal
+          visible={!!messageTarget}
+          onClose={() => setMessageTarget(null)}
+          monthlyListingId={listingId}
+          otherParticipant={{
+            id: messageTarget.tenant_id,
+            name: messageTarget.full_name,
+            isHost: false,
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 };
@@ -227,9 +270,34 @@ const styles = StyleSheet.create({
   email: { fontSize: 14, color: '#555', marginBottom: 2 },
   phone: { fontSize: 14, color: '#555', marginBottom: 8 },
   message: { fontSize: 13, color: '#666', fontStyle: 'italic', marginBottom: 8 },
+  docs: { marginBottom: 10, gap: 6 },
+  docsTitle: { fontSize: 13, fontWeight: '600', color: '#334155', marginBottom: 4 },
+  docLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  docLinkText: { flex: 1, fontSize: 13, color: '#334155' },
   meta: { marginBottom: 6 },
   metaText: { fontSize: 13, color: '#666' },
   date: { fontSize: 12, color: '#999', marginBottom: 12 },
+  btnMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: MONTHLY_RENTAL_COLORS.primary,
+    marginBottom: 10,
+  },
+  btnMessageText: { color: MONTHLY_RENTAL_COLORS.primary, fontWeight: '600', fontSize: 14 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   btnAccept: {
     flex: 1,

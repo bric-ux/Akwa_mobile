@@ -18,6 +18,8 @@ import type { MonthlyRentalListing } from '../types';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { useCurrency } from '../hooks/useCurrency';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
+import { useAuth } from '../services/AuthContext';
+import SimpleMessageModal from '../components/SimpleMessageModal';
 
 type RouteProps = RouteProp<RootStackParamList, 'MonthlyRentalListingDetail'>;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -27,8 +29,11 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
   const navigation = useNavigation();
   const { listingId } = route.params;
   const { formatPrice } = useCurrency();
+  const { user } = useAuth();
   const [listing, setListing] = useState<MonthlyRentalListing | null>(null);
   const [loading, setLoading] = useState(true);
+  const [messageModalVisible, setMessageModalVisible] = useState(false);
+  const [ownerName, setOwnerName] = useState('Propriétaire');
 
   useEffect(() => {
     const load = async () => {
@@ -45,6 +50,15 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
         return;
       }
       setListing(data as MonthlyRentalListing);
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('user_id', data.owner_id)
+        .maybeSingle();
+      if (profile) {
+        const name = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+        if (name) setOwnerName(name);
+      }
       setLoading(false);
     };
     load();
@@ -56,6 +70,18 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
       listingId: listing.id,
       listingTitle: listing.title,
     });
+  };
+
+  const handleContact = () => {
+    if (!user) {
+      (navigation as any).navigate('Auth', {
+        returnTo: 'MonthlyRentalListingDetail',
+        returnParams: { listingId },
+      });
+      return;
+    }
+    if (!listing || listing.owner_id === user.id) return;
+    setMessageModalVisible(true);
   };
 
   if (loading) {
@@ -153,11 +179,38 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
         </View>
       </ScrollView>
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.postulerBtn} onPress={handlePostuler} activeOpacity={0.8}>
+        {listing.owner_id !== user?.id ? (
+          <TouchableOpacity
+            style={styles.contactBtn}
+            onPress={handleContact}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="chatbubble-outline" size={20} color={MONTHLY_RENTAL_COLORS.primary} />
+            <Text style={styles.contactBtnText}>Écrire</Text>
+          </TouchableOpacity>
+        ) : null}
+        <TouchableOpacity
+          style={[styles.postulerBtn, listing.owner_id === user?.id && { flex: 1 }]}
+          onPress={handlePostuler}
+          activeOpacity={0.8}
+        >
           <Ionicons name="document-text-outline" size={22} color="#fff" />
           <Text style={styles.postulerBtnText}>Postuler</Text>
         </TouchableOpacity>
       </View>
+
+      {listing.owner_id !== user?.id ? (
+        <SimpleMessageModal
+          visible={messageModalVisible}
+          onClose={() => setMessageModalVisible(false)}
+          monthlyListingId={listing.id}
+          otherParticipant={{
+            id: listing.owner_id,
+            name: ownerName,
+            isHost: true,
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 };
@@ -216,17 +269,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#eee',
+    flexDirection: 'row',
+    gap: 10,
   },
-  postulerBtn: {
+  contactBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: MONTHLY_RENTAL_COLORS.primary,
+    backgroundColor: '#fff',
+  },
+  contactBtnText: {
+    color: MONTHLY_RENTAL_COLORS.primary,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  postulerBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     backgroundColor: MONTHLY_RENTAL_COLORS.primary,
     paddingVertical: 14,
     borderRadius: 12,
-    gap: 8,
   },
-  postulerBtnText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  postulerBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
 
 export default MonthlyRentalListingDetailScreen;

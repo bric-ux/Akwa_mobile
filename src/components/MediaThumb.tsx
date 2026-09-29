@@ -170,7 +170,7 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
           cachePolicy="memory-disk"
           priority={priority}
           recyclingKey={recyclingKey ?? uri}
-          transition={120}
+          transition={0}
           allowDownscaling
           onError={() => {
             if (!useOriginal && displayUri !== uri) setUseOriginal(true);
@@ -181,40 +181,43 @@ const MediaThumbInner: React.FC<MediaThumbProps> = ({
   }
 
   return (
-    <Image
-      source={displayUri}
-      style={style as ImageStyle}
-      contentFit={contentFit}
-      contentPosition={contentPosition}
-      cachePolicy="memory-disk"
-      priority={priority}
-      recyclingKey={recyclingKey ?? uri}
-      transition={120}
-      allowDownscaling
-      onError={() => {
-        if (!useOriginal && displayUri !== uri) setUseOriginal(true);
-      }}
-    />
+    <View style={[{ backgroundColor: '#e8eef4', overflow: 'hidden' }, style as ViewStyle]}>
+      <Image
+        source={displayUri}
+        style={StyleSheet.absoluteFill}
+        contentFit={contentFit}
+        contentPosition={contentPosition}
+        cachePolicy="memory-disk"
+        priority={priority}
+        recyclingKey={recyclingKey ?? uri}
+        transition={0}
+        allowDownscaling
+        onError={() => {
+          if (!useOriginal && displayUri !== uri) setUseOriginal(true);
+        }}
+      />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   shelfWrap: {
     overflow: 'hidden',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#e8eef4',
   },
   shelfMedia: {
     width: '100%',
     height: '100%',
+    backgroundColor: '#e8eef4',
     transform: [{ scale: 1.08 }],
   },
   videoRoot: {
     overflow: 'hidden',
-    backgroundColor: 'transparent',
+    backgroundColor: '#e8eef4',
     position: 'relative',
   },
   placeholder: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#e8eef4',
     justifyContent: 'center',
     alignItems: 'center',
   },

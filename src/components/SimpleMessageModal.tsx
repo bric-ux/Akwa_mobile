@@ -28,9 +28,10 @@ interface SimpleMessage {
 interface SimpleMessageModalProps {
   visible: boolean;
   onClose: () => void;
-  bookingId: string;
+  bookingId?: string;
   propertyId?: string;
   vehicleId?: string;
+  monthlyListingId?: string;
   otherParticipant: {
     id: string;
     name: string;
@@ -44,6 +45,7 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
   bookingId,
   propertyId,
   vehicleId,
+  monthlyListingId,
   otherParticipant,
 }) => {
   const { user } = useAuth();
@@ -70,8 +72,9 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
     try {
       let propId: string | null = propertyId || null;
       let vehId: string | null = vehicleId || null;
+      let monthlyId: string | null = monthlyListingId || null;
 
-      if (!propId && !vehId && bookingId) {
+      if (!propId && !vehId && !monthlyId && bookingId) {
         const { data: booking } = await supabase
           .from('bookings')
           .select('property_id')
@@ -93,8 +96,8 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
         }
       }
 
-      if (!propId && !vehId) {
-        console.error('[SimpleMessageModal] property_id or vehicle_id not found');
+      if (!propId && !vehId && !monthlyId) {
+        console.error('[SimpleMessageModal] property_id, vehicle_id or monthly_listing_id not found');
         Alert.alert('Erreur', 'Impossible de créer la conversation.');
         return;
       }
@@ -102,22 +105,13 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
       const hostId = otherParticipant.isHost ? otherParticipant.id : user.id;
       const guestId = otherParticipant.isHost ? user.id : otherParticipant.id;
 
-      console.log('🔍 [SimpleMessageModal] Conversation setup:', {
-        propertyId: propId,
-        vehicleId: vehId,
-        bookingId,
-        otherParticipantId: otherParticipant.id,
-        otherParticipantIsHost: otherParticipant.isHost,
-        userId: user.id,
-        hostId,
-        guestId,
-      });
-
       let existingQuery = supabase.from('conversations').select('id');
       if (propId) {
         existingQuery = existingQuery.eq('property_id', propId);
       } else if (vehId) {
         existingQuery = existingQuery.eq('vehicle_id', vehId);
+      } else if (monthlyId) {
+        existingQuery = existingQuery.eq('monthly_rental_listing_id', monthlyId);
       }
 
       const { data: existingConversation, error: fetchError } = await existingQuery
@@ -140,6 +134,8 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
           insertData.property_id = propId;
         } else if (vehId) {
           insertData.vehicle_id = vehId;
+        } else if (monthlyId) {
+          insertData.monthly_rental_listing_id = monthlyId;
         }
 
         const { data: newConversation, error: createError } = await supabase
@@ -276,7 +272,11 @@ const SimpleMessageModal: React.FC<SimpleMessageModalProps> = ({
                 <View>
                   <Text style={styles.headerName}>{otherParticipant.name}</Text>
                   <Text style={styles.headerRole}>
-                    {otherParticipant.isHost ? 'Hôte' : 'Voyageur'}
+                    {otherParticipant.isHost
+                      ? monthlyListingId
+                        ? 'Propriétaire'
+                        : 'Hôte'
+                      : 'Voyageur'}
                   </Text>
                 </View>
               </View>
