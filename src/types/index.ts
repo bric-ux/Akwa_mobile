@@ -228,6 +228,8 @@ export interface SearchFilters {
   rentalType?: 'short_term' | 'monthly' | 'hotel' | 'all';
   /** Hôtel : étoiles minimum */
   starRating?: number;
+  /** Bail longue durée : meublé / non meublé */
+  isFurnished?: boolean;
 }
 
 // Types de navigation

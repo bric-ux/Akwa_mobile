@@ -20,6 +20,8 @@ import { useCurrency } from '../hooks/useCurrency';
 import { sanitizePublicDescription } from '../utils/sanitizePublicDescription';
 import { useAuth } from '../services/AuthContext';
 import SimpleMessageModal from '../components/SimpleMessageModal';
+import { monthlyFurnitureLabel } from '../constants/monthlyFurniture';
+import PublicOwnerCard from '../components/PublicOwnerCard';
 
 type RouteProps = RouteProp<RootStackParamList, 'MonthlyRentalListingDetail'>;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -34,6 +36,8 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [messageModalVisible, setMessageModalVisible] = useState(false);
   const [ownerName, setOwnerName] = useState('Propriétaire');
+
+  const isOwner = !!(listing && user && listing.owner_id === user.id);
 
   useEffect(() => {
     const load = async () => {
@@ -65,7 +69,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
   }, [listingId]);
 
   const handlePostuler = () => {
-    if (!listing) return;
+    if (!listing || isOwner) return;
     (navigation as any).navigate('MonthlyRentalApply', {
       listingId: listing.id,
       listingTitle: listing.title,
@@ -73,6 +77,13 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
   };
 
   const handleContact = () => {
+    if (!listing) return;
+    if (isOwner) {
+      (navigation as any).navigate('MonthlyRentalOwnerSpace', {
+        screen: 'MonthlyRentalMessagesTab',
+      });
+      return;
+    }
     if (!user) {
       (navigation as any).navigate('Auth', {
         returnTo: 'MonthlyRentalListingDetail',
@@ -80,8 +91,17 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
       });
       return;
     }
-    if (!listing || listing.owner_id === user.id) return;
     setMessageModalVisible(true);
+  };
+
+  const openOwnerVitrine = () => {
+    if (!listing?.owner_id) return;
+    (navigation as any).navigate('HostProfile', {
+      hostId: listing.owner_id,
+      profileContext: 'host',
+      showListings: true,
+      returnFromInternal: true,
+    });
   };
 
   if (loading) {
@@ -127,7 +147,11 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
           <Text style={styles.badgeText}>Bail longue durée</Text>
         </View>
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <Image source={{ uri: mainImage }} style={styles.heroImage} resizeMode="cover" />
         <View style={styles.body}>
           <Text style={styles.title}>{listing.title}</Text>
@@ -153,53 +177,70 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
               <Ionicons name="water-outline" size={20} color="#666" />
               <Text style={styles.specText}>{listing.bathrooms} SdB</Text>
             </View>
-            {listing.is_furnished && (
+            {listing.is_furnished ? (
               <View style={styles.spec}>
                 <Ionicons name="cube-outline" size={20} color="#666" />
                 <Text style={styles.specText}>Meublé</Text>
+              </View>
+            ) : (
+              <View style={styles.spec}>
+                <Ionicons name="cube-outline" size={20} color="#666" />
+                <Text style={styles.specText}>Non meublé</Text>
               </View>
             )}
           </View>
           {listing.description ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Description</Text>
-              <Text style={styles.description}>{sanitizePublicDescription(listing.description)}</Text>
+              <Text style={styles.description}>
+                {sanitizePublicDescription(listing.description)}
+              </Text>
             </View>
           ) : null}
-          {listing.amenities && listing.amenities.length > 0 && (
+          {listing.is_furnished && listing.amenities && listing.amenities.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Équipements</Text>
+              <Text style={styles.sectionTitle}>Mobilier & équipements</Text>
               <View style={styles.amenityList}>
                 {listing.amenities.map((a, i) => (
-                  <Text key={i} style={styles.amenityTag}>{a}</Text>
+                  <Text key={i} style={styles.amenityTag}>
+                    {monthlyFurnitureLabel(a)}
+                  </Text>
                 ))}
               </View>
             </View>
           )}
+
+          {listing.owner_id ? (
+            <PublicOwnerCard
+              ownerId={listing.owner_id}
+              accentColor={MONTHLY_RENTAL_COLORS.primary}
+              onOpenVitrine={openOwnerVitrine}
+            />
+          ) : null}
         </View>
       </ScrollView>
       <View style={styles.footer}>
-        {listing.owner_id !== user?.id ? (
+        <TouchableOpacity style={styles.contactBtn} onPress={handleContact} activeOpacity={0.8}>
+          <Ionicons
+            name="chatbubble-outline"
+            size={20}
+            color={MONTHLY_RENTAL_COLORS.primary}
+          />
+          <Text style={styles.contactBtnText}>{isOwner ? 'Messages' : 'Écrire'}</Text>
+        </TouchableOpacity>
+        {!isOwner ? (
           <TouchableOpacity
-            style={styles.contactBtn}
-            onPress={handleContact}
+            style={styles.postulerBtn}
+            onPress={handlePostuler}
             activeOpacity={0.8}
           >
-            <Ionicons name="chatbubble-outline" size={20} color={MONTHLY_RENTAL_COLORS.primary} />
-            <Text style={styles.contactBtnText}>Écrire</Text>
+            <Ionicons name="document-text-outline" size={22} color="#fff" />
+            <Text style={styles.postulerBtnText}>Postuler</Text>
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity
-          style={[styles.postulerBtn, listing.owner_id === user?.id && { flex: 1 }]}
-          onPress={handlePostuler}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="document-text-outline" size={22} color="#fff" />
-          <Text style={styles.postulerBtnText}>Postuler</Text>
-        </TouchableOpacity>
       </View>
 
-      {listing.owner_id !== user?.id ? (
+      {!isOwner ? (
         <SimpleMessageModal
           visible={messageModalVisible}
           onClose={() => setMessageModalVisible(false)}
@@ -283,6 +324,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: MONTHLY_RENTAL_COLORS.primary,
     backgroundColor: '#fff',
+    flex: 1,
   },
   contactBtnText: {
     color: MONTHLY_RENTAL_COLORS.primary,

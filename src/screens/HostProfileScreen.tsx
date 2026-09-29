@@ -45,11 +45,31 @@ const HostProfileScreen: React.FC = () => {
   const { reviews, loading: reviewsLoading, getHostReviews } = useHostReviews();
   const [ownerVehicles, setOwnerVehicles] = useState<PublicOwnerVehicle[]>([]);
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
+  const [monthlyListings, setMonthlyListings] = useState<
+    Array<{
+      id: string;
+      title: string;
+      location?: string | null;
+      monthly_rent_price: number;
+      images?: string[] | null;
+    }>
+  >([]);
+  const [hotels, setHotels] = useState<
+    Array<{
+      id: string;
+      title: string;
+      address?: string | null;
+      star_rating?: number | null;
+      images?: string[] | null;
+    }>
+  >([]);
   const properties = hostProfile?.properties ?? [];
   const propertyCount = hostProfile?.total_properties ?? properties.length;
   const vehicleCount = ownerVehicles.length;
+  const monthlyCount = monthlyListings.length;
+  const hotelCount = hotels.length;
   const isVehicleContext = profileContext === 'vehicle' || listingsTab === 'vehicles';
-  const listingsCount = isVehicleContext ? vehicleCount : propertyCount;
+  const listingsCount = propertyCount + vehicleCount + monthlyCount + hotelCount;
   const hasListings = listingsCount > 0;
   const hasReviews = (hostProfile?.total_reviews ?? 0) > 0;
   const hasRating = (hostProfile?.average_rating ?? 0) > 0;
@@ -107,23 +127,42 @@ const HostProfileScreen: React.FC = () => {
   }, [hostId, propertyOnly, getHostProfile, getHostReviews]);
 
   useEffect(() => {
-    if (!hostId || !isVehicleContext) {
+    if (!hostId) {
       setOwnerVehicles([]);
+      setMonthlyListings([]);
+      setHotels([]);
       return;
     }
     setVehiclesLoading(true);
-    supabase
-      .from('vehicles')
-      .select('id, title, brand, model, price_per_day, images')
-      .eq('owner_id', hostId)
-      .eq('is_active', true)
-      .eq('is_approved', true)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setOwnerVehicles((data as PublicOwnerVehicle[]) || []);
+    Promise.all([
+      supabase
+        .from('vehicles')
+        .select('id, title, brand, model, price_per_day, images')
+        .eq('owner_id', hostId)
+        .eq('is_active', true)
+        .eq('is_approved', true)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('monthly_rental_listings')
+        .select('id, title, location, monthly_rent_price, images')
+        .eq('owner_id', hostId)
+        .eq('status', 'approved')
+        .order('updated_at', { ascending: false }),
+      supabase
+        .from('hotel_establishments')
+        .select('id, title, address, star_rating, images')
+        .eq('host_id', hostId)
+        .eq('status', 'active')
+        .eq('hidden_by_admin', false)
+        .order('created_at', { ascending: false }),
+    ])
+      .then(([vehiclesRes, monthlyRes, hotelsRes]) => {
+        setOwnerVehicles((vehiclesRes.data as PublicOwnerVehicle[]) || []);
+        setMonthlyListings((monthlyRes.data as any[]) || []);
+        setHotels((hotelsRes.data as any[]) || []);
       })
       .finally(() => setVehiclesLoading(false));
-  }, [hostId, isVehicleContext]);
+  }, [hostId]);
 
   useEffect(() => {
     if (showListings && !loading && hasListings) {
@@ -270,9 +309,9 @@ const HostProfileScreen: React.FC = () => {
                   activeOpacity={0.75}
                 >
                   <Text style={[styles.statNumber, { color: accent.primary }]}>
-                    {vehiclesLoading && isVehicleContext ? '…' : listingsCount}
+                    {vehiclesLoading ? '…' : listingsCount}
                   </Text>
-                  <Text style={styles.statLabel} numberOfLines={1}>{isVehicleContext ? 'Véhicules' : 'Logements'}</Text>
+                  <Text style={styles.statLabel} numberOfLines={1}>Annonces</Text>
                   <View style={[styles.listingsCta, { borderColor: accent.primary }]}>
                     <Text
                       style={[styles.listingsCtaText, { color: accent.primary }]}
@@ -309,25 +348,107 @@ const HostProfileScreen: React.FC = () => {
               listingsSectionY.current = e.nativeEvent.layout.y;
             }}
           >
-            <Text style={styles.cardTitle}>
-              {isVehicleContext ? 'Véhicules disponibles' : 'Logements disponibles'}
-            </Text>
-            {vehiclesLoading && isVehicleContext ? (
+            {vehiclesLoading ? (
               <ActivityIndicator size="small" color="#2E7D32" style={{ marginVertical: 16 }} />
-            ) : isVehicleContext ? (
-              <PublicOwnerVehiclesList
-                vehicles={ownerVehicles}
-                onSelect={(vehicleId) =>
-                  navigation.navigate('VehicleDetails', { vehicleId })
-                }
-              />
             ) : (
-              <PublicHostPropertiesList
-                properties={properties}
-                onSelect={(propertyId) =>
-                  navigation.navigate('PropertyDetails', { propertyId })
-                }
-              />
+              <>
+                {properties.length > 0 ? (
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={styles.cardTitle}>Résidences meublées</Text>
+                    <PublicHostPropertiesList
+                      properties={properties}
+                      onSelect={(propertyId) =>
+                        navigation.navigate('PropertyDetails', { propertyId })
+                      }
+                    />
+                  </View>
+                ) : null}
+
+                {ownerVehicles.length > 0 ? (
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={styles.cardTitle}>Véhicules</Text>
+                    <PublicOwnerVehiclesList
+                      vehicles={ownerVehicles}
+                      onSelect={(vehicleId) =>
+                        navigation.navigate('VehicleDetails', { vehicleId })
+                      }
+                    />
+                  </View>
+                ) : null}
+
+                {monthlyListings.length > 0 ? (
+                  <View style={{ marginBottom: 16 }}>
+                    <Text style={styles.cardTitle}>Bail longue durée</Text>
+                    {monthlyListings.map((listing) => (
+                      <TouchableOpacity
+                        key={listing.id}
+                        style={styles.extraListingRow}
+                        onPress={() =>
+                          navigation.navigate('MonthlyRentalListingDetail', {
+                            listingId: listing.id,
+                          })
+                        }
+                        activeOpacity={0.8}
+                      >
+                        {listing.images?.[0] ? (
+                          <Image
+                            source={{ uri: listing.images[0] }}
+                            style={styles.extraListingThumb}
+                          />
+                        ) : (
+                          <View style={[styles.extraListingThumb, styles.extraListingThumbEmpty]} />
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.extraListingTitle} numberOfLines={1}>
+                            {listing.title}
+                          </Text>
+                          <Text style={styles.extraListingMeta} numberOfLines={1}>
+                            {listing.location || 'Bail longue durée'}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
+
+                {hotels.length > 0 ? (
+                  <View>
+                    <Text style={styles.cardTitle}>Établissements hôteliers</Text>
+                    {hotels.map((hotel) => (
+                      <TouchableOpacity
+                        key={hotel.id}
+                        style={styles.extraListingRow}
+                        onPress={() =>
+                          navigation.navigate('HotelEstablishmentDetail', {
+                            establishmentId: hotel.id,
+                          })
+                        }
+                        activeOpacity={0.8}
+                      >
+                        {hotel.images?.[0] ? (
+                          <Image
+                            source={{ uri: hotel.images[0] }}
+                            style={styles.extraListingThumb}
+                          />
+                        ) : (
+                          <View style={[styles.extraListingThumb, styles.extraListingThumbEmpty]} />
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.extraListingTitle} numberOfLines={1}>
+                            {hotel.title}
+                          </Text>
+                          <Text style={styles.extraListingMeta} numberOfLines={1}>
+                            {hotel.address || 'Hôtel'}
+                            {hotel.star_rating ? ` · ${hotel.star_rating}★` : ''}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
+              </>
             )}
           </View>
         ) : null}
@@ -637,6 +758,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0f172a',
     marginBottom: 12,
+  },
+  extraListingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e8f0',
+  },
+  extraListingThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    backgroundColor: '#e2e8f0',
+  },
+  extraListingThumbEmpty: {
+    backgroundColor: '#f1f5f9',
+  },
+  extraListingTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  extraListingMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#64748b',
   },
   bioText: {
     fontSize: 15,

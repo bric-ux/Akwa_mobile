@@ -37,21 +37,78 @@ export interface AdminRecentBookingItem {
 export interface DashboardStats {
   totalUsers: number;
   totalProperties: number;
+  totalVehicles: number;
   totalBookings: number;
   totalRevenue: number;
   averageRating: number;
   pendingApplications: number;
   zipUniquePlayers: number;
+  monthlyListingsTotal: number;
+  monthlyListingsApproved: number;
+  monthlyListingsPending: number;
   monthlyVisitRequestsTotal: number;
   monthlyVisitRequestsAccepted: number;
   monthlyVisitRequestsRejected: number;
   monthlyVisitRequestsPending: number;
   hotelEstablishmentsTotal: number;
   hotelEstablishmentsActive: number;
+  hotelEstablishmentsPending: number;
   hotelBookingsTotal: number;
+  /** File d’attente actuelle (non filtrée par période) */
+  queueHotelPending: number;
+  queueMonthlyPending: number;
+  queueMonthlyVisitPending: number;
+  period?: AdminStatsPeriod;
+  periodLabel?: string;
+  periodStart?: string | null;
   recentUsers: any[];
   recentBookings: AdminRecentBookingItem[];
   popularCities: any[];
+}
+
+export type AdminStatsPeriod = 'day' | 'week' | 'month' | 'year' | 'all';
+
+export const ADMIN_STATS_PERIODS: { value: AdminStatsPeriod; label: string }[] = [
+  { value: 'day', label: 'Jour' },
+  { value: 'week', label: 'Semaine' },
+  { value: 'month', label: 'Mois' },
+  { value: 'year', label: 'Année' },
+  { value: 'all', label: 'Tout' },
+];
+
+function periodStartIso(period: AdminStatsPeriod): string | null {
+  if (period === 'all') return null;
+  const now = new Date();
+  const start = new Date(now);
+  if (period === 'day') {
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'week') {
+    const day = (start.getDay() + 6) % 7; // lundi = 0
+    start.setDate(start.getDate() - day);
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'month') {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'year') {
+    start.setMonth(0, 1);
+    start.setHours(0, 0, 0, 0);
+  }
+  return start.toISOString();
+}
+
+function periodLabelFr(period: AdminStatsPeriod): string {
+  switch (period) {
+    case 'day':
+      return "Aujourd'hui";
+    case 'week':
+      return 'Cette semaine';
+    case 'month':
+      return 'Ce mois';
+    case 'year':
+      return 'Cette année';
+    default:
+      return 'Tout';
+  }
 }
 
 export interface AdminProperty extends Property {
@@ -606,38 +663,50 @@ export const useAdmin = () => {
     }
   };
 
-  const getDashboardStats = async (): Promise<DashboardStats> => {
+  const getDashboardStats = async (
+    period: AdminStatsPeriod = 'all',
+  ): Promise<DashboardStats> => {
     setLoading(true);
     setError(null);
 
     const empty: DashboardStats = {
       totalUsers: 0,
       totalProperties: 0,
+      totalVehicles: 0,
       totalBookings: 0,
       totalRevenue: 0,
       averageRating: 0,
       pendingApplications: 0,
       zipUniquePlayers: 0,
+      monthlyListingsTotal: 0,
+      monthlyListingsApproved: 0,
+      monthlyListingsPending: 0,
       monthlyVisitRequestsTotal: 0,
       monthlyVisitRequestsAccepted: 0,
       monthlyVisitRequestsRejected: 0,
       monthlyVisitRequestsPending: 0,
       hotelEstablishmentsTotal: 0,
       hotelEstablishmentsActive: 0,
+      hotelEstablishmentsPending: 0,
       hotelBookingsTotal: 0,
+      queueHotelPending: 0,
+      queueMonthlyPending: 0,
+      queueMonthlyVisitPending: 0,
+      period,
+      periodLabel: periodLabelFr(period),
+      periodStart: periodStartIso(period),
       recentUsers: [],
       recentBookings: [],
       popularCities: [],
     };
 
     try {
-      // 1 RPC agrégé + 2 listes légères en parallèle (plus de scans JS côté client)
-      const [overviewResult, recentPropertyBookingsResult, recentVehicleBookingsResult] =
-        await Promise.all([
-          supabase.rpc('admin_dashboard_overview'),
-          supabase
-            .from('bookings')
-            .select(`
+      const since = periodStartIso(period);
+      const usePeriodRpc = period !== 'all';
+
+      let recentPropertyQuery = supabase
+        .from('bookings')
+        .select(`
               id,
               booking_code,
               total_price,
@@ -657,11 +726,11 @@ export const useAdmin = () => {
               ),
               guest:profiles!bookings_guest_id_fkey(user_id, first_name, last_name, email, phone)
             `)
-            .order('created_at', { ascending: false })
-            .limit(8),
-          supabase
-            .from('vehicle_bookings')
-            .select(`
+        .order('created_at', { ascending: false })
+        .limit(8);
+      let recentVehicleQuery = supabase
+        .from('vehicle_bookings')
+        .select(`
               id,
               vehicle_booking_code,
               total_price,
@@ -683,45 +752,165 @@ export const useAdmin = () => {
               ),
               renter:profiles!vehicle_bookings_renter_id_fkey(user_id, first_name, last_name, email, phone)
             `)
-            .order('created_at', { ascending: false })
-            .limit(8),
+        .order('created_at', { ascending: false })
+        .limit(8);
+
+      if (since) {
+        recentPropertyQuery = recentPropertyQuery.gte('created_at', since);
+        recentVehicleQuery = recentVehicleQuery.gte('created_at', since);
+      }
+
+      const [overviewResult, recentPropertyBookingsResult, recentVehicleBookingsResult] =
+        await Promise.all([
+          usePeriodRpc
+            ? supabase.rpc('admin_dashboard_period_stats', { p_period: period })
+            : supabase.rpc('admin_dashboard_overview'),
+          recentPropertyQuery,
+          recentVehicleQuery,
         ]);
 
       let overview = overviewResult.data as Record<string, unknown> | null;
       if (overviewResult.error || !overview) {
-        console.warn('[useAdmin] admin_dashboard_overview:', overviewResult.error?.message);
-        // Fallback parallèle léger si la migration RPC n’est pas encore appliquée
+        console.warn(
+          '[useAdmin] admin stats RPC:',
+          overviewResult.error?.message,
+        );
+
+        const countSince = async (table: string) => {
+          let q = supabase.from(table).select('id', { count: 'exact', head: true });
+          if (since) q = q.gte('created_at', since);
+          const { count } = await q;
+          return count ?? 0;
+        };
+
         const [
           usersRes,
           propertiesRes,
+          vehiclesRes,
           bookingsRes,
           pendingRes,
           revenueRes,
           zipRes,
+          monthlyRes,
+          hotelsRes,
+          hotelPendingRes,
+          monthlyPendingRes,
+          monthlyVisitPendingRes,
         ] = await Promise.all([
-          supabase.from('profiles').select('id', { count: 'exact', head: true }),
-          supabase.from('properties').select('id', { count: 'exact', head: true }),
-          supabase.from('bookings').select('id', { count: 'exact', head: true }),
+          countSince('profiles'),
+          countSince('properties'),
+          countSince('vehicles'),
+          countSince('bookings'),
           supabase
             .from('host_applications')
             .select('id', { count: 'exact', head: true })
             .eq('status', 'pending'),
-          supabase.rpc('admin_confirmed_revenue_sum'),
+          since
+            ? supabase
+                .from('bookings')
+                .select('total_price')
+                .eq('status', 'confirmed')
+                .gte('created_at', since)
+            : supabase.rpc('admin_confirmed_revenue_sum'),
           supabase.rpc('count_zip_unique_players'),
+          countSince('monthly_rental_listings'),
+          countSince('hotel_establishments'),
+          supabase
+            .from('hotel_establishments')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'pending'),
+          supabase
+            .from('monthly_rental_listings')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'pending'),
+          supabase
+            .from('monthly_rental_candidatures')
+            .select('id', { count: 'exact', head: true })
+            .in('status', ['sent', 'viewed']),
         ]);
+
+        let revenue = 0;
+        if (since && Array.isArray(revenueRes.data)) {
+          revenue = (revenueRes.data as { total_price?: number }[]).reduce(
+            (sum, row) => sum + (Number(row.total_price) || 0),
+            0,
+          );
+        } else {
+          revenue = Number(revenueRes.data) || 0;
+        }
+
         overview = {
-          total_users: usersRes.count ?? 0,
-          total_properties: propertiesRes.count ?? 0,
-          total_bookings: bookingsRes.count ?? 0,
-          total_revenue: revenueRes.data ?? 0,
+          total_users: usersRes,
+          total_properties: propertiesRes,
+          total_vehicles: vehiclesRes,
+          total_bookings: bookingsRes,
+          total_revenue: revenue,
           average_rating: 0,
           pending_applications: pendingRes.count ?? 0,
           zip_unique_players: typeof zipRes.data === 'number' ? zipRes.data : 0,
+          monthly_listings_total: monthlyRes,
+          hotel_establishments_total: hotelsRes,
+          current_hotel_pending: hotelPendingRes.count ?? 0,
+          current_monthly_pending: monthlyPendingRes.count ?? 0,
+          current_monthly_visit_pending: monthlyVisitPendingRes.count ?? 0,
+          period_label: periodLabelFr(period),
+          period_start: since,
+          period,
         };
       }
 
       const recentPropertyBookings = recentPropertyBookingsResult.data || [];
       const recentVehicleBookings = recentVehicleBookingsResult.data || [];
+
+      // Si la RPC overview n’a pas encore les champs inventaire (migration manquante),
+      // on complète avec des counts directs.
+      const needsVehicleCount =
+        overview.total_vehicles == null || Number.isNaN(Number(overview.total_vehicles));
+      const needsMonthlyCount =
+        overview.monthly_listings_total == null ||
+        Number.isNaN(Number(overview.monthly_listings_total));
+      const needsHotelCount =
+        overview.hotel_establishments_total == null ||
+        Number.isNaN(Number(overview.hotel_establishments_total));
+
+      if (needsVehicleCount || needsMonthlyCount || needsHotelCount) {
+        const [vRes, mRes, hRes] = await Promise.all([
+          needsVehicleCount
+            ? (() => {
+                let q = supabase.from('vehicles').select('id', { count: 'exact', head: true });
+                if (since) q = q.gte('created_at', since);
+                return q;
+              })()
+            : Promise.resolve(null),
+          needsMonthlyCount
+            ? (() => {
+                let q = supabase
+                  .from('monthly_rental_listings')
+                  .select('id', { count: 'exact', head: true });
+                if (since) q = q.gte('created_at', since);
+                return q;
+              })()
+            : Promise.resolve(null),
+          needsHotelCount
+            ? (() => {
+                let q = supabase
+                  .from('hotel_establishments')
+                  .select('id', { count: 'exact', head: true });
+                if (since) q = q.gte('created_at', since);
+                return q;
+              })()
+            : Promise.resolve(null),
+        ]);
+        if (vRes && typeof vRes.count === 'number') {
+          overview.total_vehicles = vRes.count;
+        }
+        if (mRes && typeof mRes.count === 'number') {
+          overview.monthly_listings_total = mRes.count;
+        }
+        if (hRes && typeof hRes.count === 'number') {
+          overview.hotel_establishments_total = hRes.count;
+        }
+      }
 
       const recentBookings: AdminRecentBookingItem[] = [
         ...recentPropertyBookings.map((booking) => ({
@@ -744,18 +933,36 @@ export const useAdmin = () => {
       return {
         totalUsers: Number(overview.total_users) || 0,
         totalProperties: Number(overview.total_properties) || 0,
+        totalVehicles: Number(overview.total_vehicles) || 0,
         totalBookings: Number(overview.total_bookings) || 0,
         totalRevenue: Number(overview.total_revenue) || 0,
         averageRating: Number(overview.average_rating) || 0,
         pendingApplications: Number(overview.pending_applications) || 0,
         zipUniquePlayers: Number(overview.zip_unique_players) || 0,
+        monthlyListingsTotal: Number(overview.monthly_listings_total) || 0,
+        monthlyListingsApproved: Number(overview.monthly_listings_approved) || 0,
+        monthlyListingsPending: Number(overview.monthly_listings_pending) || 0,
         monthlyVisitRequestsTotal: Number(overview.monthly_visit_requests_total) || 0,
         monthlyVisitRequestsAccepted: Number(overview.monthly_visit_requests_accepted) || 0,
         monthlyVisitRequestsRejected: Number(overview.monthly_visit_requests_rejected) || 0,
         monthlyVisitRequestsPending: Number(overview.monthly_visit_requests_pending) || 0,
         hotelEstablishmentsTotal: Number(overview.hotel_establishments_total) || 0,
         hotelEstablishmentsActive: Number(overview.hotel_establishments_active) || 0,
+        hotelEstablishmentsPending: Number(overview.hotel_establishments_pending) || 0,
         hotelBookingsTotal: Number(overview.hotel_bookings_total) || 0,
+        queueHotelPending:
+          Number(overview.current_hotel_pending ?? overview.hotel_establishments_pending) || 0,
+        queueMonthlyPending:
+          Number(overview.current_monthly_pending ?? overview.monthly_listings_pending) || 0,
+        queueMonthlyVisitPending:
+          Number(
+            overview.current_monthly_visit_pending ?? overview.monthly_visit_requests_pending,
+          ) || 0,
+        period: (overview.period as AdminStatsPeriod) || period,
+        periodLabel: String(overview.period_label || periodLabelFr(period)),
+        periodStart: overview.period_start
+          ? String(overview.period_start)
+          : since,
         recentUsers: [],
         recentBookings,
         popularCities: [],

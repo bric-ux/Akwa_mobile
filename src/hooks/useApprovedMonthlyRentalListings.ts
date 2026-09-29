@@ -8,6 +8,8 @@ export interface ApprovedMonthlyFilters {
   location?: string;
   /** Minimum de chambres */
   bedrooms?: number;
+  /** true = meublé, false = non meublé, undefined = tous */
+  isFurnished?: boolean;
   centerLat?: number;
   centerLng?: number;
   radiusKm?: number;
@@ -63,6 +65,12 @@ export const useApprovedMonthlyRentalListings = () => {
 
         if (filters?.bedrooms && filters.bedrooms > 0) {
           query = query.gte('bedrooms', filters.bedrooms);
+        }
+
+        if (filters?.isFurnished === true) {
+          query = query.eq('is_furnished', true);
+        } else if (filters?.isFurnished === false) {
+          query = query.eq('is_furnished', false);
         }
 
         const { data, error: err } = await query;

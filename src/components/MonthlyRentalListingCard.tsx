@@ -65,6 +65,7 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
     listing.number_of_rooms
       ? `${listing.number_of_rooms} pièce${listing.number_of_rooms > 1 ? 's' : ''}`
       : null,
+    listing.is_furnished ? 'Meublé' : 'Non meublé',
   ].filter(Boolean);
   const detailLine = detailBits.length > 0 ? detailBits.join(' · ') : undefined;
 

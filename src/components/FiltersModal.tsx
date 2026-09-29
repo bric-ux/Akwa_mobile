@@ -122,6 +122,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
       rentalType: lockedRentalType ?? rentalType,
       bedrooms: rentalType === 'hotel' ? undefined : filters.bedrooms,
       propertyType: rentalType === 'short_term' || rentalType === 'monthly' ? filters.propertyType : undefined,
+      isFurnished: rentalType === 'monthly' ? filters.isFurnished : undefined,
       ...(rentalType === 'hotel' ? { starRating } : { starRating: undefined }),
     } as SearchFilters);
     onClose();
@@ -466,6 +467,42 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
               })}
             </View>
           </View>
+
+          {rentalType === 'monthly' && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="cube-outline" size={18} color="#0d9488" />
+                <Text style={styles.sectionTitle}>Meublé</Text>
+              </View>
+              <View style={styles.sortContainer}>
+                {[
+                  { value: undefined as boolean | undefined, label: 'Tous' },
+                  { value: true, label: 'Meublé' },
+                  { value: false, label: 'Non meublé' },
+                ].map((option) => {
+                  const isActive = filters.isFurnished === option.value;
+                  return (
+                    <TouchableOpacity
+                      key={String(option.value)}
+                      style={[styles.sortOption, isActive && styles.sortOptionActive]}
+                      onPress={() =>
+                        setFilters({
+                          ...filters,
+                          isFurnished: option.value,
+                        })
+                      }
+                    >
+                      <Text
+                        style={[styles.sortOptionText, isActive && styles.sortOptionTextActive]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           {rentalType !== 'hotel' && rentalType !== 'monthly' && (
             <View style={styles.section}>

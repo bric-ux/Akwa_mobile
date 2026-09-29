@@ -38,6 +38,7 @@ import LoadErrorCard from '../components/LoadErrorCard';
 import type { LoadFailureKind } from '../utils/loadError';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../constants/homeExploreLayout';
 import { EXPLORE_SHELF_CARD_WIDTH } from '../constants/exploreShelfCard';
+import { VEHICLE_COLORS } from '../constants/colors';
 
 /** Titres explore + première carte : alignés sur le carrousel « trésors CI » */
 const EXPLORE_GUTTER = HOME_EXPLORE_HORIZONTAL_GUTTER;
@@ -292,6 +293,42 @@ const HomeScreen: React.FC = () => {
       <>
         <HomeStayTypeShelves mode="monthly" />
 
+        {/* Location de véhicules — même largeur que la grille 2 services */}
+        <View style={styles.vehiclesPromoSection}>
+          <Text style={styles.vehiclesPromoSectionTitle}>Location de véhicules</Text>
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => (navigation as any).navigate('VehicleSpace', { screen: 'VehiclesTab' })}
+            style={[
+              styles.vehiclesPromoCard,
+              { width: windowWidth - HOME_EXPLORE_HORIZONTAL_GUTTER * 2 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Location de véhicules"
+          >
+            <ImageBackground
+              source={require('../../assets/images/vehicles-suv.jpg')}
+              style={styles.vehiclesPromoBgImage}
+              resizeMode="cover"
+            >
+              <View style={styles.vehiclesPromoScrim} />
+              <View style={styles.vehiclesPromoContent}>
+                <Text style={styles.vehiclesPromoEyebrow}>Location de véhicules</Text>
+                <Text style={styles.vehiclesPromoTitle}>
+                  Abidjan & partout en Côte d'Ivoire
+                </Text>
+                <Text style={styles.vehiclesPromoDescription}>
+                  À la journée ou à l'heure, avec ou sans chauffeur.
+                </Text>
+                <View style={styles.vehiclesPromoButton}>
+                  <Text style={styles.vehiclesPromoButtonText}>Voir les véhicules</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#fff" />
+                </View>
+              </View>
+            </ImageBackground>
+          </TouchableOpacity>
+        </View>
+
         {/* Services propriétaires — deux encarts carrés */}
         <View style={styles.ownerServicesSection}>
           <Text style={styles.ownerServicesTitle}>Services propriétaires</Text>
@@ -353,7 +390,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </>
     ),
-    [navigation, openKeyboxWhatsApp, bottomServiceCardSize],
+    [navigation, openKeyboxWhatsApp, bottomServiceCardSize, windowWidth],
   );
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingBottom: 20 + TEDDY_FAB_SCROLL_PADDING }],
@@ -631,6 +668,78 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 18,
     color: '#dc3545',
+  },
+  vehiclesPromoSection: {
+    marginHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,
+    marginTop: 8,
+    marginBottom: 16,
+    alignSelf: 'stretch',
+  },
+  vehiclesPromoSectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  vehiclesPromoCard: {
+    overflow: 'hidden',
+    backgroundColor: '#1e293b',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(15, 23, 42, 0.12)',
+    alignSelf: 'stretch',
+  },
+  vehiclesPromoBgImage: {
+    width: '100%',
+    minHeight: 220,
+    justifyContent: 'flex-end',
+  },
+  vehiclesPromoScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.38)',
+  },
+  vehiclesPromoContent: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 18,
+    gap: 6,
+  },
+  vehiclesPromoEyebrow: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 2,
+  },
+  vehiclesPromoTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    lineHeight: 26,
+    letterSpacing: -0.3,
+  },
+  vehiclesPromoDescription: {
+    marginTop: 2,
+    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 20,
+  },
+  vehiclesPromoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: VEHICLE_COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
+    marginTop: 4,
+  },
+  vehiclesPromoButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   ownerServicesSection: {
     marginHorizontal: HOME_EXPLORE_HORIZONTAL_GUTTER,

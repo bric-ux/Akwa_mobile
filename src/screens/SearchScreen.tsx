@@ -245,11 +245,12 @@ const SearchScreen: React.FC = () => {
     fetchMonthlyListings({
       city: monthlySearchQuery || undefined,
       bedrooms: filters.bedrooms,
+      isFurnished: filters.isFurnished,
       centerLat: filters.centerLat,
       centerLng: filters.centerLng,
       radiusKm: filters.radiusKm,
     });
-  }, [hasSubmittedSearch, rentalType, monthlySearchQuery, filters.bedrooms, filters.centerLat, filters.centerLng, filters.radiusKm, fetchMonthlyListings]);
+  }, [hasSubmittedSearch, rentalType, monthlySearchQuery, filters.bedrooms, filters.isFurnished, filters.centerLat, filters.centerLng, filters.radiusKm, fetchMonthlyListings]);
 
   useEffect(() => {
     if (!hasSubmittedSearch || rentalType !== 'hotel') return;
@@ -313,7 +314,7 @@ const SearchScreen: React.FC = () => {
       setIsSearching(true);
       try {
         if (rentalType === 'monthly') {
-          await fetchMonthlyListings({ bedrooms: filters.bedrooms });
+          await fetchMonthlyListings({ bedrooms: filters.bedrooms, isFurnished: filters.isFurnished });
         } else if (rentalType === 'hotel') {
           await fetchHotelRooms({
             starRating: filters.starRating,
@@ -346,12 +347,13 @@ const SearchScreen: React.FC = () => {
           await fetchMonthlyListings({
             city: query || undefined,
             bedrooms: filters.bedrooms,
+            isFurnished: filters.isFurnished,
             centerLat: filters.centerLat,
             centerLng: filters.centerLng,
             radiusKm: filters.radiusKm,
           });
         } else {
-          await fetchMonthlyListings({ bedrooms: filters.bedrooms });
+          await fetchMonthlyListings({ bedrooms: filters.bedrooms, isFurnished: filters.isFurnished });
         }
       } finally {
         setIsSearching(false);
@@ -452,6 +454,7 @@ const SearchScreen: React.FC = () => {
           await fetchMonthlyListings({
             city: query || undefined,
             bedrooms: filters.bedrooms,
+            isFurnished: filters.isFurnished,
           });
         } else {
           await fetchProperties(searchFilters);
@@ -636,6 +639,7 @@ const SearchScreen: React.FC = () => {
       fetchMonthlyListings({
         city: dest || undefined,
         bedrooms: newFilters.bedrooms,
+        isFurnished: newFilters.isFurnished,
         centerLat: newFilters.centerLat,
         centerLng: newFilters.centerLng,
         radiusKm: newFilters.radiusKm,
@@ -780,6 +784,7 @@ const SearchScreen: React.FC = () => {
     if (filters.priceMin || filters.priceMax) count++;
     if (filters.propertyType) count++;
     if (filters.bedrooms) count++;
+    if (filters.isFurnished !== undefined) count++;
     if (filters.starRating) count++;
     if (filters.guests) count++;
     if (filters.wifi || filters.parking || filters.pool || filters.airConditioning) count++;

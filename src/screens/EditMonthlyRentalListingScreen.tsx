@@ -28,6 +28,7 @@ import { supabase } from '../services/supabase';
 import {
   MONTHLY_RENTAL_DOCUMENT_OPTIONS,
 } from '../constants/monthlyRentalDocuments';
+import { MONTHLY_FURNITURE_OPTIONS } from '../constants/monthlyFurniture';
 
 const PROPERTY_TYPES = [
   { value: 'apartment', label: 'Appartement' },
@@ -71,6 +72,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [requiredDocuments, setRequiredDocuments] = useState<string[]>([]);
+  const [amenities, setAmenities] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +129,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
       setRequiredDocuments(
         Array.isArray(listing.required_documents) ? [...listing.required_documents] : [],
       );
+      setAmenities(Array.isArray(listing.amenities) ? [...listing.amenities] : []);
     })();
     return () => { cancelled = true; };
   }, [listingId, getListingById]);
@@ -139,6 +142,17 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
     setRequiredDocuments((prev) =>
       prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id],
     );
+  };
+
+  const toggleAmenity = (id: string) => {
+    setAmenities((prev) =>
+      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id],
+    );
+  };
+
+  const setFurnished = (value: boolean) => {
+    set('is_furnished', value);
+    if (!value) setAmenities([]);
   };
 
   const uploadImageToStorage = async (uri: string): Promise<string> => {
@@ -245,6 +259,7 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
       charges_included: form.charges_included,
       address_details: form.address_details.trim() || null,
       images: imageUrls,
+      amenities: form.is_furnished ? amenities : [],
       required_documents: requiredDocuments,
     });
 
@@ -434,14 +449,44 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
             </View>
           </View>
           <View style={[styles.block, styles.switchRow]}>
-            <Text style={styles.label}>Meublé</Text>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.label}>Type de location</Text>
+              <Text style={styles.helpText}>
+                {form.is_furnished ? 'Meublé' : 'Non meublé'}
+              </Text>
+            </View>
             <Switch
               value={form.is_furnished}
-              onValueChange={(v) => set('is_furnished', v)}
+              onValueChange={setFurnished}
               trackColor={{ false: '#e5e7eb', true: '#2E7D32' }}
               thumbColor="#fff"
             />
           </View>
+          {form.is_furnished ? (
+            <View style={styles.block}>
+              <Text style={styles.label}>Mobilier & équipements inclus</Text>
+              <Text style={styles.helpText}>
+                Indiquez ce qui est fourni avec le logement.
+              </Text>
+              <View style={styles.furnitureWrap}>
+                {MONTHLY_FURNITURE_OPTIONS.map((item) => {
+                  const on = amenities.includes(item.id);
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.furnitureChip, on && styles.furnitureChipOn]}
+                      onPress={() => toggleAmenity(item.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.furnitureChipText, on && styles.furnitureChipTextOn]}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
           <View style={styles.block}>
             <Text style={styles.label}>Photos</Text>
             <Text style={styles.helpText}>Ajoutez ou modifiez les photos du logement (max. 30).</Text>
@@ -642,6 +687,21 @@ const styles = StyleSheet.create({
   selectText: { fontSize: 16, color: '#333' },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   helpText: { fontSize: 12, color: '#666', marginBottom: 8 },
+  furnitureWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  furnitureChip: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+  },
+  furnitureChipOn: {
+    borderColor: '#2E7D32',
+    backgroundColor: '#f0fdf4',
+  },
+  furnitureChipText: { fontSize: 13, color: '#334155' },
+  furnitureChipTextOn: { color: '#14532d', fontWeight: '600' },
   docChips: { gap: 8 },
   docChip: {
     flexDirection: 'row',
