@@ -275,7 +275,7 @@ const HomeScreen: React.FC = () => {
         <View style={styles.headerDeferredPlaceholder} />
       )}
 
-      {/* Ordre rayons : Hôtels → Résidences meublées → (villes) ; longue durée en bas */}
+      {/* Ordre rayons : Hôtels → Résidences meublées → (villes) ; bail longue durée en bas */}
       <HomeStayTypeShelves mode="hotel" />
 
       <View style={styles.section}>

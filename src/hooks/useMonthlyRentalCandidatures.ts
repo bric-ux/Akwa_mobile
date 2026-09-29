@@ -106,7 +106,7 @@ export const useMonthlyRentalCandidatures = () => {
     async (
       input: MonthlyRentalCandidatureInput,
     ): Promise<{ success: boolean; error?: string }> => {
-      if (!user) return { success: false, error: 'Connectez-vous pour demander une visite' };
+      if (!user) return { success: false, error: 'Connectez-vous pour postuler' };
       setLoading(true);
       setError(null);
       try {
@@ -138,7 +138,7 @@ export const useMonthlyRentalCandidatures = () => {
         if (err) {
           const msg =
             err.code === '23505'
-              ? 'Vous avez déjà demandé une visite pour cette annonce.'
+              ? 'Vous avez déjà postulé pour cette annonce.'
               : err.message;
           setError(msg);
           return { success: false, error: msg };

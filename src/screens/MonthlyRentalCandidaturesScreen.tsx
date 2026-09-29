@@ -52,12 +52,12 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
 
   const handleAccept = (c: MonthlyRentalCandidature) => {
     Alert.alert(
-      'Accepter la visite',
-      `Accepter la demande de visite de ${c.full_name} ?`,
+      'Accepter le dossier',
+      `Accepter le dossier de ${c.full_name} ? Vous pourrez ensuite organiser la visite.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Accepter',
+          text: 'Accepter le dossier',
           onPress: async () => {
             const r = await acceptCandidature(c.id);
             if (r.success) load();
@@ -70,8 +70,8 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
 
   const handleReject = (c: MonthlyRentalCandidature) => {
     Alert.alert(
-      'Refuser la visite',
-      `Refuser la demande de visite de ${c.full_name} ?`,
+      'Refuser le dossier',
+      `Refuser le dossier de ${c.full_name} ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -88,10 +88,10 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
   };
 
   const statusLabel = (s: string) => {
-    if (s === 'sent') return 'Envoyée';
-    if (s === 'viewed') return 'Vue';
-    if (s === 'accepted') return 'Visite acceptée';
-    return 'Refusée';
+    if (s === 'sent') return 'Dossier envoyé';
+    if (s === 'viewed') return 'Vu';
+    if (s === 'accepted') return 'Dossier accepté';
+    return 'Refusé';
   };
 
   const statusColor = (s: string) => {
@@ -127,7 +127,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
         </View>
       )}
       <Text style={styles.date}>
-        Demande du {new Date(item.created_at).toLocaleDateString('fr-FR')}
+        Candidature du {new Date(item.created_at).toLocaleDateString('fr-FR')}
       </Text>
       {(item.status === 'sent' || item.status === 'viewed') && (
         <View style={styles.actions}>
@@ -136,7 +136,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
             onPress={() => handleAccept(item)}
           >
             <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-            <Text style={styles.btnAcceptText}>Accepter</Text>
+            <Text style={styles.btnAcceptText}>Accepter le dossier</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.btnReject}
@@ -157,7 +157,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Demandes de visite{listingTitle ? ` · ${listingTitle}` : ''}
+          Candidatures{listingTitle ? ` · ${listingTitle}` : ''}
         </Text>
       </View>
       {loading && candidatures.length === 0 ? (
@@ -180,9 +180,10 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={56} color="#ccc" />
-              <Text style={styles.emptyTitle}>Aucune demande de visite</Text>
+              <Text style={styles.emptyTitle}>Aucune candidature</Text>
               <Text style={styles.emptySubtitle}>
-                Les demandes de visite apparaîtront ici.
+                Les dossiers des candidats apparaîtront ici. Acceptez un dossier avant d’organiser
+                une visite.
               </Text>
             </View>
           }

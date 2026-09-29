@@ -84,7 +84,7 @@ const ModeTransitionScreen: React.FC = () => {
         : fromMode === 'vehicle'
           ? 'Espace Véhicules'
           : fromMode === 'monthly_rental'
-            ? 'Logement longue durée'
+            ? 'Bail longue durée'
             : 'Mode Voyageur';
     nextText = 'Espace Hôtel';
   } else if (isToMonthlyRental) {
@@ -92,8 +92,8 @@ const ModeTransitionScreen: React.FC = () => {
     nextColor = MONTHLY_RENTAL_COLORS.primary;
     currentIcon = isFromMonthlyRental ? 'home-outline' : (fromMode === 'host' ? 'home-outline' : fromMode === 'vehicle' ? 'car-outline' : 'airplane-outline');
     nextIcon = 'home-outline';
-    currentText = isFromMonthlyRental ? 'Logement longue durée' : (fromMode === 'host' ? 'Mode Hôte' : fromMode === 'vehicle' ? 'Espace Véhicules' : 'Mode Voyageur');
-    nextText = 'Logement longue durée';
+    currentText = isFromMonthlyRental ? 'Bail longue durée' : (fromMode === 'host' ? 'Mode Hôte' : fromMode === 'vehicle' ? 'Espace Véhicules' : 'Mode Voyageur');
+    nextText = 'Bail longue durée';
   } else if (isToHost) {
     currentColor = TRAVELER_COLORS.primary;
     nextColor = HOST_COLORS.primary;
@@ -120,7 +120,7 @@ const ModeTransitionScreen: React.FC = () => {
     nextColor = TRAVELER_COLORS.primary;
     currentIcon = 'home-outline';
     nextIcon = 'airplane-outline';
-    currentText = 'Logement longue durée';
+    currentText = 'Bail longue durée';
     nextText = 'Mode Voyageur';
   } else {
     // Retour au mode voyageur depuis le mode hôte

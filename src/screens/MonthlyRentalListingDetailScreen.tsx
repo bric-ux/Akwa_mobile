@@ -98,7 +98,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <View style={styles.badgeLongueDuree}>
-          <Text style={styles.badgeText}>Location longue durée</Text>
+          <Text style={styles.badgeText}>Bail longue durée</Text>
         </View>
       </View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -154,8 +154,8 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
       </ScrollView>
       <View style={styles.footer}>
         <TouchableOpacity style={styles.postulerBtn} onPress={handlePostuler} activeOpacity={0.8}>
-          <Ionicons name="calendar-outline" size={22} color="#fff" />
-          <Text style={styles.postulerBtnText}>Demander une visite</Text>
+          <Ionicons name="document-text-outline" size={22} color="#fff" />
+          <Text style={styles.postulerBtnText}>Postuler</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

@@ -204,7 +204,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     
     // Conditions
     agreeTerms: false,
-    // Location mensuelle (longue durée)
+    // Location mensuelle (bail longue durée)
     monthlyRentPrice: '',
     securityDeposit: '',
     minimumDurationMonths: '',
@@ -2032,7 +2032,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
     </View>
   );
 
-  /** Écran de choix du type d'annonce : résidence meublée (court séjour) ou location mensuelle (longue durée) */
+  /** Écran de choix du type d'annonce : résidence meublée (court séjour) ou location mensuelle (bail longue durée) */
   const renderListingTypeChoice = () => (
     <View style={styles.listingTypeContainer}>
       <Text style={styles.listingTypeTitle}>Quel type d'annonce souhaitez-vous créer ?</Text>
@@ -2063,7 +2063,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
           <Ionicons name="calendar-outline" size={36} color={listingType === 'monthly' ? '#fff' : '#2E7D32'} />
         </View>
         <Text style={styles.listingTypeCardTitle}>Location mensuelle</Text>
-        <Text style={styles.listingTypeCardLabel}>(longue durée)</Text>
+        <Text style={styles.listingTypeCardLabel}>(bail longue durée)</Text>
         <Text style={styles.listingTypeCardDesc}>
           Pour les locataires : loyer au mois, bail, caution.
         </Text>
@@ -2280,7 +2280,7 @@ const BecomeHostScreen: React.FC = ({ route }: any) => {
         </View>
       )}
 
-      {/* Prix (court séjour) ou loyer mensuel (longue durée) */}
+      {/* Prix (court séjour) ou loyer mensuel (bail longue durée) */}
       {listingType === 'short_term' && (!isEditMode || shouldShowField('price_per_night')) && (
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Prix par nuit (FCFA) *</Text>

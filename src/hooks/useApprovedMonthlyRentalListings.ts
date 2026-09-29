@@ -13,7 +13,7 @@ export interface ApprovedMonthlyFilters {
   radiusKm?: number;
 }
 
-/** Hook pour récupérer les annonces location longue durée approuvées (côté voyageur, public). */
+/** Hook pour récupérer les annonces bail longue durée approuvées (côté voyageur, public). */
 export const useApprovedMonthlyRentalListings = () => {
   const [listings, setListings] = useState<MonthlyRentalListing[]>([]);
   const [loading, setLoading] = useState(false);

@@ -37,7 +37,7 @@ const VEHICLE_CATEGORY: CategoryDef = {
 
 const MONTHLY_CATEGORY: CategoryDef = {
   id: 'monthly',
-  label: 'Longue durée',
+  label: 'Bail longue durée',
   image: require('../../../assets/IMG_9552.jpeg'),
 };
 
@@ -55,7 +55,7 @@ export default function HomeCategoryPills({ showMonthlyCategory = true }: Props)
   const navigation = useNavigation();
   const { monthlyRental, hotel, loading: flagsLoading, isAdminViewer } = useFeatureFlags();
 
-  // Ordre : Hôtels → Résidences → Véhicules → Longue durée (en dernier)
+  // Ordre : Hôtels → Résidences → Véhicules → Bail longue durée (en dernier)
   // Pendant flagsLoading, si cache admin déjà hydraté (isAdminViewer / hotel / monthly), on garde les pills
   const categories = useMemo(() => {
     const list: CategoryDef[] = [];

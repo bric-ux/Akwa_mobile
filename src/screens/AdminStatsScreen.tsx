@@ -186,6 +186,56 @@ const AdminStatsScreen: React.FC = () => {
           />
         </View>
 
+        <Text style={styles.sectionTitle}>Bail longue durée — candidatures</Text>
+        <View style={styles.statsContainer}>
+          <StatCard
+            title="Candidatures totales"
+            value={stats?.monthlyVisitRequestsTotal || 0}
+            icon="mail-outline"
+            color="#0d9488"
+          />
+          <StatCard
+            title="En attente"
+            value={stats?.monthlyVisitRequestsPending || 0}
+            icon="hourglass-outline"
+            color="#f59e0b"
+          />
+          <StatCard
+            title="Dossiers acceptés"
+            value={stats?.monthlyVisitRequestsAccepted || 0}
+            icon="checkmark-circle-outline"
+            color="#16a34a"
+          />
+          <StatCard
+            title="Dossiers refusés"
+            value={stats?.monthlyVisitRequestsRejected || 0}
+            icon="close-circle-outline"
+            color="#dc2626"
+          />
+        </View>
+
+        <Text style={styles.sectionTitle}>Hôtels</Text>
+        <View style={styles.statsContainer}>
+          <StatCard
+            title="Établissements"
+            value={stats?.hotelEstablishmentsTotal || 0}
+            icon="business-outline"
+            color="#5c6bc0"
+          />
+          <StatCard
+            title="Établissements actifs"
+            value={stats?.hotelEstablishmentsActive || 0}
+            icon="eye-outline"
+            color="#3949ab"
+          />
+          <StatCard
+            title="Réservations hôtel"
+            value={stats?.hotelBookingsTotal || 0}
+            icon="bed-outline"
+            color="#1a237e"
+          />
+        </View>
+
         {/* Activité récente */}
         <Text style={styles.sectionTitle}>Réservations récentes</Text>
         <AdminRecentBookingsSection items={stats?.recentBookings || []} limit={5} />

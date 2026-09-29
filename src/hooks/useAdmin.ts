@@ -25,6 +25,13 @@ export interface DashboardStats {
   averageRating: number;
   pendingApplications: number;
   zipUniquePlayers: number;
+  monthlyVisitRequestsTotal: number;
+  monthlyVisitRequestsAccepted: number;
+  monthlyVisitRequestsRejected: number;
+  monthlyVisitRequestsPending: number;
+  hotelEstablishmentsTotal: number;
+  hotelEstablishmentsActive: number;
+  hotelBookingsTotal: number;
   recentUsers: any[];
   recentBookings: AdminRecentBookingItem[];
   popularCities: any[];
@@ -594,6 +601,13 @@ export const useAdmin = () => {
       averageRating: 0,
       pendingApplications: 0,
       zipUniquePlayers: 0,
+      monthlyVisitRequestsTotal: 0,
+      monthlyVisitRequestsAccepted: 0,
+      monthlyVisitRequestsRejected: 0,
+      monthlyVisitRequestsPending: 0,
+      hotelEstablishmentsTotal: 0,
+      hotelEstablishmentsActive: 0,
+      hotelBookingsTotal: 0,
       recentUsers: [],
       recentBookings: [],
       popularCities: [],
@@ -718,6 +732,13 @@ export const useAdmin = () => {
         averageRating: Number(overview.average_rating) || 0,
         pendingApplications: Number(overview.pending_applications) || 0,
         zipUniquePlayers: Number(overview.zip_unique_players) || 0,
+        monthlyVisitRequestsTotal: Number(overview.monthly_visit_requests_total) || 0,
+        monthlyVisitRequestsAccepted: Number(overview.monthly_visit_requests_accepted) || 0,
+        monthlyVisitRequestsRejected: Number(overview.monthly_visit_requests_rejected) || 0,
+        monthlyVisitRequestsPending: Number(overview.monthly_visit_requests_pending) || 0,
+        hotelEstablishmentsTotal: Number(overview.hotel_establishments_total) || 0,
+        hotelEstablishmentsActive: Number(overview.hotel_establishments_active) || 0,
+        hotelBookingsTotal: Number(overview.hotel_bookings_total) || 0,
         recentUsers: [],
         recentBookings,
         popularCities: [],

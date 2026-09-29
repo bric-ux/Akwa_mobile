@@ -195,7 +195,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
             onPress={() => handleCandidatures(item.id)}
           >
             <Ionicons name="people-outline" size={20} color="#2E7D32" />
-            <Text style={styles.btnCandidaturesText}>Demandes de visite</Text>
+            <Text style={styles.btnCandidaturesText}>Candidatures</Text>
           </TouchableOpacity>
         )}
         {(item.status === 'pending' || item.status === 'approved') && (
@@ -233,7 +233,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
           ) : (
             <View style={styles.backBtn} />
           )}
-          <Text style={styles.headerTitle}>Mes logements longue durée</Text>
+          <Text style={styles.headerTitle}>Mes bails longue durée</Text>
         </View>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#2E7D32" />
@@ -252,7 +252,7 @@ const MyMonthlyRentalListingsScreen: React.FC = () => {
         ) : (
           <View style={styles.backBtn} />
         )}
-        <Text style={styles.headerTitle}>Mes logements longue durée</Text>
+        <Text style={styles.headerTitle}>Mes bails longue durée</Text>
         <TouchableOpacity onPress={handleAdd} style={styles.addBtn}>
           <Ionicons name="add" size={28} color="#2E7D32" />
         </TouchableOpacity>

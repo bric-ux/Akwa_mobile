@@ -103,12 +103,12 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const [rawFlags, setRawFlags] = useState<FeatureFlagsState>({ ...FEATURE_FLAG_DEFAULTS });
   const [isAdminViewer, setIsAdminViewer] = useState(false);
-  /** true tant que auth ou 1er fetch flags pas prêts — évite de masquer hôtel/longue durée au reload */
+  /** true tant que auth ou 1er fetch flags pas prêts — évite de masquer hôtel/bail longue durée au reload */
   const [loading, setLoading] = useState(true);
   const cacheHydratedRef = useRef(false);
   const lastUserIdRef = useRef<string | null | undefined>(undefined);
 
-  // Hydratation cache au boot : un admin qui recharge voit tout de suite hôtel / longue durée
+  // Hydratation cache au boot : un admin qui recharge voit tout de suite hôtel / bail longue durée
   useEffect(() => {
     let cancelled = false;
     (async () => {

@@ -441,7 +441,7 @@ const VehicleTabNavigator = () => {
   );
 };
 
-// Mode Logement longue durée (propriétaire : logements, candidatures, messages, stats, compte)
+// Mode bail longue durée (propriétaire : logements, candidatures, messages, stats, compte)
 const MonthlyRentalOwnerTabNavigator = () => {
   const badges = useTabNotificationBadges();
 
@@ -489,7 +489,7 @@ const MonthlyRentalOwnerTabNavigator = () => {
       <MonthlyRentalTab.Screen
         name="MonthlyRentalCandidaturesTab"
         component={MonthlyRentalOwnerCandidaturesScreen}
-        options={{ tabBarLabel: 'Visites' }}
+        options={{ tabBarLabel: 'Candidatures' }}
       />
       <MonthlyRentalTab.Screen
         name="MonthlyRentalMessagesTab"
@@ -795,7 +795,7 @@ const AppNavigator = () => {
         <Stack.Screen
           name="MonthlyRentalListingDetail"
           component={MonthlyRentalListingDetailScreen}
-          options={{ title: 'Logement longue durée', headerShown: false }}
+          options={{ title: 'Bail longue durée', headerShown: false }}
         />
         <Stack.Screen
           name="HotelEstablishmentDetail"
@@ -924,7 +924,7 @@ const AppNavigator = () => {
               name="MonthlyRentalApply"
               component={MonthlyRentalApplyScreen}
               options={{
-                title: 'Demande de visite',
+                title: 'Postuler',
                 headerShown: false,
               }}
             />
@@ -995,7 +995,7 @@ const AppNavigator = () => {
             <Stack.Screen 
               name="MyMonthlyRentalListings" 
               component={MyMonthlyRentalListingsScreen}
-              options={{ title: 'Mes logements longue durée', headerShown: false }}
+              options={{ title: 'Mes bails longue durée', headerShown: false }}
             />
             <Stack.Screen 
               name="AddMonthlyRentalListing" 
@@ -1010,7 +1010,7 @@ const AppNavigator = () => {
             <Stack.Screen 
               name="MonthlyRentalCandidatures" 
               component={MonthlyRentalCandidaturesScreen}
-              options={{ title: 'Demandes de visite', headerShown: false }}
+              options={{ title: 'Candidatures', headerShown: false }}
             />
             <Stack.Screen 
               name="MyProperties" 

@@ -413,15 +413,15 @@ const ProfileScreen: React.FC = () => {
     menuItems.push(vehicleSpaceItem);
   }
 
-  // Ajouter "Mode logement longue durée" si l'utilisateur a au moins un logement longue durée (et qu'on n'est pas déjà dans ce mode)
+  // Ajouter "Mode bail longue durée" si l'utilisateur a au moins un bail longue durée (et qu'on n'est pas déjà dans ce mode)
   if (spacesUiReady && monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode) {
     menuItems.push({
       id: 'monthlyRentalSpace',
-      title: 'Mode logement longue durée',
+      title: 'Mode bail longue durée',
       icon: 'business-outline',
       onPress: () => {
         Alert.alert(
-          'Mode logement longue durée',
+          'Mode bail longue durée',
           'Gérer vos annonces et demandes de visite pour la location mensuelle.',
           [
             { text: t('common.cancel'), style: 'cancel' },
@@ -722,14 +722,14 @@ const ProfileScreen: React.FC = () => {
               </View>
             )}
 
-            {/* Bouton Mode logement longue durée (si applicable) */}
+            {/* Bouton Mode bail longue durée (si applicable) */}
             {monthlyRental && hasMonthlyListings && !isInMonthlyRentalMode && (
               <View style={styles.monthlyRentalSpaceContainer}>
                 <TouchableOpacity
                   style={styles.monthlyRentalSpaceButton}
                   onPress={() => {
                     Alert.alert(
-                      'Mode logement longue durée',
+                      'Mode bail longue durée',
                       'Gérer vos annonces et demandes de visite pour la location mensuelle.',
                       [
                         { text: t('common.cancel'), style: 'cancel' },
@@ -753,7 +753,7 @@ const ProfileScreen: React.FC = () => {
                       <Ionicons name="business" size={18} color="#fff" />
                     </View>
                     <View style={styles.monthlyRentalSpaceTextContainer}>
-                      <Text style={styles.monthlyRentalSpaceText}>Mode logement longue durée</Text>
+                      <Text style={styles.monthlyRentalSpaceText}>Mode bail longue durée</Text>
                       <Text style={styles.monthlyRentalSpaceSubtext}>Gérez vos logements et demandes de visite</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color="#fff" />
@@ -804,7 +804,7 @@ const ProfileScreen: React.FC = () => {
               </View>
             )}
 
-            {/* Bouton Espace voyageur (uniquement en mode logement longue durée) */}
+            {/* Bouton Espace voyageur (uniquement en mode bail longue durée) */}
             {monthlyRental && isInMonthlyRentalMode && (
               <View style={styles.travelerSpaceContainer}>
                 <TouchableOpacity

@@ -81,7 +81,7 @@ export default function AddListingChoiceScreen() {
     if (monthlyRental) {
       list.push({
         id: 'monthly',
-        title: 'Location longue durée',
+        title: 'Bail longue durée',
         subtitle: 'Loyer mensuel',
         icon: 'calendar-outline',
         onPress: () => {

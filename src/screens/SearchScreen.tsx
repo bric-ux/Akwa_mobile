@@ -600,7 +600,7 @@ const SearchScreen: React.FC = () => {
     const rt = (newFilters.rentalType ?? 'short_term') as StaySearchType;
     const prevRt = (filters.rentalType ?? 'short_term') as StaySearchType;
 
-    // Garder la destination quand on change de type (résidence ↔ hôtel ↔ longue durée)
+    // Garder la destination quand on change de type (résidence ↔ hôtel ↔ bail longue durée)
     const dest =
       (prevRt === 'monthly'
         ? monthlySearchQuery
@@ -859,7 +859,7 @@ const SearchScreen: React.FC = () => {
               </Text>
               <Text style={styles.searchSummarySubtitle} numberOfLines={1}>
                 {rentalType === 'monthly'
-                  ? 'Location longue durée'
+                  ? 'Bail longue durée'
                   : rentalType === 'hotel'
                     ? 'Hôtels'
                     : `${getDatesText() || 'Dates flexibles'} · ${getGuestsText()}`}
@@ -962,7 +962,7 @@ const SearchScreen: React.FC = () => {
           <View style={styles.noResultsContainer}>
             <Ionicons name="business-outline" size={64} color="#ccc" />
             <Text style={styles.noResultsTitle}>
-              {monthlySearchQuery ? `Aucun logement longue durée à ${monthlySearchQuery}` : 'Aucun logement longue durée'}
+              {monthlySearchQuery ? `Aucun bail longue durée à ${monthlySearchQuery}` : 'Aucun bail longue durée'}
             </Text>
             <Text style={styles.noResultsSubtitle}>
               Essayez une autre ville ou ajustez les filtres.

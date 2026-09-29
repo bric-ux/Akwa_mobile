@@ -190,7 +190,7 @@ const HostAccountScreen: React.FC = () => {
     },
     {
       id: 'monthlyListings',
-      title: 'Mes logements longue durée',
+      title: 'Mes bails longue durée',
       icon: 'business-outline',
       onPress: () => navigation.navigate('MyMonthlyRentalListings' as never),
     },

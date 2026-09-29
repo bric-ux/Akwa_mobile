@@ -1,5 +1,5 @@
 /**
- * Produits expérimentaux (longue durée, hôtel) :
+ * Produits expérimentaux (bail longue durée, hôtel) :
  * visibles UNIQUEMENT pour un admin connecté (tests internes).
  * Masqués pour tous les autres utilisateurs.
  */
@@ -18,7 +18,7 @@ export const FEATURE_FLAG_DEFAULTS: Record<FeatureFlagKey, boolean> = {
 };
 
 /**
- * Gate : seuls les admins connectés voient longue durée + hôtel.
+ * Gate : seuls les admins connectés voient bail longue durée + hôtel.
  * Les flags DB / admin UI n’ouvrent pas le produit aux non-admins.
  */
 export function applyExperimentalProductGate(

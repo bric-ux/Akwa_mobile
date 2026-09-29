@@ -126,7 +126,7 @@ const FavoritesScreen: React.FC = () => {
           <Ionicons name="heart-outline" size={80} color="#ccc" />
           <Text style={styles.emptyTitle}>Aucun favori</Text>
           <Text style={styles.emptySubtitle}>
-            Explorez résidences, hôtels, longue durée et véhicules, puis ajoutez-les en favoris via
+            Explorez résidences, hôtels, bail longue durée et véhicules, puis ajoutez-les en favoris via
             le cœur.
           </Text>
         </View>
@@ -138,7 +138,7 @@ const FavoritesScreen: React.FC = () => {
   const tabs: { key: FavTab; label: string; count: number }[] = [
     { key: 'properties', label: 'Résidences', count: favorites.length },
     { key: 'hotels', label: 'Hôtels', count: hotelFavorites.length },
-    { key: 'monthly', label: 'Longue durée', count: monthlyFavorites.length },
+    { key: 'monthly', label: 'Bail longue durée', count: monthlyFavorites.length },
     { key: 'vehicles', label: 'Véhicules', count: vehicleFavorites.length },
   ];
 

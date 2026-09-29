@@ -176,10 +176,10 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
     if (result.success) {
       Alert.alert(
         'Succès',
-        'Logement enregistré en brouillon. Passez en mode logement longue durée pour le gérer (soumettre, modifier, demandes de visite).',
+        'Logement enregistré en brouillon. Passez en mode bail longue durée pour le gérer (soumettre, modifier, demandes de visite).',
         [
           {
-            text: 'Mode logement longue durée',
+            text: 'Mode bail longue durée',
             onPress: () => {
               navigation.navigate('ModeTransition' as never, {
                 targetMode: 'monthly_rental',

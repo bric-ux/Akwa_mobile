@@ -10,7 +10,7 @@ const notifyMonthlyCacheListeners = () => {
   globalMonthlyCacheListeners.forEach((listener) => listener());
 };
 
-/** Favoris locations longue durée (`monthly_rental_listing_favorites`). */
+/** Favoris locations bail longue durée (`monthly_rental_listing_favorites`). */
 export const useMonthlyFavorites = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export const useMonthlyFavorites = () => {
       globalMonthlyFavoritesCache = new Set(data?.map((item) => item.listing_id) || []);
       notifyMonthlyCacheListeners();
     } catch (e) {
-      console.error('Erreur cache favoris longue durée:', e);
+      console.error('Erreur cache favoris bail longue durée:', e);
     }
   };
 

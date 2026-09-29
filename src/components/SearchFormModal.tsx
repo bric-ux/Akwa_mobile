@@ -191,7 +191,7 @@ const SearchFormModal: React.FC<Props> = ({
                       rentalType === 'monthly' && styles.modeChipTextActive,
                     ]}
                   >
-                    Longue durée
+                    Bail longue durée
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -236,7 +236,7 @@ const SearchFormModal: React.FC<Props> = ({
           ) : (
             <View style={styles.formCard}>
               <Text style={styles.monthlyHint}>
-                Location longue durée : recherchez par ville, puis affinez le loyer et les pièces.
+                Bail longue durée : recherchez par ville, puis affinez le loyer et les pièces.
               </Text>
             </View>
           )}

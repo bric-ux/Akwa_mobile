@@ -57,7 +57,7 @@ const MonthlyRentalListingCard: React.FC<MonthlyRentalListingCardProps> = ({
   };
 
   const imageUri = coverUri(listing);
-  const typeLabel = 'Longue durée';
+  const typeLabel = 'Bail longue durée';
   const priceLabel = `${formatPrice(listing.monthly_rent_price)}/mois`;
   const location = listing.location?.trim() || undefined;
   const detailBits = [

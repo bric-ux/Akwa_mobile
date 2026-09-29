@@ -25,6 +25,12 @@ import PropertyLocationPicker, {
 } from '../components/PropertyLocationPicker';
 import CitySearchInputModal from '../components/CitySearchInputModal';
 import { isLocationUuid } from '../lib/geolocation';
+import {
+  HOTEL_AMENITY_OPTIONS,
+  HOTEL_CANCELLATION_OPTIONS,
+  HOTEL_LANGUAGE_OPTIONS,
+  formatHotelTime,
+} from '../constants/hotelListing';
 
 const ESTABLISHMENT_TYPES = [
   { value: 'hotel', label: 'Hôtel' },
@@ -70,6 +76,13 @@ export default function AddHotelEstablishmentScreen() {
   const [address, setAddress] = useState('');
   const [addressDetails, setAddressDetails] = useState('');
   const [description, setDescription] = useState('');
+  const [checkInTime, setCheckInTime] = useState('14:00');
+  const [checkOutTime, setCheckOutTime] = useState('11:00');
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [spokenLanguages, setSpokenLanguages] = useState<string[]>(['fr']);
+  const [petsAllowed, setPetsAllowed] = useState(false);
+  const [houseRules, setHouseRules] = useState('');
+  const [cancellationPolicy, setCancellationPolicy] = useState('flexible');
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [status, setStatus] = useState<string>('draft');
   const [loading, setLoading] = useState(!!establishmentId);
@@ -87,7 +100,7 @@ export default function AddHotelEstablishmentScreen() {
       const { data, error } = await supabase
         .from('hotel_establishments')
         .select(
-          'title, establishment_type, address, address_details, description, status, images, latitude, longitude, location_id',
+          'title, establishment_type, address, address_details, description, status, images, latitude, longitude, location_id, check_in_time, check_out_time, amenities, house_rules, cancellation_policy, pets_allowed, spoken_languages',
         )
         .eq('id', establishmentId)
         .eq('host_id', user.id)
@@ -103,6 +116,17 @@ export default function AddHotelEstablishmentScreen() {
       setAddress(data.address || '');
       setAddressDetails(data.address_details || '');
       setDescription(data.description || '');
+      setCheckInTime(formatHotelTime(data.check_in_time) || '14:00');
+      setCheckOutTime(formatHotelTime(data.check_out_time) || '11:00');
+      setAmenities(Array.isArray(data.amenities) ? data.amenities.map(String) : []);
+      setSpokenLanguages(
+        Array.isArray(data.spoken_languages) && data.spoken_languages.length > 0
+          ? data.spoken_languages.map(String)
+          : ['fr'],
+      );
+      setPetsAllowed(!!data.pets_allowed);
+      setHouseRules(data.house_rules || '');
+      setCancellationPolicy(data.cancellation_policy || 'flexible');
       setStatus(data.status || 'draft');
       setImageUris(
         Array.isArray(data.images) ? data.images.map(String).filter(Boolean) : [],
@@ -162,6 +186,18 @@ export default function AddHotelEstablishmentScreen() {
     setImageUris((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const toggleAmenity = (value: string) => {
+    setAmenities((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
+    );
+  };
+
+  const toggleLanguage = (value: string) => {
+    setSpokenLanguages((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
+    );
+  };
+
   const handleSubmit = async () => {
     if (!user) {
       navigation.navigate('Auth', { returnTo: 'AddHotelEstablishment' });
@@ -189,6 +225,15 @@ export default function AddHotelEstablishmentScreen() {
         preciseLocation.locationLabel.trim() ||
         null;
       const addressDetailsValue = addressDetails.trim() || null;
+      const listingExtras = {
+        check_in_time: checkInTime.trim() || null,
+        check_out_time: checkOutTime.trim() || null,
+        amenities,
+        spoken_languages: spokenLanguages,
+        pets_allowed: petsAllowed,
+        house_rules: houseRules.trim() || null,
+        cancellation_policy: cancellationPolicy || null,
+      };
 
       if (isEdit && establishmentId) {
         const { error } = await supabase
@@ -203,6 +248,7 @@ export default function AddHotelEstablishmentScreen() {
             latitude: lat,
             longitude: lng,
             location_id: locationId,
+            ...listingExtras,
             updated_at: new Date().toISOString(),
           })
           .eq('id', establishmentId)
@@ -226,6 +272,7 @@ export default function AddHotelEstablishmentScreen() {
           latitude: lat,
           longitude: lng,
           location_id: locationId,
+          ...listingExtras,
           status: 'draft',
         })
         .select('id')
@@ -461,6 +508,110 @@ export default function AddHotelEstablishmentScreen() {
             textAlignVertical="top"
           />
 
+          <Text style={styles.label}>Horaires d’arrivée / départ</Text>
+          <View style={styles.row}>
+            <View style={styles.half}>
+              <Text style={styles.subLabel}>Arrivée (HH:MM)</Text>
+              <TextInput
+                style={styles.input}
+                value={checkInTime}
+                onChangeText={setCheckInTime}
+                placeholder="14:00"
+                placeholderTextColor="#94a3b8"
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
+            <View style={styles.half}>
+              <Text style={styles.subLabel}>Départ (HH:MM)</Text>
+              <TextInput
+                style={styles.input}
+                value={checkOutTime}
+                onChangeText={setCheckOutTime}
+                placeholder="11:00"
+                placeholderTextColor="#94a3b8"
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
+          </View>
+
+          <Text style={styles.label}>Équipements inclus</Text>
+          <View style={styles.chips}>
+            {HOTEL_AMENITY_OPTIONS.map((a) => {
+              const on = amenities.includes(a.value);
+              return (
+                <TouchableOpacity
+                  key={a.value}
+                  onPress={() => toggleAmenity(a.value)}
+                  style={[styles.chip, on && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, on && styles.chipTextActive]}>{a.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.label}>Langues parlées</Text>
+          <View style={styles.chips}>
+            {HOTEL_LANGUAGE_OPTIONS.map((l) => {
+              const on = spokenLanguages.includes(l.value);
+              return (
+                <TouchableOpacity
+                  key={l.value}
+                  onPress={() => toggleLanguage(l.value)}
+                  style={[styles.chip, on && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, on && styles.chipTextActive]}>{l.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            style={styles.toggleRow}
+            onPress={() => setPetsAllowed((v) => !v)}
+            activeOpacity={0.8}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleTitle}>Animaux autorisés</Text>
+              <Text style={styles.hint}>Indiquez si les animaux de compagnie sont acceptés.</Text>
+            </View>
+            <Ionicons
+              name={petsAllowed ? 'checkbox' : 'square-outline'}
+              size={26}
+              color={petsAllowed ? HOTEL_COLORS.primary : '#94a3b8'}
+            />
+          </TouchableOpacity>
+
+          <Text style={styles.label}>Politique d’annulation</Text>
+          <View style={styles.chips}>
+            {HOTEL_CANCELLATION_OPTIONS.map((c) => {
+              const on = cancellationPolicy === c.value;
+              return (
+                <TouchableOpacity
+                  key={c.value}
+                  onPress={() => setCancellationPolicy(c.value)}
+                  style={[styles.chip, on && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, on && styles.chipTextActive]}>{c.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={[styles.hint, { marginBottom: 12 }]}>
+            {HOTEL_CANCELLATION_OPTIONS.find((c) => c.value === cancellationPolicy)?.hint}
+          </Text>
+
+          <Text style={styles.label}>Règlement / conditions</Text>
+          <TextInput
+            style={[styles.input, styles.textarea]}
+            value={houseRules}
+            onChangeText={setHouseRules}
+            placeholder="Ex. : pièce d’identité à l’arrivée, silence après 22h…"
+            placeholderTextColor="#94a3b8"
+            multiline
+            textAlignVertical="top"
+          />
+
           <Text style={styles.label}>Photos de l’établissement</Text>
           <Text style={styles.hint}>Ajoutez vos photos depuis la galerie (max. {MAX_PHOTOS}).</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosRow}>
@@ -623,6 +774,21 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 13, fontWeight: '600', color: '#475569' },
   chipTextActive: { color: '#fff' },
+  row: { flexDirection: 'row', gap: 12 },
+  half: { flex: 1 },
+  subLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 6 },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+  },
+  toggleTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a', marginBottom: 2 },
   submit: {
     marginTop: 8,
     backgroundColor: HOTEL_COLORS.primary,

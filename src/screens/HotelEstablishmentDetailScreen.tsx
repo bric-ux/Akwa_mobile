@@ -31,6 +31,12 @@ import {
 } from '../hooks/useApprovedHotelRooms';
 import MediaThumb from '../components/MediaThumb';
 import {
+  formatHotelTime,
+  hotelAmenityLabel,
+  hotelCancellationLabel,
+  hotelLanguageLabel,
+} from '../constants/hotelListing';
+import {
   startHotelCardCheckout,
   startHotelWaveCheckout,
   verifyHotelDraftPayment,
@@ -658,6 +664,62 @@ export default function HotelEstablishmentDetailScreen() {
           ) : null}
           {item.description ? <Text style={styles.desc}>{item.description}</Text> : null}
 
+          <View style={styles.infoBlock}>
+            <Text style={styles.infoBlockTitle}>Conditions & infos</Text>
+            {(item.check_in_time || item.check_out_time) && (
+              <View style={styles.infoRow}>
+                <Ionicons name="time-outline" size={18} color={HOTEL_COLORS.primary} />
+                <Text style={styles.infoText}>
+                  {item.check_in_time
+                    ? `Arrivée à partir de ${formatHotelTime(item.check_in_time)}`
+                    : null}
+                  {item.check_in_time && item.check_out_time ? ' · ' : ''}
+                  {item.check_out_time
+                    ? `Départ avant ${formatHotelTime(item.check_out_time)}`
+                    : null}
+                </Text>
+              </View>
+            )}
+            <View style={styles.infoRow}>
+              <Ionicons name="paw-outline" size={18} color={HOTEL_COLORS.primary} />
+              <Text style={styles.infoText}>
+                {item.pets_allowed ? 'Animaux autorisés' : 'Animaux non autorisés'}
+              </Text>
+            </View>
+            {Array.isArray(item.spoken_languages) && item.spoken_languages.length > 0 ? (
+              <View style={styles.infoRow}>
+                <Ionicons name="chatbubbles-outline" size={18} color={HOTEL_COLORS.primary} />
+                <Text style={styles.infoText}>
+                  Langues :{' '}
+                  {item.spoken_languages.map((l: string) => hotelLanguageLabel(l)).join(', ')}
+                </Text>
+              </View>
+            ) : null}
+            {item.cancellation_policy ? (
+              <View style={styles.infoRow}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={HOTEL_COLORS.primary} />
+                <Text style={styles.infoText}>
+                  Annulation : {hotelCancellationLabel(item.cancellation_policy)}
+                </Text>
+              </View>
+            ) : null}
+            {Array.isArray(item.amenities) && item.amenities.length > 0 ? (
+              <View style={styles.amenityWrap}>
+                {item.amenities.map((a: string) => (
+                  <View key={a} style={styles.amenityChip}>
+                    <Text style={styles.amenityChipText}>{hotelAmenityLabel(a)}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {item.house_rules ? (
+              <View style={{ marginTop: 10 }}>
+                <Text style={styles.rulesTitle}>Règlement</Text>
+                <Text style={styles.rulesText}>{item.house_rules}</Text>
+              </View>
+            ) : null}
+          </View>
+
           <Text style={styles.sectionTitle}>Types de chambres</Text>
           {rooms.length === 0 ? (
             <Text style={styles.emptyRooms}>Aucune chambre publiée pour le moment.</Text>
@@ -1054,6 +1116,40 @@ const styles = StyleSheet.create({
   },
   address: { marginHorizontal: 20, marginTop: 8, fontSize: 14, color: '#666' },
   desc: { marginHorizontal: 20, marginTop: 16, fontSize: 15, lineHeight: 22, color: '#444' },
+  infoBlock: {
+    marginHorizontal: 20,
+    marginTop: 18,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  infoBlockTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 10,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 8,
+  },
+  infoText: { flex: 1, fontSize: 14, lineHeight: 20, color: '#334155' },
+  amenityWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  amenityChip: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  amenityChipText: { fontSize: 12, fontWeight: '600', color: '#475569' },
+  rulesTitle: { fontSize: 13, fontWeight: '700', color: '#0f172a', marginBottom: 4 },
+  rulesText: { fontSize: 13, lineHeight: 19, color: '#475569' },
   sectionTitle: {
     marginHorizontal: 20,
     marginTop: 24,

@@ -118,7 +118,7 @@ const HostSubscriptionScreen: React.FC = () => {
       >
         <View style={styles.introCard}>
           <Ionicons name="calendar-outline" size={40} color={HOST_COLORS.primary} />
-          <Text style={styles.introTitle}>Publier des annonces longue durée</Text>
+          <Text style={styles.introTitle}>Publier des annonces en bail longue durée</Text>
           <Text style={styles.introText}>
             Avec l'abonnement, vous pouvez proposer vos biens en location mensuelle. Chaque bien
             publié en "location mensuelle" nécessite un abonnement actif pour ce bien.

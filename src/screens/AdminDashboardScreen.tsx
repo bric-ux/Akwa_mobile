@@ -333,6 +333,48 @@ const AdminDashboardScreen: React.FC = () => {
               </View>
             </View>
           </View>
+
+          <View style={[styles.statCard, { borderLeftColor: '#0d9488' }]}>
+            <View style={styles.statContent}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#f0fdfa' }]}>
+                <Ionicons name="mail-outline" size={22} color="#0d9488" />
+              </View>
+              <View style={styles.statTextContainer}>
+                {loadingStats && !stats ? (
+                  <ActivityIndicator size="small" color="#0d9488" style={{ alignSelf: 'flex-start' }} />
+                ) : (
+                  <Text style={styles.statValue}>{stats?.monthlyVisitRequestsTotal ?? 0}</Text>
+                )}
+                <Text style={styles.statTitle}>Candidatures bail</Text>
+                <Text style={styles.statSub}>
+                  {stats?.monthlyVisitRequestsAccepted ?? 0} acceptées ·{' '}
+                  {stats?.monthlyVisitRequestsRejected ?? 0} refusées ·{' '}
+                  {stats?.monthlyVisitRequestsPending ?? 0} en attente
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.statCard, { borderLeftColor: '#5c6bc0' }]}>
+            <View style={styles.statContent}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#e8eaf6' }]}>
+                <Ionicons name="business-outline" size={22} color="#5c6bc0" />
+              </View>
+              <View style={styles.statTextContainer}>
+                {loadingStats && !stats ? (
+                  <ActivityIndicator size="small" color="#5c6bc0" style={{ alignSelf: 'flex-start' }} />
+                ) : (
+                  <Text style={styles.statValue}>{stats?.hotelEstablishmentsTotal ?? 0}</Text>
+                )}
+                <Text style={styles.statTitle}>Établissements hôtel</Text>
+                <Text style={styles.statSub}>
+                  {stats?.hotelEstablishmentsActive ?? 0} actifs ·{' '}
+                  {stats?.hotelBookingsTotal ?? 0} réservation
+                  {(stats?.hotelBookingsTotal ?? 0) !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         {/* Actions rapides */}
@@ -490,7 +532,7 @@ const AdminDashboardScreen: React.FC = () => {
 
           <QuickAction
             title="Locations mensuelles"
-            description="Approuver ou refuser les annonces longue durée"
+            description="Approuver ou refuser les annonces en bail longue durée"
             icon="calendar-outline"
             onPress={() => navigation.navigate('AdminMonthlyRental' as never)}
             color="#3498db"
@@ -498,7 +540,7 @@ const AdminDashboardScreen: React.FC = () => {
 
           <QuickAction
             title="Visibilité produits"
-            description="Afficher ou masquer longue durée et hôtels"
+            description="Afficher ou masquer bail longue durée et hôtels"
             icon="eye-outline"
             onPress={() => navigation.navigate('AdminFeatureFlags' as never)}
             color="#8e44ad"
@@ -677,6 +719,12 @@ const styles = StyleSheet.create({
   statTitle: {
     fontSize: 14,
     color: '#666',
+  },
+  statSub: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 4,
+    lineHeight: 16,
   },
   quickActionsContainer: {
     marginBottom: 20,

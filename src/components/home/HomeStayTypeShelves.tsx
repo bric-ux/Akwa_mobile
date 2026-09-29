@@ -21,11 +21,11 @@ import type { MonthlyRentalListing } from '../../types';
 const SHELF_LIMIT = 8;
 
 type Props = {
-  /** Par défaut les deux. Sur l’accueil : hôtel avant résidences, longue durée en bas. */
+  /** Par défaut les deux. Sur l’accueil : hôtel avant résidences, bail longue durée en bas. */
   mode?: 'hotel' | 'monthly' | 'all';
 };
 
-/** Rayons accueil : hôtels et/ou longue durée (si flags actifs). */
+/** Rayons accueil : hôtels et/ou bail longue durée (si flags actifs). */
 export default function HomeStayTypeShelves({ mode = 'all' }: Props) {
   const navigation = useNavigation<any>();
   const { monthlyRental, hotel, loading: flagsLoading } = useFeatureFlags();
@@ -115,7 +115,7 @@ export default function HomeStayTypeShelves({ mode = 'all' }: Props) {
       {showMonthly ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Location longue durée</Text>
+            <Text style={styles.sectionTitle}>Bail longue durée</Text>
             <TouchableOpacity
               onPress={() =>
                 navigation.navigate('Search', { initialRentalType: 'monthly' })
@@ -133,7 +133,7 @@ export default function HomeStayTypeShelves({ mode = 'all' }: Props) {
               style={{ marginVertical: 16 }}
             />
           ) : monthly.length === 0 ? (
-            <Text style={styles.empty}>Aucune annonce longue durée pour le moment.</Text>
+            <Text style={styles.empty}>Aucune annonce en bail longue durée pour le moment.</Text>
           ) : (
             <ScrollView
               horizontal

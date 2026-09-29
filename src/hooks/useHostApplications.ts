@@ -17,7 +17,7 @@ export interface HostApplicationData {
   title: string;
   description: string;
   pricePerNight: number;
-  /** Location mensuelle (longue durée) : loyer au mois au lieu du prix à la nuitée */
+  /** Location mensuelle (bail longue durée) : loyer au mois au lieu du prix à la nuitée */
   isMonthlyRental?: boolean;
   monthlyRentPrice?: number;
   securityDeposit?: number;

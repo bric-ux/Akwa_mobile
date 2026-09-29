@@ -21,10 +21,10 @@ import type { MonthlyRentalCandidature, RootStackParamList } from '../types';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 
 const STATUS_LABEL: Record<string, string> = {
-  sent: 'Envoyée',
-  viewed: 'Vue par le propriétaire',
-  accepted: 'Visite acceptée',
-  rejected: 'Refusée',
+  sent: 'Dossier envoyé',
+  viewed: 'Dossier vu par le propriétaire',
+  accepted: 'Dossier accepté — visite à organiser',
+  rejected: 'Dossier refusé',
 };
 
 type Route = RouteProp<RootStackParamList, 'MonthlyRentalApply'>;
@@ -98,13 +98,13 @@ export default function MonthlyRentalApplyScreen() {
     });
     if (result.success) {
       Alert.alert(
-        'Demande de visite envoyée',
-        `Votre demande de visite pour « ${listingTitle} » a été transmise au propriétaire.`,
+        'Candidature envoyée',
+        `Votre dossier pour « ${listingTitle} » a été transmis. Le propriétaire étudie d’abord votre profil avant d’organiser une visite.`,
       );
       const candidature = await getMyCandidatureForListing(listingId);
       setExisting(candidature);
     } else {
-      Alert.alert('Erreur', result.error || 'Impossible d’envoyer la demande de visite.');
+      Alert.alert('Erreur', result.error || 'Impossible d’envoyer la candidature.');
     }
   };
 
@@ -115,7 +115,7 @@ export default function MonthlyRentalApplyScreen() {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          Demande de visite
+          Postuler
         </Text>
         <View style={{ width: 44 }} />
       </View>
@@ -124,7 +124,7 @@ export default function MonthlyRentalApplyScreen() {
         <ActivityIndicator style={{ marginTop: 40 }} color={MONTHLY_RENTAL_COLORS.primary} />
       ) : !user ? (
         <View style={styles.box}>
-          <Text style={styles.boxText}>Connectez-vous pour demander une visite.</Text>
+          <Text style={styles.boxText}>Connectez-vous pour postuler à cette annonce.</Text>
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={() =>
@@ -139,12 +139,16 @@ export default function MonthlyRentalApplyScreen() {
         </View>
       ) : existing ? (
         <View style={[styles.box, styles.boxSuccess]}>
-          <Text style={styles.successTitle}>Demande de visite envoyée</Text>
+          <Text style={styles.successTitle}>Candidature envoyée</Text>
           <Text style={styles.boxText}>
             Statut : {STATUS_LABEL[existing.status] || existing.status}
           </Text>
           <Text style={[styles.boxText, { marginTop: 8 }]}>
-            Le propriétaire vous recontactera pour confirmer un créneau de visite.
+            {existing.status === 'accepted'
+              ? 'Votre dossier a été accepté. Le propriétaire vous contactera pour organiser la visite.'
+              : existing.status === 'rejected'
+                ? 'Le propriétaire a décliné votre dossier pour ce logement.'
+                : 'Le propriétaire étudie votre dossier. Une visite ne sera proposée que s’il correspond.'}
           </Text>
         </View>
       ) : (
@@ -153,12 +157,13 @@ export default function MonthlyRentalApplyScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <Text style={styles.title}>Demander une visite</Text>
+            <Text style={styles.title}>Postuler pour ce logement</Text>
             <Text style={styles.sub} numberOfLines={2}>
               {listingTitle}
             </Text>
             <Text style={styles.intro}>
-              Remplissez vos coordonnées. Le propriétaire vous répondra pour organiser la visite.
+              Étape 1 — candidature. Le propriétaire trie les dossiers avant d’organiser une visite,
+              pour éviter des déplacements inutiles.
             </Text>
 
             <Text style={styles.label}>Nom complet *</Text>
@@ -202,12 +207,12 @@ export default function MonthlyRentalApplyScreen() {
               onChangeText={(v) => setForm((f) => ({ ...f, duration_months: v }))}
             />
 
-            <Text style={styles.label}>Message</Text>
+            <Text style={styles.label}>Présentez votre dossier</Text>
             <TextInput
               style={[styles.input, styles.textarea]}
               multiline
               textAlignVertical="top"
-              placeholder="Ex. : disponibilités pour la visite, composition du foyer…"
+              placeholder="Situation, composition du foyer, budget, garanties, motifs du déménagement…"
               placeholderTextColor="#94a3b8"
               value={form.message}
               onChangeText={(v) => setForm((f) => ({ ...f, message: v }))}
@@ -221,7 +226,7 @@ export default function MonthlyRentalApplyScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryBtnText}>Envoyer la demande de visite</Text>
+                <Text style={styles.primaryBtnText}>Envoyer ma candidature</Text>
               )}
             </TouchableOpacity>
           </ScrollView>

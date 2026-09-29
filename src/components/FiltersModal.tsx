@@ -226,7 +226,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
                     ]}
                     onPress={() => setRentalType('monthly')}
                   >
-                    <Text style={[styles.sortOptionText, rentalType === 'monthly' && styles.sortOptionTextActive]}>Location longue durée</Text>
+                    <Text style={[styles.sortOptionText, rentalType === 'monthly' && styles.sortOptionTextActive]}>Bail longue durée</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -295,7 +295,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
             </View>
           )}
 
-          {/* Prix — résidences & longue durée */}
+          {/* Prix — résidences & bail longue durée */}
           {rentalType !== 'hotel' && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -390,7 +390,7 @@ const FiltersModal: React.FC<FiltersModalProps> = ({
           </View>
           )}
 
-          {/* Type de bien — résidences / longue durée */}
+          {/* Type de bien — résidences / bail longue durée */}
           {rentalType !== 'hotel' && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>

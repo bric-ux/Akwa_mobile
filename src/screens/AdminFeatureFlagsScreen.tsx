@@ -28,7 +28,7 @@ type FlagMeta = {
 const FLAG_META: FlagMeta[] = [
   {
     key: FEATURE_FLAG_KEYS.monthlyRental,
-    label: 'Location longue durée',
+    label: 'Bail longue durée',
     description:
       'Pastille accueil, publication et espace propriétaire pour les loyers mensuels.',
   },
@@ -100,7 +100,7 @@ export default function AdminFeatureFlagsScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.intro}>
-          Longue durée et hôtels ne sont visibles que pour les comptes admin
+          Bail longue durée et hôtels ne sont visibles que pour les comptes admin
           connectés (tests). Les autres utilisateurs ne les voient pas.
         </Text>
 

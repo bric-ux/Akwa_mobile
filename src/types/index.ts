@@ -229,7 +229,7 @@ export type RootStackParamList = {
   Home: undefined;
   HostSpace: { screen?: keyof HostTabParamList } | undefined; // Navigation hôte avec onglets
   VehicleOwnerSpace: { screen?: keyof VehicleOwnerTabParamList } | undefined; // Navigation propriétaire de véhicule avec onglets
-  MonthlyRentalOwnerSpace: { screen?: keyof MonthlyRentalTabParamList } | undefined; // Mode logement longue durée (gérer annonces + candidatures)
+  MonthlyRentalOwnerSpace: { screen?: keyof MonthlyRentalTabParamList } | undefined; // Mode bail longue durée (gérer annonces + candidatures)
   HotelOwnerSpace: { screen?: keyof HotelOwnerTabParamList } | undefined; // Mode hôtel
   Auth: {
     returnTo?: string;
@@ -266,7 +266,7 @@ export type RootStackParamList = {
     openBookingModal?: boolean;
   };
   Booking: { propertyId: string };
-  MonthlyRentalListingDetail: { listingId: string }; // Détail annonce longue durée (voyageur)
+  MonthlyRentalListingDetail: { listingId: string }; // Détail annonce en bail longue durée (voyageur)
   MonthlyRentalApply: { listingId: string; listingTitle: string };
   HostProfile: {
     hostId: string;
@@ -286,7 +286,7 @@ export type RootStackParamList = {
   MatchPrediction: undefined;
   EditProfile: undefined;
   BecomeHost: undefined;
-  /** Choix du type de bien : résidence, véhicule, hôtel, longue durée */
+  /** Choix du type de bien : résidence, véhicule, hôtel, bail longue durée */
   AddListingChoice: undefined;
   AddHotelEstablishment: { establishmentId?: string } | undefined;
   ManageHotelRoomTypes: { establishmentId: string; establishmentTitle?: string };
@@ -298,7 +298,7 @@ export type RootStackParamList = {
   HostPaymentInfo: undefined;
   HostStats: undefined;
   HostSubscription: undefined; // Abonnement pour poster des annonces location mensuelle
-  MyMonthlyRentalListings: undefined; // Mes logements longue durée (table séparée)
+  MyMonthlyRentalListings: undefined; // Mes bails longue durée (table séparée)
   AddMonthlyRentalListing: undefined;
   EditMonthlyRentalListing: { listingId: string };
   MonthlyRentalCandidatures: { listingId: string }; // Candidatures sur un logement
@@ -500,7 +500,7 @@ export interface VehiclePhoto {
   created_at: string;
 }
 
-// Location mensuelle (longue durée) - tables séparées, pas mélangées avec properties
+// Location mensuelle (bail longue durée) - tables séparées, pas mélangées avec properties
 export type MonthlyRentalListingStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'archived';
 export type MonthlyRentalCandidatureStatus = 'sent' | 'viewed' | 'accepted' | 'rejected';
 export type MonthlyRentalPaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
