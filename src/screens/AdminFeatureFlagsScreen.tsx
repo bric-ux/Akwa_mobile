@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../services/supabase';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import {
+  FEATURE_FLAG_DEFAULTS,
   FEATURE_FLAG_KEYS,
   type FeatureFlagKey,
 } from '../constants/features';
@@ -30,54 +31,91 @@ const FLAG_META: FlagMeta[] = [
     key: FEATURE_FLAG_KEYS.monthlyRental,
     label: 'Bail longue durée',
     description:
-      'Pastille accueil, publication et espace propriétaire pour les loyers mensuels.',
+      'Si activé : tous les utilisateurs peuvent publier et voir le catalogue bail longue durée.',
   },
   {
     key: FEATURE_FLAG_KEYS.hotel,
     label: 'Hôtels',
     description:
-      'Pastille accueil, publication et espace établissement multi-chambres.',
+      'Si activé : tous les utilisateurs peuvent publier et voir le catalogue hôtels.',
   },
 ];
 
 export default function AdminFeatureFlagsScreen() {
   const navigation = useNavigation();
-  const { flags, loading, refresh, setFlag } = useFeatureFlags();
+  const { rawFlags, refresh, setFlag } = useFeatureFlags();
   const [savingKey, setSavingKey] = useState<FeatureFlagKey | null>(null);
+  const [loadingDb, setLoadingDb] = useState(true);
+  /** État réel en base (pas le forçage admin) */
+  const [dbEnabled, setDbEnabled] = useState<Record<FeatureFlagKey, boolean>>({
+    ...FEATURE_FLAG_DEFAULTS,
+  });
   const [rows, setRows] = useState<
     { key: FeatureFlagKey; label: string; description: string | null }[]
   >([]);
 
-  const loadMeta = useCallback(async () => {
-    const { data } = await supabase
-      .from('platform_feature_flags')
-      .select('key, label, description')
-      .in('key', Object.values(FEATURE_FLAG_KEYS));
+  const loadFromDb = useCallback(async () => {
+    setLoadingDb(true);
+    try {
+      const { data, error } = await supabase
+        .from('platform_feature_flags')
+        .select('key, enabled, label, description')
+        .in('key', Object.values(FEATURE_FLAG_KEYS));
 
-    if (data?.length) {
-      setRows(
-        data.map((r) => ({
-          key: r.key as FeatureFlagKey,
-          label: r.label,
-          description: r.description,
-        })),
-      );
-    } else {
+      if (error) throw error;
+
+      const enabledMap: Record<FeatureFlagKey, boolean> = {
+        ...FEATURE_FLAG_DEFAULTS,
+      };
+      for (const r of data ?? []) {
+        if (r.key in enabledMap) {
+          enabledMap[r.key as FeatureFlagKey] = !!r.enabled;
+        }
+      }
+      setDbEnabled(enabledMap);
+
+      if (data?.length) {
+        setRows(
+          data.map((r) => ({
+            key: r.key as FeatureFlagKey,
+            label: r.label,
+            description: r.description,
+          })),
+        );
+      } else {
+        setRows(FLAG_META.map((m) => ({ ...m, description: m.description })));
+      }
+    } catch (e: any) {
+      console.warn('[AdminFeatureFlags] loadFromDb', e?.message);
+      setDbEnabled({ ...FEATURE_FLAG_DEFAULTS, ...rawFlags });
       setRows(FLAG_META.map((m) => ({ ...m, description: m.description })));
+    } finally {
+      setLoadingDb(false);
     }
-  }, []);
+  }, [rawFlags]);
 
   useEffect(() => {
-    void loadMeta();
-    void refresh();
-  }, [loadMeta, refresh]);
+    void loadFromDb();
+    void refresh({ silent: true });
+  }, [loadFromDb, refresh]);
 
   const onToggle = async (key: FeatureFlagKey, enabled: boolean) => {
     try {
       setSavingKey(key);
+      // Optimistic UI sur l’état DB réel
+      setDbEnabled((prev) => ({ ...prev, [key]: enabled }));
       await setFlag(key, enabled);
+      Alert.alert(
+        enabled ? 'Activé pour tous' : 'Désactivé pour le public',
+        enabled
+          ? 'Les utilisateurs non-admin voient maintenant ce produit (publication + catalogue).'
+          : 'Seuls les admins voient encore ce produit.',
+      );
+      await loadFromDb();
+      await refresh({ silent: true });
     } catch (e: any) {
       Alert.alert('Erreur', e?.message ?? 'Impossible de mettre à jour le flag.');
+      await loadFromDb();
       await refresh();
     } finally {
       setSavingKey(null);
@@ -100,40 +138,47 @@ export default function AdminFeatureFlagsScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.intro}>
-          Bail longue durée et hôtels ne sont visibles que pour les comptes admin
-          connectés (tests). Les autres utilisateurs ne les voient pas.
+          Ces interrupteurs contrôlent la visibilité pour tous les utilisateurs (pas
+          seulement admin). Vert = produit ouvert au public. Rouge = réservé aux
+          admins.
         </Text>
 
-        {loading && displayRows.length === 0 ? (
+        {loadingDb && displayRows.length === 0 ? (
           <ActivityIndicator style={{ marginTop: 24 }} color="#e74c3c" />
         ) : (
           <View style={styles.section}>
-            {displayRows.map((row, index) => (
-              <View
-                key={row.key}
-                style={[
-                  styles.row,
-                  index === displayRows.length - 1 && styles.rowLast,
-                ]}
-              >
-                <View style={styles.rowText}>
-                  <Text style={styles.rowTitle}>{row.label}</Text>
-                  {!!row.description && (
-                    <Text style={styles.rowDesc}>{row.description}</Text>
+            {displayRows.map((row, index) => {
+              const on = !!dbEnabled[row.key];
+              return (
+                <View
+                  key={row.key}
+                  style={[
+                    styles.row,
+                    index === displayRows.length - 1 && styles.rowLast,
+                  ]}
+                >
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowTitle}>{row.label}</Text>
+                    {!!row.description && (
+                      <Text style={styles.rowDesc}>{row.description}</Text>
+                    )}
+                    <Text style={[styles.badge, on ? styles.badgeOn : styles.badgeOff]}>
+                      {on ? 'Ouvert au public' : 'Admin seulement'}
+                    </Text>
+                  </View>
+                  {savingKey === row.key ? (
+                    <ActivityIndicator size="small" color="#e74c3c" />
+                  ) : (
+                    <Switch
+                      value={on}
+                      onValueChange={(v) => void onToggle(row.key, v)}
+                      trackColor={{ false: '#d1d5db', true: '#86efac' }}
+                      thumbColor={on ? '#16a34a' : '#f4f4f5'}
+                    />
                   )}
                 </View>
-                {savingKey === row.key ? (
-                  <ActivityIndicator size="small" color="#e74c3c" />
-                ) : (
-                  <Switch
-                    value={!!flags[row.key]}
-                    onValueChange={(v) => void onToggle(row.key, v)}
-                    trackColor={{ false: '#d1d5db', true: '#86efac' }}
-                    thumbColor={flags[row.key] ? '#16a34a' : '#f4f4f5'}
-                  />
-                )}
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -186,4 +231,16 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 0 },
   rowTitle: { fontSize: 16, fontWeight: '500', color: '#333', marginBottom: 4 },
   rowDesc: { fontSize: 13, lineHeight: 18, color: '#666' },
+  badge: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    fontSize: 11,
+    fontWeight: '700',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  badgeOn: { backgroundColor: '#dcfce7', color: '#166534' },
+  badgeOff: { backgroundColor: '#f3f4f6', color: '#6b7280' },
 });

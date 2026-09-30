@@ -22,6 +22,7 @@ import { useAuth } from '../services/AuthContext';
 import SimpleMessageModal from '../components/SimpleMessageModal';
 import { monthlyFurnitureLabel } from '../constants/monthlyFurniture';
 import PublicOwnerCard from '../components/PublicOwnerCard';
+import PropertyMap from '../components/PropertyMap';
 
 type RouteProps = RouteProp<RootStackParamList, 'MonthlyRentalListingDetail'>;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -212,6 +213,15 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
               </View>
             </View>
           )}
+
+          {(listing.latitude != null && listing.longitude != null) || listing.location ? (
+            <PropertyMap
+              latitude={listing.latitude != null ? Number(listing.latitude) : undefined}
+              longitude={listing.longitude != null ? Number(listing.longitude) : undefined}
+              locationName={listing.location || undefined}
+              cityName={listing.location || undefined}
+            />
+          ) : null}
 
           {listing.owner_id ? (
             <PublicOwnerCard

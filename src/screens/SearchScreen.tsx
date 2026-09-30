@@ -28,6 +28,7 @@ import FiltersModal from '../components/FiltersModal';
 import SearchResultsHeader from '../components/SearchResultsHeader';
 import SearchFormModal, { type StaySearchType } from '../components/SearchFormModal';
 import SearchResultsView from '../components/SearchResultsView';
+import StayListingMapView, { type StayMapMarker } from '../components/StayListingMapView';
 import { supabase } from '../services/supabase';
 import { useSearchDatesContext } from '../contexts/SearchDatesContext';
 import { loadRecentSearches, pushRecentSearch } from '../lib/recentSearches';
@@ -633,7 +634,6 @@ const SearchScreen: React.FC = () => {
     else if (rt === 'monthly') setMonthlySearchQuery(dest);
     else setHotelSearchQuery(dest);
 
-    if (rt !== 'short_term') setIsMapView(false);
     setFilters(newFilters);
 
     if (!hasSubmittedSearch) return;
@@ -789,7 +789,6 @@ const SearchScreen: React.FC = () => {
   };
   
   const handleViewToggle = () => {
-    if (rentalType !== 'short_term') return;
     setIsMapView((prev) => !prev);
   };
 
@@ -852,6 +851,54 @@ const SearchScreen: React.FC = () => {
   };
 
   const hasPropertyResults = rentalType === 'short_term' && sortedProperties.length > 0 && !loading && !error;
+  const hasHotelResults = rentalType === 'hotel' && hotelRooms.length > 0 && !hotelLoading;
+  const hasMonthlyResults = rentalType === 'monthly' && monthlyListings.length > 0 && !monthlyLoading;
+  const canShowMapToggle = hasPropertyResults || hasHotelResults || hasMonthlyResults;
+
+  const hotelMapMarkers = useMemo((): StayMapMarker[] => {
+    const byEst = new Map<string, StayMapMarker>();
+    for (const room of hotelRooms) {
+      const est = room.establishment;
+      const lat = est.latitude;
+      const lng = est.longitude;
+      if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const existing = byEst.get(est.id);
+      if (!existing || room.price_per_night < existing.price) {
+        byEst.set(est.id, {
+          id: est.id,
+          title: est.title,
+          latitude: lat,
+          longitude: lng,
+          price: room.price_per_night,
+          priceSuffix: ' /nuit',
+          image: est.images?.[0] || room.images?.[0] || null,
+          subtitle: room.name,
+        });
+      }
+    }
+    return Array.from(byEst.values());
+  }, [hotelRooms]);
+
+  const monthlyMapMarkers = useMemo((): StayMapMarker[] => {
+    return monthlyListings
+      .filter(
+        (l) =>
+          l.latitude != null &&
+          l.longitude != null &&
+          Number.isFinite(Number(l.latitude)) &&
+          Number.isFinite(Number(l.longitude)),
+      )
+      .map((l) => ({
+        id: l.id,
+        title: l.title,
+        latitude: Number(l.latitude),
+        longitude: Number(l.longitude),
+        price: l.monthly_rent_price,
+        priceSuffix: ' /mois',
+        image: Array.isArray(l.images) ? l.images[0] : null,
+        subtitle: l.location || null,
+      }));
+  }, [monthlyListings]);
 
   const resultsLoading =
     rentalType === 'monthly'
@@ -953,6 +1000,22 @@ const SearchScreen: React.FC = () => {
                 : 'Choisissez des dates pour voir les chambres disponibles, ou changez de ville.'}
             </Text>
           </View>
+        ) : isMapView ? (
+          <StayListingMapView
+            markers={hotelMapMarkers}
+            accentColor={HOTEL_COLORS.primary}
+            searchCenter={selectedLocation}
+            onMarkerPress={(establishmentId) => {
+              const room = hotelRooms.find((r) => r.establishment.id === establishmentId);
+              (navigation as any).navigate('HotelEstablishmentDetail', {
+                establishmentId,
+                roomTypeId: room?.id,
+                checkIn: checkIn || undefined,
+                checkOut: checkOut || undefined,
+                guests: adults + children + babies,
+              });
+            }}
+          />
         ) : (
           <FlatList
             data={hotelRooms}
@@ -1002,6 +1065,15 @@ const SearchScreen: React.FC = () => {
               <Text style={styles.clearFiltersButtonText}>Effacer les filtres</Text>
             </TouchableOpacity>
           </View>
+        ) : isMapView ? (
+          <StayListingMapView
+            markers={monthlyMapMarkers}
+            accentColor={MONTHLY_RENTAL_COLORS.primary}
+            searchCenter={selectedLocation}
+            onMarkerPress={(listingId) => {
+              (navigation as any).navigate('MonthlyRentalListingDetail', { listingId });
+            }}
+          />
         ) : (
           <FlatList
             data={monthlyListings}
@@ -1129,9 +1201,16 @@ const SearchScreen: React.FC = () => {
       ))}
 
       {/* Bouton flottant Carte/Liste (même logique que l'espace véhicules) */}
-      {hasSubmittedSearch && !showSearchForm && rentalType === 'short_term' && hasPropertyResults && (
+      {hasSubmittedSearch && !showSearchForm && canShowMapToggle && (
         <TouchableOpacity
-          style={isMapView ? styles.listButton : styles.mapButton}
+          style={[
+            isMapView ? styles.listButton : styles.mapButton,
+            rentalType === 'hotel'
+              ? { backgroundColor: HOTEL_COLORS.primary }
+              : rentalType === 'monthly'
+                ? { backgroundColor: MONTHLY_RENTAL_COLORS.primary }
+                : null,
+          ]}
           onPress={handleViewToggle}
           activeOpacity={0.85}
         >

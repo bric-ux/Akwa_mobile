@@ -313,27 +313,34 @@ export const useMessaging = () => {
           conversation_id: conversationId,
           sender_id: senderId,
           message: message.trim(),
-          message_type: 'text'
+          message_type: 'text',
         })
-        .select(`
-          *,
-          sender_profile:profiles!conversation_messages_sender_id_fkey(
-            first_name,
-            last_name
-          )
-        `)
+        .select('*')
         .single();
 
       if (error) {
         throw error;
       }
 
+      let senderProfile: { first_name?: string | null; last_name?: string | null } | null = null;
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('user_id', senderId)
+          .maybeSingle();
+        senderProfile = profile;
+      } catch {
+        /* profil optionnel */
+      }
+
       // Ajouter le message à la liste locale
       const newMessage = {
         ...data,
-        sender_name: data.sender_profile 
-          ? `${data.sender_profile.first_name} ${data.sender_profile.last_name}`.trim()
-          : 'Vous'
+        sender_profile: senderProfile,
+        sender_name: senderProfile
+          ? `${senderProfile.first_name || ''} ${senderProfile.last_name || ''}`.trim() || 'Vous'
+          : 'Vous',
       };
 
       setMessages(prev => [...prev, newMessage]);
@@ -362,14 +369,17 @@ export const useMessaging = () => {
           if (!recipientId || recipientId === senderId) return;
 
           const isAdminSupport = conversation.kind === AKWAHOME_SUPPORT_KIND;
-          const senderName = data.sender_profile
-            ? `${data.sender_profile.first_name} ${data.sender_profile.last_name}`.trim()
-            : 'Utilisateur';
-          const itemTitle =
-            (conversation as { properties?: { title?: string } | null }).properties?.title ||
-            (conversation as { vehicles?: { title?: string } | null }).vehicles?.title ||
-            (conversation as { monthly_rental_listings?: { title?: string } | null }).monthly_rental_listings?.title ||
-            'votre annonce';
+          const senderName = isAdminSupport
+            ? AKWAHOME_SUPPORT_TITLE
+            : senderProfile
+              ? `${senderProfile.first_name || ''} ${senderProfile.last_name || ''}`.trim() || 'Utilisateur'
+              : 'Utilisateur';
+          const itemTitle = isAdminSupport
+            ? 'votre compte AkwaHome'
+            : (conversation as { properties?: { title?: string } | null }).properties?.title ||
+              (conversation as { vehicles?: { title?: string } | null }).vehicles?.title ||
+              (conversation as { monthly_rental_listings?: { title?: string } | null }).monthly_rental_listings?.title ||
+              'votre annonce';
           const preview =
             message.trim().length > 120 ? `${message.trim().slice(0, 117)}…` : message.trim();
 
@@ -406,6 +416,7 @@ export const useMessaging = () => {
                 propertyTitle: itemTitle,
                 message: message.trim(),
                 conversationId,
+                isAdminSupport,
               },
             },
           });
@@ -693,15 +704,23 @@ export const useMessaging = () => {
         throw new Error('Utilisateur invalide');
       }
 
-      const { data: existing, error: fetchError } = await supabase
+      const { data: existingRows, error: fetchError } = await supabase
         .from('conversations')
         .select('id')
         .eq('kind', AKWAHOME_SUPPORT_KIND)
         .eq('guest_id', userId)
-        .maybeSingle();
+        .order('created_at', { ascending: true })
+        .limit(1);
 
-      if (fetchError) throw fetchError;
-      if (existing?.id) return existing.id;
+      if (fetchError) {
+        console.error('[admin_support] fetch', fetchError);
+        throw new Error(
+          fetchError.message?.includes('kind')
+            ? 'Migration messagerie support non appliquée (colonne kind).'
+            : fetchError.message || 'Impossible de charger la conversation support.',
+        );
+      }
+      if (existingRows?.[0]?.id) return existingRows[0].id;
 
       const { data: created, error: createError } = await supabase
         .from('conversations')
@@ -709,12 +728,29 @@ export const useMessaging = () => {
           kind: AKWAHOME_SUPPORT_KIND,
           host_id: adminId,
           guest_id: userId,
-          title: AKWAHOME_SUPPORT_TITLE,
+          property_id: null,
         })
         .select('id')
         .single();
 
-      if (createError) throw createError;
+      if (createError) {
+        // Course : un autre admin a créé la conversation entre-temps
+        if (createError.code === '23505') {
+          const { data: retry } = await supabase
+            .from('conversations')
+            .select('id')
+            .eq('kind', AKWAHOME_SUPPORT_KIND)
+            .eq('guest_id', userId)
+            .limit(1);
+          if (retry?.[0]?.id) return retry[0].id;
+        }
+        console.error('[admin_support] create', createError);
+        throw new Error(
+          createError.message?.includes('property_id')
+            ? 'Migration messagerie support non appliquée (property_id).'
+            : createError.message || 'Impossible de créer la conversation support.',
+        );
+      }
       return created.id;
     },
     [],

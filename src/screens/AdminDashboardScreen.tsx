@@ -19,6 +19,7 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import AdminNotificationBell from '../components/AdminNotificationBell';
 import AdminBookingBreakdownSection from '../components/admin/AdminBookingBreakdownSection';
 import type { BookingBreakdown } from '../components/admin/AdminBookingBreakdownSection';
+import { fetchAdminBookingBreakdown } from '../lib/adminBookingBreakdown';
 import { supabase } from '../services/supabase';
 
 type ActionItem = {
@@ -66,16 +67,12 @@ const AdminDashboardScreen: React.FC = () => {
 
   const loadStats = useCallback(async () => {
     try {
-      const [dash, breakdownRes] = await Promise.all([
+      const [dash, breakdown] = await Promise.all([
         getDashboardStatsRef.current('all'),
-        supabase.rpc('admin_booking_status_breakdown'),
+        fetchAdminBookingBreakdown(),
       ]);
       setStats(dash);
-      if (breakdownRes.data) {
-        setBookingBreakdown(breakdownRes.data as BookingBreakdown);
-      } else if (breakdownRes.error) {
-        console.warn('admin_booking_status_breakdown:', breakdownRes.error);
-      }
+      setBookingBreakdown(breakdown);
     } catch (error) {
       console.error('Erreur stats admin:', error);
     } finally {

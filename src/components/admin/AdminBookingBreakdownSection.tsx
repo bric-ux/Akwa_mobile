@@ -51,6 +51,7 @@ export default function AdminBookingBreakdownSection({ breakdown }: Props) {
                 { label: 'Refusées', value: data.rejected || 0 },
               ]
             : [
+                { label: 'En attente', value: data.pending || 0 },
                 { label: 'Confirmées', value: data.confirmed || 0 },
                 { label: 'En cours', value: data.in_progress || 0 },
                 { label: 'Annulées', value: data.cancelled || 0 },
@@ -100,7 +101,9 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cell: {
-    width: '47%',
+    width: '30%',
+    flexGrow: 1,
+    minWidth: '28%',
     backgroundColor: '#f8fafc',
     borderRadius: 10,
     paddingVertical: 10,

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../../constants/homeExploreLayout';
 import { useFeatureFlags } from '../../contexts/FeatureFlagsContext';
+import { useApprovedHotelEstablishments } from '../../hooks/useApprovedHotelEstablishments';
+import { useApprovedMonthlyRentalListings } from '../../hooks/useApprovedMonthlyRentalListings';
 
 export type HomeCategoryId = 'residence' | 'monthly' | 'vehicle' | 'hotel';
 
@@ -47,25 +49,49 @@ const HOTEL_CATEGORY: CategoryDef = {
   image: require('../../../assets/IMG_9553.jpeg'),
 };
 
-type Props = {
-  showMonthlyCategory?: boolean;
-};
-
-export default function HomeCategoryPills({ showMonthlyCategory = true }: Props) {
+/** Pills catégories — hôtel / bail uniquement s’il existe au moins une annonce publiée. */
+export default function HomeCategoryPills() {
   const navigation = useNavigation();
-  const { monthlyRental, hotel, loading: flagsLoading, isAdminViewer } = useFeatureFlags();
+  const { monthlyRental, hotel, loading: flagsLoading } = useFeatureFlags();
+  const { fetchEstablishments } = useApprovedHotelEstablishments();
+  const { fetchListings } = useApprovedMonthlyRentalListings();
+  const [hasHotels, setHasHotels] = useState(false);
+  const [hasMonthly, setHasMonthly] = useState(false);
+
+  useEffect(() => {
+    if (flagsLoading) return;
+    let cancelled = false;
+
+    const run = async () => {
+      if (hotel) {
+        const list = await fetchEstablishments({ forHome: true });
+        if (!cancelled) setHasHotels(list.length > 0);
+      } else if (!cancelled) {
+        setHasHotels(false);
+      }
+
+      if (monthlyRental) {
+        const list = await fetchListings({});
+        if (!cancelled) setHasMonthly(list.length > 0);
+      } else if (!cancelled) {
+        setHasMonthly(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [flagsLoading, hotel, monthlyRental, fetchEstablishments, fetchListings]);
 
   // Ordre : Hôtels → Résidences → Véhicules → Bail longue durée (en dernier)
-  // Pendant flagsLoading, si cache admin déjà hydraté (isAdminViewer / hotel / monthly), on garde les pills
   const categories = useMemo(() => {
     const list: CategoryDef[] = [];
-    const showHotel = hotel || (flagsLoading && isAdminViewer);
-    const showMonthly = monthlyRental || (flagsLoading && isAdminViewer);
-    if (showHotel) list.push(HOTEL_CATEGORY);
+    if (hotel && hasHotels) list.push(HOTEL_CATEGORY);
     list.push(RESIDENCE_CATEGORY, VEHICLE_CATEGORY);
-    if (showMonthly && showMonthlyCategory) list.push(MONTHLY_CATEGORY);
+    if (monthlyRental && hasMonthly) list.push(MONTHLY_CATEGORY);
     return list;
-  }, [showMonthlyCategory, monthlyRental, hotel, flagsLoading, isAdminViewer]);
+  }, [monthlyRental, hotel, hasHotels, hasMonthly]);
 
   const onPress = (id: HomeCategoryId) => {
     switch (id) {

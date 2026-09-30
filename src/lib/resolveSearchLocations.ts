@@ -218,7 +218,7 @@ export async function resolveLocationIdsForSearchTerm(
     const withCoords = cityData.find((c: any) => c.latitude != null && c.longitude != null);
     return {
       locationIds,
-      geoSoftMatch: false,
+      geoSoftMatch: true,
       locationNames: cityData.map((c) => c.name),
       centerLat: withCoords?.latitude ?? filters?.centerLat,
       centerLng: withCoords?.longitude ?? filters?.centerLng,
@@ -243,7 +243,7 @@ export async function resolveLocationIdsForSearchTerm(
     const withCoords = communeData.find((c: any) => c.latitude != null && c.longitude != null);
     return {
       locationIds,
-      geoSoftMatch: false,
+      geoSoftMatch: true,
       locationNames: communeData.map((c) => c.name),
       centerLat: withCoords?.latitude ?? filters?.centerLat,
       centerLng: withCoords?.longitude ?? filters?.centerLng,

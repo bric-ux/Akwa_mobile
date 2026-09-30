@@ -41,7 +41,8 @@ const AdminHotelsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { profile } = useUserProfile();
-  const { getHotelEstablishments, updateHotelEstablishmentStatus, loading } = useAdmin();
+  const { getHotelEstablishments, updateHotelEstablishmentStatus, deleteHotelEstablishment, loading } =
+    useAdmin();
 
   const [rows, setRows] = useState<HotelEstablishmentWithOwner[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -94,6 +95,34 @@ const AdminHotelsScreen: React.FC = () => {
     } else {
       Alert.alert('Erreur', result.error ?? 'Action impossible');
     }
+  };
+
+  const handleDelete = () => {
+    if (!selected) return;
+    Alert.alert(
+      'Supprimer l’hôtel',
+      `Supprimer définitivement « ${selected.title} » ? Cette action est irréversible.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true);
+            const result = await deleteHotelEstablishment(selected.id);
+            setActionLoading(false);
+            if (result.success) {
+              setSelected(null);
+              setAdminNotes('');
+              await load();
+              Alert.alert('Succès', 'Hôtel supprimé.');
+            } else {
+              Alert.alert('Erreur', result.error ?? 'Suppression impossible');
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -205,6 +234,13 @@ const AdminHotelsScreen: React.FC = () => {
                 <Text style={styles.rejectText}>Refuser</Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              disabled={actionLoading}
+              onPress={handleDelete}
+            >
+              <Text style={styles.deleteText}>Supprimer définitivement</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.closeBtn} onPress={() => setSelected(null)}>
               <Text style={styles.closeText}>Fermer</Text>
             </TouchableOpacity>
@@ -290,6 +326,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rejectText: { color: '#b91c1c', fontWeight: '700' },
+  deleteBtn: {
+    marginTop: 10,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  deleteText: { color: '#dc2626', fontWeight: '600' },
   closeBtn: { marginTop: 10, paddingVertical: 12, alignItems: 'center' },
   closeText: { color: '#64748b', fontWeight: '600' },
 });

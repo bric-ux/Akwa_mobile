@@ -28,6 +28,77 @@ import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
 
 const AMENITY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Debug recherche Cocody/Faya — visible en __DEV__ */
+function debugSearchLog(tag: string, payload?: Record<string, unknown>) {
+  if (!__DEV__) return;
+  if (payload) {
+    console.log(`🔎 [search] ${tag}`, payload);
+  } else {
+    console.log(`🔎 [search] ${tag}`);
+  }
+}
+
+function isFayaLikeProperty(p: {
+  id?: string;
+  title?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_id?: string | null;
+  locations?: { name?: string | null } | null;
+}): boolean {
+  const title = (p.title || '').toLowerCase();
+  const locName = (p.locations?.name || '').toLowerCase();
+  if (title.includes('faya') || locName.includes('faya')) return true;
+  const lat = p.latitude != null ? Number(p.latitude) : NaN;
+  const lng = p.longitude != null ? Number(p.longitude) : NaN;
+  // Pin connu Faya ~5.3588, -3.9292
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    if (Math.abs(lat - 5.3588) < 0.02 && Math.abs(lng - -3.9292) < 0.02) return true;
+  }
+  return false;
+}
+
+function summarizeFayaHits(
+  list: Array<{
+    id?: string;
+    title?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    location_id?: string | null;
+    locations?: { name?: string | null } | null;
+    distance?: number;
+  }>,
+  centerLat?: number | null,
+  centerLng?: number | null,
+) {
+  const hits = list.filter(isFayaLikeProperty);
+  return hits.map((p) => {
+    const lat = p.latitude != null ? Number(p.latitude) : null;
+    const lng = p.longitude != null ? Number(p.longitude) : null;
+    let distKm: number | null = p.distance != null && Number.isFinite(p.distance) ? p.distance : null;
+    if (
+      distKm == null &&
+      centerLat != null &&
+      centerLng != null &&
+      lat != null &&
+      lng != null &&
+      Number.isFinite(lat) &&
+      Number.isFinite(lng)
+    ) {
+      distKm = calculateDistance(centerLat, centerLng, lat, lng);
+    }
+    return {
+      id: p.id,
+      title: p.title,
+      location_id: p.location_id,
+      locationName: p.locations?.name ?? null,
+      lat,
+      lng,
+      distKm: distKm != null && Number.isFinite(distKm) ? Number(distKm.toFixed(2)) : null,
+    };
+  });
+}
+
 function propertySearchCoords(property: {
   latitude?: number | null;
   longitude?: number | null;
@@ -405,12 +476,27 @@ export const useProperties = (options?: UsePropertiesOptions) => {
 
       // Créer une clé de cache basée sur les filtres
       const cacheKey = JSON.stringify({ source, filters: filters || {} });
+      // Ne pas servir le cache pour une recherche destination (Cocody → Faya évolue souvent)
+      const skipCache = Boolean(filters?.city?.trim());
       
-      // Vérifier le cache d'abord (sauf refresh forcé)
-      if (!options?.forceRefresh && cache.has(cacheKey)) {
+      // Vérifier le cache d'abord (sauf refresh forcé / recherche par ville)
+      if (!options?.forceRefresh && !skipCache && cache.has(cacheKey)) {
+        if (__DEV__) {
+          const cached = cache.get(cacheKey)!;
+          console.log('🔎 [search] CACHE HIT', {
+            count: cached.length,
+            faya: summarizeFayaHits(cached as any[]),
+            cacheKey: cacheKey.slice(0, 120),
+          });
+        }
         setProperties(cache.get(cacheKey)!);
         setLoading(false);
         return;
+      }
+      if (__DEV__ && skipCache) {
+        console.log('🔎 [search] cache ignoré (recherche destination)', {
+          city: filters?.city,
+        });
       }
 
       // Récupérer les location_ids à filtrer
@@ -423,10 +509,26 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       // Recherche par ville / commune / quartier (+ secours OSM)
       if (filters?.city) {
         const searchTerm = filters.city.trim();
+        debugSearchLog('début', {
+          searchTerm,
+          source,
+          filtersCenter: { lat: filters.centerLat, lng: filters.centerLng },
+          radiusKm: filters.radiusKm,
+          checkIn: filters.checkIn,
+          checkOut: filters.checkOut,
+        });
         const resolved = await resolveLocationIdsForSearchTerm(searchTerm, {
           centerLat: filters.centerLat,
           centerLng: filters.centerLng,
           radiusKm: filters.radiusKm,
+        });
+        debugSearchLog('resolveLocationIds', {
+          locationIdsCount: resolved.locationIds?.length ?? 0,
+          locationIdsSample: (resolved.locationIds || []).slice(0, 8),
+          geoSoftMatch: resolved.geoSoftMatch,
+          centerLat: resolved.centerLat,
+          centerLng: resolved.centerLng,
+          locationNames: resolved.locationNames,
         });
 
         if (resolved.locationIds && resolved.locationIds.length > 0) {
@@ -437,13 +539,34 @@ export const useProperties = (options?: UsePropertiesOptions) => {
             effectiveCenterLng = resolved.centerLng;
           }
           if (geoSoftMatch && !(effectiveRadiusKm && effectiveRadiusKm > 0)) {
-            effectiveRadiusKm = 12;
+            effectiveRadiusKm = 25;
           }
-          if (__DEV__) {
-            console.log(
-              `✅ Localisations pour "${searchTerm}": ${locationIds.length} (soft=${geoSoftMatch})`,
-            );
+          // Centre manquant en base → géocode pour élargir (Faya près de Cocody, etc.)
+          if (effectiveCenterLat == null || effectiveCenterLng == null) {
+            try {
+              const { forwardGeocodeNominatim } = await import('../lib/geolocation');
+              const hits = await forwardGeocodeNominatim(`${searchTerm}, Côte d'Ivoire`);
+              if (hits?.[0]) {
+                effectiveCenterLat = hits[0].latitude;
+                effectiveCenterLng = hits[0].longitude;
+                debugSearchLog('centre via Nominatim', {
+                  lat: effectiveCenterLat,
+                  lng: effectiveCenterLng,
+                  label: hits[0].displayName || hits[0].shortName,
+                });
+              } else {
+                debugSearchLog('Nominatim: aucun hit');
+              }
+            } catch (e) {
+              console.warn('Centre recherche géocode:', e);
+            }
           }
+          debugSearchLog('après resolve', {
+            locationIds: locationIds.length,
+            soft: geoSoftMatch,
+            center: { lat: effectiveCenterLat, lng: effectiveCenterLng },
+            radiusKm: effectiveRadiusKm,
+          });
         } else if (
           resolved.centerLat != null &&
           resolved.centerLng != null &&
@@ -453,11 +576,73 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           effectiveCenterLat = resolved.centerLat;
           effectiveCenterLng = resolved.centerLng;
           locationIds = null;
+          debugSearchLog('branche rayon pur (pas de locationIds)', {
+            center: { lat: effectiveCenterLat, lng: effectiveCenterLng },
+            radiusKm: filters.radiusKm,
+          });
         } else {
           console.log(`❌ Aucune localisation trouvée pour "${searchTerm}"`);
+          debugSearchLog('ABORT: aucune localisation');
           setProperties([]);
           setLoading(false);
           return;
+        }
+
+        // Sonde DB : annonces « Faya » existent-elles ?
+        try {
+          const { data: fayaProbe, error: fayaErr } = await supabase
+            .from('properties')
+            .select('id, title, latitude, longitude, location_id, is_active, is_hidden, locations:location_id(name)')
+            .or('title.ilike.%faya%,address.ilike.%faya%')
+            .limit(20);
+          if (fayaErr) {
+            // address peut ne pas exister — retenter titre seul
+            const { data: fayaProbe2, error: fayaErr2 } = await supabase
+              .from('properties')
+              .select('id, title, latitude, longitude, location_id, is_active, is_hidden, locations:location_id(name)')
+              .ilike('title', '%faya%')
+              .limit(20);
+            debugSearchLog('sonde Faya (title only)', {
+              error: fayaErr2?.message,
+              count: fayaProbe2?.length ?? 0,
+              rows: (fayaProbe2 || []).map((p: any) => ({
+                id: p.id,
+                title: p.title,
+                lat: p.latitude,
+                lng: p.longitude,
+                location_id: p.location_id,
+                loc: p.locations?.name,
+                active: p.is_active,
+                hidden: p.is_hidden,
+                inLocationTree:
+                  locationIds && p.location_id
+                    ? locationIds.includes(p.location_id)
+                    : null,
+              })),
+            });
+          } else {
+            debugSearchLog('sonde Faya', {
+              count: fayaProbe?.length ?? 0,
+              rows: (fayaProbe || []).map((p: any) => ({
+                id: p.id,
+                title: p.title,
+                lat: p.latitude,
+                lng: p.longitude,
+                location_id: p.location_id,
+                loc: p.locations?.name,
+                active: p.is_active,
+                hidden: p.is_hidden,
+                inLocationTree:
+                  locationIds && p.location_id
+                    ? locationIds.includes(p.location_id)
+                    : null,
+              })),
+            });
+          }
+        } catch (probeErr) {
+          debugSearchLog('sonde Faya exception', {
+            error: probeErr instanceof Error ? probeErr.message : String(probeErr),
+          });
         }
       }
 
@@ -553,30 +738,155 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       }
 
       let rawData = data || [];
+      const searchTerm = filters?.city?.trim() || '';
+      const DEFAULT_PLACE_RADIUS_KM = 25;
 
-      // 0 résultat exact → proximité géo (ex. Faya sans annonces)
-      if (searchTerm && rawData.length === 0) {
-        if (effectiveCenterLat == null || effectiveCenterLng == null) {
-          try {
-            const { forwardGeocodeNominatim } = await import('../lib/geolocation');
-            const hits = await forwardGeocodeNominatim(`${searchTerm}, Côte d'Ivoire`);
-            const hit = hits?.[0];
-            if (hit) {
-              effectiveCenterLat = hit.latitude;
-              effectiveCenterLng = hit.longitude;
+      debugSearchLog('après query location_id', {
+        count: rawData.length,
+        filterMode: locationIds?.length
+          ? `location_id IN (${locationIds.length})`
+          : 'no location_id filter',
+        fayaInPrimary: summarizeFayaHits(
+          rawData as any[],
+          effectiveCenterLat,
+          effectiveCenterLng,
+        ),
+      });
+
+      // Élargir autour du centre : annonces proches même hors arbre location_id
+      // (ex. Faya près de Cocody). Bounding box obligatoire — un limit(100) global
+      // rate Faya si trop d’annonces géolocalisées ailleurs en CI.
+      if (searchTerm && effectiveCenterLat != null && effectiveCenterLng != null) {
+        const mergeRadius =
+          effectiveRadiusKm && effectiveRadiusKm > 0
+            ? effectiveRadiusKm
+            : DEFAULT_PLACE_RADIUS_KM;
+        effectiveRadiusKm = mergeRadius;
+        // Ne pas exclure les annonces catalogue sans pin
+        geoSoftMatch = true;
+
+        const latDelta = mergeRadius / 111;
+        const cosLat = Math.cos((effectiveCenterLat * Math.PI) / 180);
+        const lngDelta = mergeRadius / (111 * Math.max(0.2, Math.abs(cosLat)));
+        const bbox = {
+          latMin: effectiveCenterLat - latDelta,
+          latMax: effectiveCenterLat + latDelta,
+          lngMin: effectiveCenterLng - lngDelta,
+          lngMax: effectiveCenterLng + lngDelta,
+        };
+        debugSearchLog('proximité bbox', {
+          mergeRadius,
+          center: { lat: effectiveCenterLat, lng: effectiveCenterLng },
+          bbox,
+        });
+
+        let nearbyQuery = supabase
+          .from('properties')
+          .select(propertiesSelect)
+          .eq('is_active', true)
+          .eq('is_hidden', false)
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .gte('latitude', bbox.latMin)
+          .lte('latitude', bbox.latMax)
+          .gte('longitude', bbox.lngMin)
+          .lte('longitude', bbox.lngMax)
+          .limit(150);
+        if (source === 'home') nearbyQuery = nearbyQuery.eq('hide_from_home', false);
+        if (filters?.guests) nearbyQuery = nearbyQuery.gte('max_guests', filters.guests);
+        if (filters?.priceMin) nearbyQuery = nearbyQuery.gte('price_per_night', filters.priceMin);
+        if (filters?.priceMax) nearbyQuery = nearbyQuery.lte('price_per_night', filters.priceMax);
+        if (
+          filters?.propertyType &&
+          ['apartment', 'house', 'villa', 'eco_lodge', 'other'].includes(filters.propertyType)
+        ) {
+          nearbyQuery = nearbyQuery.eq('property_type', filters.propertyType as any);
+        }
+
+        const { data: nearbyData, error: nearbyErr } = await nearbyQuery;
+        debugSearchLog('proximité réponse DB', {
+          error: nearbyErr?.message ?? null,
+          nearbyCount: nearbyData?.length ?? 0,
+          fayaInNearby: summarizeFayaHits(
+            (nearbyData || []) as any[],
+            effectiveCenterLat,
+            effectiveCenterLng,
+          ),
+          nearbySample: (nearbyData || []).slice(0, 5).map((p: any) => ({
+            title: p.title,
+            lat: p.latitude,
+            lng: p.longitude,
+          })),
+        });
+        if (!nearbyErr && nearbyData?.length) {
+          const byId = new Map<string, (typeof rawData)[number]>(
+            rawData.map((p) => [p.id, p]),
+          );
+          let added = 0;
+          let skippedFar = 0;
+          let skippedNoCoords = 0;
+          for (const p of nearbyData) {
+            if (byId.has(p.id)) continue;
+            const coords = propertySearchCoords(p as any);
+            if (!coords) {
+              skippedNoCoords++;
+              continue;
             }
-          } catch (e) {
-            if (__DEV__) console.warn('Proximity geocode fallback failed', e);
+            const d = calculateDistance(
+              effectiveCenterLat,
+              effectiveCenterLng,
+              coords.lat,
+              coords.lng,
+            );
+            if (d <= mergeRadius) {
+              byId.set(p.id, p);
+              added++;
+            } else {
+              skippedFar++;
+            }
           }
+          rawData = Array.from(byId.values());
+          debugSearchLog('après merge proximité', {
+            added,
+            skippedFar,
+            skippedNoCoords,
+            total: rawData.length,
+            fayaAfterMerge: summarizeFayaHits(
+              rawData as any[],
+              effectiveCenterLat,
+              effectiveCenterLng,
+            ),
+          });
+        } else if (nearbyErr) {
+          console.warn('Proximité bbox:', nearbyErr.message);
+        } else {
+          debugSearchLog('proximité: 0 ligne dans la bbox');
+        }
+      } else if (searchTerm && rawData.length === 0) {
+        // Pas de centre connu → tenter géocode OSM puis proximité
+        try {
+          const { forwardGeocodeNominatim } = await import('../lib/geolocation');
+          const hits = await forwardGeocodeNominatim(`${searchTerm}, Côte d'Ivoire`);
+          const hit = hits?.[0];
+          if (hit) {
+            effectiveCenterLat = hit.latitude;
+            effectiveCenterLng = hit.longitude;
+          }
+        } catch (e) {
+          if (__DEV__) console.warn('Proximity geocode fallback failed', e);
         }
         if (effectiveCenterLat != null && effectiveCenterLng != null) {
           geoSoftMatch = true;
           if (!(effectiveRadiusKm && effectiveRadiusKm > 0)) {
-            effectiveRadiusKm = 12;
+            effectiveRadiusKm = DEFAULT_PLACE_RADIUS_KM;
           }
+          const mergeRadius = effectiveRadiusKm;
+          const latDelta = mergeRadius / 111;
+          const cosLat = Math.cos((effectiveCenterLat * Math.PI) / 180);
+          const lngDelta = mergeRadius / (111 * Math.max(0.2, Math.abs(cosLat)));
           if (__DEV__) {
             console.log(
-              `📍 Aucun résultat exact pour "${searchTerm}" → proximité ${effectiveRadiusKm} km`,
+              `📍 Aucun résultat exact pour "${searchTerm}" → proximité ${mergeRadius} km`,
             );
           }
           let nearbyQuery = supabase
@@ -586,7 +896,11 @@ export const useProperties = (options?: UsePropertiesOptions) => {
             .eq('is_hidden', false)
             .not('latitude', 'is', null)
             .not('longitude', 'is', null)
-            .limit(80);
+            .gte('latitude', effectiveCenterLat - latDelta)
+            .lte('latitude', effectiveCenterLat + latDelta)
+            .gte('longitude', effectiveCenterLng - lngDelta)
+            .lte('longitude', effectiveCenterLng + lngDelta)
+            .limit(150);
           if (source === 'home') nearbyQuery = nearbyQuery.eq('hide_from_home', false);
           if (filters?.guests) nearbyQuery = nearbyQuery.gte('max_guests', filters.guests);
           if (filters?.priceMin) nearbyQuery = nearbyQuery.gte('price_per_night', filters.priceMin);
@@ -599,14 +913,37 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           }
           const { data: nearbyData, error: nearbyErr } = await nearbyQuery;
           if (!nearbyErr && nearbyData) {
-            rawData = nearbyData;
+            rawData = nearbyData.filter((p) => {
+              const coords = propertySearchCoords(p as any);
+              if (!coords) return false;
+              return (
+                calculateDistance(
+                  effectiveCenterLat!,
+                  effectiveCenterLng!,
+                  coords.lat,
+                  coords.lng,
+                ) <= mergeRadius
+              );
+            });
             locationIds = null;
           }
         }
+      } else if (searchTerm) {
+        debugSearchLog('proximité NON exécutée', {
+          reason:
+            effectiveCenterLat == null || effectiveCenterLng == null
+              ? 'pas de centre lat/lng'
+              : 'autre',
+          center: { lat: effectiveCenterLat, lng: effectiveCenterLng },
+          primaryCount: rawData.length,
+        });
       }
 
       if (__DEV__) {
         console.log('🔍 Propriétés retournées par la requête:', rawData.length || 0);
+        debugSearchLog('liste avant filtres client', {
+          faya: summarizeFayaHits(rawData as any[], effectiveCenterLat, effectiveCenterLng),
+        });
         if (rawData.length > 0) {
           rawData.forEach((prop, index) => {
             console.log(`   ${index + 1}. ${prop.title} - Active: ${prop.is_active}, Masquée: ${prop.is_hidden}`);
@@ -637,10 +974,19 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         effectiveRadiusKm != null &&
         effectiveRadiusKm > 0
       ) {
+        let droppedNoCoords = 0;
+        let droppedFar = 0;
+        const droppedFaya: string[] = [];
         propertiesWithDistance = filteredData
           .map((property) => {
             const coords = propertySearchCoords(property as any);
             if (!coords) {
+              if (!geoSoftMatch) {
+                droppedNoCoords++;
+                if (isFayaLikeProperty(property as any)) {
+                  droppedFaya.push(`${property.title} (sans coords, soft=false)`);
+                }
+              }
               // Soft match (ex. Kennedy → Abobo) : garder les annonces de la zone même sans pin
               return geoSoftMatch ? { ...property, distance: Number.POSITIVE_INFINITY } : null;
             }
@@ -664,16 +1010,34 @@ export const useProperties = (options?: UsePropertiesOptions) => {
               effectiveRadiusKm!,
             );
 
+            if (!withinRadius) {
+              droppedFar++;
+              if (isFayaLikeProperty(property as any)) {
+                droppedFaya.push(
+                  `${property.title} (${distance.toFixed(2)} km > ${effectiveRadiusKm} km)`,
+                );
+              }
+            }
+
             return withinRadius ? { ...property, distance } : null;
           })
           .filter((p): p is NonNullable<typeof p> => p !== null)
           .sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
 
-        if (__DEV__) {
-          console.log(
-            `📍 ${geoSoftMatch ? 'Tri' : 'Filtrage'} par rayon ${effectiveRadiusKm}km: ${filteredData.length} → ${propertiesWithDistance.length} propriétés`,
-          );
-        }
+        debugSearchLog(`${geoSoftMatch ? 'tri' : 'filtre'} rayon`, {
+          radiusKm: effectiveRadiusKm,
+          soft: geoSoftMatch,
+          before: filteredData.length,
+          after: propertiesWithDistance.length,
+          droppedNoCoords,
+          droppedFar,
+          droppedFaya,
+          fayaKept: summarizeFayaHits(
+            propertiesWithDistance as any[],
+            effectiveCenterLat,
+            effectiveCenterLng,
+          ),
+        });
       }
       
       filteredData = propertiesWithDistance;
@@ -773,6 +1137,25 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         
         if (__DEV__) {
           console.log(`📅 Filtrage par disponibilité: ${filteredData.length} → ${availableProperties.length} propriétés disponibles`);
+        }
+        const fayaBeforeAvail = summarizeFayaHits(
+          filteredData as any[],
+          effectiveCenterLat,
+          effectiveCenterLng,
+        );
+        const fayaAfterAvail = summarizeFayaHits(
+          availableProperties as any[],
+          effectiveCenterLat,
+          effectiveCenterLng,
+        );
+        if (fayaBeforeAvail.length > 0 || fayaAfterAvail.length > 0) {
+          debugSearchLog('après disponibilité', {
+            fayaBefore: fayaBeforeAvail,
+            fayaAfter: fayaAfterAvail,
+            droppedByDates: fayaBeforeAvail
+              .filter((b) => !fayaAfterAvail.some((a) => a.id === b.id))
+              .map((b) => b.title),
+          });
         }
         filteredData = availableProperties;
       }
@@ -878,6 +1261,15 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       });
 
       if (__DEV__) console.log('🎯 Propriétés transformées:', transformedProperties.length);
+      debugSearchLog('RÉSULTAT FINAL', {
+        count: transformedProperties.length,
+        faya: summarizeFayaHits(
+          transformedProperties as any[],
+          effectiveCenterLat,
+          effectiveCenterLng,
+        ),
+        titles: transformedProperties.slice(0, 15).map((p: any) => p.title),
+      });
 
       const refDate = getRefDateStrForListPricing(filters);
       const baseMap = new Map(

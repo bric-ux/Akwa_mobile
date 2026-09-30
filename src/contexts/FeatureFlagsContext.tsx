@@ -22,6 +22,8 @@ export type FeatureFlagsState = Record<FeatureFlagKey, boolean>;
 
 type FeatureFlagsContextValue = {
   flags: FeatureFlagsState;
+  /** Flags bruts DB (sans forçage admin) — pour l’écran Visibilité produits */
+  rawFlags: FeatureFlagsState;
   loading: boolean;
   isAdminViewer: boolean;
   refresh: (opts?: { silent?: boolean }) => Promise<void>;
@@ -183,13 +185,49 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
 
   const setFlag = useCallback(async (key: FeatureFlagKey, enabled: boolean) => {
     const { data: auth } = await supabase.auth.getUser();
-    const { error } = await supabase.from('platform_feature_flags').upsert({
-      key,
-      enabled,
-      updated_at: new Date().toISOString(),
-      updated_by: auth.user?.id ?? null,
-    });
-    if (error) throw error;
+    const now = new Date().toISOString();
+    const updatedBy = auth.user?.id ?? null;
+
+    const defaults: Record<FeatureFlagKey, { label: string; description: string }> = {
+      monthly_rental: {
+        label: 'Location longue durée',
+        description: 'Publication et catalogue bail longue durée.',
+      },
+      hotel: {
+        label: 'Hôtels',
+        description: 'Publication et catalogue hôtels.',
+      },
+    };
+    const meta = defaults[key];
+
+    const { data: existing } = await supabase
+      .from('platform_feature_flags')
+      .select('key')
+      .eq('key', key)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('platform_feature_flags')
+        .update({
+          enabled,
+          updated_at: now,
+          updated_by: updatedBy,
+        })
+        .eq('key', key);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('platform_feature_flags').insert({
+        key,
+        enabled,
+        label: meta.label,
+        description: meta.description,
+        updated_at: now,
+        updated_by: updatedBy,
+      });
+      if (error) throw error;
+    }
+
     setRawFlags((prev) => {
       const next = { ...prev, [key]: enabled };
       void writeCache({
@@ -205,6 +243,7 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
   const value = useMemo<FeatureFlagsContextValue>(
     () => ({
       flags,
+      rawFlags,
       loading: loading || authLoading,
       isAdminViewer,
       refresh,
@@ -212,7 +251,7 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
       monthlyRental: flags.monthly_rental,
       hotel: flags.hotel,
     }),
-    [flags, loading, authLoading, isAdminViewer, refresh, setFlag],
+    [flags, rawFlags, loading, authLoading, isAdminViewer, refresh, setFlag],
   );
 
   return (
@@ -226,6 +265,7 @@ export function useFeatureFlags(): FeatureFlagsContextValue {
     const gated = applyExperimentalProductGate({ ...FEATURE_FLAG_DEFAULTS }, false);
     return {
       flags: gated,
+      rawFlags: { ...FEATURE_FLAG_DEFAULTS },
       loading: false,
       isAdminViewer: false,
       refresh: async () => undefined,

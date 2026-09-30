@@ -1104,6 +1104,58 @@ export const useAdmin = () => {
     }
   };
 
+  const deleteHotelEstablishment = async (
+    establishmentId: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Non connecté' };
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: activeBookings, error: bookingsError } = await supabase
+        .from('hotel_bookings')
+        .select('id, status')
+        .eq('establishment_id', establishmentId)
+        .in('status', ['pending', 'confirmed']);
+
+      if (bookingsError) {
+        setError(bookingsError.message);
+        return { success: false, error: bookingsError.message };
+      }
+      if (activeBookings && activeBookings.length > 0) {
+        const msg =
+          'Impossible de supprimer un hôtel avec des réservations en cours. Refusez ou annulez-les d’abord.';
+        setError(msg);
+        return { success: false, error: msg };
+      }
+
+      // hotel_bookings a ON DELETE RESTRICT : retirer l’historique avant l’établissement
+      const { error: histErr } = await supabase
+        .from('hotel_bookings')
+        .delete()
+        .eq('establishment_id', establishmentId);
+      if (histErr) {
+        setError(histErr.message);
+        return { success: false, error: histErr.message };
+      }
+
+      const { error: err } = await supabase
+        .from('hotel_establishments')
+        .delete()
+        .eq('id', establishmentId);
+      if (err) {
+        setError(err.message);
+        return { success: false, error: err.message };
+      }
+      return { success: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erreur';
+      setError(msg);
+      return { success: false, error: msg };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getHotelEstablishments = async (): Promise<HotelEstablishmentWithOwner[]> => {
     setLoading(true);
     setError(null);
@@ -1215,6 +1267,7 @@ export const useAdmin = () => {
     deleteMonthlyRentalListing,
     getHotelEstablishments,
     updateHotelEstablishmentStatus,
+    deleteHotelEstablishment,
     loading,
     error,
   };

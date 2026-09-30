@@ -24,6 +24,8 @@ export type HotelRoomSearchResult = {
     rating: number;
     review_count: number;
     images: string[];
+    latitude: number | null;
+    longitude: number | null;
   };
 };
 
@@ -88,7 +90,7 @@ export const useApprovedHotelRooms = () => {
         let estQuery = supabase
           .from('hotel_establishments')
           .select(
-            'id, title, address, establishment_type, star_rating, rating, review_count, images, location_id',
+            'id, title, address, establishment_type, star_rating, rating, review_count, images, location_id, latitude, longitude',
           )
           .eq('status', 'active')
           .eq('hidden_by_admin', false);
@@ -211,6 +213,8 @@ export const useApprovedHotelRooms = () => {
               rating: Number(est.rating) || 0,
               review_count: Number(est.review_count) || 0,
               images: Array.isArray(est.images) ? est.images : [],
+              latitude: est.latitude != null ? Number(est.latitude) : null,
+              longitude: est.longitude != null ? Number(est.longitude) : null,
             },
           });
         }

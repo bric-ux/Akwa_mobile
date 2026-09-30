@@ -25,6 +25,7 @@ import { useCurrency } from '../hooks/useCurrency';
 import { useIdentityVerification } from '../hooks/useIdentityVerification';
 import type { RootStackParamList } from '../types';
 import { HOTEL_COLORS } from '../constants/colors';
+import PropertyMap from '../components/PropertyMap';
 import { notifyHotelBookingCreated } from '../services/hotelBookingNotifications';
 import {
   buildHotelGallery,
@@ -666,6 +667,17 @@ export default function HotelEstablishmentDetailScreen() {
             </Text>
           ) : null}
           {item.description ? <Text style={styles.desc}>{item.description}</Text> : null}
+
+          {(item.latitude != null && item.longitude != null) || item.address ? (
+            <View style={{ marginHorizontal: 20 }}>
+              <PropertyMap
+                latitude={item.latitude != null ? Number(item.latitude) : undefined}
+                longitude={item.longitude != null ? Number(item.longitude) : undefined}
+                locationName={item.address || item.title}
+                cityName={item.address || undefined}
+              />
+            </View>
+          ) : null}
 
           <View style={styles.infoBlock}>
             <Text style={styles.infoBlockTitle}>Conditions & infos</Text>
