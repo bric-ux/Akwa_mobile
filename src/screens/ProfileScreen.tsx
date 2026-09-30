@@ -35,6 +35,11 @@ import {
   getProfileContactEmail,
   isPhonePseudoEmail,
 } from '../lib/displayContact';
+import {
+  MONTHLY_CANDIDATURE_ALERTS_STORAGE_KEY,
+  countUnseenMonthlyCandidatureAlerts,
+  parseMonthlyCandidatureAlertsSeen,
+} from '../utils/monthlyCandidatureAlerts';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -55,6 +60,7 @@ const ProfileScreen: React.FC = () => {
   const [hasVehicles, setHasVehicles] = useState(false);
   const [hasMonthlyListings, setHasMonthlyListings] = useState(false);
   const [hasHotels, setHasHotels] = useState(false);
+  const [monthlyCandidatureAlertCount, setMonthlyCandidatureAlertCount] = useState(0);
   /** Évite d’afficher les boutons Espace… à vide puis de les faire apparaître après coup. */
   const [spacesReady, setSpacesReady] = useState(false);
   const contentOpacity = useRef(new Animated.Value(1)).current;
@@ -104,12 +110,13 @@ const ProfileScreen: React.FC = () => {
       setHasVehicles(false);
       setHasMonthlyListings(false);
       setHasHotels(false);
+      setMonthlyCandidatureAlertCount(0);
       setSpacesReady(true);
       return;
     }
     try {
       // Résoudre tout avant de setState → lignes Espace affichées ensemble (pas de pop progressif)
-      const [pending, vehicles, monthly, hotels] = await Promise.all([
+      const [pending, vehicles, monthly, hotels, candidatureAlerts] = await Promise.all([
         (async () => {
           try {
             const applications = await getApplications();
@@ -152,11 +159,27 @@ const ProfileScreen: React.FC = () => {
             return false;
           }
         })(),
+        (async () => {
+          try {
+            const { data, error } = await supabase
+              .from('monthly_rental_candidatures')
+              .select('id, status, updated_at, decided_at, docs_requested_at')
+              .eq('tenant_id', user.id)
+              .in('status', ['accepted', 'rejected', 'docs_requested']);
+            if (error || !data) return 0;
+            const raw = await AsyncStorage.getItem(MONTHLY_CANDIDATURE_ALERTS_STORAGE_KEY);
+            const seen = parseMonthlyCandidatureAlertsSeen(raw);
+            return countUnseenMonthlyCandidatureAlerts(data, seen);
+          } catch {
+            return 0;
+          }
+        })(),
       ]);
       setHasPendingApplications(pending);
       setHasVehicles(vehicles);
       setHasMonthlyListings(monthly);
       setHasHotels(hotels);
+      setMonthlyCandidatureAlertCount(candidatureAlerts);
     } finally {
       setSpacesReady(true);
     }
@@ -171,6 +194,7 @@ const ProfileScreen: React.FC = () => {
       setHasVehicles(false);
       setHasMonthlyListings(false);
       setHasHotels(false);
+      setMonthlyCandidatureAlertCount(0);
       setSpacesReady(true);
     }
   }, [user?.id]);
@@ -423,7 +447,8 @@ const ProfileScreen: React.FC = () => {
       title: 'Mes candidatures bail',
       icon: 'document-text-outline',
       onPress: () => navigation.navigate('MyMonthlyRentalCandidatures' as never),
-    });
+      showAlert: monthlyCandidatureAlertCount > 0,
+    } as any);
   }
 
   // Ajouter l'élément hôte si l'utilisateur est hôte OU a des candidatures en cours
@@ -894,6 +919,9 @@ const ProfileScreen: React.FC = () => {
                 <View style={styles.menuItemLeft}>
                   <Ionicons name={item.icon as any} size={24} color="#333" />
                   <Text style={styles.menuItemText}>{item.title}</Text>
+                  {(item as { showAlert?: boolean }).showAlert ? (
+                    <View style={styles.menuAlertDot} />
+                  ) : null}
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#ccc" />
               </TouchableOpacity>
@@ -1320,6 +1348,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     marginLeft: 15,
+  },
+  menuAlertDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+    marginLeft: 8,
   },
   logoutButton: {
     flexDirection: 'row',

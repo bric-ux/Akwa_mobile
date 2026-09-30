@@ -25,6 +25,7 @@ import PropertyCard from '../components/PropertyCard';
 import { Header } from '../components/Header';
 import { HeroSection } from '../components/HeroSection';
 import { InfoBanner } from '../components/InfoBanner';
+import DraftResumeBubble from '../components/DraftResumeBubble';
 import ImageCarousel from '../components/ImageCarousel';
 import HomeCategoryPills from '../components/home/HomeCategoryPills';
 import HomeStayTypeShelves from '../components/home/HomeStayTypeShelves';
@@ -452,6 +453,7 @@ const HomeScreen: React.FC = () => {
       <View style={styles.container}>
         <Header />
         <InfoBanner showCarousel={carouselBannerVisible} />
+        <DraftResumeBubble />
         
         <FlatList
           style={styles.content}

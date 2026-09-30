@@ -30,6 +30,18 @@ export const HOTEL_LANGUAGE_OPTIONS = [
   { value: 'zh', label: 'Chinois' },
 ] as const;
 
+export const HOTEL_ROOM_CATEGORIES = [
+  { value: 'standard', label: 'Standard', defaultName: 'Chambre Standard', guests: '2' },
+  { value: 'double', label: 'Double', defaultName: 'Chambre Double', guests: '2' },
+  { value: 'twin', label: 'Twin', defaultName: 'Chambre Twin', guests: '2' },
+  { value: 'deluxe', label: 'Deluxe', defaultName: 'Chambre Deluxe', guests: '2' },
+  { value: 'suite', label: 'Suite', defaultName: 'Suite', guests: '3' },
+  { value: 'family', label: 'Familiale', defaultName: 'Chambre Familiale', guests: '4' },
+  { value: 'studio', label: 'Studio', defaultName: 'Studio', guests: '2' },
+  { value: 'executive', label: 'Executive', defaultName: 'Chambre Executive', guests: '2' },
+  { value: 'other', label: 'Autre', defaultName: '', guests: '2' },
+] as const;
+
 export const HOTEL_CANCELLATION_OPTIONS = [
   {
     value: 'flexible',

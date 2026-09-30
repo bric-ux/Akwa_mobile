@@ -132,7 +132,15 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
     setImageUris((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async () => {
+  const goMonthlySpace = () => {
+    navigation.navigate('ModeTransition' as never, {
+      targetMode: 'monthly_rental',
+      targetPath: 'MonthlyRentalOwnerSpace',
+      fromMode: 'traveler',
+    });
+  };
+
+  const buildListingInput = async (requireFullValidation: boolean) => {
     const surface = parseInt(form.surface_m2, 10);
     const rooms = parseInt(form.number_of_rooms, 10);
     const beds = parseInt(form.bedrooms, 10);
@@ -140,23 +148,25 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
     const rent = parseInt(form.monthly_rent_price, 10);
     if (!form.title.trim()) {
       Alert.alert('Champ requis', 'Saisissez un titre.');
-      return;
+      return null;
     }
-    if (!form.location.trim()) {
-      Alert.alert('Champ requis', 'Saisissez une localisation.');
-      return;
-    }
-    if (isNaN(surface) || surface < 1) {
-      Alert.alert('Surface invalide', 'Surface habitable au moins 1 m².');
-      return;
-    }
-    if (isNaN(rooms) || rooms < 1 || isNaN(beds) || beds < 1 || isNaN(baths) || baths < 1) {
-      Alert.alert('Champs invalides', 'Pièces, chambres et salles de bain au moins 1.');
-      return;
-    }
-    if (isNaN(rent) || rent < 10000) {
-      Alert.alert('Loyer invalide', 'Loyer mensuel au moins 10 000 FCFA.');
-      return;
+    if (requireFullValidation) {
+      if (!form.location.trim()) {
+        Alert.alert('Champ requis', 'Saisissez une localisation.');
+        return null;
+      }
+      if (isNaN(surface) || surface < 1) {
+        Alert.alert('Surface invalide', 'Surface habitable au moins 1 m².');
+        return null;
+      }
+      if (isNaN(rooms) || rooms < 1 || isNaN(beds) || beds < 1 || isNaN(baths) || baths < 1) {
+        Alert.alert('Champs invalides', 'Pièces, chambres et salles de bain au moins 1.');
+        return null;
+      }
+      if (isNaN(rent) || rent < 10000) {
+        Alert.alert('Loyer invalide', 'Loyer mensuel au moins 10 000 FCFA.');
+        return null;
+      }
     }
 
     let imageUrls: string[] = [];
@@ -169,39 +179,60 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
         }
       } catch (e) {
         setUploadingImages(false);
-        Alert.alert('Erreur', 'Impossible d\'envoyer certaines photos. Réessayez.');
-        return;
+        Alert.alert('Erreur', "Impossible d'envoyer certaines photos. Réessayez.");
+        return null;
       }
       setUploadingImages(false);
     }
 
-    const result = await createListing({
+    return {
       title: form.title.trim(),
       description: form.description.trim() || null,
-      location: form.location.trim(),
+      location: form.location.trim() || 'À préciser',
       location_id: locationId,
       latitude: preciseLocation.coords?.latitude ?? null,
       longitude: preciseLocation.coords?.longitude ?? null,
       property_type: form.property_type || null,
-      surface_m2: surface,
-      number_of_rooms: rooms,
-      bedrooms: beds,
-      bathrooms: baths,
+      surface_m2: Number.isFinite(surface) && surface > 0 ? surface : 1,
+      number_of_rooms: Number.isFinite(rooms) && rooms > 0 ? rooms : 1,
+      bedrooms: Number.isFinite(beds) && beds > 0 ? beds : 1,
+      bathrooms: Number.isFinite(baths) && baths > 0 ? baths : 1,
       toilets: form.toilets.trim() ? parseInt(form.toilets, 10) : null,
       is_furnished: form.is_furnished,
-      monthly_rent_price: rent,
+      monthly_rent_price: Number.isFinite(rent) && rent > 0 ? rent : 10000,
       security_deposit: form.security_deposit ? parseInt(form.security_deposit, 10) : null,
-      minimum_duration_months: form.minimum_duration_months ? parseInt(form.minimum_duration_months, 10) : null,
+      minimum_duration_months: form.minimum_duration_months
+        ? parseInt(form.minimum_duration_months, 10)
+        : null,
       charges_included: form.charges_included,
       address_details: form.address_details.trim() || null,
       images: imageUrls,
       amenities: form.is_furnished ? amenities : [],
       required_documents: requiredDocuments,
-      status: 'draft',
-    });
+      status: 'draft' as const,
+    };
+  };
+
+  const handleSaveDraft = async () => {
+    const input = await buildListingInput(false);
+    if (!input) return;
+    const result = await createListing(input);
+    if (!result.success || !result.id) {
+      Alert.alert('Erreur', result.error || "Impossible d'enregistrer le brouillon.");
+      return;
+    }
+    Alert.alert('Brouillon enregistré', 'Continuez quand vous voulez depuis votre espace bail.');
+    goMonthlySpace();
+  };
+
+  const handleSubmit = async () => {
+    const input = await buildListingInput(true);
+    if (!input) return;
+
+    const result = await createListing(input);
 
     if (!result.success || !result.id) {
-      Alert.alert('Erreur', result.error || 'Impossible d\'ajouter le logement.');
+      Alert.alert('Erreur', result.error || "Impossible d'ajouter le logement.");
       return;
     }
 
@@ -214,13 +245,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
         [
           {
             text: 'Voir mes logements',
-            onPress: () => {
-              navigation.navigate('ModeTransition' as never, {
-                targetMode: 'monthly_rental',
-                targetPath: 'MonthlyRentalOwnerSpace',
-                fromMode: 'traveler',
-              });
-            },
+            onPress: goMonthlySpace,
           },
           { text: 'OK' },
         ],
@@ -234,13 +259,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
       [
         {
           text: 'OK',
-          onPress: () => {
-            navigation.navigate('ModeTransition' as never, {
-              targetMode: 'monthly_rental',
-              targetPath: 'MonthlyRentalOwnerSpace',
-              fromMode: 'traveler',
-            });
-          },
+          onPress: goMonthlySpace,
         },
       ],
       { cancelable: false },
@@ -599,6 +618,13 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
             </View>
           </View>
           <TouchableOpacity
+            style={[styles.draftBtn, (loading || uploadingImages) && styles.submitDisabled]}
+            onPress={handleSaveDraft}
+            disabled={loading || uploadingImages}
+          >
+            <Text style={styles.draftBtnText}>Enregistrer un brouillon</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.submit, (loading || uploadingImages) && styles.submitDisabled]}
             onPress={handleSubmit}
             disabled={loading || uploadingImages}
@@ -760,6 +786,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 8,
+  },
+  draftBtn: {
+    borderWidth: 1.5,
+    borderColor: '#2E7D32',
+    backgroundColor: '#fff',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  draftBtnText: {
+    color: '#2E7D32',
+    fontSize: 15,
+    fontWeight: '700',
   },
   submitDisabled: { opacity: 0.7 },
   submitText: { color: '#fff', fontSize: 16, fontWeight: '600' },

@@ -107,6 +107,7 @@ export async function notifyHotelBookingCreated(bookingId: string): Promise<void
       guests: ctx.guests_count,
       totalPrice: ctx.total_price,
       booking_code: ctx.booking_code,
+      isHotel: true,
     }),
     invokeEmail('booking_request_sent', ctx.guest.email, {
       guestName: ctx.guest.name,
@@ -116,6 +117,7 @@ export async function notifyHotelBookingCreated(bookingId: string): Promise<void
       guests: ctx.guests_count,
       totalPrice: ctx.total_price,
       booking_code: ctx.booking_code,
+      isHotel: true,
     }),
     sendPushToUser(
       ctx.establishment.host_id,
@@ -166,6 +168,7 @@ export async function notifyHotelBookingStatusChange(
         hostPhone: ctx.host.phone || '',
         hostEmail: ctx.host.email,
         propertyAddress: '',
+        isHotel: true,
       }),
       invokeEmail('booking_confirmed_host', ctx.host.email, {
         hostName: ctx.host.name,
@@ -175,6 +178,7 @@ export async function notifyHotelBookingStatusChange(
         checkOut: ctx.check_out_date,
         guests: ctx.guests_count,
         totalPrice: ctx.total_price,
+        isHotel: true,
       }),
       sendPushToUser(
         ctx.guest_id,
@@ -194,6 +198,7 @@ export async function notifyHotelBookingStatusChange(
       checkOut: ctx.check_out_date,
       guests: ctx.guests_count,
       totalPrice: ctx.total_price,
+      isHotel: true,
     }),
     invokeEmail('booking_cancelled_host', ctx.host.email, {
       hostName: ctx.host.name,
@@ -203,6 +208,7 @@ export async function notifyHotelBookingStatusChange(
       checkOut: ctx.check_out_date,
       guests: ctx.guests_count,
       totalPrice: ctx.total_price,
+      isHotel: true,
     }),
     sendPushToUser(
       ctx.guest_id,
@@ -229,6 +235,7 @@ export async function notifyHotelBookingCancelledByGuest(bookingId: string): Pro
       checkOut: ctx.check_out_date,
       guests: ctx.guests_count,
       totalPrice: ctx.total_price,
+      isHotel: true,
     }),
     sendPushToUser(
       ctx.establishment.host_id,

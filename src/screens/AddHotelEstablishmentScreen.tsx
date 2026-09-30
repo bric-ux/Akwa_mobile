@@ -30,8 +30,31 @@ import {
   HOTEL_AMENITY_OPTIONS,
   HOTEL_CANCELLATION_OPTIONS,
   HOTEL_LANGUAGE_OPTIONS,
+  HOTEL_ROOM_CATEGORIES,
   formatHotelTime,
 } from '../constants/hotelListing';
+
+type DraftRoom = {
+  key: string;
+  room_category: string;
+  name: string;
+  price_per_night: string;
+  inventory_count: string;
+  max_guests: string;
+  cleaning_fee: string;
+  imageUris: string[];
+};
+
+const emptyDraftRoom = (): DraftRoom => ({
+  key: `r-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  room_category: 'standard',
+  name: 'Chambre Standard',
+  price_per_night: '',
+  inventory_count: '1',
+  max_guests: '2',
+  cleaning_fee: '0',
+  imageUris: [],
+});
 
 const ESTABLISHMENT_TYPES = [
   { value: 'hotel', label: 'Hôtel' },
@@ -41,6 +64,7 @@ const ESTABLISHMENT_TYPES = [
 ] as const;
 
 const MAX_PHOTOS = 20;
+const MAX_ROOM_PHOTOS = 10;
 
 type Route = RouteProp<RootStackParamList, 'AddHotelEstablishment'>;
 
@@ -85,6 +109,7 @@ export default function AddHotelEstablishmentScreen() {
   const [houseRules, setHouseRules] = useState('');
   const [cancellationPolicy, setCancellationPolicy] = useState('flexible');
   const [imageUris, setImageUris] = useState<string[]>([]);
+  const [draftRooms, setDraftRooms] = useState<DraftRoom[]>([]);
   const [status, setStatus] = useState<string>('draft');
   const [loading, setLoading] = useState(!!establishmentId);
   const [saving, setSaving] = useState(false);
@@ -187,6 +212,46 @@ export default function AddHotelEstablishmentScreen() {
     setImageUris((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const pickRoomImages = async (roomKey: string) => {
+    const room = draftRooms.find((r) => r.key === roomKey);
+    if (!room) return;
+    const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm !== 'granted') {
+      Alert.alert('Permission requise', 'Autorisez l’accès à vos photos.');
+      return;
+    }
+    const limit = MAX_ROOM_PHOTOS - room.imageUris.length;
+    if (limit <= 0) {
+      Alert.alert('Limite', `Max. ${MAX_ROOM_PHOTOS} photos par type de chambre.`);
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsMultipleSelection: true,
+      selectionLimit: limit,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.length) {
+      setDraftRooms((prev) =>
+        prev.map((r) =>
+          r.key === roomKey
+            ? { ...r, imageUris: [...r.imageUris, ...result.assets!.map((a) => a.uri)] }
+            : r,
+        ),
+      );
+    }
+  };
+
+  const removeRoomImage = (roomKey: string, index: number) => {
+    setDraftRooms((prev) =>
+      prev.map((r) =>
+        r.key === roomKey
+          ? { ...r, imageUris: r.imageUris.filter((_, i) => i !== index) }
+          : r,
+      ),
+    );
+  };
+
   const toggleAmenity = (value: string) => {
     setAmenities((prev) =>
       prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
@@ -199,7 +264,40 @@ export default function AddHotelEstablishmentScreen() {
     );
   };
 
-  const handleSubmit = async () => {
+  const goHotelSpace = () => {
+    navigation.navigate('ModeTransition', {
+      targetMode: 'hotel',
+      targetPath: 'HotelOwnerSpace',
+      fromMode: 'traveler',
+    });
+  };
+
+  const insertDraftRooms = async (estId: string) => {
+    if (!user) return;
+    for (const room of draftRooms) {
+      const name = room.name.trim();
+      const price = parseInt(room.price_per_night, 10);
+      if (!name || !Number.isFinite(price) || price <= 0) continue;
+      const images: string[] = [];
+      for (const uri of room.imageUris) {
+        images.push(await uploadHotelImage(uri, user.id));
+      }
+      const { error } = await supabase.from('hotel_room_types').insert({
+        establishment_id: estId,
+        name,
+        room_category: room.room_category || null,
+        price_per_night: price,
+        inventory_count: Math.max(1, parseInt(room.inventory_count, 10) || 1),
+        max_guests: Math.max(1, parseInt(room.max_guests, 10) || 1),
+        cleaning_fee: Math.max(0, parseInt(room.cleaning_fee, 10) || 0),
+        images,
+        status: 'active',
+      });
+      if (error) throw error;
+    }
+  };
+
+  const handleSave = async (asDraft: boolean) => {
     if (!user) {
       navigation.navigate('Auth', { returnTo: 'AddHotelEstablishment' });
       return;
@@ -207,6 +305,16 @@ export default function AddHotelEstablishmentScreen() {
     if (!title.trim()) {
       Alert.alert('Champ requis', 'Indiquez le nom de l’établissement.');
       return;
+    }
+    if (!asDraft) {
+      const incomplete = draftRooms.some((r) => {
+        const price = parseInt(r.price_per_night, 10);
+        return r.name.trim() && (!Number.isFinite(price) || price <= 0);
+      });
+      if (incomplete) {
+        Alert.alert('Chambres', 'Chaque chambre ajoutée doit avoir un prix / nuit valide.');
+        return;
+      }
     }
 
     setSaving(true);
@@ -255,8 +363,37 @@ export default function AddHotelEstablishmentScreen() {
           .eq('id', establishmentId)
           .eq('host_id', user.id);
         if (error) throw error;
-        Alert.alert('Enregistré', 'Établissement mis à jour.');
-        navigation.goBack();
+        if (draftRooms.length) {
+          await insertDraftRooms(establishmentId);
+          setDraftRooms([]);
+        }
+        if (!asDraft && (status === 'draft' || status === 'rejected' || status === 'hidden')) {
+          const { error: submitErr } = await supabase
+            .from('hotel_establishments')
+            .update({
+              status: 'pending',
+              submitted_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', establishmentId)
+            .eq('host_id', user.id);
+          if (submitErr) throw submitErr;
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          const hostName =
+            [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Hôtelier';
+          notifyHotelEstablishmentSubmitted(establishmentId, title.trim(), hostName).catch(() => {});
+          setStatus('pending');
+          Alert.alert('Soumis', 'Établissement envoyé pour validation.');
+        } else {
+          Alert.alert(asDraft ? 'Brouillon enregistré' : 'Enregistré', asDraft
+            ? 'Vous pourrez continuer plus tard depuis votre espace hôtel.'
+            : 'Établissement mis à jour.');
+        }
+        goHotelSpace();
         return;
       }
 
@@ -280,6 +417,15 @@ export default function AddHotelEstablishmentScreen() {
         .single();
 
       if (error) throw error;
+      if (draftRooms.length) {
+        await insertDraftRooms(created.id);
+      }
+
+      if (asDraft) {
+        Alert.alert('Brouillon enregistré', 'Continuez quand vous voulez depuis votre espace hôtel.');
+        goHotelSpace();
+        return;
+      }
 
       const { error: submitErr } = await supabase
         .from('hotel_establishments')
@@ -296,19 +442,7 @@ export default function AddHotelEstablishmentScreen() {
           'Brouillon enregistré',
           submitErr.message ||
             'L’établissement a été créé, mais la soumission a échoué. Vous pouvez le soumettre depuis Mes établissements.',
-          [
-            {
-              text: 'Voir mes établissements',
-              onPress: () => {
-                navigation.navigate('ModeTransition', {
-                  targetMode: 'hotel',
-                  targetPath: 'HotelOwnerSpace',
-                  fromMode: 'traveler',
-                });
-              },
-            },
-            { text: 'OK' },
-          ],
+          [{ text: 'Voir mes établissements', onPress: goHotelSpace }, { text: 'OK' }],
         );
         return;
       }
@@ -321,29 +455,10 @@ export default function AddHotelEstablishmentScreen() {
       const hostName =
         [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Hôtelier';
       notifyHotelEstablishmentSubmitted(created.id, title.trim(), hostName).catch(() => {});
-
-      Alert.alert(
-        'Succès',
-        'Votre établissement a été soumis pour validation. Vous pourrez ajouter les chambres depuis Mes établissements.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.navigate('ModeTransition', {
-                targetMode: 'hotel',
-                targetPath: 'HotelOwnerSpace',
-                fromMode: 'traveler',
-              });
-            },
-          },
-        ],
-        { cancelable: false },
-      );
-    } catch (e: unknown) {
-      Alert.alert(
-        'Erreur',
-        e instanceof Error ? e.message : 'Impossible d’enregistrer l’établissement.',
-      );
+      Alert.alert('Soumis', 'Votre établissement a été envoyé pour validation.');
+      goHotelSpace();
+    } catch (e) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Enregistrement impossible');
     } finally {
       setSaving(false);
     }
@@ -688,16 +803,167 @@ export default function AddHotelEstablishmentScreen() {
             ) : null}
           </ScrollView>
 
+          <Text style={styles.label}>Types de chambres</Text>
+          <Text style={styles.hint}>
+            Ajoutez vos chambres ici (photos, nom, prix, capacité). Vous pourrez les modifier ensuite.
+          </Text>
+          {draftRooms.map((room, index) => (
+            <View key={room.key} style={styles.roomCard}>
+              <View style={styles.roomCardHeader}>
+                <Text style={styles.roomCardTitle}>Chambre {index + 1}</Text>
+                <TouchableOpacity
+                  onPress={() => setDraftRooms((prev) => prev.filter((r) => r.key !== room.key))}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#dc2626" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                {HOTEL_ROOM_CATEGORIES.map((c) => {
+                  const on = room.room_category === c.value;
+                  return (
+                    <TouchableOpacity
+                      key={c.value}
+                      style={[styles.chip, on && styles.chipActive]}
+                      onPress={() =>
+                        setDraftRooms((prev) =>
+                          prev.map((r) =>
+                            r.key === room.key
+                              ? {
+                                  ...r,
+                                  room_category: c.value,
+                                  name: r.name.trim() ? r.name : c.defaultName,
+                                  max_guests: c.guests,
+                                }
+                              : r,
+                          ),
+                        )
+                      }
+                    >
+                      <Text style={[styles.chipText, on && styles.chipTextActive]}>{c.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <TextInput
+                style={styles.input}
+                value={room.name}
+                onChangeText={(v) =>
+                  setDraftRooms((prev) => prev.map((r) => (r.key === room.key ? { ...r, name: v } : r)))
+                }
+                placeholder="Nom du type"
+                placeholderTextColor="#94a3b8"
+              />
+              <View style={styles.roomRow}>
+                <TextInput
+                  style={[styles.input, styles.roomHalf]}
+                  value={room.price_per_night}
+                  onChangeText={(v) =>
+                    setDraftRooms((prev) =>
+                      prev.map((r) => (r.key === room.key ? { ...r, price_per_night: v } : r)),
+                    )
+                  }
+                  placeholder="Prix / nuit"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="number-pad"
+                />
+                <TextInput
+                  style={[styles.input, styles.roomHalf]}
+                  value={room.inventory_count}
+                  onChangeText={(v) =>
+                    setDraftRooms((prev) =>
+                      prev.map((r) => (r.key === room.key ? { ...r, inventory_count: v } : r)),
+                    )
+                  }
+                  placeholder="Nb unités"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="number-pad"
+                />
+              </View>
+              <View style={styles.roomRow}>
+                <TextInput
+                  style={[styles.input, styles.roomHalf]}
+                  value={room.max_guests}
+                  onChangeText={(v) =>
+                    setDraftRooms((prev) =>
+                      prev.map((r) => (r.key === room.key ? { ...r, max_guests: v } : r)),
+                    )
+                  }
+                  placeholder="Max voyageurs"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="number-pad"
+                />
+                <TextInput
+                  style={[styles.input, styles.roomHalf]}
+                  value={room.cleaning_fee}
+                  onChangeText={(v) =>
+                    setDraftRooms((prev) =>
+                      prev.map((r) => (r.key === room.key ? { ...r, cleaning_fee: v } : r)),
+                    )
+                  }
+                  placeholder="Ménage"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="number-pad"
+                />
+              </View>
+              <Text style={[styles.hint, { marginTop: 4 }]}>
+                Photos de la chambre (max. {MAX_ROOM_PHOTOS})
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosRow}>
+                {room.imageUris.map((uri, imgIndex) => (
+                  <View key={`${uri}-${imgIndex}`} style={styles.photoWrap}>
+                    <Image source={{ uri }} style={styles.photoThumb} />
+                    <TouchableOpacity
+                      style={styles.photoRemove}
+                      onPress={() => removeRoomImage(room.key, imgIndex)}
+                    >
+                      <Ionicons name="close-circle" size={22} color="#e74c3c" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {room.imageUris.length < MAX_ROOM_PHOTOS ? (
+                  <TouchableOpacity
+                    style={styles.photoAdd}
+                    onPress={() => void pickRoomImages(room.key)}
+                  >
+                    <Ionicons name="camera-outline" size={28} color="#64748b" />
+                    <Text style={styles.photoAddText}>Photos</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </ScrollView>
+            </View>
+          ))}
+          <TouchableOpacity
+            style={styles.addRoomBtn}
+            onPress={() => setDraftRooms((prev) => [...prev, emptyDraftRoom()])}
+          >
+            <Ionicons name="add-circle-outline" size={20} color={HOTEL_COLORS.primary} />
+            <Text style={styles.addRoomText}>Ajouter un type de chambre</Text>
+          </TouchableOpacity>
+
+          {!isEdit ? (
+            <TouchableOpacity
+              style={[styles.draftBtn, saving && { opacity: 0.7 }]}
+              onPress={() => void handleSave(true)}
+              disabled={saving}
+            >
+              <Text style={styles.draftBtnText}>Enregistrer un brouillon</Text>
+            </TouchableOpacity>
+          ) : null}
+
           <TouchableOpacity
             style={[styles.submit, saving && { opacity: 0.7 }]}
-            onPress={handleSubmit}
+            onPress={() => void handleSave(false)}
             disabled={saving}
           >
             {saving ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.submitText}>
-                {isEdit ? 'Enregistrer' : 'Soumettre pour validation'}
+                {isEdit
+                  ? status === 'draft' || status === 'rejected' || status === 'hidden'
+                    ? 'Soumettre pour validation'
+                    : 'Enregistrer'
+                  : 'Soumettre pour validation'}
               </Text>
             )}
           </TouchableOpacity>
@@ -854,6 +1120,41 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   toggleTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a', marginBottom: 2 },
+  roomCard: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    backgroundColor: '#f8fafc',
+  },
+  roomCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  roomCardTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  roomRow: { flexDirection: 'row', gap: 8 },
+  roomHalf: { flex: 1 },
+  addRoomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    paddingVertical: 10,
+  },
+  addRoomText: { color: HOTEL_COLORS.primary, fontWeight: '700', fontSize: 14 },
+  draftBtn: {
+    borderWidth: 1.5,
+    borderColor: HOTEL_COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 10,
+    backgroundColor: '#fff',
+  },
+  draftBtnText: { color: HOTEL_COLORS.primary, fontSize: 15, fontWeight: '700' },
   submit: {
     marginTop: 8,
     backgroundColor: HOTEL_COLORS.primary,

@@ -268,14 +268,19 @@ export const useMonthlyRentalCandidatures = () => {
         if (
           candidature?.tenant_id &&
           candidature.listing_id &&
-          (status === 'accepted' || status === 'rejected')
+          (status === 'accepted' || status === 'rejected' || status === 'docs_requested')
         ) {
+          const requestedDocuments =
+            status === 'docs_requested' && Array.isArray(extra?.requested_documents)
+              ? extra.requested_documents
+              : undefined;
           notifyMonthlyCandidatureStatusChange({
             listingId: candidature.listing_id,
             tenantId: candidature.tenant_id,
             tenantName: candidature.full_name || 'Candidat',
             tenantEmail: candidature.email || '',
             status,
+            requestedDocuments,
           }).catch(() => {});
         }
 

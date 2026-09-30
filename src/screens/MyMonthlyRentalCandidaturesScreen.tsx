@@ -14,12 +14,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../services/AuthContext';
 import { supabase } from '../services/supabase';
 import { useMonthlyRentalCandidatures } from '../hooks/useMonthlyRentalCandidatures';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import { monthlyRentalDocumentLabel } from '../constants/monthlyRentalDocuments';
 import type { MonthlyRentalCandidature } from '../types';
+import {
+  MONTHLY_CANDIDATURE_ALERTS_STORAGE_KEY,
+  isUnseenMonthlyCandidatureAlert,
+  markMonthlyCandidatureAlertsSeen,
+  parseMonthlyCandidatureAlertsSeen,
+} from '../utils/monthlyCandidatureAlerts';
 
 const STATUS_LABEL: Record<string, string> = {
   sent: 'Dossier envoyé',
@@ -46,12 +53,22 @@ export default function MyMonthlyRentalCandidaturesScreen() {
   const { user } = useAuth();
   const { getByTenantId, appendDocuments, loading } = useMonthlyRentalCandidatures();
   const [rows, setRows] = useState<Row[]>([]);
+  const [alertIds, setAlertIds] = useState<Set<string>>(() => new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const data = await getByTenantId();
+    const raw = await AsyncStorage.getItem(MONTHLY_CANDIDATURE_ALERTS_STORAGE_KEY);
+    const seen = parseMonthlyCandidatureAlertsSeen(raw);
+    setAlertIds(
+      new Set(data.filter((row) => isUnseenMonthlyCandidatureAlert(row, seen)).map((row) => row.id)),
+    );
     setRows(data);
+    await AsyncStorage.setItem(
+      MONTHLY_CANDIDATURE_ALERTS_STORAGE_KEY,
+      JSON.stringify(markMonthlyCandidatureAlertsSeen(data, seen)),
+    );
   }, [getByTenantId]);
 
   useFocusEffect(
@@ -108,19 +125,23 @@ export default function MyMonthlyRentalCandidaturesScreen() {
     const uploadedTypes = new Set((item.application_documents || []).map((d) => d.type));
     const missing = requested.filter((t) => !uploadedTypes.has(t));
     const showUpload = item.status === 'docs_requested' || missing.length > 0;
+    const showAlert = alertIds.has(item.id) || item.status === 'docs_requested';
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, showAlert && styles.cardAlert]}
         activeOpacity={0.85}
         onPress={() =>
           navigation.navigate('MonthlyRentalListingDetail', { listingId: item.listing_id })
         }
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {item.listing_title || 'Logement'}
-          </Text>
+          <View style={styles.cardTitleRow}>
+            {showAlert ? <View style={styles.alertDot} /> : null}
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {item.listing_title || 'Logement'}
+            </Text>
+          </View>
           <View style={[styles.badge, { backgroundColor: `${STATUS_COLOR[item.status] || '#6b7280'}18` }]}>
             <Text style={[styles.badgeText, { color: STATUS_COLOR[item.status] || '#6b7280' }]}>
               {STATUS_LABEL[item.status] || item.status}
@@ -257,7 +278,17 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     marginBottom: 12,
   },
+  cardAlert: {
+    borderColor: '#fecaca',
+  },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  cardTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  alertDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+  },
   cardTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: '#0f172a' },
   badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontSize: 11, fontWeight: '700' },

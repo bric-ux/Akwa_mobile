@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { sendPushToUser } from './pushNotificationService';
 import { notifyAdminsModerationPush } from './notifyAdminsModerationPush';
+import { monthlyRentalDocumentLabel } from '../constants/monthlyRentalDocuments';
 
 const ADMIN_EMAIL = 'contact@akwahome.com';
 
@@ -101,10 +102,35 @@ export async function notifyMonthlyCandidatureStatusChange(params: {
   tenantId: string;
   tenantName: string;
   tenantEmail: string;
-  status: 'accepted' | 'rejected';
+  status: 'accepted' | 'rejected' | 'docs_requested';
+  requestedDocuments?: string[];
 }): Promise<void> {
   const listing = await loadListingContext(params.listingId);
   if (!listing) return;
+
+  if (params.status === 'docs_requested') {
+    const requestedDocuments = (params.requestedDocuments || []).map(monthlyRentalDocumentLabel);
+    await Promise.all([
+      sendEmail('monthly_candidature_docs_requested', params.tenantEmail, {
+        tenantName: params.tenantName,
+        listingTitle: listing.title,
+        ownerName: listing.ownerName,
+        listingId: listing.id,
+        requestedDocuments,
+      }),
+      sendPushToUser(
+        params.tenantId,
+        'Documents demandés',
+        `Le propriétaire de ${listing.title} demande des documents complémentaires.`,
+        {
+          type: 'monthly_candidature',
+          listingId: listing.id,
+          screen: 'MyMonthlyRentalCandidatures',
+        },
+      ).catch(() => {}),
+    ]);
+    return;
+  }
 
   const accepted = params.status === 'accepted';
   const emailType = accepted ? 'monthly_candidature_accepted' : 'monthly_candidature_rejected';
