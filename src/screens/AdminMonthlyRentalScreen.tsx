@@ -49,6 +49,7 @@ const AdminMonthlyRentalScreen: React.FC = () => {
     getMonthlyRentalListings,
     updateMonthlyRentalListingStatus,
     deleteMonthlyRentalListing,
+    setMonthlyRentalListingHidden,
     loading,
   } = useAdmin();
 
@@ -152,6 +153,26 @@ const AdminMonthlyRentalScreen: React.FC = () => {
     );
   };
 
+  const handleToggleHidden = async () => {
+    if (!selected || selected.status !== 'approved') return;
+    const nextHidden = !selected.hidden_by_admin;
+    setActionLoading(true);
+    const result = await setMonthlyRentalListingHidden(selected.id, nextHidden);
+    setActionLoading(false);
+    if (result.success) {
+      setSelected({ ...selected, hidden_by_admin: nextHidden });
+      await loadListings();
+      Alert.alert(
+        'Succès',
+        nextHidden
+          ? 'Annonce masquée du front public.'
+          : 'Annonce de nouveau visible sur le front.',
+      );
+    } else {
+      Alert.alert('Erreur', result.error ?? 'Action impossible');
+    }
+  };
+
   const renderItem = ({ item }: { item: MonthlyRentalListingWithOwner }) => (
     <TouchableOpacity style={styles.card} onPress={() => setSelected(item)} activeOpacity={0.8}>
       {item.images?.[0] ? (
@@ -175,6 +196,11 @@ const AdminMonthlyRentalScreen: React.FC = () => {
           <View style={[styles.badge, { backgroundColor: STATUS_COLORS[item.status] || '#999' }]}>
             <Text style={styles.badgeText}>{STATUS_LABELS[item.status] ?? item.status}</Text>
           </View>
+          {item.hidden_by_admin ? (
+            <View style={[styles.badge, { backgroundColor: '#b45309' }]}>
+              <Text style={styles.badgeText}>Masquée (admin)</Text>
+            </View>
+          ) : null}
           {item.payment && (
             <View style={[styles.badge, { backgroundColor: item.payment.status === 'completed' ? '#2E7D32' : '#f39c12' }]}>
               <Text style={styles.badgeText}>
@@ -336,6 +362,9 @@ const AdminMonthlyRentalScreen: React.FC = () => {
                     <Text style={styles.detailText}>{selected.admin_notes}</Text>
                   </>
                 )}
+                {selected.hidden_by_admin ? (
+                  <Text style={styles.hiddenHint}>Masquée du front public (admin)</Text>
+                ) : null}
 
                 {(selected.status === 'pending' || selected.status === 'rejected') && (
                   <>
@@ -379,6 +408,24 @@ const AdminMonthlyRentalScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
             )}
+            {selected?.status === 'approved' ? (
+              <TouchableOpacity
+                style={styles.hideLink}
+                onPress={() => void handleToggleHidden()}
+                disabled={actionLoading}
+              >
+                <Ionicons
+                  name={selected.hidden_by_admin ? 'eye-outline' : 'eye-off-outline'}
+                  size={18}
+                  color="#b45309"
+                />
+                <Text style={styles.hideLinkText}>
+                  {selected.hidden_by_admin
+                    ? 'Réafficher sur le front'
+                    : 'Masquer du front'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             {selected && (
               <TouchableOpacity style={styles.deleteLink} onPress={handleDelete} disabled={actionLoading}>
                 <Ionicons name="trash-outline" size={18} color="#e74c3c" />
@@ -491,6 +538,12 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 12, fontWeight: '600', color: '#999', marginTop: 16, marginBottom: 4 },
   detailText: { fontSize: 14, color: '#333' },
   detailSubtext: { fontSize: 13, color: '#666', marginTop: 2 },
+  hiddenHint: {
+    marginTop: 12,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#b45309',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#e9ecef',
@@ -518,6 +571,16 @@ const styles = StyleSheet.create({
   approveBtn: { backgroundColor: '#2E7D32' },
   rejectBtn: { backgroundColor: '#e74c3c' },
   actionBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  hideLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginBottom: 4,
+  },
+  hideLinkText: { fontSize: 14, color: '#b45309', fontWeight: '600' },
   deleteLink: {
     flexDirection: 'row',
     alignItems: 'center',

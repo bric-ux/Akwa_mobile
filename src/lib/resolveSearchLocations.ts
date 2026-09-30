@@ -191,6 +191,12 @@ export async function resolveLocationIdsForSearchTerm(
     return { locationIds: null, geoSoftMatch: false, locationNames: [] };
   }
 
+  console.log('🔎 [resolve] start', {
+    term,
+    filtersCenter: { lat: filters?.centerLat ?? null, lng: filters?.centerLng ?? null },
+    radiusKm: filters?.radiusKm ?? null,
+  });
+
   const { data: cityData } = await supabase
     .from('locations')
     .select('id, name, latitude, longitude')
@@ -216,13 +222,26 @@ export async function resolveLocationIdsForSearchTerm(
     }
     const locationIds = [...cityIds, ...communeIds, ...neighborhoodIds];
     const withCoords = cityData.find((c: any) => c.latitude != null && c.longitude != null);
-    return {
+    const result = {
       locationIds,
       geoSoftMatch: true,
       locationNames: cityData.map((c) => c.name),
       centerLat: withCoords?.latitude ?? filters?.centerLat,
       centerLng: withCoords?.longitude ?? filters?.centerLng,
     };
+    console.log('🔎 [resolve] match CITY', {
+      cities: cityData.map((c) => ({
+        id: c.id,
+        name: c.name,
+        lat: c.latitude,
+        lng: c.longitude,
+      })),
+      communeCount: communeIds.length,
+      neighborhoodCount: neighborhoodIds.length,
+      locationIdsCount: locationIds.length,
+      center: { lat: result.centerLat, lng: result.centerLng },
+    });
+    return result;
   }
 
   const { data: communeData } = await supabase
@@ -241,13 +260,25 @@ export async function resolveLocationIdsForSearchTerm(
     const neighborhoodIds = (neighborhoodLocations || []).map((l) => l.id);
     const locationIds = [...communeIds, ...neighborhoodIds];
     const withCoords = communeData.find((c: any) => c.latitude != null && c.longitude != null);
-    return {
+    const result = {
       locationIds,
       geoSoftMatch: true,
       locationNames: communeData.map((c) => c.name),
       centerLat: withCoords?.latitude ?? filters?.centerLat,
       centerLng: withCoords?.longitude ?? filters?.centerLng,
     };
+    console.log('🔎 [resolve] match COMMUNE', {
+      communes: communeData.map((c) => ({
+        id: c.id,
+        name: c.name,
+        lat: c.latitude,
+        lng: c.longitude,
+      })),
+      neighborhoodCount: neighborhoodIds.length,
+      locationIdsCount: locationIds.length,
+      center: { lat: result.centerLat, lng: result.centerLng },
+    });
+    return result;
   }
 
   const { data: neighborhoodData } = await supabase
@@ -284,15 +315,35 @@ export async function resolveLocationIdsForSearchTerm(
       );
       const locationIds = [...new Set(expanded.flat())];
       const locationNames = await namesForLocationIds(locationIds);
-      return {
+      const result = {
         locationIds,
         geoSoftMatch: true,
         locationNames: [...candidates.map((c) => c.name), ...locationNames],
         centerLat: filters?.centerLat,
         centerLng: filters?.centerLng,
       };
+      console.log('🔎 [resolve] match NEIGHBORHOOD', {
+        neighborhoods: candidates.map((c) => ({
+          id: c.id,
+          name: c.name,
+          lat: c.latitude,
+          lng: c.longitude,
+        })),
+        locationIdsCount: locationIds.length,
+        filteredByCenter40km: hasCenter,
+        center: { lat: result.centerLat, lng: result.centerLng },
+      });
+      return result;
     }
   }
 
-  return resolveOffCatalogLocationIds(term, filters);
+  console.log('🔎 [resolve] pas de match DB → off-catalog / OSM', { term });
+  const off = await resolveOffCatalogLocationIds(term, filters);
+  console.log('🔎 [resolve] off-catalog result', {
+    locationIdsCount: off.locationIds?.length ?? 0,
+    soft: off.geoSoftMatch,
+    center: { lat: off.centerLat, lng: off.centerLng },
+    names: off.locationNames,
+  });
+  return off;
 }

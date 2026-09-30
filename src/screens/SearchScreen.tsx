@@ -464,6 +464,19 @@ const SearchScreen: React.FC = () => {
           centerLat: filters.radiusKm && filters.radiusKm > 0 ? centerLat : undefined,
           centerLng: filters.radiusKm && filters.radiusKm > 0 ? centerLng : undefined,
         };
+
+        console.log('🔎 [SearchScreen] fetchProperties', {
+          query,
+          rentalType,
+          city: searchFilters.city,
+          centerLat: searchFilters.centerLat ?? null,
+          centerLng: searchFilters.centerLng ?? null,
+          radiusKm: searchFilters.radiusKm ?? null,
+          guests: searchFilters.guests ?? null,
+          checkIn: searchFilters.checkIn ?? null,
+          checkOut: searchFilters.checkOut ?? null,
+          selectedLocation,
+        });
         
         if (rentalType === 'monthly') {
           await fetchMonthlyListings({
@@ -550,6 +563,15 @@ const SearchScreen: React.FC = () => {
             : filters.radiusKm,
     };
     setFilters(newFilters);
+    console.log('🔎 [SearchScreen] suggestion sélectionnée', {
+      text: suggestion.text,
+      id: suggestion.id,
+      fromMap: Boolean(suggestion.fromMap),
+      centerLat: centerLat ?? null,
+      centerLng: centerLng ?? null,
+      radiusKm: newFilters.radiusKm ?? null,
+      isMapPlace,
+    });
   };
 
 
@@ -738,6 +760,19 @@ const SearchScreen: React.FC = () => {
 
     setHasSubmittedSearch(true);
     setShowSearchForm(false);
+    console.log('🔎 [SearchScreen] bouton Rechercher', {
+      query,
+      rentalType,
+      filters: {
+        city: filters.city,
+        centerLat: filters.centerLat ?? null,
+        centerLng: filters.centerLng ?? null,
+        radiusKm: filters.radiusKm ?? null,
+        guests: adults + children + babies,
+        checkIn: checkIn || null,
+        checkOut: checkOut || null,
+      },
+    });
     await handleSearch(query, { forceFetch: true });
   };
 

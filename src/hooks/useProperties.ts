@@ -28,10 +28,9 @@ import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
 
 const AMENITY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Debug recherche Cocody/Faya — visible en __DEV__ */
+/** Debug recherche Cocody/Faya — TOUJOURS visible dans Metro (pas seulement __DEV__). */
 function debugSearchLog(tag: string, payload?: Record<string, unknown>) {
-  if (!__DEV__) return;
-  if (payload) {
+  if (payload !== undefined) {
     console.log(`🔎 [search] ${tag}`, payload);
   } else {
     console.log(`🔎 [search] ${tag}`);
@@ -481,21 +480,36 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       
       // Vérifier le cache d'abord (sauf refresh forcé / recherche par ville)
       if (!options?.forceRefresh && !skipCache && cache.has(cacheKey)) {
-        if (__DEV__) {
-          const cached = cache.get(cacheKey)!;
-          console.log('🔎 [search] CACHE HIT', {
-            count: cached.length,
-            faya: summarizeFayaHits(cached as any[]),
-            cacheKey: cacheKey.slice(0, 120),
-          });
-        }
+        const cached = cache.get(cacheKey)!;
+        console.log('🔎 [search] CACHE HIT', {
+          count: cached.length,
+          faya: summarizeFayaHits(cached as any[]),
+          cacheKey: cacheKey.slice(0, 120),
+        });
         setProperties(cache.get(cacheKey)!);
         setLoading(false);
         return;
       }
-      if (__DEV__ && skipCache) {
+      if (skipCache) {
         console.log('🔎 [search] cache ignoré (recherche destination)', {
           city: filters?.city,
+          forceRefresh: Boolean(options?.forceRefresh),
+        });
+      }
+
+      if (filters?.city?.trim()) {
+        console.log('🔎 [search] ========== DÉBUT RECHERCHE ==========', {
+          city: filters.city.trim(),
+          source,
+          centerLat: filters.centerLat ?? null,
+          centerLng: filters.centerLng ?? null,
+          radiusKm: filters.radiusKm ?? null,
+          guests: filters.guests ?? null,
+          checkIn: filters.checkIn ?? null,
+          checkOut: filters.checkOut ?? null,
+          priceMin: filters.priceMin ?? null,
+          priceMax: filters.priceMax ?? null,
+          propertyType: filters.propertyType ?? null,
         });
       }
 
@@ -941,14 +955,16 @@ export const useProperties = (options?: UsePropertiesOptions) => {
 
       if (__DEV__) {
         console.log('🔍 Propriétés retournées par la requête:', rawData.length || 0);
-        debugSearchLog('liste avant filtres client', {
-          faya: summarizeFayaHits(rawData as any[], effectiveCenterLat, effectiveCenterLng),
+      }
+      debugSearchLog('liste avant filtres client', {
+        count: rawData.length,
+        faya: summarizeFayaHits(rawData as any[], effectiveCenterLat, effectiveCenterLng),
+        sampleTitles: (rawData as any[]).slice(0, 10).map((p) => p.title),
+      });
+      if (__DEV__ && rawData.length > 0) {
+        rawData.forEach((prop, index) => {
+          console.log(`   ${index + 1}. ${prop.title} - Active: ${prop.is_active}, Masquée: ${prop.is_hidden}`);
         });
-        if (rawData.length > 0) {
-          rawData.forEach((prop, index) => {
-            console.log(`   ${index + 1}. ${prop.title} - Active: ${prop.is_active}, Masquée: ${prop.is_hidden}`);
-          });
-        }
       }
 
       // Filtrer par équipements si spécifié (filtrage côté client pour "ET" logique)
@@ -1261,15 +1277,29 @@ export const useProperties = (options?: UsePropertiesOptions) => {
       });
 
       if (__DEV__) console.log('🎯 Propriétés transformées:', transformedProperties.length);
+      const fayaFinal = summarizeFayaHits(
+        transformedProperties as any[],
+        effectiveCenterLat,
+        effectiveCenterLng,
+      );
       debugSearchLog('RÉSULTAT FINAL', {
         count: transformedProperties.length,
-        faya: summarizeFayaHits(
-          transformedProperties as any[],
-          effectiveCenterLat,
-          effectiveCenterLng,
-        ),
+        fayaCount: fayaFinal.length,
+        faya: fayaFinal,
         titles: transformedProperties.slice(0, 15).map((p: any) => p.title),
+        center: { lat: effectiveCenterLat, lng: effectiveCenterLng },
+        radiusKm: effectiveRadiusKm,
+        soft: geoSoftMatch,
       });
+      if (filters?.city?.trim()) {
+        console.log(
+          fayaFinal.length > 0
+            ? `🔎 [search] ✅ FAYA TROUVÉE pour "${filters.city.trim()}" (${fayaFinal.length})`
+            : `🔎 [search] ❌ FAYA ABSENTE pour "${filters.city.trim()}" (total=${transformedProperties.length})`,
+          fayaFinal,
+        );
+        console.log('🔎 [search] ========== FIN RECHERCHE ==========');
+      }
 
       const refDate = getRefDateStrForListPricing(filters);
       const baseMap = new Map(

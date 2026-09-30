@@ -30,6 +30,7 @@ export const useApprovedMonthlyRentalListings = () => {
           .from('monthly_rental_listings')
           .select('*')
           .eq('status', 'approved')
+          .eq('hidden_by_admin', false)
           .order('updated_at', { ascending: false });
 
         const city = (filters?.city ?? filters?.location)?.trim();

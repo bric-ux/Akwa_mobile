@@ -549,6 +549,8 @@ export interface MonthlyRentalListing {
   /** Documents exigés pour postuler (ids : cni, fiche_paie, …) */
   required_documents?: string[];
   status: MonthlyRentalListingStatus;
+  /** Masqué du catalogue public par un administrateur */
+  hidden_by_admin?: boolean;
   submitted_at: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;

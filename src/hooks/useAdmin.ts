@@ -1059,17 +1059,52 @@ export const useAdmin = () => {
     setLoading(true);
     setError(null);
     try {
+      const payload: Record<string, unknown> = {
+        status,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: user.id,
+        admin_notes: adminNotes ?? null,
+        updated_at: new Date().toISOString(),
+      };
+      // Réapprouver remet l’annonce visible (sauf si on préfère garder le masquage)
+      if (status === 'approved') {
+        payload.hidden_by_admin = false;
+      }
+      const { error: err } = await supabase
+        .from('monthly_rental_listings')
+        .update(payload)
+        .eq('id', listingId);
+
+      if (err) {
+        setError(err.message);
+        return { success: false, error: err.message };
+      }
+      return { success: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erreur';
+      setError(msg);
+      return { success: false, error: msg };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Masquer / réafficher une annonce bail longue durée sur le front public. */
+  const setMonthlyRentalListingHidden = async (
+    listingId: string,
+    hidden: boolean,
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Non connecté' };
+    setLoading(true);
+    setError(null);
+    try {
       const { error: err } = await supabase
         .from('monthly_rental_listings')
         .update({
-          status,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user.id,
-          admin_notes: adminNotes ?? null,
+          hidden_by_admin: hidden,
           updated_at: new Date().toISOString(),
         })
         .eq('id', listingId);
-
       if (err) {
         setError(err.message);
         return { success: false, error: err.message };
@@ -1264,6 +1299,7 @@ export const useAdmin = () => {
     getDashboardStats,
     getMonthlyRentalListings,
     updateMonthlyRentalListingStatus,
+    setMonthlyRentalListingHidden,
     deleteMonthlyRentalListing,
     getHotelEstablishments,
     updateHotelEstablishmentStatus,
