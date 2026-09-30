@@ -193,7 +193,7 @@ export async function resolveLocationIdsForSearchTerm(
 
   const { data: cityData } = await supabase
     .from('locations')
-    .select('id, name')
+    .select('id, name, latitude, longitude')
     .eq('type', 'city')
     .ilike('name', `%${term}%`);
 
@@ -215,18 +215,19 @@ export async function resolveLocationIdsForSearchTerm(
       neighborhoodIds = (neighborhoodLocations || []).map((l) => l.id);
     }
     const locationIds = [...cityIds, ...communeIds, ...neighborhoodIds];
+    const withCoords = cityData.find((c: any) => c.latitude != null && c.longitude != null);
     return {
       locationIds,
       geoSoftMatch: false,
       locationNames: cityData.map((c) => c.name),
-      centerLat: filters?.centerLat,
-      centerLng: filters?.centerLng,
+      centerLat: withCoords?.latitude ?? filters?.centerLat,
+      centerLng: withCoords?.longitude ?? filters?.centerLng,
     };
   }
 
   const { data: communeData } = await supabase
     .from('locations')
-    .select('id, name, type, parent_id')
+    .select('id, name, type, parent_id, latitude, longitude')
     .eq('type', 'commune')
     .ilike('name', `%${term}%`);
 
@@ -239,12 +240,13 @@ export async function resolveLocationIdsForSearchTerm(
       .eq('type', 'neighborhood');
     const neighborhoodIds = (neighborhoodLocations || []).map((l) => l.id);
     const locationIds = [...communeIds, ...neighborhoodIds];
+    const withCoords = communeData.find((c: any) => c.latitude != null && c.longitude != null);
     return {
       locationIds,
       geoSoftMatch: false,
       locationNames: communeData.map((c) => c.name),
-      centerLat: filters?.centerLat,
-      centerLng: filters?.centerLng,
+      centerLat: withCoords?.latitude ?? filters?.centerLat,
+      centerLng: withCoords?.longitude ?? filters?.centerLng,
     };
   }
 

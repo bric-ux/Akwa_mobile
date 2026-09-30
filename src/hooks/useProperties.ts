@@ -552,17 +552,70 @@ export const useProperties = (options?: UsePropertiesOptions) => {
         throw error;
       }
 
+      let rawData = data || [];
+
+      // 0 résultat exact → proximité géo (ex. Faya sans annonces)
+      if (searchTerm && rawData.length === 0) {
+        if (effectiveCenterLat == null || effectiveCenterLng == null) {
+          try {
+            const { forwardGeocodeNominatim } = await import('../lib/geolocation');
+            const hits = await forwardGeocodeNominatim(`${searchTerm}, Côte d'Ivoire`);
+            const hit = hits?.[0];
+            if (hit) {
+              effectiveCenterLat = hit.latitude;
+              effectiveCenterLng = hit.longitude;
+            }
+          } catch (e) {
+            if (__DEV__) console.warn('Proximity geocode fallback failed', e);
+          }
+        }
+        if (effectiveCenterLat != null && effectiveCenterLng != null) {
+          geoSoftMatch = true;
+          if (!(effectiveRadiusKm && effectiveRadiusKm > 0)) {
+            effectiveRadiusKm = 12;
+          }
+          if (__DEV__) {
+            console.log(
+              `📍 Aucun résultat exact pour "${searchTerm}" → proximité ${effectiveRadiusKm} km`,
+            );
+          }
+          let nearbyQuery = supabase
+            .from('properties')
+            .select(propertiesSelect)
+            .eq('is_active', true)
+            .eq('is_hidden', false)
+            .not('latitude', 'is', null)
+            .not('longitude', 'is', null)
+            .limit(80);
+          if (source === 'home') nearbyQuery = nearbyQuery.eq('hide_from_home', false);
+          if (filters?.guests) nearbyQuery = nearbyQuery.gte('max_guests', filters.guests);
+          if (filters?.priceMin) nearbyQuery = nearbyQuery.gte('price_per_night', filters.priceMin);
+          if (filters?.priceMax) nearbyQuery = nearbyQuery.lte('price_per_night', filters.priceMax);
+          if (
+            filters?.propertyType &&
+            ['apartment', 'house', 'villa', 'eco_lodge', 'other'].includes(filters.propertyType)
+          ) {
+            nearbyQuery = nearbyQuery.eq('property_type', filters.propertyType as any);
+          }
+          const { data: nearbyData, error: nearbyErr } = await nearbyQuery;
+          if (!nearbyErr && nearbyData) {
+            rawData = nearbyData;
+            locationIds = null;
+          }
+        }
+      }
+
       if (__DEV__) {
-        console.log('🔍 Propriétés retournées par la requête:', data?.length || 0);
-        if (data && data.length > 0) {
-          data.forEach((prop, index) => {
+        console.log('🔍 Propriétés retournées par la requête:', rawData.length || 0);
+        if (rawData.length > 0) {
+          rawData.forEach((prop, index) => {
             console.log(`   ${index + 1}. ${prop.title} - Active: ${prop.is_active}, Masquée: ${prop.is_hidden}`);
           });
         }
       }
 
       // Filtrer par équipements si spécifié (filtrage côté client pour "ET" logique)
-      let filteredData = data || [];
+      let filteredData = rawData;
       if (filters?.amenities && filters.amenities.length > 0) {
         filteredData = filteredData.filter((property) => {
           const propertyAmenities = property.amenities || [];
@@ -572,7 +625,7 @@ export const useProperties = (options?: UsePropertiesOptions) => {
           );
         });
         if (__DEV__) {
-          console.log(`🔍 Filtrage par équipements: ${data?.length || 0} → ${filteredData.length} propriétés`);
+          console.log(`🔍 Filtrage par équipements: ${rawData.length || 0} → ${filteredData.length} propriétés`);
         }
       }
 

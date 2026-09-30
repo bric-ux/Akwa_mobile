@@ -16,6 +16,7 @@ export interface MonthlyRentalListingInput {
   number_of_rooms: number;
   bedrooms: number;
   bathrooms: number;
+  toilets?: number | null;
   is_furnished: boolean;
   monthly_rent_price: number;
   security_deposit?: number | null;
@@ -99,6 +100,7 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
             number_of_rooms: input.number_of_rooms,
             bedrooms: input.bedrooms,
             bathrooms: input.bathrooms,
+            toilets: input.toilets ?? null,
             is_furnished: input.is_furnished,
             monthly_rent_price: input.monthly_rent_price,
             security_deposit: input.security_deposit ?? null,

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../services/AuthContext';
-import type { MonthlyRentalCandidature } from '../types';
+import type { MonthlyRentalCandidature, MonthlyRentalCandidatureStatus } from '../types';
 import {
   notifyMonthlyCandidatureStatusChange,
   notifyMonthlyCandidatureSubmitted,
@@ -221,7 +221,12 @@ export const useMonthlyRentalCandidatures = () => {
   const updateStatus = useCallback(
     async (
       candidatureId: string,
-      status: 'accepted' | 'rejected',
+      status: MonthlyRentalCandidatureStatus,
+      extra?: {
+        requested_documents?: string[];
+        visit_authorized_at?: string;
+        docs_requested_at?: string;
+      },
     ): Promise<{ success: boolean; error?: string }> => {
       if (!user) return { success: false, error: 'Non connecté' };
 
@@ -239,13 +244,20 @@ export const useMonthlyRentalCandidatures = () => {
           return { success: false, error: fetchErr.message };
         }
 
+        const patch: Record<string, unknown> = {
+          status,
+          updated_at: new Date().toISOString(),
+        };
+        if (status === 'accepted' || status === 'rejected') {
+          patch.decided_at = new Date().toISOString();
+        }
+        if (extra?.requested_documents) patch.requested_documents = extra.requested_documents;
+        if (extra?.visit_authorized_at) patch.visit_authorized_at = extra.visit_authorized_at;
+        if (extra?.docs_requested_at) patch.docs_requested_at = extra.docs_requested_at;
+
         const { error: err } = await supabase
           .from('monthly_rental_candidatures')
-          .update({
-            status,
-            decided_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+          .update(patch)
           .eq('id', candidatureId);
 
         if (err) {
@@ -253,7 +265,11 @@ export const useMonthlyRentalCandidatures = () => {
           return { success: false, error: err.message };
         }
 
-        if (candidature?.tenant_id && candidature.listing_id) {
+        if (
+          candidature?.tenant_id &&
+          candidature.listing_id &&
+          (status === 'accepted' || status === 'rejected')
+        ) {
           notifyMonthlyCandidatureStatusChange({
             listingId: candidature.listing_id,
             tenantId: candidature.tenant_id,
@@ -263,6 +279,72 @@ export const useMonthlyRentalCandidatures = () => {
           }).catch(() => {});
         }
 
+        return { success: true };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Erreur';
+        setError(msg);
+        return { success: false, error: msg };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user],
+  );
+
+  const authorizeVisit = useCallback(
+    (id: string) =>
+      updateStatus(id, 'visit_authorized', {
+        visit_authorized_at: new Date().toISOString(),
+      }),
+    [updateStatus],
+  );
+
+  const requestDocuments = useCallback(
+    (id: string, docs: string[]) =>
+      updateStatus(id, 'docs_requested', {
+        requested_documents: docs,
+        docs_requested_at: new Date().toISOString(),
+      }),
+    [updateStatus],
+  );
+
+  const appendDocuments = useCallback(
+    async (
+      candidatureId: string,
+      docs: { type: string; url: string; name: string }[],
+    ): Promise<{ success: boolean; error?: string }> => {
+      if (!user) return { success: false, error: 'Non connecté' };
+      if (!docs.length) return { success: false, error: 'Aucun document' };
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: current, error: fetchErr } = await supabase
+          .from('monthly_rental_candidatures')
+          .select('application_documents, status')
+          .eq('id', candidatureId)
+          .eq('tenant_id', user.id)
+          .maybeSingle();
+        if (fetchErr || !current) {
+          const msg = fetchErr?.message || 'Candidature introuvable';
+          setError(msg);
+          return { success: false, error: msg };
+        }
+        const prev = Array.isArray(current.application_documents)
+          ? current.application_documents
+          : [];
+        const { error: err } = await supabase
+          .from('monthly_rental_candidatures')
+          .update({
+            application_documents: [...prev, ...docs],
+            status: current.status === 'docs_requested' ? 'viewed' : current.status,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', candidatureId)
+          .eq('tenant_id', user.id);
+        if (err) {
+          setError(err.message);
+          return { success: false, error: err.message };
+        }
         return { success: true };
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Erreur';
@@ -302,6 +384,9 @@ export const useMonthlyRentalCandidatures = () => {
     getMyCandidatureForListing,
     submitCandidature,
     markSentAsViewed,
+    authorizeVisit,
+    requestDocuments,
+    appendDocuments,
     acceptCandidature: (id: string) => updateStatus(id, 'accepted'),
     rejectCandidature: (id: string) => updateStatus(id, 'rejected'),
     loading,

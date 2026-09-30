@@ -1,7 +1,7 @@
 /**
  * Produits expérimentaux (bail longue durée, hôtel) :
- * visibles UNIQUEMENT pour un admin connecté (tests internes).
- * Masqués pour tous les autres utilisateurs.
+ * - Admins : toujours visibles
+ * - Autres : selon les flags DB (platform_feature_flags)
  */
 export const FEATURE_FLAG_KEYS = {
   monthlyRental: 'monthly_rental',
@@ -18,8 +18,8 @@ export const FEATURE_FLAG_DEFAULTS: Record<FeatureFlagKey, boolean> = {
 };
 
 /**
- * Gate : seuls les admins connectés voient bail longue durée + hôtel.
- * Les flags DB / admin UI n’ouvrent pas le produit aux non-admins.
+ * Gate : admins voient toujours ; non-admins suivent les flags DB.
+ * (Évite l’espace hôtel / bail qui apparaît puis disparaît.)
  */
 export function applyExperimentalProductGate(
   flags: Record<FeatureFlagKey, boolean>,
@@ -32,15 +32,11 @@ export function applyExperimentalProductGate(
       hotel: true,
     };
   }
-  return {
-    ...flags,
-    monthly_rental: false,
-    hotel: false,
-  };
+  return { ...flags };
 }
 
-/** @deprecated Préférer useFeatureFlags() — toujours false hors admin. */
+/** @deprecated Préférer useFeatureFlags() */
 export const FEATURE_MONTHLY_RENTAL = false;
 
-/** @deprecated Préférer useFeatureFlags() — toujours false hors admin. */
+/** @deprecated Préférer useFeatureFlags() */
 export const FEATURE_HOTEL = false;

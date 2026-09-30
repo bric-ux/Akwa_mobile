@@ -58,6 +58,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
     number_of_rooms: '',
     bedrooms: '',
     bathrooms: '',
+    toilets: '',
     is_furnished: false,
     monthly_rent_price: '',
     security_deposit: '',
@@ -186,6 +187,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
       number_of_rooms: rooms,
       bedrooms: beds,
       bathrooms: baths,
+      toilets: form.toilets.trim() ? parseInt(form.toilets, 10) : null,
       is_furnished: form.is_furnished,
       monthly_rent_price: rent,
       security_deposit: form.security_deposit ? parseInt(form.security_deposit, 10) : null,
@@ -380,6 +382,20 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
                 placeholderTextColor="#999"
               />
             </View>
+          </View>
+          <View style={styles.row}>
+            <View style={[styles.block, styles.half]}>
+              <Text style={styles.label}>Toilettes</Text>
+              <TextInput
+                style={styles.input}
+                value={form.toilets}
+                onChangeText={(v) => set('toilets', v)}
+                placeholder="WC"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+              />
+            </View>
+            <View style={[styles.block, styles.half]} />
           </View>
           <View style={styles.block}>
             <Text style={styles.label}>Type de location</Text>

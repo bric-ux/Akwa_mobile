@@ -468,10 +468,10 @@ export const useMessaging = () => {
         return existing.id;
       }
 
-      // Créer une nouvelle conversation (comme sur le site web)
       const insertData: any = {
         guest_id: guestId,
-        host_id: hostId
+        host_id: hostId,
+        kind: 'listing',
       };
       
       if (propertyId) {

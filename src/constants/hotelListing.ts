@@ -23,6 +23,7 @@ export const HOTEL_LANGUAGE_OPTIONS = [
   { value: 'nouchi', label: 'Nouchi' },
   { value: 'dioula', label: 'Dioula' },
   { value: 'baoule', label: 'Baoulé' },
+  { value: 'bete', label: 'Bété' },
   { value: 'es', label: 'Espagnol' },
   { value: 'pt', label: 'Portugais' },
   { value: 'ar', label: 'Arabe' },

@@ -9,6 +9,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Linking,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,23 +18,53 @@ import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navig
 import { useMonthlyRentalCandidatures } from '../hooks/useMonthlyRentalCandidatures';
 import { useMonthlyRentalListings } from '../hooks/useMonthlyRentalListings';
 import type { MonthlyRentalCandidature } from '../types';
-import { monthlyRentalDocumentLabel } from '../constants/monthlyRentalDocuments';
+import {
+  MONTHLY_RENTAL_DOCUMENT_OPTIONS,
+  monthlyRentalDocumentLabel,
+} from '../constants/monthlyRentalDocuments';
 import { MONTHLY_RENTAL_COLORS } from '../constants/colors';
 import SimpleMessageModal from '../components/SimpleMessageModal';
 
 type RouteParams = { listingId: string };
 
+const STATUS_LABEL: Record<string, string> = {
+  sent: 'Dossier envoyé',
+  viewed: 'Vu',
+  accepted: 'Dossier accepté',
+  rejected: 'Refusé',
+  visit_authorized: 'Visite autorisée',
+  docs_requested: 'Documents demandés',
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  sent: '#f59e0b',
+  viewed: '#1976d2',
+  accepted: '#2E7D32',
+  rejected: '#c62828',
+  visit_authorized: '#0d9488',
+  docs_requested: '#b45309',
+};
+
 const MonthlyRentalCandidaturesScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
   const listingId = route.params?.listingId;
-  const { getByListingId, acceptCandidature, rejectCandidature, markSentAsViewed, loading } =
-    useMonthlyRentalCandidatures();
+  const {
+    getByListingId,
+    acceptCandidature,
+    rejectCandidature,
+    authorizeVisit,
+    requestDocuments,
+    markSentAsViewed,
+    loading,
+  } = useMonthlyRentalCandidatures();
   const { getListingById } = useMonthlyRentalListings();
   const [candidatures, setCandidatures] = useState<MonthlyRentalCandidature[]>([]);
   const [listingTitle, setListingTitle] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
   const [messageTarget, setMessageTarget] = useState<MonthlyRentalCandidature | null>(null);
+  const [docsTarget, setDocsTarget] = useState<MonthlyRentalCandidature | null>(null);
+  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     if (!listingId) return;
@@ -43,8 +75,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
     const hasSent = list.some((c) => c.status === 'sent');
     if (hasSent) {
       await markSentAsViewed(listingId);
-      const refreshed = await getByListingId(listingId);
-      setCandidatures(refreshed);
+      setCandidatures(await getByListingId(listingId));
     } else {
       setCandidatures(list);
     }
@@ -54,7 +85,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+    }, [load]),
   );
 
   const handleRefresh = async () => {
@@ -64,70 +95,87 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
   };
 
   const handleAccept = (c: MonthlyRentalCandidature) => {
-    Alert.alert(
-      'Accepter le dossier',
-      `Accepter le dossier de ${c.full_name} ? Vous pourrez ensuite organiser la visite.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Accepter le dossier',
-          onPress: async () => {
-            const r = await acceptCandidature(c.id);
-            if (r.success) load();
-            else Alert.alert('Erreur', r.error);
-          },
+    Alert.alert('Accepter le dossier', `Accepter le dossier de ${c.full_name} ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Accepter',
+        onPress: async () => {
+          const r = await acceptCandidature(c.id);
+          if (r.success) load();
+          else Alert.alert('Erreur', r.error);
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleReject = (c: MonthlyRentalCandidature) => {
-    Alert.alert(
-      'Refuser le dossier',
-      `Refuser le dossier de ${c.full_name} ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Refuser',
-          style: 'destructive',
-          onPress: async () => {
-            const r = await rejectCandidature(c.id);
-            if (r.success) load();
-            else Alert.alert('Erreur', r.error);
-          },
+    Alert.alert('Refuser le dossier', `Refuser le dossier de ${c.full_name} ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Refuser',
+        style: 'destructive',
+        onPress: async () => {
+          const r = await rejectCandidature(c.id);
+          if (r.success) load();
+          else Alert.alert('Erreur', r.error);
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const statusLabel = (s: string) => {
-    if (s === 'sent') return 'Dossier envoyé';
-    if (s === 'viewed') return 'Vu';
-    if (s === 'accepted') return 'Dossier accepté';
-    return 'Refusé';
+  const handleAuthorizeVisit = (c: MonthlyRentalCandidature) => {
+    Alert.alert('Autoriser une visite', `Autoriser ${c.full_name} à visiter le logement ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Autoriser',
+        onPress: async () => {
+          const r = await authorizeVisit(c.id);
+          if (r.success) {
+            Alert.alert('Visite autorisée', 'Le candidat peut organiser la visite via la messagerie.');
+            load();
+          } else Alert.alert('Erreur', r.error);
+        },
+      },
+    ]);
   };
 
-  const statusColor = (s: string) => {
-    if (s === 'sent') return '#f59e0b';
-    if (s === 'viewed') return '#1976d2';
-    if (s === 'accepted') return '#2E7D32';
-    return '#c62828';
+  const openDocsModal = (c: MonthlyRentalCandidature) => {
+    setDocsTarget(c);
+    setSelectedDocs(c.requested_documents || []);
   };
+
+  const confirmDocs = async () => {
+    if (!docsTarget || selectedDocs.length === 0) {
+      Alert.alert('Sélection', 'Choisissez au moins un document.');
+      return;
+    }
+    const r = await requestDocuments(docsTarget.id, selectedDocs);
+    if (r.success) {
+      setDocsTarget(null);
+      Alert.alert('Demande envoyée', 'Le candidat pourra déposer les documents.');
+      load();
+    } else Alert.alert('Erreur', r.error);
+  };
+
+  const isOpen = (s: string) =>
+    s === 'sent' || s === 'viewed' || s === 'docs_requested' || s === 'visit_authorized';
 
   const renderItem = ({ item }: { item: MonthlyRentalCandidature }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.name}>{item.full_name}</Text>
-        <View style={[styles.badge, { backgroundColor: statusColor(item.status) + '20' }]}>
-          <Text style={[styles.badgeText, { color: statusColor(item.status) }]}>
-            {statusLabel(item.status)}
+        <View style={[styles.badge, { backgroundColor: (STATUS_COLOR[item.status] || '#999') + '20' }]}>
+          <Text style={[styles.badgeText, { color: STATUS_COLOR[item.status] || '#666' }]}>
+            {STATUS_LABEL[item.status] || item.status}
           </Text>
         </View>
       </View>
       <Text style={styles.email}>{item.email}</Text>
       <Text style={styles.phone}>{item.phone}</Text>
       {item.message ? (
-        <Text style={styles.message} numberOfLines={3}>{item.message}</Text>
+        <Text style={styles.message} numberOfLines={3}>
+          {item.message}
+        </Text>
       ) : null}
       {Array.isArray(item.application_documents) && item.application_documents.length > 0 ? (
         <View style={styles.docs}>
@@ -146,6 +194,11 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
             </TouchableOpacity>
           ))}
         </View>
+      ) : null}
+      {Array.isArray(item.requested_documents) && item.requested_documents.length > 0 ? (
+        <Text style={styles.requestedHint}>
+          Docs demandés : {item.requested_documents.map(monthlyRentalDocumentLabel).join(', ')}
+        </Text>
       ) : null}
       {(item.desired_move_in_date || item.duration_months) && (
         <View style={styles.meta}>
@@ -168,24 +221,28 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
         <Ionicons name="chatbubble-outline" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
         <Text style={styles.btnMessageText}>Répondre / écrire</Text>
       </TouchableOpacity>
-      {(item.status === 'sent' || item.status === 'viewed') && (
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.btnAccept}
-            onPress={() => handleAccept(item)}
-          >
-            <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-            <Text style={styles.btnAcceptText}>Accepter le dossier</Text>
+      {isOpen(item.status) ? (
+        <View style={styles.actionsCol}>
+          <TouchableOpacity style={styles.btnSecondary} onPress={() => handleAuthorizeVisit(item)}>
+            <Ionicons name="calendar-outline" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
+            <Text style={styles.btnSecondaryText}>Autoriser une visite</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.btnReject}
-            onPress={() => handleReject(item)}
-          >
-            <Ionicons name="close-circle-outline" size={20} color="#c62828" />
-            <Text style={styles.btnRejectText}>Refuser</Text>
+          <TouchableOpacity style={styles.btnSecondary} onPress={() => openDocsModal(item)}>
+            <Ionicons name="document-attach-outline" size={18} color={MONTHLY_RENTAL_COLORS.primary} />
+            <Text style={styles.btnSecondaryText}>Demander documents</Text>
           </TouchableOpacity>
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.btnAccept} onPress={() => handleAccept(item)}>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+              <Text style={styles.btnAcceptText}>Accepter</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnReject} onPress={() => handleReject(item)}>
+              <Ionicons name="close-circle-outline" size={20} color="#c62828" />
+              <Text style={styles.btnRejectText}>Refuser</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
+      ) : null}
     </View>
   );
 
@@ -210,19 +267,14 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
           renderItem={renderItem}
           contentContainerStyle={candidatures.length === 0 ? styles.emptyList : styles.list}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={['#2E7D32']}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#2E7D32']} />
           }
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={56} color="#ccc" />
               <Text style={styles.emptyTitle}>Aucune candidature</Text>
               <Text style={styles.emptySubtitle}>
-                Les dossiers des candidats apparaîtront ici. Acceptez un dossier avant d’organiser
-                une visite.
+                Les dossiers des candidats apparaîtront ici.
               </Text>
             </View>
           }
@@ -240,6 +292,45 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
           }}
         />
       ) : null}
+
+      <Modal visible={!!docsTarget} animationType="slide" transparent onRequestClose={() => setDocsTarget(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Documents complémentaires</Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {MONTHLY_RENTAL_DOCUMENT_OPTIONS.map((opt) => {
+                const on = selectedDocs.includes(opt.id);
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={styles.docOption}
+                    onPress={() =>
+                      setSelectedDocs((prev) =>
+                        on ? prev.filter((id) => id !== opt.id) : [...prev, opt.id],
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name={on ? 'checkbox' : 'square-outline'}
+                      size={22}
+                      color={on ? MONTHLY_RENTAL_COLORS.primary : '#94a3b8'}
+                    />
+                    <Text style={styles.docOptionText}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setDocsTarget(null)}>
+                <Text style={styles.modalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={() => void confirmDocs()}>
+                <Text style={styles.modalConfirmText}>Envoyer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -272,7 +363,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  name: { fontSize: 16, fontWeight: '600', color: '#222' },
+  name: { fontSize: 16, fontWeight: '600', color: '#222', flex: 1, marginRight: 8 },
   badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   badgeText: { fontSize: 12, fontWeight: '600' },
   email: { fontSize: 14, color: '#555', marginBottom: 2 },
@@ -291,6 +382,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   docLinkText: { flex: 1, fontSize: 13, color: '#334155' },
+  requestedHint: { fontSize: 12, color: '#b45309', marginBottom: 8 },
   meta: { marginBottom: 6 },
   metaText: { fontSize: 13, color: '#666' },
   date: { fontSize: 12, color: '#999', marginBottom: 12 },
@@ -306,6 +398,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   btnMessageText: { color: MONTHLY_RENTAL_COLORS.primary, fontWeight: '600', fontSize: 14 },
+  actionsCol: { gap: 8 },
+  btnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+  },
+  btnSecondaryText: { color: MONTHLY_RENTAL_COLORS.primary, fontWeight: '600', fontSize: 14 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   btnAccept: {
     flex: 1,
@@ -332,6 +437,39 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginTop: 16 },
   emptySubtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginTop: 8 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 28,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#111', marginBottom: 12 },
+  docOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  docOptionText: { flex: 1, fontSize: 14, color: '#334155' },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  modalCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+  },
+  modalCancelText: { fontWeight: '600', color: '#64748b' },
+  modalConfirm: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: MONTHLY_RENTAL_COLORS.primary,
+    alignItems: 'center',
+  },
+  modalConfirmText: { fontWeight: '700', color: '#fff' },
 });
 
 export default MonthlyRentalCandidaturesScreen;

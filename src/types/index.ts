@@ -513,7 +513,13 @@ export interface VehiclePhoto {
 
 // Location mensuelle (bail longue durée) - tables séparées, pas mélangées avec properties
 export type MonthlyRentalListingStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'archived';
-export type MonthlyRentalCandidatureStatus = 'sent' | 'viewed' | 'accepted' | 'rejected';
+export type MonthlyRentalCandidatureStatus =
+  | 'sent'
+  | 'viewed'
+  | 'accepted'
+  | 'rejected'
+  | 'visit_authorized'
+  | 'docs_requested';
 export type MonthlyRentalPaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
 export interface MonthlyRentalListing {
@@ -530,6 +536,7 @@ export interface MonthlyRentalListing {
   number_of_rooms: number;
   bedrooms: number;
   bathrooms: number;
+  toilets: number | null;
   is_furnished: boolean;
   monthly_rent_price: number;
   security_deposit: number | null;
@@ -577,6 +584,9 @@ export interface MonthlyRentalCandidature {
   status: MonthlyRentalCandidatureStatus;
   /** Pièces jointes : [{ type, url, name }] */
   application_documents?: { type: string; url: string; name: string }[];
+  requested_documents?: string[];
+  visit_authorized_at?: string | null;
+  docs_requested_at?: string | null;
   viewed_at: string | null;
   decided_at: string | null;
   created_at: string;

@@ -17,7 +17,8 @@ import { useAdmin, DashboardStats } from '../hooks/useAdmin';
 import { useAuth } from '../services/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import AdminNotificationBell from '../components/AdminNotificationBell';
-import AdminRecentBookingsSection from '../components/admin/AdminRecentBookingsSection';
+import AdminBookingBreakdownSection from '../components/admin/AdminBookingBreakdownSection';
+import type { BookingBreakdown } from '../components/admin/AdminBookingBreakdownSection';
 import { supabase } from '../services/supabase';
 
 type ActionItem = {
@@ -46,6 +47,7 @@ const AdminDashboardScreen: React.FC = () => {
   getDashboardStatsRef.current = getDashboardStats;
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [bookingBreakdown, setBookingBreakdown] = useState<BookingBreakdown | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [testingEmail, setTestingEmail] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -64,7 +66,16 @@ const AdminDashboardScreen: React.FC = () => {
 
   const loadStats = useCallback(async () => {
     try {
-      setStats(await getDashboardStatsRef.current('all'));
+      const [dash, breakdownRes] = await Promise.all([
+        getDashboardStatsRef.current('all'),
+        supabase.rpc('admin_booking_status_breakdown'),
+      ]);
+      setStats(dash);
+      if (breakdownRes.data) {
+        setBookingBreakdown(breakdownRes.data as BookingBreakdown);
+      } else if (breakdownRes.error) {
+        console.warn('admin_booking_status_breakdown:', breakdownRes.error);
+      }
     } catch (error) {
       console.error('Erreur stats admin:', error);
     } finally {
@@ -608,13 +619,13 @@ const AdminDashboardScreen: React.FC = () => {
           );
         })}
 
-        <Text style={styles.kicker}>Activité récente</Text>
+        <Text style={styles.kicker}>Réservations</Text>
         {loadingStats && !stats ? (
           <View style={{ paddingVertical: 24, alignItems: 'center' }}>
             <ActivityIndicator size="small" color="#64748b" />
           </View>
         ) : (
-          <AdminRecentBookingsSection items={stats?.recentBookings || []} limit={8} />
+          <AdminBookingBreakdownSection breakdown={bookingBreakdown} />
         )}
 
         <View style={{ height: 32 }} />

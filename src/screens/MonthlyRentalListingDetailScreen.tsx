@@ -176,6 +176,9 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
             <View style={styles.spec}>
               <Ionicons name="water-outline" size={20} color="#666" />
               <Text style={styles.specText}>{listing.bathrooms} SdB</Text>
+              {listing.toilets != null ? (
+                <Text style={styles.specText}>{listing.toilets} WC</Text>
+              ) : null}
             </View>
             {listing.is_furnished ? (
               <View style={styles.spec}>
