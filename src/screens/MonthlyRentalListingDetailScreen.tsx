@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
@@ -23,6 +22,7 @@ import SimpleMessageModal from '../components/SimpleMessageModal';
 import { monthlyFurnitureLabel } from '../constants/monthlyFurniture';
 import PublicOwnerCard from '../components/PublicOwnerCard';
 import PropertyMap from '../components/PropertyMap';
+import PropertyImageCarousel from '../components/PropertyImageCarousel';
 
 type RouteProps = RouteProp<RootStackParamList, 'MonthlyRentalListingDetail'>;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -135,8 +135,7 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
     );
   }
 
-  const images = Array.isArray(listing.images) ? listing.images : [];
-  const mainImage = images[0] || 'https://via.placeholder.com/400x250';
+  const images = Array.isArray(listing.images) ? listing.images.filter(Boolean) : [];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -153,7 +152,13 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Image source={{ uri: mainImage }} style={styles.heroImage} resizeMode="cover" />
+        {images.length > 0 ? (
+          <PropertyImageCarousel images={images} height={250} />
+        ) : (
+          <View style={[styles.heroImage, styles.heroPlaceholder]}>
+            <Ionicons name="image-outline" size={48} color="#94a3b8" />
+          </View>
+        )}
         <View style={styles.body}>
           <Text style={styles.title}>{listing.title}</Text>
           <Text style={styles.location}>📍 {listing.location}</Text>
@@ -291,6 +296,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   heroImage: { width: SCREEN_WIDTH, height: 250, backgroundColor: '#ddd' },
+  heroPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' },
   body: { padding: 20, backgroundColor: '#fff', marginTop: 8 },
   title: { fontSize: 22, fontWeight: '700', color: '#1a1a1a', marginBottom: 8 },
   location: { fontSize: 15, color: '#666', marginBottom: 12 },

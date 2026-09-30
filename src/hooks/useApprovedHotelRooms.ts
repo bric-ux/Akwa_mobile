@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
-import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
+import {
+  mergeNearbyHotelEstablishments,
+  resolveHotelSearchCenter,
+} from '../lib/hotelSearchProximity';
 
 export type HotelRoomSearchResult = {
   id: string;
@@ -100,28 +103,31 @@ export const useApprovedHotelRooms = () => {
         }
 
         const city = filters?.city?.trim();
-        if (city) {
-          const resolved = await resolveLocationIdsForSearchTerm(city, {
-            centerLat: filters?.centerLat,
-            centerLng: filters?.centerLng,
-            radiusKm: filters?.radiusKm,
-          });
-          const nameTerms = [city, ...(resolved.locationNames || [])]
-            .map((n) => n.trim())
-            .filter(Boolean)
-            .filter((n, i, arr) => arr.findIndex((x) => x.toLowerCase() === n.toLowerCase()) === i)
-            .slice(0, 8);
+        const resolved = city
+          ? await resolveHotelSearchCenter({
+              city,
+              centerLat: filters?.centerLat,
+              centerLng: filters?.centerLng,
+              radiusKm: filters?.radiusKm,
+            })
+          : null;
 
+        if (city && resolved) {
+          console.log('🔎 [hotel] début chambres', {
+            city,
+            center: { lat: resolved.centerLat, lng: resolved.centerLng },
+            mergeRadius: resolved.mergeRadius,
+          });
           if (resolved.locationIds && resolved.locationIds.length > 0) {
             const orParts = [
               `location_id.in.(${resolved.locationIds.join(',')})`,
-              ...nameTerms.map((n) => `address.ilike.%${n}%`),
-              ...nameTerms.map((n) => `title.ilike.%${n}%`),
+              ...resolved.nameTerms.map((n) => `address.ilike.%${n}%`),
+              ...resolved.nameTerms.map((n) => `title.ilike.%${n}%`),
             ];
             estQuery = estQuery.or(orParts.join(','));
-          } else if (nameTerms.length > 0) {
+          } else if (resolved.nameTerms.length > 0) {
             estQuery = estQuery.or(
-              nameTerms
+              resolved.nameTerms
                 .flatMap((n) => [`address.ilike.%${n}%`, `title.ilike.%${n}%`])
                 .join(','),
             );
@@ -130,12 +136,45 @@ export const useApprovedHotelRooms = () => {
           }
         }
 
-        const { data: establishments, error: estErr } = await estQuery.limit(60);
+        const { data: estRows, error: estErr } = await estQuery.limit(60);
         if (estErr) {
           setError(estErr.message);
           setRooms([]);
           return [];
         }
+
+        let establishments = estRows || [];
+        if (city && resolved?.centerLat != null && resolved.centerLng != null) {
+          establishments = await mergeNearbyHotelEstablishments(
+            establishments as any[],
+            async (bbox) => {
+              let nearbyQuery = supabase
+                .from('hotel_establishments')
+                .select(
+                  'id, title, address, establishment_type, star_rating, rating, review_count, images, location_id, latitude, longitude',
+                )
+                .eq('status', 'active')
+                .eq('hidden_by_admin', false)
+                .not('latitude', 'is', null)
+                .not('longitude', 'is', null)
+                .gte('latitude', bbox.latMin)
+                .lte('latitude', bbox.latMax)
+                .gte('longitude', bbox.lngMin)
+                .lte('longitude', bbox.lngMax)
+                .limit(150);
+              if (filters?.starRating && filters.starRating > 0) {
+                nearbyQuery = nearbyQuery.gte('star_rating', filters.starRating);
+              }
+              const { data: nearby, error: nErr } = await nearbyQuery;
+              if (nErr) throw nErr;
+              return (nearby || []) as any[];
+            },
+            resolved.centerLat,
+            resolved.centerLng,
+            resolved.mergeRadius,
+          );
+        }
+
         if (!establishments?.length) {
           setRooms([]);
           return [];

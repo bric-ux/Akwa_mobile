@@ -377,6 +377,33 @@ export const useMonthlyRentalCandidatures = () => {
     [user],
   );
 
+  /** Supprime définitivement une demande (propriétaire). */
+  const deleteCandidature = useCallback(
+    async (candidatureId: string): Promise<{ success: boolean; error?: string }> => {
+      if (!user) return { success: false, error: 'Non connecté' };
+      setLoading(true);
+      setError(null);
+      try {
+        const { error: err } = await supabase
+          .from('monthly_rental_candidatures')
+          .delete()
+          .eq('id', candidatureId);
+        if (err) {
+          setError(err.message);
+          return { success: false, error: err.message };
+        }
+        return { success: true };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Erreur';
+        setError(msg);
+        return { success: false, error: msg };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user],
+  );
+
   return {
     getByListingId,
     getByOwnerId,
@@ -389,6 +416,7 @@ export const useMonthlyRentalCandidatures = () => {
     appendDocuments,
     acceptCandidature: (id: string) => updateStatus(id, 'accepted'),
     rejectCandidature: (id: string) => updateStatus(id, 'rejected'),
+    deleteCandidature,
     loading,
     error,
   };

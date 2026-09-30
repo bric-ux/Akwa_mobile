@@ -81,6 +81,7 @@ const HomeScreen: React.FC = () => {
   } = useExploreCityHome();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [homeShelfRefreshKey, setHomeShelfRefreshKey] = useState(0);
   const lastScrollY = useRef(0);
   const [teddyFabVisibleFromScroll, setTeddyFabVisibleFromScroll] = useState(true);
   const teddyFabVisibleRef = useRef(true);
@@ -128,6 +129,7 @@ const HomeScreen: React.FC = () => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      setHomeShelfRefreshKey((k) => k + 1);
       await refreshExploreCityHome();
     } finally {
       setRefreshing(false);
@@ -263,7 +265,7 @@ const HomeScreen: React.FC = () => {
 
       {showDeferredHeaderContent ? (
         <>
-          <HomeCategoryPills />
+          <HomeCategoryPills refreshKey={homeShelfRefreshKey} />
           <MatchPredictionBanner />
           <HomeWeatherChip />
           <ZipDailyCard />
@@ -277,7 +279,7 @@ const HomeScreen: React.FC = () => {
       )}
 
       {/* Ordre rayons : Hôtels → Résidences meublées → (villes) ; bail longue durée en bas */}
-      <HomeStayTypeShelves mode="hotel" />
+      <HomeStayTypeShelves mode="hotel" refreshKey={homeShelfRefreshKey} />
 
       <View style={styles.section}>
         <View style={styles.exploreIntroHeader}>
@@ -286,12 +288,12 @@ const HomeScreen: React.FC = () => {
         {exploreErrorCard}
       </View>
     </>
-  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard]);
+  ), [handleSearchPress, showDeferredHeaderContent, exploreErrorCard, homeShelfRefreshKey]);
 
   const listFooter = useMemo(
     () => (
       <>
-        <HomeStayTypeShelves mode="monthly" />
+        <HomeStayTypeShelves mode="monthly" refreshKey={homeShelfRefreshKey} />
 
         {/* Location de véhicules — même largeur que la grille 2 services */}
         <View style={styles.vehiclesPromoSection}>
@@ -391,7 +393,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </>
     ),
-    [navigation, openKeyboxWhatsApp, bottomServiceCardSize, windowWidth],
+    [navigation, openKeyboxWhatsApp, bottomServiceCardSize, windowWidth, homeShelfRefreshKey],
   );
   const scrollContentStyle = useMemo(
     () => [styles.scrollContent, { paddingBottom: 20 + TEDDY_FAB_SCROLL_PADDING }],

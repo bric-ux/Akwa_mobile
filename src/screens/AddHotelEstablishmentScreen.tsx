@@ -281,22 +281,53 @@ export default function AddHotelEstablishmentScreen() {
 
       if (error) throw error;
 
+      const { error: submitErr } = await supabase
+        .from('hotel_establishments')
+        .update({
+          status: 'pending',
+          submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', created.id)
+        .eq('host_id', user.id);
+
+      if (submitErr) {
+        Alert.alert(
+          'Brouillon enregistré',
+          submitErr.message ||
+            'L’établissement a été créé, mais la soumission a échoué. Vous pouvez le soumettre depuis Mes établissements.',
+          [
+            {
+              text: 'Voir mes établissements',
+              onPress: () => {
+                navigation.navigate('ModeTransition', {
+                  targetMode: 'hotel',
+                  targetPath: 'HotelOwnerSpace',
+                  fromMode: 'traveler',
+                });
+              },
+            },
+            { text: 'OK' },
+          ],
+        );
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const hostName =
+        [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Hôtelier';
+      notifyHotelEstablishmentSubmitted(created.id, title.trim(), hostName).catch(() => {});
+
       Alert.alert(
-        'Établissement créé',
-        'Ajoutez maintenant vos types de chambres (ex. 10 chambres Standard, 4 Suites).',
+        'Succès',
+        'Votre établissement a été soumis pour validation. Vous pourrez ajouter les chambres depuis Mes établissements.',
         [
           {
-            text: 'Ajouter des chambres',
-            onPress: () => {
-              navigation.replace('ManageHotelRoomTypes', {
-                establishmentId: created.id,
-                establishmentTitle: title.trim(),
-              });
-            },
-          },
-          {
-            text: 'Plus tard',
-            style: 'cancel',
+            text: 'OK',
             onPress: () => {
               navigation.navigate('ModeTransition', {
                 targetMode: 'hotel',
@@ -306,6 +337,7 @@ export default function AddHotelEstablishmentScreen() {
             },
           },
         ],
+        { cancelable: false },
       );
     } catch (e: unknown) {
       Alert.alert(
@@ -398,7 +430,7 @@ export default function AddHotelEstablishmentScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color="#0f172a" />
@@ -412,8 +444,13 @@ export default function AddHotelEstablishmentScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
       >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           <Text style={styles.eyebrow}>Hôtel</Text>
           <Text style={styles.title}>
             {isEdit ? 'Modifier votre établissement' : 'Créer votre établissement'}
@@ -660,7 +697,7 @@ export default function AddHotelEstablishmentScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.submitText}>
-                {isEdit ? 'Enregistrer' : 'Créer l’établissement'}
+                {isEdit ? 'Enregistrer' : 'Soumettre pour validation'}
               </Text>
             )}
           </TouchableOpacity>

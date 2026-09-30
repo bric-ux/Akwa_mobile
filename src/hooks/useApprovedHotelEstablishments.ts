@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
-import { resolveLocationIdsForSearchTerm } from '../lib/resolveSearchLocations';
+import {
+  mergeNearbyHotelEstablishments,
+  resolveHotelSearchCenter,
+} from '../lib/hotelSearchProximity';
 
 export type HotelEstablishmentPublic = {
   id: string;
@@ -33,6 +36,9 @@ export type ApprovedHotelFilters = {
   forHome?: boolean;
 };
 
+const SELECT_COLS =
+  'id, title, description, address, establishment_type, star_rating, rating, review_count, images, amenities, location_id, latitude, longitude, status, hide_from_home, created_at, updated_at';
+
 /** Catalogue public des établissements hôteliers actifs. */
 export const useApprovedHotelEstablishments = () => {
   const [establishments, setEstablishments] = useState<HotelEstablishmentPublic[]>([]);
@@ -44,11 +50,19 @@ export const useApprovedHotelEstablishments = () => {
       setLoading(true);
       setError(null);
       try {
+        const city = filters?.city?.trim();
+        const resolved = city
+          ? await resolveHotelSearchCenter({
+              city,
+              centerLat: filters?.centerLat,
+              centerLng: filters?.centerLng,
+              radiusKm: filters?.radiusKm,
+            })
+          : null;
+
         let query = supabase
           .from('hotel_establishments')
-          .select(
-            'id, title, description, address, establishment_type, star_rating, rating, review_count, images, amenities, location_id, latitude, longitude, status, hide_from_home, created_at, updated_at',
-          )
+          .select(SELECT_COLS)
           .eq('status', 'active')
           .eq('hidden_by_admin', false)
           .order('updated_at', { ascending: false });
@@ -65,29 +79,22 @@ export const useApprovedHotelEstablishments = () => {
           query = query.eq('establishment_type', filters.establishmentType);
         }
 
-        const city = filters?.city?.trim();
-        if (city) {
-          const resolved = await resolveLocationIdsForSearchTerm(city, {
-            centerLat: filters?.centerLat,
-            centerLng: filters?.centerLng,
-            radiusKm: filters?.radiusKm,
+        if (city && resolved) {
+          console.log('🔎 [hotel] début établissements', {
+            city,
+            center: { lat: resolved.centerLat, lng: resolved.centerLng },
+            mergeRadius: resolved.mergeRadius,
           });
-          const nameTerms = [city, ...(resolved.locationNames || [])]
-            .map((n) => n.trim())
-            .filter(Boolean)
-            .filter((n, i, arr) => arr.findIndex((x) => x.toLowerCase() === n.toLowerCase()) === i)
-            .slice(0, 8);
-
           if (resolved.locationIds && resolved.locationIds.length > 0) {
             const orParts = [
               `location_id.in.(${resolved.locationIds.join(',')})`,
-              ...nameTerms.map((n) => `address.ilike.%${n}%`),
-              ...nameTerms.map((n) => `title.ilike.%${n}%`),
+              ...resolved.nameTerms.map((n) => `address.ilike.%${n}%`),
+              ...resolved.nameTerms.map((n) => `title.ilike.%${n}%`),
             ];
             query = query.or(orParts.join(','));
-          } else if (nameTerms.length > 0) {
+          } else if (resolved.nameTerms.length > 0) {
             query = query.or(
-              nameTerms
+              resolved.nameTerms
                 .flatMap((n) => [`address.ilike.%${n}%`, `title.ilike.%${n}%`])
                 .join(','),
             );
@@ -101,7 +108,50 @@ export const useApprovedHotelEstablishments = () => {
           setError(err.message);
           return [];
         }
-        const result = (data || []) as HotelEstablishmentPublic[];
+        let result = (data || []) as HotelEstablishmentPublic[];
+
+        if (
+          city &&
+          resolved?.centerLat != null &&
+          resolved.centerLng != null
+        ) {
+          result = await mergeNearbyHotelEstablishments(
+            result,
+            async (bbox) => {
+              let nearbyQuery = supabase
+                .from('hotel_establishments')
+                .select(SELECT_COLS)
+                .eq('status', 'active')
+                .eq('hidden_by_admin', false)
+                .not('latitude', 'is', null)
+                .not('longitude', 'is', null)
+                .gte('latitude', bbox.latMin)
+                .lte('latitude', bbox.latMax)
+                .gte('longitude', bbox.lngMin)
+                .lte('longitude', bbox.lngMax)
+                .limit(150);
+              if (filters?.forHome) {
+                nearbyQuery = nearbyQuery.eq('hide_from_home', false);
+              }
+              if (filters?.starRating && filters.starRating > 0) {
+                nearbyQuery = nearbyQuery.gte('star_rating', filters.starRating);
+              }
+              if (filters?.establishmentType) {
+                nearbyQuery = nearbyQuery.eq(
+                  'establishment_type',
+                  filters.establishmentType,
+                );
+              }
+              const { data: nearby, error: nErr } = await nearbyQuery;
+              if (nErr) throw nErr;
+              return (nearby || []) as HotelEstablishmentPublic[];
+            },
+            resolved.centerLat,
+            resolved.centerLng,
+            resolved.mergeRadius,
+          );
+        }
+
         setEstablishments(result);
         return result;
       } catch (e) {

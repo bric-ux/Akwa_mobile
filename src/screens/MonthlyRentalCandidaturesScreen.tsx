@@ -56,6 +56,7 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
     authorizeVisit,
     requestDocuments,
     markSentAsViewed,
+    deleteCandidature,
     loading,
   } = useMonthlyRentalCandidatures();
   const { getListingById } = useMonthlyRentalListings();
@@ -121,6 +122,25 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
         },
       },
     ]);
+  };
+
+  const handleDelete = (c: MonthlyRentalCandidature) => {
+    Alert.alert(
+      'Supprimer la demande',
+      `Supprimer définitivement la demande de ${c.full_name} ? Cette action est irréversible.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const r = await deleteCandidature(c.id);
+            if (r.success) load();
+            else Alert.alert('Erreur', r.error);
+          },
+        },
+      ],
+    );
   };
 
   const handleAuthorizeVisit = (c: MonthlyRentalCandidature) => {
@@ -241,6 +261,10 @@ const MonthlyRentalCandidaturesScreen: React.FC = () => {
               <Text style={styles.btnRejectText}>Refuser</Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity style={styles.btnDelete} onPress={() => handleDelete(item)}>
+            <Ionicons name="trash-outline" size={18} color="#b91c1c" />
+            <Text style={styles.btnDeleteText}>Supprimer la demande</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
     </View>
@@ -434,6 +458,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   btnRejectText: { color: '#c62828', fontWeight: '600', fontSize: 14 },
+  btnDelete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fff',
+  },
+  btnDeleteText: { color: '#b91c1c', fontWeight: '600', fontSize: 14 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginTop: 16 },
   emptySubtitle: { fontSize: 14, color: '#666', textAlign: 'center', marginTop: 8 },

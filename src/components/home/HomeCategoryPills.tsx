@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { HOME_EXPLORE_HORIZONTAL_GUTTER } from '../../constants/homeExploreLayout';
 import { useFeatureFlags } from '../../contexts/FeatureFlagsContext';
 import { useApprovedHotelEstablishments } from '../../hooks/useApprovedHotelEstablishments';
@@ -50,7 +50,7 @@ const HOTEL_CATEGORY: CategoryDef = {
 };
 
 /** Pills catégories — hôtel / bail uniquement s’il existe au moins une annonce publiée. */
-export default function HomeCategoryPills() {
+export default function HomeCategoryPills({ refreshKey = 0 }: { refreshKey?: number }) {
   const navigation = useNavigation();
   const { monthlyRental, hotel, loading: flagsLoading } = useFeatureFlags();
   const { fetchEstablishments } = useApprovedHotelEstablishments();
@@ -58,31 +58,33 @@ export default function HomeCategoryPills() {
   const [hasHotels, setHasHotels] = useState(false);
   const [hasMonthly, setHasMonthly] = useState(false);
 
-  useEffect(() => {
+  const loadPresence = useCallback(async () => {
     if (flagsLoading) return;
-    let cancelled = false;
 
-    const run = async () => {
-      if (hotel) {
-        const list = await fetchEstablishments({ forHome: true });
-        if (!cancelled) setHasHotels(list.length > 0);
-      } else if (!cancelled) {
-        setHasHotels(false);
-      }
+    if (hotel) {
+      const list = await fetchEstablishments({ forHome: true });
+      setHasHotels(list.length > 0);
+    } else {
+      setHasHotels(false);
+    }
 
-      if (monthlyRental) {
-        const list = await fetchListings({});
-        if (!cancelled) setHasMonthly(list.length > 0);
-      } else if (!cancelled) {
-        setHasMonthly(false);
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
+    if (monthlyRental) {
+      const list = await fetchListings({});
+      setHasMonthly(list.length > 0);
+    } else {
+      setHasMonthly(false);
+    }
   }, [flagsLoading, hotel, monthlyRental, fetchEstablishments, fetchListings]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadPresence();
+    }, [loadPresence]),
+  );
+
+  useEffect(() => {
+    if (refreshKey > 0) void loadPresence();
+  }, [refreshKey, loadPresence]);
 
   // Ordre : Hôtels → Résidences → Véhicules → Bail longue durée (en dernier)
   const categories = useMemo(() => {

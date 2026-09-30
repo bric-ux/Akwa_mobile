@@ -41,7 +41,7 @@ const PROPERTY_TYPES = [
 const AddMonthlyRentalListingScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { createListing, loading } = useMonthlyRentalListings(user?.id);
+  const { createListing, submitForApproval, loading } = useMonthlyRentalListings(user?.id);
   const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
   const [locationId, setLocationId] = useState<string | null>(null);
   const [preciseLocation, setPreciseLocation] = useState<PropertyLocationPickerValue>({
@@ -200,13 +200,20 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
       status: 'draft',
     });
 
-    if (result.success) {
+    if (!result.success || !result.id) {
+      Alert.alert('Erreur', result.error || 'Impossible d\'ajouter le logement.');
+      return;
+    }
+
+    const submit = await submitForApproval(result.id);
+    if (!submit.success) {
       Alert.alert(
-        'Succès',
-        'Logement enregistré en brouillon. Passez en mode bail longue durée pour le gérer (soumettre, modifier, demandes de visite).',
+        'Brouillon enregistré',
+        submit.error ||
+          'Le logement a été enregistré, mais la soumission a échoué. Vous pouvez le soumettre depuis Mes logements.',
         [
           {
-            text: 'Mode bail longue durée',
+            text: 'Voir mes logements',
             onPress: () => {
               navigation.navigate('ModeTransition' as never, {
                 targetMode: 'monthly_rental',
@@ -215,12 +222,29 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
               });
             },
           },
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]
+          { text: 'OK' },
+        ],
       );
-    } else {
-      Alert.alert('Erreur', result.error || 'Impossible d\'ajouter le logement.');
+      return;
     }
+
+    Alert.alert(
+      'Succès',
+      'Votre annonce a été soumise pour validation.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            navigation.navigate('ModeTransition' as never, {
+              targetMode: 'monthly_rental',
+              targetPath: 'MonthlyRentalOwnerSpace',
+              fromMode: 'traveler',
+            });
+          },
+        },
+      ],
+      { cancelable: false },
+    );
   };
 
   return (
@@ -234,9 +258,14 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={80}
+        keyboardVerticalOffset={0}
       >
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           <View style={styles.block}>
             <Text style={styles.label}>Titre *</Text>
             <TextInput
@@ -577,7 +606,7 @@ const AddMonthlyRentalListingScreen: React.FC = () => {
             {loading || uploadingImages ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitText}>Enregistrer le logement</Text>
+              <Text style={styles.submitText}>Soumettre pour validation</Text>
             )}
           </TouchableOpacity>
         </ScrollView>

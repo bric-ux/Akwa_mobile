@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useFeatureFlags } from '../../contexts/FeatureFlagsContext';
 import { useApprovedMonthlyRentalListings } from '../../hooks/useApprovedMonthlyRentalListings';
 import { useApprovedHotelEstablishments } from '../../hooks/useApprovedHotelEstablishments';
@@ -23,10 +23,12 @@ const SHELF_LIMIT = 8;
 type Props = {
   /** Par défaut les deux. Sur l’accueil : hôtel avant résidences, bail longue durée en bas. */
   mode?: 'hotel' | 'monthly' | 'all';
+  /** Incrémenté au pull-to-refresh pour forcer un rechargement. */
+  refreshKey?: number;
 };
 
 /** Rayons accueil : hôtels et/ou bail longue durée — masqués s’il n’y a aucune annonce publiée. */
-export default function HomeStayTypeShelves({ mode = 'all' }: Props) {
+export default function HomeStayTypeShelves({ mode = 'all', refreshKey = 0 }: Props) {
   const navigation = useNavigation<any>();
   const { monthlyRental, hotel, loading: flagsLoading } = useFeatureFlags();
   const flagHotel = (mode === 'hotel' || mode === 'all') && hotel;
@@ -66,9 +68,16 @@ export default function HomeStayTypeShelves({ mode = 'all' }: Props) {
     }
   }, [flagMonthly, flagHotel, flagsLoading, fetchListings, fetchEstablishments]);
 
+  // Recharge à chaque retour sur l’accueil (ex. après approbation admin)
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (refreshKey > 0) void load();
+  }, [refreshKey, load]);
 
   const showHotel = flagHotel && hotelsReady && hotels.length > 0;
   const showMonthly = flagMonthly && monthlyReady && monthly.length > 0;
