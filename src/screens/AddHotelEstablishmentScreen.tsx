@@ -940,7 +940,7 @@ export default function AddHotelEstablishmentScreen() {
             <Text style={styles.addRoomText}>Ajouter un type de chambre</Text>
           </TouchableOpacity>
 
-          {!isEdit ? (
+          {!isEdit || status === 'draft' || status === 'rejected' || status === 'hidden' ? (
             <TouchableOpacity
               style={[styles.draftBtn, saving && { opacity: 0.7 }]}
               onPress={() => void handleSave(true)}
