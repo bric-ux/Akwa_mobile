@@ -197,6 +197,22 @@ const MonthlyRentalListingDetailScreen: React.FC = () => {
                 <Text style={styles.specText}>Non meublé</Text>
               </View>
             )}
+            {listing.deposit_months != null ? (
+              <View style={styles.spec}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#666" />
+                <Text style={styles.specText}>
+                  Caution {listing.deposit_months} mois
+                </Text>
+              </View>
+            ) : null}
+            {listing.advance_months != null ? (
+              <View style={styles.spec}>
+                <Ionicons name="calendar-outline" size={20} color="#666" />
+                <Text style={styles.specText}>
+                  Avance {listing.advance_months} mois
+                </Text>
+              </View>
+            ) : null}
           </View>
           {listing.description ? (
             <View style={styles.section}>

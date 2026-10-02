@@ -540,6 +540,10 @@ export interface MonthlyRentalListing {
   is_furnished: boolean;
   monthly_rent_price: number;
   security_deposit: number | null;
+  /** Nombre de mois de caution (ex. 2) */
+  deposit_months?: number | null;
+  /** Nombre de mois d’avance de loyer */
+  advance_months?: number | null;
   minimum_duration_months: number | null;
   charges_included: boolean;
   address_details: string | null;

@@ -20,6 +20,8 @@ export interface MonthlyRentalListingInput {
   is_furnished: boolean;
   monthly_rent_price: number;
   security_deposit?: number | null;
+  deposit_months?: number | null;
+  advance_months?: number | null;
   minimum_duration_months?: number | null;
   charges_included: boolean;
   address_details?: string | null;
@@ -104,6 +106,8 @@ export const useMonthlyRentalListings = (hostId: string | undefined) => {
             is_furnished: input.is_furnished,
             monthly_rent_price: input.monthly_rent_price,
             security_deposit: input.security_deposit ?? null,
+            deposit_months: input.deposit_months ?? null,
+            advance_months: input.advance_months ?? null,
             minimum_duration_months: input.minimum_duration_months ?? null,
             charges_included: input.charges_included,
             address_details: input.address_details || null,

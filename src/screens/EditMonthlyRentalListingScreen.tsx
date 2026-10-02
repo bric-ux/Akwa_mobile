@@ -66,7 +66,8 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
     toilets: '',
     is_furnished: false,
     monthly_rent_price: '',
-    security_deposit: '',
+    deposit_months: '',
+    advance_months: '',
     minimum_duration_months: '1',
     charges_included: false,
     address_details: '',
@@ -100,7 +101,8 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
         toilets: (listing as any).toilets != null ? String((listing as any).toilets) : '',
         is_furnished: listing.is_furnished ?? false,
         monthly_rent_price: String(listing.monthly_rent_price ?? ''),
-        security_deposit: listing.security_deposit != null ? String(listing.security_deposit) : '',
+        deposit_months: listing.deposit_months != null ? String(listing.deposit_months) : '',
+        advance_months: listing.advance_months != null ? String(listing.advance_months) : '',
         minimum_duration_months: listing.minimum_duration_months != null ? String(listing.minimum_duration_months) : '1',
         charges_included: listing.charges_included ?? false,
         address_details: listing.address_details || '',
@@ -258,7 +260,12 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
       toilets: form.toilets.trim() ? parseInt(form.toilets, 10) : null,
       is_furnished: form.is_furnished,
       monthly_rent_price: rent,
-      security_deposit: form.security_deposit ? parseInt(form.security_deposit, 10) : null,
+      deposit_months: form.deposit_months.trim()
+        ? parseInt(form.deposit_months, 10)
+        : null,
+      advance_months: form.advance_months.trim()
+        ? parseInt(form.advance_months, 10)
+        : null,
       minimum_duration_months: form.minimum_duration_months ? parseInt(form.minimum_duration_months, 10) : null,
       charges_included: form.charges_included,
       address_details: form.address_details.trim() || null,
@@ -573,12 +580,23 @@ const EditMonthlyRentalListingScreen: React.FC = () => {
             />
           </View>
           <View style={styles.block}>
-            <Text style={styles.label}>Caution (FCFA)</Text>
+            <Text style={styles.label}>Mois de caution</Text>
             <TextInput
               style={styles.input}
-              value={form.security_deposit}
-              onChangeText={(v) => set('security_deposit', v)}
-              placeholder="Optionnel"
+              value={form.deposit_months}
+              onChangeText={(v) => set('deposit_months', v)}
+              placeholder="Ex. 2"
+              keyboardType="numeric"
+              placeholderTextColor="#999"
+            />
+          </View>
+          <View style={styles.block}>
+            <Text style={styles.label}>Mois d'avance</Text>
+            <TextInput
+              style={styles.input}
+              value={form.advance_months}
+              onChangeText={(v) => set('advance_months', v)}
+              placeholder="Ex. 1"
               keyboardType="numeric"
               placeholderTextColor="#999"
             />
