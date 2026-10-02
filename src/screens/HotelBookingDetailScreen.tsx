@@ -50,7 +50,7 @@ export default function HotelBookingDetailScreen() {
         .select(
           `
           id, booking_code, check_in_date, check_out_date, guests_count,
-          total_price, status, payment_method, payment_status, paid_at,
+          total_price, host_net_amount, status, payment_method, payment_status, paid_at,
           message_to_host, created_at, guest_id, establishment_id,
           hotel_establishments ( id, title, host_id, address ),
           hotel_booking_items (
@@ -87,6 +87,10 @@ export default function HotelBookingDetailScreen() {
       const pricePerNight = Number(item?.price_per_night || 0);
       const cleaningFee = Number(item?.cleaning_fee || 0);
       const taxesPerNight = Number(room?.taxes_per_night || 0);
+      const taxesTotal = taxesPerNight * nights;
+      const nightsLine = pricePerNight * nights;
+      const total = Number(booking.total_price || 0);
+      const serviceFee = Math.max(0, Math.round(total - nightsLine - taxesTotal - cleaningFee));
 
       setRaw(booking);
       setInvoice({
@@ -99,8 +103,13 @@ export default function HotelBookingDetailScreen() {
         guests: booking.guests_count,
         pricePerNight,
         cleaningFee,
-        taxesTotal: taxesPerNight * nights,
-        total: Number(booking.total_price || 0),
+        taxesTotal,
+        total,
+        serviceFee,
+        hostNetAmount:
+          (booking as any).host_net_amount != null
+            ? Number((booking as any).host_net_amount)
+            : null,
         paymentMethod: booking.payment_method,
         paymentStatus: (booking as any).payment_status || 'unpaid',
         status: booking.status,

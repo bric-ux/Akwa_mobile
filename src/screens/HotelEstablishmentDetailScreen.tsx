@@ -38,6 +38,7 @@ import {
   hotelCancellationLabel,
   hotelLanguageLabel,
 } from '../constants/hotelListing';
+import { calculateHotelBookingAmounts } from '../lib/commissions';
 import {
   startHotelCardCheckout,
   startHotelWaveCheckout,
@@ -222,7 +223,11 @@ export default function HotelEstablishmentDetailScreen() {
   const taxesTotal =
     selectedRoom && nights > 0 ? (selectedRoom.taxes_per_night || 0) * nights : 0;
   const cleaningFee = selectedRoom?.cleaning_fee || 0;
-  const total = roomSubtotal + taxesTotal + cleaningFee;
+  const hotelAmounts = calculateHotelBookingAmounts(roomSubtotal, taxesTotal, cleaningFee);
+  const serviceFee = hotelAmounts.serviceFee;
+  const hostCommission = hotelAmounts.hostCommission;
+  const hostNetAmount = hotelAmounts.hostNetAmount;
+  const total = hotelAmounts.total;
 
   useEffect(() => {
     let cancelled = false;
@@ -451,6 +456,9 @@ export default function HotelEstablishmentDetailScreen() {
         cleaningFee: selectedRoom.cleaning_fee || 0,
         taxesTotal,
         totalPrice: total,
+        serviceFee,
+        hostCommission,
+        hostNetAmount,
         messageToHost: message.trim() || undefined,
         paymentMethod: paymentMethod as 'card' | 'wave',
         currency,
@@ -490,7 +498,7 @@ export default function HotelEstablishmentDetailScreen() {
         check_out_date: checkOut,
         guests_count: guests,
         total_price: total,
-        host_net_amount: total,
+        host_net_amount: hostNetAmount,
         status: autoConfirm ? 'confirmed' : 'pending',
         message_to_host: message.trim() || null,
         payment_currency: 'XOF',
@@ -565,6 +573,9 @@ export default function HotelEstablishmentDetailScreen() {
     guests,
     total,
     taxesTotal,
+    serviceFee,
+    hostCommission,
+    hostNetAmount,
     message,
     item,
     formatPrice,
@@ -995,8 +1006,18 @@ export default function HotelEstablishmentDetailScreen() {
                       <Text style={styles.sumValue}>{formatPrice(cleaningFee)}</Text>
                     </View>
                   ) : null}
+                  {serviceFee > 0 ? (
+                    <View style={styles.sumLine}>
+                      <Text style={styles.sumLabel}>
+                        Frais de service ({hotelAmounts.travelerFeePercent}%)
+                      </Text>
+                      <Text style={styles.sumValue}>{formatPrice(serviceFee)}</Text>
+                    </View>
+                  ) : null}
                   <View style={[styles.sumLine, styles.sumTotal]}>
-                    <Text style={styles.sumTotalLabel}>Total à régler à l’arrivée</Text>
+                    <Text style={styles.sumTotalLabel}>
+                      {paymentMethod === 'cash' ? 'Total à régler à l’arrivée' : 'Total'}
+                    </Text>
                     <Text style={styles.sumTotalValue}>{formatPrice(total)}</Text>
                   </View>
                 </View>

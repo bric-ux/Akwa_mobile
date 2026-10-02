@@ -1,8 +1,8 @@
 /**
  * Module de calcul des commissions AkwaHome
  *
- * Résidences : 12 % frais voyageur + 2 % commission hôte (14 % total)
- * Véhicules  : 10 % frais locataire + 2 % commission propriétaire (12 % total)
+ * Résidences / hôtels : 12 % frais voyageur + 2 % commission hôte (14 % total)
+ * Véhicules           : 10 % frais locataire + 2 % commission propriétaire (12 % total)
  * Sans TVA sur les frais / commissions.
  *
  * ORDRE DE CALCUL:
@@ -11,7 +11,7 @@
  * 3. Calcul des commissions sur le prix APRÈS réduction
  */
 
-export type ServiceType = 'property' | 'vehicle';
+export type ServiceType = 'property' | 'vehicle' | 'hotel';
 
 export interface CommissionRates {
   travelerFeePercent: number;  // Frais de service payés par le voyageur
@@ -27,8 +27,8 @@ export const SERVICE_FEE_VAT_RATE = 0;
 
 /**
  * Retourne les taux de commission selon le type de service.
- * Résidences : 12 % voyageur / 2 % hôte.
- * Véhicules  : 10 % locataire / 2 % propriétaire.
+ * Résidences / hôtels : 12 % voyageur / 2 % hôte.
+ * Véhicules           : 10 % locataire / 2 % propriétaire.
  */
 export function getCommissionRates(
   serviceType: ServiceType,
@@ -40,6 +40,31 @@ export function getCommissionRates(
     travelerFeePercent: travelerPercent,
     hostFeePercent: 2,
     totalAkwahomePercent: travelerPercent + 2
+  };
+}
+
+/**
+ * Montants hôtel (mêmes règles que les résidences meublées).
+ * Commissions sur le sous-total chambres ; taxes + ménage hors base commission.
+ */
+export function calculateHotelBookingAmounts(
+  roomSubtotal: number,
+  taxesTotal: number = 0,
+  cleaningFee: number = 0,
+) {
+  const rates = getCommissionRates('hotel');
+  const serviceFee = Math.round(roomSubtotal * (rates.travelerFeePercent / 100));
+  const hostCommission = Math.round(roomSubtotal * (rates.hostFeePercent / 100));
+  const hostGross = roomSubtotal + taxesTotal + cleaningFee;
+  const total = hostGross + serviceFee;
+  const hostNetAmount = hostGross - hostCommission;
+  return {
+    travelerFeePercent: rates.travelerFeePercent,
+    hostFeePercent: rates.hostFeePercent,
+    serviceFee,
+    hostCommission,
+    total,
+    hostNetAmount,
   };
 }
 

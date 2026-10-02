@@ -5,6 +5,7 @@
 import { Linking } from 'react-native';
 import { createCheckoutSession, checkPaymentStatus } from './cardPaymentService';
 import { createWaveCheckoutSession, openWavePayment } from './wavePaymentService';
+import { calculateHotelBookingAmounts } from '../lib/commissions';
 
 function makeCheckoutToken(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/x/g, () =>
@@ -25,6 +26,9 @@ export type HotelDraftCheckoutInput = {
   cleaningFee: number;
   taxesTotal: number;
   totalPrice: number;
+  serviceFee?: number;
+  hostCommission?: number;
+  hostNetAmount?: number;
   messageToHost?: string;
   paymentMethod: 'card' | 'wave';
   currency: string;
@@ -42,10 +46,21 @@ function buildHotelDraftBody(
   input: HotelDraftCheckoutInput,
   checkoutToken: string,
 ): Record<string, unknown> {
+  const roomSubtotal = input.pricePerNight * input.nights;
+  const amounts = calculateHotelBookingAmounts(
+    roomSubtotal,
+    input.taxesTotal,
+    input.cleaningFee,
+  );
+  const totalPrice = input.totalPrice ?? amounts.total;
+  const serviceFee = input.serviceFee ?? amounts.serviceFee;
+  const hostCommission = input.hostCommission ?? amounts.hostCommission;
+  const hostNetAmount = input.hostNetAmount ?? amounts.hostNetAmount;
+
   const amount =
     input.paymentMethod === 'wave' && input.currency === 'EUR' && input.eurRate
-      ? Math.round(input.totalPrice * input.eurRate)
-      : Math.round(input.totalPrice);
+      ? Math.round(totalPrice * input.eurRate)
+      : Math.round(totalPrice);
 
   const body: Record<string, unknown> = {
     checkout_token: checkoutToken,
@@ -63,8 +78,8 @@ function buildHotelDraftBody(
     checkInDate: input.checkIn,
     checkOutDate: input.checkOut,
     guestsCount: input.guestsCount,
-    totalPrice: input.totalPrice,
-    hostNetAmount: input.totalPrice,
+    totalPrice,
+    hostNetAmount,
     messageToHost: input.messageToHost || undefined,
     paymentMethod: input.paymentMethod,
     paymentPlan: 'full',
@@ -82,14 +97,14 @@ function buildHotelDraftBody(
       },
     ],
     pricingSnapshot: {
-      basePrice: input.pricePerNight * input.nights,
-      priceAfterDiscount: input.pricePerNight * input.nights,
+      basePrice: roomSubtotal,
+      priceAfterDiscount: roomSubtotal,
       totalCleaningFee: input.cleaningFee,
       totalTaxes: input.taxesTotal,
-      serviceFee: 0,
-      hostCommission: 0,
-      hostNetAmount: input.totalPrice,
-      finalTotal: input.totalPrice,
+      serviceFee,
+      hostCommission,
+      hostNetAmount,
+      finalTotal: totalPrice,
     },
   };
 

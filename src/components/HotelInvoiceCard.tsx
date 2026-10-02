@@ -16,6 +16,9 @@ export type HotelInvoiceData = {
   cleaningFee: number;
   taxesTotal: number;
   total: number;
+  /** Frais de service voyageur (12 %) — déduit du total si absent */
+  serviceFee?: number;
+  hostNetAmount?: number | null;
   paymentMethod: string | null;
   paymentStatus: string | null;
   status: string;
@@ -68,6 +71,15 @@ type Props = {
 
 export default function HotelInvoiceCard({ data, variant = 'traveler' }: Props) {
   const nightsLine = data.pricePerNight * data.nights;
+  const hostGross = nightsLine + data.taxesTotal + data.cleaningFee;
+  const serviceFee =
+    data.serviceFee != null
+      ? data.serviceFee
+      : Math.max(0, Math.round(data.total - hostGross));
+  const hostCommission =
+    data.hostNetAmount != null
+      ? Math.max(0, Math.round(hostGross - data.hostNetAmount))
+      : 0;
   const payLabel = PAY_METHOD[data.paymentMethod || ''] || data.paymentMethod || '—';
   const payStatusLabel = PAY_STATUS[data.paymentStatus || ''] || data.paymentStatus || '—';
 
@@ -132,9 +144,29 @@ export default function HotelInvoiceCard({ data, variant = 'traveler' }: Props) 
           <Text style={styles.lineValue}>{formatFcfa(data.cleaningFee)}</Text>
         </View>
       ) : null}
+      {serviceFee > 0 ? (
+        <View style={styles.line}>
+          <Text style={styles.lineLabel}>Frais de service</Text>
+          <Text style={styles.lineValue}>{formatFcfa(serviceFee)}</Text>
+        </View>
+      ) : null}
+      {variant === 'host' && hostCommission > 0 ? (
+        <View style={styles.line}>
+          <Text style={styles.lineLabel}>Commission AkwaHome</Text>
+          <Text style={styles.lineValue}>- {formatFcfa(hostCommission)}</Text>
+        </View>
+      ) : null}
+      {variant === 'host' && data.hostNetAmount != null ? (
+        <View style={styles.line}>
+          <Text style={styles.lineLabel}>Vous recevez</Text>
+          <Text style={styles.lineValue}>{formatFcfa(data.hostNetAmount)}</Text>
+        </View>
+      ) : null}
 
       <View style={[styles.line, styles.totalLine]}>
-        <Text style={styles.totalLabel}>Total</Text>
+        <Text style={styles.totalLabel}>
+          {variant === 'host' ? 'Total payé par le voyageur' : 'Total'}
+        </Text>
         <Text style={styles.totalValue}>{formatFcfa(data.total)}</Text>
       </View>
 
