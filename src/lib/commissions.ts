@@ -1,7 +1,9 @@
 /**
  * Module de calcul des commissions AkwaHome
  *
- * Résidences / véhicules : frais de service voyageur (% sur prix après réduction) et commission hôte (%), sans TVA.
+ * Résidences : 12 % frais voyageur + 2 % commission hôte (14 % total)
+ * Véhicules  : 10 % frais locataire + 2 % commission propriétaire (12 % total)
+ * Sans TVA sur les frais / commissions.
  *
  * ORDRE DE CALCUL:
  * 1. Prix de base × nombre de nuits/jours
@@ -25,14 +27,15 @@ export const SERVICE_FEE_VAT_RATE = 0;
 
 /**
  * Retourne les taux de commission selon le type de service.
- * Frais voyageur / locataire : 1 % HT (CB ou autre : même taux).
+ * Résidences : 12 % voyageur / 2 % hôte.
+ * Véhicules  : 10 % locataire / 2 % propriétaire.
  */
 export function getCommissionRates(
-  _serviceType: ServiceType,
+  serviceType: ServiceType,
   _currency?: CurrencyCode,
   _isCardPayment?: boolean
 ): CommissionRates {
-  const travelerPercent = 1;
+  const travelerPercent = serviceType === 'vehicle' ? 10 : 12;
   return {
     travelerFeePercent: travelerPercent,
     hostFeePercent: 2,

@@ -141,7 +141,7 @@ export function calculateFees(
   const isFreeCleaningApplicable = propertyFees?.free_cleaning_min_days && nights >= propertyFees.free_cleaning_min_days;
   const cleaningFee = isFreeCleaningApplicable ? 0 : baseCleaningFee;
   
-  // Frais de service voyageur / locataire : taux depuis getCommissionRates (1 % HT actuellement)
+  // Frais de service voyageur / locataire : taux depuis getCommissionRates (12 % résidences / 10 % véhicules)
   const commissionRates = getCommissionRates(serviceType, currency, isCardPayment);
   const serviceFeeHT = Math.round(priceAfterDiscount * (commissionRates.travelerFeePercent / 100));
   const serviceFeeVAT = 0;

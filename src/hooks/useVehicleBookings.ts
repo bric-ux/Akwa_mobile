@@ -355,7 +355,7 @@ export const useVehicleBookings = () => {
       
       const basePriceWithDriver = basePrice + driverFee;
       
-      // Calculer les frais de service (11% + TVA pour les véhicules)
+      // Calculer les frais de service (10% locataire pour les véhicules)
       const vehicleCurrency = (bookingData.paymentCurrency || currency) as 'XOF' | 'EUR' | 'USD';
       const isCardPayment = bookingData.paymentMethod === 'card';
       const commissionRates = getCommissionRates('vehicle', vehicleCurrency, isCardPayment);
