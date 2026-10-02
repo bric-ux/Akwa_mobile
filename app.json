@@ -4,7 +4,7 @@
     "slug": "AkwaHomeMobile",
     "scheme": "akwahomemobile",
     "version": "1.1.15",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -40,7 +40,7 @@
       "androidStatusBar": {
         "barStyle": "dark-content",
         "backgroundColor": "#ffffff",
-        "translucent": false
+        "translucent": true
       },
       "splash": {
         "image": "./assets/icon.png",
@@ -51,7 +51,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": false,
+      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.jeanbrice270.AkwaHomeMobile",
       "versionCode": 25,
@@ -137,7 +137,9 @@
         {
           "android": {
             "compileSdkVersion": 36,
-            "targetSdkVersion": 36
+            "targetSdkVersion": 36,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
           }
         }
       ],

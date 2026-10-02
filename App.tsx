@@ -41,7 +41,7 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={styles.gestureRoot}>
-      <StatusBar style="dark" {...(Platform.OS === 'android' ? { backgroundColor: '#ffffff', translucent: false } : {})} />
+      <StatusBar style="dark" {...(Platform.OS === 'android' ? { translucent: true } : {})} />
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <LanguageProvider>
